@@ -1,0 +1,183 @@
+:root {
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #252526;
+  --bg-tertiary: #2d2d2d;
+  --bg-hover: #383838;
+  --bg-active: #37373d;
+  --bg-input: #3c3c3c;
+  --border-color: #3c3c3c;
+  --border-focus: #6b9cc7;
+  --text-primary: #cccccc;
+  --text-secondary: #969696;
+  --text-bright: #e0e0e0;
+  --accent: #4b8bbf;
+  --accent-hover: #5a9bd0;
+  --accent-muted: rgba(75, 139, 191, 0.15);
+  --danger: #c55050;
+  --danger-hover: #d35f5f;
+  --success: #5a9e5e;
+  --warning: #c49040;
+  --tab-active-bg: #1e1e1e;
+  --tab-inactive-bg: #2d2d2d;
+  --scrollbar-thumb: #424242;
+  --scrollbar-track: #1e1e1e;
+  --font-ui: "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", "Oxygen", "Ubuntu", sans-serif;
+  --font-mono: "Cascadia Code", "Consolas", "Courier New", monospace;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+button {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  outline: none;
+  padding: 3px 10px;
+  border-radius: 2px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  transition: background 0.12s, border-color 0.12s;
+}
+
+button:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-color);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+button.primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+button.danger {
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+button.danger:hover {
+  background: rgba(197, 80, 80, 0.15);
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+button.secondary:hover {
+  background: var(--bg-hover);
+}
+
+button.ghost {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 2px 6px;
+}
+
+button.ghost:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+input, select, textarea {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
+  padding: 3px 8px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--border-focus);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.panel-header .actions {
+  display: flex;
+  gap: 2px;
+}
+
+.panel-header .actions button {
+  padding: 2px 6px;
+  font-size: 11px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+}
+
+.panel-header .actions button:hover {
+  background: var(--bg-hover);
+  color: var(--text-bright);
+}

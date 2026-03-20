@@ -1,0 +1,47 @@
+# --- Build outputs ---
+build/bin/
+frontend/dist/
+
+# --- Dependencies ---
+frontend/node_modules/
+
+# --- Local / sensitive runtime data (never commit) ---
+*.db
+*.db-shm
+*.db-wal
+*.age
+vault.age
+
+# --- IDE & editor ---
+.cursor/
+.vscode/
+.idea/
+*.swp
+*~
+
+# --- Logs ---
+*.log
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- Environment ---
+.env
+.env.*
+!.env.example
+
+# --- Go ---
+bin/
+coverage.out
+coverage.html
+*.test
+vendor/
+
+# --- Wails / frontend generated ---
+frontend/package.json.md5
+
+# Portable WebView2 runtime (downloaded by scripts; large)
+build/bin/WebView2/

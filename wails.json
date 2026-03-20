@@ -1,0 +1,23 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "xQuakShell",
+  "outputfilename": "xQuakShell",
+  "preBuildHooks": {
+    "*/*": "powershell -NoProfile -Command \"New-Item -ItemType Directory -Path '../windows' -Force | Out-Null; Copy-Item '../../images/icon.ico' '../windows/icon.ico' -Force\""
+  },
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Fedor Loskutov",
+    "email": "fedorlockytov2014@gmail.com"
+  },
+  "info": {
+    "companyName": "",
+    "productName": "xQuakShell",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright 2026",
+    "comments": "Portable SSH client with encrypted vault, terminal, SFTP, VPN, bastion chains and audit logging"
+  }
+}
