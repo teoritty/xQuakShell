@@ -46,7 +46,7 @@ func (a *AppAPI) SaveFolder(dto FolderDTO) (FolderDTO, error) {
 	return FolderToDTO(f), nil
 }
 
-// DeleteFolder removes a folder (connections move to root).
+// DeleteFolder removes a folder, its descendant folders, and all connections inside that subtree.
 func (a *AppAPI) DeleteFolder(id string) error {
 	return a.connRepo.DeleteFolder(context.Background(), id)
 }

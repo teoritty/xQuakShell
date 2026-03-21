@@ -184,7 +184,7 @@ type ConnectionRepository interface {
 	// SaveFolder creates or updates a folder. ID must be set for updates.
 	SaveFolder(ctx context.Context, f *ConnectionFolder) error
 
-	// DeleteFolder removes a folder by ID.
+	// DeleteFolder removes a folder by ID, descendant folders, and connections in that subtree.
 	DeleteFolder(ctx context.Context, id string) error
 
 	// GetAllConnections returns all connections regardless of folder.

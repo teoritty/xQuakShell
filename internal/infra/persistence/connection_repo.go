@@ -61,28 +61,58 @@ func (r *ConnectionRepo) SaveFolder(ctx context.Context, f *domain.ConnectionFol
 	return r.vault.SaveData(ctx, data)
 }
 
-// DeleteFolder removes a folder by ID. Connections in the folder are moved to root.
+// DeleteFolder removes a folder by ID and all descendant folders. Connections in those folders are removed.
 func (r *ConnectionRepo) DeleteFolder(ctx context.Context, id string) error {
 	data, err := r.vault.GetData()
 	if err != nil {
 		return fmt.Errorf("delete folder get data: %w", err)
 	}
 
-	for i := range data.Connections {
-		if data.Connections[i].FolderID == id {
-			data.Connections[i].FolderID = ""
-		}
-	}
+	subtree := folderSubtreeIDs(data.Folders, id)
 
-	filtered := make([]domain.ConnectionFolder, 0, len(data.Folders))
-	for _, f := range data.Folders {
-		if f.ID != id {
-			filtered = append(filtered, f)
+	keptConn := make([]domain.Connection, 0, len(data.Connections))
+	for _, c := range data.Connections {
+		if _, in := subtree[c.FolderID]; in {
+			continue
 		}
+		keptConn = append(keptConn, c)
 	}
-	data.Folders = filtered
+	data.Connections = keptConn
+
+	keptFolders := make([]domain.ConnectionFolder, 0, len(data.Folders))
+	for _, f := range data.Folders {
+		if _, in := subtree[f.ID]; in {
+			continue
+		}
+		keptFolders = append(keptFolders, f)
+	}
+	data.Folders = keptFolders
 
 	return r.vault.SaveData(ctx, data)
+}
+
+// folderSubtreeIDs returns rootID and all descendant folder IDs (by ParentID chain).
+func folderSubtreeIDs(folders []domain.ConnectionFolder, rootID string) map[string]struct{} {
+	out := map[string]struct{}{rootID: {}}
+	for {
+		added := false
+		for _, f := range folders {
+			if f.ID == "" {
+				continue
+			}
+			if _, has := out[f.ID]; has {
+				continue
+			}
+			if _, ok := out[f.ParentID]; ok {
+				out[f.ID] = struct{}{}
+				added = true
+			}
+		}
+		if !added {
+			break
+		}
+	}
+	return out
 }
 
 // GetAllConnections returns all connections regardless of folder.
