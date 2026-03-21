@@ -12,12 +12,12 @@ type FolderDTO struct {
 
 // ConnectionUserDTO is the UI-facing representation of a connection user.
 type ConnectionUserDTO struct {
-	ID       string              `json:"id"`
-	Username string              `json:"username"`
-	Auth     string              `json:"authMethod"`
-	KeyAuth  *KeyAuthConfigDTO   `json:"keyAuth,omitempty"`
-	PassAuth *PassAuthConfigDTO  `json:"passAuth,omitempty"`
-	Label    string              `json:"label,omitempty"`
+	ID       string             `json:"id"`
+	Username string             `json:"username"`
+	Auth     string             `json:"authMethod"`
+	KeyAuth  *KeyAuthConfigDTO  `json:"keyAuth,omitempty"`
+	PassAuth *PassAuthConfigDTO `json:"passAuth,omitempty"`
+	Label    string             `json:"label,omitempty"`
 }
 
 // KeyAuthConfigDTO holds key auth references for the UI.
@@ -102,7 +102,7 @@ type ConnectionDTO struct {
 	Proxy         *ProxyDTO           `json:"proxy,omitempty"`
 	TelnetConfig  *TelnetConfigDTO    `json:"telnetConfig,omitempty"`
 	RDPConfig     *RDPConfigDTO       `json:"rdpConfig,omitempty"`
-	SerialConfig  *SerialConfigDTO   `json:"serialConfig,omitempty"`
+	SerialConfig  *SerialConfigDTO    `json:"serialConfig,omitempty"`
 	HTTPConfig    *HTTPConfigDTO      `json:"httpConfig,omitempty"`
 }
 
@@ -481,4 +481,64 @@ func dtoToJumpHop(d JumpHopDTO) domain.JumpHop {
 		h.PassAuth = &domain.PasswordAuthConfig{PasswordID: d.PassAuth.PasswordID}
 	}
 	return h
+}
+
+// VPNProfileDTO is the UI-facing representation of a VPN profile.
+type VPNProfileDTO struct {
+	ID       string `json:"id"`
+	Label    string `json:"label"`
+	Protocol string `json:"protocol"`
+}
+
+// PuTTYSessionDTO is a preview item for REG import.
+type PuTTYSessionDTO struct {
+	Name     string `json:"name"`
+	HostName string `json:"hostName"`
+	Port     int    `json:"port"`
+	UserName string `json:"userName"`
+}
+
+// LocalNodeDTO represents a local file or directory entry.
+type LocalNodeDTO struct {
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	IsDir   bool   `json:"isDir"`
+	Size    int64  `json:"size"`
+	ModTime string `json:"modTime,omitempty"`
+	Mode    string `json:"mode,omitempty"`
+	Owner   string `json:"owner,omitempty"`
+}
+
+// AppSettingsDTO is the UI-facing representation of application settings.
+type AppSettingsDTO struct {
+	LockoutEnabled           bool   `json:"lockoutEnabled"`
+	LockoutIdleMinutes       int    `json:"lockoutIdleMinutes"`
+	LockOnMinimize           bool   `json:"lockOnMinimize"`
+	TerminalFontFamily       string `json:"terminalFontFamily"`
+	TerminalFontSize         int    `json:"terminalFontSize"`
+	TerminalFontColor        string `json:"terminalFontColor"`
+	Theme                    string `json:"theme"`
+	PingEnabled              bool   `json:"pingEnabled"`
+	PingMode                 string `json:"pingMode"`
+	PingIntervalSeconds      int    `json:"pingIntervalSeconds"`
+	PingIntervalMin          int    `json:"pingIntervalMin"`
+	ExternalEditorPath       string `json:"externalEditorPath"`
+	TransferSpeedLimitKbps   int    `json:"transferSpeedLimitKbps"`
+	ConnectionTimeoutSeconds int    `json:"connectionTimeoutSeconds"`
+	MaxConcurrentTransfers   int    `json:"maxConcurrentTransfers"`
+	SessionHotkeyCreate      string `json:"sessionHotkeyCreate"`
+	SessionHotkeyNext        string `json:"sessionHotkeyNext"`
+	SessionHotkeyPrev        string `json:"sessionHotkeyPrev"`
+	SessionHotkeyClose       string `json:"sessionHotkeyClose"`
+}
+
+// AuditEntryDTO is the UI-facing representation of an audit log entry.
+type AuditEntryDTO struct {
+	ID           int64  `json:"id"`
+	Timestamp    string `json:"timestamp"`
+	SessionID    string `json:"sessionId"`
+	ConnectionID string `json:"connectionId"`
+	Username     string `json:"username"`
+	Input        string `json:"input"`
+	Redacted     bool   `json:"redacted"`
 }

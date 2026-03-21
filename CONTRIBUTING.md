@@ -55,24 +55,40 @@ make dev
 
 ### Architecture
 
-- **Domain** — pure entities and interfaces; no external deps.
-- **Use cases** — orchestration; no infra details.
-- **Infrastructure** — implementations of domain ports.
-- **Presentation** — Wails bindings, DTOs, events.
+See **[docs/architecture.md](docs/architecture.md)** for a layer diagram, import table, SSH strategy, and where to extend vault / sessions / transfers.
+
+- **Domain** — entities and port interfaces. Allowed third-party import in domain: **`golang.org/x/crypto/ssh` only** (thin domain over SSH types in ports). Do **not** import `internal/presentation`, `internal/infra`, or `main` from `domain`.
+- **Use cases** — orchestration (`SessionManager`, etc.). May import **`internal/domain`** and stdlib only — **never** `internal/infra/*`.
+- **Infrastructure** — implementations of domain ports (SSH dialer, persistence, SFTP, connectors).
+- **Presentation** — Wails bindings (`api.go`, `handlers_wails.go`), DTOs, events; may call `infra` for small adapters (e.g. PTY).
 
 Keep changes localized to the appropriate layer.
+
+### Tests
+
+- Cover **everything that is reasonable to automate**: domain logic, use-case orchestration, adapters without heavy I/O, and critical error paths.
+- Before you commit, run tests for the packages you changed (`go test ./...` or a narrower path). Do not leave failing tests in touched areas.
+- **Exceptions:** Wails UI, some native OS calls, or rare glue may rely on manual or integration checks; call that out in the PR when a line of code is hard to unit-test behind an interface.
+- Layer boundary check (optional): `powershell -File scripts/check-imports.ps1` ensures `internal/usecase` does not import `internal/infra`.
+
+### Comments and style
+
+- Follow [Effective Go](https://go.dev/doc/effective_go), `gofmt`, and this project’s layer rules ([docs/architecture.md](docs/architecture.md)).
+- Use **godoc** on exported types and functions when the signature or contract is not obvious.
+- For non-trivial flows (SSH chain, jump hosts, host key handling, app shutdown order), add short comments that explain **why**, not a line-by-line restatement of the code. Skip noise on trivial code.
+
+### Commits
+
+- **One feature or one coherent unit of work per commit** (e.g. separate a mechanical move from a behavior change) so `git log` and reverts stay readable.
+- Use conventional prefixes: `fix:`, `feat:`, `docs:`, `refactor:`, `test:`.
+- Use present tense on the first line; keep it under 72 characters.
+- Write the **subject and body in English** (project-wide convention).
 
 ### Security
 
 - Never log secrets (passwords, keys, vault contents).
 - Use domain errors for user-facing messages; wrap low-level errors with `%w`.
 - Security-sensitive changes may require additional review.
-
-### Commit Messages
-
-- Use present tense: "Add feature" not "Added feature".
-- Prefix with type: `fix:`, `feat:`, `docs:`, `refactor:`, `test:`.
-- Keep the first line under 72 characters.
 
 ## Questions
 

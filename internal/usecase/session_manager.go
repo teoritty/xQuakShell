@@ -11,7 +11,6 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 
 	"ssh-client/internal/domain"
-	infrassh "ssh-client/internal/infra/ssh"
 )
 
 const serverAliveInterval = 30 * time.Second
@@ -50,13 +49,16 @@ type SessionManager struct {
 	passwordRepo    domain.PasswordRepository
 	knownHosts      domain.KnownHostsRepository
 	sshFactory      domain.SSHClientFactory
-	passphraseCache *infrassh.PassphraseCache
+	passphraseCache domain.PassphraseCache
+	hostKeyCB       domain.HostKeyCallbackBuilder
+	jumpTransport   domain.JumpTransportBuilder
+	keySigner       domain.PrivateKeySignerFactory
 	connectors      map[string]domain.SessionConnector
 
-	onStateChange   StateChangeFunc
-	onStreamReady   OnStreamReadyFunc
-	passphraseReq   PassphraseRequestFunc
-	hostKeyRequest  HostKeyRequestFunc
+	onStateChange  StateChangeFunc
+	onStreamReady  OnStreamReadyFunc
+	passphraseReq  PassphraseRequestFunc
+	hostKeyRequest HostKeyRequestFunc
 }
 
 // OnStreamReadyFunc is called when a stream connector (Telnet, Serial) has started
@@ -65,17 +67,21 @@ type OnStreamReadyFunc func(sessionID string, outputCh <-chan []byte)
 
 // SessionManagerConfig holds dependencies for creating a SessionManager.
 type SessionManagerConfig struct {
-	ConnRepo       domain.ConnectionRepository
-	VaultRepo      domain.VaultRepository
-	IdentRepo      domain.IdentityRepository
-	PasswordRepo   domain.PasswordRepository
-	KnownHosts     domain.KnownHostsRepository
-	SSHFactory     domain.SSHClientFactory
-	Connectors     []domain.SessionConnector
-	OnStateChange  StateChangeFunc
-	OnStreamReady  OnStreamReadyFunc
-	PassphraseReq  PassphraseRequestFunc
-	HostKeyRequest HostKeyRequestFunc
+	ConnRepo                domain.ConnectionRepository
+	VaultRepo               domain.VaultRepository
+	IdentRepo               domain.IdentityRepository
+	PasswordRepo            domain.PasswordRepository
+	KnownHosts              domain.KnownHostsRepository
+	SSHFactory              domain.SSHClientFactory
+	PassphraseCache         domain.PassphraseCache
+	HostKeyCallbackBuilder  domain.HostKeyCallbackBuilder
+	JumpTransportBuilder    domain.JumpTransportBuilder
+	PrivateKeySignerFactory domain.PrivateKeySignerFactory
+	Connectors              []domain.SessionConnector
+	OnStateChange           StateChangeFunc
+	OnStreamReady           OnStreamReadyFunc
+	PassphraseReq           PassphraseRequestFunc
+	HostKeyRequest          HostKeyRequestFunc
 }
 
 // NewSessionManager creates a SessionManager with the given dependencies.
@@ -92,7 +98,10 @@ func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 		passwordRepo:    cfg.PasswordRepo,
 		knownHosts:      cfg.KnownHosts,
 		sshFactory:      cfg.SSHFactory,
-		passphraseCache: infrassh.NewPassphraseCache(),
+		passphraseCache: cfg.PassphraseCache,
+		hostKeyCB:       cfg.HostKeyCallbackBuilder,
+		jumpTransport:   cfg.JumpTransportBuilder,
+		keySigner:       cfg.PrivateKeySignerFactory,
 		connectors:      connectors,
 		onStateChange:   cfg.OnStateChange,
 		onStreamReady:   cfg.OnStreamReady,
@@ -356,8 +365,9 @@ func (m *SessionManager) CloseAll() {
 }
 
 // connectSession performs the SSH handshake in a goroutine.
-// It resolves the default user's auth config and, if jump chain is configured,
-// establishes intermediate bastion connections first.
+// Order: resolve auth (keys/password) → host key callback → optional SOCKS → optional jump chain
+// transport → SSHClientFactory.Create → server-alive loop. Host key / passphrase UI is driven by
+// HostKeyRequestFunc and PassphraseRequestFunc, not by this package.
 // On host key errors it transitions to SessionHostKeyRequired and waits for RetrySession.
 func (m *SessionManager) connectSession(entry *sessionEntry, conn *domain.Connection) {
 	signers, password, err := m.resolveAuth(entry.ctx, conn)
@@ -366,8 +376,7 @@ func (m *SessionManager) connectSession(entry *sessionEntry, conn *domain.Connec
 		return
 	}
 
-	hostChecker := infrassh.NewHostKeyChecker(m.knownHosts)
-	hostKeyCallback := hostChecker.HostKeyCallback()
+	hostKeyCallback := m.hostKeyCB.Build(m.knownHosts)
 
 	timeoutSec := 15
 	if data, err := m.vaultRepo.GetData(); err == nil && data.Settings != nil && data.Settings.Transfer.ConnectionTimeoutSec > 0 {
@@ -408,7 +417,7 @@ func (m *SessionManager) connectSession(entry *sessionEntry, conn *domain.Connec
 				}
 			}
 		}
-		transport, chainCleanup, chainErr := infrassh.BuildTransportChain(
+		transport, chainCleanup, chainErr := m.jumpTransport.BuildChain(
 			entry.ctx,
 			conn.JumpChain.Hops,
 			conn.Host, conn.Port,
@@ -479,9 +488,9 @@ func (m *SessionManager) handleHostKeyError(entry *sessionEntry, conn *domain.Co
 		Mismatch: mismatch,
 	}
 
-	var hkErr *infrassh.HostKeyError
-	if errors.As(err, &hkErr) && hkErr.Key != nil {
-		extracted := infrassh.ExtractHostKeyInfo(hkErr.Host, hkErr.Key)
+	var hkErr *domain.HostKeyVerificationError
+	if errors.As(err, &hkErr) && hkErr != nil && hkErr.Key != nil {
+		extracted := domain.HostKeyInfoFromPublicKey(hkErr.Host, hkErr.Key)
 		hkInfo.Host = extracted.Host
 		hkInfo.KeyType = extracted.KeyType
 		hkInfo.Fingerprint = extracted.Fingerprint
@@ -626,7 +635,7 @@ func (m *SessionManager) loadSignersLegacy(ctx context.Context, identityIDs []st
 		}
 
 		passphrase, _ := m.passphraseCache.Get(idRef)
-		signer, err := infrassh.ParseKeyWithPassphrase(pemData, passphrase)
+		signer, err := m.keySigner.ParsePrivateKeyWithPassphrase(pemData, passphrase)
 		if err != nil {
 			if err == domain.ErrPassphraseRequired && m.passphraseReq != nil {
 				identMeta, _ := m.getIdentityMeta(ctx, idRef)
@@ -638,7 +647,7 @@ func (m *SessionManager) loadSignersLegacy(ctx context.Context, identityIDs []st
 				if ppErr != nil {
 					return nil, fmt.Errorf("passphrase request for %s: %w", idRef, ppErr)
 				}
-				signer, err = infrassh.ParseKeyWithPassphrase(pemData, pp)
+				signer, err = m.keySigner.ParsePrivateKeyWithPassphrase(pemData, pp)
 				if err != nil {
 					return nil, fmt.Errorf("parse key %s with passphrase: %w", idRef, err)
 				}

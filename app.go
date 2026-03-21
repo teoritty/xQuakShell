@@ -40,7 +40,18 @@ func NewApp() *App {
 
 	lockoutMgr := usecase.NewIdleLockoutManager(domain.DefaultLockoutSettings())
 
-	api := presentation.NewAppAPI(vaultRepo, connRepo, identRepo, passwordRepo, knownHostsRepo, vpnProfileRepo, sshDialer, auditLogRepo, lockoutMgr)
+	sshSession := usecase.SSHSessionDeps{
+		PassphraseCache:         infrassh.NewPassphraseCache(),
+		HostKeyCallbackBuilder:  infrassh.NewHostKeyCallbackBuilder(),
+		JumpTransportBuilder:    infrassh.NewJumpTransportBuilder(),
+		PrivateKeySignerFactory: infrassh.NewPrivateKeySignerFactory(),
+	}
+
+	api := presentation.NewAppAPI(
+		vaultRepo, connRepo, identRepo, passwordRepo, knownHostsRepo, vpnProfileRepo,
+		sshDialer, sshSession, newSessionConnectors(),
+		auditLogRepo, lockoutMgr,
+	)
 
 	return &App{api: api}
 }

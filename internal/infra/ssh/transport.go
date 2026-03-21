@@ -46,6 +46,7 @@ func (b *BastionDialer) DialContext(_ context.Context, _, address string) (net.C
 // The caller should use the returned net.Conn as SSHClientConfig.Transport for the final target.
 // timeoutSeconds is used for each hop's TCP/SSH handshake (0 = default 15).
 // proxyAuth, when non-nil, routes the first hop's TCP through SOCKS.
+// Prefer JumpTransportBuilder.BuildChain from higher layers; this function is the implementation.
 func BuildTransportChain(
 	ctx context.Context,
 	hops []domain.JumpHop,
@@ -55,7 +56,7 @@ func BuildTransportChain(
 	proxyAuth *domain.ProxyAuth,
 	sshFactory domain.SSHClientFactory,
 	hostKeyCallback gossh.HostKeyCallback,
-	resolveHopAuth func(hop domain.JumpHop) ([]gossh.Signer, string, error),
+	resolveHopAuth domain.JumpHopAuthResolver,
 ) (net.Conn, func(), error) {
 	var clients []domain.SSHClient
 	cleanup := func() {
@@ -111,4 +112,25 @@ func BuildTransportChain(
 	}
 
 	return transport, cleanup, nil
+}
+
+type jumpTransportBuilder struct{}
+
+// NewJumpTransportBuilder returns a domain.JumpTransportBuilder backed by BuildTransportChain.
+func NewJumpTransportBuilder() domain.JumpTransportBuilder {
+	return jumpTransportBuilder{}
+}
+
+func (jumpTransportBuilder) BuildChain(
+	ctx context.Context,
+	hops []domain.JumpHop,
+	targetHost string,
+	targetPort int,
+	timeoutSeconds int,
+	proxyAuth *domain.ProxyAuth,
+	factory domain.SSHClientFactory,
+	hostKeyCallback gossh.HostKeyCallback,
+	resolveHopAuth domain.JumpHopAuthResolver,
+) (net.Conn, func(), error) {
+	return BuildTransportChain(ctx, hops, targetHost, targetPort, timeoutSeconds, proxyAuth, factory, hostKeyCallback, resolveHopAuth)
 }

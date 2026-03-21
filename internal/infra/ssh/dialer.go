@@ -132,11 +132,25 @@ func ParseKeyWithPassphrase(pemBytes []byte, passphrase string) (gossh.Signer, e
 	return signer, nil
 }
 
+// privateKeySignerFactory implements domain.PrivateKeySignerFactory using ParseKeyWithPassphrase.
+type privateKeySignerFactory struct{}
+
+// NewPrivateKeySignerFactory returns a PEM private key parser (encrypted keys supported).
+func NewPrivateKeySignerFactory() domain.PrivateKeySignerFactory {
+	return privateKeySignerFactory{}
+}
+
+func (privateKeySignerFactory) ParsePrivateKeyWithPassphrase(pemBytes []byte, passphrase string) (gossh.Signer, error) {
+	return ParseKeyWithPassphrase(pemBytes, passphrase)
+}
+
 // PassphraseCache stores passphrases for encrypted keys in memory.
 // It is safe for concurrent use.
 type PassphraseCache struct {
 	cache map[string]string
 }
+
+var _ domain.PassphraseCache = (*PassphraseCache)(nil)
 
 // NewPassphraseCache creates a new empty passphrase cache.
 func NewPassphraseCache() *PassphraseCache {

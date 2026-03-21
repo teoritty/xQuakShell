@@ -19,49 +19,31 @@ func NewHostKeyChecker(repo domain.KnownHostsRepository) *HostKeyChecker {
 	return &HostKeyChecker{repo: repo}
 }
 
-// HostKeyError wraps a host key verification error with the offending public key,
-// so callers can extract it for UI display without losing it.
-type HostKeyError struct {
-	Err  error
-	Host string
-	Key  gossh.PublicKey
-}
-
-func (e *HostKeyError) Error() string { return e.Err.Error() }
-func (e *HostKeyError) Unwrap() error { return e.Err }
-
 // HostKeyCallback returns a function compatible with ssh.ClientConfig.HostKeyCallback.
 // It does NOT automatically add unknown keys — the caller must handle ErrUnknownHost.
-// Errors are wrapped in HostKeyError so the public key is available to the caller.
+// Errors are wrapped in HostKeyVerificationError so the public key is available to the caller.
 func (c *HostKeyChecker) HostKeyCallback() gossh.HostKeyCallback {
 	return func(hostname string, remote net.Addr, key gossh.PublicKey) error {
 		host := normalizeHostPort(hostname, remote)
 
 		err := c.repo.Check(host, key)
 		if err != nil {
-			return &HostKeyError{Err: err, Host: host, Key: key}
+			return &domain.HostKeyVerificationError{Err: err, Host: host, Key: key}
 		}
 		return nil
 	}
 }
 
-// HostKeyInfo holds details about a remote host key for UX display.
-type HostKeyInfo struct {
-	Host        string `json:"host"`
-	KeyType     string `json:"keyType"`
-	Fingerprint string `json:"fingerprint"`
-	KeyBase64   string `json:"keyBase64"`
+// hostKeyCallbackBuilder implements domain.HostKeyCallbackBuilder.
+type hostKeyCallbackBuilder struct{}
+
+// NewHostKeyCallbackBuilder returns a builder that produces host key callbacks from known_hosts.
+func NewHostKeyCallbackBuilder() domain.HostKeyCallbackBuilder {
+	return hostKeyCallbackBuilder{}
 }
 
-// ExtractHostKeyInfo creates a HostKeyInfo struct from a host key callback error context.
-// Use this when presenting unknown/mismatched host keys in the UI.
-func ExtractHostKeyInfo(host string, key gossh.PublicKey) HostKeyInfo {
-	return HostKeyInfo{
-		Host:        host,
-		KeyType:     key.Type(),
-		Fingerprint: gossh.FingerprintSHA256(key),
-		KeyBase64:   string(gossh.MarshalAuthorizedKey(key)),
-	}
+func (hostKeyCallbackBuilder) Build(repo domain.KnownHostsRepository) gossh.HostKeyCallback {
+	return NewHostKeyChecker(repo).HostKeyCallback()
 }
 
 // normalizeHostPort extracts the host:port string from SSH callback parameters.
