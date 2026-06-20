@@ -1,105 +1,25 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
-  import { init, Terminal, FitAddon } from 'ghostty-web';
+  import { Terminal } from '@xterm/xterm';
+  import { FitAddon } from '@xterm/addon-fit';
+  import { LigaturesAddon } from '@xterm/addon-ligatures';
+  import { WebLinksAddon } from '@xterm/addon-web-links';
   import { sendTerminalInput, terminalResize, getSettings } from '../stores/api';
 
   export let sessionId: string;
   export let active: boolean = false;
 
   let containerEl: HTMLDivElement;
-  let term: InstanceType<typeof Terminal> | null = null;
-  let fitAddon: InstanceType<typeof FitAddon> | null = null;
+  let term: Terminal | null = null;
+  let fitAddon: FitAddon | null = null;
   let resizeObserver: ResizeObserver | null = null;
   let eventOff: (() => void) | null = null;
-  let fitTimer: ReturnType<typeof setTimeout> | null = null;
   let dataDisposable: { dispose: () => void } | null = null;
-  let selectionDisposable: { dispose: () => void } | null = null;
+  let resizeDisposable: { dispose: () => void } | null = null;
   let initDone = false;
   /** Drops TerminalOutput until subscription is installed (avoids stale lines). */
   let acceptOutput = false;
   const mountSessionId = sessionId;
-  let firstAcceptedChunkLogged = false;
-  let mouseModeEnabled = false;
-  let inAltScreen = false;
-
-  function countNonEmptyLines(): number {
-    if (!term) return -1;
-    try {
-      const b = (term as any).buffer?.active;
-      if (!b) return -1;
-      let nonEmpty = 0;
-      const length = b.length ?? 0;
-      for (let i = 0; i < length; i++) {
-        const line = b.getLine(i);
-        if (!line) continue;
-        const txt = line.translateToString(true);
-        if (txt.trim().length > 0) nonEmpty++;
-      }
-      return nonEmpty;
-    } catch {
-      return -1;
-    }
-  }
-
-  function firstNonEmptyLines(limit = 3): string[] {
-    if (!term) return [];
-    try {
-      const b = (term as any).buffer?.active;
-      if (!b) return [];
-      const out: string[] = [];
-      const length = b.length ?? 0;
-      for (let i = 0; i < length && out.length < limit; i++) {
-        const line = b.getLine(i);
-        if (!line) continue;
-        const txt = line.translateToString(true);
-        if (txt.trim().length > 0) out.push(txt.slice(0, 120));
-      }
-      return out;
-    } catch {
-      return [];
-    }
-  }
-
-  function hardClearTerminalState() {
-    if (!term) return;
-    try {
-      // Ghostty/xterm renderer can keep stale buffer state between remounts in some reconnect paths.
-      // This sequence force-resets both viewport and scrollback before new session output arrives.
-      term.reset();
-      term.clear();
-      term.write('\x1bc\x1b[2J\x1b[3J\x1b[H');
-      term.clear();
-    } catch {}
-  }
-
-  function sendMouseFallback(e: MouseEvent) {
-    if (!term || !containerEl) return;
-    const rect = containerEl.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-    const x = Math.max(0, Math.min(rect.width - 1, e.clientX - rect.left));
-    const y = Math.max(0, Math.min(rect.height - 1, e.clientY - rect.top));
-    const col = Math.max(1, Math.min(term.cols, Math.floor((x / rect.width) * term.cols) + 1));
-    const row = Math.max(1, Math.min(term.rows, Math.floor((y / rect.height) * term.rows) + 1));
-    const btn = e.button === 2 ? 2 : e.button === 1 ? 1 : 0;
-    // Some terminal backends do not surface native mouse escape sequences from canvas clicks.
-    // For TUI apps (like htop), we synthesize standard SGR mouse press/release sequences.
-    const press = `\x1b[<${btn};${col};${row}M`;
-    const release = `\x1b[<${btn};${col};${row}m`;
-    sendTerminalInput(sessionId, press);
-    sendTerminalInput(sessionId, release);
-  }
-
-  function isAltBufferActive(): boolean {
-    if (!term) return false;
-    try {
-      const b = (term as any).buffer;
-      // Some TUIs switch to alternate screen without reliably exposing mouse-mode
-      // toggles in stream chunks. Buffer identity is a robust fallback signal.
-      return !!(b && b.active && b.alternate && b.active === b.alternate);
-    } catch {
-      return false;
-    }
-  }
 
   const defaultTheme = {
     background: '#1e1e1e',
@@ -126,24 +46,95 @@
     brightWhite: '#e0e0e0',
   };
 
-  function debouncedFit() {
-    if (fitTimer) clearTimeout(fitTimer);
-    fitTimer = setTimeout(() => {
-      if (fitAddon && term && containerEl?.offsetHeight > 0) {
-        try { fitAddon.fit(); } catch {}
+  let refitRaf = 0;
+
+  /** Scrollbar gutter xterm reserves when scrollback is enabled (matches FitAddon). */
+  const SCROLLBAR_GUTTER = 14;
+
+  /**
+   * Measure cols/rows from the container's painted pixel box.
+   *
+   * FitAddon.proposeDimensions() reads getComputedStyle(parent).height, which in
+   * our flex layout (WebView2) often reports ~40% of the real height on first
+   * paint — terminal grid stays ~80×24, black bar below. getBoundingClientRect()
+   * reflects the actual allocated flex area.
+   */
+  function measureGrid(): { cols: number; rows: number } | null {
+    if (!term || !containerEl || !term.element) return null;
+    const rect = containerEl.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+
+    const cell = (term as any)._core?._renderService?.dimensions?.css?.cell;
+    if (!cell?.width || !cell?.height) return null;
+
+    const xtermStyle = window.getComputedStyle(term.element);
+    const padX =
+      (parseFloat(xtermStyle.paddingLeft) || 0) +
+      (parseFloat(xtermStyle.paddingRight) || 0);
+    const padY =
+      (parseFloat(xtermStyle.paddingTop) || 0) +
+      (parseFloat(xtermStyle.paddingBottom) || 0);
+    const gutter = term.options.scrollback === 0 ? 0 : SCROLLBAR_GUTTER;
+
+    const cols = Math.max(2, Math.floor((rect.width - padX - gutter) / cell.width));
+    const rows = Math.max(1, Math.floor((rect.height - padY) / cell.height));
+    if (!isFinite(cols) || !isFinite(rows)) return null;
+    return { cols, rows };
+  }
+
+  /**
+   * Recompute the terminal grid to match its container. Coalesced via rAF so
+   * bursts of ResizeObserver/window events collapse into one fit per frame.
+   * term.resize fires onResize which pushes cols/rows to the PTY.
+   */
+  function refit(force = false) {
+    if (!term || !containerEl) return;
+    if (containerEl.offsetWidth <= 0 || containerEl.offsetHeight <= 0) return;
+    try {
+      const dims = measureGrid();
+      if (!dims) return;
+      if (!force && dims.cols === term.cols && dims.rows === term.rows) return;
+      term.resize(dims.cols, dims.rows);
+    } catch {}
+  }
+
+  /** Keep refitting until the grid catches up with the painted container. */
+  async function ensureInitialFit() {
+    let stable = 0;
+    let lastRows = 0;
+    for (let i = 0; i < 90; i++) {
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      if (!term || !containerEl) return;
+      const rect = containerEl.getBoundingClientRect();
+      if (rect.height <= 0) continue;
+      const dims = measureGrid();
+      if (!dims) continue;
+      if (dims.cols !== term.cols || dims.rows !== term.rows) {
+        term.resize(dims.cols, dims.rows);
+        stable = 0;
+        lastRows = dims.rows;
+        continue;
       }
-    }, 30);
+      if (dims.rows === lastRows && dims.rows > 0) stable++;
+      else lastRows = dims.rows;
+      // Two consecutive matching frames with a sensible row count → layout settled.
+      if (stable >= 2 && dims.rows >= 10) break;
+    }
+  }
+
+  function scheduleRefit() {
+    if (refitRaf) cancelAnimationFrame(refitRaf);
+    refitRaf = requestAnimationFrame(refit);
+  }
+
+  async function pasteFromClipboard() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) term?.paste(text);
+    } catch {}
   }
 
   onMount(async () => {
-    try {
-      await init();
-      initDone = true;
-    } catch (e) {
-      console.error('ghostty-web init failed:', e);
-      return;
-    }
-
     const settings = await getSettings();
     const fontSize = settings?.terminalFontSize ?? 14;
     const fontFamily = settings?.terminalFontFamily || 'Cascadia Code, Consolas, Courier New, monospace';
@@ -155,148 +146,98 @@
       fontSize,
       fontFamily,
       theme,
-      allowTransparency: false,
       scrollback: 5000,
       convertEol: false,
-      scrollOnUserInput: true,
-      scrollOnTerminalWrite: true,
+      allowProposedApi: true,
     });
 
     fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
+
+    // Load the real font before open() so xterm measures correct glyph metrics.
+    try {
+      await (document as any).fonts?.load?.(`${fontSize}px "Cascadia Code"`);
+    } catch {}
+    try {
+      await (document as any).fonts?.ready;
+    } catch {}
+
     term.open(containerEl);
     await tick();
+
+    // NOTE: we intentionally do NOT use @xterm/addon-webgl. In WebView2 at
+    // devicePixelRatio > 1 the WebGL renderer paints its canvas at the wrong
+    // scale (terminal visually fills only a fraction of the container while the
+    // grid size is correct), and only a window resize forces it to recover.
+    // The default DOM renderer sizes correctly under HiDPI and also renders
+    // ligatures more reliably.
+
+    // Programming ligatures (fallback set in non-Node environments like WebView2).
+    try { term.loadAddon(new LigaturesAddon()); } catch {}
+
+    // Clickable URLs.
+    try { term.loadAddon(new WebLinksAddon()); } catch {}
+
+    initDone = true;
 
     dataDisposable = term.onData((data) => {
       sendTerminalInput(sessionId, data);
     });
 
-    selectionDisposable = term.onSelectionChange(() => {
-      const sel = term?.getSelection();
-      if (sel) navigator.clipboard.writeText(sel).catch(() => {});
+    // fit() updates cols/rows and fires this; keep the backend PTY in sync.
+    resizeDisposable = term.onResize(({ cols, rows }) => {
+      terminalResize(sessionId, cols, rows);
     });
 
-    containerEl.addEventListener('contextmenu', async (e) => {
+    // Right-click behaves like a classic console: copy a current selection, or
+    // paste when there is nothing selected.
+    containerEl.addEventListener('contextmenu', (e) => {
       e.preventDefault();
-      try {
-        const text = await navigator.clipboard.readText();
-        if (text) sendTerminalInput(sessionId, text);
-      } catch {}
-    });
-    containerEl.addEventListener('mousedown', (e) => {
-      if (e.button === 0 || e.button === 1 || e.button === 2) {
-        const altBuffer = isAltBufferActive();
-        // Keep native selection/click behavior in normal shell mode.
-        // Enable synthetic mouse only for TUI-like modes:
-        // - explicit mouse reporting enabled by app, OR
-        // - alternate screen detected (htop/less/vim style apps).
-        if (!mouseModeEnabled && !inAltScreen && !altBuffer) return;
-        e.preventDefault();
-        e.stopPropagation();
-        sendMouseFallback(e);
+      e.stopPropagation();
+      if (term?.hasSelection()) {
+        const sel = term.getSelection();
+        if (sel) navigator.clipboard.writeText(sel).catch(() => {});
+        term.clearSelection();
+      } else {
+        pasteFromClipboard();
       }
+    }, true);
+
+    // Ctrl+V / Shift+Insert paste. In xterm.js, returning false from the custom
+    // key handler PREVENTS the terminal from processing the key (inverse of the
+    // ghostty-web convention), so we consume the paste shortcut here.
+    term.attachCustomKeyEventHandler((ev: KeyboardEvent) => {
+      if (ev.type !== 'keydown') return true;
+      const isPaste =
+        ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && !ev.altKey && ev.code === 'KeyV') ||
+        (ev.shiftKey && !ev.ctrlKey && !ev.altKey && (ev.code === 'Insert' || ev.key === 'Insert'));
+      if (isPaste) {
+        ev.preventDefault();
+        pasteFromClipboard();
+        return false;
+      }
+      return true;
     });
 
-    requestAnimationFrame(() => {
-      if (fitAddon && containerEl.offsetHeight > 0) {
-        try {
-          fitAddon.fit();
-          if (term) terminalResize(sessionId, term.cols, term.rows);
-        } catch {}
-      }
-    });
+    // First fit: retry until flex layout reports the real container height.
+    void ensureInitialFit();
+    requestAnimationFrame(scheduleRefit);
 
-    resizeObserver = new ResizeObserver(() => {
-      if (fitAddon && active && containerEl.offsetHeight > 0) {
-        try {
-          fitAddon.fit();
-          if (term) terminalResize(sessionId, term.cols, term.rows);
-        } catch {}
-      }
-    });
+    // Any container size change: tab show (display:none -> flex), split-pane
+    // drag, or layout settling all flow through this single path.
+    resizeObserver = new ResizeObserver(scheduleRefit);
     resizeObserver.observe(containerEl);
 
-    hardClearTerminalState();
-    requestAnimationFrame(() => {
-      if (fitAddon && containerEl.offsetHeight > 0) {
-        try {
-          fitAddon.fit();
-          if (term) terminalResize(sessionId, term.cols, term.rows);
-        } catch {}
-      }
-    });
+    // Safety net for WebView2/window-level changes (maximize/restore, DPI).
+    window.addEventListener('resize', scheduleRefit);
 
     const rt = (window as any).runtime;
     if (rt) {
-      const stripOsc = (arr: Uint8Array): Uint8Array => {
-        const out: number[] = [];
-        let i = 0;
-        while (i < arr.length) {
-          if (arr[i] === 0x1b && i + 1 < arr.length && arr[i + 1] === 0x5d) {
-            let j = i + 2;
-            for (; j < arr.length; j++) {
-              if (arr[j] === 0x07) { i = j + 1; break; }
-              if (arr[j] === 0x1b && j + 1 < arr.length && arr[j + 1] === 0x5c) { i = j + 2; break; }
-            }
-            if (j >= arr.length) { out.push(arr[i]); i++; }
-          } else {
-            out.push(arr[i]);
-            i++;
-          }
-        }
-        return new Uint8Array(out);
-      };
       const handler = (data: { sessionId: string; output: string }) => {
         if (!acceptOutput || data.sessionId !== mountSessionId || !term) return;
         try {
-          const decoded = Uint8Array.from(atob(data.output), (c) => c.charCodeAt(0));
-          const filtered = stripOsc(decoded);
-          let plain = '';
-          try {
-            plain = new TextDecoder().decode(filtered);
-          } catch {}
-          if (plain.includes('\x1b[?1000h') || plain.includes('\x1b[?1002h') || plain.includes('\x1b[?1003h') || plain.includes('\x1b[?1006h')) {
-            mouseModeEnabled = true;
-          }
-          if (plain.includes('\x1b[?1000l') || plain.includes('\x1b[?1002l') || plain.includes('\x1b[?1003l') || plain.includes('\x1b[?1006l')) {
-            mouseModeEnabled = false;
-          }
-          if (plain.includes('\x1b[?1049h') || plain.includes('\x1b[?47h') || plain.includes('\x1b[?1047h')) {
-            inAltScreen = true;
-          }
-          if (plain.includes('\x1b[?1049l') || plain.includes('\x1b[?47l') || plain.includes('\x1b[?1047l')) {
-            inAltScreen = false;
-          }
-          if (filtered.length > 0) {
-            if (!firstAcceptedChunkLogged) {
-              firstAcceptedChunkLogged = true;
-              let preview = '';
-              try {
-                preview = new TextDecoder().decode(filtered).replace(/[^\x20-\x7E\r\n\t]/g, '').slice(0, 200);
-              } catch {}
-              const nonEmptyLinesBeforeWrite = countNonEmptyLines();
-              const linesBeforeWrite = firstNonEmptyLines(3);
-              const previewHead = preview.slice(0, 48).trim();
-              const previewHeadTail = previewHead.length > 1 ? previewHead.slice(1) : previewHead;
-              const hasPreviewAlready =
-                previewHead.length > 0 &&
-                linesBeforeWrite.some((line) => {
-                  const norm = line.trim();
-                  return (
-                    norm.includes(previewHead) ||
-                    previewHead.includes(norm) ||
-                    norm.includes(previewHeadTail) ||
-                    preview.includes(norm)
-                  );
-                });
-              if (nonEmptyLinesBeforeWrite > 0 && hasPreviewAlready) {
-                // Guard against duplicated first frame: if buffer already contains same welcome/prompt
-                // before the first write, clear once more and only then render the incoming chunk.
-                hardClearTerminalState();
-              }
-            }
-            term.write(filtered, () => term?.scrollToBottom());
-          }
+          const bytes = Uint8Array.from(atob(data.output), (c) => c.charCodeAt(0));
+          term.write(bytes, () => term?.scrollToBottom());
         } catch {
           term.write(data.output);
         }
@@ -308,22 +249,19 @@
   });
 
   onDestroy(() => {
-    if (fitTimer) clearTimeout(fitTimer);
+    if (refitRaf) cancelAnimationFrame(refitRaf);
+    window.removeEventListener('resize', scheduleRefit);
     if (resizeObserver) resizeObserver.disconnect();
     if (eventOff) eventOff();
     dataDisposable?.dispose();
-    selectionDisposable?.dispose();
+    resizeDisposable?.dispose();
     if (term) term.dispose();
   });
 
-  $: if (active && fitAddon && initDone) {
-    setTimeout(() => {
-      if (fitAddon && containerEl && containerEl.offsetHeight > 0) {
-        try { fitAddon.fit(); } catch {}
-      }
-      term?.focus();
-      term?.scrollToBottom();
-    }, 50);
+  $: if (active && term && initDone) {
+    scheduleRefit();
+    term.focus();
+    term.scrollToBottom();
   }
 </script>
 
@@ -331,26 +269,20 @@
 
 <style>
   .terminal-container {
-    flex: 1;
+    flex: 1 1 0;
     min-height: 0;
     width: 100%;
     position: relative;
     overflow: hidden;
     background: #1e1e1e;
-    user-select: none;
-    -webkit-user-select: none;
     box-sizing: border-box;
   }
 
-  .terminal-container :global(canvas) {
-    display: block;
+  .terminal-container :global(.xterm) {
+    padding: 0;
   }
 
-  .terminal-container :global([role="application"]) {
-    position: absolute;
-    inset: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
+  .terminal-container :global(.xterm-viewport) {
+    overflow-y: auto;
   }
 </style>
