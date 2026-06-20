@@ -49,40 +49,6 @@ type ProxyDTO struct {
 	PasswordID string `json:"passwordId,omitempty"`
 }
 
-// TelnetConfigDTO is the UI-facing representation of Telnet config.
-type TelnetConfigDTO struct {
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	Username   string `json:"username,omitempty"`
-	PasswordID string `json:"passwordId,omitempty"`
-}
-
-// RDPConfigDTO is the UI-facing representation of RDP config.
-type RDPConfigDTO struct {
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	Username   string `json:"username,omitempty"`
-	PasswordID string `json:"passwordId,omitempty"`
-	Domain     string `json:"domain,omitempty"`
-}
-
-// SerialConfigDTO is the UI-facing representation of Serial config.
-type SerialConfigDTO struct {
-	Port     string `json:"port"`
-	BaudRate int    `json:"baudRate"`
-	DataBits int    `json:"dataBits"`
-	StopBits int    `json:"stopBits"`
-	Parity   string `json:"parity"`
-}
-
-// HTTPConfigDTO is the UI-facing representation of HTTP config.
-type HTTPConfigDTO struct {
-	URL        string `json:"url"`
-	Method     string `json:"method"`
-	Auth       string `json:"auth,omitempty"`
-	PasswordID string `json:"passwordId,omitempty"`
-}
-
 // ConnectionDTO is the UI-facing representation of a connection.
 type ConnectionDTO struct {
 	ID            string              `json:"id"`
@@ -100,10 +66,6 @@ type ConnectionDTO struct {
 	VpnProfileID  string              `json:"vpnProfileId,omitempty"`
 	JumpChain     []JumpHopDTO        `json:"jumpChain,omitempty"`
 	Proxy         *ProxyDTO           `json:"proxy,omitempty"`
-	TelnetConfig  *TelnetConfigDTO    `json:"telnetConfig,omitempty"`
-	RDPConfig     *RDPConfigDTO       `json:"rdpConfig,omitempty"`
-	SerialConfig  *SerialConfigDTO    `json:"serialConfig,omitempty"`
-	HTTPConfig    *HTTPConfigDTO      `json:"httpConfig,omitempty"`
 }
 
 // IdentityDTO is the UI-facing representation of an SSH identity.
@@ -196,40 +158,6 @@ func ConnectionToDTO(c domain.Connection) ConnectionDTO {
 			Port:       c.Proxy.Port,
 			Username:   c.Proxy.Username,
 			PasswordID: c.Proxy.PasswordID,
-		}
-	}
-	if c.TelnetConfig != nil {
-		dto.TelnetConfig = &TelnetConfigDTO{
-			Host:       c.TelnetConfig.Host,
-			Port:       c.TelnetConfig.Port,
-			Username:   c.TelnetConfig.Username,
-			PasswordID: c.TelnetConfig.PasswordID,
-		}
-	}
-	if c.RDPConfig != nil {
-		dto.RDPConfig = &RDPConfigDTO{
-			Host:       c.RDPConfig.Host,
-			Port:       c.RDPConfig.Port,
-			Username:   c.RDPConfig.Username,
-			PasswordID: c.RDPConfig.PasswordID,
-			Domain:     c.RDPConfig.Domain,
-		}
-	}
-	if c.SerialConfig != nil {
-		dto.SerialConfig = &SerialConfigDTO{
-			Port:     c.SerialConfig.Port,
-			BaudRate: c.SerialConfig.BaudRate,
-			DataBits: c.SerialConfig.DataBits,
-			StopBits: c.SerialConfig.StopBits,
-			Parity:   c.SerialConfig.Parity,
-		}
-	}
-	if c.HTTPConfig != nil {
-		dto.HTTPConfig = &HTTPConfigDTO{
-			URL:        c.HTTPConfig.URL,
-			Method:     c.HTTPConfig.Method,
-			Auth:       c.HTTPConfig.Auth,
-			PasswordID: c.HTTPConfig.PasswordID,
 		}
 	}
 	return dto
@@ -382,70 +310,6 @@ func DTOToConnection(d ConnectionDTO) domain.Connection {
 		}
 		if c.Proxy.Type == "" {
 			c.Proxy.Type = "socks5"
-		}
-	}
-	if d.TelnetConfig != nil {
-		c.TelnetConfig = &domain.TelnetConfig{
-			Host:       d.TelnetConfig.Host,
-			Port:       d.TelnetConfig.Port,
-			Username:   d.TelnetConfig.Username,
-			PasswordID: d.TelnetConfig.PasswordID,
-		}
-		if c.TelnetConfig.Port == 0 {
-			c.TelnetConfig.Port = 23
-		}
-	}
-	if d.RDPConfig != nil {
-		c.RDPConfig = &domain.RDPConfig{
-			Host:       d.RDPConfig.Host,
-			Port:       d.RDPConfig.Port,
-			Username:   d.RDPConfig.Username,
-			PasswordID: d.RDPConfig.PasswordID,
-			Domain:     d.RDPConfig.Domain,
-		}
-		if c.RDPConfig.Port == 0 {
-			c.RDPConfig.Port = 3389
-		}
-		// Sync credentials from default user when users exist (single source of truth)
-		if du := c.DefaultUser(); du != nil {
-			if du.Username != "" {
-				c.RDPConfig.Username = du.Username
-			}
-			if du.PassAuth != nil && du.PassAuth.PasswordID != "" {
-				c.RDPConfig.PasswordID = du.PassAuth.PasswordID
-			}
-		}
-	}
-	if d.SerialConfig != nil {
-		c.SerialConfig = &domain.SerialConfig{
-			Port:     d.SerialConfig.Port,
-			BaudRate: d.SerialConfig.BaudRate,
-			DataBits: d.SerialConfig.DataBits,
-			StopBits: d.SerialConfig.StopBits,
-			Parity:   d.SerialConfig.Parity,
-		}
-		if c.SerialConfig.BaudRate == 0 {
-			c.SerialConfig.BaudRate = 9600
-		}
-		if c.SerialConfig.DataBits == 0 {
-			c.SerialConfig.DataBits = 8
-		}
-		if c.SerialConfig.StopBits == 0 {
-			c.SerialConfig.StopBits = 1
-		}
-		if c.SerialConfig.Parity == "" {
-			c.SerialConfig.Parity = "none"
-		}
-	}
-	if d.HTTPConfig != nil {
-		c.HTTPConfig = &domain.HTTPConfig{
-			URL:        d.HTTPConfig.URL,
-			Method:     d.HTTPConfig.Method,
-			Auth:       d.HTTPConfig.Auth,
-			PasswordID: d.HTTPConfig.PasswordID,
-		}
-		if c.HTTPConfig.Method == "" {
-			c.HTTPConfig.Method = "GET"
 		}
 	}
 	return c

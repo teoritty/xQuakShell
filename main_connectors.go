@@ -1,16 +1,9 @@
 package main
 
-import (
-	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/connectors"
-)
+import "ssh-client/internal/domain"
 
-// newSessionConnectors returns all non-SSH session protocol connectors (composition root only).
+// newSessionConnectors returns non-SSH session protocol connectors (composition root only).
+// Built-in connectors were removed; plugins register here later.
 func newSessionConnectors() []domain.SessionConnector {
-	return []domain.SessionConnector{
-		connectors.NewTelnetConnector(),
-		connectors.NewSerialConnector(),
-		connectors.NewRDPConnector(),
-		connectors.NewHTTPConnector(),
-	}
+	return nil
 }

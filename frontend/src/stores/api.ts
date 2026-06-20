@@ -291,14 +291,6 @@ export async function openSession(connectionId: string): Promise<string | null> 
 export async function closeSession(sessionId: string): Promise<void> {
   const app = getApp();
   if (!app) return;
-  const current = get(sessions).find((s) => s.sessionId === sessionId);
-  if (current?.protocol === 'rdp') {
-    try {
-      await app.RDPStop(sessionId);
-    } catch {
-      // Ignore: process may already be closed.
-    }
-  }
   // Optimistic UI: remove tab immediately so tree/tab status updates without waiting for the event round-trip.
   sessions.update((list) => list.filter((s) => s.sessionId !== sessionId));
   try {
@@ -342,47 +334,6 @@ export async function closeActiveSession(): Promise<void> {
     activeSessionId.set(list[list.length - 1].sessionId);
   } else {
     activeSessionId.set('');
-  }
-}
-
-export async function rdpStart(sessionId: string): Promise<string> {
-  const app = getApp();
-  if (!app) return '';
-  try {
-    return await app.RDPStart(sessionId);
-  } catch (e) {
-    handleError(e, 'RDP start');
-    return '';
-  }
-}
-
-export async function rdpStop(sessionId: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.RDPStop(sessionId);
-  } catch (e) {
-    handleError(e, 'RDP stop');
-  }
-}
-
-export async function rdpFocusWindow(sessionId: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.RDPFocusWindow(sessionId);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    const lowered = msg.toLowerCase();
-    // Non-critical race: user closed mstsc window before focus attempt.
-    if (
-      lowered.includes('no rdp process running') ||
-      lowered.includes('rdp process has exited') ||
-      lowered.includes('no visible window found for pid')
-    ) {
-      return;
-    }
-    handleError(e, 'RDP focus window');
   }
 }
 

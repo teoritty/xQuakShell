@@ -19,7 +19,6 @@ import (
 
 	"ssh-client/internal/domain"
 	"ssh-client/internal/infra/auditlog"
-	"ssh-client/internal/infra/connectors"
 	infraputty "ssh-client/internal/infra/putty"
 	infrasftp "ssh-client/internal/infra/sftp"
 	infrassh "ssh-client/internal/infra/ssh"
@@ -261,9 +260,6 @@ func (a *AppAPI) OpenSession(connectionID string) (string, error) {
 
 // CloseSession terminates a session by its ID.
 func (a *AppAPI) CloseSession(sessionID string) error {
-	if info, err := a.sessions.GetState(sessionID); err == nil && info.Protocol == domain.ProtocolRDP {
-		_ = a.RDPStop(sessionID)
-	}
 	err := a.sessions.CloseSession(sessionID)
 	if err != nil {
 		return err
@@ -291,108 +287,6 @@ func (a *AppAPI) GetSessionState(sessionID string) (SessionDTO, error) {
 		return SessionDTO{}, err
 	}
 	return SessionToDTO(info), nil
-}
-
-// RDPStart launches a native external RDP client (mstsc on Windows, xfreerdp on Linux)
-// and tracks the process by sessionID. If a process is already running for this session,
-// it focuses the existing window instead of launching a duplicate.
-// Returns "native" to indicate the session is opened in an external window.
-func (a *AppAPI) RDPStart(sessionID string) (string, error) {
-	info, err := a.sessions.GetState(sessionID)
-	if err != nil {
-		return "", err
-	}
-	if info.Protocol != domain.ProtocolRDP {
-		return "", fmt.Errorf("session is not RDP")
-	}
-
-	a.rdpProcessesMu.Lock()
-	if existing, ok := a.rdpProcesses[sessionID]; ok {
-		select {
-		case <-existing.done:
-			delete(a.rdpProcesses, sessionID)
-		default:
-			a.rdpProcessesMu.Unlock()
-			_ = connectors.FocusWindowByPID(existing.cmd.Process.Pid)
-			return "native", nil
-		}
-	}
-	a.rdpProcessesMu.Unlock()
-
-	conn, err := a.connRepo.GetByID(context.Background(), info.ConnectionID)
-	if err != nil {
-		return "", err
-	}
-	if conn.RDPConfig == nil || conn.RDPConfig.Host == "" {
-		return "", fmt.Errorf("rdp host not configured")
-	}
-
-	var password string
-	if conn.RDPConfig.PasswordID != "" {
-		if pw, e := a.passwordRepo.Get(context.Background(), conn.RDPConfig.PasswordID); e == nil {
-			password = string(pw)
-		}
-	}
-
-	cmd, err := connectors.StartExternalRDPProcess(conn, password)
-	if err != nil {
-		return "", err
-	}
-
-	proc := &rdpProcess{cmd: cmd, done: make(chan struct{})}
-	a.rdpProcessesMu.Lock()
-	a.rdpProcesses[sessionID] = proc
-	a.rdpProcessesMu.Unlock()
-
-	go func() {
-		_ = cmd.Wait()
-		close(proc.done)
-		a.rdpProcessesMu.Lock()
-		if a.rdpProcesses[sessionID] == proc {
-			delete(a.rdpProcesses, sessionID)
-		}
-		a.rdpProcessesMu.Unlock()
-	}()
-
-	return "native", nil
-}
-
-// RDPStop terminates the tracked external RDP client for the given session.
-func (a *AppAPI) RDPStop(sessionID string) error {
-	a.rdpProcessesMu.Lock()
-	proc, ok := a.rdpProcesses[sessionID]
-	if ok {
-		delete(a.rdpProcesses, sessionID)
-	}
-	a.rdpProcessesMu.Unlock()
-
-	if ok && proc.cmd != nil && proc.cmd.Process != nil {
-		select {
-		case <-proc.done:
-		default:
-			_ = proc.cmd.Process.Kill()
-		}
-	}
-	return nil
-}
-
-// RDPFocusWindow brings the external RDP client window to the foreground for the given session.
-func (a *AppAPI) RDPFocusWindow(sessionID string) error {
-	a.rdpProcessesMu.Lock()
-	proc, ok := a.rdpProcesses[sessionID]
-	a.rdpProcessesMu.Unlock()
-
-	if !ok {
-		return fmt.Errorf("no RDP process running for session %s", sessionID)
-	}
-
-	select {
-	case <-proc.done:
-		return fmt.Errorf("RDP process has exited for session %s", sessionID)
-	default:
-	}
-
-	return connectors.FocusWindowByPID(proc.cmd.Process.Pid)
 }
 
 // GetPlatform returns the current OS: "windows", "linux", "darwin".
@@ -1497,7 +1391,7 @@ func (a *AppAPI) onPassphraseRequest(identityID, comment string) (string, error)
 	return "", domain.ErrPassphraseRequired
 }
 
-// onStreamReady is called when a Telnet/Serial connector has started the terminal bridge.
+// onStreamReady is called when a plugin stream connector has started the terminal bridge.
 // It begins streaming output to the frontend.
 func (a *AppAPI) onStreamReady(sessionID string, outputCh <-chan []byte) {
 	go a.streamTerminalOutput(sessionID, outputCh)
@@ -1506,8 +1400,8 @@ func (a *AppAPI) onStreamReady(sessionID string, outputCh <-chan []byte) {
 	}
 }
 
-// initSessionPTYAndSFTP polls until the session is ready, then sets up PTY and SFTP (SSH only).
-// For Telnet/Serial the connector sets the bridge and calls OnStreamReady; for RDP/HTTP no terminal.
+// initSessionPTYAndSFTP polls until the session is ready, then sets up PTY and SFTP for SSH sessions.
+// Non-SSH sessions rely on plugin connectors via OnStreamReady instead.
 func (a *AppAPI) initSessionPTYAndSFTP(sessionID string) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()

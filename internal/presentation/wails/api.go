@@ -2,7 +2,6 @@ package wails
 
 import (
 	"context"
-	"os/exec"
 	"sync"
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -36,15 +35,6 @@ type AppAPI struct {
 	transferCancelsMu   sync.Mutex
 	transferCond        *sync.Cond
 	transferActive      int
-
-	rdpProcesses   map[string]*rdpProcess
-	rdpProcessesMu sync.Mutex
-}
-
-// rdpProcess tracks a running external RDP client process (mstsc / xfreerdp).
-type rdpProcess struct {
-	cmd  *exec.Cmd
-	done chan struct{} // closed when process exits
 }
 
 // NewAppAPI creates a new AppAPI with the given dependencies.
@@ -76,7 +66,6 @@ func NewAppAPI(
 		ownerCache:        make(map[string]map[string]string),
 		groupCache:        make(map[string]map[string]string),
 		transferCancels:   make(map[string]context.CancelFunc),
-		rdpProcesses:      make(map[string]*rdpProcess),
 	}
 	api.transferCond = sync.NewCond(&sync.Mutex{})
 
@@ -112,7 +101,7 @@ func (a *AppAPI) SetContext(ctx context.Context) {
 }
 
 // Shutdown cleans up all resources when the application closes.
-// Order: stop ping → stop lockout → close all sessions → kill external RDP processes → lock vault → close audit log.
+// Order: stop ping → stop lockout → close all sessions → lock vault → close audit log.
 func (a *AppAPI) Shutdown() {
 	if a.pingMgr != nil {
 		a.pingMgr.Stop()
@@ -121,15 +110,6 @@ func (a *AppAPI) Shutdown() {
 		a.lockout.Stop()
 	}
 	a.sessions.CloseAll()
-
-	a.rdpProcessesMu.Lock()
-	for sid, proc := range a.rdpProcesses {
-		if proc.cmd != nil && proc.cmd.Process != nil {
-			_ = proc.cmd.Process.Kill()
-		}
-		delete(a.rdpProcesses, sid)
-	}
-	a.rdpProcessesMu.Unlock()
 
 	a.vaultRepo.Lock()
 	if a.auditLog != nil {

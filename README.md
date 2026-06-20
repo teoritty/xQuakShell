@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>Portable and secure multi-protocol remote connection manager.</strong><br/>
+  <strong>Portable and secure SSH-first remote connection manager.</strong><br/>
 </p>
 
 <p align="center">
@@ -21,9 +21,8 @@
 ## Features
 
 - Encrypted vault (`vault.age`) for connections, keys, credentials, known hosts.
-- Multi-protocol sessions: SSH, RDP, Telnet, Serial, HTTP.
-- Multi-tab session workflow with independent lifecycle.
-- Integrated terminal + SFTP file manager (upload/download/rename/delete/create).
+- SSH-first core: integrated terminal + SFTP file manager (upload/download/rename/delete/create).
+- Multi-tab SSH session workflow with independent lifecycle.
 - Strict SSH host key verification, jump hosts, SOCKS proxy, VPN profiles.
 - Portable Windows build with bundled WebView2 runtime (`make portable`).
 

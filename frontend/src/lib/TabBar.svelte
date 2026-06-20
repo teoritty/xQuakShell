@@ -1,23 +1,7 @@
 <script lang="ts">
-  import { sessions, activeSessionId, connections } from '../stores/appState';
+  import { sessions, activeSessionId } from '../stores/appState';
   import { closeSession } from '../stores/api';
-  import { Loader2, CheckCircle2, XCircle, Circle, X, Monitor, MonitorPlay, Terminal, Cable, Globe } from 'lucide-svelte';
-
-  function protocolIcon(connectionId: string) {
-    const conn = $connections.find(c => c.id === connectionId);
-    switch (conn?.protocol || 'ssh') {
-      case 'rdp': return MonitorPlay;
-      case 'telnet': return Terminal;
-      case 'serial': return Cable;
-      case 'http': return Globe;
-      default: return Monitor;
-    }
-  }
-
-  function protocolLabel(connectionId: string): string {
-    const conn = $connections.find(c => c.id === connectionId);
-    return (conn?.protocol || 'ssh').toUpperCase();
-  }
+  import { Loader2, CheckCircle2, XCircle, Circle, X } from 'lucide-svelte';
 
   function activateTab(sessionId: string) {
     activeSessionId.set(sessionId);
@@ -57,10 +41,6 @@
         {:else}
           <Circle size={11} />
         {/if}
-      </span>
-      <span class="tab-protocol" title="Protocol">
-        <svelte:component this={protocolIcon(session.connectionId)} size={11} />
-        <span class="protocol-badge">{protocolLabel(session.connectionId)}</span>
       </span>
       <span class="tab-name">{session.connectionName || 'Session'}</span>
       <button class="tab-close" on:click={(e) => closeTab(e, session.sessionId)} title="Close session">
@@ -119,21 +99,6 @@
     align-items: center;
     flex-shrink: 0;
     color: var(--text-secondary);
-  }
-
-  .tab-protocol {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    flex-shrink: 0;
-    color: var(--text-secondary);
-    opacity: 0.8;
-  }
-
-  .tab-protocol .protocol-badge {
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.3px;
   }
 
   .tab-name {

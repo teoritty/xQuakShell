@@ -5,7 +5,6 @@
 
   let editingId = '';
   let name = '';
-  let protocol = 'ssh';
   let host = '';
   let port = 22;
   let tags: string[] = [];
@@ -19,23 +18,6 @@
   let proxyPasswordId = '';
   let vpnProfileId = '';
   let dirty = false;
-  // Protocol-specific
-  let telnetHost = '';
-  let telnetPort = 23;
-  let telnetUsername = '';
-  let telnetPasswordId = '';
-  let rdpHost = '';
-  let rdpPort = 3389;
-  let rdpDomain = '';
-  let serialPort = 'COM1';
-  let serialBaudRate = 9600;
-  let serialDataBits = 8;
-  let serialStopBits = 1;
-  let serialParity = 'none';
-  let httpUrl = '';
-  let httpMethod = 'GET';
-  let httpAuth = '';
-  let httpPasswordId = '';
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   let saveStatus: 'idle' | 'saving' | 'saved' = 'idle';
   let addingTag = false;
@@ -51,7 +33,6 @@
     const c = $selectedConnection;
     editingId = c?.id || '';
     name = c?.name || '';
-    protocol = c?.protocol || 'ssh';
     host = c?.host || '';
     port = c?.port || 22;
     tags = [...(c?.tags || [])];
@@ -72,28 +53,6 @@
     } else {
       vpnProtocol = 'wireguard';
     }
-    telnetHost = c?.telnetConfig?.host || '';
-    telnetPort = c?.telnetConfig?.port || 23;
-    telnetUsername = c?.telnetConfig?.username || '';
-    telnetPasswordId = c?.telnetConfig?.passwordId || '';
-    rdpHost = c?.rdpConfig?.host || '';
-    rdpPort = c?.rdpConfig?.port || 3389;
-    rdpDomain = c?.rdpConfig?.domain || '';
-    // Migrate legacy RDP config to users when users empty
-    if (protocol === 'rdp' && users.length === 0 && (c?.rdpConfig?.username || c?.rdpConfig?.passwordId)) {
-      const uid = 'u-' + Date.now();
-      users = [{ id: uid, username: c.rdpConfig.username || '', authMethod: 'password' as const, passAuth: c.rdpConfig.passwordId ? { passwordId: c.rdpConfig.passwordId } : undefined }];
-      defaultUserId = uid;
-    }
-    serialPort = c?.serialConfig?.port || 'COM1';
-    serialBaudRate = c?.serialConfig?.baudRate || 9600;
-    serialDataBits = c?.serialConfig?.dataBits || 8;
-    serialStopBits = c?.serialConfig?.stopBits || 1;
-    serialParity = c?.serialConfig?.parity || 'none';
-    httpUrl = c?.httpConfig?.url || '';
-    httpMethod = c?.httpConfig?.method || 'GET';
-    httpAuth = c?.httpConfig?.auth || '';
-    httpPasswordId = c?.httpConfig?.passwordId || '';
     dirty = false;
     saveStatus = 'idle';
     addingTag = false;
@@ -125,7 +84,7 @@
     const conn: any = {
       id: editingId,
       name: name.trim() || 'New connection',
-      protocol,
+      protocol: 'ssh',
       host: host.trim(),
       port,
       folderId: $selectedConnection?.folderId || '',
@@ -139,27 +98,6 @@
     if (proxyEnabled && proxyHost.trim()) {
       conn.proxy = { type: 'socks5', host: proxyHost.trim(), port: proxyPort, username: proxyUsername.trim() || undefined };
       if (proxyPasswordId) conn.proxy.passwordId = proxyPasswordId;
-    }
-    if (protocol === 'telnet') {
-      conn.telnetConfig = { host: telnetHost.trim(), port: telnetPort, username: telnetUsername.trim() || undefined };
-      if (telnetPasswordId) conn.telnetConfig.passwordId = telnetPasswordId;
-    }
-    if (protocol === 'rdp') {
-      const du = users.find(u => u.id === defaultUserId);
-      conn.rdpConfig = {
-        host: rdpHost.trim(),
-        port: rdpPort,
-        domain: rdpDomain.trim() || undefined,
-        username: du?.username?.trim() || undefined,
-      };
-      if (du?.passAuth?.passwordId) conn.rdpConfig.passwordId = du.passAuth.passwordId;
-    }
-    if (protocol === 'serial') {
-      conn.serialConfig = { port: serialPort.trim(), baudRate: serialBaudRate, dataBits: serialDataBits, stopBits: serialStopBits, parity: serialParity };
-    }
-    if (protocol === 'http') {
-      conn.httpConfig = { url: httpUrl.trim(), method: httpMethod, auth: httpAuth.trim() || undefined };
-      if (httpPasswordId) conn.httpConfig.passwordId = httpPasswordId;
     }
     try {
       await saveConnection(conn);
@@ -189,10 +127,9 @@
   }
 
   // --- Users ---
-  function addUser(proto?: string) {
+  function addUser() {
     const id = 'u-' + Date.now();
-    const auth = proto === 'rdp' ? 'password' : 'key';
-    users = [...users, { id, username: '', authMethod: auth }];
+    users = [...users, { id, username: '', authMethod: 'key' }];
     if (users.length === 1) defaultUserId = id;
     markDirty();
   }
@@ -268,17 +205,6 @@
       proxyPasswordId = pwId;
       markDirty();
     }
-  }
-
-  async function handleTelnetPasswordChange(value: string) {
-    if (!value || value === '********') return;
-    const pwId = await importPassword(value, 'telnet');
-    if (pwId) { telnetPasswordId = pwId; markDirty(); }
-  }
-  async function handleHTTPPasswordChange(value: string) {
-    if (!value || value === '********') return;
-    const pwId = await importPassword(value, 'http');
-    if (pwId) { httpPasswordId = pwId; markDirty(); }
   }
 
   // --- VPN ---
@@ -362,25 +288,11 @@
   </div>
 
   <div class="details-body">
-    <div class="field-row name-protocol-row">
-      <label class="field" style="flex:1">
-        <span class="field-label">Name</span>
-        <input type="text" bind:value={name} on:input={markDirty} placeholder="My Server" />
-      </label>
-      <label class="field protocol-field">
-        <span class="field-label">Protocol</span>
-        <select bind:value={protocol} on:change={markDirty} class="protocol-select">
-          <option value="ssh">SSH</option>
-          <option value="rdp">RDP</option>
-          <option value="telnet">Telnet</option>
-          <option value="serial">Serial</option>
-          <option value="http">HTTP</option>
-        </select>
-      </label>
-    </div>
+    <label class="field">
+      <span class="field-label">Name</span>
+      <input type="text" bind:value={name} on:input={markDirty} placeholder="My Server" />
+    </label>
 
-    <!-- SSH: Host, Port, Users, Jump, Proxy, VPN -->
-    {#if protocol === 'ssh'}
     <div class="field-row">
       <label class="field" style="flex:1">
         <span class="field-label">Host</span>
@@ -391,129 +303,8 @@
         <input type="number" bind:value={port} on:input={markDirty} min="1" max="65535" />
       </label>
     </div>
-    {/if}
 
-    <!-- RDP -->
-    {#if protocol === 'rdp'}
-    <div class="field-row">
-      <label class="field" style="flex:1">
-        <span class="field-label">Host</span>
-        <input type="text" bind:value={rdpHost} on:input={markDirty} placeholder="192.168.1.1" />
-      </label>
-      <label class="field" style="width:60px">
-        <span class="field-label">Port</span>
-        <input type="number" bind:value={rdpPort} on:input={markDirty} min="1" max="65535" />
-      </label>
-    </div>
-    <label class="field">
-      <span class="field-label">Domain (optional)</span>
-      <input type="text" bind:value={rdpDomain} on:input={markDirty} placeholder="DOMAIN" />
-    </label>
-    {/if}
-
-    <!-- Telnet -->
-    {#if protocol === 'telnet'}
-    <div class="field-row">
-      <label class="field" style="flex:1">
-        <span class="field-label">Host</span>
-        <input type="text" bind:value={telnetHost} on:input={markDirty} placeholder="192.168.1.1" />
-      </label>
-      <label class="field" style="width:60px">
-        <span class="field-label">Port</span>
-        <input type="number" bind:value={telnetPort} on:input={markDirty} min="1" max="65535" />
-      </label>
-    </div>
-    <label class="field">
-      <span class="field-label">Username</span>
-      <input type="text" bind:value={telnetUsername} on:input={markDirty} placeholder="user" />
-    </label>
-    <label class="field">
-      <span class="field-label">Password</span>
-      <input type="password" placeholder={telnetPasswordId ? '********' : 'Enter password'} value="" on:change={(e) => handleTelnetPasswordChange(e.currentTarget.value)} class="pass-input" />
-    </label>
-    {/if}
-
-    <!-- Serial -->
-    {#if protocol === 'serial'}
-    <label class="field">
-      <span class="field-label">COM Port</span>
-      <input type="text" bind:value={serialPort} on:input={markDirty} placeholder="COM1 or /dev/ttyUSB0" />
-    </label>
-    <div class="field-row">
-      <label class="field" style="flex:1">
-        <span class="field-label">Baud Rate</span>
-        <select bind:value={serialBaudRate} on:change={markDirty} class="protocol-select">
-          <option value={9600}>9600</option>
-          <option value={19200}>19200</option>
-          <option value={38400}>38400</option>
-          <option value={57600}>57600</option>
-          <option value={115200}>115200</option>
-        </select>
-      </label>
-      <label class="field" style="width:70px">
-        <span class="field-label">Data Bits</span>
-        <select bind:value={serialDataBits} on:change={markDirty}>
-          <option value={5}>5</option>
-          <option value={6}>6</option>
-          <option value={7}>7</option>
-          <option value={8}>8</option>
-        </select>
-      </label>
-    </div>
-    <div class="field-row">
-      <label class="field" style="flex:1">
-        <span class="field-label">Stop Bits</span>
-        <select bind:value={serialStopBits} on:change={markDirty}>
-          <option value={1}>1</option>
-          <option value={2}>2</option>
-        </select>
-      </label>
-      <label class="field" style="flex:1">
-        <span class="field-label">Parity</span>
-        <select bind:value={serialParity} on:change={markDirty}>
-          <option value="none">None</option>
-          <option value="odd">Odd</option>
-          <option value="even">Even</option>
-        </select>
-      </label>
-    </div>
-    {/if}
-
-    <!-- HTTP -->
-    {#if protocol === 'http'}
-    <label class="field">
-      <span class="field-label">URL</span>
-      <input type="text" bind:value={httpUrl} on:input={markDirty} placeholder="https://api.example.com" />
-    </label>
-    <div class="field-row">
-      <label class="field" style="flex:1">
-        <span class="field-label">Method</span>
-        <select bind:value={httpMethod} on:change={markDirty} class="protocol-select">
-          <option value="GET">GET</option>
-          <option value="POST">POST</option>
-          <option value="PUT">PUT</option>
-          <option value="PATCH">PATCH</option>
-          <option value="DELETE">DELETE</option>
-        </select>
-      </label>
-      <label class="field" style="flex:1">
-        <span class="field-label">Auth</span>
-        <select bind:value={httpAuth} on:change={markDirty} class="protocol-select">
-          <option value="">None</option>
-          <option value="basic">Basic</option>
-          <option value="bearer">Bearer</option>
-        </select>
-      </label>
-    </div>
-    {#if httpAuth}
-    <label class="field">
-      <span class="field-label">Password / Token</span>
-      <input type="password" placeholder={httpPasswordId ? '********' : 'Enter password or token'} value="" on:change={(e) => handleHTTPPasswordChange(e.currentTarget.value)} class="pass-input" />
-    </label>
-    {/if}
-    {/if}
-
-    <!-- Tags (all protocols) -->
+    <!-- Tags -->
     <div class="field">
       <div class="section-header">
         <span class="field-label">Tags</span>
@@ -541,12 +332,11 @@
       </div>
     </div>
 
-    {#if protocol === 'ssh' || protocol === 'rdp'}
     <!-- Users -->
     <div class="field">
       <div class="section-header">
         <span class="field-label">Users</span>
-        <button class="ghost micro-btn" on:click={() => addUser(protocol)}><UserPlus size={12} /> Add</button>
+        <button class="ghost micro-btn" on:click={addUser}><UserPlus size={12} /> Add</button>
       </div>
       {#each users as u (u.id)}
         <div class="user-block">
@@ -558,7 +348,6 @@
               placeholder="username"
               class="user-input"
             />
-            {#if protocol === 'ssh'}
             <select
               value={u.authMethod}
               on:change={(e) => updateAuthMethod(u.id, e.currentTarget.value)}
@@ -567,9 +356,6 @@
               <option value="key">Key</option>
               <option value="password">Password</option>
             </select>
-            {:else}
-            <span class="auth-label">Password</span>
-            {/if}
             <label class="default-radio" title="Set as default">
               <input
                 type="radio"
@@ -581,7 +367,7 @@
             </label>
             <button class="ghost micro-btn danger" on:click={() => removeUser(u.id)} title="Remove user"><Trash2 size={12} /></button>
           </div>
-          {#if protocol === 'rdp' || u.authMethod === 'password'}
+          {#if u.authMethod === 'password'}
             <div class="pass-block">
               <input
                 type="password"
@@ -612,9 +398,7 @@
         <div class="no-items">No users configured</div>
       {/if}
     </div>
-    {/if}
 
-    {#if protocol === 'ssh' || protocol === 'rdp' || protocol === 'telnet'}
     <!-- Jump Chain -->
     <div class="field">
       <div class="section-header">
@@ -732,7 +516,6 @@
         </div>
       {/if}
     </div>
-    {/if}
 
   </div>
 </div>
@@ -771,9 +554,6 @@
   .field-label { font-size: 11px; color: var(--text-secondary); font-weight: 500; }
   .field input, .field select { width: 100%; }
   .field-row { display: flex; gap: 8px; }
-  .name-protocol-row { align-items: flex-end; }
-  .protocol-field { width: 70px; flex-shrink: 0; }
-  .protocol-select { font-size: 11px; min-height: 24px; }
 
   .section-header {
     display: flex; justify-content: space-between; align-items: center;
@@ -824,7 +604,6 @@
   }
   .user-input { flex: 1; font-size: 11px; min-width: 60px; }
   .auth-select { width: 80px; font-size: 11px; }
-  .auth-label { font-size: 11px; color: var(--text-secondary); width: 80px; }
   .default-radio {
     font-size: 10px; color: var(--text-secondary); display: flex; align-items: center; gap: 2px;
     cursor: pointer; white-space: nowrap;

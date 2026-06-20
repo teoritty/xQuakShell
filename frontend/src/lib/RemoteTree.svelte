@@ -1,7 +1,7 @@
 <script lang="ts">
   import { folders, connections, sessions, selectedConnectionId, selectedConnectionIds, selectedFolderId, expandedFolderIds, pingResults, favorites, type Folder, type Connection } from '../stores/appState';
   import { openSession, moveConnections, moveFolder, reorderConnections, reorderFolders, saveFolder, saveConnection, deleteFolder, deleteConnection, createNewConnectionInFolder, createNewFolderInFolder } from '../stores/api';
-  import { Folder as FolderIcon, FolderOpen, Monitor, MonitorPlay, Terminal, Cable, Globe, Pencil, X, Plus, FolderPlus, MonitorDot, ChevronRight, ChevronDown, ChevronsDownUp, ChevronsUpDown, Search, CheckCircle2, Loader2, XCircle, Circle, Download } from 'lucide-svelte';
+  import { Folder as FolderIcon, FolderOpen, Monitor, Pencil, X, Plus, FolderPlus, MonitorDot, ChevronRight, ChevronDown, ChevronsDownUp, ChevronsUpDown, Search, CheckCircle2, Loader2, XCircle, Circle, Download } from 'lucide-svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import ImportPuTTYDialog from './ImportPuTTYDialog.svelte';
   import RemoteTreeContextMenu from './RemoteTreeContextMenu.svelte';
@@ -16,14 +16,8 @@
     return 'var(--danger, #f44747)';
   }
 
-  function protocolIcon(protocol?: string) {
-    switch (protocol || 'ssh') {
-      case 'rdp': return MonitorPlay;
-      case 'telnet': return Terminal;
-      case 'serial': return Cable;
-      case 'http': return Globe;
-      default: return Monitor;
-    }
+  function protocolIcon(_protocol?: string) {
+    return Monitor;
   }
 
   function pingTooltip(pingMap: Map<string, any>, connId: string): string {
@@ -564,7 +558,6 @@
               </span>
             {/if}
             <span class="node-name">{conn.name}</span>
-            <span class="protocol-badge" title="Protocol">{(conn.protocol || 'ssh').toUpperCase()}</span>
           </div>
         {/each}
       </div>
@@ -662,7 +655,6 @@
                 {/if}
               </span>
             {/if}
-            <span class="protocol-badge" title="Protocol">{(node.connection?.protocol || 'ssh').toUpperCase()}</span>
             <div class="conn-actions">
               <button class="micro-btn" on:click|stopPropagation={() => startRenameConnection(node.connection)} title="Rename"><Pencil size={12} /></button>
               <button class="micro-btn danger" on:click|stopPropagation={() => ($selectedConnectionIds.has(node.id) && $selectedConnectionIds.size > 1) ? requestDeleteConnections([...$selectedConnectionIds]) : requestDeleteConnection(node.connection)} title="Delete"><X size={12} /></button>
@@ -926,15 +918,6 @@
     font-size: 8px;
     color: var(--text-secondary);
     line-height: 14px;
-  }
-  .protocol-badge {
-    font-size: 9px;
-    padding: 0 4px;
-    border-radius: 2px;
-    background: var(--bg-tertiary, rgba(128, 128, 128, 0.2));
-    color: var(--text-secondary);
-    margin-left: 4px;
-    white-space: nowrap;
   }
 
   .favorites-section {

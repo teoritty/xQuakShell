@@ -203,18 +203,6 @@ func (a *App) GetSessionState(sessionID string) (presentation.SessionDTO, error)
 	return a.api.GetSessionState(sessionID)
 }
 
-func (a *App) RDPStart(sessionID string) (string, error) {
-	return a.api.RDPStart(sessionID)
-}
-
-func (a *App) RDPStop(sessionID string) error {
-	return a.api.RDPStop(sessionID)
-}
-
-func (a *App) RDPFocusWindow(sessionID string) error {
-	return a.api.RDPFocusWindow(sessionID)
-}
-
 func (a *App) GetPlatform() string {
 	return a.api.GetPlatform()
 }

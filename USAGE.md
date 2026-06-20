@@ -8,7 +8,7 @@ This guide explains how to use xQuakShell for managing remote connections, organ
 
 1. [Vault and Master Password](#vault-and-master-password)
 2. [Connections](#connections)
-3. [Protocols](#protocols)
+3. [SSH Connections](#ssh-connections)
 4. [Authentication](#authentication)
 5. [Jump Chains (Bastion)](#jump-chains-bastion)
 6. [Proxy and VPN](#proxy-and-vpn)
@@ -57,8 +57,7 @@ All data—connections, SSH keys, passwords, known hosts—is stored in a single
 | Field | Description |
 |-------|-------------|
 | **Name** | Display name (e.g., "Production DB Server"). |
-| **Protocol** | SSH, RDP, Telnet, Serial, or HTTP. |
-| **Host / Port** | For SSH: main host and port. For RDP/Telnet: use protocol-specific fields. |
+| **Host / Port** | SSH host and port (default 22). |
 | **Users** | One or more users; each can use a key or password. |
 | **Default user** | The user used when connecting. |
 | **Tags** | Optional tags for filtering (e.g., "prod", "backup"). |
@@ -74,35 +73,15 @@ All data—connections, SSH keys, passwords, known hosts—is stored in a single
 
 ---
 
-## Protocols
+## SSH Connections
 
-### SSH (default)
+xQuakShell is **SSH-first**: every connection uses SSH for terminal and SFTP file access.
 
 - Host, port (default 22), username.
 - Auth: SSH key or password (stored encrypted in vault).
-- Supports PTY terminal, SFTP, jump chains, proxy, VPN.
+- Supports PTY terminal, SFTP, jump chains, SOCKS proxy, VPN profiles.
 
-### RDP (Remote Desktop)
-
-- Host, port (default 3389), username, domain, password.
-- **Windows:** Uses `mstsc.exe` with a temporary `.rdp` file.
-- **Linux:** Uses `xfreerdp` (FreeRDP). Install: `sudo apt install freerdp2-x11` (or equivalent).
-- Supports proxy, VPN, jump chain in the UI (routing depends on implementation).
-
-### Telnet
-
-- Host, port (default 23), username, password.
-- Opens a terminal session over Telnet.
-
-### Serial
-
-- Port (e.g., `COM1`, `/dev/ttyUSB0`), baud rate, data bits, stop bits, parity.
-- For serial console access.
-
-### HTTP/HTTPS
-
-- URL, method (GET, POST, etc.), optional auth.
-- For HTTP-based tools or APIs.
+Additional session protocols can be added later via the plugin seam (`SessionConnector`); the core ships without built-in non-SSH connectors.
 
 ---
 
@@ -198,7 +177,7 @@ VPN support is in progress; WireGuard and OpenVPN connectors exist but may requi
 ### Opening a session
 
 - Double-click a connection (or use Connect from the context menu).
-- A new tab opens. For SSH: terminal + SFTP. For RDP: external RDP client launches.
+- A new tab opens with SSH terminal + SFTP file panels.
 
 ### Multiple tabs
 
@@ -318,10 +297,6 @@ Available for **SSH** sessions.
 
 - Check host, port, firewall, and VPN/proxy settings.
 - For jump chains, ensure each hop is reachable from the previous one.
-
-### RDP: "Incorrect connection file specified"
-
-- On Windows, the app generates a temporary `.rdp` file. Ensure the path is writable and the file is valid (UTF-16 LE with BOM for mstsc).
 
 ### App won't start (WebView2 error)
 

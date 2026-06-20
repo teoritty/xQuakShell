@@ -85,12 +85,6 @@ export function OpenSession(arg1:string):Promise<string>;
 
 export function PingConnection(arg1:string):Promise<void>;
 
-export function RDPFocusWindow(arg1:string):Promise<void>;
-
-export function RDPStart(arg1:string):Promise<string>;
-
-export function RDPStop(arg1:string):Promise<void>;
-
 export function RemoveKnownHost(arg1:string):Promise<void>;
 
 export function RemoveLocalPath(arg1:string):Promise<void>;

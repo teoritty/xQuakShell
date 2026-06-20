@@ -61,7 +61,7 @@ type SessionManager struct {
 	hostKeyRequest HostKeyRequestFunc
 }
 
-// OnStreamReadyFunc is called when a stream connector (Telnet, Serial) has started
+// OnStreamReadyFunc is called when a stream-based plugin connector has started
 // the terminal output. The API uses this to begin streaming to the frontend.
 type OnStreamReadyFunc func(sessionID string, outputCh <-chan []byte)
 
@@ -248,18 +248,6 @@ func (m *SessionManager) GetState(sessionID string) (domain.ConnectionSession, e
 		return domain.ConnectionSession{}, domain.ErrSessionNotFound
 	}
 	return entry.info, nil
-}
-
-// SetSessionEmbedError marks the session as failed (e.g. embedded RDP connect error on Windows).
-func (m *SessionManager) SetSessionEmbedError(sessionID string, errMsg string) error {
-	m.mu.RLock()
-	entry, ok := m.sessions[sessionID]
-	m.mu.RUnlock()
-	if !ok {
-		return domain.ErrSessionNotFound
-	}
-	m.updateState(entry, domain.SessionError, errMsg)
-	return nil
 }
 
 // GetAllSessions returns info for all active sessions.
