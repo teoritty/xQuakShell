@@ -23,6 +23,8 @@ type sessionEntry struct {
 	sshClient    domain.SSHClient
 	remoteFS     domain.RemoteFS
 	ptyBridge    domain.TerminalPTYBridge
+	ptyCols      uint32
+	ptyRows      uint32
 	hostKeyInfo  *domain.HostKeyInfo
 	connectionID string
 }
@@ -328,13 +330,43 @@ func (m *SessionManager) SetRemoteFS(sessionID string, fs domain.RemoteFS) {
 	}
 }
 
-// SetPTYBridge stores the PTY bridge for a session.
+// SetPTYBridge stores the PTY bridge for a session and applies any window size
+// that the frontend requested before the bridge existed (resize/bridge-start race).
 func (m *SessionManager) SetPTYBridge(sessionID string, bridge domain.TerminalPTYBridge) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	if entry, ok := m.sessions[sessionID]; ok {
-		entry.ptyBridge = bridge
+	entry, ok := m.sessions[sessionID]
+	if !ok {
+		m.mu.Unlock()
+		return
 	}
+	entry.ptyBridge = bridge
+	cols, rows := entry.ptyCols, entry.ptyRows
+	m.mu.Unlock()
+
+	if bridge != nil && cols > 0 && rows > 0 {
+		_ = bridge.Resize(cols, rows)
+	}
+}
+
+// ResizeTerminal records the requested PTY window size and applies it if the
+// bridge is ready. When the bridge has not started yet the size is buffered and
+// applied later by SetPTYBridge, so an early resize is never lost.
+func (m *SessionManager) ResizeTerminal(sessionID string, cols, rows uint32) error {
+	m.mu.Lock()
+	entry, ok := m.sessions[sessionID]
+	if !ok {
+		m.mu.Unlock()
+		return domain.ErrSessionNotFound
+	}
+	entry.ptyCols = cols
+	entry.ptyRows = rows
+	bridge := entry.ptyBridge
+	m.mu.Unlock()
+
+	if bridge == nil {
+		return nil
+	}
+	return bridge.Resize(cols, rows)
 }
 
 // CloseAll terminates all active sessions. Used during application shutdown.

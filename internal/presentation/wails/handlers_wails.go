@@ -415,13 +415,11 @@ func (a *AppAPI) getSanitizer(sessionID string) *auditlog.Sanitizer {
 	return s
 }
 
-// TerminalResize changes the PTY window size for a session.
+// TerminalResize changes the PTY window size for a session. The size is buffered
+// when the PTY bridge has not started yet, so a resize that races ahead of the
+// shell start is applied once the bridge is ready instead of being dropped.
 func (a *AppAPI) TerminalResize(sessionID string, cols, rows int) error {
-	bridge, err := a.sessions.GetPTYBridge(sessionID)
-	if err != nil {
-		return err
-	}
-	return bridge.Resize(uint32(cols), uint32(rows))
+	return a.sessions.ResizeTerminal(sessionID, uint32(cols), uint32(rows))
 }
 
 // --- SFTP ---
