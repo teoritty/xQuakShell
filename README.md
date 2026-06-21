@@ -9,12 +9,23 @@
 </p>
 
 <p align="center">
+  <a href="#scope">Scope</a> •
   <a href="#features">Features</a> •
   <a href="#screenshots">Screenshots</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#building">Building</a> •
   <a href="#documentation">Documentation</a>
 </p>
+
+---
+
+## Scope
+
+xQuakShell is an **SSH-first** remote connection manager: terminal, SFTP, jump hosts, and host key verification are built on SSH.
+
+**Current support:** only **SSH** is implemented in the shipped core. Other session protocols are not available yet.
+
+**Extensibility:** the core is designed to be extended—custom session protocols via the `SessionConnector` plugin seam, and integrations through documented Go and Wails API entry points (vault, sessions, transfers). See [Architecture](./docs/architecture.md) and [Contributing](./CONTRIBUTING.md).
 
 ---
 
@@ -126,6 +137,7 @@ xQuakShell/
 ## Documentation
 
 - [Usage Guide](./USAGE.md)
+- [Architecture & extensibility](./docs/architecture.md)
 - [Contributing](./CONTRIBUTING.md)
 - [Security Policy](./SECURITY.md)
 
