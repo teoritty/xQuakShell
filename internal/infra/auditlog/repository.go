@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"time"
 
@@ -154,7 +155,12 @@ func (r *SQLiteRepo) Search(_ context.Context, query string, filter domain.Audit
 		if err := rows.Scan(&e.ID, &tsStr, &e.SessionID, &e.ConnectionID, &e.Username, &e.Input, &redacted); err != nil {
 			return nil, fmt.Errorf("audit scan: %w", err)
 		}
-		e.Timestamp, _ = time.Parse(time.RFC3339Nano, tsStr)
+		ts, parseErr := time.Parse(time.RFC3339Nano, tsStr)
+		if parseErr != nil {
+			slog.Warn("audit: failed to parse timestamp", "raw", tsStr, "err", parseErr)
+			ts = time.Now()
+		}
+		e.Timestamp = ts
 		e.Redacted = redacted != 0
 		results = append(results, e)
 	}
