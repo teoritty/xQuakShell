@@ -154,7 +154,7 @@
 </script>
 
 {#if show}
-  <Modal title="Settings" show={true} on:close={() => show = false}>
+  <Modal title="Settings" show={true} contentClass="settings-modal" on:close={() => show = false}>
     <div class="settings-layout">
       <div class="settings-tabs">
         {#each tabs as tab}
@@ -375,7 +375,7 @@
   .settings-layout {
     display: flex;
     gap: 0;
-    min-height: 280px;
+    height: 420px;
   }
 
   .settings-tabs {
@@ -386,6 +386,7 @@
     border-right: 1px solid var(--border-color);
     width: 130px;
     flex-shrink: 0;
+    overflow-y: auto;
   }
 
   .tab-item {
