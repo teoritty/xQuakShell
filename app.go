@@ -9,6 +9,7 @@ import (
 	"ssh-client/internal/domain"
 	"ssh-client/internal/infra/auditlog"
 	"ssh-client/internal/infra/persistence"
+	infrasftp "ssh-client/internal/infra/sftp"
 	infrassh "ssh-client/internal/infra/ssh"
 	presentation "ssh-client/internal/presentation/wails"
 	"ssh-client/internal/usecase"
@@ -45,6 +46,8 @@ func NewApp() *App {
 		HostKeyCallbackBuilder:  infrassh.NewHostKeyCallbackBuilder(),
 		JumpTransportBuilder:    infrassh.NewJumpTransportBuilder(),
 		PrivateKeySignerFactory: infrassh.NewPrivateKeySignerFactory(),
+		PTYBridgeFactory:        infrassh.NewPTYBridgeFactory(),
+		SFTPClientFactory:       infrasftp.NewSFTPClientFactory(),
 	}
 
 	api := presentation.NewAppAPI(
@@ -283,7 +286,7 @@ func (a *App) SelectLocalDirectory() (string, error) {
 	return a.api.SelectLocalDirectory()
 }
 
-func (a *App) GetPingResults() []usecase.PingResult {
+func (a *App) GetPingResults() []presentation.PingResultDTO {
 	return a.api.GetPingResults()
 }
 
@@ -332,7 +335,9 @@ func defaultVaultDir() string {
 	if err := os.WriteFile(testFile, nil, 0600); err != nil {
 		return fallbackVaultDir()
 	}
-	os.Remove(testFile)
+	if err := os.Remove(testFile); err != nil {
+		log.Printf("WARNING: failed to remove writable test file %s: %v", testFile, err)
+	}
 	return exeDir
 }
 

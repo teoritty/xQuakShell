@@ -1,24 +1,3 @@
-export namespace usecase {
-	
-	export class PingResult {
-	    connectionId: string;
-	    reachable: boolean;
-	    latencyMs: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new PingResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.connectionId = source["connectionId"];
-	        this.reachable = source["reachable"];
-	        this.latencyMs = source["latencyMs"];
-	    }
-	}
-
-}
-
 export namespace wails {
 	
 	export class AppSettingsDTO {
@@ -355,6 +334,22 @@ export namespace wails {
 	    }
 	}
 	
+	export class PingResultDTO {
+	    connectionId: string;
+	    reachable: boolean;
+	    latencyMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PingResultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.connectionId = source["connectionId"];
+	        this.reachable = source["reachable"];
+	        this.latencyMs = source["latencyMs"];
+	    }
+	}
 	
 	export class PuTTYSessionDTO {
 	    name: string;
