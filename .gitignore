@@ -1,3 +1,6 @@
+# --- Local AI / dev guidelines (not committed) ---
+AI_GUIDELINES.md
+
 # --- Build outputs ---
 build/bin/
 build/appicon.png
