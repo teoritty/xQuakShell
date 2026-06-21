@@ -134,7 +134,7 @@
   }
 
   async function navigateInto(path: string) {
-    const node = (tree.get(currentPath) || []).find((n) => n.path === path);
+    const node = findNode(path);
     if (!node?.isDir) return;
     currentPath = path;
     expanded.add(path);
