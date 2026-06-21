@@ -32,6 +32,7 @@
       isDragging = false;
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
+      window.dispatchEvent(new Event('resize'));
     }
 
     window.addEventListener('mousemove', onMouseMove);
@@ -55,6 +56,7 @@
       fileDragging = false;
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
+      window.dispatchEvent(new Event('resize'));
     }
 
     window.addEventListener('mousemove', onMouseMove);
