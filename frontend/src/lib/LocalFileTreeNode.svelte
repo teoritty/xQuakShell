@@ -196,5 +196,19 @@
     color: var(--text-secondary);
   }
 
-  .node-children { padding-left: 16px; }
+  .node-children {
+    padding-left: 16px;
+    position: relative;
+  }
+
+  .node-children::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--indent-guide);
+    pointer-events: none;
+  }
 </style>

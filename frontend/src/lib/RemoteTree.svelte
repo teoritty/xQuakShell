@@ -475,6 +475,10 @@
     return `hsl(${h}, 50%, 40%)`;
   }
 
+  function range(n: number): number[] {
+    return Array.from({ length: n }, (_, i) => i);
+  }
+
   function flattenTree(nodes: TreeNode[]): TreeNode[] {
     const result: TreeNode[] = [];
     for (const n of nodes) {
@@ -602,6 +606,9 @@
           if (e.key === 'Enter' && node.type === 'folder') toggleFolder(node.id);
         }}
       >
+        {#each range(node.depth) as l}
+          <span class="indent-guide" style="left: {8 + l * 12 + 7}px"></span>
+        {/each}
         {#if node.type === 'folder'}
           <span class="folder-arrow" role="button" tabindex="-1" on:click|stopPropagation={() => toggleFolder(node.id)} on:keydown|stopPropagation={(e) => e.key === 'Enter' && toggleFolder(node.id)}>
             {#if node.expanded}<ChevronDown size={12} />{:else}<ChevronRight size={12} />{/if}
@@ -781,6 +788,7 @@
   }
 
   .tree-node {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 4px;
@@ -791,6 +799,15 @@
     white-space: nowrap;
     min-height: 24px;
     transition: background 0.08s;
+  }
+
+  .indent-guide {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--indent-guide);
+    pointer-events: none;
   }
   .tree-node:hover {
     background: var(--bg-hover);

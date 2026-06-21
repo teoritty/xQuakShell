@@ -286,12 +286,14 @@
   }
 
   function applySort(nodes: LocalNode[]): LocalNode[] {
-    if (!sortEnabled || !sortKey) return nodes;
     const dir = sortDir === 'asc' ? 1 : -1;
     return [...nodes].sort((a, b) => {
-      const cmp = compareValues(sortValue(a, sortKey), sortValue(b, sortKey));
-      if (cmp !== 0) return cmp * dir;
-      return a.name.localeCompare(b.name) * dir;
+      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+      if (sortEnabled && sortKey) {
+        const cmp = compareValues(sortValue(a, sortKey), sortValue(b, sortKey));
+        if (cmp !== 0) return cmp * dir;
+      }
+      return a.name.localeCompare(b.name);
     });
   }
 
