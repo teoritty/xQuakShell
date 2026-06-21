@@ -16,7 +16,6 @@ const (
 	EventPingUpdated         = "PingUpdated"
 	EventTransferCompleted   = "TransferCompleted"
 	EventFileEdited          = "FileEdited"
-	EventRDPProcessExited    = "RDPProcessExited"
 )
 
 // TerminalOutputPayload carries terminal output data for a specific session.

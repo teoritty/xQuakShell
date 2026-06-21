@@ -21,6 +21,7 @@
   --tab-inactive-bg: #2d2d2d;
   --scrollbar-thumb: #424242;
   --scrollbar-track: #1e1e1e;
+  --indent-guide: rgba(255, 255, 255, 0.10);
   --font-ui: "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", "Oxygen", "Ubuntu", sans-serif;
   --font-mono: "Cascadia Code", "Consolas", "Courier New", monospace;
 }

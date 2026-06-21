@@ -2,8 +2,8 @@ package domain
 
 import "context"
 
-// SessionConnector establishes a session for a given protocol.
-// Each protocol (SSH, Telnet, Serial, RDP, HTTP) has its own connector implementation.
+// SessionConnector establishes a session for a non-SSH protocol plugin.
+// SSH is handled natively by SessionManager; plugins register via main_connectors.go.
 type SessionConnector interface {
 	// Protocol returns the protocol this connector handles (e.g. ProtocolSSH).
 	Protocol() string
@@ -21,7 +21,7 @@ type ConnectorHooks struct {
 	SetPTYBridge   func(TerminalPTYBridge)
 	UpdateState    func(state SessionState, errMsg string)
 	SetHostKeyInfo func(*HostKeyInfo)
-	// OnStreamReady is called when a stream-based connector (Telnet, Serial) has started
+	// OnStreamReady is called when a stream-based plugin connector has started
 	// the terminal bridge. The API uses this to begin streaming output to the frontend.
 	OnStreamReady func(outputCh <-chan []byte)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	gossh "golang.org/x/crypto/ssh"
@@ -32,6 +33,12 @@ func (w *sshClientWrapper) Client() *gossh.Client {
 // Close terminates the SSH connection.
 func (w *sshClientWrapper) Close() error {
 	return w.client.Close()
+}
+
+// KeepAlive sends a keepalive request to detect connection loss.
+func (w *sshClientWrapper) KeepAlive() error {
+	_, _, err := w.client.SendRequest("keepalive@golang.org", true, nil)
+	return err
 }
 
 // Dialer implements domain.SSHClientFactory using golang.org/x/crypto/ssh.
@@ -147,6 +154,7 @@ func (privateKeySignerFactory) ParsePrivateKeyWithPassphrase(pemBytes []byte, pa
 // PassphraseCache stores passphrases for encrypted keys in memory.
 // It is safe for concurrent use.
 type PassphraseCache struct {
+	mu    sync.RWMutex
 	cache map[string]string
 }
 
@@ -159,17 +167,23 @@ func NewPassphraseCache() *PassphraseCache {
 
 // Get retrieves a cached passphrase for the given identity ID.
 func (c *PassphraseCache) Get(identityID string) (string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	p, ok := c.cache[identityID]
 	return p, ok
 }
 
 // Set stores a passphrase for the given identity ID.
 func (c *PassphraseCache) Set(identityID, passphrase string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.cache[identityID] = passphrase
 }
 
 // Clear removes all cached passphrases from memory.
 func (c *PassphraseCache) Clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for k := range c.cache {
 		c.cache[k] = ""
 		delete(c.cache, k)

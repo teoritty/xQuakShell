@@ -57,6 +57,10 @@
     max-width: 60vw;
   }
 
+  .modal-content.settings-modal {
+    width: 560px;
+  }
+
   .modal-header {
     display: flex;
     align-items: center;

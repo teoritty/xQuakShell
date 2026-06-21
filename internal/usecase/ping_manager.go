@@ -2,8 +2,9 @@ package usecase
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -132,6 +133,7 @@ func (pm *PingManager) run(ctx context.Context) {
 func (pm *PingManager) pingAll(ctx context.Context) {
 	conns, err := pm.connRepo.GetAllConnections(ctx)
 	if err != nil {
+		slog.Warn("ping: failed to load connections", "err", err)
 		return
 	}
 
@@ -167,13 +169,15 @@ func (pm *PingManager) pingAll(ctx context.Context) {
 }
 
 func tcpPing(connID, host string, port int) PingResult {
-	addr := fmt.Sprintf("%s:%d", host, port)
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	start := time.Now()
 	conn, err := net.DialTimeout("tcp", addr, 3*time.Second)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
 		return PingResult{ConnectionID: connID, Reachable: false, LatencyMs: latency}
 	}
-	conn.Close()
+	if closeErr := conn.Close(); closeErr != nil {
+		slog.Warn("ping: failed to close tcp conn", "addr", addr, "err", closeErr)
+	}
 	return PingResult{ConnectionID: connID, Reachable: true, LatencyMs: latency}
 }

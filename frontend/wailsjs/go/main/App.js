@@ -166,18 +166,6 @@ export function PingConnection(arg1) {
   return window['go']['main']['App']['PingConnection'](arg1);
 }
 
-export function RDPFocusWindow(arg1) {
-  return window['go']['main']['App']['RDPFocusWindow'](arg1);
-}
-
-export function RDPStart(arg1) {
-  return window['go']['main']['App']['RDPStart'](arg1);
-}
-
-export function RDPStop(arg1) {
-  return window['go']['main']['App']['RDPStop'](arg1);
-}
-
 export function RemoveKnownHost(arg1) {
   return window['go']['main']['App']['RemoveKnownHost'](arg1);
 }

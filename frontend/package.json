@@ -25,8 +25,11 @@
     "@codemirror/legacy-modes": "^6.5.2",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.40.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-ligatures": "^0.10.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^6.0.0",
     "codemirror": "^6.0.2",
-    "ghostty-web": "^0.4.0",
     "lucide-svelte": "^0.577.0"
   }
 }

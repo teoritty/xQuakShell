@@ -1,24 +1,3 @@
-export namespace usecase {
-	
-	export class PingResult {
-	    connectionId: string;
-	    reachable: boolean;
-	    latencyMs: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new PingResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.connectionId = source["connectionId"];
-	        this.reachable = source["reachable"];
-	        this.latencyMs = source["latencyMs"];
-	    }
-	}
-
-}
-
 export namespace wails {
 	
 	export class AppSettingsDTO {
@@ -91,82 +70,6 @@ export namespace wails {
 	        this.username = source["username"];
 	        this.input = source["input"];
 	        this.redacted = source["redacted"];
-	    }
-	}
-	export class HTTPConfigDTO {
-	    url: string;
-	    method: string;
-	    auth?: string;
-	    passwordId?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new HTTPConfigDTO(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.url = source["url"];
-	        this.method = source["method"];
-	        this.auth = source["auth"];
-	        this.passwordId = source["passwordId"];
-	    }
-	}
-	export class SerialConfigDTO {
-	    port: string;
-	    baudRate: number;
-	    dataBits: number;
-	    stopBits: number;
-	    parity: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new SerialConfigDTO(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.port = source["port"];
-	        this.baudRate = source["baudRate"];
-	        this.dataBits = source["dataBits"];
-	        this.stopBits = source["stopBits"];
-	        this.parity = source["parity"];
-	    }
-	}
-	export class RDPConfigDTO {
-	    host: string;
-	    port: number;
-	    username?: string;
-	    passwordId?: string;
-	    domain?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new RDPConfigDTO(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.host = source["host"];
-	        this.port = source["port"];
-	        this.username = source["username"];
-	        this.passwordId = source["passwordId"];
-	        this.domain = source["domain"];
-	    }
-	}
-	export class TelnetConfigDTO {
-	    host: string;
-	    port: number;
-	    username?: string;
-	    passwordId?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new TelnetConfigDTO(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.host = source["host"];
-	        this.port = source["port"];
-	        this.username = source["username"];
-	        this.passwordId = source["passwordId"];
 	    }
 	}
 	export class ProxyDTO {
@@ -309,10 +212,6 @@ export namespace wails {
 	    vpnProfileId?: string;
 	    jumpChain?: JumpHopDTO[];
 	    proxy?: ProxyDTO;
-	    telnetConfig?: TelnetConfigDTO;
-	    rdpConfig?: RDPConfigDTO;
-	    serialConfig?: SerialConfigDTO;
-	    httpConfig?: HTTPConfigDTO;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConnectionDTO(source);
@@ -335,10 +234,6 @@ export namespace wails {
 	        this.vpnProfileId = source["vpnProfileId"];
 	        this.jumpChain = this.convertValues(source["jumpChain"], JumpHopDTO);
 	        this.proxy = this.convertValues(source["proxy"], ProxyDTO);
-	        this.telnetConfig = this.convertValues(source["telnetConfig"], TelnetConfigDTO);
-	        this.rdpConfig = this.convertValues(source["rdpConfig"], RDPConfigDTO);
-	        this.serialConfig = this.convertValues(source["serialConfig"], SerialConfigDTO);
-	        this.httpConfig = this.convertValues(source["httpConfig"], HTTPConfigDTO);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -378,7 +273,6 @@ export namespace wails {
 	        this.order = source["order"];
 	    }
 	}
-	
 	export class IdentityDTO {
 	    id: string;
 	    comment: string;
@@ -440,6 +334,22 @@ export namespace wails {
 	    }
 	}
 	
+	export class PingResultDTO {
+	    connectionId: string;
+	    reachable: boolean;
+	    latencyMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PingResultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.connectionId = source["connectionId"];
+	        this.reachable = source["reachable"];
+	        this.latencyMs = source["latencyMs"];
+	    }
+	}
 	
 	export class PuTTYSessionDTO {
 	    name: string;
@@ -459,7 +369,6 @@ export namespace wails {
 	        this.userName = source["userName"];
 	    }
 	}
-	
 	export class RemoteNodeDTO {
 	    path: string;
 	    name: string;
@@ -486,7 +395,6 @@ export namespace wails {
 	        this.group = source["group"];
 	    }
 	}
-	
 	export class SessionDTO {
 	    sessionId: string;
 	    connectionId: string;
@@ -509,7 +417,6 @@ export namespace wails {
 	        this.errorMessage = source["errorMessage"];
 	    }
 	}
-	
 	export class VPNProfileDTO {
 	    id: string;
 	    label: string;

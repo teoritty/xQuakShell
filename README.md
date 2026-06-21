@@ -5,10 +5,11 @@
 </p>
 
 <p align="center">
-  <strong>Portable and secure multi-protocol remote connection manager.</strong><br/>
+  <strong>Portable and secure SSH-first remote connection manager.</strong><br/>
 </p>
 
 <p align="center">
+  <a href="#scope">Scope</a> •
   <a href="#features">Features</a> •
   <a href="#screenshots">Screenshots</a> •
   <a href="#quick-start">Quick Start</a> •
@@ -18,12 +19,21 @@
 
 ---
 
+## Scope
+
+xQuakShell is an **SSH-first** remote connection manager: terminal, SFTP, jump hosts, and host key verification are built on SSH.
+
+**Current support:** only **SSH** is implemented in the shipped core. Other session protocols are not available yet.
+
+**Extensibility:** the core is designed to be extended—custom session protocols via the `SessionConnector` plugin seam, and integrations through documented Go and Wails API entry points (vault, sessions, transfers). See [Architecture](./docs/architecture.md) and [Contributing](./CONTRIBUTING.md).
+
+---
+
 ## Features
 
 - Encrypted vault (`vault.age`) for connections, keys, credentials, known hosts.
-- Multi-protocol sessions: SSH, RDP, Telnet, Serial, HTTP.
-- Multi-tab session workflow with independent lifecycle.
-- Integrated terminal + SFTP file manager (upload/download/rename/delete/create).
+- SSH-first core: integrated terminal + SFTP file manager (upload/download/rename/delete/create).
+- Multi-tab SSH session workflow with independent lifecycle.
 - Strict SSH host key verification, jump hosts, SOCKS proxy, VPN profiles.
 - Portable Windows build with bundled WebView2 runtime (`make portable`).
 
@@ -127,6 +137,7 @@ xQuakShell/
 ## Documentation
 
 - [Usage Guide](./USAGE.md)
+- [Architecture & extensibility](./docs/architecture.md)
 - [Contributing](./CONTRIBUTING.md)
 - [Security Policy](./SECURITY.md)
 

@@ -47,36 +47,6 @@ export interface ProxyConfig {
   passwordId?: string;
 }
 
-export interface TelnetConfig {
-  host: string;
-  port: number;
-  username?: string;
-  passwordId?: string;
-}
-
-export interface RDPConfig {
-  host: string;
-  port: number;
-  username?: string;
-  passwordId?: string;
-  domain?: string;
-}
-
-export interface SerialConfig {
-  port: string;
-  baudRate: number;
-  dataBits: number;
-  stopBits: number;
-  parity: string;
-}
-
-export interface HTTPConfig {
-  url: string;
-  method: string;
-  auth?: string;
-  passwordId?: string;
-}
-
 export interface Connection {
   id: string;
   folderId: string;
@@ -93,10 +63,6 @@ export interface Connection {
   jumpChain?: JumpHop[];
   proxy?: ProxyConfig;
   protocol?: string;
-  telnetConfig?: TelnetConfig;
-  rdpConfig?: RDPConfig;
-  serialConfig?: SerialConfig;
-  httpConfig?: HTTPConfig;
 }
 
 export type SessionState = 'connecting' | 'hostkey-required' | 'ready' | 'error' | 'closed';

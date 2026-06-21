@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -14,6 +15,11 @@ import (
 
 	"ssh-client/internal/domain"
 )
+
+// sanitizeLocalPath normalizes a local path to prevent basic traversal attacks.
+func sanitizeLocalPath(p string) string {
+	return filepath.Clean(p)
+}
 
 const transferChunkSize = 32 * 1024
 
@@ -86,6 +92,7 @@ func (fs *RemoteFS) List(ctx context.Context, dirPath string) ([]domain.RemoteNo
 // Upload copies a local file to the remote path, reporting progress.
 func (fs *RemoteFS) Upload(ctx context.Context, localPath, remotePath string, progress domain.ProgressFunc) error {
 	remotePath = sanitizeRemotePath(remotePath)
+	localPath = sanitizeLocalPath(localPath)
 
 	localFile, err := os.Open(localPath)
 	if err != nil {
@@ -143,6 +150,7 @@ func (fs *RemoteFS) Upload(ctx context.Context, localPath, remotePath string, pr
 // Download copies a remote file to the local path, reporting progress.
 func (fs *RemoteFS) Download(ctx context.Context, remotePath, localPath string, progress domain.ProgressFunc) error {
 	remotePath = sanitizeRemotePath(remotePath)
+	localPath = sanitizeLocalPath(localPath)
 
 	remoteFile, err := fs.client.Open(remotePath)
 	if err != nil {
@@ -218,7 +226,11 @@ func (fs *RemoteFS) UploadRecursive(ctx context.Context, localDir, remoteDir str
 	if err := fs.client.MkdirAll(remoteDir); err != nil {
 		return fmt.Errorf("sftp upload recursive mkdir %s: %w", remoteDir, err)
 	}
-	totalSize, _ := computeLocalDirSize(localDir)
+	totalSize, err := computeLocalDirSize(localDir)
+	if err != nil {
+		slog.Warn("sftp upload recursive: compute dir size failed", "dir", localDir, "err", err)
+		totalSize = -1
+	}
 	if totalSize <= 0 {
 		totalSize = -1
 	}
@@ -285,7 +297,11 @@ func (fs *RemoteFS) computeRemoteDirSize(ctx context.Context, remoteDir string) 
 
 // DownloadRecursive recursively downloads a remote directory to the local path.
 func (fs *RemoteFS) DownloadRecursive(ctx context.Context, remoteDir, localDir string, progress domain.ProgressFunc) error {
-	totalSize, _ := fs.computeRemoteDirSize(ctx, remoteDir)
+	totalSize, err := fs.computeRemoteDirSize(ctx, remoteDir)
+	if err != nil {
+		slog.Warn("sftp download recursive: compute dir size failed", "dir", remoteDir, "err", err)
+		totalSize = -1
+	}
 	if totalSize <= 0 {
 		totalSize = -1
 	}

@@ -24,7 +24,7 @@ type ConnectionSession struct {
 	ConnectionID string `json:"connectionId"`
 	// ConnectionName is a cached display name for the tab.
 	ConnectionName string `json:"connectionName"`
-	// Protocol is the connection protocol (ssh, rdp, telnet, serial, http).
+	// Protocol is the connection protocol (ssh by default; plugin connectors may use other values).
 	Protocol string `json:"protocol,omitempty"`
 	// State is the current lifecycle state.
 	State SessionState `json:"state"`
