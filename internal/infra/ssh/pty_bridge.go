@@ -29,6 +29,18 @@ func NewPTYBridge() *PTYBridge {
 	return &PTYBridge{}
 }
 
+// ptyBridgeFactory implements domain.PTYBridgeFactory.
+type ptyBridgeFactory struct{}
+
+// NewPTYBridgeFactory returns a domain.PTYBridgeFactory backed by infra PTYBridge.
+func NewPTYBridgeFactory() domain.PTYBridgeFactory {
+	return ptyBridgeFactory{}
+}
+
+func (ptyBridgeFactory) NewBridge() domain.TerminalPTYBridge {
+	return NewPTYBridge()
+}
+
 // Start opens a PTY on the remote via the SSH client and starts reading stdout.
 // Returns a channel of output byte slices that the caller must drain.
 // The channel is closed when the session ends or the context is cancelled.
