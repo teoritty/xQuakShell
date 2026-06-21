@@ -249,6 +249,10 @@ type KnownHostsRepository interface {
 
 // --- SSH ---
 
+// Signer is a type alias for ssh.Signer, allowing usecase to reference this type
+// through domain without importing golang.org/x/crypto/ssh directly.
+type Signer = ssh.Signer
+
 // SSHClient wraps an active SSH connection with session creation capability.
 type SSHClient interface {
 	// NewSession opens a new SSH channel session for shell/exec.
@@ -259,6 +263,9 @@ type SSHClient interface {
 
 	// Close terminates the SSH connection.
 	Close() error
+
+	// KeepAlive sends a keepalive request to detect connection loss.
+	KeepAlive() error
 }
 
 // ProxyAuth holds SOCKS proxy authentication.
@@ -315,6 +322,16 @@ type TerminalPTYBridge interface {
 
 	// Close terminates the PTY session and releases resources.
 	Close() error
+}
+
+// PTYBridgeFactory creates new TerminalPTYBridge instances.
+type PTYBridgeFactory interface {
+	NewBridge() TerminalPTYBridge
+}
+
+// SFTPClientFactory creates RemoteFS adapters from an active SSH connection.
+type SFTPClientFactory interface {
+	New(client SSHClient, rateLimitKbps int) (RemoteFS, error)
 }
 
 // --- Identity management ---
