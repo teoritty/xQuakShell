@@ -21,14 +21,18 @@ func NewHostKeyChecker(repo domain.KnownHostsRepository) *HostKeyChecker {
 
 // HostKeyCallback returns a function compatible with ssh.ClientConfig.HostKeyCallback.
 // It does NOT automatically add unknown keys — the caller must handle ErrUnknownHost.
-// Errors are wrapped in HostKeyVerificationError so the public key is available to the caller.
+// Errors are wrapped in HostKeyVerificationError so the key info is available to the caller.
 func (c *HostKeyChecker) HostKeyCallback() gossh.HostKeyCallback {
 	return func(hostname string, remote net.Addr, key gossh.PublicKey) error {
 		host := normalizeHostPort(hostname, remote)
 
 		err := c.repo.Check(host, key)
 		if err != nil {
-			return &domain.HostKeyVerificationError{Err: err, Host: host, Key: key}
+			return &domain.HostKeyVerificationError{
+				Err:  err,
+				Host: host,
+				Info: HostKeyInfoFromPublicKey(host, key),
+			}
 		}
 		return nil
 	}

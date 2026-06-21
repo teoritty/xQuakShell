@@ -7,12 +7,12 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// HostKeyVerificationError wraps ErrUnknownHost or ErrHostKeyMismatch together with the remote
-// public key so callers can show a host key prompt without losing the key material.
+// HostKeyVerificationError wraps ErrUnknownHost or ErrHostKeyMismatch together with the
+// key info so callers can show a host key prompt without depending on the ssh library.
 type HostKeyVerificationError struct {
 	Err  error
 	Host string
-	Key  ssh.PublicKey
+	Info HostKeyInfo // filled by infra when the error is created
 }
 
 func (e *HostKeyVerificationError) Error() string {
@@ -27,20 +27,6 @@ func (e *HostKeyVerificationError) Unwrap() error {
 		return nil
 	}
 	return e.Err
-}
-
-// HostKeyInfoFromPublicKey fills KeyType, Fingerprint, KeyBase64 for UI display.
-// Mismatch is left false; the caller sets it when resolving ErrHostKeyMismatch.
-func HostKeyInfoFromPublicKey(host string, key ssh.PublicKey) HostKeyInfo {
-	if key == nil {
-		return HostKeyInfo{Host: host}
-	}
-	return HostKeyInfo{
-		Host:        host,
-		KeyType:     key.Type(),
-		Fingerprint: ssh.FingerprintSHA256(key),
-		KeyBase64:   string(ssh.MarshalAuthorizedKey(key)),
-	}
 }
 
 // PassphraseCache stores passphrases for encrypted keys in memory during the session lifetime.

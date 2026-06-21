@@ -192,7 +192,11 @@ func passwordSSHConnection() *domain.Connection {
 
 func TestSSHConnectHostKeyUnknown(t *testing.T) {
 	pk := testPublicKey(t)
-	hkErr := &domain.HostKeyVerificationError{Err: domain.ErrUnknownHost, Host: "example.com:22", Key: pk}
+	hkErr := &domain.HostKeyVerificationError{
+		Err:  domain.ErrUnknownHost,
+		Host: "example.com:22",
+		Info: domain.HostKeyInfo{Host: "example.com:22", KeyType: pk.Type()},
+	}
 
 	var last domain.ConnectionSession
 	var mu sync.Mutex
@@ -216,7 +220,7 @@ func TestSSHConnectHostKeyUnknown(t *testing.T) {
 		OnStateChange:           onChange,
 	})
 
-	_, err := sm.OpenSession("c1")
+	_, err := sm.OpenSession(context.Background(), "c1")
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
@@ -246,7 +250,7 @@ func TestSSHConnectGenericError(t *testing.T) {
 		OnStateChange:           onChange,
 	})
 
-	_, err := sm.OpenSession("c1")
+	_, err := sm.OpenSession(context.Background(), "c1")
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
@@ -255,7 +259,11 @@ func TestSSHConnectGenericError(t *testing.T) {
 
 func TestSSHJumpChainHostKeyUnknown(t *testing.T) {
 	pk := testPublicKey(t)
-	hkErr := &domain.HostKeyVerificationError{Err: domain.ErrUnknownHost, Host: "hop1:22", Key: pk}
+	hkErr := &domain.HostKeyVerificationError{
+		Err:  domain.ErrUnknownHost,
+		Host: "hop1:22",
+		Info: domain.HostKeyInfo{Host: "hop1:22", KeyType: pk.Type()},
+	}
 
 	conn := passwordSSHConnection()
 	conn.JumpChain = domain.JumpChainConfig{
@@ -288,7 +296,7 @@ func TestSSHJumpChainHostKeyUnknown(t *testing.T) {
 		OnStateChange:           onChange,
 	})
 
-	_, err := sm.OpenSession("c1")
+	_, err := sm.OpenSession(context.Background(), "c1")
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
