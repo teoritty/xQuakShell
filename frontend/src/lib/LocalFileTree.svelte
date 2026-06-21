@@ -123,7 +123,7 @@
     loading = loading;
     error = '';
     try {
-      const nodes = await listLocalPath(path, showHidden);
+      const nodes = (await listLocalPath(path, showHidden)) || [];
       rawTree.set(path, nodes);
       tree.set(path, applySort(nodes));
       tree = tree;
@@ -170,7 +170,7 @@
   }
 
   async function navigateInto(path: string) {
-    const node = (tree.get(currentPath) || []).find((n) => n.path === path);
+    const node = findNode(path);
     if (!node?.isDir) return;
     currentPath = path;
     expanded.add(path);
@@ -286,6 +286,7 @@
   }
 
   function applySort(nodes: LocalNode[]): LocalNode[] {
+    if (!nodes) return [];
     const dir = sortDir === 'asc' ? 1 : -1;
     return [...nodes].sort((a, b) => {
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
