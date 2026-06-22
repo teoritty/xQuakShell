@@ -3,7 +3,10 @@
   import { EditorView, basicSetup } from 'codemirror';
   import { StreamLanguage } from '@codemirror/language';
   import { shell } from '@codemirror/legacy-modes/mode/shell';
-  import { EditorState } from '@codemirror/state';
+  import { EditorState, Prec } from '@codemirror/state';
+  import { keymap } from '@codemirror/view';
+  import { acceptCompletion } from '@codemirror/autocomplete';
+  import { appCodeMirrorTheme, appCodeMirrorHighlight } from './codemirrorAppTheme';
 
   export let value = '';
   export let minHeight = '200px';
@@ -26,7 +29,12 @@
       doc: value,
       extensions: [
         basicSetup,
+        appCodeMirrorTheme,
+        appCodeMirrorHighlight,
         shellLanguage,
+        Prec.highest(
+          keymap.of([{ key: 'Tab', run: acceptCompletion }]),
+        ),
         EditorView.updateListener.of((v) => {
           if (v.docChanged) {
             value = v.state.doc.toString();

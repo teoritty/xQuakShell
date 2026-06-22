@@ -5,6 +5,8 @@
   import { LigaturesAddon } from '@xterm/addon-ligatures';
   import { WebLinksAddon } from '@xterm/addon-web-links';
   import { sendTerminalInput, terminalResize, getSettings } from '../stores/api';
+  import { getUiScaleFactor } from './uiScale';
+  import { dataHasEnter, extractCommandLine } from './terminalCommandLine';
 
   export let sessionId: string;
   export let active: boolean = false;
@@ -20,6 +22,24 @@
   /** Drops TerminalOutput until subscription is installed (avoids stale lines). */
   let acceptOutput = false;
   const mountSessionId = sessionId;
+  /** Captured on Enter keydown before xterm/PTY consume the line. */
+  let pendingCommandLine = '';
+  let baseTerminalFontSize = 14;
+
+  function scaledTerminalFontSize(): number {
+    return Math.round(baseTerminalFontSize * getUiScaleFactor());
+  }
+
+  function applyTerminalFontSize() {
+    if (!term) return;
+    const next = scaledTerminalFontSize();
+    if (term.options.fontSize === next) return;
+    term.options.fontSize = next;
+    term.refresh(0, term.rows - 1);
+    scheduleRefit();
+  }
+
+  const onUiScaleChanged = () => applyTerminalFontSize();
 
   const defaultTheme = {
     background: '#1e1e1e',
@@ -136,7 +156,8 @@
 
   onMount(async () => {
     const settings = await getSettings();
-    const fontSize = settings?.terminalFontSize ?? 14;
+    baseTerminalFontSize = settings?.terminalFontSize ?? 14;
+    const fontSize = scaledTerminalFontSize();
     const fontFamily = settings?.terminalFontFamily || 'Cascadia Code, Consolas, Courier New, monospace';
     const fontColor = settings?.terminalFontColor || '#cccccc';
     const theme = { ...defaultTheme, foreground: fontColor };
@@ -181,7 +202,9 @@
     initDone = true;
 
     dataDisposable = term.onData((data) => {
-      sendTerminalInput(sessionId, data);
+      const commandLine = dataHasEnter(data) ? pendingCommandLine : '';
+      pendingCommandLine = '';
+      sendTerminalInput(sessionId, data, commandLine);
     });
 
     // fit() updates cols/rows and fires this; keep the backend PTY in sync.
@@ -208,6 +231,11 @@
     // ghostty-web convention), so we consume the paste shortcut here.
     term.attachCustomKeyEventHandler((ev: KeyboardEvent) => {
       if (ev.type !== 'keydown') return true;
+
+      if (ev.key === 'Enter' && term) {
+        pendingCommandLine = extractCommandLine(term);
+      }
+
       const isPaste =
         ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && !ev.altKey && ev.code === 'KeyV') ||
         (ev.shiftKey && !ev.ctrlKey && !ev.altKey && (ev.code === 'Insert' || ev.key === 'Insert'));
@@ -230,6 +258,7 @@
 
     // Safety net for WebView2/window-level changes (maximize/restore, DPI).
     window.addEventListener('resize', scheduleRefit);
+    window.addEventListener('ui-scale-changed', onUiScaleChanged);
 
     const rt = (window as any).runtime;
     if (rt) {
@@ -251,6 +280,7 @@
   onDestroy(() => {
     if (refitRaf) cancelAnimationFrame(refitRaf);
     window.removeEventListener('resize', scheduleRefit);
+    window.removeEventListener('ui-scale-changed', onUiScaleChanged);
     if (resizeObserver) resizeObserver.disconnect();
     if (eventOff) eventOff();
     dataDisposable?.dispose();

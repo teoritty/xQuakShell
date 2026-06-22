@@ -1,20 +1,13 @@
 <script lang="ts">
   import Modal from './Modal.svelte';
   import { activeSessionId } from '../stores/appState';
-  import { sendTerminalInput } from '../stores/api';
-  import { Search, RotateCcw, Copy, Loader2, FileText, Trash2, Trash } from 'lucide-svelte';
+  import { sendTerminalInput, getSettings, searchAuditLog, deleteAuditEntry, clearAuditLog, type AuditEntry } from '../stores/api';
+  import { Search, RotateCcw, Copy, Loader2, FileText, Trash2, Trash, XCircle } from 'lucide-svelte';
+  import { createEventDispatcher } from 'svelte';
 
   export let show = false;
 
-  interface AuditEntry {
-    id: number;
-    timestamp: string;
-    sessionId: string;
-    connectionId: string;
-    username: string;
-    input: string;
-    redacted: boolean;
-  }
+  const dispatch = createEventDispatcher<{ openSettings: { tab: string } }>();
 
   let query = '';
   let results: AuditEntry[] = [];
@@ -23,17 +16,29 @@
   let connectionFilter = '';
   let copiedId: number | null = null;
   let clearConfirmShow = false;
+  let auditEnabled = false;
+  let auditShowUsername = false;
+  let auditShowConnection = false;
 
-  function getApp() { return (window as any).go?.main?.App; }
+  $: if (show) loadView();
 
-  $: if (show) search();
+  async function loadView() {
+    const s = await getSettings();
+    auditEnabled = s?.auditLogEnabled ?? false;
+    auditShowUsername = s?.auditShowUsername ?? false;
+    auditShowConnection = s?.auditShowConnection ?? false;
+    if (auditEnabled) {
+      await search();
+    } else {
+      results = [];
+    }
+  }
 
   async function search() {
-    const app = getApp();
-    if (!app) return;
+    if (!auditEnabled) return;
     loading = true;
     try {
-      results = (await app.SearchAuditLog(query, sessionFilter, connectionFilter, 200, 0)) || [];
+      results = await searchAuditLog(query, sessionFilter, connectionFilter, 200, 0);
     } catch {
       results = [];
     }
@@ -46,6 +51,15 @@
     } catch { return ts; }
   }
 
+  function formatConnection(entry: AuditEntry): string {
+    if (entry.connectionName && entry.host) {
+      return `${entry.connectionName} @ ${entry.host}`;
+    }
+    if (entry.connectionName) return entry.connectionName;
+    if (entry.host) return entry.host;
+    return '';
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') search();
   }
@@ -53,27 +67,19 @@
   async function rerunCommand(entry: AuditEntry) {
     const sid = $activeSessionId;
     if (!sid) return;
-    await sendTerminalInput(sid, entry.input + '\n');
+    await sendTerminalInput(sid, entry.input + '\n', entry.input);
     show = false;
   }
 
   async function deleteEntry(entry: AuditEntry) {
-    const app = getApp();
-    if (!app?.DeleteAuditEntry) return;
-    try {
-      await app.DeleteAuditEntry(entry.id);
-      await search();
-    } catch {}
+    await deleteAuditEntry(entry.id);
+    await search();
   }
 
   async function clearAll() {
-    const app = getApp();
-    if (!app?.ClearAuditLog) return;
-    try {
-      await app.ClearAuditLog();
-      clearConfirmShow = false;
-      await search();
-    } catch {}
+    await clearAuditLog();
+    clearConfirmShow = false;
+    await search();
   }
 
   async function copyCommand(entry: AuditEntry) {
@@ -83,96 +89,115 @@
       setTimeout(() => { if (copiedId === entry.id) copiedId = null; }, 1500);
     } catch {}
   }
+
+  function openAuditSettings() {
+    show = false;
+    dispatch('openSettings', { tab: 'audit' });
+  }
 </script>
 
 {#if show}
   <Modal title="Audit Log" show={true} on:close={() => show = false}>
     <div class="audit-log">
-      <div class="search-bar">
-        <div class="search-input-wrap">
-          <Search size={13} />
-          <input
-            type="text"
-            bind:value={query}
-            placeholder="Search commands..."
-            on:keydown={handleKeydown}
-            class="search-input"
-          />
+      {#if !auditEnabled}
+        <div class="disabled-state">
+          <XCircle size={32} class="disabled-icon" />
+          <h3>Audit log is disabled</h3>
+          <p>Enable audit logging in Settings to record submitted terminal commands.</p>
+          <button class="primary" on:click={openAuditSettings}>Open Audit Log settings</button>
         </div>
-        <button class="primary search-btn" on:click={search} disabled={loading}>
-          {#if loading}<Loader2 size={13} />{:else}<Search size={13} />{/if}
-          {loading ? 'Searching...' : 'Search'}
-        </button>
-        <button class="danger search-btn" on:click={() => clearConfirmShow = true} disabled={loading || results.length === 0} title="Clear all">
-          <Trash size={13} />
-          Clear all
-        </button>
-      </div>
-
-      {#if clearConfirmShow}
-        <div class="confirm-overlay">
-          <div class="confirm-box">
-            <p>Clear all audit log entries? This cannot be undone.</p>
-            <div class="confirm-actions">
-              <button class="primary" on:click={clearAll}>Clear all</button>
-              <button class="secondary" on:click={() => clearConfirmShow = false}>Cancel</button>
-            </div>
+      {:else}
+        <div class="search-bar">
+          <div class="search-input-wrap">
+            <Search size={13} />
+            <input
+              type="text"
+              bind:value={query}
+              placeholder="Search commands..."
+              on:keydown={handleKeydown}
+              class="search-input"
+            />
           </div>
+          <button class="primary search-btn" on:click={search} disabled={loading}>
+            {#if loading}<Loader2 size={13} />{:else}<Search size={13} />{/if}
+            {loading ? 'Searching...' : 'Search'}
+          </button>
+          <button class="danger search-btn" on:click={() => clearConfirmShow = true} disabled={loading || results.length === 0} title="Clear all">
+            <Trash size={13} />
+            Clear all
+          </button>
         </div>
-      {/if}
 
-      <div class="filters">
-        <input type="text" bind:value={sessionFilter} placeholder="Session ID filter" class="filter-input" />
-        <input type="text" bind:value={connectionFilter} placeholder="Connection ID filter" class="filter-input" />
-      </div>
-
-      <div class="results">
-        {#if results.length === 0 && !loading}
-          <div class="empty">
-            <FileText size={24} />
-            <span>No audit log entries found</span>
-          </div>
-        {/if}
-        {#each results as entry (entry.id)}
-          <div class="entry" class:redacted={entry.redacted}>
-            <div class="entry-header">
-              <span class="entry-time">{formatTs(entry.timestamp)}</span>
-              <span class="entry-user">{entry.username || 'unknown'}</span>
-              {#if entry.redacted}
-                <span class="redacted-badge">REDACTED</span>
-              {/if}
-              <div class="entry-actions">
-                <button
-                  class="entry-btn"
-                  on:click={() => copyCommand(entry)}
-                  title="Copy command"
-                >
-                  <Copy size={11} />
-                  {#if copiedId === entry.id}<span class="copied-label">Copied</span>{/if}
-                </button>
-                <button
-                  class="entry-btn danger"
-                  on:click={() => deleteEntry(entry)}
-                  title="Delete"
-                >
-                  <Trash2 size={11} />
-                </button>
-                {#if $activeSessionId && !entry.redacted}
-                  <button
-                    class="entry-btn rerun"
-                    on:click={() => rerunCommand(entry)}
-                    title="Re-run in active session"
-                  >
-                    <RotateCcw size={11} />
-                    Re-run
-                  </button>
-                {/if}
+        {#if clearConfirmShow}
+          <div class="confirm-overlay">
+            <div class="confirm-box">
+              <p>Clear all audit log entries? This cannot be undone.</p>
+              <div class="confirm-actions">
+                <button class="primary" on:click={clearAll}>Clear all</button>
+                <button class="secondary" on:click={() => clearConfirmShow = false}>Cancel</button>
               </div>
             </div>
-            <div class="entry-input">{entry.input}</div>
           </div>
-        {/each}
-      </div>
+        {/if}
+
+        <div class="filters">
+          <input type="text" bind:value={sessionFilter} placeholder="Session ID filter" class="filter-input" />
+          <input type="text" bind:value={connectionFilter} placeholder="Connection ID filter" class="filter-input" />
+        </div>
+
+        <div class="results">
+          {#if results.length === 0 && !loading}
+            <div class="empty">
+              <FileText size={24} />
+              <span>No audit log entries found</span>
+            </div>
+          {/if}
+          {#each results as entry (entry.id)}
+            <div class="entry" class:redacted={entry.redacted}>
+              <div class="entry-header">
+                <span class="entry-time">{formatTs(entry.timestamp)}</span>
+                {#if auditShowConnection && formatConnection(entry)}
+                  <span class="entry-connection">{formatConnection(entry)}</span>
+                {/if}
+                {#if auditShowUsername && entry.username}
+                  <span class="entry-user">{entry.username}</span>
+                {/if}
+                {#if entry.redacted}
+                  <span class="redacted-badge">REDACTED</span>
+                {/if}
+                <div class="entry-actions">
+                  <button
+                    class="entry-btn"
+                    on:click={() => copyCommand(entry)}
+                    title="Copy command"
+                  >
+                    <Copy size={11} />
+                    {#if copiedId === entry.id}<span class="copied-label">Copied</span>{/if}
+                  </button>
+                  <button
+                    class="entry-btn danger"
+                    on:click={() => deleteEntry(entry)}
+                    title="Delete"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                  {#if $activeSessionId && !entry.redacted}
+                    <button
+                      class="entry-btn rerun"
+                      on:click={() => rerunCommand(entry)}
+                      title="Re-run in active session"
+                    >
+                      <RotateCcw size={11} />
+                      Re-run
+                    </button>
+                  {/if}
+                </div>
+              </div>
+              <div class="entry-input">{entry.input}</div>
+            </div>
+          {/each}
+        </div>
+      {/if}
     </div>
   </Modal>
 {/if}
@@ -186,6 +211,33 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+  }
+
+  .disabled-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 24px;
+    gap: 10px;
+    color: var(--text-secondary);
+  }
+
+  .disabled-state :global(.disabled-icon) {
+    color: var(--danger);
+  }
+
+  .disabled-state h3 {
+    margin: 0;
+    font-size: 15px;
+    color: var(--text-primary);
+  }
+
+  .disabled-state p {
+    margin: 0;
+    font-size: 12px;
+    max-width: 320px;
   }
 
   .search-bar {
@@ -275,10 +327,16 @@
     gap: 8px;
     align-items: center;
     margin-bottom: 2px;
+    flex-wrap: wrap;
   }
 
   .entry-time {
     color: var(--text-secondary);
+    font-size: 10px;
+  }
+
+  .entry-connection {
+    color: var(--text-primary);
     font-size: 10px;
   }
 

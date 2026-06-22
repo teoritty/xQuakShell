@@ -145,6 +145,18 @@ func (a *App) ClearAuditLog() error {
 	return a.api.ClearAuditLog()
 }
 
+func (a *App) GetAuditSessionState() presentation.AuditSessionStateDTO {
+	return a.api.GetAuditSessionState()
+}
+
+func (a *App) EnableAuditSecretLogging(confirmed bool) error {
+	return a.api.EnableAuditSecretLogging(confirmed)
+}
+
+func (a *App) DisableAuditSecretLogging() {
+	a.api.DisableAuditSecretLogging()
+}
+
 func (a *App) ReportActivity() {
 	a.api.ReportActivity()
 }
@@ -193,8 +205,8 @@ func (a *App) GetPlatform() string {
 	return a.api.GetPlatform()
 }
 
-func (a *App) SendTerminalInput(sessionID, data string) error {
-	return a.api.SendTerminalInput(sessionID, data)
+func (a *App) SendTerminalInput(sessionID, data, commandLine string) error {
+	return a.api.SendTerminalInput(sessionID, data, commandLine)
 }
 
 func (a *App) TerminalResize(sessionID string, cols, rows int) error {

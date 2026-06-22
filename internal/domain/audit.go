@@ -7,13 +7,15 @@ import (
 
 // AuditEntry represents a single logged terminal input event.
 type AuditEntry struct {
-	ID           int64     `json:"id"`
-	Timestamp    time.Time `json:"timestamp"`
-	SessionID    string    `json:"sessionId"`
-	ConnectionID string    `json:"connectionId"`
-	Username     string    `json:"username"`
-	Input        string    `json:"input"`
-	Redacted     bool      `json:"redacted"`
+	ID             int64     `json:"id"`
+	Timestamp      time.Time `json:"timestamp"`
+	SessionID      string    `json:"sessionId"`
+	ConnectionID   string    `json:"connectionId"`
+	ConnectionName string    `json:"connectionName"`
+	Host           string    `json:"host"`
+	Username       string    `json:"username"`
+	Input          string    `json:"input"`
+	Redacted       bool      `json:"redacted"`
 }
 
 // AuditSearchFilter provides optional filters for audit log queries.
@@ -36,6 +38,12 @@ type AuditLogRepository interface {
 	DeleteByID(ctx context.Context, id int64) error
 	// ClearAll removes all audit entries.
 	ClearAll(ctx context.Context) error
+	// Count returns the total number of audit entries.
+	Count(ctx context.Context) (int64, error)
+	// PurgeOlderThan deletes entries with timestamp strictly before cutoff.
+	PurgeOlderThan(ctx context.Context, cutoff time.Time) error
+	// TrimToCount deletes oldest entries until at most max remain.
+	TrimToCount(ctx context.Context, max int) error
 	// Close releases underlying storage resources.
 	Close() error
 }

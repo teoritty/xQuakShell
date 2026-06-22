@@ -123,13 +123,15 @@ func DefaultSessionHotkeysSettings() SessionHotkeysSettings {
 
 // AppSettings stores user-configurable application settings inside the vault.
 type AppSettings struct {
-	Lockout            LockoutSettings   `json:"lockout"`
-	Terminal           TerminalSettings  `json:"terminal"`
-	Theme              string            `json:"theme"`
-	Ping               PingSettings      `json:"ping"`
-	Transfer           TransferSettings  `json:"transfer"`
+	Lockout            LockoutSettings        `json:"lockout"`
+	Terminal           TerminalSettings       `json:"terminal"`
+	Theme              string                 `json:"theme"`
+	UIScalePercent     int                    `json:"uiScalePercent"`
+	Ping               PingSettings           `json:"ping"`
+	Transfer           TransferSettings       `json:"transfer"`
 	SessionHotkeys     SessionHotkeysSettings `json:"sessionHotkeys"`
-	ExternalEditorPath string            `json:"externalEditorPath,omitempty"`
+	ExternalEditorPath string                 `json:"externalEditorPath,omitempty"`
+	AuditLog           AuditLogSettings       `json:"auditLog"`
 }
 
 // NewVaultData returns an empty VaultData at the current schema version.
@@ -146,9 +148,11 @@ func NewVaultData() *VaultData {
 			Lockout:        DefaultLockoutSettings(),
 			Terminal:       DefaultTerminalSettings(),
 			Theme:          "dark",
+			UIScalePercent: 100,
 			Ping:           DefaultPingSettings(),
 			Transfer:       DefaultTransferSettings(),
 			SessionHotkeys: DefaultSessionHotkeysSettings(),
+			AuditLog:       DefaultAuditLogSettings(),
 		},
 	}
 }

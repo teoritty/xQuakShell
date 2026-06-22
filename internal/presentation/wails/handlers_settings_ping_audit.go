@@ -27,6 +27,9 @@ func (a *AppAPI) SaveSettings(dto AppSettingsDTO) error {
 	if err := a.settingsSvc.SaveSettings(context.Background(), settings); err != nil {
 		return err
 	}
+	if a.auditSvc != nil {
+		_ = a.auditSvc.EnforceRetention(context.Background())
+	}
 	if a.pingMgr != nil {
 		a.pingMgr.Stop()
 		a.pingMgr.Start(func(results []usecase.PingResult) {
@@ -112,4 +115,36 @@ func (a *AppAPI) ClearAuditLog() error {
 		return fmt.Errorf("audit log not available")
 	}
 	return a.auditLog.ClearAll(context.Background())
+}
+
+// AuditSessionStateDTO exposes session-only audit options to the UI.
+type AuditSessionStateDTO struct {
+	LogSecretsEnabled bool `json:"logSecretsEnabled"`
+}
+
+// GetAuditSessionState returns live session audit flags (not persisted in vault).
+func (a *AppAPI) GetAuditSessionState() AuditSessionStateDTO {
+	if a.auditSvc == nil {
+		return AuditSessionStateDTO{}
+	}
+	return AuditSessionStateDTO{LogSecretsEnabled: a.auditSvc.SessionLogSecretsEnabled()}
+}
+
+// EnableAuditSecretLogging enables plaintext secret logging for this session only.
+func (a *AppAPI) EnableAuditSecretLogging(confirmed bool) error {
+	if !confirmed {
+		return fmt.Errorf("confirmation required")
+	}
+	if a.auditSvc == nil {
+		return fmt.Errorf("audit log not available")
+	}
+	a.auditSvc.EnableSessionSecretLogging()
+	return nil
+}
+
+// DisableAuditSecretLogging turns off session secret logging.
+func (a *AppAPI) DisableAuditSecretLogging() {
+	if a.auditSvc != nil {
+		a.auditSvc.DisableSessionSecretLogging()
+	}
 }

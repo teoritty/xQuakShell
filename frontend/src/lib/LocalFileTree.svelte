@@ -5,7 +5,9 @@
   import LocalFileTreeNode from './LocalFileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
-  import { RefreshCw, ChevronUp, Shield, User, Calendar, Eye, ArrowUpDown } from 'lucide-svelte';
+  import OverflowToolbar from './OverflowToolbar.svelte';
+  import { buildFilePanelToolbarItems, cycleSortState, type SortKey } from './filePanelToolbar';
+  import { ChevronUp } from 'lucide-svelte';
 
   const STORAGE_KEY = 'localfiletree-show-columns';
   const STORAGE_HIDDEN = 'localfiletree-show-hidden';
@@ -27,11 +29,10 @@
   let editingNewPath: string | null = null;
   let deleteConfirm = { show: false, path: '', name: '', isDir: false, childCount: 0, pathsToDelete: [] as string[] };
   let dragOverPath: string | null = null;
-  type SortKey = 'name' | 'size' | 'modTime' | 'owner';
   type SortDir = 'asc' | 'desc';
   let sortEnabled = false;
   let sortKey: SortKey | null = null;
-  let sortDir: SortDir = 'desc';
+  let sortDir: SortDir = 'asc';
 
   function findNode(path: string): LocalNode | undefined {
     for (const [, nodes] of tree) {
@@ -311,27 +312,11 @@
   }
 
   function toggleSort(nextKey: SortKey) {
-    if (!sortEnabled || sortKey !== nextKey) {
-      sortEnabled = true;
-      sortKey = nextKey;
-      sortDir = 'desc';
-      reapplySortToTree();
-      return;
-    }
-    if (sortDir === 'desc') {
-      sortDir = 'asc';
-      reapplySortToTree();
-      return;
-    }
-    sortEnabled = false;
-    sortKey = null;
-    sortDir = 'desc';
+    ({ sortEnabled, sortKey, sortDir } = cycleSortState(
+      { sortEnabled, sortKey, sortDir },
+      nextKey
+    ));
     reapplySortToTree();
-  }
-
-  function sortIndicator(key: SortKey): string {
-    if (!sortEnabled || sortKey !== key) return '';
-    return sortDir === 'desc' ? ' ↓' : ' ↑';
   }
 
   function handleDragOverPath(e: DragEvent, path: string) {
@@ -525,23 +510,29 @@
   function handleRenameCancel() {
     editingNewPath = null;
   }
+
+  $: toolbarItems = buildFilePanelToolbarItems({
+    showPermissions,
+    showOwner,
+    showDate,
+    showHidden,
+    sortEnabled,
+    sortKey,
+    sortDir,
+    togglePermissions,
+    toggleOwner,
+    toggleDate,
+    toggleHidden,
+    toggleSort,
+    refresh,
+  });
 </script>
 
 <svelte:window on:click={closeContextMenu} />
 <div class="file-tree">
   <div class="panel-header">
     <span>Local Files</span>
-    <div class="actions">
-      <button class="column-toggle" class:active={showPermissions} on:click={togglePermissions} title="Permissions"><Shield size={12} /></button>
-      <button class="column-toggle" class:active={showOwner} on:click={toggleOwner} title="Owner"><User size={12} /></button>
-      <button class="column-toggle" class:active={showDate} on:click={toggleDate} title="Date"><Calendar size={12} /></button>
-      <button class="column-toggle" class:active={showHidden} on:click={toggleHidden} title="Show hidden"><Eye size={12} /></button>
-      <button class="sort-toggle" class:active={sortEnabled && sortKey === 'name'} on:click={() => toggleSort('name')} title="Sort by name"><ArrowUpDown size={12} /> N{sortIndicator('name')}</button>
-      <button class="sort-toggle" class:active={sortEnabled && sortKey === 'size'} on:click={() => toggleSort('size')} title="Sort by size"><ArrowUpDown size={12} /> S{sortIndicator('size')}</button>
-      <button class="sort-toggle" class:active={sortEnabled && sortKey === 'modTime'} on:click={() => toggleSort('modTime')} title="Sort by date"><ArrowUpDown size={12} /> D{sortIndicator('modTime')}</button>
-      <button class="sort-toggle" class:active={sortEnabled && sortKey === 'owner'} on:click={() => toggleSort('owner')} title="Sort by owner"><ArrowUpDown size={12} /> O{sortIndicator('owner')}</button>
-      <button on:click={refresh} title="Refresh"><RefreshCw size={12} /></button>
-    </div>
+    <OverflowToolbar items={toolbarItems} />
   </div>
   <div class="path-bar">
     <input
@@ -699,22 +690,4 @@
     padding: 4px 0;
   }
 
-  .column-toggle {
-    opacity: 0.6;
-  }
-  .column-toggle.active {
-    opacity: 1;
-    color: var(--accent);
-  }
-  .sort-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    font-size: 10px;
-    opacity: 0.85;
-  }
-  .sort-toggle.active {
-    color: var(--accent);
-    opacity: 1;
-  }
 </style>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"runtime"
 	"time"
 
@@ -35,9 +36,12 @@ func (a *AppAPI) CloseSession(sessionID string) error {
 	if err != nil {
 		return err
 	}
-	a.auditInputBuffersMu.Lock()
-	delete(a.auditInputBuffers, sessionID)
-	a.auditInputBuffersMu.Unlock()
+	a.auditLineTrackersMu.Lock()
+	delete(a.auditLineTrackers, sessionID)
+	a.auditLineTrackersMu.Unlock()
+	if a.auditSvc != nil {
+		a.auditSvc.RemoveSession(sessionID)
+	}
 	a.ownerCacheMu.Lock()
 	delete(a.ownerCache, sessionID)
 	delete(a.groupCache, sessionID)
@@ -68,7 +72,8 @@ func (a *AppAPI) GetPlatform() string {
 // --- Terminal ---
 
 // SendTerminalInput sends keyboard input to a session's PTY and logs to audit.
-func (a *AppAPI) SendTerminalInput(sessionID, data string) error {
+// commandLine, when non-empty, is the shell input line captured at Enter time by the frontend.
+func (a *AppAPI) SendTerminalInput(sessionID, data, commandLine string) error {
 	bridge, err := a.sessions.GetPTYBridge(sessionID)
 	if err != nil {
 		return err
@@ -77,109 +82,53 @@ func (a *AppAPI) SendTerminalInput(sessionID, data string) error {
 		return err
 	}
 
-	if a.auditLog != nil {
-		go a.bufferAndAppendAuditInput(sessionID, data)
+	if a.auditSvc != nil {
+		go a.trackAuditInput(sessionID, data, commandLine)
 	}
 	return nil
 }
 
-// bufferAndAppendAuditInput buffers terminal input and appends to audit only on newline (\n or \r).
-// Escape sequences (e.g. arrow keys) are not buffered.
-func (a *AppAPI) bufferAndAppendAuditInput(sessionID, data string) {
-	if len(data) > 0 && data[0] == '\x1b' && (len(data) == 1 || (len(data) > 1 && data[1] != '\n' && data[1] != '\r')) {
+func (a *AppAPI) trackAuditInput(sessionID, data, commandLine string) {
+	if !containsEnter(data) {
 		return
 	}
 
-	a.auditInputBuffersMu.Lock()
-	buf := a.auditInputBuffers[sessionID] + data
-	a.auditInputBuffers[sessionID] = ""
-	a.auditInputBuffersMu.Unlock()
-
-	lines := splitLines(buf)
-	if len(lines) == 0 {
-		return
-	}
-
-	for i := 0; i < len(lines)-1; i++ {
-		trimmed := trimLineEnding(lines[i])
-		if trimmed != "" {
-			a.appendAuditEntry(sessionID, trimmed)
+	line := commandLine
+	if line == "" {
+		tracker := a.getLineTracker(sessionID)
+		submitted, ok := tracker.Feed(data)
+		if !ok || submitted == "" {
+			return
 		}
-	}
-
-	last := lines[len(lines)-1]
-	if len(last) > 0 && (last[len(last)-1] == '\n' || last[len(last)-1] == '\r') {
-		trimmed := trimLineEnding(last)
-		if trimmed != "" {
-			a.appendAuditEntry(sessionID, trimmed)
-		}
+		line = submitted
 	} else {
-		a.auditInputBuffersMu.Lock()
-		a.auditInputBuffers[sessionID] = last
-		a.auditInputBuffersMu.Unlock()
+		tracker := a.getLineTracker(sessionID)
+		_, _ = tracker.Feed(data)
+	}
+
+	if err := a.auditSvc.RecordCommand(context.Background(), sessionID, line); err != nil {
+		slog.Warn("audit record command failed", "sessionId", sessionID, "err", err)
 	}
 }
 
-func splitLines(s string) []string {
-	var lines []string
-	var cur []rune
-	for _, r := range s {
-		if r == '\n' || r == '\r' {
-			cur = append(cur, r)
-			lines = append(lines, string(cur))
-			cur = cur[:0]
-		} else {
-			cur = append(cur, r)
+func (a *AppAPI) getLineTracker(sessionID string) *auditlog.CommandLineTracker {
+	a.auditLineTrackersMu.Lock()
+	defer a.auditLineTrackersMu.Unlock()
+	tracker, ok := a.auditLineTrackers[sessionID]
+	if !ok {
+		tracker = auditlog.NewCommandLineTracker()
+		a.auditLineTrackers[sessionID] = tracker
+	}
+	return tracker
+}
+
+func containsEnter(data string) bool {
+	for _, r := range data {
+		if r == '\r' || r == '\n' {
+			return true
 		}
 	}
-	if len(cur) > 0 {
-		lines = append(lines, string(cur))
-	}
-	return lines
-}
-
-func trimLineEnding(s string) string {
-	for len(s) > 0 && (s[len(s)-1] == '\n' || s[len(s)-1] == '\r') {
-		s = s[:len(s)-1]
-	}
-	return s
-}
-
-func (a *AppAPI) appendAuditEntry(sessionID, input string) {
-	sanitizer := a.getSanitizer(sessionID)
-	sanitized, redacted := sanitizer.SanitizeInput(input)
-
-	info, err := a.sessions.GetState(sessionID)
-	if err != nil {
-		return
-	}
-
-	conn, _ := a.connRepo.GetByID(context.Background(), info.ConnectionID)
-	username := ""
-	if conn != nil {
-		username = conn.EffectiveUsername()
-	}
-
-	entry := domain.AuditEntry{
-		Timestamp:    time.Now(),
-		SessionID:    sessionID,
-		ConnectionID: info.ConnectionID,
-		Username:     username,
-		Input:        sanitized,
-		Redacted:     redacted,
-	}
-	_ = a.auditLog.Append(context.Background(), entry)
-}
-
-func (a *AppAPI) getSanitizer(sessionID string) *auditlog.Sanitizer {
-	a.sanitizersMu.Lock()
-	defer a.sanitizersMu.Unlock()
-	s, ok := a.sanitizers[sessionID]
-	if !ok {
-		s = auditlog.NewSanitizer()
-		a.sanitizers[sessionID] = s
-	}
-	return s
+	return false
 }
 
 // TerminalResize changes the PTY window size for a session.
@@ -275,7 +224,6 @@ func (a *AppAPI) initSessionPTYAndSFTP(sessionID string) {
 }
 
 func (a *AppAPI) streamTerminalOutput(sessionID string, outputCh <-chan []byte) {
-	sanitizer := a.getSanitizer(sessionID)
 	batchTicker := time.NewTicker(50 * time.Millisecond)
 	defer batchTicker.Stop()
 
@@ -285,7 +233,9 @@ func (a *AppAPI) streamTerminalOutput(sessionID string, outputCh <-chan []byte) 
 		if len(batch) == 0 {
 			return
 		}
-		sanitizer.FeedOutput(string(batch))
+		if a.auditSvc != nil {
+			a.auditSvc.FeedOutput(sessionID, string(batch))
+		}
 		if a.ctx != nil {
 			wailsrt.EventsEmit(a.ctx, EventTerminalOutput, TerminalOutputPayload{
 				SessionID: sessionID,
@@ -309,9 +259,12 @@ func (a *AppAPI) streamTerminalOutput(sessionID string, outputCh <-chan []byte) 
 		case data, ok := <-outputCh:
 			if !ok {
 				flush()
-				a.sanitizersMu.Lock()
-				delete(a.sanitizers, sessionID)
-				a.sanitizersMu.Unlock()
+				if a.auditSvc != nil {
+					a.auditSvc.RemoveSession(sessionID)
+				}
+				a.auditLineTrackersMu.Lock()
+				delete(a.auditLineTrackers, sessionID)
+				a.auditLineTrackersMu.Unlock()
 				a.sessions.NotifySessionDisconnected(sessionID)
 				return
 			}

@@ -22,9 +22,15 @@ export function DeleteFolder(arg1:string):Promise<void>;
 
 export function DeletePassword(arg1:string):Promise<void>;
 
+export function DisableAuditSecretLogging():Promise<void>;
+
 export function Download(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function EnableAuditSecretLogging(arg1:boolean):Promise<void>;
+
 export function GetAllConnections():Promise<Array<wails.ConnectionDTO>>;
+
+export function GetAuditSessionState():Promise<wails.AuditSessionStateDTO>;
 
 export function GetFolders():Promise<Array<wails.FolderDTO>>;
 
@@ -110,7 +116,7 @@ export function SelectLocalDirectory():Promise<string>;
 
 export function SelectLocalFile():Promise<string>;
 
-export function SendTerminalInput(arg1:string,arg2:string):Promise<void>;
+export function SendTerminalInput(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function StartFileWatch(arg1:string):Promise<void>;
 
