@@ -10,6 +10,11 @@ import (
 
 func (m *SessionManager) updateState(entry *sessionEntry, state domain.SessionState, errMsg string) {
 	m.mu.Lock()
+	_, stillRegistered := m.sessions[entry.info.SessionID]
+	if !stillRegistered {
+		m.mu.Unlock()
+		return
+	}
 	entry.info.State = state
 	entry.info.ErrorMessage = errMsg
 	info := entry.info

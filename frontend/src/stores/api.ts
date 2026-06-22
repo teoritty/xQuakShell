@@ -296,6 +296,10 @@ export async function closeSession(sessionId: string): Promise<void> {
   try {
     await app.CloseSession(sessionId);
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.toLowerCase().includes('session not found')) {
+      return;
+    }
     handleError(e, 'Close session');
   }
 }
