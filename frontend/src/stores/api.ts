@@ -296,6 +296,10 @@ export async function closeSession(sessionId: string): Promise<void> {
   try {
     await app.CloseSession(sessionId);
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.toLowerCase().includes('session not found')) {
+      return;
+    }
     handleError(e, 'Close session');
   }
 }
@@ -501,37 +505,6 @@ export async function createLocalFile(localPath: string): Promise<void> {
     await app.CreateLocalFile(localPath);
   } catch (e) {
     handleError(e, 'Create local file');
-  }
-}
-
-export async function importVPNProfile(configBase64: string, protocol: string, label: string): Promise<string> {
-  const app = getApp();
-  if (!app) return '';
-  try {
-    return await app.ImportVPNProfile(configBase64, protocol, label);
-  } catch (e) {
-    handleError(e, 'Import VPN config');
-    return '';
-  }
-}
-
-export async function deleteVPNProfile(id: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.DeleteVPNProfile(id);
-  } catch (e) {
-    handleError(e, 'Delete VPN profile');
-  }
-}
-
-export async function getVPNProfile(id: string): Promise<{ id: string; label: string; protocol: string } | null> {
-  const app = getApp();
-  if (!app) return null;
-  try {
-    return await app.GetVPNProfile(id);
-  } catch {
-    return null;
   }
 }
 

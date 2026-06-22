@@ -2,12 +2,17 @@ package persistence
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
+	"runtime"
+	"runtime/debug"
 	"sync"
+	"time"
 
 	"ssh-client/internal/domain"
 	"ssh-client/internal/infra/vault"
 )
+
+const vaultPersistDebounce = 400 * time.Millisecond
 
 // VaultRepo implements domain.VaultRepository backed by an age-encrypted file.
 type VaultRepo struct {
@@ -16,6 +21,11 @@ type VaultRepo struct {
 	passphrase string
 	data       *domain.VaultData
 	unlocked   bool
+
+	dirty      bool
+	generation uint64
+	flushTimer *time.Timer
+	flushMu    sync.Mutex
 }
 
 // NewVaultRepo creates a new VaultRepo that stores vault.age in the given directory.
@@ -29,7 +39,7 @@ func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	data, err := vault.ReadVaultFile(r.dir, masterPassword)
+	data, needsPersist, err := vault.ReadVaultFile(r.dir, masterPassword)
 	if err != nil {
 		return err
 	}
@@ -42,9 +52,6 @@ func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
 	}
 	if data.Passwords == nil {
 		data.Passwords = map[string]domain.PasswordBlob{}
-	}
-	if data.VPNProfiles == nil {
-		data.VPNProfiles = map[string]domain.VPNProfile{}
 	}
 	if data.Settings == nil {
 		data.Settings = &domain.AppSettings{
@@ -60,24 +67,34 @@ func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
 		data.Settings.Theme = "dark"
 	}
 
-	if err := vault.WriteVaultFile(r.dir, masterPassword, data); err != nil {
-		return fmt.Errorf("vault initial write: %w", err)
-	}
-
 	r.passphrase = masterPassword
 	r.data = data
 	r.unlocked = true
+	r.dirty = false
+	r.generation = 0
+
+	if needsPersist {
+		r.dirty = true
+		r.generation = 1
+		r.scheduleFlushLocked()
+	}
+
 	return nil
 }
 
-// Lock clears the decrypted data and passphrase from memory.
+// Lock flushes pending changes, then clears decrypted data from memory.
 func (r *VaultRepo) Lock() {
+	r.flushNow()
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
+	if r.flushTimer != nil {
+		r.flushTimer.Stop()
+		r.flushTimer = nil
+	}
 	r.data = nil
 	r.passphrase = ""
 	r.unlocked = false
+	r.dirty = false
 }
 
 // IsUnlocked returns true when the vault is decrypted in memory.
@@ -98,7 +115,7 @@ func (r *VaultRepo) GetData() (*domain.VaultData, error) {
 	return r.data, nil
 }
 
-// SaveData persists the vault data to the encrypted file and updates the in-memory copy.
+// SaveData updates in-memory vault data and schedules a debounced encrypted write.
 func (r *VaultRepo) SaveData(_ context.Context, data *domain.VaultData) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -106,11 +123,70 @@ func (r *VaultRepo) SaveData(_ context.Context, data *domain.VaultData) error {
 	if !r.unlocked {
 		return domain.ErrVaultLocked
 	}
-
-	if err := vault.WriteVaultFile(r.dir, r.passphrase, data); err != nil {
-		return err
-	}
-
 	r.data = data
+	r.dirty = true
+	r.generation++
+	r.scheduleFlushLocked()
 	return nil
+}
+
+func (r *VaultRepo) scheduleFlushLocked() {
+	if r.flushTimer != nil {
+		r.flushTimer.Stop()
+	}
+	gen := r.generation
+	r.flushTimer = time.AfterFunc(vaultPersistDebounce, func() {
+		r.flushGeneration(gen)
+	})
+}
+
+func (r *VaultRepo) flushNow() {
+	r.mu.Lock()
+	if r.flushTimer != nil {
+		r.flushTimer.Stop()
+		r.flushTimer = nil
+	}
+	gen := r.generation
+	dirty := r.dirty
+	r.mu.Unlock()
+	if dirty {
+		r.flushGeneration(gen)
+	}
+}
+
+func (r *VaultRepo) flushGeneration(gen uint64) {
+	r.flushMu.Lock()
+	defer r.flushMu.Unlock()
+
+	r.mu.Lock()
+	if !r.unlocked || !r.dirty {
+		r.mu.Unlock()
+		return
+	}
+	if r.generation != gen {
+		r.scheduleFlushLocked()
+		r.mu.Unlock()
+		return
+	}
+	data := r.data
+	passphrase := r.passphrase
+	dir := r.dir
+	r.mu.Unlock()
+
+	err := vault.WriteVaultFile(dir, passphrase, data)
+
+	go func() {
+		runtime.GC()
+		debug.FreeOSMemory()
+	}()
+
+	r.mu.Lock()
+	if err != nil {
+		slog.Error("vault flush failed", "err", err)
+	} else if r.generation == gen {
+		r.dirty = false
+	} else if r.dirty {
+		r.scheduleFlushLocked()
+	}
+	r.mu.Unlock()
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { selectedConnection, identities, selectedConnectionId, type ConnectionUser, type JumpHop, type ProxyConfig } from '../stores/appState';
-  import { saveConnection, importIdentity, importPassword, importVPNProfile, deleteVPNProfile, getVPNProfile } from '../stores/api';
-  import { UserPlus, Trash2, KeyRound, Plus, X, Shield } from 'lucide-svelte';
+  import { saveConnection, importIdentity, importPassword } from '../stores/api';
+  import { UserPlus, Trash2, KeyRound, Plus, X } from 'lucide-svelte';
 
   let editingId = '';
   let name = '';
@@ -16,7 +16,6 @@
   let proxyPort = 1080;
   let proxyUsername = '';
   let proxyPasswordId = '';
-  let vpnProfileId = '';
   let dirty = false;
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   let saveStatus: 'idle' | 'saving' | 'saved' = 'idle';
@@ -44,15 +43,6 @@
     proxyPort = c?.proxy?.port || 1080;
     proxyUsername = c?.proxy?.username || '';
     proxyPasswordId = c?.proxy?.passwordId || '';
-    vpnProfileId = c?.vpnProfileId || '';
-    vpnEnabled = !!vpnProfileId;
-    vpnConfigImported = !!vpnProfileId;
-    if (vpnProfileId) {
-      const prof = await getVPNProfile(vpnProfileId);
-      if (prof) vpnProtocol = prof.protocol || 'wireguard';
-    } else {
-      vpnProtocol = 'wireguard';
-    }
     dirty = false;
     saveStatus = 'idle';
     addingTag = false;
@@ -92,7 +82,6 @@
       users: filteredUsers,
       defaultUserId,
       jumpChain: filteredHops,
-      vpnProfileId,
       order: $selectedConnection?.order ?? 0,
     };
     if (proxyEnabled && proxyHost.trim()) {
@@ -205,60 +194,6 @@
       proxyPasswordId = pwId;
       markDirty();
     }
-  }
-
-  // --- VPN ---
-  let vpnEnabled = false;
-  let vpnProtocol = 'wireguard';
-  let vpnConfigImported = false;
-
-  function toggleVpn() {
-    vpnEnabled = !vpnEnabled;
-    if (!vpnEnabled) {
-      vpnProfileId = '';
-      vpnConfigImported = false;
-    }
-    markDirty();
-  }
-
-  function updateVpnProtocol(value: string) {
-    vpnProtocol = value;
-    vpnProfileId = '';
-    vpnConfigImported = false;
-    markDirty();
-  }
-
-  async function importVpnConfig() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.conf,.ovpn,*';
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      try {
-        const text = await file.text();
-        const base64 = btoa(text);
-        const label = file.name.replace(/\.[^.]+$/, '') || 'VPN';
-        const pid = await importVPNProfile(base64, vpnProtocol, label);
-        if (pid) {
-          vpnProfileId = pid;
-          vpnConfigImported = true;
-          markDirty();
-        }
-      } catch (e) {
-        console.error('VPN import failed:', e);
-      }
-    };
-    input.click();
-  }
-
-  async function removeVpnConfig() {
-    if (!vpnProfileId) return;
-    if (!confirm('Remove VPN configuration? This will disconnect the VPN for this connection.')) return;
-    await deleteVPNProfile(vpnProfileId);
-    vpnProfileId = '';
-    vpnConfigImported = false;
-    markDirty();
   }
 
   // --- Jump Hops ---
@@ -480,43 +415,6 @@
       {/if}
     </div>
 
-    <!-- VPN -->
-    <div class="field">
-      <div class="section-header">
-        <span class="field-label"><Shield size={12} /> VPN</span>
-        <button class="ghost micro-btn" on:click={toggleVpn}>
-          {vpnEnabled ? 'Disable' : 'Enable'}
-        </button>
-      </div>
-      {#if vpnEnabled}
-        <div class="vpn-block">
-          <div class="vpn-row">
-            <select
-              value={vpnProtocol}
-              on:change={(e) => updateVpnProtocol(e.currentTarget.value)}
-              class="vpn-select"
-            >
-              <option value="wireguard">WireGuard</option>
-              <option value="openvpn">OpenVPN</option>
-            </select>
-            <button class="secondary tiny-btn" on:click={importVpnConfig}>
-              {vpnConfigImported ? 'Change' : 'Import'} config
-            </button>
-            {#if vpnConfigImported}
-              <button class="ghost micro-btn danger" on:click={removeVpnConfig} title="Remove VPN config">Remove</button>
-            {/if}
-          </div>
-          <div class="vpn-status">
-            {#if vpnConfigImported}
-              <span class="vpn-ok">{vpnProtocol === 'wireguard' ? 'WireGuard' : 'OpenVPN'} configured</span>
-            {:else}
-              <span class="no-items">Not configured</span>
-            {/if}
-          </div>
-        </div>
-      {/if}
-    </div>
-
   </div>
 </div>
 {/if}
@@ -642,11 +540,7 @@
   .hop-port { width: 55px; font-size: 11px; }
   .hop-select { width: 55px; font-size: 11px; }
 
-  /* VPN */
-  .proxy-block, .vpn-block { padding: 4px; background: var(--bg-tertiary); border-radius: 2px; }
-  .vpn-row { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
-  .vpn-select { font-size: 11px; flex: 1; }
-  .vpn-status { font-size: 10px; }
-  .vpn-ok { color: var(--success, #4caf50); }
+  /* Proxy */
+  .proxy-block { padding: 4px; background: var(--bg-tertiary); border-radius: 2px; }
 
 </style>

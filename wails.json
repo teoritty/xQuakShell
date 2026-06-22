@@ -18,6 +18,6 @@
     "productName": "xQuakShell",
     "productVersion": "1.0.0",
     "copyright": "Copyright 2026",
-    "comments": "Portable SSH client with encrypted vault, terminal, SFTP, VPN, bastion chains and audit logging"
+    "comments": "Portable SSH client with encrypted vault, terminal, SFTP, bastion chains and audit logging"
   }
 }

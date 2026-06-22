@@ -27,7 +27,7 @@ flowchart TB
 - **presentation/wails** — Wails API (`api.go`, `handlers_wails.go`), DTOs, events. May depend on `infra` for thin adapters (e.g. PTY bridge).
 - **usecase** — orchestration (`SessionManager`, `PingManager`, lockout). Depends only on **domain** and the standard library.
 - **domain** — entities, ports, and the chosen SSH surface (see below).
-- **infra** — persistence, SSH dialer, SFTP, audit log, VPN, PuTTY import, etc.
+- **infra** — persistence, SSH dialer, SFTP, audit log, PuTTY import, etc.
 
 ## Import rules (summary)
 
@@ -55,7 +55,7 @@ Plugin connectors receive `ConnectorHooks` to set PTY bridge, SFTP (`RemoteFS`),
 
 | Area | Entry points |
 |------|----------------|
-| **Vault / connections** | Repositories in `internal/infra/persistence`, mapping in `internal/presentation/wails/dto.go`, API methods in `handlers_wails.go` (folders, connections, passwords, VPN). |
+| **Vault / connections** | Repositories in `internal/infra/persistence`, mapping in `internal/presentation/wails/dto_connection.go`, API methods in `handlers_vault.go` (folders, connections, passwords). |
 | **SSH sessions** | `internal/usecase/session_manager.go` (`connectSession`), `internal/infra/ssh`, PTY/SFTP init in `handlers_wails.go` (`initSessionPTYAndSFTP`). |
 | **Plugin protocols** | Implement `domain.SessionConnector`, register in `main_connectors.go`. |
 | **Transfers** | SFTP/transfer limits via vault settings; upload/download in `handlers_wails.go` (`acquireTransferSlot`, etc.). |

@@ -35,8 +35,8 @@ func TestVaultEncryptDecryptRoundtrip(t *testing.T) {
 		t.Fatalf("decrypt: %v", err)
 	}
 
-	if decrypted.Version != 1 {
-		t.Errorf("version: got %d, want 1", decrypted.Version)
+	if decrypted.Version != domain.CurrentVaultVersion {
+		t.Errorf("version: got %d, want %d", decrypted.Version, domain.CurrentVaultVersion)
 	}
 	if len(decrypted.Folders) != 1 || decrypted.Folders[0].Name != "Test Folder" {
 		t.Errorf("folders mismatch: %+v", decrypted.Folders)
@@ -86,9 +86,12 @@ func TestVaultFileRoundtrip(t *testing.T) {
 		t.Fatal("temporary file should be cleaned up after atomic write")
 	}
 
-	read, err := vault.ReadVaultFile(dir, passphrase)
+	read, needsPersist, err := vault.ReadVaultFile(dir, passphrase)
 	if err != nil {
 		t.Fatalf("read vault file: %v", err)
+	}
+	if needsPersist {
+		t.Error("expected needsPersist false for current-version vault file")
 	}
 
 	if len(read.Connections) != 1 || read.Connections[0].Host != "10.0.0.1" {
@@ -99,12 +102,15 @@ func TestVaultFileRoundtrip(t *testing.T) {
 func TestVaultReadNonExistentReturnsEmpty(t *testing.T) {
 	dir := t.TempDir()
 
-	data, err := vault.ReadVaultFile(dir, "any-password")
+	data, needsPersist, err := vault.ReadVaultFile(dir, "any-password")
 	if err != nil {
 		t.Fatalf("expected nil error for non-existent file, got: %v", err)
 	}
-	if data.Version != 1 {
-		t.Errorf("expected version 1, got %d", data.Version)
+	if !needsPersist {
+		t.Error("expected needsPersist true for new vault")
+	}
+	if data.Version != domain.CurrentVaultVersion {
+		t.Errorf("expected version %d, got %d", domain.CurrentVaultVersion, data.Version)
 	}
 	if len(data.Connections) != 0 {
 		t.Errorf("expected empty connections, got %d", len(data.Connections))

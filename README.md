@@ -34,7 +34,7 @@ xQuakShell is an **SSH-first** remote connection manager: terminal, SFTP, jump h
 - Encrypted vault (`vault.age`) for connections, keys, credentials, known hosts.
 - SSH-first core: integrated terminal + SFTP file manager (upload/download/rename/delete/create).
 - Multi-tab SSH session workflow with independent lifecycle.
-- Strict SSH host key verification, jump hosts, SOCKS proxy, VPN profiles.
+- Strict SSH host key verification, jump hosts, SOCKS proxy.
 - Portable Windows build with bundled WebView2 runtime (`make portable`).
 
 ## Screenshots
