@@ -36,6 +36,28 @@ export interface AppSettings {
   sessionHotkeyNext: string;
   sessionHotkeyPrev: string;
   sessionHotkeyClose: string;
+  auditLogEnabled: boolean;
+  auditRetentionMode: string;
+  auditRetentionDays: number;
+  auditRetentionCount: number;
+  auditShowUsername: boolean;
+  auditShowConnection: boolean;
+}
+
+export interface AuditEntry {
+  id: number;
+  timestamp: string;
+  sessionId: string;
+  connectionId: string;
+  connectionName: string;
+  host: string;
+  username: string;
+  input: string;
+  redacted: boolean;
+}
+
+export interface AuditSessionState {
+  logSecretsEnabled: boolean;
 }
 
 export const DEFAULT_SESSION_HOTKEYS: SessionHotkeysSettings = {
@@ -362,11 +384,11 @@ export async function resolveHostKey(sessionId: string, action: string, host: st
   }
 }
 
-export async function sendTerminalInput(sessionId: string, data: string): Promise<void> {
+export async function sendTerminalInput(sessionId: string, data: string, commandLine = ''): Promise<void> {
   const app = getApp();
   if (!app) return;
   try {
-    await app.SendTerminalInput(sessionId, data);
+    await app.SendTerminalInput(sessionId, data, commandLine);
   } catch (e) {
     // terminal input errors are not shown in error dialog to avoid spam
   }
@@ -738,6 +760,75 @@ export async function saveSettings(settings: Partial<AppSettings>): Promise<void
     await app.SaveSettings(payload);
   } catch (e) {
     handleError(e, 'Save settings');
+  }
+}
+
+export async function searchAuditLog(
+  query: string,
+  sessionId: string,
+  connectionId: string,
+  limit = 200,
+  offset = 0
+): Promise<AuditEntry[]> {
+  const app = getApp();
+  if (!app?.SearchAuditLog) return [];
+  try {
+    return (await app.SearchAuditLog(query, sessionId, connectionId, limit, offset)) || [];
+  } catch (e) {
+    handleError(e, 'Search audit log');
+    return [];
+  }
+}
+
+export async function deleteAuditEntry(id: number): Promise<void> {
+  const app = getApp();
+  if (!app?.DeleteAuditEntry) return;
+  try {
+    await app.DeleteAuditEntry(id);
+  } catch (e) {
+    handleError(e, 'Delete audit entry');
+  }
+}
+
+export async function clearAuditLog(): Promise<void> {
+  const app = getApp();
+  if (!app?.ClearAuditLog) return;
+  try {
+    await app.ClearAuditLog();
+  } catch (e) {
+    handleError(e, 'Clear audit log');
+  }
+}
+
+export async function getAuditSessionState(): Promise<AuditSessionState | null> {
+  const app = getApp();
+  if (!app?.GetAuditSessionState) return null;
+  try {
+    return await app.GetAuditSessionState();
+  } catch (e) {
+    return null;
+  }
+}
+
+export async function enableAuditSecretLogging(confirmed: boolean): Promise<boolean> {
+  const app = getApp();
+  if (!app?.EnableAuditSecretLogging) return false;
+  try {
+    await app.EnableAuditSecretLogging(confirmed);
+    return true;
+  } catch (e) {
+    handleError(e, 'Enable audit secret logging');
+    return false;
+  }
+}
+
+export function disableAuditSecretLogging(): void {
+  const app = getApp();
+  if (!app?.DisableAuditSecretLogging) return;
+  try {
+    app.DisableAuditSecretLogging();
+  } catch (e) {
+    handleError(e, 'Disable audit secret logging');
   }
 }
 
