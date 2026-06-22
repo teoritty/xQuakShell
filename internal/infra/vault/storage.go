@@ -16,25 +16,28 @@ const (
 // ReadVaultFile reads and decrypts the vault from disk.
 // If the file does not exist, returns a fresh VaultData at the current schema version.
 // After decryption, the data is migrated to the latest schema if needed.
-func ReadVaultFile(dir, passphrase string) (*domain.VaultData, error) {
+// The second return value is true when the vault should be persisted (new file or migration).
+func ReadVaultFile(dir, passphrase string) (*domain.VaultData, bool, error) {
 	path := filepath.Join(dir, vaultFileName)
 
 	ciphertext, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return domain.NewVaultData(), nil
+			return domain.NewVaultData(), true, nil
 		}
-		return nil, fmt.Errorf("vault read file %s: %w", path, err)
+		return nil, false, fmt.Errorf("vault read file %s: %w", path, err)
 	}
 
 	data, err := Decrypt(ciphertext, passphrase)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
+	versionBefore := data.Version
 	MigrateVaultData(data)
+	needsPersist := data.Version != versionBefore
 
-	return data, nil
+	return data, needsPersist, nil
 }
 
 // WriteVaultFile encrypts and atomically writes the vault to disk.

@@ -29,7 +29,7 @@ func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	data, err := vault.ReadVaultFile(r.dir, masterPassword)
+	data, needsPersist, err := vault.ReadVaultFile(r.dir, masterPassword)
 	if err != nil {
 		return err
 	}
@@ -57,8 +57,10 @@ func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
 		data.Settings.Theme = "dark"
 	}
 
-	if err := vault.WriteVaultFile(r.dir, masterPassword, data); err != nil {
-		return fmt.Errorf("vault initial write: %w", err)
+	if needsPersist {
+		if err := vault.WriteVaultFile(r.dir, masterPassword, data); err != nil {
+			return fmt.Errorf("vault persist: %w", err)
+		}
 	}
 
 	r.passphrase = masterPassword
