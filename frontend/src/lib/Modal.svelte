@@ -18,8 +18,13 @@
 {#if show}
   <div class="modal-backdrop" on:click={close} on:keydown={handleKeydown}>
     <div class="modal-content {contentClass}" on:click|stopPropagation on:keydown|stopPropagation>
-      <div class="modal-header">
+      <div class="modal-header" class:has-header-center={$$slots['header-center']}>
         <span class="modal-title">{title}</span>
+        {#if $$slots['header-center']}
+          <div class="modal-header-center">
+            <slot name="header-center" />
+          </div>
+        {/if}
         <button class="modal-close" on:click={close}><X size={14} /></button>
       </div>
       <div class="modal-body">
@@ -58,7 +63,8 @@
   }
 
   .modal-content.settings-modal {
-    width: 560px;
+    width: 620px;
+    max-width: 620px;
   }
 
   .modal-header {
@@ -67,6 +73,26 @@
     justify-content: space-between;
     padding: 12px 16px;
     border-bottom: 1px solid var(--border-color);
+    gap: 8px;
+  }
+
+  .modal-header.has-header-center {
+    display: grid;
+    grid-template-columns: 1fr minmax(200px, 350px) 1fr;
+    align-items: center;
+  }
+
+  .modal-header.has-header-center .modal-title {
+    justify-self: start;
+  }
+
+  .modal-header-center {
+    justify-self: center;
+    width: 100%;
+  }
+
+  .modal-header.has-header-center .modal-close {
+    justify-self: end;
   }
 
   .modal-title {

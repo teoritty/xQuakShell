@@ -9,6 +9,7 @@
   import AuditLogView from './lib/AuditLogView.svelte';
   import ErrorDialog from './lib/ErrorDialog.svelte';
   import SettingsDialog from './lib/SettingsDialog.svelte';
+  import type { SettingsTabId } from './lib/settingsSearch';
   import ScriptsDialog from './lib/ScriptsDialog.svelte';
   import { sessions, activeSessionId, vaultUnlocked, pendingHostKey, connections } from './stores/appState';
   import {
@@ -21,7 +22,19 @@
   let showKnownHosts = false;
   let showAuditLog = false;
   let showSettings = false;
+  let settingsInitialTab: SettingsTabId = 'about';
   let showScripts = false;
+
+  function openSettings(tab: SettingsTabId = 'about') {
+    settingsInitialTab = tab;
+    showSettings = true;
+  }
+
+  function openSettingsFromAudit(tab?: string) {
+    openSettings((tab as SettingsTabId) || 'audit');
+    showAuditLog = false;
+  }
+
   let hotkeys = { ...DEFAULT_SESSION_HOTKEYS };
 
   $: showHostKeyDialog = $pendingHostKey !== null;
@@ -160,7 +173,7 @@
           <button class="ghost top-btn" on:click={() => showKnownHosts = true} title="Known Hosts">
             <Shield size={14} />
           </button>
-          <button class="ghost top-btn" on:click={() => showSettings = true} title="Settings">
+          <button class="ghost top-btn" on:click={() => openSettings()} title="Settings">
             <Settings size={14} />
           </button>
         </div>
@@ -179,7 +192,7 @@
                 <MonitorDot size={14} />
                 New connection
               </button>
-              <button class="ghost welcome-btn" on:click={() => showSettings = true}>
+              <button class="ghost welcome-btn" on:click={() => openSettings()}>
                 <Settings size={14} />
                 Open settings
               </button>
@@ -203,8 +216,11 @@
   </div>
 
   <KnownHostsManager bind:show={showKnownHosts} />
-  <AuditLogView bind:show={showAuditLog} />
-  <SettingsDialog bind:show={showSettings} />
+  <AuditLogView
+    bind:show={showAuditLog}
+    on:openSettings={(e) => openSettingsFromAudit(e.detail.tab)}
+  />
+  <SettingsDialog bind:show={showSettings} initialTab={settingsInitialTab} />
   <ScriptsDialog bind:show={showScripts} />
   {#if showHostKeyDialog}
     <HostKeyDialog
