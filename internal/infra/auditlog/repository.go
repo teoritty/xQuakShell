@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -64,11 +65,30 @@ func initSchema(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_audit_connection ON audit_events(connection_id);
 	CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_events(ts);
 	`
-	_, err := db.Exec(ddl)
-	if err != nil {
+	if _, err := db.Exec(ddl); err != nil {
 		return fmt.Errorf("audit init schema: %w", err)
 	}
+	return migrateSchema(db)
+}
+
+func migrateSchema(db *sql.DB) error {
+	cols := []string{"connection_name", "host"}
+	for _, col := range cols {
+		if _, err := db.Exec(`ALTER TABLE audit_events ADD COLUMN ` + col + ` TEXT NOT NULL DEFAULT ''`); err != nil {
+			if !isDuplicateColumnErr(err) {
+				return fmt.Errorf("audit migrate %s: %w", col, err)
+			}
+		}
+	}
 	return nil
+}
+
+func isDuplicateColumnErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "duplicate column") || strings.Contains(msg, "already exists")
 }
 
 // Append writes a new audit entry to the log.
@@ -79,9 +99,9 @@ func (r *SQLiteRepo) Append(_ context.Context, entry domain.AuditEntry) error {
 		redacted = 1
 	}
 	_, err := r.db.Exec(
-		`INSERT INTO audit_events (ts, session_id, connection_id, username, input, redacted)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		ts, entry.SessionID, entry.ConnectionID, entry.Username, entry.Input, redacted,
+		`INSERT INTO audit_events (ts, session_id, connection_id, connection_name, host, username, input, redacted)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		ts, entry.SessionID, entry.ConnectionID, entry.ConnectionName, entry.Host, entry.Username, entry.Input, redacted,
 	)
 	if err != nil {
 		return fmt.Errorf("audit append: %w", err)
@@ -94,7 +114,7 @@ func (r *SQLiteRepo) Search(_ context.Context, query string, filter domain.Audit
 	var args []interface{}
 	var whereClauses []string
 
-	baseQuery := `SELECT e.id, e.ts, e.session_id, e.connection_id, e.username, e.input, e.redacted
+	baseQuery := `SELECT e.id, e.ts, e.session_id, e.connection_id, e.connection_name, e.host, e.username, e.input, e.redacted
 		FROM audit_events e`
 
 	if query != "" {
@@ -152,7 +172,7 @@ func (r *SQLiteRepo) Search(_ context.Context, query string, filter domain.Audit
 		var e domain.AuditEntry
 		var tsStr string
 		var redacted int
-		if err := rows.Scan(&e.ID, &tsStr, &e.SessionID, &e.ConnectionID, &e.Username, &e.Input, &redacted); err != nil {
+		if err := rows.Scan(&e.ID, &tsStr, &e.SessionID, &e.ConnectionID, &e.ConnectionName, &e.Host, &e.Username, &e.Input, &redacted); err != nil {
 			return nil, fmt.Errorf("audit scan: %w", err)
 		}
 		ts, parseErr := time.Parse(time.RFC3339Nano, tsStr)
@@ -179,15 +199,46 @@ func (r *SQLiteRepo) ClearAll(ctx context.Context) error {
 	return err
 }
 
-// PurgeOlderThan deletes audit entries older than the given duration.
-func (r *SQLiteRepo) PurgeOlderThan(d time.Duration) error {
-	cutoff := time.Now().Add(-d).UTC().Format(time.RFC3339Nano)
-	_, err := r.db.Exec(`DELETE FROM audit_events WHERE ts < ?`, cutoff)
+// Count returns the total number of audit entries.
+func (r *SQLiteRepo) Count(ctx context.Context) (int64, error) {
+	var n int64
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM audit_events`).Scan(&n)
+	return n, err
+}
+
+// PurgeOlderThan deletes audit entries older than cutoff.
+func (r *SQLiteRepo) PurgeOlderThan(ctx context.Context, cutoff time.Time) error {
+	cutoffStr := cutoff.UTC().Format(time.RFC3339Nano)
+	_, err := r.db.ExecContext(ctx, `DELETE FROM audit_events WHERE ts < ?`, cutoffStr)
+	return err
+}
+
+// TrimToCount deletes oldest entries until at most max remain.
+func (r *SQLiteRepo) TrimToCount(ctx context.Context, max int) error {
+	if max <= 0 {
+		return nil
+	}
+	count, err := r.Count(ctx)
+	if err != nil {
+		return err
+	}
+	excess := int(count) - max
+	if excess <= 0 {
+		return nil
+	}
+	_, err = r.db.ExecContext(ctx, `
+		DELETE FROM audit_events WHERE id IN (
+			SELECT id FROM audit_events ORDER BY ts ASC LIMIT ?
+		)`, excess)
 	return err
 }
 
 // Close releases the database connection.
 func (r *SQLiteRepo) Close() error {
-	r.PurgeOlderThan(30 * 24 * time.Hour)
 	return r.db.Close()
+}
+
+// PurgeOlderThanDuration is a legacy helper for tests/shutdown hooks.
+func (r *SQLiteRepo) PurgeOlderThanDuration(d time.Duration) error {
+	return r.PurgeOlderThan(context.Background(), time.Now().Add(-d))
 }
