@@ -30,13 +30,15 @@ type RemoteNodeDTO struct {
 
 // AuditEntryDTO is the UI-facing representation of an audit log entry.
 type AuditEntryDTO struct {
-	ID           int64  `json:"id"`
-	Timestamp    string `json:"timestamp"`
-	SessionID    string `json:"sessionId"`
-	ConnectionID string `json:"connectionId"`
-	Username     string `json:"username"`
-	Input        string `json:"input"`
-	Redacted     bool   `json:"redacted"`
+	ID             int64  `json:"id"`
+	Timestamp      string `json:"timestamp"`
+	SessionID      string `json:"sessionId"`
+	ConnectionID   string `json:"connectionId"`
+	ConnectionName string `json:"connectionName"`
+	Host           string `json:"host"`
+	Username       string `json:"username"`
+	Input          string `json:"input"`
+	Redacted       bool   `json:"redacted"`
 }
 
 // PingResultDTO is the UI-facing representation of a TCP ping result.
@@ -84,13 +86,15 @@ func RemoteNodesToDTO(ns []domain.RemoteNode) []RemoteNodeDTO {
 // AuditEntryToDTO converts a domain.AuditEntry to AuditEntryDTO.
 func AuditEntryToDTO(e domain.AuditEntry) AuditEntryDTO {
 	return AuditEntryDTO{
-		ID:           e.ID,
-		Timestamp:    e.Timestamp.Format(time.RFC3339),
-		SessionID:    e.SessionID,
-		ConnectionID: e.ConnectionID,
-		Username:     e.Username,
-		Input:        e.Input,
-		Redacted:     e.Redacted,
+		ID:             e.ID,
+		Timestamp:      e.Timestamp.Format(time.RFC3339),
+		SessionID:      e.SessionID,
+		ConnectionID:   e.ConnectionID,
+		ConnectionName: e.ConnectionName,
+		Host:           e.Host,
+		Username:       e.Username,
+		Input:          e.Input,
+		Redacted:       e.Redacted,
 	}
 }
 

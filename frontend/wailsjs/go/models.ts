@@ -20,6 +20,12 @@ export namespace wails {
 	    sessionHotkeyNext: string;
 	    sessionHotkeyPrev: string;
 	    sessionHotkeyClose: string;
+	    auditLogEnabled: boolean;
+	    auditRetentionMode: string;
+	    auditRetentionDays: number;
+	    auditRetentionCount: number;
+	    auditShowUsername: boolean;
+	    auditShowConnection: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppSettingsDTO(source);
@@ -46,6 +52,12 @@ export namespace wails {
 	        this.sessionHotkeyNext = source["sessionHotkeyNext"];
 	        this.sessionHotkeyPrev = source["sessionHotkeyPrev"];
 	        this.sessionHotkeyClose = source["sessionHotkeyClose"];
+	        this.auditLogEnabled = source["auditLogEnabled"];
+	        this.auditRetentionMode = source["auditRetentionMode"];
+	        this.auditRetentionDays = source["auditRetentionDays"];
+	        this.auditRetentionCount = source["auditRetentionCount"];
+	        this.auditShowUsername = source["auditShowUsername"];
+	        this.auditShowConnection = source["auditShowConnection"];
 	    }
 	}
 	export class AuditEntryDTO {
@@ -53,6 +65,8 @@ export namespace wails {
 	    timestamp: string;
 	    sessionId: string;
 	    connectionId: string;
+	    connectionName: string;
+	    host: string;
 	    username: string;
 	    input: string;
 	    redacted: boolean;
@@ -67,9 +81,23 @@ export namespace wails {
 	        this.timestamp = source["timestamp"];
 	        this.sessionId = source["sessionId"];
 	        this.connectionId = source["connectionId"];
+	        this.connectionName = source["connectionName"];
+	        this.host = source["host"];
 	        this.username = source["username"];
 	        this.input = source["input"];
 	        this.redacted = source["redacted"];
+	    }
+	}
+	export class AuditSessionStateDTO {
+	    logSecretsEnabled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AuditSessionStateDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.logSecretsEnabled = source["logSecretsEnabled"];
 	    }
 	}
 	export class ProxyDTO {

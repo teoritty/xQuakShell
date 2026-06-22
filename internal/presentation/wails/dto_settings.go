@@ -40,6 +40,12 @@ type AppSettingsDTO struct {
 	SessionHotkeyNext        string `json:"sessionHotkeyNext"`
 	SessionHotkeyPrev        string `json:"sessionHotkeyPrev"`
 	SessionHotkeyClose       string `json:"sessionHotkeyClose"`
+	AuditLogEnabled          bool   `json:"auditLogEnabled"`
+	AuditRetentionMode       string `json:"auditRetentionMode"`
+	AuditRetentionDays       int    `json:"auditRetentionDays"`
+	AuditRetentionCount      int    `json:"auditRetentionCount"`
+	AuditShowUsername        bool   `json:"auditShowUsername"`
+	AuditShowConnection      bool   `json:"auditShowConnection"`
 }
 
 // PuTTYSessionDTO is a preview item for REG import.
@@ -90,6 +96,12 @@ func AppSettingsToDTO(s domain.AppSettings) AppSettingsDTO {
 		SessionHotkeyNext:        s.SessionHotkeys.Next,
 		SessionHotkeyPrev:        s.SessionHotkeys.Prev,
 		SessionHotkeyClose:       s.SessionHotkeys.Close,
+		AuditLogEnabled:          s.AuditLog.Enabled,
+		AuditRetentionMode:       string(s.AuditLog.RetentionMode),
+		AuditRetentionDays:       s.AuditLog.RetentionDays,
+		AuditRetentionCount:      s.AuditLog.RetentionCount,
+		AuditShowUsername:        s.AuditLog.ShowUsername,
+		AuditShowConnection:      s.AuditLog.ShowConnection,
 	}
 }
 
@@ -123,6 +135,14 @@ func DTOToAppSettings(dto AppSettingsDTO) domain.AppSettings {
 			Next:   dto.SessionHotkeyNext,
 			Prev:   dto.SessionHotkeyPrev,
 			Close:  dto.SessionHotkeyClose,
+		},
+		AuditLog: domain.AuditLogSettings{
+			Enabled:        dto.AuditLogEnabled,
+			RetentionMode:  domain.AuditRetentionMode(dto.AuditRetentionMode),
+			RetentionDays:  dto.AuditRetentionDays,
+			RetentionCount: dto.AuditRetentionCount,
+			ShowUsername:   dto.AuditShowUsername,
+			ShowConnection: dto.AuditShowConnection,
 		},
 	}
 }

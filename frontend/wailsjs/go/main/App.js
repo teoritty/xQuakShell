@@ -42,12 +42,24 @@ export function DeletePassword(arg1) {
   return window['go']['main']['App']['DeletePassword'](arg1);
 }
 
+export function DisableAuditSecretLogging() {
+  return window['go']['main']['App']['DisableAuditSecretLogging']();
+}
+
 export function Download(arg1, arg2, arg3) {
   return window['go']['main']['App']['Download'](arg1, arg2, arg3);
 }
 
+export function EnableAuditSecretLogging(arg1) {
+  return window['go']['main']['App']['EnableAuditSecretLogging'](arg1);
+}
+
 export function GetAllConnections() {
   return window['go']['main']['App']['GetAllConnections']();
+}
+
+export function GetAuditSessionState() {
+  return window['go']['main']['App']['GetAuditSessionState']();
 }
 
 export function GetFolders() {
@@ -218,8 +230,8 @@ export function SelectLocalFile() {
   return window['go']['main']['App']['SelectLocalFile']();
 }
 
-export function SendTerminalInput(arg1, arg2) {
-  return window['go']['main']['App']['SendTerminalInput'](arg1, arg2);
+export function SendTerminalInput(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SendTerminalInput'](arg1, arg2, arg3);
 }
 
 export function StartFileWatch(arg1) {

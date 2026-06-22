@@ -21,11 +21,10 @@ type AppAPI struct {
 	knownHosts          domain.KnownHostsRepository
 	sessions            *usecase.SessionManager
 	settingsSvc         *usecase.SettingsService
+	auditSvc            *usecase.AuditService
 	auditLog            domain.AuditLogRepository
-	sanitizers          map[string]*auditlog.Sanitizer
-	sanitizersMu        sync.Mutex
-	auditInputBuffers   map[string]string
-	auditInputBuffersMu sync.Mutex
+	auditLineTrackers   map[string]*auditlog.CommandLineTracker
+	auditLineTrackersMu sync.Mutex
 	lockout             domain.LockoutManager
 	pingMgr             *usecase.PingManager
 	ownerCache          map[string]map[string]string // sessionID -> uid->owner
@@ -58,8 +57,7 @@ func NewAppAPI(
 		passwordRepo:      passwordRepo,
 		knownHosts:        knownHosts,
 		auditLog:          auditLogRepo,
-		sanitizers:        make(map[string]*auditlog.Sanitizer),
-		auditInputBuffers: make(map[string]string),
+		auditLineTrackers: make(map[string]*auditlog.CommandLineTracker),
 		lockout:           lockoutMgr,
 		pingMgr:           pingMgr,
 		settingsSvc:       usecase.NewSettingsService(vaultRepo, lockoutMgr, pingMgr),
@@ -89,6 +87,8 @@ func NewAppAPI(
 		HostKeyRequest:          api.onHostKeyRequest,
 	})
 
+	api.auditSvc = usecase.NewAuditService(auditLogRepo, api.settingsSvc, api.sessions, connRepo)
+
 	return api
 }
 
@@ -99,6 +99,9 @@ func (a *AppAPI) SetContext(ctx context.Context) {
 	a.ctx = ctx
 	if a.lockout != nil {
 		a.lockout.Start(a.onLockoutTriggered)
+	}
+	if a.auditSvc != nil && a.vaultRepo.IsUnlocked() {
+		_ = a.auditSvc.EnforceRetention(context.Background())
 	}
 }
 
@@ -113,6 +116,9 @@ func (a *AppAPI) Shutdown() {
 	}
 	a.sessions.CloseAll()
 
+	if a.auditSvc != nil {
+		_ = a.auditSvc.EnforceRetention(context.Background())
+	}
 	a.vaultRepo.Lock()
 	if a.auditLog != nil {
 		a.auditLog.Close()
@@ -141,6 +147,10 @@ func (a *AppAPI) ReportRestored() {
 }
 
 func (a *AppAPI) onLockoutTriggered() {
+	a.sessions.CloseAll()
+	if a.auditSvc != nil {
+		a.auditSvc.OnVaultLocked()
+	}
 	a.vaultRepo.Lock()
 	if a.ctx != nil {
 		wailsrt.EventsEmit(a.ctx, EventVaultLocked, nil)
@@ -175,12 +185,20 @@ func (a *AppAPI) UnlockVault(masterPassword string) error {
 		}
 	}
 
+	if a.auditSvc != nil {
+		a.auditSvc.OnVaultLocked()
+		_ = a.auditSvc.EnforceRetention(context.Background())
+	}
+
 	return nil
 }
 
 // LockVault re-locks the vault and clears sensitive data from memory.
 func (a *AppAPI) LockVault() {
 	a.sessions.CloseAll()
+	if a.auditSvc != nil {
+		a.auditSvc.OnVaultLocked()
+	}
 	a.vaultRepo.Lock()
 	if a.ctx != nil {
 		wailsrt.EventsEmit(a.ctx, EventVaultLocked, nil)
