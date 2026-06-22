@@ -195,6 +195,13 @@
     }
   }
 
+  function clearTreeSelection() {
+    selectedConnectionId.set('');
+    selectedConnectionIds.set(new Set());
+    selectedFolderId.set('');
+    lastClickedConnectionId = null;
+  }
+
   function selectFolder(id: string) {
     selectedFolderId.set(id);
     selectedConnectionId.set('');
@@ -447,12 +454,15 @@
   }
 
   function handleTreeKeydown(e: KeyboardEvent) {
-    if (e.key === 'Delete' || e.key === 'Backspace') {
-      const ids = [...$selectedConnectionIds];
-      if (ids.length > 0) {
-        e.preventDefault();
-        requestDeleteConnections(ids);
-      }
+    const target = e.target as HTMLElement | null;
+    const tag = target?.tagName ?? '';
+    const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || !!target?.isContentEditable;
+    if (isEditable) return;
+    if (e.key !== 'Delete') return;
+    const ids = [...$selectedConnectionIds];
+    if (ids.length > 0) {
+      e.preventDefault();
+      requestDeleteConnections(ids);
     }
   }
 
@@ -498,13 +508,10 @@
 <div
   class="remote-tree"
   class:drag-over-root={dragOverRoot}
-  role="tree"
-  tabindex="0"
   on:dragover={handleDragOver}
   on:drop={handleDropOnRoot}
   on:dragenter={handleRootDragEnter}
   on:dragleave={handleRootDragLeave}
-  on:keydown={handleTreeKeydown}
 >
   <div class="search-bar">
     <Search size={12} class="search-icon" />
@@ -513,6 +520,7 @@
       class="search-input"
       placeholder="Search connections..."
       bind:value={searchQuery}
+      on:focus={clearTreeSelection}
     />
   </div>
   <div class="tree-toolbar">
@@ -534,7 +542,7 @@
     </button>
   </div>
 
-  <div class="tree-body">
+  <div class="tree-body" role="tree" tabindex="0" on:keydown={handleTreeKeydown}>
     {#if favoriteConns.length > 0}
       <div class="favorites-section">
         <div class="favorites-header">Favorites</div>
