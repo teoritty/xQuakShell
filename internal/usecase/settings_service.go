@@ -80,6 +80,7 @@ func defaultAppSettings() domain.AppSettings {
 		},
 		SessionHotkeys: hotkeys,
 		AuditLog:       domain.DefaultAuditLogSettings(),
+		UIScalePercent: 100,
 	}
 }
 
@@ -132,6 +133,16 @@ func normalizeSettings(s domain.AppSettings) domain.AppSettings {
 	}
 	if s.AuditLog.RetentionCount > 10000 {
 		s.AuditLog.RetentionCount = 10000
+	}
+
+	if s.UIScalePercent <= 0 {
+		s.UIScalePercent = 100
+	}
+	if s.UIScalePercent < 75 {
+		s.UIScalePercent = 75
+	}
+	if s.UIScalePercent > 200 {
+		s.UIScalePercent = 200
 	}
 
 	return s

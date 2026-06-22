@@ -126,6 +126,7 @@ type AppSettings struct {
 	Lockout            LockoutSettings        `json:"lockout"`
 	Terminal           TerminalSettings       `json:"terminal"`
 	Theme              string                 `json:"theme"`
+	UIScalePercent     int                    `json:"uiScalePercent"`
 	Ping               PingSettings           `json:"ping"`
 	Transfer           TransferSettings       `json:"transfer"`
 	SessionHotkeys     SessionHotkeysSettings `json:"sessionHotkeys"`
@@ -147,6 +148,7 @@ func NewVaultData() *VaultData {
 			Lockout:        DefaultLockoutSettings(),
 			Terminal:       DefaultTerminalSettings(),
 			Theme:          "dark",
+			UIScalePercent: 100,
 			Ping:           DefaultPingSettings(),
 			Transfer:       DefaultTransferSettings(),
 			SessionHotkeys: DefaultSessionHotkeysSettings(),
