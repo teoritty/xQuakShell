@@ -5,6 +5,7 @@
   import { LigaturesAddon } from '@xterm/addon-ligatures';
   import { WebLinksAddon } from '@xterm/addon-web-links';
   import { sendTerminalInput, terminalResize, getSettings } from '../stores/api';
+  import { dataHasEnter, extractCommandLine } from './terminalCommandLine';
 
   export let sessionId: string;
   export let active: boolean = false;
@@ -20,6 +21,8 @@
   /** Drops TerminalOutput until subscription is installed (avoids stale lines). */
   let acceptOutput = false;
   const mountSessionId = sessionId;
+  /** Captured on Enter keydown before xterm/PTY consume the line. */
+  let pendingCommandLine = '';
 
   const defaultTheme = {
     background: '#1e1e1e',
@@ -181,7 +184,9 @@
     initDone = true;
 
     dataDisposable = term.onData((data) => {
-      sendTerminalInput(sessionId, data);
+      const commandLine = dataHasEnter(data) ? pendingCommandLine : '';
+      pendingCommandLine = '';
+      sendTerminalInput(sessionId, data, commandLine);
     });
 
     // fit() updates cols/rows and fires this; keep the backend PTY in sync.
@@ -208,6 +213,11 @@
     // ghostty-web convention), so we consume the paste shortcut here.
     term.attachCustomKeyEventHandler((ev: KeyboardEvent) => {
       if (ev.type !== 'keydown') return true;
+
+      if (ev.key === 'Enter' && term) {
+        pendingCommandLine = extractCommandLine(term);
+      }
+
       const isPaste =
         ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && !ev.altKey && ev.code === 'KeyV') ||
         (ev.shiftKey && !ev.ctrlKey && !ev.altKey && (ev.code === 'Insert' || ev.key === 'Insert'));

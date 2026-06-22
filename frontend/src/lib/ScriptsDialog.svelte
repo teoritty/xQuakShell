@@ -64,7 +64,7 @@
     if (!content.trim()) return;
     const sid = $activeSessionId;
     if (!sid) return;
-    sendTerminalInput(sid, content.trim() + '\n');
+    sendTerminalInput(sid, content.trim() + '\n', content.trim());
     show = false;
   }
 
