@@ -79,6 +79,7 @@ func defaultAppSettings() domain.AppSettings {
 			MaxConcurrent:        transfer.MaxConcurrent,
 		},
 		SessionHotkeys: hotkeys,
+		AuditLog:       domain.DefaultAuditLogSettings(),
 	}
 }
 
@@ -114,6 +115,23 @@ func normalizeSettings(s domain.AppSettings) domain.AppSettings {
 
 	if s.Lockout.IdleTimeout < time.Minute {
 		s.Lockout.IdleTimeout = domain.DefaultLockoutSettings().IdleTimeout
+	}
+
+	defAudit := domain.DefaultAuditLogSettings()
+	if s.AuditLog.RetentionMode != domain.AuditRetentionByDays && s.AuditLog.RetentionMode != domain.AuditRetentionByCount {
+		s.AuditLog.RetentionMode = defAudit.RetentionMode
+	}
+	if s.AuditLog.RetentionDays <= 0 {
+		s.AuditLog.RetentionDays = defAudit.RetentionDays
+	}
+	if s.AuditLog.RetentionDays > 365 {
+		s.AuditLog.RetentionDays = 365
+	}
+	if s.AuditLog.RetentionCount <= 0 {
+		s.AuditLog.RetentionCount = defAudit.RetentionCount
+	}
+	if s.AuditLog.RetentionCount > 10000 {
+		s.AuditLog.RetentionCount = 10000
 	}
 
 	return s
