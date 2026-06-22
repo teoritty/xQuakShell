@@ -11,7 +11,7 @@ This guide explains how to use xQuakShell for managing remote connections, organ
 3. [SSH Connections](#ssh-connections)
 4. [Authentication](#authentication)
 5. [Jump Chains (Bastion)](#jump-chains-bastion)
-6. [Proxy and VPN](#proxy-and-vpn)
+6. [Proxy](#proxy)
 7. [Folders and Organization](#folders-and-organization)
 8. [Sessions and Tabs](#sessions-and-tabs)
 9. [Terminal](#terminal)
@@ -63,7 +63,6 @@ All data—connections, SSH keys, passwords, known hosts—is stored in a single
 | **Tags** | Optional tags for filtering (e.g., "prod", "backup"). |
 | **Jump chain** | Bastion hops (see [Jump Chains](#jump-chains-bastion)). |
 | **Proxy** | SOCKS4/SOCKS5 proxy (optional). |
-| **VPN** | VPN profile to use before connecting (optional). |
 
 ### Editing and deleting
 
@@ -79,7 +78,7 @@ xQuakShell is **SSH-first**: every connection uses SSH for terminal and SFTP fil
 
 - Host, port (default 22), username.
 - Auth: SSH key or password (stored encrypted in vault).
-- Supports PTY terminal, SFTP, jump chains, SOCKS proxy, VPN profiles.
+- Supports PTY terminal, SFTP, jump chains, SOCKS proxy.
 
 Additional session protocols can be added later via the plugin seam (`SessionConnector`); the core ships without built-in non-SSH connectors.
 
@@ -133,7 +132,7 @@ You → Bastion1 → Bastion2 → Target
 
 ---
 
-## Proxy and VPN
+## Proxy
 
 ### SOCKS proxy
 
@@ -141,14 +140,6 @@ You → Bastion1 → Bastion2 → Target
 - Type: SOCKS4 or SOCKS5.
 - Host, port, optional username/password.
 - Outbound SSH (and optionally other traffic) goes through the proxy.
-
-### VPN
-
-- **Import VPN profile:** Paste a WireGuard or OpenVPN config (base64 or raw).
-- Assign the profile to a connection.
-- When connecting, the app establishes the VPN tunnel first, then connects through it.
-
-VPN support is in progress; WireGuard and OpenVPN connectors exist but may require additional setup.
 
 ---
 
@@ -295,7 +286,7 @@ Available for **SSH** sessions.
 
 ### "Connection refused" / "Network unreachable"
 
-- Check host, port, firewall, and VPN/proxy settings.
+- Check host, port, firewall, and proxy settings.
 - For jump chains, ensure each hop is reachable from the previous one.
 
 ### App won't start (WebView2 error)

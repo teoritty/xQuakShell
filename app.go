@@ -31,7 +31,6 @@ func NewApp() *App {
 	identRepo := persistence.NewIdentityRepo(vaultRepo)
 	passwordRepo := persistence.NewPasswordRepo(vaultRepo)
 	knownHostsRepo := persistence.NewKnownHostsRepo(vaultRepo)
-	vpnProfileRepo := persistence.NewVPNProfileRepo(vaultRepo)
 	sshDialer := infrassh.NewDialer()
 
 	auditLogRepo, err := auditlog.NewSQLiteRepo(vaultDir)
@@ -51,7 +50,7 @@ func NewApp() *App {
 	}
 
 	api := presentation.NewAppAPI(
-		vaultRepo, connRepo, identRepo, passwordRepo, knownHostsRepo, vpnProfileRepo,
+		vaultRepo, connRepo, identRepo, passwordRepo, knownHostsRepo,
 		sshDialer, sshSession, newSessionConnectors(),
 		auditLogRepo, lockoutMgr,
 	)
@@ -128,22 +127,6 @@ func (a *App) ImportPassword(password, label string) (string, error) {
 
 func (a *App) DeletePassword(id string) error {
 	return a.api.DeletePassword(id)
-}
-
-func (a *App) ImportVPNProfile(configBase64, protocol, label string) (string, error) {
-	return a.api.ImportVPNProfile(configBase64, protocol, label)
-}
-
-func (a *App) DeleteVPNProfile(id string) error {
-	return a.api.DeleteVPNProfile(id)
-}
-
-func (a *App) GetVPNProfile(id string) (presentation.VPNProfileDTO, error) {
-	return a.api.GetVPNProfile(id)
-}
-
-func (a *App) GetVPNProfiles() ([]presentation.VPNProfileDTO, error) {
-	return a.api.GetVPNProfiles()
 }
 
 func (a *App) ResolveHostKey(sessionID, action, host, authorizedKey string) error {

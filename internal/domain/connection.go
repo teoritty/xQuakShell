@@ -50,9 +50,8 @@ type Connection struct {
 	Protocol      string           `json:"protocol,omitempty"` // ssh (default); other values require a plugin connector
 	Users         []ConnectionUser `json:"users,omitempty"`
 	DefaultUserID string           `json:"defaultUserId,omitempty"`
-	Tags          []string         `json:"tags,omitempty"`
-	VpnProfileID  string           `json:"vpnProfileId,omitempty"`
-	JumpChain     JumpChainConfig  `json:"jumpChain,omitempty"`
+	Tags      []string        `json:"tags,omitempty"`
+	JumpChain JumpChainConfig `json:"jumpChain,omitempty"`
 	Proxy         *ProxyConfig     `json:"proxy,omitempty"`
 }
 

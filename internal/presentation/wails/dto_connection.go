@@ -63,7 +63,6 @@ type ConnectionDTO struct {
 	Users         []ConnectionUserDTO `json:"users,omitempty"`
 	DefaultUserID string              `json:"defaultUserId,omitempty"`
 	Tags          []string            `json:"tags,omitempty"`
-	VpnProfileID  string              `json:"vpnProfileId,omitempty"`
 	JumpChain     []JumpHopDTO        `json:"jumpChain,omitempty"`
 	Proxy         *ProxyDTO           `json:"proxy,omitempty"`
 }
@@ -111,7 +110,6 @@ func ConnectionToDTO(c domain.Connection) ConnectionDTO {
 		IdentityIDs:   c.IdentityIDs,
 		DefaultUserID: c.DefaultUserID,
 		Tags:          c.Tags,
-		VpnProfileID:  c.VpnProfileID,
 	}
 	if dto.IdentityIDs == nil {
 		dto.IdentityIDs = []string{}
@@ -225,7 +223,6 @@ func DTOToConnection(d ConnectionDTO) domain.Connection {
 		Protocol:      d.Protocol,
 		DefaultUserID: d.DefaultUserID,
 		Tags:          d.Tags,
-		VpnProfileID:  d.VpnProfileID,
 	}
 	for _, u := range d.Users {
 		c.Users = append(c.Users, dtoToConnectionUser(u))

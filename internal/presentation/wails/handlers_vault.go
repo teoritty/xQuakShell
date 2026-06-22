@@ -6,8 +6,6 @@ import (
 	"fmt"
 
 	infraputty "ssh-client/internal/infra/putty"
-
-	"ssh-client/internal/domain"
 )
 
 // --- Folders ---
@@ -95,48 +93,6 @@ func (a *AppAPI) ImportPassword(password, label string) (string, error) {
 // DeletePassword removes a password from the vault.
 func (a *AppAPI) DeletePassword(id string) error {
 	return a.passwordRepo.Delete(context.Background(), id)
-}
-
-// --- VPN Profiles ---
-
-// ImportVPNProfile stores a VPN config in the vault and returns the profile ID.
-func (a *AppAPI) ImportVPNProfile(configBase64, protocol, label string) (string, error) {
-	configBlob, err := base64.StdEncoding.DecodeString(configBase64)
-	if err != nil {
-		return "", fmt.Errorf("invalid base64 config: %w", err)
-	}
-	prof := &domain.VPNProfile{
-		Label:      label,
-		Protocol:   domain.VPNProtocol(protocol),
-		ConfigBlob: configBlob,
-	}
-	if err := a.vpnProfileRepo.Save(context.Background(), prof); err != nil {
-		return "", err
-	}
-	return prof.ID, nil
-}
-
-// DeleteVPNProfile removes a VPN profile from the vault.
-func (a *AppAPI) DeleteVPNProfile(id string) error {
-	return a.vpnProfileRepo.Delete(context.Background(), id)
-}
-
-// GetVPNProfile returns a VPN profile by ID.
-func (a *AppAPI) GetVPNProfile(id string) (VPNProfileDTO, error) {
-	prof, err := a.vpnProfileRepo.Get(context.Background(), id)
-	if err != nil {
-		return VPNProfileDTO{}, err
-	}
-	return VPNProfileToDTO(prof), nil
-}
-
-// GetVPNProfiles returns all VPN profiles.
-func (a *AppAPI) GetVPNProfiles() ([]VPNProfileDTO, error) {
-	profiles, err := a.vpnProfileRepo.GetAll(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	return VPNProfilesToDTO(profiles), nil
 }
 
 // --- Identities ---

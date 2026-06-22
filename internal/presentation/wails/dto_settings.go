@@ -42,33 +42,12 @@ type AppSettingsDTO struct {
 	SessionHotkeyClose       string `json:"sessionHotkeyClose"`
 }
 
-// VPNProfileDTO is the UI-facing representation of a VPN profile.
-type VPNProfileDTO struct {
-	ID       string `json:"id"`
-	Label    string `json:"label"`
-	Protocol string `json:"protocol"`
-}
-
 // PuTTYSessionDTO is a preview item for REG import.
 type PuTTYSessionDTO struct {
 	Name     string `json:"name"`
 	HostName string `json:"hostName"`
 	Port     int    `json:"port"`
 	UserName string `json:"userName"`
-}
-
-// VPNProfileToDTO converts a domain.VPNProfile to VPNProfileDTO.
-func VPNProfileToDTO(p *domain.VPNProfile) VPNProfileDTO {
-	return VPNProfileDTO{ID: p.ID, Label: p.Label, Protocol: string(p.Protocol)}
-}
-
-// VPNProfilesToDTO converts a slice of domain.VPNProfile to DTOs.
-func VPNProfilesToDTO(profiles []domain.VPNProfile) []VPNProfileDTO {
-	result := make([]VPNProfileDTO, 0, len(profiles))
-	for i := range profiles {
-		result = append(result, VPNProfileToDTO(&profiles[i]))
-	}
-	return result
 }
 
 // PuTTYSessionToDTO converts an infraputty.PuTTYSession to PuTTYSessionDTO.

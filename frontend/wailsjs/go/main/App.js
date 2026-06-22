@@ -42,10 +42,6 @@ export function DeletePassword(arg1) {
   return window['go']['main']['App']['DeletePassword'](arg1);
 }
 
-export function DeleteVPNProfile(arg1) {
-  return window['go']['main']['App']['DeleteVPNProfile'](arg1);
-}
-
 export function Download(arg1, arg2, arg3) {
   return window['go']['main']['App']['Download'](arg1, arg2, arg3);
 }
@@ -90,14 +86,6 @@ export function GetUserHomeDir() {
   return window['go']['main']['App']['GetUserHomeDir']();
 }
 
-export function GetVPNProfile(arg1) {
-  return window['go']['main']['App']['GetVPNProfile'](arg1);
-}
-
-export function GetVPNProfiles() {
-  return window['go']['main']['App']['GetVPNProfiles']();
-}
-
 export function ImportIdentity(arg1, arg2) {
   return window['go']['main']['App']['ImportIdentity'](arg1, arg2);
 }
@@ -116,10 +104,6 @@ export function ImportPuTTYReg(arg1) {
 
 export function ImportPuTTYRegAsConnections(arg1, arg2) {
   return window['go']['main']['App']['ImportPuTTYRegAsConnections'](arg1, arg2);
-}
-
-export function ImportVPNProfile(arg1, arg2, arg3) {
-  return window['go']['main']['App']['ImportVPNProfile'](arg1, arg2, arg3);
 }
 
 export function IsVaultUnlocked() {

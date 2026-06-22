@@ -22,8 +22,6 @@ export function DeleteFolder(arg1:string):Promise<void>;
 
 export function DeletePassword(arg1:string):Promise<void>;
 
-export function DeleteVPNProfile(arg1:string):Promise<void>;
-
 export function Download(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function GetAllConnections():Promise<Array<wails.ConnectionDTO>>;
@@ -46,10 +44,6 @@ export function GetTempDir():Promise<string>;
 
 export function GetUserHomeDir():Promise<string>;
 
-export function GetVPNProfile(arg1:string):Promise<wails.VPNProfileDTO>;
-
-export function GetVPNProfiles():Promise<Array<wails.VPNProfileDTO>>;
-
 export function ImportIdentity(arg1:string,arg2:string):Promise<string>;
 
 export function ImportPassword(arg1:string,arg2:string):Promise<string>;
@@ -59,8 +53,6 @@ export function ImportPuTTYPPK(arg1:string,arg2:string):Promise<string>;
 export function ImportPuTTYReg(arg1:string):Promise<Array<wails.PuTTYSessionDTO>>;
 
 export function ImportPuTTYRegAsConnections(arg1:string,arg2:string):Promise<Array<wails.ConnectionDTO>>;
-
-export function ImportVPNProfile(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function IsVaultUnlocked():Promise<boolean>;
 

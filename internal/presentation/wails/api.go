@@ -19,7 +19,6 @@ type AppAPI struct {
 	identRepo           domain.IdentityRepository
 	passwordRepo        domain.PasswordRepository
 	knownHosts          domain.KnownHostsRepository
-	vpnProfileRepo      domain.VPNProfileRepository
 	sessions            *usecase.SessionManager
 	settingsSvc         *usecase.SettingsService
 	auditLog            domain.AuditLogRepository
@@ -45,7 +44,6 @@ func NewAppAPI(
 	identRepo domain.IdentityRepository,
 	passwordRepo domain.PasswordRepository,
 	knownHosts domain.KnownHostsRepository,
-	vpnProfileRepo domain.VPNProfileRepository,
 	sshFactory domain.SSHClientFactory,
 	sshSession usecase.SSHSessionDeps,
 	sessionConnectors []domain.SessionConnector,
@@ -59,7 +57,6 @@ func NewAppAPI(
 		identRepo:         identRepo,
 		passwordRepo:      passwordRepo,
 		knownHosts:        knownHosts,
-		vpnProfileRepo:    vpnProfileRepo,
 		auditLog:          auditLogRepo,
 		sanitizers:        make(map[string]*auditlog.Sanitizer),
 		auditInputBuffers: make(map[string]string),

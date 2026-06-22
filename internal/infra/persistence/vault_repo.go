@@ -43,9 +43,6 @@ func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
 	if data.Passwords == nil {
 		data.Passwords = map[string]domain.PasswordBlob{}
 	}
-	if data.VPNProfiles == nil {
-		data.VPNProfiles = map[string]domain.VPNProfile{}
-	}
 	if data.Settings == nil {
 		data.Settings = &domain.AppSettings{
 			Lockout:  domain.DefaultLockoutSettings(),

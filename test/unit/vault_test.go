@@ -35,8 +35,8 @@ func TestVaultEncryptDecryptRoundtrip(t *testing.T) {
 		t.Fatalf("decrypt: %v", err)
 	}
 
-	if decrypted.Version != 1 {
-		t.Errorf("version: got %d, want 1", decrypted.Version)
+	if decrypted.Version != domain.CurrentVaultVersion {
+		t.Errorf("version: got %d, want %d", decrypted.Version, domain.CurrentVaultVersion)
 	}
 	if len(decrypted.Folders) != 1 || decrypted.Folders[0].Name != "Test Folder" {
 		t.Errorf("folders mismatch: %+v", decrypted.Folders)
@@ -103,8 +103,8 @@ func TestVaultReadNonExistentReturnsEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected nil error for non-existent file, got: %v", err)
 	}
-	if data.Version != 1 {
-		t.Errorf("expected version 1, got %d", data.Version)
+	if data.Version != domain.CurrentVaultVersion {
+		t.Errorf("expected version %d, got %d", domain.CurrentVaultVersion, data.Version)
 	}
 	if len(data.Connections) != 0 {
 		t.Errorf("expected empty connections, got %d", len(data.Connections))

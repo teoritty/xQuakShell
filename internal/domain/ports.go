@@ -21,7 +21,7 @@ type PasswordBlob struct {
 }
 
 // CurrentVaultVersion is the latest vault data schema version.
-const CurrentVaultVersion = 2
+const CurrentVaultVersion = 3
 
 // VaultData is the top-level structure stored inside the encrypted vault file.
 type VaultData struct {
@@ -33,9 +33,8 @@ type VaultData struct {
 	KnownHosts  []string                 `json:"knownHosts"`
 
 	// v2 additions
-	Passwords   map[string]PasswordBlob  `json:"passwords,omitempty"`
-	VPNProfiles map[string]VPNProfile    `json:"vpnProfiles,omitempty"`
-	Settings    *AppSettings             `json:"settings,omitempty"`
+	Passwords map[string]PasswordBlob `json:"passwords,omitempty"`
+	Settings  *AppSettings            `json:"settings,omitempty"`
 }
 
 // TerminalSettings configures the embedded terminal appearance.
@@ -142,8 +141,7 @@ func NewVaultData() *VaultData {
 		Identities:  map[string]SSHIdentity{},
 		KeyBlobs:    map[string]IdentityBlob{},
 		KnownHosts:  []string{},
-		Passwords:   map[string]PasswordBlob{},
-		VPNProfiles: map[string]VPNProfile{},
+		Passwords: map[string]PasswordBlob{},
 		Settings: &AppSettings{
 			Lockout:        DefaultLockoutSettings(),
 			Terminal:       DefaultTerminalSettings(),
@@ -363,28 +361,6 @@ type PasswordRepository interface {
 	Delete(ctx context.Context, id string) error
 	// List returns all password metadata (ID + label, not the actual password).
 	List(ctx context.Context) ([]PasswordBlob, error)
-}
-
-// --- VPN Profiles ---
-
-// VPNProfileRepository manages VPN profile entries in the vault.
-type VPNProfileRepository interface {
-	// Save creates or updates a VPN profile in the vault.
-	Save(ctx context.Context, profile *VPNProfile) error
-	// Get retrieves a VPN profile by ID.
-	Get(ctx context.Context, id string) (*VPNProfile, error)
-	// Delete removes a VPN profile by ID.
-	Delete(ctx context.Context, id string) error
-	// GetAll returns every VPN profile stored in the vault.
-	GetAll(ctx context.Context) ([]VPNProfile, error)
-}
-
-// --- Transport ---
-
-// TransportDialer abstracts TCP-level connectivity, allowing bastion/VPN composition.
-type TransportDialer interface {
-	// DialContext establishes a network connection (TCP) to the given address.
-	DialContext(ctx context.Context, network, address string) (net.Conn, error)
 }
 
 // --- Lockout ---

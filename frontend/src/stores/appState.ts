@@ -59,7 +59,6 @@ export interface Connection {
   users?: ConnectionUser[];
   defaultUserId?: string;
   tags?: string[];
-  vpnProfileId?: string;
   jumpChain?: JumpHop[];
   proxy?: ProxyConfig;
   protocol?: string;

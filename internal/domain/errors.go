@@ -35,9 +35,6 @@ var ErrFolderNotEmpty = errors.New("folder is not empty")
 // ErrPasswordNotFound indicates the requested password entry does not exist in the vault.
 var ErrPasswordNotFound = errors.New("password not found in vault")
 
-// ErrVPNProfileNotFound indicates the requested VPN profile does not exist.
-var ErrVPNProfileNotFound = errors.New("VPN profile not found")
-
 // ErrFolderNotFound indicates the requested folder does not exist.
 var ErrFolderNotFound = errors.New("folder not found")
 

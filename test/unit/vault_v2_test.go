@@ -22,11 +22,10 @@ func TestMigrateV1ToV2(t *testing.T) {
 				IdentityIDs: []string{"key1"},
 			},
 		},
-		Identities:  map[string]domain.SSHIdentity{},
+		Identities: map[string]domain.SSHIdentity{},
 		KeyBlobs:    map[string]domain.IdentityBlob{},
 		KnownHosts:  []string{},
 		Passwords:   nil,
-		VPNProfiles: nil,
 		Settings:    nil,
 	}
 
@@ -37,9 +36,6 @@ func TestMigrateV1ToV2(t *testing.T) {
 	}
 	if data.Passwords == nil {
 		t.Fatal("Passwords should be initialized, got nil")
-	}
-	if data.VPNProfiles == nil {
-		t.Fatal("VPNProfiles should be initialized, got nil")
 	}
 	if data.Settings == nil {
 		t.Fatal("Settings should be initialized, got nil")
@@ -103,7 +99,7 @@ func TestMigrateV2Noop(t *testing.T) {
 	}
 }
 
-func TestNewVaultDataIsV2(t *testing.T) {
+func TestNewVaultDataIsV3(t *testing.T) {
 	data := domain.NewVaultData()
 
 	if data.Version != domain.CurrentVaultVersion {
@@ -111,9 +107,6 @@ func TestNewVaultDataIsV2(t *testing.T) {
 	}
 	if data.Passwords == nil {
 		t.Error("Passwords should be initialized, got nil")
-	}
-	if data.VPNProfiles == nil {
-		t.Error("VPNProfiles should be initialized, got nil")
 	}
 	if data.Settings == nil {
 		t.Error("Settings should be initialized, got nil")

@@ -209,7 +209,6 @@ export namespace wails {
 	    users?: ConnectionUserDTO[];
 	    defaultUserId?: string;
 	    tags?: string[];
-	    vpnProfileId?: string;
 	    jumpChain?: JumpHopDTO[];
 	    proxy?: ProxyDTO;
 	
@@ -231,7 +230,6 @@ export namespace wails {
 	        this.users = this.convertValues(source["users"], ConnectionUserDTO);
 	        this.defaultUserId = source["defaultUserId"];
 	        this.tags = source["tags"];
-	        this.vpnProfileId = source["vpnProfileId"];
 	        this.jumpChain = this.convertValues(source["jumpChain"], JumpHopDTO);
 	        this.proxy = this.convertValues(source["proxy"], ProxyDTO);
 	    }
@@ -415,22 +413,6 @@ export namespace wails {
 	        this.protocol = source["protocol"];
 	        this.state = source["state"];
 	        this.errorMessage = source["errorMessage"];
-	    }
-	}
-	export class VPNProfileDTO {
-	    id: string;
-	    label: string;
-	    protocol: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new VPNProfileDTO(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.label = source["label"];
-	        this.protocol = source["protocol"];
 	    }
 	}
 

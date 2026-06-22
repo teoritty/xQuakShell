@@ -60,10 +60,27 @@ func Decrypt(ciphertext []byte, passphrase string) (*domain.VaultData, error) {
 		return nil, fmt.Errorf("vault decrypt read: %w", domain.ErrVaultDecryptFailed)
 	}
 
-	var data domain.VaultData
-	if err := json.Unmarshal(plaintext, &data); err != nil {
-		return nil, fmt.Errorf("vault unmarshal: %w", err)
+	var versionProbe struct {
+		Version int `json:"version"`
+	}
+	if err := json.Unmarshal(plaintext, &versionProbe); err != nil {
+		return nil, fmt.Errorf("vault unmarshal version: %w", err)
 	}
 
-	return &data, nil
+	var data *domain.VaultData
+	if versionProbe.Version < domain.CurrentVaultVersion {
+		legacy, err := unmarshalVaultLegacy(plaintext)
+		if err != nil {
+			return nil, fmt.Errorf("vault unmarshal legacy: %w", err)
+		}
+		data = legacy
+	} else {
+		var current domain.VaultData
+		if err := json.Unmarshal(plaintext, &current); err != nil {
+			return nil, fmt.Errorf("vault unmarshal: %w", err)
+		}
+		data = &current
+	}
+
+	return data, nil
 }
