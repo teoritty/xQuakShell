@@ -134,3 +134,57 @@ func TestSanitizerNormalInput(t *testing.T) {
 		t.Errorf("expected ls, got %q", out)
 	}
 }
+
+func TestAuditLogCountAndPurge(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := auditlog.NewSQLiteRepo(dir)
+	if err != nil {
+		t.Fatalf("NewSQLiteRepo: %v", err)
+	}
+	defer repo.Close()
+
+	ctx := context.Background()
+	old := time.Now().Add(-48 * time.Hour)
+	recent := time.Now()
+
+	for _, ts := range []time.Time{old, recent} {
+		if err := repo.Append(ctx, domain.AuditEntry{
+			Timestamp: ts, SessionID: "s", ConnectionID: "c", Input: "x",
+		}); err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+	}
+
+	count, err := repo.Count(ctx)
+	if err != nil || count != 2 {
+		t.Fatalf("Count: got %d err %v", count, err)
+	}
+
+	cutoff := time.Now().Add(-24 * time.Hour)
+	if err := repo.PurgeOlderThan(ctx, cutoff); err != nil {
+		t.Fatalf("PurgeOlderThan: %v", err)
+	}
+	count, _ = repo.Count(ctx)
+	if count != 1 {
+		t.Errorf("after purge want 1 entry, got %d", count)
+	}
+}
+
+func TestDefaultAuditLogSettings(t *testing.T) {
+	def := domain.DefaultAuditLogSettings()
+	if def.Enabled {
+		t.Error("audit should be disabled by default")
+	}
+	if def.RetentionMode != domain.AuditRetentionByDays {
+		t.Errorf("expected days retention, got %q", def.RetentionMode)
+	}
+	if def.RetentionDays != 30 {
+		t.Errorf("expected 30 days, got %d", def.RetentionDays)
+	}
+	if def.ShowUsername {
+		t.Error("username logging should be off by default")
+	}
+	if def.ShowConnection {
+		t.Error("connection logging should be off by default")
+	}
+}
