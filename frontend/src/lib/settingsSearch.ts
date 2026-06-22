@@ -27,6 +27,11 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
     terms: ['Appearance', 'Theme', 'Dark', 'Light'],
   },
   {
+    tabId: 'appearance',
+    sectionId: 'scale',
+    terms: ['Appearance', 'Interface scale', 'UI scale', 'Zoom', 'Magnification', 'percent', 'Scale'],
+  },
+  {
     tabId: 'audit',
     sectionId: 'general',
     terms: ['Audit Log', 'General', 'Enable audit log', 'command audit logging'],

@@ -15,7 +15,7 @@
   import {
     subscribeToEvents, resolveHostKey, createNewConnectionInFolder,
     createSessionFromSelection, focusNextSessionTab, focusPrevSessionTab, closeActiveSession,
-    getSettings, parseHotkeyEvent, DEFAULT_SESSION_HOTKEYS,
+    getSettings, parseHotkeyEvent, DEFAULT_SESSION_HOTKEYS, applyAppearanceSettings,
   } from './stores/api';
   import { Settings, FileText, Shield, MonitorDot, Terminal } from 'lucide-svelte';
 
@@ -98,7 +98,10 @@
 
   onMount(() => {
     subscribeToEvents();
-    if ($vaultUnlocked) loadHotkeysFromSettings();
+    if ($vaultUnlocked) {
+      loadHotkeysFromSettings();
+      void applyAppearanceSettings();
+    }
 
     document.addEventListener('click', reportActivity);
     document.addEventListener('keydown', reportActivity);
@@ -132,7 +135,10 @@
       }
     };
     window.addEventListener('keydown', hotkeyHandler, true);
-    const settingsChanged = () => loadHotkeysFromSettings();
+    const settingsChanged = () => {
+      loadHotkeysFromSettings();
+      void applyAppearanceSettings();
+    };
     window.addEventListener('app-settings-updated', settingsChanged as EventListener);
 
     document.addEventListener('visibilitychange', () => {
@@ -151,6 +157,7 @@
 
   $: if ($vaultUnlocked) {
     loadHotkeysFromSettings();
+    void applyAppearanceSettings();
   }
 
 </script>

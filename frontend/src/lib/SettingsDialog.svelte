@@ -19,6 +19,12 @@
     type SettingsTabId,
   } from './settingsSearch';
   import {
+    applyUiScalePercent,
+    DEFAULT_UI_SCALE_PERCENT,
+    normalizeUiScalePercent,
+    UI_SCALE_PRESETS,
+  } from './uiScale';
+  import {
     Shield,
     Terminal,
     Palette,
@@ -49,6 +55,8 @@
   let terminalFontColor = '#cccccc';
   let externalEditorPath = '';
   let theme = 'dark';
+  let uiScalePercent = DEFAULT_UI_SCALE_PERCENT;
+  let uiScaleAtOpen = DEFAULT_UI_SCALE_PERCENT;
 
   const monoFonts = [
     'Cascadia Code, Consolas, Courier New, monospace',
@@ -152,6 +160,8 @@
       terminalFontColor = s.terminalFontColor || '#cccccc';
       externalEditorPath = s.externalEditorPath || '';
       theme = s.theme || 'dark';
+      uiScalePercent = s.uiScalePercent ?? DEFAULT_UI_SCALE_PERCENT;
+      uiScaleAtOpen = uiScalePercent;
       pingEnabled = s.pingEnabled ?? true;
       pingMode = s.pingMode ?? 'interval';
       pingIntervalSeconds = s.pingIntervalSeconds ?? 5;
@@ -234,6 +244,16 @@
     hotkeyConflict = '';
   }
 
+  function handleUiScaleChange() {
+    uiScalePercent = normalizeUiScalePercent(Number(uiScalePercent));
+    applyUiScalePercent(uiScalePercent);
+  }
+
+  function closeSettings() {
+    applyUiScalePercent(uiScaleAtOpen);
+    show = false;
+  }
+
   async function handleSave() {
     hotkeyConflict = validateHotkeyConflicts();
     if (hotkeyConflict) return;
@@ -247,6 +267,7 @@
       terminalFontColor,
       externalEditorPath,
       theme,
+      uiScalePercent,
       pingEnabled,
       pingMode,
       pingIntervalSeconds,
@@ -265,6 +286,7 @@
       auditShowConnection,
     });
     window.dispatchEvent(new CustomEvent('app-settings-updated'));
+    uiScaleAtOpen = uiScalePercent;
     saving = false;
     show = false;
   }
@@ -273,7 +295,7 @@
 </script>
 
 {#if show}
-  <Modal title="Settings" show={true} contentClass="settings-modal" on:close={() => show = false}>
+  <Modal title="Settings" show={true} contentClass="settings-modal" on:close={closeSettings}>
     <svelte:fragment slot="header-center">
       <div class="settings-search-wrap">
         <Search size={13} />
@@ -339,12 +361,30 @@
                   <div class="theme-swatch dark-swatch"></div>
                   <span>Dark</span>
                 </label>
-                <label class="theme-option" class:selected={theme === 'light'} title="Coming soon">
+                <!-- <label class="theme-option" class:selected={theme === 'light'} title="Coming soon">
                   <input type="radio" bind:group={theme} value="light" disabled />
                   <div class="theme-swatch light-swatch"></div>
                   <span>Light (soon)</span>
-                </label>
+                </label> -->
               </div>
+            </div>
+          {/if}
+
+          {#if isSearching ? shouldShowSettingsSection('appearance', 'scale', searchViewState) : activeTab === 'appearance'}
+            {#if sectionTabLabel('appearance', 'scale')}
+              <div class="section-tab-label">{SETTINGS_TAB_LABELS.appearance}</div>
+            {/if}
+            <div class="section">
+              <h4>Interface scale</h4>
+              <p class="section-desc">Adjust the size of the entire interface. Layout reflows to fit the window — nothing is cropped like browser zoom.</p>
+              <label class="field-block">
+                <span>Scale</span>
+                <select bind:value={uiScalePercent} on:change={handleUiScaleChange}>
+                  {#each UI_SCALE_PRESETS as preset}
+                    <option value={preset}>{preset}%</option>
+                  {/each}
+                </select>
+              </label>
             </div>
           {/if}
 
@@ -572,7 +612,7 @@
                   <input type="text" bind:value={terminalFontColor} class="color-hex" placeholder="#cccccc" />
                 </div>
               </label>
-              <div class="font-preview" style="font-family: {terminalFontFamily}; font-size: {terminalFontSize}px; color: {terminalFontColor};">
+              <div class="font-preview" style="font-family: {terminalFontFamily}; font-size: calc({terminalFontSize}px * var(--ui-scale)); color: {terminalFontColor};">
                 user@server:~$ ls -la
               </div>
             </div>
@@ -582,7 +622,7 @@
     </div>
 
     <div class="settings-footer">
-      <button class="secondary" on:click={() => show = false}>Cancel</button>
+      <button class="secondary" on:click={closeSettings}>Cancel</button>
       {#if showSaveButton}
         <button class="primary" on:click={handleSave} disabled={saving}>
           <Save size={13} />

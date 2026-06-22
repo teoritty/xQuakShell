@@ -1,4 +1,5 @@
 :root {
+  --ui-scale: 1;
   --bg-primary: #1e1e1e;
   --bg-secondary: #252526;
   --bg-tertiary: #2d2d2d;
@@ -288,4 +289,70 @@ input:focus, select:focus, textarea:focus {
 .overflow-menu-item:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* CodeMirror autocomplete tooltips (portal; not inside .cm-editor scope) */
+.cm-tooltip.cm-tooltip-autocomplete {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  color: var(--text-primary) !important;
+  font-family: var(--font-mono);
+  font-size: calc(12px * var(--ui-scale, 1));
+}
+
+.cm-tooltip.cm-tooltip-autocomplete > ul {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.cm-tooltip.cm-tooltip-autocomplete > ul > li {
+  padding: 3px 10px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected="true"] {
+  background: var(--bg-active);
+  color: var(--text-bright);
+}
+
+.cm-tooltip.cm-tooltip-autocomplete completion-section {
+  display: list-item;
+  list-style: none;
+  padding: 4px 10px 2px;
+  font-size: calc(10px * var(--ui-scale, 1));
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.cm-tooltip.cm-tooltip-autocomplete .cm-completionLabel {
+  color: inherit;
+}
+
+.cm-tooltip.cm-tooltip-autocomplete .cm-completionDetail {
+  color: var(--text-secondary);
+  margin-left: 8px;
+  font-style: italic;
+}
+
+.cm-tooltip.cm-tooltip-autocomplete .cm-completionMatchedText {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.cm-tooltip.cm-completionInfo {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+  padding: 8px 12px;
+  max-width: min(420px, 90vw);
+  font-size: calc(12px * var(--ui-scale, 1));
 }

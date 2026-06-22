@@ -4,6 +4,7 @@
   import ConfirmDialog from './ConfirmDialog.svelte';
   import CodeMirrorEditor from './CodeMirrorEditor.svelte';
   import { sendTerminalInput } from '../stores/api';
+  import { scalePx } from './uiScale';
   import { activeSessionId, sessions } from '../stores/appState';
   import { Terminal, Play, Plus, BookOpen, Pencil, Trash2 } from 'lucide-svelte';
 
@@ -327,7 +328,7 @@
   {#if tooltipPopup.show}
     <div
       class="tooltip-popup"
-      style="left: {tooltipPopup.x + 12}px; top: {tooltipPopup.y + 12}px"
+      style="left: {tooltipPopup.x + scalePx(12)}px; top: {tooltipPopup.y + scalePx(12)}px"
       role="tooltip"
     >
       <BookOpen size={12} />

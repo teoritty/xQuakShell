@@ -550,7 +550,7 @@
           <div
             class="tree-node connection favorite-node"
             class:selected={$selectedConnectionIds.has(conn.id)}
-            style="padding-left: 8px"
+            style="padding-left: calc(8px * var(--ui-scale))"
             role="treeitem"
             tabindex="0"
             on:click={(e) => selectConnection(conn.id, e)}
@@ -586,7 +586,7 @@
         class:drop-target={dragOverDropZone === 'folder' && dragOverTargetId === node.id}
         class:drop-target-before={dragOverDropZone === 'before' && dragOverTargetId === node.id}
         class:drop-target-after={dragOverDropZone === 'after' && dragOverTargetId === node.id}
-        style="padding-left: {Math.min(8 + node.depth * 12, 100)}px"
+        style="padding-left: calc({Math.min(8 + node.depth * 12, 100)}px * var(--ui-scale))"
         draggable="true"
         role="treeitem"
         aria-selected={
@@ -615,7 +615,7 @@
         }}
       >
         {#each range(node.depth) as l}
-          <span class="indent-guide" style="left: {8 + l * 12 + 7}px"></span>
+          <span class="indent-guide" style="left: calc({8 + l * 12 + 7}px * var(--ui-scale))"></span>
         {/each}
         {#if node.type === 'folder'}
           <span class="folder-arrow" role="button" tabindex="-1" on:click|stopPropagation={() => toggleFolder(node.id)} on:keydown|stopPropagation={(e) => e.key === 'Enter' && toggleFolder(node.id)}>

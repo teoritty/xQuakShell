@@ -233,7 +233,7 @@
         <span class="field-label">Host</span>
         <input type="text" bind:value={host} on:input={markDirty} placeholder="192.168.1.1" />
       </label>
-      <label class="field" style="width:60px">
+      <label class="field" style="width: calc(60px * var(--ui-scale))">
         <span class="field-label">Port</span>
         <input type="number" bind:value={port} on:input={markDirty} min="1" max="65535" />
       </label>
@@ -392,7 +392,7 @@
               <span class="field-label">Host</span>
               <input type="text" bind:value={proxyHost} on:input={markDirty} placeholder="proxy.example.com" />
             </label>
-            <label class="field" style="width:70px">
+            <label class="field" style="width: calc(70px * var(--ui-scale))">
               <span class="field-label">Port</span>
               <input type="number" bind:value={proxyPort} on:input={markDirty} min="1" max="65535" />
             </label>

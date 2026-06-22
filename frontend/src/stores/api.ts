@@ -8,6 +8,11 @@ import {
   type HostKeyEvent, type PingResult
 } from './appState';
 import { get } from 'svelte/store';
+import {
+  applyUiScalePercent,
+  DEFAULT_UI_SCALE_PERCENT,
+  normalizeUiScalePercent,
+} from '../lib/uiScale';
 
 export interface SessionHotkeysSettings {
   create: string;
@@ -24,6 +29,7 @@ export interface AppSettings {
   terminalFontSize: number;
   terminalFontColor: string;
   theme: string;
+  uiScalePercent: number;
   pingEnabled: boolean;
   pingMode: string;
   pingIntervalSeconds: number;
@@ -92,6 +98,7 @@ export async function unlockVault(masterPassword: string): Promise<void> {
   await refreshFolders();
   await refreshAllConnections();
   await refreshIdentities();
+  await applyAppearanceSettings();
 }
 
 export async function lockVault(): Promise<void> {
@@ -734,6 +741,7 @@ export async function getSettings(): Promise<AppSettings | null> {
     s.sessionHotkeyNext = normalizeHotkey(s.sessionHotkeyNext || DEFAULT_SESSION_HOTKEYS.next);
     s.sessionHotkeyPrev = normalizeHotkey(s.sessionHotkeyPrev || DEFAULT_SESSION_HOTKEYS.prev);
     s.sessionHotkeyClose = normalizeHotkey(s.sessionHotkeyClose || DEFAULT_SESSION_HOTKEYS.close);
+    s.uiScalePercent = normalizeUiScalePercent(s.uiScalePercent);
     return s;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -761,6 +769,12 @@ export async function saveSettings(settings: Partial<AppSettings>): Promise<void
   } catch (e) {
     handleError(e, 'Save settings');
   }
+}
+
+export async function applyAppearanceSettings(): Promise<void> {
+  const s = await getSettings();
+  if (!s) return;
+  applyUiScalePercent(s.uiScalePercent ?? DEFAULT_UI_SCALE_PERCENT);
 }
 
 export async function searchAuditLog(
