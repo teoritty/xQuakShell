@@ -1,0 +1,24 @@
+body {
+  margin: 0;
+  padding: 8px;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  background: #1e1e1e;
+  color: #ddd;
+}
+
+button {
+  background: #333;
+  color: #eee;
+  border: 1px solid #555;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+#log {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #9cdcfe;
+  white-space: pre-wrap;
+}

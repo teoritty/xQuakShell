@@ -1,0 +1,30 @@
+{
+  "id": "com.xquakshell.demo-rdp",
+  "name": "Demo RDP",
+  "version": "1.0.0",
+  "description": "Reference RDP launcher plugin (ADR-004) — delegates to external client",
+  "minCoreVersion": "0.2.0",
+  "engine": {
+    "type": "go-binary",
+    "entry": "demo-rdp.exe"
+  },
+  "capabilities": {
+    "session": {
+      "connectProtocols": ["rdp"]
+    }
+  },
+  "contributions": {
+    "connectionProtocols": [
+      {
+        "id": "rdp",
+        "label": "RDP (external)",
+        "defaultPort": 3389,
+        "icon": "monitor"
+      }
+    ]
+  },
+  "activationEvents": [
+    "onProtocol:rdp"
+  ],
+  "isolation": "per-session"
+}

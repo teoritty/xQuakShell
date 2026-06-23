@@ -1,0 +1,20 @@
+{
+  "id": "com.xquakshell.example-events",
+  "name": "Example Events",
+  "version": "1.0.0",
+  "description": "Reference plugin demonstrating event bus subscribe/publish",
+  "minCoreVersion": "0.2.0",
+  "engine": {
+    "type": "go-binary",
+    "entry": "example-events.exe"
+  },
+  "activationEvents": [
+    "onStartup"
+  ],
+  "capabilities": {
+    "events": {
+      "subscribe": ["core.session.*"],
+      "publish": ["plugin.com.xquakshell.example-events.*"]
+    }
+  }
+}

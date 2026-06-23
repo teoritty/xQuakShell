@@ -1,0 +1,31 @@
+{
+  "id": "com.xquakshell.demo-telnet",
+  "name": "Demo Telnet",
+  "version": "1.0.0",
+  "description": "Reference telnet session plugin (ADR-004)",
+  "minCoreVersion": "0.2.0",
+  "engine": {
+    "type": "go-binary",
+    "entry": "demo-telnet.exe"
+  },
+  "capabilities": {
+    "session": {
+      "connectProtocols": ["telnet"],
+      "terminal": true
+    }
+  },
+  "contributions": {
+    "connectionProtocols": [
+      {
+        "id": "telnet",
+        "label": "Telnet (demo)",
+        "defaultPort": 23,
+        "icon": "terminal"
+      }
+    ]
+  },
+  "activationEvents": [
+    "onProtocol:telnet"
+  ],
+  "isolation": "per-session"
+}

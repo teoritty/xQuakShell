@@ -1,0 +1,19 @@
+{
+  "id": "com.xquakshell.example-net",
+  "name": "Example Net",
+  "version": "1.0.0",
+  "description": "Reference plugin demonstrating pluginsdk NetClient",
+  "minCoreVersion": "0.2.0",
+  "engine": {
+    "type": "go-binary",
+    "entry": "example-net.exe"
+  },
+  "capabilities": {
+    "network": {
+      "outbound": ["tcp:127.0.0.1:9"]
+    }
+  },
+  "activationEvents": [
+    "onManual"
+  ]
+}

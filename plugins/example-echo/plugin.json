@@ -1,0 +1,42 @@
+{
+  "id": "com.xquakshell.example-echo",
+  "name": "Example Echo",
+  "version": "1.0.0",
+  "description": "Reference plugin for IPC health checks (Phase 1)",
+  "minCoreVersion": "0.2.0",
+  "engine": {
+    "type": "go-binary",
+    "entry": "example-echo.exe"
+  },
+  "activationEvents": [
+    "onStartup",
+    "onCommand:echo.ping",
+    "onView:echo.panel"
+  ],
+  "contributions": {
+    "commands": [
+      {
+        "id": "echo.ping",
+        "title": "Echo Plugin Ping",
+        "category": "Developer"
+      }
+    ],
+    "views": [
+      {
+        "id": "echo.panel",
+        "location": "sidebar.bottom",
+        "title": "Echo Panel",
+        "type": "webview",
+        "entry": "ui/index.html"
+      }
+    ],
+    "statusBar": [
+      {
+        "id": "echo.status",
+        "text": "Echo OK",
+        "tooltip": "Example Echo plugin",
+        "priority": 10
+      }
+    ]
+  }
+}

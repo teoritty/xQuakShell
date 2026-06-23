@@ -1,0 +1,31 @@
+{
+  "id": "com.xquakshell.demo-terminal",
+  "name": "Demo Terminal",
+  "version": "1.0.0",
+  "description": "Reference session plugin with echo terminal (Phase 3)",
+  "minCoreVersion": "0.2.0",
+  "engine": {
+    "type": "go-binary",
+    "entry": "demo-terminal.exe"
+  },
+  "capabilities": {
+    "session": {
+      "connectProtocols": ["demo-terminal"],
+      "terminal": true
+    }
+  },
+  "contributions": {
+    "connectionProtocols": [
+      {
+        "id": "demo-terminal",
+        "label": "Demo Terminal",
+        "defaultPort": 9999,
+        "icon": "terminal"
+      }
+    ]
+  },
+  "activationEvents": [
+    "onProtocol:demo-terminal"
+  ],
+  "isolation": "per-session"
+}
