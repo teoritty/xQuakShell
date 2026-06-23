@@ -64,6 +64,23 @@ func (pm *PingManager) Stop() {
 	}
 }
 
+// PingByConnectionID loads a connection and pings it immediately.
+func (pm *PingManager) PingByConnectionID(ctx context.Context, connID string) {
+	if pm == nil || pm.connRepo == nil {
+		return
+	}
+	conn, err := pm.connRepo.GetByID(ctx, connID)
+	if err != nil {
+		return
+	}
+	host := conn.EffectiveHost()
+	port := conn.EffectivePort()
+	if host == "" || port <= 0 {
+		return
+	}
+	go pm.PingSingle(connID, host, port)
+}
+
 // PingSingle pings a single connection immediately.
 func (pm *PingManager) PingSingle(connID, host string, port int) {
 	result := tcpPing(connID, host, port)

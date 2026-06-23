@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"ssh-client/internal/domain"
@@ -186,6 +187,24 @@ func (m *SessionManager) InitSessionIO(ctx context.Context, sessionID string) (<
 	}
 
 	return outputCh, initialPath, nil
+}
+
+// Exec runs a command on the remote host via SSH and returns trimmed combined output.
+func (m *SessionManager) Exec(sessionID, cmd string) (string, error) {
+	sshClient, err := m.GetSSHClient(sessionID)
+	if err != nil {
+		return "", err
+	}
+	session, err := sshClient.NewSession()
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+	out, err := session.CombinedOutput(cmd)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // runServerAlive sends periodic keepalive requests to detect connection loss.

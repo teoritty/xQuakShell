@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"ssh-client/internal/domain"
 )
@@ -21,6 +22,9 @@ type sessionEntry struct {
 	ptyRows      uint32
 	hostKeyInfo  *domain.HostKeyInfo
 	connectionID string
+	pluginID           string
+	pluginOutput       chan []byte
+	pluginTerminalReady bool
 }
 
 // StateChangeFunc is called whenever a session transitions to a new state.
@@ -56,11 +60,13 @@ type SessionManager struct {
 	ptyBridgeFactory  domain.PTYBridgeFactory
 	sftpClientFactory domain.SFTPClientFactory
 	connectors        map[string]domain.SessionConnector
+	pluginBridge      *PluginSessionBridge
 
 	onStateChange  StateChangeFunc
 	onStreamReady  OnStreamReadyFunc
 	passphraseReq  PassphraseRequestFunc
 	hostKeyRequest HostKeyRequestFunc
+	pluginTerminalWriteTimeout time.Duration
 }
 
 // SessionManagerConfig holds dependencies for creating a SessionManager.
@@ -78,10 +84,12 @@ type SessionManagerConfig struct {
 	PTYBridgeFactory        domain.PTYBridgeFactory
 	SFTPClientFactory       domain.SFTPClientFactory
 	Connectors              []domain.SessionConnector
+	PluginBridge            *PluginSessionBridge
 	OnStateChange           StateChangeFunc
 	OnStreamReady           OnStreamReadyFunc
 	PassphraseReq           PassphraseRequestFunc
 	HostKeyRequest          HostKeyRequestFunc
+	PluginTerminalWriteTimeout time.Duration
 }
 
 // NewSessionManager creates a SessionManager with the given dependencies.
@@ -105,10 +113,12 @@ func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 		ptyBridgeFactory:  cfg.PTYBridgeFactory,
 		sftpClientFactory: cfg.SFTPClientFactory,
 		connectors:        connectors,
+		pluginBridge:      cfg.PluginBridge,
 		onStateChange:     cfg.OnStateChange,
 		onStreamReady:     cfg.OnStreamReady,
 		passphraseReq:     cfg.PassphraseReq,
 		hostKeyRequest:    cfg.HostKeyRequest,
+		pluginTerminalWriteTimeout: cfg.PluginTerminalWriteTimeout,
 	}
 }
 
@@ -148,14 +158,14 @@ func (m *SessionManager) OpenSession(ctx context.Context, connectionID string) (
 	m.notifyStateChange(entry.info)
 
 	if proto == domain.ProtocolSSH {
+		// ADR-001: SSH uses the in-process fast path.
 		go m.connectSession(entry, conn)
+	} else if m.pluginBridge != nil && m.pluginBridge.SupportsProtocol(proto) {
+		// ADR-001: non-SSH protocols are handled by out-of-process plugins.
+		go m.runPluginSession(entry, conn)
 	} else {
-		connector := m.connectors[proto]
-		if connector == nil {
-			m.updateState(entry, domain.SessionError, fmt.Sprintf("protocol %s not yet implemented", proto))
-			return sessionID, nil
-		}
-		go m.runConnector(entry, conn, connector)
+		// ADR-004: legacy in-process telnet/RDP/VPN was removed from core; add a reference plugin instead.
+		m.updateState(entry, domain.SessionError, fmt.Sprintf("protocol %s not yet implemented", proto))
 	}
 
 	return sessionID, nil
@@ -173,6 +183,13 @@ func (m *SessionManager) CloseSession(sessionID string) error {
 	m.mu.Unlock()
 
 	entry.cancel()
+
+	if entry.pluginID != "" && m.pluginBridge != nil {
+		m.pluginBridge.Disconnect(context.Background(), entry.pluginID, sessionID)
+	}
+	if entry.pluginOutput != nil {
+		close(entry.pluginOutput)
+	}
 
 	if entry.ptyBridge != nil {
 		if err := entry.ptyBridge.Close(); err != nil {
@@ -232,57 +249,4 @@ func (m *SessionManager) GetAllSessions() []domain.ConnectionSession {
 		result = append(result, entry.info)
 	}
 	return result
-}
-
-// runConnector invokes a non-SSH connector with the appropriate hooks.
-func (m *SessionManager) runConnector(entry *sessionEntry, conn *domain.Connection, connector domain.SessionConnector) {
-	deps := domain.ConnectorDeps{
-		ConnRepo:     m.connRepo,
-		VaultRepo:    m.vaultRepo,
-		IdentRepo:    m.identRepo,
-		PasswordRepo: m.passwordRepo,
-		KnownHosts:   m.knownHosts,
-		SSHFactory:   m.sshFactory,
-	}
-	hooks := domain.ConnectorHooks{
-		SetSSHClient: func(c domain.SSHClient) {
-			m.mu.Lock()
-			if e, ok := m.sessions[entry.info.SessionID]; ok {
-				e.sshClient = c
-			}
-			m.mu.Unlock()
-		},
-		SetRemoteFS: func(fs domain.RemoteFS) {
-			m.mu.Lock()
-			if e, ok := m.sessions[entry.info.SessionID]; ok {
-				e.remoteFS = fs
-			}
-			m.mu.Unlock()
-		},
-		SetPTYBridge: func(b domain.TerminalPTYBridge) {
-			m.mu.Lock()
-			if e, ok := m.sessions[entry.info.SessionID]; ok {
-				e.ptyBridge = b
-			}
-			m.mu.Unlock()
-		},
-		UpdateState: func(s domain.SessionState, msg string) {
-			m.updateState(entry, s, msg)
-		},
-		SetHostKeyInfo: func(h *domain.HostKeyInfo) {
-			m.mu.Lock()
-			if e, ok := m.sessions[entry.info.SessionID]; ok {
-				e.hostKeyInfo = h
-			}
-			m.mu.Unlock()
-		},
-		OnStreamReady: func(ch <-chan []byte) {
-			if m.onStreamReady != nil {
-				m.onStreamReady(entry.info.SessionID, ch)
-			}
-		},
-	}
-	if err := connector.Connect(entry.ctx, conn, deps, hooks); err != nil {
-		slog.Debug("connector finished with error", "sessionID", entry.info.SessionID, "err", err)
-	}
 }
