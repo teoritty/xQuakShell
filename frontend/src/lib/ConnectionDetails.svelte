@@ -1,12 +1,15 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { selectedConnection, identities, selectedConnectionId, type ConnectionUser, type JumpHop, type ProxyConfig } from '../stores/appState';
-  import { saveConnection, importIdentity, importPassword } from '../stores/api';
+  import { saveConnection, importIdentity, importPassword, getPluginConnectionProtocols, type ConnectionProtocol } from '../stores/api';
   import { UserPlus, Trash2, KeyRound, Plus, X } from 'lucide-svelte';
 
   let editingId = '';
   let name = '';
+  let protocol = 'ssh';
   let host = '';
   let port = 22;
+  let protocols: ConnectionProtocol[] = [{ id: 'ssh', label: 'SSH', defaultPort: 22, icon: 'terminal' }];
   let tags: string[] = [];
   let users: ConnectionUser[] = [];
   let defaultUserId = '';
@@ -23,6 +26,11 @@
   let newTagValue = '';
 
   $: connId = $selectedConnection?.id || '';
+  $: isSSH = protocol === 'ssh';
+
+  onMount(async () => {
+    protocols = await getPluginConnectionProtocols();
+  });
 
   $: if (connId !== editingId) {
     loadFromStore();
@@ -32,8 +40,9 @@
     const c = $selectedConnection;
     editingId = c?.id || '';
     name = c?.name || '';
+    protocol = c?.protocol || 'ssh';
     host = c?.host || '';
-    port = c?.port || 22;
+    port = c?.port || protocols.find(p => p.id === (c?.protocol || 'ssh'))?.defaultPort || 22;
     tags = [...(c?.tags || [])];
     users = (c?.users || []).map(u => ({...u}));
     defaultUserId = c?.defaultUserId || '';
@@ -74,7 +83,7 @@
     const conn: any = {
       id: editingId,
       name: name.trim() || 'New connection',
-      protocol: 'ssh',
+      protocol,
       host: host.trim(),
       port,
       folderId: $selectedConnection?.folderId || '',
@@ -211,6 +220,16 @@
     jumpHops = jumpHops.map((h, i) => i === idx ? { ...h, [field]: value } : h);
     markDirty();
   }
+
+  function onProtocolChange(e: Event) {
+    const next = (e.currentTarget as HTMLSelectElement).value;
+    protocol = next;
+    const def = protocols.find(p => p.id === next);
+    if (def?.defaultPort) {
+      port = def.defaultPort;
+    }
+    markDirty();
+  }
 </script>
 
 {#if $selectedConnection}
@@ -226,6 +245,15 @@
     <label class="field">
       <span class="field-label">Name</span>
       <input type="text" bind:value={name} on:input={markDirty} placeholder="My Server" />
+    </label>
+
+    <label class="field">
+      <span class="field-label">Protocol</span>
+      <select value={protocol} on:change={onProtocolChange}>
+        {#each protocols as p}
+          <option value={p.id}>{p.label}</option>
+        {/each}
+      </select>
     </label>
 
     <div class="field-row">
@@ -267,7 +295,8 @@
       </div>
     </div>
 
-    <!-- Users -->
+    <!-- Users (SSH only) -->
+    {#if isSSH}
     <div class="field">
       <div class="section-header">
         <span class="field-label">Users</span>
@@ -333,8 +362,10 @@
         <div class="no-items">No users configured</div>
       {/if}
     </div>
+    {/if}
 
-    <!-- Jump Chain -->
+    <!-- Jump Chain (SSH only) -->
+    {#if isSSH}
     <div class="field">
       <div class="section-header">
         <span class="field-label">Jump Hosts (Bastion)</span>
@@ -376,8 +407,10 @@
         </div>
       {/each}
     </div>
+    {/if}
 
-    <!-- Proxy (SOCKS5) -->
+    <!-- Proxy (SSH only) -->
+    {#if isSSH}
     <div class="field">
       <div class="section-header">
         <span class="field-label">SOCKS Proxy</span>
@@ -414,6 +447,7 @@
         </div>
       {/if}
     </div>
+    {/if}
 
   </div>
 </div>

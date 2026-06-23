@@ -282,6 +282,24 @@ export namespace wails {
 		    return a;
 		}
 	}
+	export class ConnectionProtocolDTO {
+	    id: string;
+	    label: string;
+	    defaultPort?: number;
+	    icon?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConnectionProtocolDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.defaultPort = source["defaultPort"];
+	        this.icon = source["icon"];
+	    }
+	}
 	
 	export class FolderDTO {
 	    id: string;
@@ -378,6 +396,212 @@ export namespace wails {
 	        this.latencyMs = source["latencyMs"];
 	    }
 	}
+	export class PluginCommandDTO {
+	    pluginId: string;
+	    id: string;
+	    fullId: string;
+	    title: string;
+	    category?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginCommandDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pluginId = source["pluginId"];
+	        this.id = source["id"];
+	        this.fullId = source["fullId"];
+	        this.title = source["title"];
+	        this.category = source["category"];
+	    }
+	}
+	export class PluginStatusBarDTO {
+	    pluginId: string;
+	    id: string;
+	    text: string;
+	    tooltip?: string;
+	    priority?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginStatusBarDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pluginId = source["pluginId"];
+	        this.id = source["id"];
+	        this.text = source["text"];
+	        this.tooltip = source["tooltip"];
+	        this.priority = source["priority"];
+	    }
+	}
+	export class PluginViewDTO {
+	    pluginId: string;
+	    id: string;
+	    fullId: string;
+	    location: string;
+	    title: string;
+	    type?: string;
+	    entry?: string;
+	    assetUrl: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginViewDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pluginId = source["pluginId"];
+	        this.id = source["id"];
+	        this.fullId = source["fullId"];
+	        this.location = source["location"];
+	        this.title = source["title"];
+	        this.type = source["type"];
+	        this.entry = source["entry"];
+	        this.assetUrl = source["assetUrl"];
+	    }
+	}
+	export class PluginContributionsDTO {
+	    commands: PluginCommandDTO[];
+	    views: PluginViewDTO[];
+	    statusBar: PluginStatusBarDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginContributionsDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.commands = this.convertValues(source["commands"], PluginCommandDTO);
+	        this.views = this.convertValues(source["views"], PluginViewDTO);
+	        this.statusBar = this.convertValues(source["statusBar"], PluginStatusBarDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PluginDTO {
+	    id: string;
+	    name: string;
+	    version: string;
+	    description: string;
+	    source: string;
+	    state: string;
+	    requiresSecretAccess: boolean;
+	    signed: boolean;
+	    enabled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.version = source["version"];
+	        this.description = source["description"];
+	        this.source = source["source"];
+	        this.state = source["state"];
+	        this.requiresSecretAccess = source["requiresSecretAccess"];
+	        this.signed = source["signed"];
+	        this.enabled = source["enabled"];
+	    }
+	}
+	export class PluginInstallPreviewDTO {
+	    id: string;
+	    name: string;
+	    version: string;
+	    description: string;
+	    signed: boolean;
+	    signatureVerified: boolean;
+	    checksumPresent: boolean;
+	    requiresSecretAccess: boolean;
+	    multiSessionWarning: boolean;
+	    unsignedWarning: boolean;
+	    untrustedSignatureWarning: boolean;
+	    permissions: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginInstallPreviewDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.version = source["version"];
+	        this.description = source["description"];
+	        this.signed = source["signed"];
+	        this.signatureVerified = source["signatureVerified"];
+	        this.checksumPresent = source["checksumPresent"];
+	        this.requiresSecretAccess = source["requiresSecretAccess"];
+	        this.multiSessionWarning = source["multiSessionWarning"];
+	        this.unsignedWarning = source["unsignedWarning"];
+	        this.untrustedSignatureWarning = source["untrustedSignatureWarning"];
+	        this.permissions = source["permissions"];
+	    }
+	}
+	export class PluginPingResultDTO {
+	    pluginId: string;
+	    result: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginPingResultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pluginId = source["pluginId"];
+	        this.result = source["result"];
+	    }
+	}
+	export class PluginPublisherKeyPairDTO {
+	    publicKey: string;
+	    privateKey: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginPublisherKeyPairDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.publicKey = source["publicKey"];
+	        this.privateKey = source["privateKey"];
+	    }
+	}
+	export class PluginSettingsDTO {
+	    trustedPublisherKeys: string[];
+	    requireSignedPlugins: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginSettingsDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.trustedPublisherKeys = source["trustedPublisherKeys"];
+	        this.requireSignedPlugins = source["requireSignedPlugins"];
+	    }
+	}
+	
+	
 	
 	export class PuTTYSessionDTO {
 	    name: string;

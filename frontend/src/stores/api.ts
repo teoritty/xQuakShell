@@ -652,14 +652,21 @@ export async function listLocalPath(dirPath: string, includeHidden = false): Pro
   }
 }
 
-export async function getUserHomeDir(): Promise<string> {
+export async function getPortableDataRoot(): Promise<string> {
   const app = getApp();
   if (!app) return '';
   try {
+    if (typeof app.GetPortableDataRoot === 'function') {
+      return await app.GetPortableDataRoot();
+    }
     return await app.GetUserHomeDir();
-  } catch (e) {
+  } catch {
     return '';
   }
+}
+
+export async function getUserHomeDir(): Promise<string> {
+  return getPortableDataRoot();
 }
 
 export async function getTempDir(): Promise<string> {
@@ -920,4 +927,268 @@ export function subscribeToEvents(): void {
       return map;
     });
   });
+}
+
+export interface PluginInfo {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  source: string;
+  state: string;
+  requiresSecretAccess: boolean;
+  signed: boolean;
+  enabled: boolean;
+}
+
+export interface PluginInstallPreview {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  signed: boolean;
+  signatureVerified: boolean;
+  checksumPresent: boolean;
+  requiresSecretAccess: boolean;
+  unsignedWarning: boolean;
+  untrustedSignatureWarning: boolean;
+  permissions: string[];
+}
+
+export interface PluginSettings {
+  trustedPublisherKeys: string[];
+  requireSignedPlugins: boolean;
+}
+
+export interface PluginPublisherKeyPair {
+  publicKey: string;
+  privateKey: string;
+}
+
+export interface ConnectionProtocol {
+  id: string;
+  label: string;
+  defaultPort?: number;
+  icon?: string;
+}
+
+export async function getPluginConnectionProtocols(): Promise<ConnectionProtocol[]> {
+  const app = getApp();
+  if (!app?.GetPluginConnectionProtocols) {
+    return [{ id: 'ssh', label: 'SSH', defaultPort: 22, icon: 'terminal' }];
+  }
+  try {
+    return await app.GetPluginConnectionProtocols();
+  } catch (e) {
+    handleError(e, 'Load connection protocols');
+    return [{ id: 'ssh', label: 'SSH', defaultPort: 22, icon: 'terminal' }];
+  }
+}
+
+export async function listPlugins(): Promise<PluginInfo[]> {
+  const app = getApp();
+  if (!app?.ListPlugins) return [];
+  try {
+    return await app.ListPlugins();
+  } catch (e) {
+    handleError(e, 'List plugins');
+    return [];
+  }
+}
+
+export async function pingPlugin(pluginId: string): Promise<void> {
+  const app = getApp();
+  if (!app?.PingPlugin) return;
+  try {
+    await app.PingPlugin(pluginId);
+  } catch (e) {
+    handleError(e, 'Ping plugin');
+  }
+}
+
+export async function setPluginEnabled(pluginId: string, enabled: boolean): Promise<void> {
+  const app = getApp();
+  if (!app?.SetPluginEnabled) return;
+  try {
+    await app.SetPluginEnabled(pluginId, enabled);
+  } catch (e) {
+    handleError(e, 'Set plugin enabled');
+  }
+}
+
+export async function selectPluginSourceDir(): Promise<string> {
+  const app = getApp();
+  if (!app?.SelectPluginSourceDir) return '';
+  try {
+    return await app.SelectPluginSourceDir();
+  } catch (e) {
+    handleError(e, 'Select plugin folder');
+    return '';
+  }
+}
+
+export async function selectPluginBundleFile(): Promise<string> {
+  const app = getApp();
+  if (!app?.SelectPluginBundleFile) return '';
+  try {
+    return await app.SelectPluginBundleFile();
+  } catch (e) {
+    handleError(e, 'Select plugin bundle');
+    return '';
+  }
+}
+
+export async function getPluginSettings(): Promise<PluginSettings> {
+  const app = getApp();
+  if (!app?.GetPluginSettings) {
+    return { trustedPublisherKeys: [], requireSignedPlugins: false };
+  }
+  try {
+    return await app.GetPluginSettings();
+  } catch (e) {
+    handleError(e, 'Load plugin settings');
+    return { trustedPublisherKeys: [], requireSignedPlugins: false };
+  }
+}
+
+export async function savePluginSettings(settings: PluginSettings): Promise<void> {
+  const app = getApp();
+  if (!app?.SavePluginSettings) return;
+  try {
+    await app.SavePluginSettings(settings);
+  } catch (e) {
+    handleError(e, 'Save plugin settings');
+    throw e;
+  }
+}
+
+export async function generatePluginPublisherKeyPair(): Promise<PluginPublisherKeyPair> {
+  const app = getApp();
+  if (!app?.GeneratePluginPublisherKeyPair) {
+    return { publicKey: '', privateKey: '' };
+  }
+  try {
+    return await app.GeneratePluginPublisherKeyPair();
+  } catch (e) {
+    handleError(e, 'Generate publisher keys');
+    return { publicKey: '', privateKey: '' };
+  }
+}
+
+export async function previewPluginInstall(sourceDir: string): Promise<PluginInstallPreview> {
+  const app = getApp();
+  if (!app?.PreviewPluginInstall) {
+    throw new Error('Plugin install is unavailable');
+  }
+  return await app.PreviewPluginInstall(sourceDir);
+}
+
+export async function installPlugin(
+  sourceDir: string,
+  grantSecretAccess = false,
+  grantMultiSessionAccess = false,
+): Promise<PluginInfo> {
+  const app = getApp();
+  if (!app?.InstallPlugin) {
+    throw new Error('Plugin install is unavailable');
+  }
+  try {
+    return await app.InstallPlugin(sourceDir, grantSecretAccess, grantMultiSessionAccess);
+  } catch (e) {
+    handleError(e, 'Install plugin');
+    throw e;
+  }
+}
+
+export interface PluginCommand {
+  pluginId: string;
+  id: string;
+  fullId: string;
+  title: string;
+  category?: string;
+}
+
+export interface PluginContributions {
+  commands: PluginCommand[];
+  views: PluginView[];
+  statusBar: PluginStatusBarItem[];
+}
+
+export interface PluginView {
+  pluginId: string;
+  id: string;
+  fullId: string;
+  location: string;
+  title: string;
+  type?: string;
+  entry?: string;
+  assetUrl: string;
+}
+
+export interface PluginStatusBarItem {
+  pluginId: string;
+  id: string;
+  text: string;
+  tooltip?: string;
+  priority?: number;
+}
+
+export async function getPluginContributions(): Promise<PluginContributions> {
+  const app = getApp();
+  if (!app?.GetPluginContributions) {
+    return { commands: [], views: [], statusBar: [] };
+  }
+  try {
+    return await app.GetPluginContributions();
+  } catch (e) {
+    handleError(e, 'Load plugin contributions');
+    return { commands: [], views: [], statusBar: [] };
+  }
+}
+
+export async function executePluginCommand(
+  pluginId: string,
+  commandId: string,
+  args?: Record<string, unknown>
+): Promise<Record<string, string>> {
+  const app = getApp();
+  if (!app?.ExecutePluginCommand) {
+    throw new Error('Plugin commands are unavailable');
+  }
+  const rawArgs = args ? JSON.stringify(args) : null;
+  const result = await app.ExecutePluginCommand(pluginId, commandId, rawArgs);
+  if (!result) return {};
+  if (typeof result === 'string') {
+    try {
+      return JSON.parse(result);
+    } catch {
+      return { message: result };
+    }
+  }
+  return result as Record<string, string>;
+}
+
+export async function preparePluginViewPanel(pluginId: string, panelId: string): Promise<string> {
+  const app = getApp();
+  if (!app?.PreparePluginViewPanel) {
+    throw new Error('Plugin view relay is unavailable');
+  }
+  return await app.PreparePluginViewPanel(pluginId, panelId);
+}
+
+export async function relayPluginViewMessage(
+  token: string,
+  message: Record<string, unknown>
+): Promise<void> {
+  const app = getApp();
+  if (!app?.RelayPluginViewMessage) {
+    throw new Error('Plugin view relay is unavailable');
+  }
+  const raw = JSON.stringify(message ?? {});
+  await app.RelayPluginViewMessage(token, raw);
+}
+
+export function releasePluginViewPanel(token: string): void {
+  const app = getApp();
+  app?.ReleasePluginViewPanel?.(token);
 }

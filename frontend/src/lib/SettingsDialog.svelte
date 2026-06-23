@@ -1,6 +1,7 @@
 <script lang="ts">
   import Modal from './Modal.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
+  import PluginSettingsPanel from './PluginSettingsPanel.svelte';
   import {
     getSettings,
     saveSettings,
@@ -36,6 +37,7 @@
     Keyboard,
     FileText,
     Search,
+    Puzzle,
   } from 'lucide-svelte';
 
   export let show = false;
@@ -101,6 +103,7 @@
     { id: 'files', label: 'Files', icon: FileEdit },
     { id: 'hotkeys', label: 'Hotkeys', icon: Keyboard },
     { id: 'network', label: 'Network', icon: Wifi },
+    { id: 'plugins', label: 'Plugins', icon: Puzzle },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'terminal', label: 'Terminal', icon: Terminal },
   ];
@@ -110,7 +113,7 @@
   $: visibleTabs = isSearching
     ? tabs.filter((tab) => tabHasSearchMatches(tab.id, searchQuery))
     : tabs;
-  $: showSaveButton = !(!isSearching && activeTab === 'about');
+  $: showSaveButton = !(!isSearching && (activeTab === 'about' || activeTab === 'plugins'));
 
   let settingsWasOpen = false;
   $: if (show && !settingsWasOpen) {
@@ -616,6 +619,13 @@
                 user@server:~$ ls -la
               </div>
             </div>
+          {/if}
+
+          {#if isSearching ? shouldShowSettingsSection('plugins', 'manage', searchViewState) : activeTab === 'plugins'}
+            {#if sectionTabLabel('plugins', 'manage')}
+              <div class="section-tab-label">{SETTINGS_TAB_LABELS.plugins}</div>
+            {/if}
+            <PluginSettingsPanel />
           {/if}
         {/if}
       </div>

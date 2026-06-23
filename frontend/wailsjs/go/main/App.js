@@ -54,6 +54,14 @@ export function EnableAuditSecretLogging(arg1) {
   return window['go']['main']['App']['EnableAuditSecretLogging'](arg1);
 }
 
+export function ExecutePluginCommand(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ExecutePluginCommand'](arg1, arg2, arg3);
+}
+
+export function GeneratePluginPublisherKeyPair() {
+  return window['go']['main']['App']['GeneratePluginPublisherKeyPair']();
+}
+
 export function GetAllConnections() {
   return window['go']['main']['App']['GetAllConnections']();
 }
@@ -80,6 +88,22 @@ export function GetPingResults() {
 
 export function GetPlatform() {
   return window['go']['main']['App']['GetPlatform']();
+}
+
+export function GetPluginConnectionProtocols() {
+  return window['go']['main']['App']['GetPluginConnectionProtocols']();
+}
+
+export function GetPluginContributions() {
+  return window['go']['main']['App']['GetPluginContributions']();
+}
+
+export function GetPluginSettings() {
+  return window['go']['main']['App']['GetPluginSettings']();
+}
+
+export function GetPortableDataRoot() {
+  return window['go']['main']['App']['GetPortableDataRoot']();
 }
 
 export function GetSessionState(arg1) {
@@ -118,6 +142,10 @@ export function ImportPuTTYRegAsConnections(arg1, arg2) {
   return window['go']['main']['App']['ImportPuTTYRegAsConnections'](arg1, arg2);
 }
 
+export function InstallPlugin(arg1, arg2, arg3) {
+  return window['go']['main']['App']['InstallPlugin'](arg1, arg2, arg3);
+}
+
 export function IsVaultUnlocked() {
   return window['go']['main']['App']['IsVaultUnlocked']();
 }
@@ -128,6 +156,10 @@ export function ListLocalPath(arg1, arg2) {
 
 export function ListPath(arg1, arg2) {
   return window['go']['main']['App']['ListPath'](arg1, arg2);
+}
+
+export function ListPlugins() {
+  return window['go']['main']['App']['ListPlugins']();
 }
 
 export function LockVault() {
@@ -160,6 +192,26 @@ export function OpenSession(arg1) {
 
 export function PingConnection(arg1) {
   return window['go']['main']['App']['PingConnection'](arg1);
+}
+
+export function PingPlugin(arg1) {
+  return window['go']['main']['App']['PingPlugin'](arg1);
+}
+
+export function PreparePluginViewPanel(arg1, arg2) {
+  return window['go']['main']['App']['PreparePluginViewPanel'](arg1, arg2);
+}
+
+export function PreviewPluginInstall(arg1) {
+  return window['go']['main']['App']['PreviewPluginInstall'](arg1);
+}
+
+export function RelayPluginViewMessage(arg1, arg2) {
+  return window['go']['main']['App']['RelayPluginViewMessage'](arg1, arg2);
+}
+
+export function ReleasePluginViewPanel(arg1) {
+  return window['go']['main']['App']['ReleasePluginViewPanel'](arg1);
 }
 
 export function RemoveKnownHost(arg1) {
@@ -214,6 +266,10 @@ export function SaveFolder(arg1) {
   return window['go']['main']['App']['SaveFolder'](arg1);
 }
 
+export function SavePluginSettings(arg1) {
+  return window['go']['main']['App']['SavePluginSettings'](arg1);
+}
+
 export function SaveSettings(arg1) {
   return window['go']['main']['App']['SaveSettings'](arg1);
 }
@@ -230,12 +286,28 @@ export function SelectLocalFile() {
   return window['go']['main']['App']['SelectLocalFile']();
 }
 
+export function SelectPluginBundleFile() {
+  return window['go']['main']['App']['SelectPluginBundleFile']();
+}
+
+export function SelectPluginSourceDir() {
+  return window['go']['main']['App']['SelectPluginSourceDir']();
+}
+
 export function SendTerminalInput(arg1, arg2, arg3) {
   return window['go']['main']['App']['SendTerminalInput'](arg1, arg2, arg3);
 }
 
+export function SetPluginEnabled(arg1, arg2) {
+  return window['go']['main']['App']['SetPluginEnabled'](arg1, arg2);
+}
+
 export function StartFileWatch(arg1) {
   return window['go']['main']['App']['StartFileWatch'](arg1);
+}
+
+export function StartPlugin(arg1) {
+  return window['go']['main']['App']['StartPlugin'](arg1);
 }
 
 export function TerminalResize(arg1, arg2, arg3) {
@@ -248,4 +320,8 @@ export function UnlockVault(arg1) {
 
 export function Upload(arg1, arg2, arg3) {
   return window['go']['main']['App']['Upload'](arg1, arg2, arg3);
+}
+
+export function ValidateTrustedPublisherKey(arg1) {
+  return window['go']['main']['App']['ValidateTrustedPublisherKey'](arg1);
 }

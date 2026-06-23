@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { listLocalPath, getUserHomeDir, removeLocalPath, mkdirLocalPath, createLocalFile, renameLocalPath, openFileWithSystem, type LocalNode } from '../stores/api';
+  import { listLocalPath, getPortableDataRoot, removeLocalPath, mkdirLocalPath, createLocalFile, renameLocalPath, openFileWithSystem, type LocalNode } from '../stores/api';
   import { transferCompleted } from '../stores/appState';
   import LocalFileTreeNode from './LocalFileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
@@ -20,6 +20,7 @@
   let expanded: Set<string> = new Set();
   let loading: Set<string> = new Set();
   let currentPath = '';
+  let portableRoot = '';
   let selectedPaths: Set<string> = new Set();
   let lastSelectedPath: string | null = null;
   let showPermissions = false;
@@ -83,7 +84,7 @@
         await removeLocalPath(p);
         const sep = p.includes('\\') ? '\\' : '/';
         const idx = p.lastIndexOf(sep);
-        const parent = idx > 0 ? p.slice(0, idx) : (sep === '\\' ? 'C:\\' : '/');
+        const parent = idx > 0 ? p.slice(0, idx) : portableRoot;
         if (parent) affectedPaths.add(parent);
       } catch (e: any) {
         error = e?.message || String(e);
@@ -113,7 +114,8 @@
       }
       showHidden = localStorage.getItem(STORAGE_HIDDEN) === '1';
     } catch (_) {}
-    currentPath = await getUserHomeDir() || 'C:\\';
+    portableRoot = (await getPortableDataRoot()) || '';
+    currentPath = portableRoot;
     await loadDir(currentPath);
     expanded.add(currentPath);
   });
@@ -210,8 +212,16 @@
     pathInput = currentPath;
   }
 
+  function isAtPortableRoot(path: string): boolean {
+    if (!portableRoot) return !path;
+    const normalize = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    return normalize(path) === normalize(portableRoot);
+  }
+
   async function goUp() {
-    const parent = currentPath.replace(/[\\/][^\\/]+$/, '') || (currentPath.includes('\\') ? currentPath.substring(0, 3) : '/');
+    if (isAtPortableRoot(currentPath)) return;
+    const idx = Math.max(currentPath.lastIndexOf('\\'), currentPath.lastIndexOf('/'));
+    const parent = idx > 0 ? currentPath.slice(0, idx) : portableRoot;
     if (!parent || parent === currentPath) return;
     currentPath = parent;
     await loadDir(currentPath);
@@ -262,7 +272,7 @@
       if (/^[a-zA-Z]:$/.test(normalized)) return `${normalized}\\`;
       if (/^[a-zA-Z]:\\$/.test(normalized)) return normalized;
       normalized = normalized.replace(/\\+$/, '');
-      return normalized || 'C:\\';
+      return normalized || portableRoot || '';
     }
     const normalized = input.replace(/\/{2,}/g, '/').replace(/\/+$/, '');
     return normalized || '/';
@@ -490,7 +500,7 @@
     }
     const sep = oldPath.includes('\\') ? '\\' : '/';
     const lastSep = Math.max(oldPath.lastIndexOf(sep), oldPath.lastIndexOf('/'));
-    const parent = lastSep > 0 ? oldPath.substring(0, lastSep) : (sep === '\\' ? 'C:\\' : '/');
+    const parent = lastSep > 0 ? oldPath.substring(0, lastSep) : portableRoot;
     const newFullPath = (parent.endsWith(sep) ? parent : parent + sep) + newName.trim();
     if (newFullPath === oldPath) {
       editingNewPath = null;
@@ -558,7 +568,7 @@
     role="tree"
     tabindex="0"
   >
-    {#if currentPath && currentPath !== 'C:\\' && currentPath !== 'C:/' && currentPath.length > 3}
+    {#if currentPath && !isAtPortableRoot(currentPath)}
       <div class="parent-node" on:click={goUp} on:keydown={(e) => e.key === 'Enter' && goUp()} role="button" tabindex="0">
         <span class="node-icon"><ChevronUp size={12} /></span>
         <span class="node-name">..</span>
