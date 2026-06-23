@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-
-	infraputty "ssh-client/internal/infra/putty"
 )
 
 // --- Folders ---
@@ -123,49 +121,39 @@ func (a *AppAPI) ImportIdentity(pemBase64, comment string) (string, error) {
 // ImportPuTTYPPK imports a PuTTY .ppk file (base64-encoded content) into the vault as an identity.
 // passphrase is required if the PPK is encrypted.
 func (a *AppAPI) ImportPuTTYPPK(ppkBase64, passphrase string) (string, error) {
+	if a.puttyImport == nil {
+		return "", fmt.Errorf("putty import unavailable")
+	}
 	ppkData, err := base64.StdEncoding.DecodeString(ppkBase64)
 	if err != nil {
 		return "", fmt.Errorf("decode ppk base64: %w", err)
 	}
-	pemData, comment, err := infraputty.PPKToPEM(ppkData, passphrase)
-	if err != nil {
-		return "", err
-	}
-	if comment == "" {
-		comment = "PuTTY import"
-	}
-	identity, err := a.identRepo.Import(context.Background(), pemData, comment)
-	if err != nil {
-		return "", err
-	}
-	return identity.ID, nil
+	return a.puttyImport.ImportPPK(context.Background(), ppkData, passphrase)
 }
 
 // ImportPuTTYReg parses a PuTTY .reg file and returns session previews.
 func (a *AppAPI) ImportPuTTYReg(regContent string) ([]PuTTYSessionDTO, error) {
-	sessions, err := infraputty.ParsePuTTYReg(regContent)
+	if a.puttyImport == nil {
+		return nil, fmt.Errorf("putty import unavailable")
+	}
+	sessions, err := a.puttyImport.ParseReg(regContent)
 	if err != nil {
 		return nil, err
 	}
-	return PuTTYSessionsToDTO(sessions), nil
+	return puttySessionsToDTO(sessions), nil
 }
 
 // ImportPuTTYRegAsConnections parses a PuTTY .reg file and creates connections in the given folder.
 func (a *AppAPI) ImportPuTTYRegAsConnections(regContent, folderID string) ([]ConnectionDTO, error) {
-	sessions, err := infraputty.ParsePuTTYReg(regContent)
+	if a.puttyImport == nil {
+		return nil, fmt.Errorf("putty import unavailable")
+	}
+	connections, err := a.puttyImport.ImportRegAsConnections(context.Background(), regContent, folderID)
 	if err != nil {
 		return nil, err
 	}
-	var result []ConnectionDTO
-	for i, s := range sessions {
-		if s.HostName == "" {
-			continue
-		}
-		conn := s.ToConnection(folderID, i)
-		conn.ID = ""
-		if err := a.connRepo.Save(context.Background(), &conn); err != nil {
-			return result, fmt.Errorf("save session %s: %w", s.Name, err)
-		}
+	result := make([]ConnectionDTO, 0, len(connections))
+	for _, conn := range connections {
 		result = append(result, ConnectionToDTO(conn))
 	}
 	return result, nil

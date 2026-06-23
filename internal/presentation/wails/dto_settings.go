@@ -3,9 +3,8 @@ package wails
 import (
 	"time"
 
-	infraputty "ssh-client/internal/infra/putty"
-
 	"ssh-client/internal/domain"
+	"ssh-client/internal/usecase"
 )
 
 // LocalNodeDTO represents a local file or directory entry.
@@ -57,16 +56,16 @@ type PuTTYSessionDTO struct {
 	UserName string `json:"userName"`
 }
 
-// PuTTYSessionToDTO converts an infraputty.PuTTYSession to PuTTYSessionDTO.
-func PuTTYSessionToDTO(s infraputty.PuTTYSession) PuTTYSessionDTO {
-	return PuTTYSessionDTO{Name: s.Name, HostName: s.HostName, Port: s.Port, UserName: s.UserName}
-}
-
-// PuTTYSessionsToDTO converts a slice of infraputty.PuTTYSession to DTOs.
-func PuTTYSessionsToDTO(sessions []infraputty.PuTTYSession) []PuTTYSessionDTO {
+// puttySessionsToDTO converts parsed PuTTY sessions to UI DTOs.
+func puttySessionsToDTO(sessions []usecase.PuTTYSessionPreview) []PuTTYSessionDTO {
 	result := make([]PuTTYSessionDTO, len(sessions))
 	for i, s := range sessions {
-		result[i] = PuTTYSessionToDTO(s)
+		result[i] = PuTTYSessionDTO{
+			Name:     s.Name,
+			HostName: s.HostName,
+			Port:     s.Port,
+			UserName: s.UserName,
+		}
 	}
 	return result
 }

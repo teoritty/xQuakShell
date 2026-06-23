@@ -12,24 +12,6 @@ import (
 
 // --- SFTP remote operations ---
 
-// runSSHCommand executes a command on the remote host via SSH.
-func (a *AppAPI) runSSHCommand(sessionID, cmd string) (string, error) {
-	sshClient, err := a.sessions.GetSSHClient(sessionID)
-	if err != nil {
-		return "", err
-	}
-	session, err := sshClient.NewSession()
-	if err != nil {
-		return "", err
-	}
-	defer session.Close()
-	out, err := session.CombinedOutput(cmd)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
-}
-
 // isNumeric returns true if s contains only digits.
 func isNumeric(s string) bool {
 	for _, r := range s {
@@ -54,7 +36,7 @@ func (a *AppAPI) resolveOwner(sessionID, uid string) string {
 		return name
 	}
 	a.ownerCacheMu.Unlock()
-	out, err := a.runSSHCommand(sessionID, "getent passwd "+uid)
+	out, err := a.sessions.Exec(sessionID, "getent passwd "+uid)
 	if err != nil {
 		return uid
 	}
@@ -83,7 +65,7 @@ func (a *AppAPI) resolveGroup(sessionID, gid string) string {
 		return name
 	}
 	a.ownerCacheMu.Unlock()
-	out, err := a.runSSHCommand(sessionID, "getent group "+gid)
+	out, err := a.sessions.Exec(sessionID, "getent group "+gid)
 	if err != nil {
 		return gid
 	}

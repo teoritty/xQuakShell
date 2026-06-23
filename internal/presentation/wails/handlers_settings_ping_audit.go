@@ -66,26 +66,16 @@ func (a *AppAPI) GetPingResults() []PingResultDTO {
 
 // PingConnection pings a single connection immediately.
 func (a *AppAPI) PingConnection(connID string) {
-	if a.pingMgr == nil {
-		return
+	if a.pingMgr != nil {
+		a.pingMgr.PingByConnectionID(context.Background(), connID)
 	}
-	conn, err := a.connRepo.GetByID(context.Background(), connID)
-	if err != nil {
-		return
-	}
-	host := conn.EffectiveHost()
-	port := conn.EffectivePort()
-	if host == "" || port <= 0 {
-		return
-	}
-	go a.pingMgr.PingSingle(connID, host, port)
 }
 
 // --- Audit Log ---
 
 // SearchAuditLog performs full-text search on audit entries.
 func (a *AppAPI) SearchAuditLog(query, sessionID, connectionID string, limit, offset int) ([]AuditEntryDTO, error) {
-	if a.auditLog == nil {
+	if a.auditSvc == nil {
 		return nil, fmt.Errorf("audit log not available")
 	}
 	filter := domain.AuditSearchFilter{
@@ -94,7 +84,7 @@ func (a *AppAPI) SearchAuditLog(query, sessionID, connectionID string, limit, of
 		Limit:        limit,
 		Offset:       offset,
 	}
-	entries, err := a.auditLog.Search(context.Background(), query, filter)
+	entries, err := a.auditSvc.Search(context.Background(), query, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -103,18 +93,18 @@ func (a *AppAPI) SearchAuditLog(query, sessionID, connectionID string, limit, of
 
 // DeleteAuditEntry removes a single audit log entry by ID.
 func (a *AppAPI) DeleteAuditEntry(id int64) error {
-	if a.auditLog == nil {
+	if a.auditSvc == nil {
 		return fmt.Errorf("audit log not available")
 	}
-	return a.auditLog.DeleteByID(context.Background(), id)
+	return a.auditSvc.DeleteByID(context.Background(), id)
 }
 
 // ClearAuditLog removes all audit log entries.
 func (a *AppAPI) ClearAuditLog() error {
-	if a.auditLog == nil {
+	if a.auditSvc == nil {
 		return fmt.Errorf("audit log not available")
 	}
-	return a.auditLog.ClearAll(context.Background())
+	return a.auditSvc.ClearAll(context.Background())
 }
 
 // AuditSessionStateDTO exposes session-only audit options to the UI.

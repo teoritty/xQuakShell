@@ -7,7 +7,6 @@ import (
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/auditlog"
 	"ssh-client/internal/usecase"
 )
 
@@ -22,18 +21,18 @@ type AppAPI struct {
 	sessions            *usecase.SessionManager
 	settingsSvc         *usecase.SettingsService
 	auditSvc            *usecase.AuditService
-	auditLog            domain.AuditLogRepository
-	auditLineTrackers   map[string]*auditlog.CommandLineTracker
-	auditLineTrackersMu sync.Mutex
+	transferSvc         *usecase.TransferService
+	localFS             domain.LocalFileSystem
+	puttyImport         *usecase.PuTTYImportService
 	lockout             domain.LockoutManager
 	pingMgr             *usecase.PingManager
+	plugins             *usecase.PluginManager
+	viewRelay           *usecase.PluginViewRelay
+	pluginVaultGrant         func(pluginID string) error
+	pluginMultiSessionGrant  func(pluginID string) error
 	ownerCache          map[string]map[string]string // sessionID -> uid->owner
 	groupCache          map[string]map[string]string // sessionID -> gid->group
 	ownerCacheMu        sync.Mutex
-	transferCancels     map[string]context.CancelFunc // transferID -> cancel
-	transferCancelsMu   sync.Mutex
-	transferCond        *sync.Cond
-	transferActive      int
 }
 
 // NewAppAPI creates a new AppAPI with the given dependencies.
@@ -48,6 +47,14 @@ func NewAppAPI(
 	sessionConnectors []domain.SessionConnector,
 	auditLogRepo domain.AuditLogRepository,
 	lockoutMgr domain.LockoutManager,
+	localFS domain.LocalFileSystem,
+	trackerFactory domain.CommandLineTrackerFactory,
+	sanitizerFactory domain.AuditInputSanitizerFactory,
+	puttyImporter domain.PuTTYImporter,
+	pluginMgr *usecase.PluginManager,
+	pluginInbound *usecase.PluginSessionInbound,
+	pluginViewInbound *usecase.PluginViewInbound,
+	pluginVaultInbound *usecase.PluginVaultInbound,
 ) *AppAPI {
 	pingMgr := usecase.NewPingManager(connRepo, domain.DefaultPingSettings())
 	api := &AppAPI{
@@ -56,16 +63,15 @@ func NewAppAPI(
 		identRepo:         identRepo,
 		passwordRepo:      passwordRepo,
 		knownHosts:        knownHosts,
-		auditLog:          auditLogRepo,
-		auditLineTrackers: make(map[string]*auditlog.CommandLineTracker),
+		localFS:           localFS,
+		puttyImport:       usecase.NewPuTTYImportService(connRepo, identRepo, puttyImporter),
 		lockout:           lockoutMgr,
 		pingMgr:           pingMgr,
+		plugins:           pluginMgr,
 		settingsSvc:       usecase.NewSettingsService(vaultRepo, lockoutMgr, pingMgr),
 		ownerCache:        make(map[string]map[string]string),
 		groupCache:        make(map[string]map[string]string),
-		transferCancels:   make(map[string]context.CancelFunc),
 	}
-	api.transferCond = sync.NewCond(&sync.Mutex{})
 
 	api.sessions = usecase.NewSessionManager(usecase.SessionManagerConfig{
 		ConnRepo:                connRepo,
@@ -81,18 +87,43 @@ func NewAppAPI(
 		PTYBridgeFactory:        sshSession.PTYBridgeFactory,
 		SFTPClientFactory:       sshSession.SFTPClientFactory,
 		Connectors:              sessionConnectors,
+		PluginBridge:            usecase.NewPluginSessionBridge(pluginMgr),
 		OnStateChange:           api.onSessionStateChange,
 		OnStreamReady:           api.onStreamReady,
 		PassphraseReq:           api.onPassphraseRequest,
 		HostKeyRequest:          api.onHostKeyRequest,
 	})
+	if pluginInbound != nil {
+		pluginInbound.SetHandler(api.sessions)
+	}
+	if pluginVaultInbound != nil {
+		pluginVaultInbound.SetAuthorizer(api.sessions)
+	}
+	if pluginViewInbound != nil {
+		pluginViewInbound.SetHandler(api)
+	}
 
-	api.auditSvc = usecase.NewAuditService(auditLogRepo, api.settingsSvc, api.sessions, connRepo)
+	api.auditSvc = usecase.NewAuditService(auditLogRepo, api.settingsSvc, api.sessions, connRepo, trackerFactory, sanitizerFactory)
+	api.transferSvc = usecase.NewTransferService(api.sessions, api.settingsSvc, localFS)
 
 	return api
 }
 
-// SetContext stores the Wails runtime context for event emission and dialogs.
+// Sessions exposes the session manager for composition-root wiring.
+func (a *AppAPI) Sessions() *usecase.SessionManager {
+	return a.sessions
+}
+
+// SetPluginVaultGrant sets the callback used after install to record secret consent.
+func (a *AppAPI) SetPluginVaultGrant(fn func(pluginID string) error) {
+	a.pluginVaultGrant = fn
+}
+
+// SetPluginMultiSessionGrant sets the callback used after install to record multi-session consent.
+func (a *AppAPI) SetPluginMultiSessionGrant(fn func(pluginID string) error) {
+	a.pluginMultiSessionGrant = fn
+}
+
 // Lifecycle: call once on app startup. Starts the idle lockout monitor when a lockout manager is configured.
 // Ping monitoring is started from UnlockVault when settings are applied, not here.
 func (a *AppAPI) SetContext(ctx context.Context) {
@@ -114,14 +145,17 @@ func (a *AppAPI) Shutdown() {
 	if a.lockout != nil {
 		a.lockout.Stop()
 	}
+	if a.plugins != nil {
+		a.plugins.StopAll(context.Background())
+	}
 	a.sessions.CloseAll()
 
 	if a.auditSvc != nil {
 		_ = a.auditSvc.EnforceRetention(context.Background())
 	}
 	a.vaultRepo.Lock()
-	if a.auditLog != nil {
-		a.auditLog.Close()
+	if a.auditSvc != nil {
+		a.auditSvc.Close()
 	}
 }
 

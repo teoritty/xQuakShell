@@ -16,6 +16,9 @@ const (
 	EventPingUpdated         = "PingUpdated"
 	EventTransferCompleted   = "TransferCompleted"
 	EventFileEdited          = "FileEdited"
+	EventPluginContributionsChanged = "PluginContributionsChanged"
+	EventPluginViewMessage          = "PluginViewMessage"
+	EventPluginStateChanged         = "PluginStateChanged"
 )
 
 // TerminalOutputPayload carries terminal output data for a specific session.

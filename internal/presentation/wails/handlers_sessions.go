@@ -12,7 +12,6 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 
 	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/auditlog"
 )
 
 // --- Sessions ---
@@ -23,6 +22,13 @@ func (a *AppAPI) OpenSession(connectionID string) (string, error) {
 	sessionID, err := a.sessions.OpenSession(context.Background(), connectionID)
 	if err != nil {
 		return "", err
+	}
+
+	if a.plugins != nil {
+		a.plugins.PublishCoreEvent(context.Background(), "core.session.opened", map[string]string{
+			"sessionId":    sessionID,
+			"connectionId": connectionID,
+		})
 	}
 
 	go a.initSessionPTYAndSFTP(sessionID)
@@ -36,9 +42,6 @@ func (a *AppAPI) CloseSession(sessionID string) error {
 	if err != nil {
 		return err
 	}
-	a.auditLineTrackersMu.Lock()
-	delete(a.auditLineTrackers, sessionID)
-	a.auditLineTrackersMu.Unlock()
 	if a.auditSvc != nil {
 		a.auditSvc.RemoveSession(sessionID)
 	}
@@ -48,6 +51,11 @@ func (a *AppAPI) CloseSession(sessionID string) error {
 	a.ownerCacheMu.Unlock()
 	if a.ctx != nil {
 		wailsrt.EventsEmit(a.ctx, EventSessionClosed, map[string]string{"sessionId": sessionID})
+	}
+	if a.plugins != nil {
+		a.plugins.PublishCoreEvent(context.Background(), "core.session.closed", map[string]string{
+			"sessionId": sessionID,
+		})
 	}
 	go func() {
 		runtime.GC()
@@ -93,33 +101,14 @@ func (a *AppAPI) trackAuditInput(sessionID, data, commandLine string) {
 		return
 	}
 
-	line := commandLine
-	if line == "" {
-		tracker := a.getLineTracker(sessionID)
-		submitted, ok := tracker.Feed(data)
-		if !ok || submitted == "" {
-			return
-		}
-		line = submitted
-	} else {
-		tracker := a.getLineTracker(sessionID)
-		_, _ = tracker.Feed(data)
+	line, ok := a.auditSvc.ResolveCommandLine(sessionID, data, commandLine)
+	if !ok {
+		return
 	}
 
 	if err := a.auditSvc.RecordCommand(context.Background(), sessionID, line); err != nil {
 		slog.Warn("audit record command failed", "sessionId", sessionID, "err", err)
 	}
-}
-
-func (a *AppAPI) getLineTracker(sessionID string) *auditlog.CommandLineTracker {
-	a.auditLineTrackersMu.Lock()
-	defer a.auditLineTrackersMu.Unlock()
-	tracker, ok := a.auditLineTrackers[sessionID]
-	if !ok {
-		tracker = auditlog.NewCommandLineTracker()
-		a.auditLineTrackers[sessionID] = tracker
-	}
-	return tracker
 }
 
 func containsEnter(data string) bool {
@@ -165,10 +154,15 @@ func (a *AppAPI) ResolveHostKey(sessionID, action, host, authorizedKey string) e
 // --- Internal helpers ---
 
 func (a *AppAPI) onSessionStateChange(session domain.ConnectionSession) {
-	if a.ctx == nil {
-		return
+	if a.ctx != nil {
+		wailsrt.EventsEmit(a.ctx, EventSessionStateChanged, SessionToDTO(session))
 	}
-	wailsrt.EventsEmit(a.ctx, EventSessionStateChanged, SessionToDTO(session))
+	if a.plugins != nil {
+		a.plugins.PublishCoreEvent(context.Background(), "core.session.stateChanged", map[string]string{
+			"sessionId": session.SessionID,
+			"state":     string(session.State),
+		})
+	}
 }
 
 func (a *AppAPI) onHostKeyRequest(sessionID string, info domain.HostKeyInfo) {
@@ -262,9 +256,6 @@ func (a *AppAPI) streamTerminalOutput(sessionID string, outputCh <-chan []byte) 
 				if a.auditSvc != nil {
 					a.auditSvc.RemoveSession(sessionID)
 				}
-				a.auditLineTrackersMu.Lock()
-				delete(a.auditLineTrackers, sessionID)
-				a.auditLineTrackersMu.Unlock()
 				a.sessions.NotifySessionDisconnected(sessionID)
 				return
 			}
