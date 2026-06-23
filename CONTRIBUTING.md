@@ -57,10 +57,10 @@ make dev
 
 See **[docs/architecture.md](docs/architecture.md)** for a layer diagram, import table, SSH strategy, and where to extend vault / sessions / transfers.
 
-- **Domain** — entities and port interfaces. Allowed third-party import in domain: **`golang.org/x/crypto/ssh` only** (thin domain over SSH types in ports). Do **not** import `internal/presentation`, `internal/infra`, or `main` from `domain`.
-- **Use cases** — orchestration (`SessionManager`, etc.). May import **`internal/domain`** and stdlib only — **never** `internal/infra/*`.
-- **Infrastructure** — implementations of domain ports (SSH dialer, persistence, SFTP, connectors).
-- **Presentation** — Wails bindings (`api.go`, `handlers_wails.go`), DTOs, events; may call `infra` for small adapters (e.g. PTY).
+- **Domain** — entities and port interfaces (`vault_data.go`, `app_settings.go`, `repositories.go`, …). Allowed third-party import in domain: **`golang.org/x/crypto/ssh` only**. Do **not** import `internal/presentation`, `internal/infra`, `internal/pkg`, or `main` from `domain`.
+- **Use cases** — orchestration (`SessionManager`, `TransferService`, etc.). May import **`internal/domain`** and stdlib only — **never** `internal/infra/*`, `internal/pkg/*`, or third-party packages.
+- **Infrastructure** — implementations of domain ports (SSH dialer, persistence, SFTP, portable local FS, plugin host).
+- **Presentation** — Wails bindings (`api.go`, `handlers_*.go`), DTOs, events; delegates to use cases.
 
 Keep changes localized to the appropriate layer.
 
@@ -69,7 +69,7 @@ Keep changes localized to the appropriate layer.
 - Cover **everything that is reasonable to automate**: domain logic, use-case orchestration, adapters without heavy I/O, and critical error paths.
 - Before you commit, run tests for the packages you changed (`go test ./...` or a narrower path). Do not leave failing tests in touched areas.
 - **Exceptions:** Wails UI, some native OS calls, or rare glue may rely on manual or integration checks; call that out in the PR when a line of code is hard to unit-test behind an interface.
-- Layer boundary check (optional): `powershell -File scripts/check-imports.ps1` ensures `internal/usecase` does not import `internal/infra`.
+- Layer boundary check: `powershell -File scripts/check-imports.ps1` verifies domain and usecase import rules.
 
 ### Comments and style
 

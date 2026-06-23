@@ -17,27 +17,28 @@ flowchart TB
     main --> infra
     pres --> uc
     pres --> dom
-    pres --> infra
     uc --> dom
     infra --> dom
   end
 ```
 
-- **main** wires repositories, SSH adapters (`internal/infra/ssh`), and optional `SessionConnector` plugins via `main_connectors.go`.
-- **presentation/wails** — Wails API (`api.go`, `handlers_wails.go`), DTOs, events. May depend on `infra` for thin adapters (e.g. PTY bridge).
-- **usecase** — orchestration (`SessionManager`, `PingManager`, lockout). Depends only on **domain** and the standard library.
-- **domain** — entities, ports, and the chosen SSH surface (see below).
-- **infra** — persistence, SSH dialer, SFTP, audit log, PuTTY import, etc.
+- **main** (`app.go`) wires repositories, SSH adapters (`internal/infra/ssh`), portable layout, and plugin runtime.
+- **presentation/wails** — Wails facade: `api.go`, handler files, DTOs, events. Handlers delegate to use cases; no direct infra imports.
+- **usecase** — orchestration (`SessionManager`, `TransferService`, `AuditService`, `SettingsService`, plugins). Depends only on **domain** and stdlib.
+- **domain** — entities and ports split across `vault_data.go`, `app_settings.go`, `repositories.go`, `local_fs.go`, etc.
+- **infra** — persistence, SSH dialer, SFTP, audit log, portable local FS, plugin host, etc.
 
 ## Import rules (summary)
 
 | Package | May import |
 |--------|-------------|
-| `internal/domain` | stdlib, `golang.org/x/crypto/ssh` (ports only; see CONTRIBUTING) — **not** `internal/presentation`, `internal/infra`, `main` |
-| `internal/usecase` | `internal/domain`, stdlib — **not** `internal/infra/*` |
-| `internal/infra/*` | `internal/domain`, third-party, stdlib |
-| `internal/presentation/wails` | `internal/domain`, `internal/usecase`, `internal/infra/*` (adapters), stdlib |
+| `internal/domain` | stdlib, `golang.org/x/crypto/ssh`, `internal/domain/*` — **not** `internal/presentation`, `internal/infra`, `internal/pkg`, `main` |
+| `internal/usecase` | `internal/domain`, stdlib — **not** `internal/infra/*`, `internal/pkg/*`, third-party |
+| `internal/infra/*` | `internal/domain`, `internal/pkg`, third-party, stdlib |
+| `internal/presentation/wails` | `internal/domain`, `internal/usecase`, stdlib |
 | `main` | all internal packages as needed for composition |
+
+Run `powershell -File scripts/check-imports.ps1` to verify layer imports.
 
 ## SSH types in domain
 
@@ -55,10 +56,14 @@ Plugin connectors receive `ConnectorHooks` to set PTY bridge, SFTP (`RemoteFS`),
 
 | Area | Entry points |
 |------|----------------|
-| **Vault / connections** | Repositories in `internal/infra/persistence`, mapping in `internal/presentation/wails/dto_connection.go`, API methods in `handlers_vault.go` (folders, connections, passwords). |
-| **SSH sessions** | `internal/usecase/session_manager.go` (`connectSession`), `internal/infra/ssh`, PTY/SFTP init in `handlers_wails.go` (`initSessionPTYAndSFTP`). |
+| **Vault / connections** | Repositories in `internal/infra/persistence`, DTOs in `dto_connection.go`, handlers in `handlers_vault.go`. |
+| **SSH sessions** | `internal/usecase/session_manager*.go`, PTY/SFTP init via `SessionManager.InitSessionIO`, handlers in `handlers_sessions.go`. |
+| **Remote file browser** | `handlers_remote_fs.go` (DTO mapping); SSH exec via `SessionManager.Exec`. |
+| **Local file browser** | `domain.LocalFileSystem` port, `internal/infra/portable/local_fs.go`, `handlers_local_fs.go`. |
+| **Transfers** | `internal/usecase/transfer_service.go`, handlers in `handlers_transfers.go`. |
+| **Settings / ping / audit** | `settings_service.go`, `audit_service.go`, `ping_manager.go`, `handlers_settings_ping_audit.go`. |
+| **Plugins** | `internal/usecase/plugin_*.go`, handlers in `handlers_plugin*.go`, manifest FS checks in `infra/plugin/bundle/capabilities_validate.go`. |
 | **Plugin protocols** | Implement `domain.SessionConnector`, register in `main_connectors.go`. |
-| **Transfers** | SFTP/transfer limits via vault settings; upload/download in `handlers_wails.go` (`acquireTransferSlot`, etc.). |
 
 ## Tests
 
