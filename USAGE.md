@@ -31,10 +31,21 @@ All data—connections, SSH keys, passwords, known hosts—is stored in a single
 - Enter any password to **create** a new vault. This password becomes your master password.
 - On subsequent launches, enter the same password to **unlock** the vault.
 
-### Where is the vault stored?
+### Where is data stored?
 
-- **Portable mode:** If the executable directory is writable (e.g. you run from a USB stick or a folder on your Desktop), `vault.age` is created **next to the exe**.
-- **Otherwise:** `%AppData%\xQuakShell\` (e.g. `C:\Users\<you>\AppData\Roaming\xQuakShell\`).
+xQuakShell is **fully portable**. All application data lives **next to the executable**:
+
+```
+xQuakShell.exe
+vault.age              # encrypted vault
+audit.db               # audit log (if enabled)
+plugins/               # bundled and user-installed plugins
+  example-echo/
+  com.example.myplugin/
+    data/              # plugin runtime data
+```
+
+Copy the entire folder to a USB stick or another PC — settings, vault, and plugins move with it.
 
 ### Important
 
