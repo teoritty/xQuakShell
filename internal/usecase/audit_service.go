@@ -8,17 +8,20 @@ import (
 	"time"
 
 	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/auditlog"
 )
 
 // AuditService orchestrates audit log recording, retention, and session secret policy.
 type AuditService struct {
-	repo         domain.AuditLogRepository
-	settingsSvc  *SettingsService
-	sessions     SessionInfoProvider
-	connRepo     domain.ConnectionRepository
-	sanitizers   map[string]*auditlog.Sanitizer
-	sanitizersMu sync.Mutex
+	repo            domain.AuditLogRepository
+	settingsSvc     *SettingsService
+	sessions        SessionInfoProvider
+	connRepo        domain.ConnectionRepository
+	sanitizers      map[string]domain.AuditInputSanitizer
+	sanitizersMu    sync.Mutex
+	sanitizerFactory domain.AuditInputSanitizerFactory
+	trackerFactory  domain.CommandLineTrackerFactory
+	lineTrackers    map[string]domain.CommandLineTracker
+	lineTrackersMu  sync.Mutex
 
 	sessionLogSecrets bool
 	secretsMu         sync.RWMutex
@@ -35,13 +38,18 @@ func NewAuditService(
 	settingsSvc *SettingsService,
 	sessions SessionInfoProvider,
 	connRepo domain.ConnectionRepository,
+	trackerFactory domain.CommandLineTrackerFactory,
+	sanitizerFactory domain.AuditInputSanitizerFactory,
 ) *AuditService {
 	return &AuditService{
-		repo:        repo,
-		settingsSvc: settingsSvc,
-		sessions:    sessions,
-		connRepo:    connRepo,
-		sanitizers:  make(map[string]*auditlog.Sanitizer),
+		repo:             repo,
+		settingsSvc:      settingsSvc,
+		sessions:         sessions,
+		connRepo:         connRepo,
+		sanitizers:       make(map[string]domain.AuditInputSanitizer),
+		trackerFactory:   trackerFactory,
+		lineTrackers:     make(map[string]domain.CommandLineTracker),
+		sanitizerFactory: sanitizerFactory,
 	}
 }
 
@@ -87,12 +95,15 @@ func (s *AuditService) OnVaultLocked() {
 	s.DisableSessionSecretLogging()
 }
 
-func (s *AuditService) getSanitizer(sessionID string) *auditlog.Sanitizer {
+func (s *AuditService) getSanitizer(sessionID string) domain.AuditInputSanitizer {
+	if s.sanitizerFactory == nil {
+		return nil
+	}
 	s.sanitizersMu.Lock()
 	defer s.sanitizersMu.Unlock()
 	san, ok := s.sanitizers[sessionID]
 	if !ok {
-		san = auditlog.NewSanitizer()
+		san = s.sanitizerFactory()
 		s.sanitizers[sessionID] = san
 	}
 	return san
@@ -100,7 +111,9 @@ func (s *AuditService) getSanitizer(sessionID string) *auditlog.Sanitizer {
 
 // FeedOutput updates sanitizer context from terminal output.
 func (s *AuditService) FeedOutput(sessionID, output string) {
-	s.getSanitizer(sessionID).FeedOutput(output)
+	if san := s.getSanitizer(sessionID); san != nil {
+		san.FeedOutput(output)
+	}
 }
 
 // RemoveSession cleans up per-session sanitizer state.
@@ -108,6 +121,40 @@ func (s *AuditService) RemoveSession(sessionID string) {
 	s.sanitizersMu.Lock()
 	delete(s.sanitizers, sessionID)
 	s.sanitizersMu.Unlock()
+
+	s.lineTrackersMu.Lock()
+	delete(s.lineTrackers, sessionID)
+	s.lineTrackersMu.Unlock()
+}
+
+// ResolveCommandLine returns the submitted command line for audit logging.
+func (s *AuditService) ResolveCommandLine(sessionID, data, commandLine string) (string, bool) {
+	if commandLine != "" {
+		if tracker := s.getLineTracker(sessionID); tracker != nil {
+			_, _ = tracker.Feed(data)
+		}
+		return commandLine, true
+	}
+	tracker := s.getLineTracker(sessionID)
+	submitted, ok := tracker.Feed(data)
+	if !ok || submitted == "" {
+		return "", false
+	}
+	return submitted, true
+}
+
+func (s *AuditService) getLineTracker(sessionID string) domain.CommandLineTracker {
+	if s.trackerFactory == nil {
+		return nil
+	}
+	s.lineTrackersMu.Lock()
+	defer s.lineTrackersMu.Unlock()
+	tracker, ok := s.lineTrackers[sessionID]
+	if !ok {
+		tracker = s.trackerFactory()
+		s.lineTrackers[sessionID] = tracker
+	}
+	return tracker
 }
 
 // RecordCommand persists a submitted command line when audit is enabled.
@@ -128,7 +175,7 @@ func (s *AuditService) RecordCommand(ctx context.Context, sessionID, line string
 
 	input := line
 	redacted := false
-	if !s.SessionLogSecretsEnabled() {
+	if !s.SessionLogSecretsEnabled() && sanitizer != nil {
 		input, redacted = sanitizer.SanitizeInput(line)
 	}
 
@@ -174,6 +221,37 @@ func (s *AuditService) RecordCommand(ctx context.Context, sessionID, line string
 		return domain.ErrAuditLogWrite
 	}
 	return s.EnforceRetention(ctx)
+}
+
+// Search queries audit log entries.
+func (s *AuditService) Search(ctx context.Context, query string, filter domain.AuditSearchFilter) ([]domain.AuditEntry, error) {
+	if s.repo == nil {
+		return nil, fmt.Errorf("audit log not available")
+	}
+	return s.repo.Search(ctx, query, filter)
+}
+
+// DeleteByID removes a single audit log entry.
+func (s *AuditService) DeleteByID(ctx context.Context, id int64) error {
+	if s.repo == nil {
+		return fmt.Errorf("audit log not available")
+	}
+	return s.repo.DeleteByID(ctx, id)
+}
+
+// ClearAll removes all audit log entries.
+func (s *AuditService) ClearAll(ctx context.Context) error {
+	if s.repo == nil {
+		return fmt.Errorf("audit log not available")
+	}
+	return s.repo.ClearAll(ctx)
+}
+
+// Close releases audit log resources.
+func (s *AuditService) Close() {
+	if s.repo != nil {
+		s.repo.Close()
+	}
 }
 
 func trimCommandLine(s string) string {
