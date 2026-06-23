@@ -2,13 +2,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
-	"os"
-	"path/filepath"
+	"net/http"
 
 	"ssh-client/internal/domain"
 	"ssh-client/internal/infra/auditlog"
 	"ssh-client/internal/infra/persistence"
+	"ssh-client/internal/infra/portable"
+	infraputty "ssh-client/internal/infra/putty"
 	infrasftp "ssh-client/internal/infra/sftp"
 	infrassh "ssh-client/internal/infra/ssh"
 	presentation "ssh-client/internal/presentation/wails"
@@ -18,13 +20,27 @@ import (
 // App is the main application struct bound to Wails.
 // It delegates all operations to the AppAPI from the presentation layer.
 type App struct {
-	ctx context.Context
-	api *presentation.AppAPI
+	ctx     context.Context
+	api     *presentation.AppAPI
+	plugins *pluginRuntime
 }
 
 // NewApp creates a new App with all dependencies wired together.
 func NewApp() *App {
-	vaultDir := defaultVaultDir()
+	paths := portable.Default
+	if err := portable.MigrateLegacyLayout(paths); err != nil {
+		log.Printf("WARNING: portable data migration failed: %v", err)
+	}
+	if err := paths.EnsureDirs(); err != nil {
+		log.Printf("WARNING: create portable data dirs failed: %v", err)
+	}
+	if err := portable.InitRuntime(paths); err != nil {
+		log.Printf("WARNING: portable runtime init failed: %v", err)
+	}
+	if portable.DataRootReadOnly() {
+		log.Printf("WARNING: portable data root is read-only; file and plugin writes are disabled")
+	}
+	vaultDir := paths.VaultDir()
 
 	vaultRepo := persistence.NewVaultRepo(vaultDir)
 	connRepo := persistence.NewConnectionRepo(vaultRepo)
@@ -49,21 +65,78 @@ func NewApp() *App {
 		SFTPClientFactory:       infrasftp.NewSFTPClientFactory(),
 	}
 
+	portableRuntime := portable.NewRuntimeAdapter()
+	portableLayout := portable.NewLayoutAdapter(paths)
+	localFS := portable.NewLocalFS(portableLayout.DataRoot(), portableLayout.TempDir(), portableRuntime)
+
+	pluginRuntime := newPluginRuntime(vaultDir, pluginRuntimeDeps{
+		ConnRepo:        connRepo,
+		PasswordRepo:    passwordRepo,
+		IdentRepo:       identRepo,
+		AuditLog:        auditLogRepo,
+		VaultSettings:   usecase.NewPluginVaultSettings(vaultRepo),
+		PassphraseCache: sshSession.PassphraseCache,
+		ExeDir:          paths.ExeDir(),
+	})
+
 	api := presentation.NewAppAPI(
 		vaultRepo, connRepo, identRepo, passwordRepo, knownHostsRepo,
 		sshDialer, sshSession, newSessionConnectors(),
-		auditLogRepo, lockoutMgr,
+		auditLogRepo, lockoutMgr, localFS,
+		auditlog.NewCommandLineTrackerFactory(),
+		auditlog.SanitizerFactory(),
+		infraputty.PortAdapter{},
+		pluginRuntime.manager, pluginRuntime.inbound, pluginRuntime.viewInbound,
+		pluginRuntime.vaultInbound,
 	)
+	if pluginRuntime.manager != nil {
+		pluginRuntime.manager.SetCrashHandler(api.Sessions())
+		pluginRuntime.manager.SetSessionOwnershipChecker(api.Sessions())
+	}
+	if pluginRuntime.viewRelay != nil {
+		api.SetPluginViewRelay(pluginRuntime.viewRelay)
+	}
+	pluginRuntime.setSessionRecoverer(api.Sessions())
 
-	return &App{api: api}
+	return &App{api: api, plugins: pluginRuntime}
+}
+
+func (a *App) grantPluginMultiSessionAccess(pluginID string) error {
+	if a.plugins == nil {
+		return nil
+	}
+	return a.plugins.grantMultiSessionAccess(context.Background(), pluginID)
+}
+
+func (a *App) grantPluginSecretAccess(pluginID string) error {
+	if a.plugins == nil {
+		return nil
+	}
+	return a.plugins.grantSecretAccess(context.Background(), pluginID)
+}
+
+func (a *App) pluginAssetHandler() http.Handler {
+	if a.plugins == nil {
+		return nil
+	}
+	return a.plugins.assetHandler()
 }
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.api.SetContext(ctx)
+	a.api.SetPluginVaultGrant(a.grantPluginSecretAccess)
+	a.api.SetPluginMultiSessionGrant(a.grantPluginMultiSessionAccess)
+	if a.plugins != nil && a.plugins.manager != nil {
+		go a.plugins.manager.ActivateStartupPlugins(context.Background())
+		a.plugins.manager.SetStateChangeHandler(a.api.EmitPluginStateChanged)
+	}
 }
 
 func (a *App) shutdown(_ context.Context) {
+	if a.plugins != nil {
+		a.plugins.shutdown()
+	}
 	a.api.Shutdown()
 }
 
@@ -293,6 +366,10 @@ func (a *App) ListLocalPath(dirPath string, includeHidden bool) ([]presentation.
 	return a.api.ListLocalPath(dirPath, includeHidden)
 }
 
+func (a *App) GetPortableDataRoot() (string, error) {
+	return a.api.GetPortableDataRoot()
+}
+
 func (a *App) GetUserHomeDir() (string, error) {
 	return a.api.GetUserHomeDir()
 }
@@ -317,29 +394,74 @@ func (a *App) SaveSettings(dto presentation.AppSettingsDTO) error {
 	return a.api.SaveSettings(dto)
 }
 
-// defaultVaultDir returns the directory for storing the vault file.
-// Portable mode: if the executable directory is writable, use it (vault.age next to exe).
-// Otherwise use %AppData%\xQuakShell.
-func defaultVaultDir() string {
-	exe, err := os.Executable()
-	if err != nil {
-		return fallbackVaultDir()
-	}
-	exeDir := filepath.Dir(exe)
-	testFile := filepath.Join(exeDir, ".xquakshell-writable")
-	if err := os.WriteFile(testFile, nil, 0600); err != nil {
-		return fallbackVaultDir()
-	}
-	if err := os.Remove(testFile); err != nil {
-		log.Printf("WARNING: failed to remove writable test file %s: %v", testFile, err)
-	}
-	return exeDir
+func (a *App) ListPlugins() ([]presentation.PluginDTO, error) {
+	return a.api.ListPlugins()
 }
 
-func fallbackVaultDir() string {
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		configDir = "."
-	}
-	return filepath.Join(configDir, "xQuakShell")
+func (a *App) PingPlugin(pluginID string) (presentation.PluginPingResultDTO, error) {
+	return a.api.PingPlugin(pluginID)
+}
+
+func (a *App) StartPlugin(pluginID string) error {
+	return a.api.StartPlugin(pluginID)
+}
+
+func (a *App) SetPluginEnabled(pluginID string, enabled bool) error {
+	return a.api.SetPluginEnabled(pluginID, enabled)
+}
+
+func (a *App) SelectPluginSourceDir() (string, error) {
+	return a.api.SelectPluginSourceDir()
+}
+
+func (a *App) PreviewPluginInstall(sourceDir string) (presentation.PluginInstallPreviewDTO, error) {
+	return a.api.PreviewPluginInstall(sourceDir)
+}
+
+func (a *App) SelectPluginBundleFile() (string, error) {
+	return a.api.SelectPluginBundleFile()
+}
+
+func (a *App) GetPluginSettings() (presentation.PluginSettingsDTO, error) {
+	return a.api.GetPluginSettings()
+}
+
+func (a *App) SavePluginSettings(dto presentation.PluginSettingsDTO) error {
+	return a.api.SavePluginSettings(dto)
+}
+
+func (a *App) GeneratePluginPublisherKeyPair() (presentation.PluginPublisherKeyPairDTO, error) {
+	return a.api.GeneratePluginPublisherKeyPair()
+}
+
+func (a *App) ValidateTrustedPublisherKey(keyB64 string) error {
+	return a.api.ValidateTrustedPublisherKey(keyB64)
+}
+
+func (a *App) InstallPlugin(sourceDir string, grantSecretAccess bool, grantMultiSessionAccess bool) (presentation.PluginDTO, error) {
+	return a.api.InstallPlugin(sourceDir, grantSecretAccess, grantMultiSessionAccess)
+}
+
+func (a *App) GetPluginConnectionProtocols() []presentation.ConnectionProtocolDTO {
+	return a.api.GetPluginConnectionProtocols()
+}
+
+func (a *App) GetPluginContributions() presentation.PluginContributionsDTO {
+	return a.api.GetPluginContributions()
+}
+
+func (a *App) ExecutePluginCommand(pluginID, commandID string, args json.RawMessage) (json.RawMessage, error) {
+	return a.api.ExecutePluginCommand(pluginID, commandID, args)
+}
+
+func (a *App) PreparePluginViewPanel(pluginID, panelID string) (string, error) {
+	return a.api.PreparePluginViewPanel(pluginID, panelID)
+}
+
+func (a *App) RelayPluginViewMessage(token string, message json.RawMessage) error {
+	return a.api.RelayPluginViewMessage(token, message)
+}
+
+func (a *App) ReleasePluginViewPanel(token string) {
+	a.api.ReleasePluginViewPanel(token)
 }

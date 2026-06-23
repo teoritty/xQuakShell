@@ -32,7 +32,8 @@ func main() {
 		MinWidth:  900,
 		MinHeight: 600,
 		AssetServer: &assetserver.Options{
-			Assets: assets,
+			Assets:  assets,
+			Handler: app.pluginAssetHandler(),
 		},
 		BackgroundColour: &options.RGBA{R: 30, G: 30, B: 30, A: 255},
 		OnStartup:        app.startup,
