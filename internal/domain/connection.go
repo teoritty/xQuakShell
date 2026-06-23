@@ -130,10 +130,18 @@ func (c *Connection) ValidateForConnect() error {
 		if c.EffectiveUsername() == "" {
 			return fmt.Errorf("at least one user must be configured: %w", ErrInvalidConnectionConfig)
 		}
+		return c.Validate()
 	default:
-		return fmt.Errorf("unknown protocol %q: %w", proto, ErrInvalidConnectionConfig)
+		if c.Host == "" {
+			return fmt.Errorf("host must not be empty: %w", ErrInvalidConnectionConfig)
+		}
+		if c.Port < MinPort || c.Port > MaxPort {
+			if c.Port != 0 {
+				return fmt.Errorf("port %d out of range [%d-%d]: %w", c.Port, MinPort, MaxPort, ErrInvalidConnectionConfig)
+			}
+		}
+		return c.Validate()
 	}
-	return c.Validate()
 }
 
 // WithDefaults fills in default values for optional fields (e.g., port).
