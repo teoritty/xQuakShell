@@ -25,8 +25,21 @@ flowchart TB
 - **main** (`app.go`) wires repositories, SSH adapters (`internal/infra/ssh`), portable layout, and plugin runtime.
 - **presentation/wails** — Wails facade: `api.go`, handler files, DTOs, events. Handlers delegate to use cases; no direct infra imports.
 - **usecase** — orchestration (`SessionManager`, `TransferService`, `AuditService`, `SettingsService`, plugins). Depends only on **domain** and stdlib.
-- **domain** — entities and ports split across `vault_data.go`, `app_settings.go`, `repositories.go`, `local_fs.go`, etc.
-- **infra** — persistence, SSH dialer, SFTP, audit log, portable local FS, plugin host, etc.
+- **domain** — entities and ports split across `vault_data.go`, `app_settings.go`, `repositories.go`, `host_fs.go`, `portable_data.go`, etc.
+- **infra** — persistence, SSH dialer, SFTP, audit log, host FS, portable data store, plugin host, etc.
+
+## Filesystem zones (ADR-007)
+
+Three trust boundaries — do not mix:
+
+| Zone | Domain port | Infra implementation | Path policy |
+|------|-------------|------------------------|-------------|
+| Host user FS | `HostFileSystem` | `internal/infra/host/host_fs.go` | No sandbox root; trusted host UI |
+| Portable app data | `PortableDataStore` | `internal/infra/portable/data_store.go` | Jailed to `<exe>/data` |
+| Plugin sandbox | (IPC only) | `internal/infra/plugin/capability/fs_proxy.go` | Manifest roots + symlink checks |
+
+Run `powershell -File scripts/check-fs-boundaries.ps1` to verify zone separation.
+See [adr/007-host-filesystem-trust.md](adr/007-host-filesystem-trust.md).
 
 ## Import rules (summary)
 
@@ -59,7 +72,8 @@ Plugin connectors receive `ConnectorHooks` to set PTY bridge, SFTP (`RemoteFS`),
 | **Vault / connections** | Repositories in `internal/infra/persistence`, DTOs in `dto_connection.go`, handlers in `handlers_vault.go`. |
 | **SSH sessions** | `internal/usecase/session_manager*.go`, PTY/SFTP init via `SessionManager.InitSessionIO`, handlers in `handlers_sessions.go`. |
 | **Remote file browser** | `handlers_remote_fs.go` (DTO mapping); SSH exec via `SessionManager.Exec`. |
-| **Local file browser** | `domain.LocalFileSystem` port, `internal/infra/portable/local_fs.go`, `handlers_local_fs.go`. |
+| **Local file browser** | `domain.HostFileSystem`, `internal/infra/host/host_fs.go`, `handlers_local_fs.go` (routing table in file header). |
+| **Portable temp / data paths** | `domain.PortableDataStore`, `internal/infra/portable/data_store.go`. |
 | **Transfers** | `internal/usecase/transfer_service.go`, handlers in `handlers_transfers.go`. |
 | **Settings / ping / audit** | `settings_service.go`, `audit_service.go`, `ping_manager.go`, `handlers_settings_ping_audit.go`. |
 | **Plugins** | `internal/usecase/plugin_*.go`, handlers in `handlers_plugin*.go`, manifest FS checks in `infra/plugin/bundle/capabilities_validate.go`. |

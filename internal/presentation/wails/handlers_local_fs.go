@@ -2,7 +2,6 @@ package wails
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,16 +12,27 @@ import (
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+// Local filesystem Wails handlers — routing map (single source of truth):
+//
+//	| Method                                                                 | Port         | Zone              |
+//	|------------------------------------------------------------------------|--------------|-------------------|
+//	| ListLocalPath, RemoveLocalPath, MkdirLocalPath, RenameLocalPath,     | hostFS       | Host user FS      |
+//	| CreateLocalFile, OpenFileWithSystem, StartFileWatch,                   |              | (ADR-007)         |
+//	| SelectLocalFile, SelectLocalDirectory                                  |              |                   |
+//	| GetUserHomeDir                                                         | hostFS       | Host user FS      |
+//	| GetPortableDataRoot                                                    | portableData | Portable app data |
+//	| GetTempDir                                                             | portableData | Portable app data |
+
 // ListLocalPath returns directory entries for a local path.
 // includeHidden when false filters out hidden files (name starts with . on Unix, HIDDEN attribute on Windows).
 func (a *AppAPI) ListLocalPath(dirPath string, includeHidden bool) ([]LocalNodeDTO, error) {
-	if a.localFS == nil {
+	if a.hostFS == nil {
 		return nil, fmt.Errorf("local file service unavailable")
 	}
 	if dirPath == "" {
-		dirPath = a.localFS.DefaultPath()
+		dirPath = a.hostFS.DefaultPath()
 	}
-	nodes, err := a.localFS.List(dirPath, includeHidden, isHiddenLocal)
+	nodes, err := a.hostFS.List(dirPath, includeHidden, isHiddenLocal)
 	if err != nil {
 		return nil, err
 	}
@@ -46,64 +56,66 @@ func (a *AppAPI) ListLocalPath(dirPath string, includeHidden bool) ([]LocalNodeD
 
 // RemoveLocalPath deletes a local file or directory (recursively for directories).
 func (a *AppAPI) RemoveLocalPath(localPath string) error {
-	if a.localFS == nil {
+	if a.hostFS == nil {
 		return fmt.Errorf("local file service unavailable")
 	}
-	return a.localFS.Remove(localPath)
+	return a.hostFS.Remove(localPath)
 }
 
 // MkdirLocalPath creates a local directory (and parents if needed).
 func (a *AppAPI) MkdirLocalPath(dirPath string) error {
-	if a.localFS == nil {
+	if a.hostFS == nil {
 		return fmt.Errorf("local file service unavailable")
 	}
-	return a.localFS.Mkdir(dirPath)
+	return a.hostFS.Mkdir(dirPath)
 }
 
 // RenameLocalPath renames a local file or directory.
 func (a *AppAPI) RenameLocalPath(oldPath, newPath string) error {
-	if a.localFS == nil {
+	if a.hostFS == nil {
 		return fmt.Errorf("local file service unavailable")
 	}
-	return a.localFS.Rename(oldPath, newPath)
+	return a.hostFS.Rename(oldPath, newPath)
 }
 
 // CreateLocalFile creates an empty local file.
 func (a *AppAPI) CreateLocalFile(localPath string) error {
-	if a.localFS == nil {
+	if a.hostFS == nil {
 		return fmt.Errorf("local file service unavailable")
 	}
-	return a.localFS.CreateFile(localPath)
+	return a.hostFS.CreateFile(localPath)
 }
 
-// GetPortableDataRoot returns the portable data root for the local file browser UI.
+// GetPortableDataRoot returns the portable data root (<exe>/data) for settings and plugin layout.
 func (a *AppAPI) GetPortableDataRoot() (string, error) {
-	if a.localFS == nil {
+	if a.portableData == nil {
+		return "", fmt.Errorf("portable data store unavailable")
+	}
+	return a.portableData.DataRoot(), nil
+}
+
+// GetUserHomeDir returns the user's home directory for the local file browser default path.
+func (a *AppAPI) GetUserHomeDir() (string, error) {
+	if a.hostFS == nil {
 		return "", fmt.Errorf("local file service unavailable")
 	}
-	return a.localFS.DefaultPath(), nil
-}
-
-// GetUserHomeDir returns the portable data root (deprecated: use GetPortableDataRoot).
-func (a *AppAPI) GetUserHomeDir() (string, error) {
-	slog.Warn("GetUserHomeDir is deprecated; use GetPortableDataRoot")
-	return a.GetPortableDataRoot()
+	return a.hostFS.DefaultPath(), nil
 }
 
 // GetTempDir returns the portable temp directory under <exe>/data/tmp.
 func (a *AppAPI) GetTempDir() (string, error) {
-	if a.localFS == nil {
-		return "", fmt.Errorf("local file service unavailable")
+	if a.portableData == nil {
+		return "", fmt.Errorf("portable data store unavailable")
 	}
-	return a.localFS.EnsureTempDir()
+	return a.portableData.EnsureTempDir()
 }
 
 // StartFileWatch watches a local file for changes and emits FileEdited when mtime changes.
 func (a *AppAPI) StartFileWatch(localPath string) {
-	if a.localFS == nil {
+	if a.hostFS == nil {
 		return
 	}
-	abs, err := a.localFS.ResolvePath(localPath)
+	abs, err := a.hostFS.ResolvePath(localPath)
 	if err != nil {
 		return
 	}
@@ -138,10 +150,10 @@ func (a *AppAPI) StartFileWatch(localPath string) {
 
 // OpenFileWithSystem opens a local file with the system's default application or the specified editor.
 func (a *AppAPI) OpenFileWithSystem(localPath, editorPath string) error {
-	if a.localFS == nil {
+	if a.hostFS == nil {
 		return fmt.Errorf("local file service unavailable")
 	}
-	abs, err := a.localFS.ResolvePath(localPath)
+	abs, err := a.hostFS.ResolvePath(localPath)
 	if err != nil {
 		return err
 	}
@@ -196,7 +208,7 @@ func (a *AppAPI) SelectLocalFile() (string, error) {
 	if err != nil || path == "" {
 		return path, err
 	}
-	return a.resolvePortableLocalPath(path)
+	return a.resolveHostLocalPath(path)
 }
 
 // SelectLocalDirectory opens a native directory picker.
@@ -210,13 +222,12 @@ func (a *AppAPI) SelectLocalDirectory() (string, error) {
 	if err != nil || path == "" {
 		return path, err
 	}
-	return a.resolvePortableLocalPath(path)
+	return a.resolveHostLocalPath(path)
 }
 
-// resolvePortableLocalPath normalizes path and verifies it stays under the portable data root.
-func (a *AppAPI) resolvePortableLocalPath(path string) (string, error) {
-	if a.localFS == nil {
+func (a *AppAPI) resolveHostLocalPath(path string) (string, error) {
+	if a.hostFS == nil {
 		return "", fmt.Errorf("local file service unavailable")
 	}
-	return a.localFS.ResolvePath(path)
+	return a.hostFS.ResolvePath(path)
 }

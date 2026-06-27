@@ -1,3 +1,7 @@
+// Package capability implements manifest-gated plugin RPC proxies.
+//
+// Filesystem access for plugins is sandboxed here via FSProxy (SecurePathUnderRoots).
+// Host UI uses domain.HostFileSystem (ADR-007); do not route host browser operations through FSProxy.
 package capability
 
 import (

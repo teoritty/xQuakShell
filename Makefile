@@ -7,7 +7,7 @@
 #   make portable       - build + download WebView2 for Windows portable
 #   make install        - install frontend deps
 
-.PHONY: build dev clean rebuild portable install plugins plugin-cli plugin-pack test-plugin bench-plugin check-imports
+.PHONY: build dev clean rebuild portable install plugins plugin-cli plugin-pack test-plugin bench-plugin check-imports check-fs-boundaries
 
 # Build reference plugins (Phase 1/3)
 plugins:
@@ -26,6 +26,9 @@ bench-plugin:
 
 check-imports:
 	powershell -File scripts/check-imports.ps1
+
+check-fs-boundaries:
+	powershell -File scripts/check-fs-boundaries.ps1
 
 # Plugin developer CLI (Phase 6)
 plugin-cli:

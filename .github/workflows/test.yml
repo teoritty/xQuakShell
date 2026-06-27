@@ -38,6 +38,14 @@ jobs:
 
 
 
+      - name: Layer import check
+        shell: pwsh
+        run: ./scripts/check-imports.ps1
+
+      - name: Filesystem boundary check
+        shell: pwsh
+        run: ./scripts/check-fs-boundaries.ps1
+
       - name: Unit tests
 
         run: go test ./... -race -count=1

@@ -238,3 +238,19 @@ Plugin discovery scans, in order:
 
 User-installed plugins **override** bundled plugins with the same manifest `id`.
 
+
+
+## Host trust boundary (ADR-007)
+
+The host application (Wails UI) operates on the user's filesystem **without a sandbox root** via `domain.HostFileSystem`. This is intentional: an SSH client must list, transfer, and open files anywhere the user can access.
+
+| Caller | FS access | Sandboxed |
+|--------|-----------|-----------|
+| Host UI (Local Files, transfers, dialogs) | `HostFileSystem` | No |
+| Portable internal state (temp, layout) | `PortableDataStore` | Yes (`<exe>/data`) |
+| Plugin child process (`fs.*` IPC) | `FSProxy` | Yes (manifest `${pluginData}`) |
+
+Plugins **cannot** invoke Wails host methods or `HostFileSystem`. Their only filesystem surface is manifest-gated IPC.
+
+See [adr/007-host-filesystem-trust.md](adr/007-host-filesystem-trust.md).
+

@@ -54,6 +54,7 @@ Installed plugins are copied to `data/plugins/<id>/` under the xQuakShell execut
 - **Vault IDOR:** plugins may access a connection only while they own an active session for that connection.
 - **Secrets:** `vault.getSecret` requires install-time user consent plus manifest declaration. Passphrases require an encrypted identity and an unlocked session cache.
 - **Manual start:** `StartPluginManual` requires `onManual` in `activationEvents`.
+- **Plugin filesystem:** `pluginsdk` `fs.*` calls remain manifest-sandboxed. The host Local Files browser uses `HostFileSystem` (ADR-007) and is not available to plugins.
 
 See [security-model.md](./security-model.md) for the full threat model.
 

@@ -666,7 +666,13 @@ export async function getPortableDataRoot(): Promise<string> {
 }
 
 export async function getUserHomeDir(): Promise<string> {
-  return getPortableDataRoot();
+  const app = getApp();
+  if (!app) return '';
+  try {
+    return await app.GetUserHomeDir();
+  } catch {
+    return '';
+  }
 }
 
 export async function getTempDir(): Promise<string> {

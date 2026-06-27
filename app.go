@@ -8,6 +8,7 @@ import (
 
 	"ssh-client/internal/domain"
 	"ssh-client/internal/infra/auditlog"
+	"ssh-client/internal/infra/host"
 	"ssh-client/internal/infra/persistence"
 	"ssh-client/internal/infra/portable"
 	infraputty "ssh-client/internal/infra/putty"
@@ -67,7 +68,8 @@ func NewApp() *App {
 
 	portableRuntime := portable.NewRuntimeAdapter()
 	portableLayout := portable.NewLayoutAdapter(paths)
-	localFS := portable.NewLocalFS(portableLayout.DataRoot(), portableLayout.TempDir(), portableRuntime)
+	hostFS := host.NewHostFS()
+	portableData := portable.NewDataStore(portableLayout.DataRoot(), portableLayout.TempDir(), portableRuntime)
 
 	pluginRuntime := newPluginRuntime(vaultDir, pluginRuntimeDeps{
 		ConnRepo:        connRepo,
@@ -82,7 +84,7 @@ func NewApp() *App {
 	api := presentation.NewAppAPI(
 		vaultRepo, connRepo, identRepo, passwordRepo, knownHostsRepo,
 		sshDialer, sshSession, newSessionConnectors(),
-		auditLogRepo, lockoutMgr, localFS,
+		auditLogRepo, lockoutMgr, hostFS, portableData,
 		auditlog.NewCommandLineTrackerFactory(),
 		auditlog.SanitizerFactory(),
 		infraputty.PortAdapter{},

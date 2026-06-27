@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { listLocalPath, getPortableDataRoot, removeLocalPath, mkdirLocalPath, createLocalFile, renameLocalPath, openFileWithSystem, type LocalNode } from '../stores/api';
+  import { listLocalPath, getUserHomeDir, removeLocalPath, mkdirLocalPath, createLocalFile, renameLocalPath, openFileWithSystem, type LocalNode } from '../stores/api';
   import { transferCompleted } from '../stores/appState';
   import LocalFileTreeNode from './LocalFileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
@@ -20,7 +20,7 @@
   let expanded: Set<string> = new Set();
   let loading: Set<string> = new Set();
   let currentPath = '';
-  let portableRoot = '';
+  let homeDir = '';
   let selectedPaths: Set<string> = new Set();
   let lastSelectedPath: string | null = null;
   let showPermissions = false;
@@ -84,7 +84,7 @@
         await removeLocalPath(p);
         const sep = p.includes('\\') ? '\\' : '/';
         const idx = p.lastIndexOf(sep);
-        const parent = idx > 0 ? p.slice(0, idx) : portableRoot;
+        const parent = idx > 0 ? p.slice(0, idx) : homeDir;
         if (parent) affectedPaths.add(parent);
       } catch (e: any) {
         error = e?.message || String(e);
@@ -114,8 +114,8 @@
       }
       showHidden = localStorage.getItem(STORAGE_HIDDEN) === '1';
     } catch (_) {}
-    portableRoot = (await getPortableDataRoot()) || '';
-    currentPath = portableRoot;
+    homeDir = (await getUserHomeDir()) || '';
+    currentPath = homeDir;
     await loadDir(currentPath);
     expanded.add(currentPath);
   });
@@ -212,16 +212,28 @@
     pathInput = currentPath;
   }
 
-  function isAtPortableRoot(path: string): boolean {
-    if (!portableRoot) return !path;
-    const normalize = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-    return normalize(path) === normalize(portableRoot);
+  function isAtFilesystemRoot(path: string): boolean {
+    const trimmed = path.replace(/[\\/]+$/, '');
+    if (!trimmed || trimmed === '/') return true;
+    if (/^[a-zA-Z]:\\?$/i.test(trimmed)) return true;
+    return false;
+  }
+
+  function parentDirectory(path: string): string {
+    if (isAtFilesystemRoot(path)) return path;
+    const trimmed = path.replace(/[\\/]+$/, '');
+    const idx = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'));
+    if (/^[a-zA-Z]:/.test(trimmed)) {
+      if (idx <= 2) return `${trimmed.slice(0, 2)}\\`;
+      return trimmed.slice(0, idx);
+    }
+    if (idx <= 0) return '/';
+    return trimmed.slice(0, idx);
   }
 
   async function goUp() {
-    if (isAtPortableRoot(currentPath)) return;
-    const idx = Math.max(currentPath.lastIndexOf('\\'), currentPath.lastIndexOf('/'));
-    const parent = idx > 0 ? currentPath.slice(0, idx) : portableRoot;
+    if (isAtFilesystemRoot(currentPath)) return;
+    const parent = parentDirectory(currentPath);
     if (!parent || parent === currentPath) return;
     currentPath = parent;
     await loadDir(currentPath);
@@ -272,7 +284,7 @@
       if (/^[a-zA-Z]:$/.test(normalized)) return `${normalized}\\`;
       if (/^[a-zA-Z]:\\$/.test(normalized)) return normalized;
       normalized = normalized.replace(/\\+$/, '');
-      return normalized || portableRoot || '';
+      return normalized || homeDir || '';
     }
     const normalized = input.replace(/\/{2,}/g, '/').replace(/\/+$/, '');
     return normalized || '/';
@@ -500,7 +512,7 @@
     }
     const sep = oldPath.includes('\\') ? '\\' : '/';
     const lastSep = Math.max(oldPath.lastIndexOf(sep), oldPath.lastIndexOf('/'));
-    const parent = lastSep > 0 ? oldPath.substring(0, lastSep) : portableRoot;
+    const parent = lastSep > 0 ? oldPath.substring(0, lastSep) : homeDir;
     const newFullPath = (parent.endsWith(sep) ? parent : parent + sep) + newName.trim();
     if (newFullPath === oldPath) {
       editingNewPath = null;
@@ -568,7 +580,7 @@
     role="tree"
     tabindex="0"
   >
-    {#if currentPath && !isAtPortableRoot(currentPath)}
+    {#if currentPath && !isAtFilesystemRoot(currentPath)}
       <div class="parent-node" on:click={goUp} on:keydown={(e) => e.key === 'Enter' && goUp()} role="button" tabindex="0">
         <span class="node-icon"><ChevronUp size={12} /></span>
         <span class="node-name">..</span>

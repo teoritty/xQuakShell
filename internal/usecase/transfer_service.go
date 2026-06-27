@@ -29,7 +29,7 @@ type TransferProgressFunc func(TransferProgress)
 type TransferService struct {
 	sessions   *SessionManager
 	settings   *SettingsService
-	localFS    domain.LocalFileSystem
+	hostFS     domain.HostFileSystem
 	mu         sync.Mutex
 	cond       *sync.Cond
 	active     int
@@ -38,11 +38,11 @@ type TransferService struct {
 }
 
 // NewTransferService creates a transfer orchestrator.
-func NewTransferService(sessions *SessionManager, settings *SettingsService, localFS domain.LocalFileSystem) *TransferService {
+func NewTransferService(sessions *SessionManager, settings *SettingsService, hostFS domain.HostFileSystem) *TransferService {
 	s := &TransferService{
 		sessions: sessions,
 		settings: settings,
-		localFS:  localFS,
+		hostFS:   hostFS,
 		cancels:    make(map[string]context.CancelFunc),
 	}
 	s.cond = sync.NewCond(&s.mu)
@@ -51,10 +51,10 @@ func NewTransferService(sessions *SessionManager, settings *SettingsService, loc
 
 // Upload copies a local file or directory to the remote path.
 func (s *TransferService) Upload(ctx context.Context, sessionID, localPath, remotePath string, onProgress TransferProgressFunc) error {
-	if s.localFS == nil {
+	if s.hostFS == nil {
 		return fmt.Errorf("local file service unavailable")
 	}
-	resolved, err := s.localFS.ResolvePath(localPath)
+	resolved, err := s.hostFS.ResolvePath(localPath)
 	if err != nil {
 		return err
 	}
@@ -78,13 +78,13 @@ func (s *TransferService) Download(ctx context.Context, sessionID, remotePath, l
 	if err != nil {
 		return err
 	}
-	resolvedDir, err := s.localFS.ResolvePath(localDir)
+	resolvedDir, err := s.hostFS.ResolvePath(localDir)
 	if err != nil {
 		return err
 	}
 	if _, listErr := fs.List(sessionCtx, remotePath); listErr == nil {
 		localTarget := filepath.Join(resolvedDir, filepath.Base(remotePath))
-		if err := s.localFS.Mkdir(localTarget); err != nil {
+		if err := s.hostFS.Mkdir(localTarget); err != nil {
 			return err
 		}
 		return s.downloadRecursive(ctx, sessionID, remotePath, localTarget, onProgress)
@@ -310,7 +310,7 @@ func (s *TransferService) downloadFile(parentCtx context.Context, sessionID, rem
 	defer s.releaseSlot()
 	ctx, cancel := context.WithCancel(parentCtx)
 	localPath := filepath.Join(localDir, filepath.Base(remotePath))
-	if resolved, err := s.localFS.ResolvePath(localPath); err != nil {
+	if resolved, err := s.hostFS.ResolvePath(localPath); err != nil {
 		return err
 	} else {
 		localPath = resolved

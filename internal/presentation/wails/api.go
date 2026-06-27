@@ -22,7 +22,8 @@ type AppAPI struct {
 	settingsSvc         *usecase.SettingsService
 	auditSvc            *usecase.AuditService
 	transferSvc         *usecase.TransferService
-	localFS             domain.LocalFileSystem
+	hostFS              domain.HostFileSystem
+	portableData        domain.PortableDataStore
 	puttyImport         *usecase.PuTTYImportService
 	lockout             domain.LockoutManager
 	pingMgr             *usecase.PingManager
@@ -47,7 +48,8 @@ func NewAppAPI(
 	sessionConnectors []domain.SessionConnector,
 	auditLogRepo domain.AuditLogRepository,
 	lockoutMgr domain.LockoutManager,
-	localFS domain.LocalFileSystem,
+	hostFS domain.HostFileSystem,
+	portableData domain.PortableDataStore,
 	trackerFactory domain.CommandLineTrackerFactory,
 	sanitizerFactory domain.AuditInputSanitizerFactory,
 	puttyImporter domain.PuTTYImporter,
@@ -63,7 +65,8 @@ func NewAppAPI(
 		identRepo:         identRepo,
 		passwordRepo:      passwordRepo,
 		knownHosts:        knownHosts,
-		localFS:           localFS,
+		hostFS:            hostFS,
+		portableData:      portableData,
 		puttyImport:       usecase.NewPuTTYImportService(connRepo, identRepo, puttyImporter),
 		lockout:           lockoutMgr,
 		pingMgr:           pingMgr,
@@ -104,7 +107,7 @@ func NewAppAPI(
 	}
 
 	api.auditSvc = usecase.NewAuditService(auditLogRepo, api.settingsSvc, api.sessions, connRepo, trackerFactory, sanitizerFactory)
-	api.transferSvc = usecase.NewTransferService(api.sessions, api.settingsSvc, localFS)
+	api.transferSvc = usecase.NewTransferService(api.sessions, api.settingsSvc, hostFS)
 
 	return api
 }
