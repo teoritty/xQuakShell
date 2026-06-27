@@ -2,6 +2,7 @@ import {
   folders, connections, sessions, identities,
   vaultUnlocked, activeSessionId, transfers, transferCompleted, pendingHostKey,
   selectedConnectionId, selectedFolderId, pingResults, platform,
+  detailsConnectionId,
   showError, editingFiles,
   type Folder, type Connection, type Session,
   type RemoteNode, type TransferItem, type SSHIdentityMeta,
@@ -187,7 +188,7 @@ export async function saveConnection(c: Partial<Connection>): Promise<Connection
   }
 }
 
-export async function createNewConnectionInFolder(folderId: string): Promise<void> {
+export async function createNewConnectionInFolder(folderId: string): Promise<Connection | null> {
   const uid = `u-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const saved = await saveConnection({
     name: 'New connection',
@@ -199,7 +200,9 @@ export async function createNewConnectionInFolder(folderId: string): Promise<voi
   });
   if (saved) {
     selectedConnectionId.set(saved.id);
+    detailsConnectionId.set(saved.id);
   }
+  return saved;
 }
 
 export async function createNewFolderInFolder(parentId: string): Promise<void> {
@@ -242,6 +245,19 @@ export async function moveFolder(folderId: string, targetParentId: string): Prom
     await refreshFolders();
   } catch (e) {
     handleError(e, 'Move folder');
+  }
+}
+
+export async function moveFolders(folderIds: string[], targetParentId: string): Promise<void> {
+  const app = getApp();
+  if (!app || folderIds.length === 0) return;
+  try {
+    for (const folderId of folderIds) {
+      await app.MoveFolder(folderId, targetParentId);
+    }
+    await refreshFolders();
+  } catch (e) {
+    handleError(e, 'Move folders');
   }
 }
 

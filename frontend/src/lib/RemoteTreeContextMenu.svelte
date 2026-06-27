@@ -1,27 +1,44 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { Trash2, Star } from 'lucide-svelte';
+  import { FolderPlus, MonitorDot, Pencil, Star, Trash2 } from 'lucide-svelte';
 
   export let x = 0;
   export let y = 0;
   export let show = false;
+  export let isFolder = false;
   export let isConnection = false;
   export let isFavorite = false;
 
   const dispatch = createEventDispatcher<{
+    newConnection: void;
+    newFolder: void;
+    edit: void;
     delete: void;
     toggleFavorite: void;
   }>();
 </script>
 
 {#if show}
-  <div
-    class="context-menu"
-    style="left: {x}px; top: {y}px"
-    role="menu"
-    on:click|stopPropagation
-  >
+  <div class="context-menu" style="left: {x}px; top: {y}px" role="menu" on:click|stopPropagation>
+    {#if isFolder}
+      <button class="menu-item" on:click={() => dispatch('newConnection')} role="menuitem">
+        <MonitorDot size={12} />
+        <span>New connection</span>
+      </button>
+      <button class="menu-item" on:click={() => dispatch('newFolder')} role="menuitem">
+        <FolderPlus size={12} />
+        <span>New folder</span>
+      </button>
+      <button class="menu-item" on:click={() => dispatch('edit')} role="menuitem">
+        <Pencil size={12} />
+        <span>Edit</span>
+      </button>
+    {/if}
     {#if isConnection}
+      <button class="menu-item" on:click={() => dispatch('edit')} role="menuitem">
+        <Pencil size={12} />
+        <span>Edit</span>
+      </button>
       <button class="menu-item" on:click={() => dispatch('toggleFavorite')} role="menuitem">
         <span class="star-icon" class:filled={isFavorite}><Star size={12} /></span>
         <span>{isFavorite ? 'Remove from favorites' : 'Add to favorites'}</span>

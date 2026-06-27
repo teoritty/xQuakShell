@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { selectedConnection, identities, selectedConnectionId, type ConnectionUser, type JumpHop, type ProxyConfig } from '../stores/appState';
+  import { detailsConnection, detailsConnectionId, identities, type ConnectionUser, type JumpHop, type ProxyConfig } from '../stores/appState';
   import { saveConnection, importIdentity, importPassword, getPluginConnectionProtocols, type ConnectionProtocol } from '../stores/api';
   import { UserPlus, Trash2, KeyRound, Plus, X } from 'lucide-svelte';
 
@@ -25,7 +25,7 @@
   let addingTag = false;
   let newTagValue = '';
 
-  $: connId = $selectedConnection?.id || '';
+  $: connId = $detailsConnection?.id || '';
   $: isSSH = protocol === 'ssh';
 
   onMount(async () => {
@@ -37,7 +37,7 @@
   }
 
   async function loadFromStore() {
-    const c = $selectedConnection;
+    const c = $detailsConnection;
     editingId = c?.id || '';
     name = c?.name || '';
     protocol = c?.protocol || 'ssh';
@@ -86,12 +86,12 @@
       protocol,
       host: host.trim(),
       port,
-      folderId: $selectedConnection?.folderId || '',
+      folderId: $detailsConnection?.folderId || '',
       tags,
       users: filteredUsers,
       defaultUserId,
       jumpChain: filteredHops,
-      order: $selectedConnection?.order ?? 0,
+      order: $detailsConnection?.order ?? 0,
     };
     if (proxyEnabled && proxyHost.trim()) {
       conn.proxy = { type: 'socks5', host: proxyHost.trim(), port: proxyPort, username: proxyUsername.trim() || undefined };
@@ -232,13 +232,23 @@
   }
 </script>
 
-{#if $selectedConnection}
+{#if $detailsConnection}
 <div class="connection-details">
   <div class="panel-header">
-    <span>Connection</span>
-    <span class="save-indicator">
-      {#if saveStatus === 'saving'}Saving...{:else if saveStatus === 'saved'}Saved{/if}
-    </span>
+    <div class="panel-header-left">
+      <span>Connection</span>
+      <span class="save-indicator">
+        {#if saveStatus === 'saving'}Saving...{:else if saveStatus === 'saved'}Saved{/if}
+      </span>
+    </div>
+    <button
+      type="button"
+      class="panel-close-btn"
+      title="Close"
+      on:click={() => detailsConnectionId.set('')}
+    >
+      <X size={14} />
+    </button>
   </div>
 
   <div class="details-body">
@@ -466,6 +476,30 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+  }
+
+  .panel-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .panel-close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 2px 4px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .panel-close-btn:hover {
+    color: var(--danger);
   }
 
   .save-indicator {

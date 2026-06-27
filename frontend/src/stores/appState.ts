@@ -190,6 +190,14 @@ export const selectedConnection = derived(
     $connections.find(c => c.id === $selectedConnectionId) || null
 );
 
+export const detailsConnectionId = writable<string>('');
+
+export const detailsConnection = derived(
+  [connections, detailsConnectionId],
+  ([$connections, $detailsConnectionId]) =>
+    $connections.find(c => c.id === $detailsConnectionId) || null
+);
+
 export const activeSession = derived(
   [sessions, activeSessionId],
   ([$sessions, $activeSessionId]) =>
