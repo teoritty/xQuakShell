@@ -39,14 +39,6 @@ export interface JumpHop {
   passAuth?: PassAuthConfig;
 }
 
-export interface ProxyConfig {
-  type?: string;
-  host: string;
-  port: number;
-  username?: string;
-  passwordId?: string;
-}
-
 export interface Connection {
   id: string;
   folderId: string;
@@ -60,7 +52,6 @@ export interface Connection {
   defaultUserId?: string;
   tags?: string[];
   jumpChain?: JumpHop[];
-  proxy?: ProxyConfig;
   protocol?: string;
 }
 

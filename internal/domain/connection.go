@@ -11,20 +11,6 @@ const (
 	MaxPort = 65535
 )
 
-// ProxyConfig configures a SOCKS proxy for outbound connections.
-type ProxyConfig struct {
-	Type       string `json:"type"` // "socks5" or "socks4"
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	Username   string `json:"username,omitempty"`
-	PasswordID string `json:"passwordId,omitempty"`
-}
-
-// IsEmpty returns true if the proxy is not configured.
-func (p *ProxyConfig) IsEmpty() bool {
-	return p == nil || (p.Host == "" && p.Port == 0)
-}
-
 // ProtocolType identifies the connection protocol.
 const (
 	ProtocolSSH = "ssh"
@@ -34,6 +20,7 @@ const (
 // Users holds one or more ConnectionUser references; DefaultUserID selects the active one.
 // Legacy fields User and IdentityIDs are kept for vault v1 backward compatibility
 // and are migrated into Users on vault upgrade.
+// Vault JSON may still contain a legacy "proxy" key; encoding/json ignores unknown fields on unmarshal.
 type Connection struct {
 	ID       string `json:"id"`
 	FolderID string `json:"folderId"`
@@ -50,9 +37,8 @@ type Connection struct {
 	Protocol      string           `json:"protocol,omitempty"` // ssh (default); other values require a plugin connector
 	Users         []ConnectionUser `json:"users,omitempty"`
 	DefaultUserID string           `json:"defaultUserId,omitempty"`
-	Tags      []string        `json:"tags,omitempty"`
-	JumpChain JumpChainConfig `json:"jumpChain,omitempty"`
-	Proxy         *ProxyConfig     `json:"proxy,omitempty"`
+	Tags          []string         `json:"tags,omitempty"`
+	JumpChain     JumpChainConfig  `json:"jumpChain,omitempty"`
 }
 
 // DefaultUser returns the ConnectionUser designated as default, or nil when none is set.
@@ -101,7 +87,7 @@ func (c *Connection) EffectivePort() int {
 	return 0
 }
 
-// Validate checks structural constraints (port range, jump hops, proxy).
+// Validate checks structural constraints (port range, jump hops).
 // It deliberately allows empty host/username so draft connections can be saved.
 // Full readiness should be checked via ValidateForConnect before opening a session.
 func (c *Connection) Validate() error {
@@ -112,9 +98,6 @@ func (c *Connection) Validate() error {
 		if err := c.JumpChain.Hops[i].Validate(); err != nil {
 			return fmt.Errorf("jump hop %d: %w", i, err)
 		}
-	}
-	if c.Proxy != nil && !c.Proxy.IsEmpty() && (c.Proxy.Port < MinPort || c.Proxy.Port > MaxPort) {
-		return fmt.Errorf("proxy port %d out of range: %w", c.Proxy.Port, ErrInvalidConnectionConfig)
 	}
 	return nil
 }

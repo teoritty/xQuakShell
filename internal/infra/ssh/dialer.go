@@ -8,7 +8,6 @@ import (
 	"time"
 
 	gossh "golang.org/x/crypto/ssh"
-	"golang.org/x/net/proxy"
 
 	"ssh-client/internal/domain"
 )
@@ -78,22 +77,10 @@ func (d *Dialer) Create(ctx context.Context, cfg domain.SSHClientConfig) (domain
 	var conn net.Conn
 	var err error
 
+	// Outbound dialing is either a pre-established transport (jump chains) or direct TCP.
+	// A future plugin-provided transport would attach via cfg.Transport, not a new branch here.
 	if cfg.Transport != nil {
 		conn = cfg.Transport
-	} else if cfg.Proxy != nil && cfg.Proxy.Host != "" && cfg.Proxy.Port > 0 {
-		var auth *proxy.Auth
-		if cfg.Proxy.Username != "" || cfg.Proxy.Password != "" {
-			auth = &proxy.Auth{User: cfg.Proxy.Username, Password: cfg.Proxy.Password}
-		}
-		proxyAddr := fmt.Sprintf("%s:%d", cfg.Proxy.Host, cfg.Proxy.Port)
-		socksDialer, err := proxy.SOCKS5("tcp", proxyAddr, auth, proxy.Direct)
-		if err != nil {
-			return nil, fmt.Errorf("socks5 proxy %s: %w", proxyAddr, err)
-		}
-		conn, err = socksDialer.Dial("tcp", addr)
-		if err != nil {
-			return nil, fmt.Errorf("ssh via socks %s: %w", addr, err)
-		}
 	} else {
 		dialer := net.Dialer{Timeout: timeout}
 		conn, err = dialer.DialContext(ctx, "tcp", addr)

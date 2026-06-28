@@ -159,7 +159,7 @@
   }
 
   function requestDeletePreset(p: (typeof presets)[0]) {
-    deleteConfirm = { show: true, presetId: p.id, presetName: p.name };
+    deleteConfirm = { show: true, presetId: p.id, presetName: p.name, fromEdit: false };
   }
 
   function confirmDeletePreset() {

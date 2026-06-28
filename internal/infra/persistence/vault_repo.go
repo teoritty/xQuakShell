@@ -44,6 +44,20 @@ func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
 		return err
 	}
 
+	// ReadVaultFile -> Decrypt runs the same scrypt KDF as Encrypt (see the
+	// SetWorkFactor comment in internal/infra/vault/vault.go) and transiently
+	// allocates ~256 MiB while doing so. Force the Go runtime to release
+	// those pages back to the OS immediately, mirroring the identical
+	// workaround already used after vault writes below in flushNow().
+	// Without this, unlocking the vault produces an RSS spike that can
+	// visibly linger for several minutes before the runtime's background
+	// scavenger reclaims it on its own. Runs in a goroutine so it never
+	// blocks the caller waiting on Unlock's return.
+	go func() {
+		runtime.GC()
+		debug.FreeOSMemory()
+	}()
+
 	if data.Identities == nil {
 		data.Identities = map[string]domain.SSHIdentity{}
 	}
@@ -175,6 +189,14 @@ func (r *VaultRepo) flushGeneration(gen uint64) {
 
 	err := vault.WriteVaultFile(dir, passphrase, data)
 
+	// vault.WriteVaultFile (Encrypt) runs the same scrypt key derivation as
+	// vault.ReadVaultFile (Decrypt) — see the SetWorkFactor comment in
+	// internal/infra/vault/vault.go for why that transiently costs ~256 MiB.
+	// Force an immediate GC pass and release those pages back to the OS here
+	// so the RSS spike collapses right after the save completes instead of
+	// lingering for minutes while the Go runtime's background scavenger gets
+	// around to it on its own schedule. Runs in a goroutine so it never
+	// blocks the caller waiting on this flush.
 	go func() {
 		runtime.GC()
 		debug.FreeOSMemory()

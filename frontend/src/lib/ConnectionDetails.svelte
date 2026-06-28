@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { detailsConnection, detailsConnectionId, identities, type ConnectionUser, type JumpHop, type ProxyConfig } from '../stores/appState';
+  import { detailsConnection, detailsConnectionId, identities, type ConnectionUser, type JumpHop } from '../stores/appState';
   import { saveConnection, importIdentity, importPassword, getPluginConnectionProtocols, type ConnectionProtocol } from '../stores/api';
   import { UserPlus, Trash2, KeyRound, Plus, X } from 'lucide-svelte';
 
@@ -14,11 +14,6 @@
   let users: ConnectionUser[] = [];
   let defaultUserId = '';
   let jumpHops: JumpHop[] = [];
-  let proxyEnabled = false;
-  let proxyHost = '';
-  let proxyPort = 1080;
-  let proxyUsername = '';
-  let proxyPasswordId = '';
   let dirty = false;
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   let saveStatus: 'idle' | 'saving' | 'saved' = 'idle';
@@ -47,11 +42,6 @@
     users = (c?.users || []).map(u => ({...u}));
     defaultUserId = c?.defaultUserId || '';
     jumpHops = (c?.jumpChain || []).map(h => ({...h}));
-    proxyEnabled = !!(c?.proxy && (c.proxy.host || c.proxy.port));
-    proxyHost = c?.proxy?.host || '';
-    proxyPort = c?.proxy?.port || 1080;
-    proxyUsername = c?.proxy?.username || '';
-    proxyPasswordId = c?.proxy?.passwordId || '';
     dirty = false;
     saveStatus = 'idle';
     addingTag = false;
@@ -93,10 +83,6 @@
       jumpChain: filteredHops,
       order: $detailsConnection?.order ?? 0,
     };
-    if (proxyEnabled && proxyHost.trim()) {
-      conn.proxy = { type: 'socks5', host: proxyHost.trim(), port: proxyPort, username: proxyUsername.trim() || undefined };
-      if (proxyPasswordId) conn.proxy.passwordId = proxyPasswordId;
-    }
     try {
       await saveConnection(conn);
       dirty = false;
@@ -192,15 +178,6 @@
         if (u.id !== userId) return u;
         return { ...u, passAuth: { passwordId: pwId } };
       });
-      markDirty();
-    }
-  }
-
-  async function handleProxyPasswordChange(value: string) {
-    if (!value || value === '********') return;
-    const pwId = await importPassword(value, 'proxy');
-    if (pwId) {
-      proxyPasswordId = pwId;
       markDirty();
     }
   }
@@ -419,46 +396,6 @@
     </div>
     {/if}
 
-    <!-- Proxy (SSH only) -->
-    {#if isSSH}
-    <div class="field">
-      <div class="section-header">
-        <span class="field-label">SOCKS Proxy</span>
-        <button class="ghost micro-btn" on:click={() => { proxyEnabled = !proxyEnabled; markDirty(); }}>
-          {proxyEnabled ? 'Disable' : 'Enable'}
-        </button>
-      </div>
-      {#if proxyEnabled}
-        <div class="proxy-block">
-          <div class="field-row">
-            <label class="field" style="flex:1">
-              <span class="field-label">Host</span>
-              <input type="text" bind:value={proxyHost} on:input={markDirty} placeholder="proxy.example.com" />
-            </label>
-            <label class="field" style="width: calc(70px * var(--ui-scale))">
-              <span class="field-label">Port</span>
-              <input type="number" bind:value={proxyPort} on:input={markDirty} min="1" max="65535" />
-            </label>
-          </div>
-          <label class="field">
-            <span class="field-label">Username (optional)</span>
-            <input type="text" bind:value={proxyUsername} on:input={markDirty} placeholder="proxy user" />
-          </label>
-          <label class="field">
-            <span class="field-label">Password (optional)</span>
-            <input
-              type="password"
-              placeholder={proxyPasswordId ? '********' : 'Enter password'}
-              value={proxyPasswordId ? '' : ''}
-              on:change={(e) => handleProxyPasswordChange(e.currentTarget.value)}
-              class="pass-input"
-            />
-          </label>
-        </div>
-      {/if}
-    </div>
-    {/if}
-
   </div>
 </div>
 {/if}
@@ -607,8 +544,5 @@
   .hop-input { flex: 1; font-size: 11px; min-width: 60px; }
   .hop-port { width: 55px; font-size: 11px; }
   .hop-select { width: 55px; font-size: 11px; }
-
-  /* Proxy */
-  .proxy-block { padding: 4px; background: var(--bg-tertiary); border-radius: 2px; }
 
 </style>

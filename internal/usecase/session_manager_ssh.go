@@ -10,7 +10,7 @@ import (
 )
 
 // connectSession performs the SSH handshake in a goroutine.
-// Order: resolve auth (keys/password) → host key callback → optional SOCKS → optional jump chain
+// Order: resolve auth (keys/password) → host key callback → optional jump chain
 // transport → SSHClientFactory.Create → server-alive loop. Host key / passphrase UI is driven by
 // HostKeyRequestFunc and PassphraseRequestFunc, not by this package.
 // On host key errors it transitions to SessionHostKeyRequired and waits for RetrySession.
@@ -38,31 +38,7 @@ func (m *SessionManager) connectSession(entry *sessionEntry, conn *domain.Connec
 		HostKeyCallback: hostKeyCallback,
 		TimeoutSeconds:  timeoutSec,
 	}
-	if conn.Proxy != nil && !conn.Proxy.IsEmpty() {
-		proxyAuth := &domain.ProxyAuth{
-			Host:     conn.Proxy.Host,
-			Port:     conn.Proxy.Port,
-			Username: conn.Proxy.Username,
-		}
-		if conn.Proxy.PasswordID != "" {
-			pw, err := m.passwordRepo.Get(entry.ctx, conn.Proxy.PasswordID)
-			if err == nil {
-				proxyAuth.Password = string(pw)
-			}
-		}
-		sshCfg.Proxy = proxyAuth
-	}
-
 	if !conn.JumpChain.IsEmpty() {
-		var proxyAuth *domain.ProxyAuth
-		if conn.Proxy != nil && !conn.Proxy.IsEmpty() {
-			proxyAuth = &domain.ProxyAuth{Host: conn.Proxy.Host, Port: conn.Proxy.Port, Username: conn.Proxy.Username}
-			if conn.Proxy.PasswordID != "" {
-				if pw, err := m.passwordRepo.Get(entry.ctx, conn.Proxy.PasswordID); err == nil {
-					proxyAuth.Password = string(pw)
-				}
-			}
-		}
 		hopResolver := func(hop domain.JumpHop) ([]domain.Signer, string, error) {
 			return m.resolveHopAuthWithCtx(entry.ctx, hop)
 		}
@@ -71,7 +47,6 @@ func (m *SessionManager) connectSession(entry *sessionEntry, conn *domain.Connec
 			conn.JumpChain.Hops,
 			conn.Host, conn.Port,
 			timeoutSec,
-			proxyAuth,
 			m.sshFactory,
 			hostKeyCallback,
 			hopResolver,

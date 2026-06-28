@@ -52,7 +52,6 @@ type JumpTransportBuilder interface {
 		targetHost string,
 		targetPort int,
 		timeoutSeconds int,
-		proxyAuth *ProxyAuth,
 		factory SSHClientFactory,
 		hostKeyCallback ssh.HostKeyCallback,
 		resolveHopAuth JumpHopAuthResolver,

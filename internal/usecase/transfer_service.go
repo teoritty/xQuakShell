@@ -27,14 +27,14 @@ type TransferProgressFunc func(TransferProgress)
 
 // TransferService orchestrates SFTP uploads and downloads with concurrency limits.
 type TransferService struct {
-	sessions   *SessionManager
-	settings   *SettingsService
-	hostFS     domain.HostFileSystem
-	mu         sync.Mutex
-	cond       *sync.Cond
-	active     int
-	cancelsMu  sync.Mutex
-	cancels    map[string]context.CancelFunc
+	sessions  *SessionManager
+	settings  *SettingsService
+	hostFS    domain.HostFileSystem
+	mu        sync.Mutex
+	cond      *sync.Cond
+	active    int
+	cancelsMu sync.Mutex
+	cancels   map[string]context.CancelFunc
 }
 
 // NewTransferService creates a transfer orchestrator.
@@ -43,7 +43,7 @@ func NewTransferService(sessions *SessionManager, settings *SettingsService, hos
 		sessions: sessions,
 		settings: settings,
 		hostFS:   hostFS,
-		cancels:    make(map[string]context.CancelFunc),
+		cancels:  make(map[string]context.CancelFunc),
 	}
 	s.cond = sync.NewCond(&s.mu)
 	return s
@@ -166,6 +166,19 @@ func (s *TransferService) uploadFile(parentCtx context.Context, sessionID, local
 	}
 	defer s.releaseSlot()
 	ctx, cancel := context.WithCancel(parentCtx)
+	// defer cancel() releases this child context's resources as soon as this
+	// function returns, on every path (success, failure, or cancellation).
+	// Without it, every transfer created a child of the session's long-lived
+	// context (parentCtx, from SessionManager.GetSessionContext) and never
+	// released it: context.WithCancel registers the child in its parent's
+	// internal children map, and that registration is only removed when
+	// cancel() actually runs — never automatically when this function
+	// returns. Each leaked entry is small on its own, but a long session
+	// with many uploads/downloads accumulates them for as long as the
+	// session stays open, which is a real (if slow) resource leak. This is a
+	// pre-existing bug, fixed here; the same pattern is fixed in
+	// uploadRecursive, downloadRecursive, and downloadFile below.
+	defer cancel()
 	transferID := fmt.Sprintf("upload-%s-%s", sessionID, filepath.Base(localPath))
 	s.registerCancel(transferID, cancel)
 	defer s.unregisterCancel(transferID)
@@ -215,6 +228,9 @@ func (s *TransferService) uploadRecursive(parentCtx context.Context, sessionID, 
 	}
 	defer s.releaseSlot()
 	ctx, cancel := context.WithCancel(parentCtx)
+	// defer cancel() — see the comment in uploadFile above for why this
+	// matters; same context-leak pattern fixed here.
+	defer cancel()
 	transferID := fmt.Sprintf("upload-%s-%s", sessionID, filepath.Base(localDir))
 	s.registerCancel(transferID, cancel)
 	defer s.unregisterCancel(transferID)
@@ -262,6 +278,9 @@ func (s *TransferService) downloadRecursive(parentCtx context.Context, sessionID
 	}
 	defer s.releaseSlot()
 	ctx, cancel := context.WithCancel(parentCtx)
+	// defer cancel() — see the comment in uploadFile above for why this
+	// matters; same context-leak pattern fixed here.
+	defer cancel()
 	transferID := fmt.Sprintf("download-%s-%s", sessionID, filepath.Base(remoteDir))
 	s.registerCancel(transferID, cancel)
 	defer s.unregisterCancel(transferID)
@@ -308,13 +327,16 @@ func (s *TransferService) downloadFile(parentCtx context.Context, sessionID, rem
 		return err
 	}
 	defer s.releaseSlot()
-	ctx, cancel := context.WithCancel(parentCtx)
 	localPath := filepath.Join(localDir, filepath.Base(remotePath))
 	if resolved, err := s.hostFS.ResolvePath(localPath); err != nil {
 		return err
 	} else {
 		localPath = resolved
 	}
+	ctx, cancel := context.WithCancel(parentCtx)
+	// defer cancel() — see the comment in uploadFile above for why this
+	// matters; same context-leak pattern fixed here.
+	defer cancel()
 	transferID := fmt.Sprintf("download-%s-%s", sessionID, filepath.Base(remotePath))
 	s.registerCancel(transferID, cancel)
 	defer s.unregisterCancel(transferID)
