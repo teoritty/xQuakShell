@@ -61,14 +61,6 @@ type SSHClient interface {
 	KeepAlive() error
 }
 
-// ProxyAuth holds SOCKS proxy authentication.
-type ProxyAuth struct {
-	Host     string
-	Port     int
-	Username string
-	Password string
-}
-
 // SSHClientConfig holds all parameters needed to establish an SSH connection.
 type SSHClientConfig struct {
 	Host            string
@@ -79,7 +71,6 @@ type SSHClientConfig struct {
 	HostKeyCallback ssh.HostKeyCallback
 	TimeoutSeconds  int
 	Transport       net.Conn
-	Proxy           *ProxyAuth
 }
 
 // SSHClientFactory creates SSH connections from a configuration.

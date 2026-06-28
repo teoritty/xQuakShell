@@ -133,7 +133,7 @@ func (m *mapPassphraseCache) Clear() {
 
 type neverJumpBuilder struct{}
 
-func (neverJumpBuilder) BuildChain(context.Context, []domain.JumpHop, string, int, int, *domain.ProxyAuth, domain.SSHClientFactory, gossh.HostKeyCallback, domain.JumpHopAuthResolver) (net.Conn, func(), error) {
+func (neverJumpBuilder) BuildChain(context.Context, []domain.JumpHop, string, int, int, domain.SSHClientFactory, gossh.HostKeyCallback, domain.JumpHopAuthResolver) (net.Conn, func(), error) {
 	panic("jump chain must not be used in this test")
 }
 
@@ -141,7 +141,7 @@ type errJumpBuilder struct {
 	err error
 }
 
-func (e errJumpBuilder) BuildChain(context.Context, []domain.JumpHop, string, int, int, *domain.ProxyAuth, domain.SSHClientFactory, gossh.HostKeyCallback, domain.JumpHopAuthResolver) (net.Conn, func(), error) {
+func (e errJumpBuilder) BuildChain(context.Context, []domain.JumpHop, string, int, int, domain.SSHClientFactory, gossh.HostKeyCallback, domain.JumpHopAuthResolver) (net.Conn, func(), error) {
 	return nil, nil, e.err
 }
 

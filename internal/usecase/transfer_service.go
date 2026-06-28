@@ -27,14 +27,14 @@ type TransferProgressFunc func(TransferProgress)
 
 // TransferService orchestrates SFTP uploads and downloads with concurrency limits.
 type TransferService struct {
-	sessions   *SessionManager
-	settings   *SettingsService
-	hostFS     domain.HostFileSystem
-	mu         sync.Mutex
-	cond       *sync.Cond
-	active     int
-	cancelsMu  sync.Mutex
-	cancels    map[string]context.CancelFunc
+	sessions  *SessionManager
+	settings  *SettingsService
+	hostFS    domain.HostFileSystem
+	mu        sync.Mutex
+	cond      *sync.Cond
+	active    int
+	cancelsMu sync.Mutex
+	cancels   map[string]context.CancelFunc
 }
 
 // NewTransferService creates a transfer orchestrator.
@@ -43,7 +43,7 @@ func NewTransferService(sessions *SessionManager, settings *SettingsService, hos
 		sessions: sessions,
 		settings: settings,
 		hostFS:   hostFS,
-		cancels:    make(map[string]context.CancelFunc),
+		cancels:  make(map[string]context.CancelFunc),
 	}
 	s.cond = sync.NewCond(&s.mu)
 	return s
@@ -308,13 +308,13 @@ func (s *TransferService) downloadFile(parentCtx context.Context, sessionID, rem
 		return err
 	}
 	defer s.releaseSlot()
-	ctx, cancel := context.WithCancel(parentCtx)
 	localPath := filepath.Join(localDir, filepath.Base(remotePath))
 	if resolved, err := s.hostFS.ResolvePath(localPath); err != nil {
 		return err
 	} else {
 		localPath = resolved
 	}
+	ctx, cancel := context.WithCancel(parentCtx)
 	transferID := fmt.Sprintf("download-%s-%s", sessionID, filepath.Base(remotePath))
 	s.registerCancel(transferID, cancel)
 	defer s.unregisterCancel(transferID)

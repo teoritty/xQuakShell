@@ -102,26 +102,6 @@ export namespace wails {
 	        this.logSecretsEnabled = source["logSecretsEnabled"];
 	    }
 	}
-	export class ProxyDTO {
-	    type: string;
-	    host: string;
-	    port: number;
-	    username?: string;
-	    passwordId?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new ProxyDTO(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.type = source["type"];
-	        this.host = source["host"];
-	        this.port = source["port"];
-	        this.username = source["username"];
-	        this.passwordId = source["passwordId"];
-	    }
-	}
 	export class JumpHopDTO {
 	    host: string;
 	    port: number;
@@ -240,7 +220,6 @@ export namespace wails {
 	    defaultUserId?: string;
 	    tags?: string[];
 	    jumpChain?: JumpHopDTO[];
-	    proxy?: ProxyDTO;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConnectionDTO(source);
@@ -261,7 +240,6 @@ export namespace wails {
 	        this.defaultUserId = source["defaultUserId"];
 	        this.tags = source["tags"];
 	        this.jumpChain = this.convertValues(source["jumpChain"], JumpHopDTO);
-	        this.proxy = this.convertValues(source["proxy"], ProxyDTO);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -600,7 +578,6 @@ export namespace wails {
 	        this.requireSignedPlugins = source["requireSignedPlugins"];
 	    }
 	}
-	
 	
 	
 	export class PuTTYSessionDTO {

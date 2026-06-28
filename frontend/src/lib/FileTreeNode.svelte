@@ -39,7 +39,7 @@
     on:dblclick={() => node.isDir && onNavigate(node.path)}
     on:contextmenu={(e) => onContextMenu?.(e, node)}
     on:keydown={(e) => {
-      if (e.key === 'Enter') node.isDir ? onNavigate(node.path) : onSelect(node.path, e);
+      if (e.key === 'Enter') node.isDir ? onNavigate(node.path) : onSelect(node.path);
     }}
     draggable={true}
     on:dragstart={(e) => onDragStartFile(e, node)}

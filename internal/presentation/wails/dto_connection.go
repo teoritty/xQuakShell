@@ -40,15 +40,6 @@ type JumpHopDTO struct {
 	PassAuth *PassAuthConfigDTO `json:"passAuth,omitempty"`
 }
 
-// ProxyDTO is the UI-facing representation of SOCKS proxy config.
-type ProxyDTO struct {
-	Type       string `json:"type"`
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	Username   string `json:"username,omitempty"`
-	PasswordID string `json:"passwordId,omitempty"`
-}
-
 // ConnectionDTO is the UI-facing representation of a connection.
 type ConnectionDTO struct {
 	ID            string              `json:"id"`
@@ -64,7 +55,6 @@ type ConnectionDTO struct {
 	DefaultUserID string              `json:"defaultUserId,omitempty"`
 	Tags          []string            `json:"tags,omitempty"`
 	JumpChain     []JumpHopDTO        `json:"jumpChain,omitempty"`
-	Proxy         *ProxyDTO           `json:"proxy,omitempty"`
 }
 
 // IdentityDTO is the UI-facing representation of an SSH identity.
@@ -122,15 +112,6 @@ func ConnectionToDTO(c domain.Connection) ConnectionDTO {
 	}
 	for _, h := range c.JumpChain.Hops {
 		dto.JumpChain = append(dto.JumpChain, jumpHopToDTO(h))
-	}
-	if c.Proxy != nil && !c.Proxy.IsEmpty() {
-		dto.Proxy = &ProxyDTO{
-			Type:       c.Proxy.Type,
-			Host:       c.Proxy.Host,
-			Port:       c.Proxy.Port,
-			Username:   c.Proxy.Username,
-			PasswordID: c.Proxy.PasswordID,
-		}
 	}
 	return dto
 }
@@ -229,18 +210,6 @@ func DTOToConnection(d ConnectionDTO) domain.Connection {
 	}
 	for _, h := range d.JumpChain {
 		c.JumpChain.Hops = append(c.JumpChain.Hops, dtoToJumpHop(h))
-	}
-	if d.Proxy != nil && (d.Proxy.Host != "" || d.Proxy.Port != 0) {
-		c.Proxy = &domain.ProxyConfig{
-			Type:       d.Proxy.Type,
-			Host:       d.Proxy.Host,
-			Port:       d.Proxy.Port,
-			Username:   d.Proxy.Username,
-			PasswordID: d.Proxy.PasswordID,
-		}
-		if c.Proxy.Type == "" {
-			c.Proxy.Type = "socks5"
-		}
 	}
 	return c
 }

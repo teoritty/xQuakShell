@@ -144,7 +144,7 @@
 
   function scheduleRefit() {
     if (refitRaf) cancelAnimationFrame(refitRaf);
-    refitRaf = requestAnimationFrame(refit);
+    refitRaf = requestAnimationFrame(() => refit());
   }
 
   async function pasteFromClipboard() {
