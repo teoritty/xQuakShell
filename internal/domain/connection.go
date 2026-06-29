@@ -87,13 +87,22 @@ func (c *Connection) EffectivePort() int {
 	return 0
 }
 
-// Validate checks structural constraints (port range, jump hops).
+// Validate checks structural constraints (port range, jump hop ports).
 // It deliberately allows empty host/username so draft connections can be saved.
 // Full readiness should be checked via ValidateForConnect before opening a session.
 func (c *Connection) Validate() error {
 	if c.Port < MinPort || c.Port > MaxPort {
 		return fmt.Errorf("port %d out of range [%d-%d]: %w", c.Port, MinPort, MaxPort, ErrInvalidConnectionConfig)
 	}
+	for i := range c.JumpChain.Hops {
+		if p := c.JumpChain.Hops[i].Port; p < MinPort || p > MaxPort {
+			return fmt.Errorf("jump hop %d port %d out of range [%d-%d]: %w", i, p, MinPort, MaxPort, ErrInvalidConnectionConfig)
+		}
+	}
+	return nil
+}
+
+func (c *Connection) validateHopsStrict() error {
 	for i := range c.JumpChain.Hops {
 		if err := c.JumpChain.Hops[i].Validate(); err != nil {
 			return fmt.Errorf("jump hop %d: %w", i, err)
@@ -113,7 +122,10 @@ func (c *Connection) ValidateForConnect() error {
 		if c.EffectiveUsername() == "" {
 			return fmt.Errorf("at least one user must be configured: %w", ErrInvalidConnectionConfig)
 		}
-		return c.Validate()
+		if err := c.Validate(); err != nil {
+			return err
+		}
+		return c.validateHopsStrict()
 	default:
 		if c.Host == "" {
 			return fmt.Errorf("host must not be empty: %w", ErrInvalidConnectionConfig)
@@ -123,7 +135,10 @@ func (c *Connection) ValidateForConnect() error {
 				return fmt.Errorf("port %d out of range [%d-%d]: %w", c.Port, MinPort, MaxPort, ErrInvalidConnectionConfig)
 			}
 		}
-		return c.Validate()
+		if err := c.Validate(); err != nil {
+			return err
+		}
+		return c.validateHopsStrict()
 	}
 }
 
