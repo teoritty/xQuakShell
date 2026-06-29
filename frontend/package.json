@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test:dnd": "npx tsx src/lib/remoteTree/dndGuards.test.ts"
+    "test:dnd": "npx tsx src/lib/remoteTree/dndGuards.test.ts",
+    "test:connection-details": "npx tsx src/lib/connectionDetails/connectionDraft.test.ts",
+    "test": "npm run test:dnd && npm run test:connection-details"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^1.0.1",
