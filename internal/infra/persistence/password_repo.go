@@ -21,19 +21,17 @@ func NewPasswordRepo(v domain.VaultRepository) *PasswordRepo {
 
 // Import stores a new password in the vault and returns the generated ID.
 func (r *PasswordRepo) Import(ctx context.Context, password []byte, label string) (string, error) {
-	data, err := r.vault.GetData()
-	if err != nil {
-		return "", fmt.Errorf("import password get data: %w", err)
-	}
-
 	id := uuid.New().String()
-	data.Passwords[id] = domain.PasswordBlob{
-		Value: append([]byte(nil), password...),
-		Label: label,
-	}
+	valueCopy := append([]byte(nil), password...)
 
-	if err := r.vault.SaveData(ctx, data); err != nil {
-		return "", fmt.Errorf("import password save: %w", err)
+	if err := r.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		data.Passwords[id] = domain.PasswordBlob{
+			Value: valueCopy,
+			Label: label,
+		}
+		return nil
+	}); err != nil {
+		return "", fmt.Errorf("import password: %w", err)
 	}
 
 	return id, nil
@@ -50,22 +48,18 @@ func (r *PasswordRepo) Get(_ context.Context, id string) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("password %s: %w", id, domain.ErrPasswordNotFound)
 	}
-	return blob.Value, nil
+	return append([]byte(nil), blob.Value...), nil
 }
 
 // Delete removes a password by ID from the vault.
 func (r *PasswordRepo) Delete(ctx context.Context, id string) error {
-	data, err := r.vault.GetData()
-	if err != nil {
-		return fmt.Errorf("delete password get data: %w", err)
-	}
-
-	if _, ok := data.Passwords[id]; !ok {
-		return fmt.Errorf("password %s: %w", id, domain.ErrPasswordNotFound)
-	}
-
-	delete(data.Passwords, id)
-	return r.vault.SaveData(ctx, data)
+	return r.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		if _, ok := data.Passwords[id]; !ok {
+			return fmt.Errorf("password %s: %w", id, domain.ErrPasswordNotFound)
+		}
+		delete(data.Passwords, id)
+		return nil
+	})
 }
 
 // List returns metadata (ID + label) for all stored passwords without exposing values.

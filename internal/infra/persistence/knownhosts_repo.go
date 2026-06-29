@@ -50,15 +50,11 @@ func (r *KnownHostsRepo) Check(host string, remoteKey ssh.PublicKey) error {
 
 // Add stores a new host key entry and persists the vault.
 func (r *KnownHostsRepo) Add(ctx context.Context, host string, key ssh.PublicKey) error {
-	data, err := r.vault.GetData()
-	if err != nil {
-		return fmt.Errorf("known hosts add get data: %w", err)
-	}
-
 	line := formatKnownHostLine(host, key)
-	data.KnownHosts = append(data.KnownHosts, line)
-
-	return r.vault.SaveData(ctx, data)
+	return r.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		data.KnownHosts = append(data.KnownHosts, line)
+		return nil
+	})
 }
 
 // List returns all known host entries for UI display.
@@ -86,31 +82,37 @@ func (r *KnownHostsRepo) List() ([]domain.KnownHostEntry, error) {
 
 // Remove deletes a known host entry matching the given host pattern.
 func (r *KnownHostsRepo) Remove(ctx context.Context, host string) error {
-	data, err := r.vault.GetData()
-	if err != nil {
-		return fmt.Errorf("known hosts remove get data: %w", err)
-	}
-
-	normalizedHost := normalizeHost(host)
-	filtered := make([]string, 0, len(data.KnownHosts))
-	for _, line := range data.KnownHosts {
-		lineHost, _, err := parseKnownHostLine(line)
-		if err != nil || normalizeHost(lineHost) == normalizedHost {
-			continue
+	return r.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		normalizedHost := normalizeHost(host)
+		filtered := make([]string, 0, len(data.KnownHosts))
+		for _, line := range data.KnownHosts {
+			lineHost, _, err := parseKnownHostLine(line)
+			if err != nil || normalizeHost(lineHost) == normalizedHost {
+				continue
+			}
+			filtered = append(filtered, line)
 		}
-		filtered = append(filtered, line)
-	}
-	data.KnownHosts = filtered
-
-	return r.vault.SaveData(ctx, data)
+		data.KnownHosts = filtered
+		return nil
+	})
 }
 
-// Replace removes existing entries for the host and adds the new key.
+// Replace removes existing entries for the host and adds the new key in one transaction.
 func (r *KnownHostsRepo) Replace(ctx context.Context, host string, newKey ssh.PublicKey) error {
-	if err := r.Remove(ctx, host); err != nil {
-		return fmt.Errorf("known hosts replace remove: %w", err)
-	}
-	return r.Add(ctx, host, newKey)
+	line := formatKnownHostLine(host, newKey)
+	return r.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		normalizedHost := normalizeHost(host)
+		filtered := make([]string, 0, len(data.KnownHosts))
+		for _, existing := range data.KnownHosts {
+			lineHost, _, err := parseKnownHostLine(existing)
+			if err != nil || normalizeHost(lineHost) == normalizedHost {
+				continue
+			}
+			filtered = append(filtered, existing)
+		}
+		data.KnownHosts = append(filtered, line)
+		return nil
+	})
 }
 
 // parseKnownHostLine extracts the host and public key from a known_hosts formatted line.

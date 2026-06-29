@@ -46,7 +46,7 @@ func (r *IdentityRepo) GetKeyBlob(ctx context.Context, id string) ([]byte, error
 	if !ok {
 		return nil, fmt.Errorf("identity %s: %w", id, domain.ErrIdentityNotFound)
 	}
-	return blob.PEMData, nil
+	return append([]byte(nil), blob.PEMData...), nil
 }
 
 // Import stores a new SSH identity in the vault and returns its metadata.
@@ -61,17 +61,14 @@ func (r *IdentityRepo) Import(ctx context.Context, pemData []byte, comment strin
 		KeyType:   keyType,
 		Encrypted: encrypted,
 	}
+	pemCopy := append([]byte(nil), pemData...)
 
-	data, err := r.vault.GetData()
-	if err != nil {
-		return nil, fmt.Errorf("import identity get data: %w", err)
-	}
-
-	data.Identities[id] = identity
-	data.KeyBlobs[id] = domain.IdentityBlob{PEMData: pemData}
-
-	if err := r.vault.SaveData(ctx, data); err != nil {
-		return nil, fmt.Errorf("import identity save: %w", err)
+	if err := r.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		data.Identities[id] = identity
+		data.KeyBlobs[id] = domain.IdentityBlob{PEMData: pemCopy}
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("import identity: %w", err)
 	}
 
 	return &identity, nil
@@ -79,15 +76,11 @@ func (r *IdentityRepo) Import(ctx context.Context, pemData []byte, comment strin
 
 // Delete removes an identity by ID from the vault.
 func (r *IdentityRepo) Delete(ctx context.Context, id string) error {
-	data, err := r.vault.GetData()
-	if err != nil {
-		return fmt.Errorf("delete identity get data: %w", err)
-	}
-
-	delete(data.Identities, id)
-	delete(data.KeyBlobs, id)
-
-	return r.vault.SaveData(ctx, data)
+	return r.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		delete(data.Identities, id)
+		delete(data.KeyBlobs, id)
+		return nil
+	})
 }
 
 // detectKeyType inspects PEM data to determine key algorithm and encryption status.

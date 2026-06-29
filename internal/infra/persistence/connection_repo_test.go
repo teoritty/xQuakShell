@@ -14,10 +14,9 @@ type memVault struct {
 func (m *memVault) Unlock(context.Context, string) error { return nil }
 func (m *memVault) Lock()                                {}
 func (m *memVault) IsUnlocked() bool                     { return true }
-func (m *memVault) GetData() (*domain.VaultData, error)  { return m.data, nil }
-func (m *memVault) SaveData(_ context.Context, d *domain.VaultData) error {
-	m.data = d
-	return nil
+func (m *memVault) GetData() (*domain.VaultData, error)  { return domain.CloneVaultData(m.data), nil }
+func (m *memVault) UpdateData(_ context.Context, mutate func(*domain.VaultData) error) error {
+	return mutate(m.data)
 }
 
 func TestDeleteFolder_RemovesConnectionsAndChildFolders(t *testing.T) {
@@ -86,6 +85,30 @@ func TestConnectionRepo_Save_BackfillsJumpHopIDs(t *testing.T) {
 	}
 	if saved.JumpChain.Hops[1].ID != conn.JumpChain.Hops[1].ID {
 		t.Fatalf("hop[1] id mismatch: saved %q conn %q", saved.JumpChain.Hops[1].ID, conn.JumpChain.Hops[1].ID)
+	}
+}
+
+func TestConnectionRepo_Save_RejectsDuplicateJumpHopIDs(t *testing.T) {
+	d := domain.NewVaultData()
+	v := &memVault{data: d}
+	r := NewConnectionRepo(v)
+
+	conn := &domain.Connection{
+		Name:     "jump-dup",
+		FolderID: "",
+		Host:     "target",
+		Port:     22,
+		JumpChain: domain.JumpChainConfig{
+			Hops: []domain.JumpHop{
+				{ID: "dup-id", Host: "bastion1", Port: 22},
+				{ID: "dup-id", Host: "bastion2", Port: 2222},
+			},
+		},
+	}
+
+	err := r.Save(context.Background(), conn)
+	if err == nil {
+		t.Fatal("expected duplicate hop id save to fail")
 	}
 }
 
