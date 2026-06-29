@@ -119,8 +119,8 @@ func (m *SessionManager) handleHostKeyError(entry *sessionEntry, conn *domain.Co
 func (m *SessionManager) resolveHopAuthWithCtx(ctx context.Context, hop domain.JumpHop) ([]domain.Signer, string, error) {
 	switch hop.Auth {
 	case domain.AuthMethodKey:
-		if hop.KeyAuth == nil {
-			return nil, "", nil
+		if hop.KeyAuth == nil || len(hop.KeyAuth.IdentityIDs) == 0 {
+			return nil, "", fmt.Errorf("hop key auth requires at least one identity")
 		}
 		signers, err := m.loadSignersLegacy(ctx, hop.KeyAuth.IdentityIDs)
 		return signers, "", err
@@ -134,7 +134,7 @@ func (m *SessionManager) resolveHopAuthWithCtx(ctx context.Context, hop domain.J
 		}
 		return nil, string(pw), nil
 	default:
-		return nil, "", nil
+		return nil, "", fmt.Errorf("hop unknown auth method %q", hop.Auth)
 	}
 }
 
@@ -149,8 +149,8 @@ func (m *SessionManager) resolveAuth(ctx context.Context, conn *domain.Connectio
 
 	switch defaultUser.Auth {
 	case domain.AuthMethodKey:
-		if defaultUser.KeyAuth == nil {
-			return nil, "", nil
+		if defaultUser.KeyAuth == nil || len(defaultUser.KeyAuth.IdentityIDs) == 0 {
+			return nil, "", fmt.Errorf("key auth requires at least one identity")
 		}
 		signers, err := m.loadSignersLegacy(ctx, defaultUser.KeyAuth.IdentityIDs)
 		return signers, "", err
