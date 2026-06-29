@@ -1,5 +1,5 @@
 import type { ConnectionDetailsDraft } from './types';
-import { isDraftHopUiId, stripDraftHopIdsForSave, filterDraftHops } from './hopIds';
+import { isDraftHopUiId, stripDraftHopIdsForSave, filterDraftHops, adoptPersistedHopIds } from './hopIds';
 import { buildConnectionSavePayload } from './savePayload';
 import {
   cancelPendingAutosave,
@@ -39,6 +39,32 @@ const stripped = stripDraftHopIdsForSave(filterDraftHops(sshDraft.jumpHops));
 assert(stripped.length === 2, 'empty-host hops are filtered');
 assert(stripped[0].id === '', 'UI-only hop id stripped');
 assert(stripped[1].id === 'hop-persist-123', 'backend hop id preserved');
+
+assert(stripped[1].id === 'hop-persist-123', 'backend hop id preserved');
+
+const inProgressHop = { id: 'draft-hop-new', host: '', port: 22, username: '', authMethod: 'key' as const };
+const adoptedSingle = adoptPersistedHopIds(
+  [{ id: 'draft-hop-old', host: 'bastion', port: 22, username: 'jump', authMethod: 'key' }, inProgressHop],
+  [{ id: 'backend-uuid-1', host: 'bastion', port: 22, username: 'jump', authMethod: 'key' }],
+);
+assert(adoptedSingle.length === 2, 'in-progress hop row is kept');
+assert(adoptedSingle[0].id === 'backend-uuid-1', 'persisted hop adopts backend uuid');
+assert(adoptedSingle[1].id === 'draft-hop-new' && adoptedSingle[1].host === '', 'empty-host hop unchanged');
+
+const adoptedMixed = adoptPersistedHopIds(
+  [
+    { id: 'd1', host: 'hop1', port: 22, username: 'a', authMethod: 'key' },
+    { id: 'd2', host: '', port: 22, username: '', authMethod: 'key' },
+    { id: 'd3', host: 'hop3', port: 22, username: 'c', authMethod: 'key' },
+  ],
+  [
+    { id: 'be-1', host: 'hop1', port: 22, username: 'a', authMethod: 'key' },
+    { id: 'be-3', host: 'hop3', port: 22, username: 'c', authMethod: 'key' },
+  ],
+);
+assert(adoptedMixed[0].id === 'be-1', 'first filled hop gets first saved id');
+assert(adoptedMixed[1].host === '' && adoptedMixed[1].id === 'd2', 'empty hop keeps draft id');
+assert(adoptedMixed[2].id === 'be-3', 'second filled hop gets second saved id');
 
 const sshPayload = buildConnectionSavePayload(sshDraft, { folderId: 'f1', order: 1 });
 assert(Array.isArray(sshPayload.jumpChain) && (sshPayload.jumpChain as unknown[]).length === 2, 'ssh keeps hops');

@@ -22,9 +22,9 @@
   function addUser() {
     const id = 'u-' + Date.now();
     const next = [...users, { id, username: '', authMethod: 'key' as AuthMethod }];
+    // Empty user rows are local-only until the user enters a username; do not mark dirty.
     dispatch('userschange', next);
     if (next.length === 1) dispatch('defaultuserchange', id);
-    dispatch('dirty');
   }
 
   function removeUser(id: string) {

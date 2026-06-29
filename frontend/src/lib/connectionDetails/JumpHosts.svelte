@@ -20,11 +20,12 @@
 
   function addHop() {
     const id = createDraftHopUiId();
+    // Empty hop rows are local-only until the user enters a host; do not mark dirty
+    // or autosave would persist without them and reconcile would erase the form.
     dispatch('hopschange', [
       ...jumpHops,
       { id, host: '', port: 22, username: '', authMethod: 'key' as AuthMethod },
     ]);
-    dispatch('dirty');
   }
 
   function removeHop(hopId: string) {
