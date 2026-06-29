@@ -98,9 +98,9 @@ func ConnectionToDTO(c domain.Connection) ConnectionDTO {
 		Order:         c.Order,
 		Protocol:      c.GetProtocol(),
 		User:          c.User,
-		IdentityIDs:   c.IdentityIDs,
+		IdentityIDs:   cloneStringSlice(c.IdentityIDs),
 		DefaultUserID: c.DefaultUserID,
-		Tags:          c.Tags,
+		Tags:          cloneStringSlice(c.Tags),
 	}
 	if dto.IdentityIDs == nil {
 		dto.IdentityIDs = []string{}
@@ -125,10 +125,10 @@ func connectionUserToDTO(u domain.ConnectionUser) ConnectionUserDTO {
 		Label:    u.Label,
 	}
 	if u.KeyAuth != nil {
-		d.KeyAuth = &KeyAuthConfigDTO{IdentityIDs: u.KeyAuth.IdentityIDs}
+		d.KeyAuth = keyAuthToDTO(u.KeyAuth)
 	}
 	if u.PassAuth != nil {
-		d.PassAuth = &PassAuthConfigDTO{PasswordID: u.PassAuth.PasswordID}
+		d.PassAuth = passAuthToDTO(u.PassAuth)
 	}
 	return d
 }
@@ -142,12 +142,49 @@ func jumpHopToDTO(h domain.JumpHop) JumpHopDTO {
 		Auth:     string(h.Auth),
 	}
 	if h.KeyAuth != nil {
-		d.KeyAuth = &KeyAuthConfigDTO{IdentityIDs: h.KeyAuth.IdentityIDs}
+		d.KeyAuth = keyAuthToDTO(h.KeyAuth)
 	}
 	if h.PassAuth != nil {
-		d.PassAuth = &PassAuthConfigDTO{PasswordID: h.PassAuth.PasswordID}
+		d.PassAuth = passAuthToDTO(h.PassAuth)
 	}
 	return d
+}
+
+func keyAuthToDTO(in *domain.KeyAuthConfig) *KeyAuthConfigDTO {
+	if in == nil {
+		return nil
+	}
+	return &KeyAuthConfigDTO{IdentityIDs: cloneStringSlice(in.IdentityIDs)}
+}
+
+func passAuthToDTO(in *domain.PasswordAuthConfig) *PassAuthConfigDTO {
+	if in == nil {
+		return nil
+	}
+	return &PassAuthConfigDTO{PasswordID: in.PasswordID}
+}
+
+func keyAuthFromDTO(in *KeyAuthConfigDTO) *domain.KeyAuthConfig {
+	if in == nil {
+		return nil
+	}
+	return &domain.KeyAuthConfig{IdentityIDs: cloneStringSlice(in.IdentityIDs)}
+}
+
+func passAuthFromDTO(in *PassAuthConfigDTO) *domain.PasswordAuthConfig {
+	if in == nil {
+		return nil
+	}
+	return &domain.PasswordAuthConfig{PasswordID: in.PasswordID}
+}
+
+func cloneStringSlice(in []string) []string {
+	if in == nil {
+		return nil
+	}
+	out := make([]string, len(in))
+	copy(out, in)
+	return out
 }
 
 // ConnectionsToDTO maps a slice of domain connections to DTOs.
@@ -202,10 +239,10 @@ func DTOToConnection(d ConnectionDTO) domain.Connection {
 		Port:          d.Port,
 		Order:         d.Order,
 		User:          d.User,
-		IdentityIDs:   d.IdentityIDs,
+		IdentityIDs:   cloneStringSlice(d.IdentityIDs),
 		Protocol:      d.Protocol,
 		DefaultUserID: d.DefaultUserID,
-		Tags:          d.Tags,
+		Tags:          cloneStringSlice(d.Tags),
 	}
 	for _, u := range d.Users {
 		c.Users = append(c.Users, dtoToConnectionUser(u))
@@ -223,12 +260,8 @@ func dtoToConnectionUser(d ConnectionUserDTO) domain.ConnectionUser {
 		Auth:     domain.AuthMethodType(d.Auth),
 		Label:    d.Label,
 	}
-	if d.KeyAuth != nil {
-		u.KeyAuth = &domain.KeyAuthConfig{IdentityIDs: d.KeyAuth.IdentityIDs}
-	}
-	if d.PassAuth != nil {
-		u.PassAuth = &domain.PasswordAuthConfig{PasswordID: d.PassAuth.PasswordID}
-	}
+	u.KeyAuth = keyAuthFromDTO(d.KeyAuth)
+	u.PassAuth = passAuthFromDTO(d.PassAuth)
 	return u
 }
 
@@ -240,11 +273,7 @@ func dtoToJumpHop(d JumpHopDTO) domain.JumpHop {
 		Username: d.Username,
 		Auth:     domain.AuthMethodType(d.Auth),
 	}
-	if d.KeyAuth != nil {
-		h.KeyAuth = &domain.KeyAuthConfig{IdentityIDs: d.KeyAuth.IdentityIDs}
-	}
-	if d.PassAuth != nil {
-		h.PassAuth = &domain.PasswordAuthConfig{PasswordID: d.PassAuth.PasswordID}
-	}
+	h.KeyAuth = keyAuthFromDTO(d.KeyAuth)
+	h.PassAuth = passAuthFromDTO(d.PassAuth)
 	return h
 }

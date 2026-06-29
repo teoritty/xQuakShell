@@ -45,3 +45,63 @@ func TestConnectionDTO_JumpHopIDRoundTrip(t *testing.T) {
 		t.Fatalf("hop host: got %q", back.JumpChain.Hops[0].Host)
 	}
 }
+
+func TestConnectionDTO_BlankJumpHopIDNotGenerated(t *testing.T) {
+	dto := ConnectionDTO{
+		ID:   "conn-1",
+		Name: "test",
+		Host: "target.example.com",
+		Port: 22,
+		JumpChain: []JumpHopDTO{
+			{
+				Host:     "bastion.example.com",
+				Port:     22,
+				Username: "jumpuser",
+				Auth:     string(domain.AuthMethodKey),
+			},
+		},
+	}
+
+	conn := DTOToConnection(dto)
+	if len(conn.JumpChain.Hops) != 1 {
+		t.Fatalf("hop count: got %d want 1", len(conn.JumpChain.Hops))
+	}
+	if conn.JumpChain.Hops[0].ID != "" {
+		t.Fatalf("DTO conversion must not generate hop id, got %q", conn.JumpChain.Hops[0].ID)
+	}
+}
+
+func TestConnectionToDTO_DoesNotShareSlicesWithDomain(t *testing.T) {
+	conn := domain.Connection{
+		Tags:        []string{"prod"},
+		IdentityIDs: []string{"k1"},
+	}
+	dto := ConnectionToDTO(conn)
+	dto.Tags[0] = "changed"
+	dto.IdentityIDs[0] = "changed"
+	if conn.Tags[0] != "prod" {
+		t.Fatal("tags shared with domain")
+	}
+	if conn.IdentityIDs[0] != "k1" {
+		t.Fatal("identity ids shared with domain")
+	}
+}
+
+func TestDTOToConnection_DoesNotShareSlicesWithDTO(t *testing.T) {
+	dto := ConnectionDTO{
+		Tags: []string{"prod"},
+		Users: []ConnectionUserDTO{{
+			ID:      "u1",
+			KeyAuth: &KeyAuthConfigDTO{IdentityIDs: []string{"k1"}},
+		}},
+	}
+	conn := DTOToConnection(dto)
+	dto.Tags[0] = "changed"
+	dto.Users[0].KeyAuth.IdentityIDs[0] = "changed"
+	if conn.Tags[0] != "prod" {
+		t.Fatal("tags shared with dto")
+	}
+	if conn.Users[0].KeyAuth.IdentityIDs[0] != "k1" {
+		t.Fatal("user key ids shared with dto")
+	}
+}
