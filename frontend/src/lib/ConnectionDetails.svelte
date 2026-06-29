@@ -2,7 +2,8 @@
   import { onMount } from 'svelte';
   import { detailsConnection, detailsConnectionId, identities, type ConnectionUser, type JumpHop } from '../stores/appState';
   import { saveConnection, importIdentity, importPassword, getPluginConnectionProtocols, type ConnectionProtocol } from '../stores/api';
-  import { UserPlus, Trash2, KeyRound, Plus, X } from 'lucide-svelte';
+  import { UserPlus, Plus, X, ChevronUp, ChevronDown } from 'lucide-svelte';
+  import AuthEntryCard from './AuthEntryCard.svelte';
 
   let editingId = '';
   let name = '';
@@ -22,6 +23,7 @@
 
   $: connId = $detailsConnection?.id || '';
   $: isSSH = protocol === 'ssh';
+  $: tagTooLong = newTagValue.trim().length > 30;
 
   onMount(async () => {
     protocols = await getPluginConnectionProtocols();
@@ -29,6 +31,15 @@
 
   $: if (connId !== editingId) {
     loadFromStore();
+  }
+
+  function ensureHopId(hop: JumpHop, index: number): JumpHop {
+    const withAuth = {
+      ...hop,
+      authMethod: hop.authMethod || 'key',
+    };
+    if (withAuth.id) return withAuth;
+    return { ...withAuth, id: `h-legacy-${Date.now()}-${index}` };
   }
 
   async function loadFromStore() {
@@ -41,7 +52,7 @@
     tags = [...(c?.tags || [])];
     users = (c?.users || []).map(u => ({...u}));
     defaultUserId = c?.defaultUserId || '';
-    jumpHops = (c?.jumpChain || []).map(h => ({...h}));
+    jumpHops = (c?.jumpChain || []).map((h, i) => ensureHopId({ ...h }, i));
     dirty = false;
     saveStatus = 'idle';
     addingTag = false;
@@ -98,6 +109,7 @@
   function startAddTag() { addingTag = true; newTagValue = ''; }
   function confirmTag() {
     const t = newTagValue.trim();
+    if (t.length > 30) return;
     if (t && !tags.includes(t)) { tags = [...tags, t]; markDirty(); }
     addingTag = false;
     newTagValue = '';
@@ -184,18 +196,74 @@
 
   // --- Jump Hops ---
   function addHop() {
-    jumpHops = [...jumpHops, { host: '', port: 22, username: '', authMethod: 'key' }];
+    const id = 'h-' + Date.now();
+    jumpHops = [...jumpHops, { id, host: '', port: 22, username: '', authMethod: 'key' }];
     markDirty();
   }
 
-  function removeHop(idx: number) {
-    jumpHops = jumpHops.filter((_, i) => i !== idx);
+  function removeHop(hopId: string) {
+    jumpHops = jumpHops.filter(h => h.id !== hopId);
     markDirty();
   }
 
-  function updateHopField(idx: number, field: string, value: any) {
-    jumpHops = jumpHops.map((h, i) => i === idx ? { ...h, [field]: value } : h);
+  function updateHopField(hopId: string, field: string, value: unknown) {
+    jumpHops = jumpHops.map(h => h.id === hopId ? { ...h, [field]: value } : h);
     markDirty();
+  }
+
+  function moveHop(hopId: string, direction: -1 | 1) {
+    const idx = jumpHops.findIndex(h => h.id === hopId);
+    if (idx < 0) return;
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= jumpHops.length) return;
+    const next = [...jumpHops];
+    const [item] = next.splice(idx, 1);
+    next.splice(newIdx, 0, item);
+    jumpHops = next;
+    markDirty();
+  }
+
+  async function handleKeyImportForHop(hopId: string) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pem,.key,.id_rsa,.id_ecdsa,.id_ed25519,*';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      const base64 = btoa(text);
+      const kid = await importIdentity(base64, file.name);
+      if (kid) {
+        jumpHops = jumpHops.map(h => {
+          if (h.id !== hopId) return h;
+          const ids = h.keyAuth?.identityIds || [];
+          return { ...h, keyAuth: { identityIds: [...ids, kid] } };
+        });
+        markDirty();
+      }
+    };
+    input.click();
+  }
+
+  function removeKeyFromHop(hopId: string, keyId: string) {
+    jumpHops = jumpHops.map(h => {
+      if (h.id !== hopId) return h;
+      const ids = (h.keyAuth?.identityIds || []).filter(i => i !== keyId);
+      return { ...h, keyAuth: { identityIds: ids } };
+    });
+    markDirty();
+  }
+
+  async function handlePasswordChangeForHop(hopId: string, value: string) {
+    if (!value || value === '********') return;
+    const pwId = await importPassword(value, `hop-${hopId}`);
+    if (pwId) {
+      jumpHops = jumpHops.map(h => {
+        if (h.id !== hopId) return h;
+        return { ...h, passAuth: { passwordId: pwId } };
+      });
+      markDirty();
+    }
   }
 
   function onProtocolChange(e: Event) {
@@ -263,18 +331,24 @@
       <div class="tags-row">
         {#each tags as tag}
           <span class="tag-chip" style="background: {tagColor(tag)}">
-            {tag}
+            <span class="tag-label">{tag}</span>
             <button class="tag-remove" on:click={() => removeTag(tag)}><X size={9} /></button>
           </span>
         {/each}
         {#if addingTag}
-          <input
-            class="tag-inline-input"
-            placeholder="tag name..."
-            bind:value={newTagValue}
-            on:keydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); confirmTag(); } if (e.key === 'Escape') cancelTag(); }}
-            on:blur={confirmTag}
-          />
+          <div class="tag-input-wrap">
+            <input
+              class="tag-inline-input"
+              class:invalid={tagTooLong}
+              placeholder="tag name..."
+              bind:value={newTagValue}
+              on:keydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); confirmTag(); } if (e.key === 'Escape') cancelTag(); }}
+              on:blur={confirmTag}
+            />
+            {#if tagTooLong}
+              <span class="tag-error">Maximum 30 characters</span>
+            {/if}
+          </div>
         {/if}
         {#if tags.length === 0 && !addingTag}
           <span class="no-items">No tags</span>
@@ -290,8 +364,18 @@
         <button class="ghost micro-btn" on:click={addUser}><UserPlus size={12} /> Add</button>
       </div>
       {#each users as u (u.id)}
-        <div class="user-block">
-          <div class="user-header">
+        <AuthEntryCard
+          authMethod={u.authMethod}
+          keyAuth={u.keyAuth}
+          passAuth={u.passAuth}
+          identities={$identities}
+          on:authmethodchange={(e) => updateAuthMethod(u.id, e.detail)}
+          on:passwordchange={(e) => handlePasswordChange(u.id, e.detail)}
+          on:keyimport={() => handleKeyImportForUser(u.id)}
+          on:keyremove={(e) => removeKeyFromUser(u.id, e.detail)}
+          on:remove={() => removeUser(u.id)}
+        >
+          <svelte:fragment slot="primary">
             <input
               type="text"
               value={u.username}
@@ -299,14 +383,8 @@
               placeholder="username"
               class="user-input"
             />
-            <select
-              value={u.authMethod}
-              on:change={(e) => updateAuthMethod(u.id, e.currentTarget.value)}
-              class="auth-select"
-            >
-              <option value="key">Key</option>
-              <option value="password">Password</option>
-            </select>
+          </svelte:fragment>
+          <svelte:fragment slot="meta">
             <label class="default-radio" title="Set as default">
               <input
                 type="radio"
@@ -316,34 +394,8 @@
               />
               Default
             </label>
-            <button class="ghost micro-btn danger" on:click={() => removeUser(u.id)} title="Remove user"><Trash2 size={12} /></button>
-          </div>
-          {#if u.authMethod === 'password'}
-            <div class="pass-block">
-              <input
-                type="password"
-                placeholder="Enter password"
-                value={u.passAuth?.passwordId ? '********' : ''}
-                on:change={(e) => handlePasswordChange(u.id, e.currentTarget.value)}
-                class="pass-input"
-              />
-            </div>
-          {:else if u.authMethod === 'key'}
-            <div class="keys-list">
-              {#each (u.keyAuth?.identityIds || []) as keyId}
-                {@const meta = $identities.find(i => i.id === keyId)}
-                <div class="key-item">
-                  <KeyRound size={11} />
-                  <span class="key-name">{meta?.comment || keyId.slice(0, 8)}</span>
-                  <button class="ghost key-remove" on:click={() => removeKeyFromUser(u.id, keyId)}><X size={10} /></button>
-                </div>
-              {/each}
-              <button class="secondary tiny-btn" on:click={() => handleKeyImportForUser(u.id)}>
-                <Plus size={11} /> Import Key
-              </button>
-            </div>
-          {/if}
-        </div>
+          </svelte:fragment>
+        </AuthEntryCard>
       {/each}
       {#if users.length === 0}
         <div class="no-items">No users configured</div>
@@ -358,41 +410,72 @@
         <span class="field-label">Jump Hosts (Bastion)</span>
         <button class="ghost micro-btn" on:click={addHop}><Plus size={12} /> Hop</button>
       </div>
-      {#each jumpHops as hop, idx}
-        <div class="hop-block">
-          <div class="hop-row">
-            <input
-              type="text"
-              value={hop.host}
-              on:input={(e) => updateHopField(idx, 'host', e.currentTarget.value)}
-              placeholder="bastion-host"
-              class="hop-input"
-            />
-            <input
-              type="number"
-              value={hop.port}
-              on:input={(e) => updateHopField(idx, 'port', parseInt(e.currentTarget.value) || 22)}
-              min="1" max="65535" class="hop-port"
-            />
-            <input
-              type="text"
-              value={hop.username}
-              on:input={(e) => updateHopField(idx, 'username', e.currentTarget.value)}
-              placeholder="user"
-              class="hop-input"
-            />
-            <select
-              value={hop.authMethod}
-              on:change={(e) => updateHopField(idx, 'authMethod', e.currentTarget.value)}
-              class="hop-select"
-            >
-              <option value="key">Key</option>
-              <option value="password">Pass</option>
-            </select>
-            <button class="ghost micro-btn danger" on:click={() => removeHop(idx)}><X size={12} /></button>
-          </div>
-        </div>
+      {#each jumpHops as hop, idx (hop.id)}
+        <AuthEntryCard
+          authMethod={hop.authMethod}
+          keyAuth={hop.keyAuth}
+          passAuth={hop.passAuth}
+          identities={$identities}
+          on:authmethodchange={(e) => updateHopField(hop.id, 'authMethod', e.detail)}
+          on:passwordchange={(e) => handlePasswordChangeForHop(hop.id, e.detail)}
+          on:keyimport={() => handleKeyImportForHop(hop.id)}
+          on:keyremove={(e) => removeKeyFromHop(hop.id, e.detail)}
+          on:remove={() => removeHop(hop.id)}
+        >
+          <svelte:fragment slot="primary">
+            <div class="hop-fields">
+              <div class="hop-field-row">
+                <input
+                  type="text"
+                  value={hop.host}
+                  on:input={(e) => updateHopField(hop.id, 'host', e.currentTarget.value)}
+                  placeholder="host"
+                  class="hop-host"
+                />
+                <input
+                  type="number"
+                  value={hop.port}
+                  on:input={(e) => updateHopField(hop.id, 'port', parseInt(e.currentTarget.value) || 22)}
+                  min="1" max="65535"
+                  placeholder="port"
+                  class="hop-port"
+                />
+              </div>
+              <input
+                type="text"
+                value={hop.username}
+                on:input={(e) => updateHopField(hop.id, 'username', e.currentTarget.value)}
+                placeholder="username"
+                class="hop-username"
+              />
+            </div>
+          </svelte:fragment>
+          <svelte:fragment slot="meta">
+            <div class="hop-reorder-stack">
+              <button
+                class="ghost hop-reorder"
+                title="Move up"
+                disabled={idx === 0}
+                on:click={() => moveHop(hop.id, -1)}
+              >
+                <ChevronUp size={12} />
+              </button>
+              <span class="hop-badge" title="Hop order in chain">{idx + 1}</span>
+              <button
+                class="ghost hop-reorder"
+                title="Move down"
+                disabled={idx === jumpHops.length - 1}
+                on:click={() => moveHop(hop.id, 1)}
+              >
+                <ChevronDown size={12} />
+              </button>
+            </div>
+          </svelte:fragment>
+        </AuthEntryCard>
       {/each}
+      {#if jumpHops.length === 0}
+        <div class="no-items">No jump hosts configured</div>
+      {/if}
     </div>
     {/if}
 
@@ -485,64 +568,94 @@
   .tag-chip {
     display: inline-flex; align-items: center; gap: 3px;
     font-size: 10px; padding: 1px 6px; border-radius: 2px; color: #fff;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .tag-label {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
   .tag-remove {
     background: none; border: none; color: rgba(255,255,255,0.7);
     cursor: pointer; padding: 0 1px; display: inline-flex; align-items: center;
+    flex-shrink: 0;
   }
   .tag-remove:hover { color: #fff; }
+  .tag-input-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
   .tag-inline-input {
     width: 80px; font-size: 11px; padding: 2px 4px;
     background: var(--bg-input); border: 1px solid var(--border-focus);
     color: var(--text-primary); border-radius: 2px; outline: none;
   }
+  .tag-inline-input.invalid {
+    border-color: var(--danger);
+  }
+  .tag-error {
+    font-size: 10px;
+    color: var(--danger);
+  }
 
   /* Users */
-  .user-block {
-    padding: 6px; background: var(--bg-tertiary); border-radius: 2px;
-    margin-bottom: 4px;
-  }
-  .user-header {
-    display: flex; align-items: center; gap: 4px; margin-bottom: 4px;
-  }
-  .user-input { flex: 1; font-size: 11px; min-width: 60px; }
-  .auth-select { width: 80px; font-size: 11px; }
+  .user-input { flex: 1; font-size: 11px; min-width: 0; width: 100%; }
   .default-radio {
     font-size: 10px; color: var(--text-secondary); display: flex; align-items: center; gap: 2px;
     cursor: pointer; white-space: nowrap;
+    flex-shrink: 0;
   }
   .default-radio input { margin: 0; }
 
-  .keys-list { display: flex; flex-direction: column; gap: 2px; }
-  .key-item {
-    display: flex; align-items: center; gap: 4px; font-size: 10px;
-    padding: 2px 4px; background: var(--bg-secondary); border-radius: 2px;
-    color: var(--text-secondary);
-  }
-  .key-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .key-remove {
-    padding: 0 2px; display: inline-flex; align-items: center;
-  }
-
-  .pass-block {
-    display: flex; align-items: center; gap: 6px;
-  }
-  .pass-input {
-    flex: 1; font-size: 11px;
-  }
-  .tiny-btn {
-    font-size: 10px; padding: 2px 6px;
-    display: inline-flex; align-items: center; gap: 3px;
-  }
-
   /* Jump hops */
-  .hop-block { margin-bottom: 4px; }
-  .hop-row {
-    display: flex; align-items: center; gap: 4px;
-    padding: 4px; background: var(--bg-tertiary); border-radius: 2px;
+  .hop-fields { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; width: 100%; }
+  .hop-field-row { display: flex; gap: 8px; width: 100%; min-width: 0; }
+  .field .hop-field-row .hop-host {
+    width: auto;
+    flex: 1 1 auto;
+    font-size: 11px;
+    min-width: 0;
   }
-  .hop-input { flex: 1; font-size: 11px; min-width: 60px; }
-  .hop-port { width: 55px; font-size: 11px; }
-  .hop-select { width: 55px; font-size: 11px; }
-
+  .field .hop-username {
+    width: 100%;
+    font-size: 11px;
+    min-width: 0;
+  }
+  .field .hop-field-row .hop-port {
+    width: calc(60px * var(--ui-scale));
+    flex: 0 0 calc(60px * var(--ui-scale));
+    font-size: 11px;
+  }
+  .hop-reorder-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    flex-shrink: 0;
+  }
+  .hop-badge {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    padding: 0 5px;
+    border-radius: 2px;
+    white-space: nowrap;
+    line-height: 1.4;
+  }
+  .hop-reorder {
+    padding: 0 3px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+  }
+  .hop-reorder:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
 </style>
