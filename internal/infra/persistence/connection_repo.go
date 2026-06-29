@@ -170,6 +170,12 @@ func (r *ConnectionRepo) Save(ctx context.Context, c *domain.Connection) error {
 		return fmt.Errorf("save connection get data: %w", err)
 	}
 
+	for i := range c.JumpChain.Hops {
+		if c.JumpChain.Hops[i].ID == "" {
+			c.JumpChain.Hops[i].ID = uuid.New().String()
+		}
+	}
+
 	if c.ID == "" {
 		c.ID = uuid.New().String()
 		data.Connections = append(data.Connections, *c)

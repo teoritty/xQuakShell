@@ -31,6 +31,7 @@ export interface ConnectionUser {
 }
 
 export interface JumpHop {
+  id: string;
   host: string;
   port: number;
   username: string;

@@ -4,6 +4,7 @@ import "fmt"
 
 // JumpHop describes a single intermediate SSH bastion host in a jump chain.
 type JumpHop struct {
+	ID       string         `json:"id,omitempty"`
 	Host     string         `json:"host"`
 	Port     int            `json:"port"`
 	Username string         `json:"username"`

@@ -32,6 +32,7 @@ type PassAuthConfigDTO struct {
 
 // JumpHopDTO is the UI-facing representation of a single jump hop.
 type JumpHopDTO struct {
+	ID       string             `json:"id"`
 	Host     string             `json:"host"`
 	Port     int                `json:"port"`
 	Username string             `json:"username"`
@@ -134,6 +135,7 @@ func connectionUserToDTO(u domain.ConnectionUser) ConnectionUserDTO {
 
 func jumpHopToDTO(h domain.JumpHop) JumpHopDTO {
 	d := JumpHopDTO{
+		ID:       h.ID,
 		Host:     h.Host,
 		Port:     h.Port,
 		Username: h.Username,
@@ -232,6 +234,7 @@ func dtoToConnectionUser(d ConnectionUserDTO) domain.ConnectionUser {
 
 func dtoToJumpHop(d JumpHopDTO) domain.JumpHop {
 	h := domain.JumpHop{
+		ID:       d.ID,
 		Host:     d.Host,
 		Port:     d.Port,
 		Username: d.Username,
