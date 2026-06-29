@@ -25,10 +25,9 @@ type mockVaultForKH struct {
 func (m *mockVaultForKH) Unlock(_ context.Context, _ string) error { return nil }
 func (m *mockVaultForKH) Lock()                                    {}
 func (m *mockVaultForKH) IsUnlocked() bool                         { return true }
-func (m *mockVaultForKH) GetData() (*domain.VaultData, error)      { return m.data, nil }
-func (m *mockVaultForKH) SaveData(_ context.Context, data *domain.VaultData) error {
-	m.data = data
-	return nil
+func (m *mockVaultForKH) GetData() (*domain.VaultData, error) { return domain.CloneVaultData(m.data), nil }
+func (m *mockVaultForKH) UpdateData(_ context.Context, mutate func(*domain.VaultData) error) error {
+	return mutate(m.data)
 }
 
 func newMockVaultKH(knownHostsLines []string) *mockVaultForKH {

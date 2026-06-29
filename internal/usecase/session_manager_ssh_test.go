@@ -54,8 +54,8 @@ type sshTestVaultRepo struct{}
 func (sshTestVaultRepo) Unlock(context.Context, string) error { return nil }
 func (sshTestVaultRepo) Lock()                                {}
 func (sshTestVaultRepo) IsUnlocked() bool                     { return true }
-func (sshTestVaultRepo) GetData() (*domain.VaultData, error)  { return domain.NewVaultData(), nil }
-func (sshTestVaultRepo) SaveData(context.Context, *domain.VaultData) error {
+func (sshTestVaultRepo) GetData() (*domain.VaultData, error) { return domain.NewVaultData(), nil }
+func (sshTestVaultRepo) UpdateData(context.Context, func(*domain.VaultData) error) error {
 	return nil
 }
 
@@ -319,4 +319,68 @@ func waitForState(t *testing.T, mu *sync.Mutex, last *domain.ConnectionSession, 
 	got := last.State
 	mu.Unlock()
 	t.Fatalf("state: got %q, want %q", got, want)
+}
+
+func TestOpenSession_RejectsInvalidDefaultUserAuth(t *testing.T) {
+	conn := &domain.Connection{
+		ID:   "c1",
+		Host: "example.com",
+		Port: 22,
+		Users: []domain.ConnectionUser{{
+			ID:       "u1",
+			Username: "alice",
+			Auth:     domain.AuthMethodKey,
+		}},
+		DefaultUserID: "u1",
+	}
+	sm := NewSessionManager(SessionManagerConfig{
+		ConnRepo:                sshTestConnRepo{conn: conn},
+		VaultRepo:               sshTestVaultRepo{},
+		IdentRepo:               sshTestIdentRepo{},
+		PasswordRepo:            sshTestPasswordRepo{},
+		SSHFactory:              errSSHFactory{},
+		PassphraseCache:         &mapPassphraseCache{},
+		HostKeyCallbackBuilder:  acceptAllHostKeys{},
+		JumpTransportBuilder:    neverJumpBuilder{},
+		PrivateKeySignerFactory: stubKeySigner{},
+	})
+
+	_, err := sm.OpenSession(context.Background(), "c1")
+	if err == nil {
+		t.Fatal("expected validation error for key auth without identities")
+	}
+}
+
+func TestResolveHopAuthWithCtx_RejectsUnknownAuthMethod(t *testing.T) {
+	sm := NewSessionManager(SessionManagerConfig{
+		VaultRepo:    sshTestVaultRepo{},
+		IdentRepo:    sshTestIdentRepo{},
+		PasswordRepo: sshTestPasswordRepo{},
+	})
+	_, _, err := sm.resolveHopAuthWithCtx(context.Background(), domain.JumpHop{
+		Host:     "bastion",
+		Port:     22,
+		Username: "jump",
+		Auth:     domain.AuthMethodType("token"),
+	})
+	if err == nil {
+		t.Fatal("expected unknown auth method error")
+	}
+}
+
+func TestResolveHopAuthWithCtx_RejectsKeyAuthWithoutIdentities(t *testing.T) {
+	sm := NewSessionManager(SessionManagerConfig{
+		VaultRepo:    sshTestVaultRepo{},
+		IdentRepo:    sshTestIdentRepo{},
+		PasswordRepo: sshTestPasswordRepo{},
+	})
+	_, _, err := sm.resolveHopAuthWithCtx(context.Background(), domain.JumpHop{
+		Host:     "bastion",
+		Port:     22,
+		Username: "jump",
+		Auth:     domain.AuthMethodKey,
+	})
+	if err == nil {
+		t.Fatal("expected key auth without identities error")
+	}
 }

@@ -37,18 +37,14 @@ func (s *SettingsService) GetSettings() (domain.AppSettings, error) {
 // lockout and ping manager updates. Ping restart (with event callback) must be
 // triggered by the caller after this method returns.
 func (s *SettingsService) SaveSettings(ctx context.Context, settings domain.AppSettings) error {
-	data, err := s.vaultRepo.GetData()
-	if err != nil {
-		return err
-	}
-	if data.Settings == nil {
-		data.Settings = &domain.AppSettings{}
-	}
-
 	normalized := normalizeSettings(settings)
-	*data.Settings = normalized
-
-	if err := s.vaultRepo.SaveData(ctx, data); err != nil {
+	if err := s.vaultRepo.UpdateData(ctx, func(data *domain.VaultData) error {
+		if data.Settings == nil {
+			data.Settings = &domain.AppSettings{}
+		}
+		*data.Settings = normalized
+		return nil
+	}); err != nil {
 		return err
 	}
 

@@ -9,6 +9,8 @@ const (
 	MinPort = 1
 	// MaxPort is the maximum valid TCP port number.
 	MaxPort = 65535
+	// MaxTagLength is the maximum allowed length for a connection tag label.
+	MaxTagLength = 30
 )
 
 // ProtocolType identifies the connection protocol.
@@ -87,7 +89,7 @@ func (c *Connection) EffectivePort() int {
 	return 0
 }
 
-// Validate checks structural constraints (port range, jump hops).
+// Validate checks structural constraints (port range, jump hop ports).
 // It deliberately allows empty host/username so draft connections can be saved.
 // Full readiness should be checked via ValidateForConnect before opening a session.
 func (c *Connection) Validate() error {
@@ -95,36 +97,92 @@ func (c *Connection) Validate() error {
 		return fmt.Errorf("port %d out of range [%d-%d]: %w", c.Port, MinPort, MaxPort, ErrInvalidConnectionConfig)
 	}
 	for i := range c.JumpChain.Hops {
-		if err := c.JumpChain.Hops[i].Validate(); err != nil {
-			return fmt.Errorf("jump hop %d: %w", i, err)
+		if p := c.JumpChain.Hops[i].Port; p < MinPort || p > MaxPort {
+			return fmt.Errorf("jump hop %d port %d out of range [%d-%d]: %w", i, p, MinPort, MaxPort, ErrInvalidConnectionConfig)
+		}
+	}
+	for _, tag := range c.Tags {
+		if len(tag) > MaxTagLength {
+			return fmt.Errorf("tag %q exceeds max length %d: %w", tag, MaxTagLength, ErrInvalidConnectionConfig)
+		}
+	}
+	if err := c.JumpChain.ValidateUniqueHopIDs(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Connection) validateHopsStrict() error {
+	return c.JumpChain.ValidateStrict()
+}
+
+// ValidateForConnect performs strict validation required before opening a session.
+func (c *Connection) ValidateForConnect() error {
+	if c.Host == "" {
+		return fmt.Errorf("host must not be empty: %w", ErrInvalidConnectionConfig)
+	}
+	if err := c.Validate(); err != nil {
+		return err
+	}
+	switch c.GetProtocol() {
+	case ProtocolSSH:
+		return c.validateSSHForConnect()
+	default:
+		return c.validatePluginForConnect()
+	}
+}
+
+func (c *Connection) validateSSHForConnect() error {
+	if err := c.validateUsersForConnect(); err != nil {
+		return err
+	}
+	return c.validateHopsStrict()
+}
+
+// validatePluginForConnect checks plugin-specific connect requirements only.
+// Stored SSH users and jump hops are intentionally ignored here so protocol
+// switching does not require clearing reversible draft data from the vault.
+func (c *Connection) validatePluginForConnect() error {
+	if c.Port < MinPort || c.Port > MaxPort {
+		if c.Port != 0 {
+			return fmt.Errorf("port %d out of range [%d-%d]: %w", c.Port, MinPort, MaxPort, ErrInvalidConnectionConfig)
 		}
 	}
 	return nil
 }
 
-// ValidateForConnect performs strict validation required before opening a session.
-func (c *Connection) ValidateForConnect() error {
-	proto := c.GetProtocol()
-	switch proto {
-	case ProtocolSSH:
-		if c.Host == "" {
-			return fmt.Errorf("host must not be empty: %w", ErrInvalidConnectionConfig)
+func (c *Connection) validateUsersForConnect() error {
+	if len(c.Users) > 0 {
+		if err := validateUniqueUserIDs(c.Users); err != nil {
+			return err
 		}
-		if c.EffectiveUsername() == "" {
-			return fmt.Errorf("at least one user must be configured: %w", ErrInvalidConnectionConfig)
+		if c.DefaultUserID == "" {
+			return fmt.Errorf("default user must be selected: %w", ErrInvalidConnectionConfig)
 		}
-		return c.Validate()
-	default:
-		if c.Host == "" {
-			return fmt.Errorf("host must not be empty: %w", ErrInvalidConnectionConfig)
+		defaultUser := c.DefaultUser()
+		if defaultUser == nil {
+			return fmt.Errorf("default user %q not found: %w", c.DefaultUserID, ErrInvalidConnectionConfig)
 		}
-		if c.Port < MinPort || c.Port > MaxPort {
-			if c.Port != 0 {
-				return fmt.Errorf("port %d out of range [%d-%d]: %w", c.Port, MinPort, MaxPort, ErrInvalidConnectionConfig)
-			}
-		}
-		return c.Validate()
+		return defaultUser.Validate()
 	}
+	if c.User == "" {
+		return fmt.Errorf("at least one user must be configured: %w", ErrInvalidConnectionConfig)
+	}
+	return nil
+}
+
+func validateUniqueUserIDs(users []ConnectionUser) error {
+	seen := make(map[string]struct{}, len(users))
+	for i, u := range users {
+		if u.ID == "" {
+			continue
+		}
+		if _, dup := seen[u.ID]; dup {
+			return fmt.Errorf("user %d duplicate id %q: %w", i, u.ID, ErrInvalidConnectionConfig)
+		}
+		seen[u.ID] = struct{}{}
+	}
+	return nil
 }
 
 // WithDefaults fills in default values for optional fields (e.g., port).

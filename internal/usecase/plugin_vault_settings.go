@@ -37,18 +37,16 @@ func (s *PluginVaultSettings) GrantSecretAccess(ctx context.Context, pluginID st
 	if s == nil || s.vault == nil {
 		return nil
 	}
-	data, err := s.vault.GetData()
-	if err != nil {
-		return err
-	}
-	if data.Settings == nil {
-		data.Settings = &domain.AppSettings{}
-	}
-	if data.Settings.Plugins.SecretAccessGranted == nil {
-		data.Settings.Plugins.SecretAccessGranted = make(map[string]bool)
-	}
-	data.Settings.Plugins.SecretAccessGranted[pluginID] = true
-	return s.vault.SaveData(ctx, data)
+	return s.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		if data.Settings == nil {
+			data.Settings = &domain.AppSettings{}
+		}
+		if data.Settings.Plugins.SecretAccessGranted == nil {
+			data.Settings.Plugins.SecretAccessGranted = make(map[string]bool)
+		}
+		data.Settings.Plugins.SecretAccessGranted[pluginID] = true
+		return nil
+	})
 }
 
 // GrantMultiSessionAccess records install-time consent for allowMultiSession plugins.
@@ -56,18 +54,16 @@ func (s *PluginVaultSettings) GrantMultiSessionAccess(ctx context.Context, plugi
 	if s == nil || s.vault == nil {
 		return nil
 	}
-	data, err := s.vault.GetData()
-	if err != nil {
-		return err
-	}
-	if data.Settings == nil {
-		data.Settings = &domain.AppSettings{}
-	}
-	if data.Settings.Plugins.MultiSessionAccessGranted == nil {
-		data.Settings.Plugins.MultiSessionAccessGranted = make(map[string]bool)
-	}
-	data.Settings.Plugins.MultiSessionAccessGranted[pluginID] = true
-	return s.vault.SaveData(ctx, data)
+	return s.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		if data.Settings == nil {
+			data.Settings = &domain.AppSettings{}
+		}
+		if data.Settings.Plugins.MultiSessionAccessGranted == nil {
+			data.Settings.Plugins.MultiSessionAccessGranted = make(map[string]bool)
+		}
+		data.Settings.Plugins.MultiSessionAccessGranted[pluginID] = true
+		return nil
+	})
 }
 
 // SetPluginEnabled toggles whether a plugin is allowed to run.
@@ -75,20 +71,18 @@ func (s *PluginVaultSettings) SetPluginEnabled(ctx context.Context, pluginID str
 	if s == nil || s.vault == nil {
 		return fmt.Errorf("vault unavailable")
 	}
-	data, err := s.vault.GetData()
-	if err != nil {
-		return err
-	}
-	if data.Settings == nil {
-		data.Settings = &domain.AppSettings{}
-	}
-	if data.Settings.Plugins.Disabled == nil {
-		data.Settings.Plugins.Disabled = make(map[string]bool)
-	}
-	if enabled {
-		delete(data.Settings.Plugins.Disabled, pluginID)
-	} else {
-		data.Settings.Plugins.Disabled[pluginID] = true
-	}
-	return s.vault.SaveData(ctx, data)
+	return s.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		if data.Settings == nil {
+			data.Settings = &domain.AppSettings{}
+		}
+		if data.Settings.Plugins.Disabled == nil {
+			data.Settings.Plugins.Disabled = make(map[string]bool)
+		}
+		if enabled {
+			delete(data.Settings.Plugins.Disabled, pluginID)
+		} else {
+			data.Settings.Plugins.Disabled[pluginID] = true
+		}
+		return nil
+	})
 }

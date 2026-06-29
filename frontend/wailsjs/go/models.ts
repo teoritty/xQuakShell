@@ -103,6 +103,7 @@ export namespace wails {
 	    }
 	}
 	export class JumpHopDTO {
+	    id: string;
 	    host: string;
 	    port: number;
 	    username: string;
@@ -116,6 +117,7 @@ export namespace wails {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
 	        this.host = source["host"];
 	        this.port = source["port"];
 	        this.username = source["username"];

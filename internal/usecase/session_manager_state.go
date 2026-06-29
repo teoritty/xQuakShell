@@ -56,6 +56,12 @@ func (m *SessionManager) RetrySession(ctx context.Context, sessionID string) err
 		return nil
 	}
 
+	if err := conn.ValidateForConnect(); err != nil {
+		slog.Error("retry session: invalid connection", "sessionID", sessionID, "err", err)
+		m.updateState(entry, domain.SessionError, "Invalid connection configuration")
+		return nil
+	}
+
 	go m.connectSession(entry, conn)
 	return nil
 }
