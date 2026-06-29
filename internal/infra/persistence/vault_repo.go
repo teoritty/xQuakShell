@@ -58,31 +58,9 @@ func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
 		debug.FreeOSMemory()
 	}()
 
-	if data.Identities == nil {
-		data.Identities = map[string]domain.SSHIdentity{}
-	}
-	if data.KeyBlobs == nil {
-		data.KeyBlobs = map[string]domain.IdentityBlob{}
-	}
-	if data.Passwords == nil {
-		data.Passwords = map[string]domain.PasswordBlob{}
-	}
-	if data.Settings == nil {
-		data.Settings = &domain.AppSettings{
-			Lockout:  domain.DefaultLockoutSettings(),
-			Terminal: domain.DefaultTerminalSettings(),
-			Theme:    "dark",
-		}
-	}
-	if data.Settings.Terminal.FontFamily == "" {
-		data.Settings.Terminal = domain.DefaultTerminalSettings()
-	}
-	if data.Settings.Theme == "" {
-		data.Settings.Theme = "dark"
-	}
-
 	r.passphrase = masterPassword
 	r.data = data
+	r.ensureVaultDataLocked()
 	r.unlocked = true
 	r.dirty = false
 	r.generation = 0
@@ -118,7 +96,7 @@ func (r *VaultRepo) IsUnlocked() bool {
 	return r.unlocked
 }
 
-// GetData returns the current in-memory vault data.
+// GetData returns a deep snapshot of the current in-memory vault data.
 func (r *VaultRepo) GetData() (*domain.VaultData, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -126,22 +104,53 @@ func (r *VaultRepo) GetData() (*domain.VaultData, error) {
 	if !r.unlocked {
 		return nil, domain.ErrVaultLocked
 	}
-	return r.data, nil
+	return domain.CloneVaultData(r.data), nil
 }
 
-// SaveData updates in-memory vault data and schedules a debounced encrypted write.
-func (r *VaultRepo) SaveData(_ context.Context, data *domain.VaultData) error {
+// UpdateData applies a mutation to vault data atomically under the write lock.
+func (r *VaultRepo) UpdateData(_ context.Context, mutate func(*domain.VaultData) error) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if !r.unlocked {
 		return domain.ErrVaultLocked
 	}
-	r.data = data
+	r.ensureVaultDataLocked()
+	if err := mutate(r.data); err != nil {
+		return err
+	}
 	r.dirty = true
 	r.generation++
 	r.scheduleFlushLocked()
 	return nil
+}
+
+func (r *VaultRepo) ensureVaultDataLocked() {
+	if r.data == nil {
+		r.data = domain.NewVaultData()
+	}
+	if r.data.Identities == nil {
+		r.data.Identities = map[string]domain.SSHIdentity{}
+	}
+	if r.data.KeyBlobs == nil {
+		r.data.KeyBlobs = map[string]domain.IdentityBlob{}
+	}
+	if r.data.Passwords == nil {
+		r.data.Passwords = map[string]domain.PasswordBlob{}
+	}
+	if r.data.Settings == nil {
+		r.data.Settings = &domain.AppSettings{
+			Lockout:  domain.DefaultLockoutSettings(),
+			Terminal: domain.DefaultTerminalSettings(),
+			Theme:    "dark",
+		}
+	}
+	if r.data.Settings.Terminal.FontFamily == "" {
+		r.data.Settings.Terminal = domain.DefaultTerminalSettings()
+	}
+	if r.data.Settings.Theme == "" {
+		r.data.Settings.Theme = "dark"
+	}
 }
 
 func (r *VaultRepo) scheduleFlushLocked() {
@@ -182,7 +191,7 @@ func (r *VaultRepo) flushGeneration(gen uint64) {
 		r.mu.Unlock()
 		return
 	}
-	data := r.data
+	data := domain.CloneVaultData(r.data)
 	passphrase := r.passphrase
 	dir := r.dir
 	r.mu.Unlock()

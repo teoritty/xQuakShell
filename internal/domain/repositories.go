@@ -8,12 +8,13 @@ import (
 )
 
 // VaultRepository provides access to the encrypted vault storage.
+// GetData returns a deep snapshot; mutations must go through UpdateData.
 type VaultRepository interface {
 	Unlock(ctx context.Context, masterPassword string) error
 	Lock()
 	IsUnlocked() bool
 	GetData() (*VaultData, error)
-	SaveData(ctx context.Context, data *VaultData) error
+	UpdateData(ctx context.Context, mutate func(*VaultData) error) error
 }
 
 // ConnectionRepository manages connections and folders persisted in the vault.
