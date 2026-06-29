@@ -5,6 +5,7 @@
   import type { JumpHop, SSHIdentityMeta } from '../../stores/appState';
   import type { AuthMethod } from './types';
   import { createDraftHopUiId } from './hopIds';
+  import './connectionDetailsShared.css';
 
   export let jumpHops: JumpHop[] = [];
   export let identities: SSHIdentityMeta[] = [];
@@ -52,10 +53,10 @@
   }
 </script>
 
-<div class="field">
-  <div class="section-header">
-    <span class="field-label">Jump Hosts (Bastion)</span>
-    <button class="ghost micro-btn" on:click={addHop}><Plus size={12} /> Hop</button>
+<div class="connection-detail-field">
+  <div class="connection-detail-section-header">
+    <span class="connection-detail-field-label">Jump Hosts (Bastion)</span>
+    <button class="ghost connection-detail-micro-btn" on:click={addHop}><Plus size={12} /> Hop</button>
   </div>
   {#each jumpHops as hop, idx (hop.id)}
     <AuthEntryCard
@@ -121,33 +122,11 @@
     </AuthEntryCard>
   {/each}
   {#if jumpHops.length === 0}
-    <div class="no-items">No jump hosts configured</div>
+    <div class="connection-detail-empty-state">No jump hosts configured</div>
   {/if}
 </div>
 
 <style>
-  .field { display: flex; flex-direction: column; gap: 2px; }
-  .field-label { font-size: 11px; color: var(--text-secondary); font-weight: 500; }
-
-  .section-header {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 4px;
-  }
-
-  .micro-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 11px;
-    padding: 1px 6px;
-  }
-
-  .no-items {
-    font-size: 11px;
-    color: var(--text-secondary);
-    padding: 4px 0;
-  }
-
   .hop-fields { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; width: 100%; }
   .hop-field-row { display: flex; gap: 8px; width: 100%; min-width: 0; }
   .hop-host {

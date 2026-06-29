@@ -1,0 +1,45 @@
+/* Shared layout primitives for connection details panels only.
+   Class names are prefixed to avoid leaking into unrelated screens when imported. */
+
+.connection-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.connection-detail-field-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.connection-detail-field input,
+.connection-detail-field select {
+  width: 100%;
+}
+
+.connection-detail-field-row {
+  display: flex;
+  gap: 8px;
+}
+
+.connection-detail-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.connection-detail-micro-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  padding: 1px 6px;
+}
+
+.connection-detail-empty-state {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 4px 0;
+}

@@ -2,6 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import { Plus, X } from 'lucide-svelte';
   import { isTagTooLong, isValidNewTag, tagColor, MAX_TAG_LENGTH } from './tags';
+  import './connectionDetailsShared.css';
 
   export let tags: string[] = [];
   export let addingTag = false;
@@ -47,10 +48,10 @@
   }
 </script>
 
-<div class="field">
-  <div class="section-header">
-    <span class="field-label">Tags</span>
-    <button class="ghost micro-btn" on:click={startAddTag}><Plus size={12} /> Tag</button>
+<div class="connection-detail-field">
+  <div class="connection-detail-section-header">
+    <span class="connection-detail-field-label">Tags</span>
+    <button class="ghost connection-detail-micro-btn" on:click={startAddTag}><Plus size={12} /> Tag</button>
   </div>
   <div class="tags-row">
     {#each tags as tag}
@@ -79,34 +80,12 @@
       </div>
     {/if}
     {#if tags.length === 0 && !addingTag}
-      <span class="no-items">No tags</span>
+      <span class="connection-detail-empty-state">No tags</span>
     {/if}
   </div>
 </div>
 
 <style>
-  .field { display: flex; flex-direction: column; gap: 2px; }
-  .field-label { font-size: 11px; color: var(--text-secondary); font-weight: 500; }
-
-  .section-header {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 4px;
-  }
-
-  .micro-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 11px;
-    padding: 1px 6px;
-  }
-
-  .no-items {
-    font-size: 11px;
-    color: var(--text-secondary);
-    padding: 4px 0;
-  }
-
   .tags-row {
     display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
     min-height: 24px;

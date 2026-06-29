@@ -4,6 +4,7 @@
   import AuthEntryCard from '../AuthEntryCard.svelte';
   import type { ConnectionUser, SSHIdentityMeta } from '../../stores/appState';
   import type { AuthMethod } from './types';
+  import './connectionDetailsShared.css';
 
   export let users: ConnectionUser[] = [];
   export let defaultUserId = '';
@@ -54,10 +55,10 @@
   }
 </script>
 
-<div class="field">
-  <div class="section-header">
-    <span class="field-label">Users</span>
-    <button class="ghost micro-btn" on:click={addUser}><UserPlus size={12} /> Add</button>
+<div class="connection-detail-field">
+  <div class="connection-detail-section-header">
+    <span class="connection-detail-field-label">Users</span>
+    <button class="ghost connection-detail-micro-btn" on:click={addUser}><UserPlus size={12} /> Add</button>
   </div>
   {#each users as u (u.id)}
     <AuthEntryCard
@@ -94,33 +95,11 @@
     </AuthEntryCard>
   {/each}
   {#if users.length === 0}
-    <div class="no-items">No users configured</div>
+    <div class="connection-detail-empty-state">No users configured</div>
   {/if}
 </div>
 
 <style>
-  .field { display: flex; flex-direction: column; gap: 2px; }
-  .field-label { font-size: 11px; color: var(--text-secondary); font-weight: 500; }
-
-  .section-header {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 4px;
-  }
-
-  .micro-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 11px;
-    padding: 1px 6px;
-  }
-
-  .no-items {
-    font-size: 11px;
-    color: var(--text-secondary);
-    padding: 4px 0;
-  }
-
   .user-input { flex: 1; font-size: 11px; min-width: 0; width: 100%; }
   .default-radio {
     font-size: 10px; color: var(--text-secondary); display: flex; align-items: center; gap: 2px;
