@@ -221,6 +221,26 @@ func TestConnection_ValidateForConnect_PluginSkipsJumpChainStrict(t *testing.T) 
 	}
 }
 
+func TestConnection_ValidateForConnect_PluginIgnoresIncompleteSSHUsers(t *testing.T) {
+	// SSH draft users may remain stored while a plugin protocol is active.
+	// Connect-time validation must not require SSH auth completeness for plugins.
+	c := Connection{
+		Protocol: "rdp",
+		Host:     "target.example.com",
+		Port:     3389,
+		Users: []ConnectionUser{
+			{ID: "user-1", Username: "", Auth: AuthMethodKey},
+		},
+		DefaultUserID: "user-1",
+		JumpChain: JumpChainConfig{
+			Hops: []JumpHop{{Host: "bastion", Port: 22, Username: "jump", Auth: AuthMethodKey}},
+		},
+	}
+	if err := c.ValidateForConnect(); err != nil {
+		t.Fatalf("plugin connect should ignore incomplete SSH draft fields: %v", err)
+	}
+}
+
 func sshConnectionReady(t *testing.T) Connection {
 	t.Helper()
 	return Connection{

@@ -139,6 +139,9 @@ func (c *Connection) validateSSHForConnect() error {
 	return c.validateHopsStrict()
 }
 
+// validatePluginForConnect checks plugin-specific connect requirements only.
+// Stored SSH users and jump hops are intentionally ignored here so protocol
+// switching does not require clearing reversible draft data from the vault.
 func (c *Connection) validatePluginForConnect() error {
 	if c.Port < MinPort || c.Port > MaxPort {
 		if c.Port != 0 {

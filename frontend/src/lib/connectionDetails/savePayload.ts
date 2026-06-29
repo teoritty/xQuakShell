@@ -24,7 +24,11 @@ export function buildConnectionSavePayload(
   draft: ConnectionDetailsDraft,
   context: ConnectionSaveContext,
 ): Record<string, unknown> {
-  const isSSH = draft.protocol === 'ssh';
+  // Protocol controls how the connection is opened, not which reversible draft fields
+  // are retained. SSH users and jump hosts are persisted even when a plugin protocol
+  // is selected so autosave cannot destroy credential references during protocol
+  // switching. Domain connect validation is responsible for ignoring these fields
+  // for non-SSH protocols.
   return {
     id: draft.editingId,
     name: draft.name.trim() || 'New connection',
@@ -33,9 +37,9 @@ export function buildConnectionSavePayload(
     port: draft.port,
     folderId: context.folderId,
     tags: [...draft.tags],
-    users: isSSH ? filterDraftUsers(draft.users) : [],
-    defaultUserId: isSSH ? draft.defaultUserId : '',
-    jumpChain: isSSH ? stripDraftHopIdsForSave(filterDraftHops(draft.jumpHops)) : [],
+    users: filterDraftUsers(draft.users),
+    defaultUserId: draft.defaultUserId,
+    jumpChain: stripDraftHopIdsForSave(filterDraftHops(draft.jumpHops)),
     order: context.order,
   };
 }

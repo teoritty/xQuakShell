@@ -48,9 +48,19 @@ const pluginPayload = buildConnectionSavePayload(
   { ...sshDraft, protocol: 'rdp' },
   { folderId: 'f1', order: 1 },
 );
-assert((pluginPayload.jumpChain as unknown[]).length === 0, 'non-ssh clears jump chain');
-assert((pluginPayload.users as unknown[]).length === 0, 'non-ssh clears users');
-assert(pluginPayload.defaultUserId === '', 'non-ssh clears default user');
+// Protocol switch must not erase reversible SSH draft fields during autosave.
+assert(
+  (pluginPayload.jumpChain as unknown[]).length === 2,
+  'non-ssh must retain jump chain for protocol switching',
+);
+assert(
+  (pluginPayload.users as unknown[]).length === 1,
+  'non-ssh must retain users for protocol switching',
+);
+assert(
+  pluginPayload.defaultUserId === 'u1',
+  'non-ssh must retain default user for protocol switching',
+);
 
 const autosaveState = createAutosaveTimerState();
 const gen = bumpAutosaveGeneration(autosaveState);
