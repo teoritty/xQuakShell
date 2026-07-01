@@ -84,16 +84,17 @@ Use `Host.OnDeactivate` (notification) and `Host.OnShutdown` (RPC request) for g
    xqs-plugin keygen -out publisher.key
    ```
 
-2. Sign the manifest:
+2. Generate checksums and sign the manifest (checksums must exist before signing):
 
    ```bash
+   xqs-plugin checksums -dir .
    xqs-plugin sign -key publisher.key
    xqs-plugin pack -o dist/my-plugin.xqs-plugin
    ```
 
 3. Add `publisher.pub` (base64 Ed25519 public key) to **Settings → Plugins → Trusted publishers** in xQuakShell.
 
-Signatures use Ed25519 over canonical JSON of the manifest with `signature` cleared.
+Signatures use Ed25519 over a canonical JSON envelope `{manifest, checksumsSha256}` where `checksumsSha256` is the SHA-256 (hex) of normalized `SHA256SUMS` bytes. Legacy manifest-only signatures must be re-signed after binding checksums.
 
 ## IPC overview
 

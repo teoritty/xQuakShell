@@ -142,6 +142,11 @@ type InstalledPlugin struct {
 	Manifest Manifest
 	RootDir  string
 	Source   InstallSource
+	// ChecksumsDigest is the hex-encoded SHA-256 digest of the bundle's SHA256SUMS file,
+	// computed at load time immediately after checksum validation (before any temp-dir cleanup).
+	// Empty when the bundle has no SHA256SUMS. Used to bind manifest signature verification
+	// to bundle contents.
+	ChecksumsDigest string
 }
 
 // InstallSource indicates where the plugin was loaded from.

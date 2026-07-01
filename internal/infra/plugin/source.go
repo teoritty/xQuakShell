@@ -106,6 +106,7 @@ func loadSource(path string) (loadedSource, error) {
 			_ = os.RemoveAll(tempDir)
 			return loadedSource{}, err
 		}
+		// ChecksumsDigest is captured while tempDir still exists (before cleanup below).
 		return loadedSource{plugin: plugin, tempDir: tempDir}, nil
 	}
 

@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"crypto/ed25519"
+	"errors"
 	"fmt"
 )
 
@@ -12,10 +13,10 @@ type InstallTrustPolicy struct {
 }
 
 // EvaluateInstallTrust checks manifest signature against the trust policy.
-func EvaluateInstallTrust(m Manifest, policy InstallTrustPolicy) (InstallTrustResult, error) {
+func EvaluateInstallTrust(m Manifest, checksumsDigest string, policy InstallTrustPolicy) (InstallTrustResult, error) {
 	res := InstallTrustResult{
 		Signed:          m.Signature != "",
-		ChecksumPresent: false,
+		ChecksumPresent: len(checksumsDigest) == ChecksumsSHA256Len,
 	}
 	if m.Capabilities.Session != nil && m.Capabilities.Session.AllowMultiSession {
 		res.MultiSessionWarning = true
@@ -28,8 +29,25 @@ func EvaluateInstallTrust(m Manifest, policy InstallTrustPolicy) (InstallTrustRe
 		return res, nil
 	}
 
-	ok, err := VerifyManifestSignature(m, policy.TrustedKeys)
+	if len(checksumsDigest) != ChecksumsSHA256Len {
+		res.SignatureVerified = false
+		if policy.RequireSigned {
+			return res, fmt.Errorf("%w: signed plugin requires SHA256SUMS for verification", ErrInvalidManifest)
+		}
+		res.UntrustedSignatureWarning = true
+		return res, nil
+	}
+
+	ok, err := VerifyManifestSignature(m, checksumsDigest, policy.TrustedKeys)
 	if err != nil {
+		if errors.Is(err, ErrSignatureFormatOutdated) {
+			res.SignatureVerified = false
+			if policy.RequireSigned {
+				return res, fmt.Errorf("%w: %v", ErrInvalidManifest, err)
+			}
+			res.UntrustedSignatureWarning = true
+			return res, nil
+		}
 		return res, err
 	}
 	res.SignatureVerified = ok

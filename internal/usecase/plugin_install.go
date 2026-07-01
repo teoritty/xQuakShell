@@ -68,6 +68,7 @@ func NewPluginManagerWithConfig(cfg PluginManagerConfig) *PluginManager {
 	}
 	return m
 }
+
 // PreviewInstall validates a source plugin directory or bundle without installing.
 func (m *PluginManager) PreviewInstall(sourcePath string, policy domainplugin.InstallTrustPolicy) (InstallPreview, error) {
 	if m.loadBundle == nil {
@@ -77,11 +78,11 @@ func (m *PluginManager) PreviewInstall(sourcePath string, policy domainplugin.In
 	if err != nil {
 		return InstallPreview{}, fmt.Errorf("load plugin: %w", err)
 	}
-	trust, err := domainplugin.EvaluateInstallTrust(plugin.Manifest, policy)
+	trust, err := domainplugin.EvaluateInstallTrust(plugin.Manifest, plugin.ChecksumsDigest, policy)
 	if err != nil {
 		return InstallPreview{}, err
 	}
-	return installPreviewFrom(m, plugin, trust), nil
+	return installPreviewFrom(plugin, trust), nil
 }
 
 // Install copies the plugin into user storage and registers it.
@@ -99,7 +100,7 @@ func (m *PluginManager) Install(sourcePath string, policy domainplugin.InstallTr
 		if err != nil {
 			return domainplugin.InstalledPlugin{}, fmt.Errorf("load plugin: %w", err)
 		}
-		if _, err := domainplugin.EvaluateInstallTrust(plugin.Manifest, policy); err != nil {
+		if _, err := domainplugin.EvaluateInstallTrust(plugin.Manifest, plugin.ChecksumsDigest, policy); err != nil {
 			return domainplugin.InstalledPlugin{}, err
 		}
 	}
@@ -119,12 +120,8 @@ func (m *PluginManager) Install(sourcePath string, policy domainplugin.InstallTr
 	return installed, nil
 }
 
-func installPreviewFrom(m *PluginManager, p domainplugin.InstalledPlugin, trust domainplugin.InstallTrustResult) InstallPreview {
+func installPreviewFrom(p domainplugin.InstalledPlugin, trust domainplugin.InstallTrustResult) InstallPreview {
 	unsigned := trust.UnsignedWarning || trust.UntrustedSignatureWarning
-	checksum := false
-	if m != nil && m.bundle != nil {
-		checksum = m.bundle.HasChecksums(p.RootDir)
-	}
 	return InstallPreview{
 		ID:                        p.Manifest.ID,
 		Name:                      p.Manifest.Name,
@@ -132,7 +129,7 @@ func installPreviewFrom(m *PluginManager, p domainplugin.InstalledPlugin, trust 
 		Description:               p.Manifest.Description,
 		Signed:                    trust.Signed,
 		SignatureVerified:         trust.SignatureVerified,
-		ChecksumPresent:           checksum,
+		ChecksumPresent:           trust.ChecksumPresent,
 		RequiresSecretAccess:      p.Manifest.RequiresSecretAccess(),
 		MultiSessionWarning:       p.Manifest.RequiresMultiSessionWarning() || trust.MultiSessionWarning,
 		UnsignedWarning:           unsigned,

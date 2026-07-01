@@ -70,7 +70,7 @@ func TestEvaluateInstallTrustUnsignedWarning(t *testing.T) {
 		ID: "com.unsigned", Name: "U", Version: "1",
 		Engine: domainplugin.EngineConfig{Type: domainplugin.EngineGoBinary, Entry: "u.exe"},
 	}
-	trust, err := domainplugin.EvaluateInstallTrust(m, domainplugin.InstallTrustPolicy{})
+	trust, err := domainplugin.EvaluateInstallTrust(m, "", domainplugin.InstallTrustPolicy{})
 	if err != nil || !trust.UnsignedWarning {
 		t.Fatalf("expected unsigned warning: %+v err=%v", trust, err)
 	}

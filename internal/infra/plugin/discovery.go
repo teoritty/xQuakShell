@@ -89,8 +89,19 @@ func loadPluginDir(dir string) (domainplugin.InstalledPlugin, error) {
 	}
 
 	source := detectInstallSource(dir)
-	if err := verifyPluginIntegrity(dir, source); err != nil {
+	if err := verifyPluginIntegrity(dir, manifest); err != nil {
 		return domainplugin.InstalledPlugin{}, fmt.Errorf("plugin integrity check failed: %w", err)
+	}
+
+	if manifest.Signature != "" {
+		if _, err := os.Stat(filepath.Join(dir, bundle.ChecksumsFile)); os.IsNotExist(err) {
+			return domainplugin.InstalledPlugin{}, fmt.Errorf("%w: signed plugin requires SHA256SUMS", domainplugin.ErrInvalidManifest)
+		}
+	}
+
+	checksumsDigest, err := bundle.ChecksumsDigest(dir)
+	if err != nil {
+		return domainplugin.InstalledPlugin{}, fmt.Errorf("checksums digest: %w", err)
 	}
 
 	entryPath, err := ResolveEngineEntryPath(dir, manifest.Engine.Entry)
@@ -113,14 +124,21 @@ func loadPluginDir(dir string) (domainplugin.InstalledPlugin, error) {
 	}
 
 	return domainplugin.InstalledPlugin{
-		Manifest: manifest,
-		RootDir:  dir,
-		Source:   source,
+		Manifest:        manifest,
+		RootDir:         dir,
+		Source:          source,
+		ChecksumsDigest: checksumsDigest,
 	}, nil
 }
 
-func verifyPluginIntegrity(dir string, _ domainplugin.InstallSource) error {
-	return bundle.RequireChecksums(dir)
+func verifyPluginIntegrity(dir string, manifest domainplugin.Manifest) error {
+	if manifest.Signature != "" {
+		return bundle.RequireChecksums(dir)
+	}
+	if bundle.HasChecksums(dir) {
+		return bundle.ValidateChecksums(dir)
+	}
+	return nil
 }
 
 // SearchPaths returns plugin directories in priority order (ADR-006).

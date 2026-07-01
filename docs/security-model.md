@@ -219,7 +219,7 @@ Plugin terminal output is written to a bounded channel. If the UI consumer does 
 
 - Zip-slip protected bundle extract (`pathsafe.UnderRoot`).
 
-- **All** plugins (bundled and user-installed) require `SHA256SUMS` at discovery; missing or mismatched checksums hard-reject the plugin.
+- Bundled and user-installed plugins validate `SHA256SUMS` when present; hash mismatches hard-reject the plugin. Signed plugins require `SHA256SUMS` — the manifest signature binds to the checksum file digest so tampering a binary and recalculating checksums alone cannot pass verification.
 
 - Protocol ID conflicts rejected at discovery.
 

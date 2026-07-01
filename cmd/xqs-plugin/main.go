@@ -236,7 +236,14 @@ func runSign(args []string) error {
 	if err != nil {
 		return err
 	}
-	sig, err := domainplugin.SignManifest(manifest, priv)
+	checksumsDigest, err := bundle.ChecksumsDigest(*dir)
+	if err != nil {
+		return fmt.Errorf("read SHA256SUMS: %w (run 'xqs-plugin checksums -dir %s' first)", err, *dir)
+	}
+	if checksumsDigest == "" {
+		return fmt.Errorf("SHA256SUMS not found in %s — run 'xqs-plugin checksums -dir %s' first", *dir, *dir)
+	}
+	sig, err := domainplugin.SignManifest(manifest, checksumsDigest, priv)
 	if err != nil {
 		return err
 	}

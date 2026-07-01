@@ -44,7 +44,7 @@ func testProcessHost(t *testing.T, auth domainplugin.SessionRPCAuthorizer, inbou
 	})
 }
 
-func TestDiscoveryRejectsBundledWithoutChecksums(t *testing.T) {
+func TestDiscoveryLoadsUnsignedWithoutChecksums(t *testing.T) {
 	exeDir := t.TempDir()
 	pluginID := "com.test.bundled-no-sum"
 	dir := filepath.Join(exeDir, "plugins", "bundled")
@@ -64,8 +64,12 @@ func TestDiscoveryRejectsBundledWithoutChecksums(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := infraplugin.LoadPluginDir(dir); err == nil {
-		t.Fatal("expected bundled plugin without SHA256SUMS to be rejected")
+	loaded, err := infraplugin.LoadPluginDir(dir)
+	if err != nil {
+		t.Fatalf("unsigned bundled plugin without SHA256SUMS should load: %v", err)
+	}
+	if loaded.ChecksumsDigest != "" {
+		t.Fatalf("expected empty ChecksumsDigest, got %q", loaded.ChecksumsDigest)
 	}
 
 	discovery := infraplugin.NewDiscovery(infraplugin.SearchPaths(exeDir, ""))
@@ -73,8 +77,8 @@ func TestDiscoveryRejectsBundledWithoutChecksums(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plugins) != 0 {
-		t.Fatalf("expected no plugins without checksums, got %d", len(plugins))
+	if len(plugins) != 1 {
+		t.Fatalf("expected one unsigned plugin, got %d", len(plugins))
 	}
 }
 

@@ -122,15 +122,35 @@ Examples:
 
 ## Signature
 
-When present, `signature` is base64 Ed25519 over canonical JSON of the manifest with the `signature` field omitted.
+When present, `signature` is base64 Ed25519 over a canonical JSON **envelope** that binds the manifest to the bundle checksum file:
+
+```json
+{
+  "manifest": { "...": "plugin.json fields without signature" },
+  "checksumsSha256": "<hex SHA-256 of normalized SHA256SUMS bytes>"
+}
+```
+
+- `manifest` is the manifest JSON with the `signature` field omitted.
+- `checksumsSha256` is the lowercase hex SHA-256 of the `SHA256SUMS` file bytes after normalizing CRLF line endings to LF.
+- JSON map keys are sorted lexicographically (canonical JSON) so signatures remain stable across reloads.
 
 Trusted publisher public keys are configured in application settings. Unsigned plugins can still be installed with explicit user confirmation unless **Require signed plugins** is enabled.
+
+**Signing order for authors:** generate checksums first, then sign:
+
+```bash
+xqs-plugin checksums -dir .
+xqs-plugin sign -dir . -key publisher.key
+```
+
+Legacy signatures (manifest-only, without checksums binding) are detected and rejected with a clear “signature format outdated” message — re-sign after running `checksums`.
 
 ## Bundle format
 
 `.xqs-plugin` files are ZIP archives. `xqs-plugin pack` adds `SHA256SUMS` with SHA-256 hashes of all files except the checksums file itself.
 
-**Every plugin directory** (bundled under `<exe>/plugins` or user-installed under `data/plugins`) **must** ship with a valid `SHA256SUMS` file. Discovery rejects plugins without checksums or with hash mismatches — no exceptions.
+Bundled and user-installed plugins **should** ship with a valid `SHA256SUMS` file. Discovery validates checksums when the file is present; signed plugins **require** `SHA256SUMS` for signature verification. Unsigned dev plugins may omit checksums.
 
 Generate or refresh checksums after changing plugin files:
 

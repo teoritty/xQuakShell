@@ -90,7 +90,7 @@ func TestAllowMultiSessionWarningForNonTerminal(t *testing.T) {
 	if !m.RequiresMultiSessionWarning() {
 		t.Fatal("expected multi-session install warning")
 	}
-	trust, err := EvaluateInstallTrust(m, InstallTrustPolicy{})
+	trust, err := EvaluateInstallTrust(m, "", InstallTrustPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2,6 +2,7 @@ package bundle
 
 import (
 	"archive/zip"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -135,7 +136,29 @@ func (b *extractBudget) addEntry(uncompressed int64) error {
 	return nil
 }
 
+// normalizeLineEndings replaces CRLF with LF for cross-platform consistency.
+func normalizeLineEndings(data []byte) []byte {
+	return bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+}
+
+// ChecksumsDigest returns the hex-encoded SHA-256 digest of the SHA256SUMS file in dir.
+// Line endings are normalized (CRLF → LF) before hashing for cross-platform consistency.
+// Returns ("", nil) if the file does not exist (legitimate for unsigned plugins).
+func ChecksumsDigest(dir string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(dir, ChecksumsFile))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	normalized := normalizeLineEndings(data)
+	sum := sha256.Sum256(normalized)
+	return hex.EncodeToString(sum[:]), nil
+}
+
 // WriteChecksums generates SHA256SUMS for all files in dir (except the checksums file itself).
+// The file is always written with LF line endings, regardless of OS.
 func WriteChecksums(dir string) error {
 	hashes, err := hashTree(dir)
 	if err != nil {
