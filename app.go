@@ -98,6 +98,7 @@ func NewApp() *App {
 	if pluginRuntime.viewRelay != nil {
 		api.SetPluginViewRelay(pluginRuntime.viewRelay)
 	}
+	api.SetGitHubServices(pluginRuntime.githubRepoService, pluginRuntime.githubPluginService)
 	pluginRuntime.setSessionRecoverer(api.Sessions())
 
 	return &App{api: api, plugins: pluginRuntime}
@@ -466,4 +467,36 @@ func (a *App) RelayPluginViewMessage(token string, message json.RawMessage) erro
 
 func (a *App) ReleasePluginViewPanel(token string) {
 	a.api.ReleasePluginViewPanel(token)
+}
+
+func (a *App) ListGitHubRepositories() ([]presentation.GitHubRepositoryDTO, error) {
+	return a.api.ListGitHubRepositories()
+}
+
+func (a *App) AddGitHubRepository(req presentation.AddGitHubRepositoryRequest) error {
+	return a.api.AddGitHubRepository(req)
+}
+
+func (a *App) RemoveGitHubRepository(repoURL string) error {
+	return a.api.RemoveGitHubRepository(repoURL)
+}
+
+func (a *App) SetGitHubRepositoryTrust(req presentation.SetGitHubRepositoryTrustRequest) error {
+	return a.api.SetGitHubRepositoryTrust(req)
+}
+
+func (a *App) FetchGitHubPlugins(repoURL string) (*presentation.GitHubPluginListDTO, error) {
+	return a.api.FetchGitHubPlugins(repoURL)
+}
+
+func (a *App) PreviewGitHubPluginInstall(repoURL string) (presentation.GitHubPluginPreviewResponseDTO, error) {
+	return a.api.PreviewGitHubPluginInstall(repoURL)
+}
+
+func (a *App) InstallGitHubPlugin(repoURL string, grantSecretAccess bool, grantMultiSessionAccess bool) error {
+	return a.api.InstallGitHubPlugin(repoURL, grantSecretAccess, grantMultiSessionAccess)
+}
+
+func (a *App) UninstallGitHubPlugin(pluginID string, removeData bool) error {
+	return a.api.UninstallGitHubPlugin(pluginID, removeData)
 }
