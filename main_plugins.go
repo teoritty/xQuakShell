@@ -10,24 +10,29 @@ import (
 	"ssh-client/internal/domain"
 	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/infra/auditlog"
+	infracache "ssh-client/internal/infra/cache"
+	infragithub "ssh-client/internal/infra/github"
 	infraplugin "ssh-client/internal/infra/plugin"
 	infrapluginassets "ssh-client/internal/infra/plugin/assets"
 	infrapluginbundle "ssh-client/internal/infra/plugin/bundle"
 	infrapluginlifecycle "ssh-client/internal/infra/plugin/lifecycle"
+	infrapersistence "ssh-client/internal/infra/persistence"
 	infraportable "ssh-client/internal/infra/portable"
 	"ssh-client/internal/usecase"
 )
 
 type pluginRuntime struct {
-	inbound       *usecase.PluginSessionInbound
-	viewInbound   *usecase.PluginViewInbound
-	viewRelay     *usecase.PluginViewRelay
-	vaultInbound  *usecase.PluginVaultInbound
-	vaultSettings *usecase.PluginVaultSettings
-	manager       *usecase.PluginManager
-	supervisor    *usecase.PluginSupervisor
-	assets        http.Handler
-	cancel        context.CancelFunc
+	inbound             *usecase.PluginSessionInbound
+	viewInbound         *usecase.PluginViewInbound
+	viewRelay           *usecase.PluginViewRelay
+	vaultInbound        *usecase.PluginVaultInbound
+	vaultSettings       *usecase.PluginVaultSettings
+	manager             *usecase.PluginManager
+	supervisor          *usecase.PluginSupervisor
+	githubRepoService   *usecase.GitHubRepositoryService
+	githubPluginService *usecase.GitHubPluginService
+	assets              http.Handler
+	cancel              context.CancelFunc
 }
 
 type pluginRuntimeDeps struct {
@@ -124,6 +129,33 @@ func newPluginRuntime(dataRoot string, deps pluginRuntimeDeps) *pluginRuntime {
 		log.Printf("WARNING: plugin discovery failed: %v", err)
 	}
 
+	if err := infrapersistence.EnsureGitHubReposFile(dataRoot); err != nil {
+		log.Printf("WARNING: github repos file init failed: %v", err)
+	}
+
+	githubCache := infracache.NewMemoryCache(domainplugin.DefaultCacheTTL)
+	githubRepoStorage, err := infrapersistence.NewFileGitHubRepositoryStorage(dataRoot)
+	if err != nil {
+		log.Printf("WARNING: github repo storage init failed: %v", err)
+	}
+	githubClient := infragithub.NewClient()
+	githubDownloader := infraplugin.NewBinaryDownloader(githubClient)
+
+	var githubRepoService *usecase.GitHubRepositoryService
+	var githubPluginService *usecase.GitHubPluginService
+	if githubRepoStorage != nil {
+		githubRepoService = usecase.NewGitHubRepositoryService(githubRepoStorage, githubCache)
+		githubPluginService = usecase.NewGitHubPluginService(
+			githubClient,
+			githubDownloader,
+			nil,
+			githubCache,
+			manager,
+			githubRepoStorage,
+			dataRoot,
+		)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	go infrapluginlifecycle.RunIdleSuspender(ctx, manager, infrapluginlifecycle.Config{
 		IdleAfter: 5 * time.Minute,
@@ -131,13 +163,15 @@ func newPluginRuntime(dataRoot string, deps pluginRuntimeDeps) *pluginRuntime {
 	})
 
 	return &pluginRuntime{
-		inbound:       inbound,
-		viewInbound:   viewInbound,
-		viewRelay:     viewRelay,
-		vaultInbound:  vaultInbound,
-		vaultSettings: deps.VaultSettings,
-		manager:       manager,
-		supervisor:    supervisor,
+		inbound:             inbound,
+		viewInbound:         viewInbound,
+		viewRelay:           viewRelay,
+		vaultInbound:        vaultInbound,
+		vaultSettings:       deps.VaultSettings,
+		manager:             manager,
+		supervisor:          supervisor,
+		githubRepoService:   githubRepoService,
+		githubPluginService: githubPluginService,
 		assets: infrapluginassets.NewHandler(infrapluginassets.PluginRegistryUIRootResolver(func(id string) (domainplugin.InstalledPlugin, error) {
 			return registry.Get(id)
 		})),

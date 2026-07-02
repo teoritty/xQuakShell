@@ -45,6 +45,17 @@ func (r *PluginRegistry) Register(p domainplugin.InstalledPlugin) error {
 	return nil
 }
 
+// Unregister removes a plugin from the registry.
+func (r *PluginRegistry) Unregister(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.plugins[id]; !ok {
+		return fmt.Errorf("%w: %s", domainplugin.ErrPluginNotFound, id)
+	}
+	delete(r.plugins, id)
+	return nil
+}
+
 func validateProtocolOwnership(plugins map[string]domainplugin.InstalledPlugin, candidate domainplugin.InstalledPlugin) error {
 	for id, existing := range plugins {
 		if id == candidate.Manifest.ID {
