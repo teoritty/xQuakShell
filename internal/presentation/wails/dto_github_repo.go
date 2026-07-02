@@ -92,8 +92,10 @@ type GitHubPluginPreviewResponseDTO struct {
 	LatestRelease        string   `json:"latestRelease"`
 	PublishedDate        string   `json:"publishedDate"`
 	README               string   `json:"readme"`
-	RequiresSecretAccess bool     `json:"requiresSecretAccess"`
-	UnsignedPlugin       bool     `json:"unsignedPlugin"`
+	RequiresSecretAccess    bool     `json:"requiresSecretAccess"`
+	MultiSessionWarning     bool     `json:"multiSessionWarning"`
+	ArbitraryNetworkWarning bool     `json:"arbitraryNetworkWarning"`
+	UnsignedPlugin          bool     `json:"unsignedPlugin"`
 	UntrustedSource      bool     `json:"untrustedSource"`
 	Warnings             []string `json:"warnings"`
 }
@@ -123,8 +125,10 @@ func githubPreviewToDTO(p usecase.GitHubPluginPreviewDTO) GitHubPluginPreviewRes
 		LatestRelease:        p.LatestRelease,
 		PublishedDate:        p.PublishedDate,
 		README:               p.README,
-		RequiresSecretAccess: p.RequiresSecretAccess,
-		UnsignedPlugin:       p.UnsignedPlugin,
+		RequiresSecretAccess:    p.RequiresSecretAccess,
+		MultiSessionWarning:     p.MultiSessionWarning,
+		ArbitraryNetworkWarning: p.ArbitraryNetworkWarning,
+		UnsignedPlugin:          p.UnsignedPlugin,
 		UntrustedSource:      p.UntrustedSource,
 		Warnings:             warnings,
 	}

@@ -972,7 +972,10 @@ export interface PluginInstallPreview {
   signatureVerified: boolean;
   checksumPresent: boolean;
   requiresSecretAccess: boolean;
+  multiSessionWarning?: boolean;
+  arbitraryNetworkWarning?: boolean;
   unsignedWarning: boolean;
+  untrustedSignatureWarning: boolean;
   untrustedSignatureWarning: boolean;
   permissions: string[];
 }
@@ -1109,13 +1112,14 @@ export async function installPlugin(
   sourceDir: string,
   grantSecretAccess = false,
   grantMultiSessionAccess = false,
+  grantArbitraryNetworkAccess = false,
 ): Promise<PluginInfo> {
   const app = getApp();
   if (!app?.InstallPlugin) {
     throw new Error('Plugin install is unavailable');
   }
   try {
-    return await app.InstallPlugin(sourceDir, grantSecretAccess, grantMultiSessionAccess);
+    return await app.InstallPlugin(sourceDir, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
   } catch (e) {
     handleError(e, 'Install plugin');
     throw e;
@@ -1170,6 +1174,8 @@ export interface GitHubPluginPreview {
   publishedDate: string;
   readme: string;
   requiresSecretAccess: boolean;
+  multiSessionWarning?: boolean;
+  arbitraryNetworkWarning: boolean;
   unsignedPlugin: boolean;
   untrustedSource: boolean;
   warnings: string[];
@@ -1245,11 +1251,12 @@ export async function installGitHubPlugin(
   repoURL: string,
   grantSecretAccess = false,
   grantMultiSessionAccess = false,
+  grantArbitraryNetworkAccess = false,
 ): Promise<void> {
   const app = getApp();
   if (!app?.InstallGitHubPlugin) throw new Error('GitHub plugin install unavailable');
   try {
-    await app.InstallGitHubPlugin(repoURL, grantSecretAccess, grantMultiSessionAccess);
+    await app.InstallGitHubPlugin(repoURL, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
   } catch (e) {
     handleError(e, 'Install GitHub plugin');
     throw e;

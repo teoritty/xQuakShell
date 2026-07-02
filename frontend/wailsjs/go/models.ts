@@ -433,6 +433,8 @@ export namespace wails {
 	    publishedDate: string;
 	    readme: string;
 	    requiresSecretAccess: boolean;
+	    multiSessionWarning: boolean;
+	    arbitraryNetworkWarning: boolean;
 	    unsignedPlugin: boolean;
 	    untrustedSource: boolean;
 	    warnings: string[];
@@ -459,6 +461,8 @@ export namespace wails {
 	        this.publishedDate = source["publishedDate"];
 	        this.readme = source["readme"];
 	        this.requiresSecretAccess = source["requiresSecretAccess"];
+	        this.multiSessionWarning = source["multiSessionWarning"];
+	        this.arbitraryNetworkWarning = source["arbitraryNetworkWarning"];
 	        this.unsignedPlugin = source["unsignedPlugin"];
 	        this.untrustedSource = source["untrustedSource"];
 	        this.warnings = source["warnings"];
@@ -704,6 +708,7 @@ export namespace wails {
 	    checksumPresent: boolean;
 	    requiresSecretAccess: boolean;
 	    multiSessionWarning: boolean;
+	    arbitraryNetworkWarning: boolean;
 	    unsignedWarning: boolean;
 	    untrustedSignatureWarning: boolean;
 	    permissions: string[];
@@ -723,6 +728,7 @@ export namespace wails {
 	        this.checksumPresent = source["checksumPresent"];
 	        this.requiresSecretAccess = source["requiresSecretAccess"];
 	        this.multiSessionWarning = source["multiSessionWarning"];
+	        this.arbitraryNetworkWarning = source["arbitraryNetworkWarning"];
 	        this.unsignedWarning = source["unsignedWarning"];
 	        this.untrustedSignatureWarning = source["untrustedSignatureWarning"];
 	        this.permissions = source["permissions"];

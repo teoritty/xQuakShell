@@ -24,8 +24,10 @@ type GitHubPluginPreviewDTO struct {
 	LatestRelease        string   `json:"latestRelease"`
 	PublishedDate        string   `json:"publishedDate"`
 	README               string   `json:"readme"`
-	RequiresSecretAccess bool     `json:"requiresSecretAccess"`
-	UnsignedPlugin       bool     `json:"unsignedPlugin"`
+	RequiresSecretAccess    bool     `json:"requiresSecretAccess"`
+	MultiSessionWarning     bool     `json:"multiSessionWarning"`
+	ArbitraryNetworkWarning bool     `json:"arbitraryNetworkWarning"`
+	UnsignedPlugin          bool     `json:"unsignedPlugin"`
 	UntrustedSource      bool     `json:"untrustedSource"`
 	Warnings             []string `json:"warnings"`
 }
@@ -52,6 +54,13 @@ func BuildPreviewDTO(metadata *domainplugin.GitHubPluginMetadata, repoTrusted, u
 	if metadata.RequiresSecretAccess() {
 		warnings = append(warnings, "This plugin can access secrets")
 	}
+	arbitraryNetworkWarning := metadata.Manifest.RequiresArbitraryNetworkAccess()
+	if arbitraryNetworkWarning {
+		warnings = append(warnings, "This plugin can connect to any host on the network")
+		if metadata.Manifest.RequiresPrivateNetworkAccess() {
+			warnings = append(warnings, "Including private and local network addresses")
+		}
+	}
 
 	return GitHubPluginPreviewDTO{
 		RepositoryURL:        metadata.RepositoryURL,
@@ -69,8 +78,10 @@ func BuildPreviewDTO(metadata *domainplugin.GitHubPluginMetadata, repoTrusted, u
 		LatestRelease:        metadata.LatestRelease,
 		PublishedDate:        metadata.PublishedAt,
 		README:               metadata.README,
-		RequiresSecretAccess: metadata.RequiresSecretAccess(),
-		UnsignedPlugin:       unsignedPlugin,
+		RequiresSecretAccess:    metadata.RequiresSecretAccess(),
+		MultiSessionWarning:     metadata.Manifest.RequiresMultiSessionWarning(),
+		ArbitraryNetworkWarning: arbitraryNetworkWarning,
+		UnsignedPlugin:          unsignedPlugin,
 		UntrustedSource:      untrustedSource,
 		Warnings:             warnings,
 	}

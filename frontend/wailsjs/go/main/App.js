@@ -150,12 +150,12 @@ export function ImportPuTTYRegAsConnections(arg1, arg2) {
   return window['go']['main']['App']['ImportPuTTYRegAsConnections'](arg1, arg2);
 }
 
-export function InstallGitHubPlugin(arg1, arg2, arg3) {
-  return window['go']['main']['App']['InstallGitHubPlugin'](arg1, arg2, arg3);
+export function InstallGitHubPlugin(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['InstallGitHubPlugin'](arg1, arg2, arg3, arg4);
 }
 
-export function InstallPlugin(arg1, arg2, arg3) {
-  return window['go']['main']['App']['InstallPlugin'](arg1, arg2, arg3);
+export function InstallPlugin(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['InstallPlugin'](arg1, arg2, arg3, arg4);
 }
 
 export function IsVaultUnlocked() {

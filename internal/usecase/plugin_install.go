@@ -19,6 +19,7 @@ type InstallPreview struct {
 	ChecksumPresent           bool
 	RequiresSecretAccess      bool
 	MultiSessionWarning       bool
+	ArbitraryNetworkWarning   bool
 	UnsignedWarning           bool
 	UntrustedSignatureWarning bool
 	Permissions               []string
@@ -86,7 +87,7 @@ func (m *PluginManager) PreviewInstall(sourcePath string, policy domainplugin.In
 }
 
 // Install copies the plugin into user storage and registers it.
-func (m *PluginManager) Install(sourcePath string, policy domainplugin.InstallTrustPolicy, grantMultiSession bool) (domainplugin.InstalledPlugin, error) {
+func (m *PluginManager) Install(sourcePath string, policy domainplugin.InstallTrustPolicy, grantMultiSession bool, grantArbitraryNetworkAccess bool) (domainplugin.InstalledPlugin, error) {
 	if m.portable != nil {
 		if err := m.portable.RequireWritable(); err != nil {
 			return domainplugin.InstalledPlugin{}, err
@@ -111,11 +112,17 @@ func (m *PluginManager) Install(sourcePath string, policy domainplugin.InstallTr
 	if installed.Manifest.RequiresMultiSessionWarning() && !grantMultiSession {
 		return domainplugin.InstalledPlugin{}, fmt.Errorf("multi-session consent required for this plugin")
 	}
+	if installed.Manifest.RequiresArbitraryNetworkAccess() && !grantArbitraryNetworkAccess {
+		return domainplugin.InstalledPlugin{}, fmt.Errorf("arbitrary network access consent required for this plugin")
+	}
 	if err := m.registry.Register(installed); err != nil {
 		return domainplugin.InstalledPlugin{}, err
 	}
 	if installed.Manifest.RequiresMultiSessionWarning() {
 		m.auditStart(installed.Manifest.ID, "install", "allowMultiSession", false)
+	}
+	if installed.Manifest.RequiresArbitraryNetworkAccess() && grantArbitraryNetworkAccess {
+		m.auditStart(installed.Manifest.ID, "install", "allowArbitraryNetwork", false)
 	}
 	return installed, nil
 }
@@ -132,6 +139,7 @@ func installPreviewFrom(p domainplugin.InstalledPlugin, trust domainplugin.Insta
 		ChecksumPresent:           trust.ChecksumPresent,
 		RequiresSecretAccess:      p.Manifest.RequiresSecretAccess(),
 		MultiSessionWarning:       p.Manifest.RequiresMultiSessionWarning() || trust.MultiSessionWarning,
+		ArbitraryNetworkWarning:   p.Manifest.RequiresArbitraryNetworkWarning() || trust.ArbitraryNetworkWarning,
 		UnsignedWarning:           unsigned,
 		UntrustedSignatureWarning: trust.UntrustedSignatureWarning,
 		Permissions:               p.Manifest.PermissionSummary(),

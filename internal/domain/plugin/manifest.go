@@ -23,17 +23,17 @@ const (
 
 // Manifest describes a plugin package (plugin.json).
 type Manifest struct {
-	ID               string         `json:"id"`
-	Name             string         `json:"name"`
-	Version          string         `json:"version"`
-	Description      string         `json:"description,omitempty"`
-	MinCoreVersion   string         `json:"minCoreVersion,omitempty"`
-	Engine           EngineConfig   `json:"engine"`
-	Capabilities     CapabilitySet  `json:"capabilities,omitempty"`
-	Contributions    Contributions  `json:"contributions,omitempty"`
-	ActivationEvents []string       `json:"activationEvents,omitempty"`
-	Isolation        IsolationMode  `json:"isolation,omitempty"`
-	Signature        string         `json:"signature,omitempty"`
+	ID               string        `json:"id"`
+	Name             string        `json:"name"`
+	Version          string        `json:"version"`
+	Description      string        `json:"description,omitempty"`
+	MinCoreVersion   string        `json:"minCoreVersion,omitempty"`
+	Engine           EngineConfig  `json:"engine"`
+	Capabilities     CapabilitySet `json:"capabilities,omitempty"`
+	Contributions    Contributions `json:"contributions,omitempty"`
+	ActivationEvents []string      `json:"activationEvents,omitempty"`
+	Isolation        IsolationMode `json:"isolation,omitempty"`
+	Signature        string        `json:"signature,omitempty"`
 }
 
 // EngineConfig locates the plugin binary.
@@ -45,16 +45,18 @@ type EngineConfig struct {
 
 // CapabilitySet declares permissions requested at install (ADR-002).
 type CapabilitySet struct {
-	Network  *NetworkCaps  `json:"network,omitempty"`
-	FS       *FSCaps       `json:"filesystem,omitempty"`
-	Events   *EventCaps    `json:"events,omitempty"`
-	Vault    *VaultCaps    `json:"vault,omitempty"`
-	Session  *SessionCaps  `json:"session,omitempty"`
+	Network *NetworkCaps `json:"network,omitempty"`
+	FS      *FSCaps      `json:"filesystem,omitempty"`
+	Events  *EventCaps   `json:"events,omitempty"`
+	Vault   *VaultCaps   `json:"vault,omitempty"`
+	Session *SessionCaps `json:"session,omitempty"`
 }
 
 // NetworkCaps controls outbound connectivity.
 type NetworkCaps struct {
-	Outbound []string `json:"outbound,omitempty"`
+	Outbound               []string `json:"outbound,omitempty"`
+	AllowArbitraryOutbound bool     `json:"allowArbitraryOutbound,omitempty"`
+	AllowPrivateNetworks   bool     `json:"allowPrivateNetworks,omitempty"`
 }
 
 // FSCaps controls sandboxed file access.
@@ -153,8 +155,8 @@ type InstalledPlugin struct {
 type InstallSource string
 
 const (
-	SourceBundled    InstallSource = "bundled"
-	SourceUser       InstallSource = "user"
+	SourceBundled InstallSource = "bundled"
+	SourceUser    InstallSource = "user"
 )
 
 // EffectiveIsolation returns the isolation mode from manifest or default.

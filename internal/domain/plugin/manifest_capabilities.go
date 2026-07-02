@@ -17,10 +17,8 @@ var allowedCoreEventChannels = map[string]struct{}{
 // On-disk FS root checks run via bundle.ValidateCapabilitiesForInstall in infra.
 func (m *Manifest) ValidateCapabilities() error {
 	if m.Capabilities.Network != nil {
-		for _, pattern := range m.Capabilities.Network.Outbound {
-			if err := validateNetworkPattern(pattern); err != nil {
-				return err
-			}
+		if err := validateNetworkCaps(m.Capabilities.Network); err != nil {
+			return err
 		}
 	}
 	if m.Capabilities.FS != nil {
@@ -200,6 +198,42 @@ func validateNetworkPattern(pattern string) error {
 	return err
 }
 
+func validateNetworkCaps(n *NetworkCaps) error {
+	if n.AllowPrivateNetworks && !n.AllowArbitraryOutbound {
+		return fmt.Errorf("%w: allowPrivateNetworks requires allowArbitraryOutbound", ErrInvalidManifest)
+	}
+	for _, pattern := range n.Outbound {
+		if err := validateNetworkPattern(pattern); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RequiresArbitraryNetworkAccess reports whether the manifest requests unrestricted outbound TCP.
+func (m *Manifest) RequiresArbitraryNetworkAccess() bool {
+	return m.Capabilities.Network != nil && m.Capabilities.Network.AllowArbitraryOutbound
+}
+
+// RequiresPrivateNetworkAccess reports whether arbitrary outbound includes private/LAN addresses.
+func (m *Manifest) RequiresPrivateNetworkAccess() bool {
+	return m.RequiresArbitraryNetworkAccess() && m.Capabilities.Network.AllowPrivateNetworks
+}
+
+// RequiresArbitraryNetworkWarning reports whether install should warn about unrestricted network access.
+func (m *Manifest) RequiresArbitraryNetworkWarning() bool {
+	return m.RequiresArbitraryNetworkAccess()
+}
+
+// HasNetworkCapability reports whether the manifest declares any outbound network permission.
+func (m *Manifest) HasNetworkCapability() bool {
+	if m.Capabilities.Network == nil {
+		return false
+	}
+	n := m.Capabilities.Network
+	return n.AllowArbitraryOutbound || len(n.Outbound) > 0
+}
+
 func allowedSecretField(field string) bool {
 	switch field {
 	case "password", "privateKey", "passphrase":
@@ -220,8 +254,17 @@ func (m *Manifest) PermissionSummary() []string {
 			lines = append(lines, "Write files in declared sandbox paths")
 		}
 	}
-	if m.Capabilities.Network != nil && len(m.Capabilities.Network.Outbound) > 0 {
-		lines = append(lines, "Outbound network: "+strings.Join(m.Capabilities.Network.Outbound, ", "))
+	if m.Capabilities.Network != nil {
+		n := m.Capabilities.Network
+		if n.AllowArbitraryOutbound {
+			line := "Outbound network: any public host and port (TCP)"
+			if n.AllowPrivateNetworks {
+				line += " (including private, loopback, and link-local addresses)"
+			}
+			lines = append(lines, line)
+		} else if len(n.Outbound) > 0 {
+			lines = append(lines, "Outbound network: "+strings.Join(n.Outbound, ", "))
+		}
 	}
 	if m.Capabilities.Vault != nil && len(m.Capabilities.Vault.ReadConnectionFields) > 0 {
 		lines = append(lines, "Read connection metadata (no secrets by default)")

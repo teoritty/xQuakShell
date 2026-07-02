@@ -77,9 +77,9 @@ export function ImportPuTTYReg(arg1:string):Promise<Array<wails.PuTTYSessionDTO>
 
 export function ImportPuTTYRegAsConnections(arg1:string,arg2:string):Promise<Array<wails.ConnectionDTO>>;
 
-export function InstallGitHubPlugin(arg1:string,arg2:boolean,arg3:boolean):Promise<void>;
+export function InstallGitHubPlugin(arg1:string,arg2:boolean,arg3:boolean,arg4:boolean):Promise<void>;
 
-export function InstallPlugin(arg1:string,arg2:boolean,arg3:boolean):Promise<wails.PluginDTO>;
+export function InstallPlugin(arg1:string,arg2:boolean,arg3:boolean,arg4:boolean):Promise<wails.PluginDTO>;
 
 export function IsVaultUnlocked():Promise<boolean>;
 

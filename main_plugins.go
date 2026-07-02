@@ -206,6 +206,13 @@ func (r *pluginRuntime) grantSecretAccess(ctx context.Context, pluginID string) 
 	return r.vaultSettings.GrantSecretAccess(ctx, pluginID)
 }
 
+func (r *pluginRuntime) grantArbitraryNetworkAccess(ctx context.Context, pluginID string) error {
+	if r == nil || r.vaultSettings == nil {
+		return nil
+	}
+	return r.vaultSettings.GrantArbitraryNetworkAccess(ctx, pluginID)
+}
+
 func (r *pluginRuntime) setSessionRecoverer(recoverer usecase.PluginSessionRecoverer) {
 	if r == nil || r.supervisor == nil {
 		return

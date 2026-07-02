@@ -2,8 +2,6 @@
 
   import { onMount } from 'svelte';
 
-  import ConfirmDialog from './ConfirmDialog.svelte';
-
   import {
 
     listPlugins,
@@ -71,6 +69,12 @@
 
   let installBusy = false;
 
+  let grantSecretAccess = false;
+
+  let grantMultiSessionAccess = false;
+
+  let grantArbitraryNetworkAccess = false;
+
   let errorMessage = '';
 
   let pluginSettings: PluginSettings = { trustedPublisherKeys: [], requireSignedPlugins: false };
@@ -102,6 +106,8 @@
   let githubGrantSecretAccess = false;
 
   let githubGrantMultiSession = false;
+
+  let githubGrantArbitraryNetwork = false;
 
   let pendingGitHubRepoURL = '';
 
@@ -183,6 +189,12 @@
 
       installPreview = await previewPluginInstall(sourcePath);
 
+      grantSecretAccess = false;
+
+      grantMultiSessionAccess = false;
+
+      grantArbitraryNetworkAccess = false;
+
       installConfirmOpen = true;
 
     } catch (e) {
@@ -225,7 +237,12 @@
 
     try {
 
-      await installPlugin(pendingSourcePath, installPreview?.requiresSecretAccess ?? false);
+      await installPlugin(
+        pendingSourcePath,
+        grantSecretAccess,
+        grantMultiSessionAccess,
+        grantArbitraryNetworkAccess,
+      );
 
       installConfirmOpen = false;
 
@@ -472,6 +489,8 @@
       githubInstallTrustConfirmed = false;
       githubGrantSecretAccess = false;
       githubGrantMultiSession = false;
+
+      githubGrantArbitraryNetwork = false;
       githubInstallConfirmOpen = true;
       selectedGitHubPlugin = plugin;
     } catch (e) {
@@ -494,6 +513,7 @@
         pendingGitHubRepoURL,
         githubGrantSecretAccess,
         githubGrantMultiSession,
+        githubGrantArbitraryNetwork,
       );
       closeGitHubInstallConfirm();
       await refreshPlugins();
@@ -552,6 +572,8 @@
         installPreview.checksumPresent ? 'Bundle checksums validated.' : '',
 
         installPreview.requiresSecretAccess ? 'This plugin will have access to connection passwords.' : '',
+
+        installPreview.arbitraryNetworkWarning ? 'This plugin can open TCP connections to arbitrary hosts on the internet.' : '',
 
         'Permissions:',
 
@@ -818,25 +840,52 @@
 
 
 
-<ConfirmDialog
-
-  show={installConfirmOpen}
-
-  title="Install plugin?"
-
-  message={installMessage}
-
-  critical={installPreview?.requiresSecretAccess ?? false}
-  requireCheckbox={installPreview?.requiresSecretAccess ?? false}
-  checkboxLabel="I understand this plugin will have access to connection secrets"
-
-  confirmLabel={installBusy ? 'Installing…' : 'Install'}
-
-  on:confirm={confirmInstall}
-
-  on:cancel={cancelInstall}
-
-/>
+{#if installConfirmOpen && installPreview}
+  <div class="dialog-overlay" role="presentation" on:click={cancelInstall} on:keydown={(e) => e.key === 'Escape' && cancelInstall()}>
+    <div class="dialog" role="dialog" on:click|stopPropagation on:keydown|stopPropagation>
+      <h4>Install {installPreview.name}?</h4>
+      <pre class="install-preview">{installMessage}</pre>
+      {#if installPreview.arbitraryNetworkWarning}
+        <div class="warning-box">
+          <strong>Network access warning</strong>
+          <p>This plugin can open TCP connections to arbitrary hosts.</p>
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" bind:checked={grantArbitraryNetworkAccess} />
+          I understand this plugin can connect to any host on the internet
+        </label>
+      {/if}
+      {#if installPreview.requiresSecretAccess}
+        <label class="checkbox-row">
+          <input type="checkbox" bind:checked={grantSecretAccess} />
+          I understand this plugin will have access to connection secrets
+        </label>
+      {/if}
+      {#if installPreview.multiSessionWarning}
+        <label class="checkbox-row">
+          <input type="checkbox" bind:checked={grantMultiSessionAccess} />
+          Allow multi-session access (if required)
+        </label>
+      {/if}
+      <div class="dialog-actions">
+        <button type="button" class="btn-secondary" on:click={cancelInstall}>Cancel</button>
+        <button
+          type="button"
+          class="btn-secondary"
+          disabled={
+            installBusy
+            || (installPreview.requiresSecretAccess && !grantSecretAccess)
+            || (installPreview.arbitraryNetworkWarning && !grantArbitraryNetworkAccess)
+            || (installPreview.multiSessionWarning && !grantMultiSessionAccess)
+          }
+          on:click={confirmInstall}
+        >
+          {installBusy ? 'Installing…' : 'Install'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 {#if addRepoDialogOpen}
   <div class="dialog-overlay" role="presentation" on:click={closeAddRepoDialog} on:keydown={(e) => e.key === 'Escape' && closeAddRepoDialog()}>
@@ -897,13 +946,25 @@
           Grant access to secrets
         </label>
       {/if}
-      <label class="checkbox-row">
-        <input type="checkbox" bind:checked={githubGrantMultiSession} />
-        Allow multi-session access (if required)
-      </label>
+      {#if githubInstallPreview.arbitraryNetworkWarning}
+        <div class="warning-box">
+          <strong>Network access warning</strong>
+          <p>This plugin can open TCP connections to arbitrary hosts.</p>
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" bind:checked={githubGrantArbitraryNetwork} />
+          I understand this plugin can connect to any host on the internet
+        </label>
+      {/if}
+      {#if githubInstallPreview.multiSessionWarning}
+        <label class="checkbox-row">
+          <input type="checkbox" bind:checked={githubGrantMultiSession} />
+          Allow multi-session access (if required)
+        </label>
+      {/if}
       <div class="dialog-actions">
         <button type="button" class="btn-secondary" on:click={closeGitHubInstallConfirm}>Cancel</button>
-        <button type="button" class="btn-secondary" disabled={!githubInstallTrustConfirmed || githubInstallBusy || (githubInstallPreview.requiresSecretAccess && !githubGrantSecretAccess)} on:click={confirmGitHubInstall}>
+        <button type="button" class="btn-secondary" disabled={!githubInstallTrustConfirmed || githubInstallBusy || (githubInstallPreview.requiresSecretAccess && !githubGrantSecretAccess) || (githubInstallPreview.arbitraryNetworkWarning && !githubGrantArbitraryNetwork) || (githubInstallPreview.multiSessionWarning && !githubGrantMultiSession)} on:click={confirmGitHubInstall}>
           {githubInstallBusy ? 'Installing…' : 'Install'}
         </button>
       </div>
@@ -1021,6 +1082,8 @@
   .warning-box ul { margin: 6px 0 0; padding-left: 18px; }
 
   .readme { white-space: pre-wrap; font-size: 12px; max-height: 320px; overflow: auto; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; }
+
+  .install-preview { white-space: pre-wrap; font-size: 12px; max-height: 240px; overflow: auto; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin: 0; }
 
 </style>
 

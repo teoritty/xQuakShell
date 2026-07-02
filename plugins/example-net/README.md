@@ -11,4 +11,12 @@ go build -o example-net.exe .
 
 ## Manifest
 
-Declares `tcp:127.0.0.1:9` in `capabilities.network.outbound`.
+Declares `tcp:127.0.0.1:9` in `capabilities.network.outbound` (allowlist mode).
+
+For plugins that dial user-chosen hosts at runtime, use arbitrary outbound instead:
+
+```json
+"network": {
+  "allowArbitraryOutbound": true
+}
+```

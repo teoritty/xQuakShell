@@ -24,9 +24,9 @@ func (g *Gate) Allow(method string) bool {
 	case "fs.write":
 		return g.manifest.Capabilities.FS != nil && len(g.manifest.Capabilities.FS.Write) > 0
 	case "net.dial":
-		return g.manifest.Capabilities.Network != nil && len(g.manifest.Capabilities.Network.Outbound) > 0
+		return g.hasNetworkAccess()
 	case "net.close", "net.read", "net.write":
-		return g.manifest.Capabilities.Network != nil && len(g.manifest.Capabilities.Network.Outbound) > 0
+		return g.hasNetworkAccess()
 	case "vault.getConnection":
 		return g.manifest.Capabilities.Vault != nil && len(g.manifest.Capabilities.Vault.ReadConnectionFields) > 0
 	case "vault.getSecret":
@@ -47,4 +47,12 @@ func (g *Gate) Allow(method string) bool {
 // ValidateManifestCapabilities rejects unsafe capability patterns (Phase 2).
 func ValidateManifestCapabilities(m domainplugin.Manifest) error {
 	return m.ValidateCapabilities()
+}
+
+func (g *Gate) hasNetworkAccess() bool {
+	n := g.manifest.Capabilities.Network
+	if n == nil {
+		return false
+	}
+	return n.AllowArbitraryOutbound || len(n.Outbound) > 0
 }

@@ -157,6 +157,7 @@ func (s *GitHubPluginService) InstallPluginFromGitHub(
 	repoURL string,
 	grantSecretAccess bool,
 	grantMultiSessionAccess bool,
+	grantArbitraryNetworkAccess bool,
 ) error {
 	normalizedURL, err := domainplugin.NormalizeURL(repoURL)
 	if err != nil {
@@ -209,14 +210,22 @@ func (s *GitHubPluginService) InstallPluginFromGitHub(
 	if preview.MultiSessionWarning && !grantMultiSessionAccess {
 		return fmt.Errorf("multi-session consent required for this plugin")
 	}
+	if preview.ArbitraryNetworkWarning && !grantArbitraryNetworkAccess {
+		return fmt.Errorf("arbitrary network access consent required for this plugin")
+	}
 
-	installed, err := s.pluginManager.Install(stageDir, policy, grantMultiSessionAccess)
+	installed, err := s.pluginManager.Install(stageDir, policy, grantMultiSessionAccess, grantArbitraryNetworkAccess)
 	if err != nil {
 		return err
 	}
 
 	if preview.RequiresSecretAccess && grantSecretAccess && s.pluginManager.pluginSettings != nil {
 		if err := s.pluginManager.pluginSettings.GrantSecretAccess(ctx, installed.Manifest.ID); err != nil {
+			return err
+		}
+	}
+	if preview.ArbitraryNetworkWarning && grantArbitraryNetworkAccess && s.pluginManager.pluginSettings != nil {
+		if err := s.pluginManager.pluginSettings.GrantArbitraryNetworkAccess(ctx, installed.Manifest.ID); err != nil {
 			return err
 		}
 	}
