@@ -51,3 +51,76 @@ func TestNetProxyDialAllowsExplicitLoopbackPattern(t *testing.T) {
 		t.Fatal("expected explicit loopback allowlist to pass policy check")
 	}
 }
+
+func TestNetProxyArbitraryDialPublicHost(t *testing.T) {
+	proxy := NewNetProxy("com.test", &domainplugin.NetworkCaps{
+		AllowArbitraryOutbound: true,
+	})
+	proxy.resolver = mapResolver{
+		"example.com": {net.ParseIP("93.184.216.34")},
+	}
+
+	_, err := proxy.Dial(json.RawMessage(`{"host":"example.com","port":80}`))
+	if err == domainplugin.ErrCapabilityDenied {
+		t.Fatal("expected arbitrary public dial to pass policy check")
+	}
+}
+
+func TestNetProxyArbitraryBlocksPrivateWithoutFlag(t *testing.T) {
+	proxy := NewNetProxy("com.test", &domainplugin.NetworkCaps{
+		AllowArbitraryOutbound: true,
+	})
+	proxy.resolver = mapResolver{
+		"internal.local": {net.ParseIP("10.0.0.1")},
+	}
+
+	_, err := proxy.Dial(json.RawMessage(`{"host":"internal.local","port":23}`))
+	if err != domainplugin.ErrCapabilityDenied {
+		t.Fatalf("expected capability denied for private IP, got %v", err)
+	}
+}
+
+func TestNetProxyArbitraryAllowsPrivateWithFlag(t *testing.T) {
+	proxy := NewNetProxy("com.test", &domainplugin.NetworkCaps{
+		AllowArbitraryOutbound: true,
+		AllowPrivateNetworks:   true,
+	})
+	proxy.resolver = mapResolver{
+		"10.0.0.1": {net.ParseIP("10.0.0.1")},
+	}
+
+	_, err := proxy.Dial(json.RawMessage(`{"host":"10.0.0.1","port":23}`))
+	if err == domainplugin.ErrCapabilityDenied {
+		t.Fatal("expected private dial allowed with allowPrivateNetworks")
+	}
+}
+
+func TestNetProxyCombinedAllowlistPermitsPrivateInList(t *testing.T) {
+	proxy := NewNetProxy("com.test", &domainplugin.NetworkCaps{
+		Outbound:               []string{"tcp:192.168.1.1:23"},
+		AllowArbitraryOutbound: true,
+	})
+	proxy.resolver = mapResolver{
+		"192.168.1.1": {net.ParseIP("192.168.1.1")},
+	}
+
+	_, err := proxy.Dial(json.RawMessage(`{"host":"192.168.1.1","port":23}`))
+	if err == domainplugin.ErrCapabilityDenied {
+		t.Fatal("expected allowlist to permit private IP even when arbitrary blocks it")
+	}
+}
+
+func TestNetProxyCombinedBlocksPrivateNotInList(t *testing.T) {
+	proxy := NewNetProxy("com.test", &domainplugin.NetworkCaps{
+		Outbound:               []string{"tcp:192.168.1.1:23"},
+		AllowArbitraryOutbound: true,
+	})
+	proxy.resolver = mapResolver{
+		"10.0.0.5": {net.ParseIP("10.0.0.5")},
+	}
+
+	_, err := proxy.Dial(json.RawMessage(`{"host":"10.0.0.5","port":23}`))
+	if err != domainplugin.ErrCapabilityDenied {
+		t.Fatalf("expected capability denied when both modes block, got %v", err)
+	}
+}

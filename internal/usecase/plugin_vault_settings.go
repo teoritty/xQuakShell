@@ -66,6 +66,35 @@ func (s *PluginVaultSettings) GrantMultiSessionAccess(ctx context.Context, plugi
 	})
 }
 
+// GrantArbitraryNetworkAccess records install-time consent for allowArbitraryOutbound plugins.
+func (s *PluginVaultSettings) GrantArbitraryNetworkAccess(ctx context.Context, pluginID string) error {
+	if s == nil || s.vault == nil {
+		return nil
+	}
+	return s.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		if data.Settings == nil {
+			data.Settings = &domain.AppSettings{}
+		}
+		if data.Settings.Plugins.ArbitraryNetworkAccessGranted == nil {
+			data.Settings.Plugins.ArbitraryNetworkAccessGranted = make(map[string]bool)
+		}
+		data.Settings.Plugins.ArbitraryNetworkAccessGranted[pluginID] = true
+		return nil
+	})
+}
+
+// IsArbitraryNetworkGranted reports whether install-time consent was recorded for pluginID.
+func (s *PluginVaultSettings) IsArbitraryNetworkGranted(pluginID string) bool {
+	if s == nil || s.vault == nil {
+		return false
+	}
+	data, err := s.vault.GetData()
+	if err != nil || data.Settings == nil {
+		return false
+	}
+	return data.Settings.Plugins.ArbitraryNetworkAccessGranted[pluginID]
+}
+
 // SetPluginEnabled toggles whether a plugin is allowed to run.
 func (s *PluginVaultSettings) SetPluginEnabled(ctx context.Context, pluginID string, enabled bool) error {
 	if s == nil || s.vault == nil {

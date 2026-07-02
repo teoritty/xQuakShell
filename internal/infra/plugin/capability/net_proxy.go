@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -21,20 +22,26 @@ type ipResolver interface {
 
 // NetProxy dials outbound connections allowed by manifest network capabilities.
 type NetProxy struct {
-	patterns []string
-	resolver ipResolver
-	mu       sync.Mutex
-	handles  map[string]net.Conn
+	patterns             []string
+	allowArbitrary       bool
+	allowPrivateNetworks bool
+	pluginID             string
+	resolver             ipResolver
+	mu                   sync.Mutex
+	handles              map[string]net.Conn
 }
 
 // NewNetProxy creates a network proxy from manifest network capabilities.
-func NewNetProxy(_ string, caps *domainplugin.NetworkCaps) *NetProxy {
+func NewNetProxy(pluginID string, caps *domainplugin.NetworkCaps) *NetProxy {
 	p := &NetProxy{
+		pluginID: pluginID,
 		handles:  make(map[string]net.Conn),
 		resolver: net.DefaultResolver,
 	}
 	if caps != nil {
 		p.patterns = append([]string(nil), caps.Outbound...)
+		p.allowArbitrary = caps.AllowArbitraryOutbound
+		p.allowPrivateNetworks = caps.AllowPrivateNetworks
 	}
 	return p
 }
@@ -84,8 +91,17 @@ func (p *NetProxy) Dial(params json.RawMessage) (json.RawMessage, error) {
 		return nil, fmt.Errorf("invalid net.dial params: host and port required")
 	}
 
-	patternHost, ok := matchingPatternHost(p.patterns, req.Host, req.Port)
-	if !ok {
+	arbitraryAllowsHost := p.allowArbitrary
+
+	allowlistAllowsHost := false
+	patternHost := req.Host
+	if len(p.patterns) > 0 {
+		var ok bool
+		patternHost, ok = matchingPatternHost(p.patterns, req.Host, req.Port)
+		allowlistAllowsHost = ok
+	}
+
+	if !arbitraryAllowsHost && !allowlistAllowsHost {
 		return nil, domainplugin.ErrCapabilityDenied
 	}
 
@@ -111,7 +127,7 @@ func (p *NetProxy) Dial(params json.RawMessage) (json.RawMessage, error) {
 	portStr := fmt.Sprintf("%d", req.Port)
 	var dialErr error
 	for _, addr := range addrs {
-		if !domainplugin.AllowResolvedDialIP(patternHost, addr.IP) {
+		if !p.shouldAllowResolvedIP(patternHost, addr.IP) {
 			continue
 		}
 		target := net.JoinHostPort(addr.IP.String(), portStr)
@@ -121,7 +137,7 @@ func (p *NetProxy) Dial(params json.RawMessage) (json.RawMessage, error) {
 			dialErr = err
 			continue
 		}
-		if ra, ok := conn.RemoteAddr().(*net.TCPAddr); ok && !domainplugin.AllowResolvedDialIP(patternHost, ra.IP) {
+		if ra, ok := conn.RemoteAddr().(*net.TCPAddr); ok && !p.shouldAllowResolvedIP(patternHost, ra.IP) {
 			_ = conn.Close()
 			continue
 		}
@@ -135,6 +151,15 @@ func (p *NetProxy) Dial(params json.RawMessage) (json.RawMessage, error) {
 		p.mu.Lock()
 		p.handles[handleID] = conn
 		p.mu.Unlock()
+
+		if p.allowArbitrary {
+			slog.Info("plugin net.dial allowed",
+				"pluginId", p.pluginID,
+				"host", req.Host,
+				"port", req.Port,
+				"arbitrary", true,
+			)
+		}
 
 		return json.Marshal(netDialResult{HandleID: handleID})
 	}
@@ -263,4 +288,21 @@ func newNetHandleID() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b[:]), nil
+}
+
+// shouldAllowResolvedIP decides whether resolved ip may be dialed.
+// Implements "either mode permits" (FR-6):
+// - arbitrary mode: public IPs allowed; private/loopback only if allowPrivateNetworks
+// - allowlist mode: delegates to domain AllowResolvedDialIP unchanged
+// - If arbitrary didn't allow, falls through to allowlist check
+func (p *NetProxy) shouldAllowResolvedIP(patternHost string, ip net.IP) bool {
+	if p.allowArbitrary {
+		if !domainplugin.IsRestrictedDialIP(ip) {
+			return true
+		}
+		if p.allowPrivateNetworks {
+			return true
+		}
+	}
+	return domainplugin.AllowResolvedDialIP(patternHost, ip)
 }

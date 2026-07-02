@@ -98,6 +98,7 @@ func NewApp() *App {
 	if pluginRuntime.viewRelay != nil {
 		api.SetPluginViewRelay(pluginRuntime.viewRelay)
 	}
+	api.SetGitHubServices(pluginRuntime.githubRepoService, pluginRuntime.githubPluginService)
 	pluginRuntime.setSessionRecoverer(api.Sessions())
 
 	return &App{api: api, plugins: pluginRuntime}
@@ -117,6 +118,13 @@ func (a *App) grantPluginSecretAccess(pluginID string) error {
 	return a.plugins.grantSecretAccess(context.Background(), pluginID)
 }
 
+func (a *App) grantPluginArbitraryNetworkAccess(pluginID string) error {
+	if a.plugins == nil {
+		return nil
+	}
+	return a.plugins.grantArbitraryNetworkAccess(context.Background(), pluginID)
+}
+
 func (a *App) pluginAssetHandler() http.Handler {
 	if a.plugins == nil {
 		return nil
@@ -129,6 +137,7 @@ func (a *App) startup(ctx context.Context) {
 	a.api.SetContext(ctx)
 	a.api.SetPluginVaultGrant(a.grantPluginSecretAccess)
 	a.api.SetPluginMultiSessionGrant(a.grantPluginMultiSessionAccess)
+	a.api.SetPluginArbitraryNetworkGrant(a.grantPluginArbitraryNetworkAccess)
 	if a.plugins != nil && a.plugins.manager != nil {
 		go a.plugins.manager.ActivateStartupPlugins(context.Background())
 		a.plugins.manager.SetStateChangeHandler(a.api.EmitPluginStateChanged)
@@ -440,8 +449,8 @@ func (a *App) ValidateTrustedPublisherKey(keyB64 string) error {
 	return a.api.ValidateTrustedPublisherKey(keyB64)
 }
 
-func (a *App) InstallPlugin(sourceDir string, grantSecretAccess bool, grantMultiSessionAccess bool) (presentation.PluginDTO, error) {
-	return a.api.InstallPlugin(sourceDir, grantSecretAccess, grantMultiSessionAccess)
+func (a *App) InstallPlugin(sourceDir string, grantSecretAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) (presentation.PluginDTO, error) {
+	return a.api.InstallPlugin(sourceDir, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
 }
 
 func (a *App) GetPluginConnectionProtocols() []presentation.ConnectionProtocolDTO {
@@ -466,4 +475,36 @@ func (a *App) RelayPluginViewMessage(token string, message json.RawMessage) erro
 
 func (a *App) ReleasePluginViewPanel(token string) {
 	a.api.ReleasePluginViewPanel(token)
+}
+
+func (a *App) ListGitHubRepositories() ([]presentation.GitHubRepositoryDTO, error) {
+	return a.api.ListGitHubRepositories()
+}
+
+func (a *App) AddGitHubRepository(req presentation.AddGitHubRepositoryRequest) error {
+	return a.api.AddGitHubRepository(req)
+}
+
+func (a *App) RemoveGitHubRepository(repoURL string) error {
+	return a.api.RemoveGitHubRepository(repoURL)
+}
+
+func (a *App) SetGitHubRepositoryTrust(req presentation.SetGitHubRepositoryTrustRequest) error {
+	return a.api.SetGitHubRepositoryTrust(req)
+}
+
+func (a *App) FetchGitHubPlugins(repoURL string) (*presentation.GitHubPluginListDTO, error) {
+	return a.api.FetchGitHubPlugins(repoURL)
+}
+
+func (a *App) PreviewGitHubPluginInstall(repoURL string) (presentation.GitHubPluginPreviewResponseDTO, error) {
+	return a.api.PreviewGitHubPluginInstall(repoURL)
+}
+
+func (a *App) InstallGitHubPlugin(repoURL string, grantSecretAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) error {
+	return a.api.InstallGitHubPlugin(repoURL, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
+}
+
+func (a *App) UninstallGitHubPlugin(pluginID string, removeData bool) error {
+	return a.api.UninstallGitHubPlugin(pluginID, removeData)
 }

@@ -19,6 +19,7 @@ func TestCloneVaultData_DoesNotShareNestedState(t *testing.T) {
 	original.KeyBlobs["k1"] = IdentityBlob{PEMData: []byte("pem")}
 	original.Passwords["p1"] = PasswordBlob{Value: []byte("secret"), Label: "label"}
 	original.Settings.Plugins.SecretAccessGranted = map[string]bool{"plugin": true}
+	original.Settings.Plugins.ArbitraryNetworkAccessGranted = map[string]bool{"net-plugin": true}
 
 	clone := CloneVaultData(original)
 	clone.Connections[0].Tags[0] = "changed"
@@ -27,6 +28,7 @@ func TestCloneVaultData_DoesNotShareNestedState(t *testing.T) {
 	clone.KeyBlobs["k1"] = IdentityBlob{PEMData: []byte("changed")}
 	clone.Passwords["p1"] = PasswordBlob{Value: []byte("changed")}
 	clone.Settings.Plugins.SecretAccessGranted["plugin"] = false
+	clone.Settings.Plugins.ArbitraryNetworkAccessGranted["net-plugin"] = false
 
 	if original.Connections[0].Tags[0] != "prod" {
 		t.Fatal("connection tags shared")
@@ -45,6 +47,9 @@ func TestCloneVaultData_DoesNotShareNestedState(t *testing.T) {
 	}
 	if !original.Settings.Plugins.SecretAccessGranted["plugin"] {
 		t.Fatal("plugin settings map shared")
+	}
+	if !original.Settings.Plugins.ArbitraryNetworkAccessGranted["net-plugin"] {
+		t.Fatal("arbitrary network grant map shared")
 	}
 }
 

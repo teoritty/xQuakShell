@@ -183,9 +183,9 @@ Host↔iframe `postMessage` uses an explicit target origin:
 
 ## Network outbound (SSRF)
 
-- Manifest patterns are validated (`tcp:host:port` only; no wildcards).
-- Host resolves the target before dial; loopback, RFC1918, link-local, and metadata IPs are blocked unless the manifest explicitly allowlists that IP literal.
-- Dial uses the resolved IP address to prevent DNS rebinding between policy check and connect.
+- **Allowlist mode (default):** manifest `outbound` patterns are validated (`tcp:host:port` only; no wildcards). Host resolves the target before dial; loopback, RFC1918, link-local, and metadata IPs are blocked unless the manifest explicitly allowlists that IP literal. Dial uses the resolved IP address to prevent DNS rebinding between policy check and connect.
+- **Arbitrary outbound mode:** when `allowArbitraryOutbound: true`, plugins may dial any resolvable public host on TCP ports 1–65535 after install-time user consent (persisted in vault settings). Private/LAN/loopback addresses remain blocked unless `allowPrivateNetworks: true`. Combined allowlist + arbitrary: a dial succeeds if either mode permits the target.
+- Install consent for arbitrary network access is audit-logged alongside other elevated permissions.
 
 
 

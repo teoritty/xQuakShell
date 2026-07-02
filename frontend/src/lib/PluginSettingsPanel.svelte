@@ -2,8 +2,6 @@
 
   import { onMount } from 'svelte';
 
-  import ConfirmDialog from './ConfirmDialog.svelte';
-
   import {
 
     listPlugins,
@@ -25,15 +23,37 @@
 
     generatePluginPublisherKeyPair,
 
+    listGitHubRepositories,
+
+    addGitHubRepository,
+
+    removeGitHubRepository,
+
+    setGitHubRepositoryTrust,
+
+    fetchGitHubPlugins,
+
+    previewGitHubPluginInstall,
+
+    installGitHubPlugin,
+
+    uninstallGitHubPlugin,
+
     type PluginInfo,
 
     type PluginInstallPreview,
 
     type PluginSettings,
 
+    type GitHubRepository,
+
+    type GitHubPluginMetadata,
+
+    type GitHubPluginPreview,
+
   } from '../stores/api';
 
-  import { Puzzle, ShieldAlert, BadgeCheck, FileArchive, FolderOpen } from 'lucide-svelte';
+  import { Puzzle, ShieldAlert, BadgeCheck, FileArchive, FolderOpen, Github, RefreshCw } from 'lucide-svelte';
 
 
 
@@ -49,6 +69,12 @@
 
   let installBusy = false;
 
+  let grantSecretAccess = false;
+
+  let grantMultiSessionAccess = false;
+
+  let grantArbitraryNetworkAccess = false;
+
   let errorMessage = '';
 
   let pluginSettings: PluginSettings = { trustedPublisherKeys: [], requireSignedPlugins: false };
@@ -57,6 +83,46 @@
 
   let settingsBusy = false;
 
+  let activeTab: 'installed' | 'github' = 'installed';
+
+  let repositories: GitHubRepository[] = [];
+
+  let repoPlugins: Record<string, GitHubPluginMetadata[]> = {};
+
+  let reposLoading = false;
+
+  let addRepoDialogOpen = false;
+
+  let newRepoURL = '';
+
+  let newRepoTrusted = false;
+
+  let githubInstallPreview: GitHubPluginPreview | null = null;
+
+  let githubInstallConfirmOpen = false;
+
+  let githubInstallTrustConfirmed = false;
+
+  let githubGrantSecretAccess = false;
+
+  let githubGrantMultiSession = false;
+
+  let githubGrantArbitraryNetwork = false;
+
+  let pendingGitHubRepoURL = '';
+
+  let githubInstallBusy = false;
+
+  let pluginDetailsOpen = false;
+
+  let selectedGitHubPlugin: GitHubPluginMetadata | null = null;
+
+  let uninstallConfirmOpen = false;
+
+  let removePluginData = false;
+
+  let pendingUninstallPlugin: GitHubPluginMetadata | null = null;
+
 
 
   onMount(() => {
@@ -64,6 +130,8 @@
     refreshPlugins();
 
     loadPluginSettings();
+
+    loadGitHubRepositories();
 
   });
 
@@ -121,6 +189,12 @@
 
       installPreview = await previewPluginInstall(sourcePath);
 
+      grantSecretAccess = false;
+
+      grantMultiSessionAccess = false;
+
+      grantArbitraryNetworkAccess = false;
+
       installConfirmOpen = true;
 
     } catch (e) {
@@ -163,7 +237,12 @@
 
     try {
 
-      await installPlugin(pendingSourcePath, installPreview?.requiresSecretAccess ?? false);
+      await installPlugin(
+        pendingSourcePath,
+        grantSecretAccess,
+        grantMultiSessionAccess,
+        grantArbitraryNetworkAccess,
+      );
 
       installConfirmOpen = false;
 
@@ -322,6 +401,158 @@
 
   }
 
+  async function loadGitHubRepositories() {
+    reposLoading = true;
+    try {
+      repositories = await listGitHubRepositories();
+      for (const repo of repositories) {
+        await refreshRepoPlugins(repo.url);
+      }
+    } catch (e) {
+      errorMessage = e instanceof Error ? e.message : 'Failed to load GitHub repositories';
+    } finally {
+      reposLoading = false;
+    }
+  }
+
+  async function refreshRepoPlugins(repoURL: string) {
+    try {
+      const result = await fetchGitHubPlugins(repoURL);
+      if (result?.plugins) {
+        repoPlugins = { ...repoPlugins, [repoURL]: result.plugins };
+      }
+    } catch (e) {
+      errorMessage = e instanceof Error ? e.message : 'Failed to fetch plugins';
+    }
+  }
+
+  function showAddRepoDialog() {
+    newRepoURL = '';
+    newRepoTrusted = false;
+    addRepoDialogOpen = true;
+  }
+
+  function closeAddRepoDialog() {
+    addRepoDialogOpen = false;
+  }
+
+  async function confirmAddRepo() {
+    if (!newRepoURL.trim()) return;
+    errorMessage = '';
+    try {
+      await addGitHubRepository(newRepoURL.trim(), newRepoTrusted);
+      addRepoDialogOpen = false;
+      await loadGitHubRepositories();
+    } catch (e) {
+      errorMessage = e instanceof Error ? e.message : 'Failed to add repository';
+    }
+  }
+
+  async function toggleRepoTrust(repo: GitHubRepository) {
+    errorMessage = '';
+    try {
+      await setGitHubRepositoryTrust(repo.url, !repo.trusted);
+      await loadGitHubRepositories();
+    } catch (e) {
+      errorMessage = e instanceof Error ? e.message : 'Failed to update trust';
+    }
+  }
+
+  async function removeRepo(repoURL: string) {
+    errorMessage = '';
+    try {
+      await removeGitHubRepository(repoURL);
+      const next = { ...repoPlugins };
+      delete next[repoURL];
+      repoPlugins = next;
+      await loadGitHubRepositories();
+    } catch (e) {
+      errorMessage = e instanceof Error ? e.message : 'Failed to remove repository';
+    }
+  }
+
+  function showPluginDetails(plugin: GitHubPluginMetadata) {
+    selectedGitHubPlugin = plugin;
+    pluginDetailsOpen = true;
+  }
+
+  function closePluginDetails() {
+    pluginDetailsOpen = false;
+    selectedGitHubPlugin = null;
+  }
+
+  async function showGitHubInstallConfirm(repoURL: string, plugin: GitHubPluginMetadata) {
+    errorMessage = '';
+    pendingGitHubRepoURL = repoURL;
+    try {
+      githubInstallPreview = await previewGitHubPluginInstall(repoURL);
+      githubInstallTrustConfirmed = false;
+      githubGrantSecretAccess = false;
+      githubGrantMultiSession = false;
+
+      githubGrantArbitraryNetwork = false;
+      githubInstallConfirmOpen = true;
+      selectedGitHubPlugin = plugin;
+    } catch (e) {
+      errorMessage = e instanceof Error ? e.message : 'Failed to preview plugin';
+    }
+  }
+
+  function closeGitHubInstallConfirm() {
+    githubInstallConfirmOpen = false;
+    githubInstallPreview = null;
+    pendingGitHubRepoURL = '';
+  }
+
+  async function confirmGitHubInstall() {
+    if (!pendingGitHubRepoURL || !githubInstallTrustConfirmed) return;
+    githubInstallBusy = true;
+    errorMessage = '';
+    try {
+      await installGitHubPlugin(
+        pendingGitHubRepoURL,
+        githubGrantSecretAccess,
+        githubGrantMultiSession,
+        githubGrantArbitraryNetwork,
+      );
+      closeGitHubInstallConfirm();
+      await refreshPlugins();
+      await loadGitHubRepositories();
+    } catch (e) {
+      errorMessage = e instanceof Error ? e.message : 'Install failed';
+    } finally {
+      githubInstallBusy = false;
+    }
+  }
+
+  function showUninstallConfirm(plugin: GitHubPluginMetadata) {
+    pendingUninstallPlugin = plugin;
+    removePluginData = false;
+    uninstallConfirmOpen = true;
+  }
+
+  function closeUninstallConfirm() {
+    uninstallConfirmOpen = false;
+    pendingUninstallPlugin = null;
+  }
+
+  async function confirmUninstall() {
+    if (!pendingUninstallPlugin) return;
+    errorMessage = '';
+    try {
+      await uninstallGitHubPlugin(pendingUninstallPlugin.id, removePluginData);
+      closeUninstallConfirm();
+      await refreshPlugins();
+      await loadGitHubRepositories();
+    } catch (e) {
+      errorMessage = e instanceof Error ? e.message : 'Uninstall failed';
+    }
+  }
+
+  function isPluginInstalled(pluginId: string): boolean {
+    return plugins.some((p) => p.id === pluginId);
+  }
+
 
 
   $: installMessage = installPreview
@@ -342,6 +573,8 @@
 
         installPreview.requiresSecretAccess ? 'This plugin will have access to connection passwords.' : '',
 
+        installPreview.arbitraryNetworkWarning ? 'This plugin can open TCP connections to arbitrary hosts on the internet.' : '',
+
         'Permissions:',
 
         ...installPreview.permissions.map((p) => `• ${p}`),
@@ -355,6 +588,17 @@
 
 
 <div class="plugin-settings">
+
+  <div class="tab-row">
+    <button type="button" class="tab-btn" class:active={activeTab === 'installed'} on:click={() => activeTab = 'installed'}>
+      Installed
+    </button>
+    <button type="button" class="tab-btn" class:active={activeTab === 'github'} on:click={() => activeTab = 'github'}>
+      <Github size={14} /> GitHub
+    </button>
+  </div>
+
+  {#if activeTab === 'installed'}
 
   <div class="section-header">
 
@@ -522,29 +766,228 @@
 
   {/if}
 
+  {:else}
+
+  <div class="section-header">
+    <h3>GitHub Repositories</h3>
+    <button type="button" class="btn-secondary" on:click={showAddRepoDialog}>Add Repository</button>
+  </div>
+
+  <p class="section-desc">
+    Discover and install plugins from public GitHub repositories with xqsp.json manifests.
+  </p>
+
+  {#if reposLoading}
+    <p class="muted">Loading repositories…</p>
+  {:else if repositories.length === 0}
+    <p class="muted">No GitHub repositories added yet.</p>
+  {:else}
+    <ul class="repo-list">
+      {#each repositories as repo (repo.url)}
+        <li class="repo-item">
+          <div class="repo-info">
+            <strong>{repo.displayName}</strong>
+            <span class="repo-url">{repo.url}</span>
+            {#if repo.trusted}
+              <span class="badge ok">Trusted</span>
+            {:else}
+              <span class="badge warn">Untrusted</span>
+            {/if}
+          </div>
+          <div class="repo-actions">
+            <button type="button" class="btn-secondary" on:click={() => refreshRepoPlugins(repo.url)}>
+              <RefreshCw size={12} /> Refresh
+            </button>
+            <button type="button" class="btn-secondary" on:click={() => toggleRepoTrust(repo)}>
+              {repo.trusted ? 'Untrust' : 'Trust'}
+            </button>
+            <button type="button" class="btn-danger" on:click={() => removeRepo(repo.url)}>Remove</button>
+          </div>
+          {#if repoPlugins[repo.url]?.length}
+            <div class="plugins-list">
+              {#each repoPlugins[repo.url] as plugin (plugin.id)}
+                <div class="plugin-card">
+                  <div class="plugin-title">
+                    <strong>{plugin.name}</strong>
+                    <span class="version">v{plugin.version}</span>
+                  </div>
+                  {#if plugin.description}
+                    <p class="plugin-desc">{plugin.description}</p>
+                  {/if}
+                  {#if !plugin.platformSupported}
+                    <p class="warn-line">Not compatible with your platform</p>
+                  {/if}
+                  <div class="plugin-actions-row">
+                    <button type="button" class="btn-secondary" on:click={() => showPluginDetails(plugin)}>Details</button>
+                    {#if plugin.installed || isPluginInstalled(plugin.id)}
+                      <button type="button" class="btn-danger" on:click={() => showUninstallConfirm(plugin)}>Uninstall</button>
+                    {:else if plugin.platformSupported}
+                      <button type="button" class="btn-secondary" on:click={() => showGitHubInstallConfirm(repo.url, plugin)}>Install</button>
+                    {/if}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  {/if}
+
+  {/if}
+
 </div>
 
 
 
-<ConfirmDialog
+{#if installConfirmOpen && installPreview}
+  <div class="dialog-overlay" role="presentation" on:click={cancelInstall} on:keydown={(e) => e.key === 'Escape' && cancelInstall()}>
+    <div class="dialog" role="dialog" on:click|stopPropagation on:keydown|stopPropagation>
+      <h4>Install {installPreview.name}?</h4>
+      <pre class="install-preview">{installMessage}</pre>
+      {#if installPreview.arbitraryNetworkWarning}
+        <div class="warning-box">
+          <strong>Network access warning</strong>
+          <p>This plugin can open TCP connections to arbitrary hosts.</p>
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" bind:checked={grantArbitraryNetworkAccess} />
+          I understand this plugin can connect to any host on the internet
+        </label>
+      {/if}
+      {#if installPreview.requiresSecretAccess}
+        <label class="checkbox-row">
+          <input type="checkbox" bind:checked={grantSecretAccess} />
+          I understand this plugin will have access to connection secrets
+        </label>
+      {/if}
+      {#if installPreview.multiSessionWarning}
+        <label class="checkbox-row">
+          <input type="checkbox" bind:checked={grantMultiSessionAccess} />
+          Allow multi-session access (if required)
+        </label>
+      {/if}
+      <div class="dialog-actions">
+        <button type="button" class="btn-secondary" on:click={cancelInstall}>Cancel</button>
+        <button
+          type="button"
+          class="btn-secondary"
+          disabled={
+            installBusy
+            || (installPreview.requiresSecretAccess && !grantSecretAccess)
+            || (installPreview.arbitraryNetworkWarning && !grantArbitraryNetworkAccess)
+            || (installPreview.multiSessionWarning && !grantMultiSessionAccess)
+          }
+          on:click={confirmInstall}
+        >
+          {installBusy ? 'Installing…' : 'Install'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
-  show={installConfirmOpen}
+{#if addRepoDialogOpen}
+  <div class="dialog-overlay" role="presentation" on:click={closeAddRepoDialog} on:keydown={(e) => e.key === 'Escape' && closeAddRepoDialog()}>
+    <div class="dialog" role="dialog" on:click|stopPropagation on:keydown|stopPropagation>
+      <h4>Add GitHub Repository</h4>
+      <input type="text" bind:value={newRepoURL} placeholder="https://github.com/user/repo" class="key-input" />
+      <label class="checkbox-row">
+        <input type="checkbox" bind:checked={newRepoTrusted} />
+        I trust this repository (skip some security warnings)
+      </label>
+      <div class="dialog-actions">
+        <button type="button" class="btn-secondary" on:click={closeAddRepoDialog}>Cancel</button>
+        <button type="button" class="btn-secondary" on:click={confirmAddRepo}>Add Repository</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
-  title="Install plugin?"
+{#if pluginDetailsOpen && selectedGitHubPlugin}
+  <div class="dialog-overlay" role="presentation" on:click={closePluginDetails} on:keydown={(e) => e.key === 'Escape' && closePluginDetails()}>
+    <div class="dialog dialog-large" role="dialog" on:click|stopPropagation on:keydown|stopPropagation>
+      <h4>{selectedGitHubPlugin.name}</h4>
+      <p class="plugin-meta">v{selectedGitHubPlugin.version} · {selectedGitHubPlugin.latestRelease}</p>
+      {#if selectedGitHubPlugin.author}<p class="plugin-desc">Author: {selectedGitHubPlugin.author}</p>{/if}
+      {#if selectedGitHubPlugin.license}<p class="plugin-desc">License: {selectedGitHubPlugin.license}</p>{/if}
+      <p class="plugin-desc">Platforms: {selectedGitHubPlugin.platforms.map((p) => `${p.os}/${p.arch}`).join(', ')}</p>
+      {#if selectedGitHubPlugin.readme}
+        <pre class="readme">{selectedGitHubPlugin.readme}</pre>
+      {/if}
+      <div class="dialog-actions">
+        <button type="button" class="btn-secondary" on:click={closePluginDetails}>Close</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
-  message={installMessage}
+{#if githubInstallConfirmOpen && githubInstallPreview}
+  <div class="dialog-overlay" role="presentation" on:click={closeGitHubInstallConfirm} on:keydown={(e) => e.key === 'Escape' && closeGitHubInstallConfirm()}>
+    <div class="dialog" role="dialog" on:click|stopPropagation on:keydown|stopPropagation>
+      <h4>Install {githubInstallPreview.name}</h4>
+      {#if githubInstallPreview.warnings?.length}
+        <div class="warning-box">
+          <strong>Security Warning</strong>
+          <ul>
+            {#each githubInstallPreview.warnings as warning}
+              <li>{warning}</li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
+      <label class="checkbox-row">
+        <input type="checkbox" bind:checked={githubInstallTrustConfirmed} />
+        I understand the risks and trust this plugin. I take full responsibility.
+      </label>
+      {#if githubInstallPreview.requiresSecretAccess}
+        <label class="checkbox-row">
+          <input type="checkbox" bind:checked={githubGrantSecretAccess} />
+          Grant access to secrets
+        </label>
+      {/if}
+      {#if githubInstallPreview.arbitraryNetworkWarning}
+        <div class="warning-box">
+          <strong>Network access warning</strong>
+          <p>This plugin can open TCP connections to arbitrary hosts.</p>
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" bind:checked={githubGrantArbitraryNetwork} />
+          I understand this plugin can connect to any host on the internet
+        </label>
+      {/if}
+      {#if githubInstallPreview.multiSessionWarning}
+        <label class="checkbox-row">
+          <input type="checkbox" bind:checked={githubGrantMultiSession} />
+          Allow multi-session access (if required)
+        </label>
+      {/if}
+      <div class="dialog-actions">
+        <button type="button" class="btn-secondary" on:click={closeGitHubInstallConfirm}>Cancel</button>
+        <button type="button" class="btn-secondary" disabled={!githubInstallTrustConfirmed || githubInstallBusy || (githubInstallPreview.requiresSecretAccess && !githubGrantSecretAccess) || (githubInstallPreview.arbitraryNetworkWarning && !githubGrantArbitraryNetwork) || (githubInstallPreview.multiSessionWarning && !githubGrantMultiSession)} on:click={confirmGitHubInstall}>
+          {githubInstallBusy ? 'Installing…' : 'Install'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
-  critical={installPreview?.requiresSecretAccess ?? false}
-  requireCheckbox={installPreview?.requiresSecretAccess ?? false}
-  checkboxLabel="I understand this plugin will have access to connection secrets"
-
-  confirmLabel={installBusy ? 'Installing…' : 'Install'}
-
-  on:confirm={confirmInstall}
-
-  on:cancel={cancelInstall}
-
-/>
+{#if uninstallConfirmOpen && pendingUninstallPlugin}
+  <div class="dialog-overlay" role="presentation" on:click={closeUninstallConfirm} on:keydown={(e) => e.key === 'Escape' && closeUninstallConfirm()}>
+    <div class="dialog" role="dialog" on:click|stopPropagation on:keydown|stopPropagation>
+      <h4>Uninstall {pendingUninstallPlugin.name}</h4>
+      <p class="plugin-desc">This will remove the plugin and stop it if running.</p>
+      <label class="checkbox-row">
+        <input type="checkbox" bind:checked={removePluginData} />
+        Also remove plugin data and settings
+      </label>
+      <div class="dialog-actions">
+        <button type="button" class="btn-secondary" on:click={closeUninstallConfirm}>Cancel</button>
+        <button type="button" class="btn-danger" on:click={confirmUninstall}>Uninstall</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 
 
@@ -601,6 +1044,46 @@
   .warn-line { color: #e6b35a; display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 6px; }
 
   .error-text { color: #ff6b6b; font-size: 13px; margin: 0; }
+
+  .tab-row { display: flex; gap: 8px; margin-bottom: 4px; }
+
+  .tab-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border-color, #333); background: transparent; color: inherit; cursor: pointer; font-size: 13px; }
+
+  .tab-btn.active { background: var(--border-color, #333); }
+
+  .repo-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+
+  .repo-item { border: 1px solid var(--border-color, #333); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+
+  .repo-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  .repo-url { font-size: 12px; color: var(--text-muted, #888); }
+
+  .badge.warn { color: #e6b35a; font-size: 11px; }
+
+  .repo-actions, .plugin-actions-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .plugins-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color, #333); }
+
+  .plugin-card { border: 1px solid var(--border-color, #333); border-radius: 6px; padding: 10px; }
+
+  .btn-danger { border: 1px solid #ff6b6b; color: #ff6b6b; background: transparent; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 12px; }
+
+  .dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+
+  .dialog { background: var(--bg, #1e1e1e); border: 1px solid var(--border-color, #333); border-radius: 8px; padding: 16px; width: min(520px, 92vw); display: flex; flex-direction: column; gap: 10px; }
+
+  .dialog-large { width: min(760px, 92vw); max-height: 80vh; overflow: auto; }
+
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+  .warning-box { background: rgba(255, 107, 107, 0.1); border: 1px solid #ff6b6b; border-radius: 6px; padding: 10px; font-size: 13px; }
+
+  .warning-box ul { margin: 6px 0 0; padding-left: 18px; }
+
+  .readme { white-space: pre-wrap; font-size: 12px; max-height: 320px; overflow: auto; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; }
+
+  .install-preview { white-space: pre-wrap; font-size: 12px; max-height: 240px; overflow: auto; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin: 0; }
 
 </style>
 

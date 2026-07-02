@@ -21,6 +21,9 @@ func EvaluateInstallTrust(m Manifest, checksumsDigest string, policy InstallTrus
 	if m.Capabilities.Session != nil && m.Capabilities.Session.AllowMultiSession {
 		res.MultiSessionWarning = true
 	}
+	if m.RequiresArbitraryNetworkAccess() {
+		res.ArbitraryNetworkWarning = true
+	}
 	if m.Signature == "" {
 		if policy.RequireSigned {
 			return res, fmt.Errorf("%w: signed plugin required", ErrInvalidManifest)
@@ -67,5 +70,6 @@ type InstallTrustResult struct {
 	UnsignedWarning           bool
 	UntrustedSignatureWarning bool
 	MultiSessionWarning       bool
+	ArbitraryNetworkWarning   bool
 	ChecksumPresent           bool
 }

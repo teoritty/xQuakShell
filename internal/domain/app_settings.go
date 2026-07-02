@@ -102,9 +102,10 @@ type AppSettings struct {
 type PluginSettings struct {
 	TrustedPublisherKeys      []string        `json:"trustedPublisherKeys,omitempty"`
 	RequireSignedPlugins      bool            `json:"requireSignedPlugins,omitempty"`
-	SecretAccessGranted       map[string]bool `json:"secretAccessGranted,omitempty"`
-	MultiSessionAccessGranted map[string]bool `json:"multiSessionAccessGranted,omitempty"`
-	Disabled                  map[string]bool `json:"disabled,omitempty"`
+	SecretAccessGranted            map[string]bool `json:"secretAccessGranted,omitempty"`
+	MultiSessionAccessGranted      map[string]bool `json:"multiSessionAccessGranted,omitempty"`
+	ArbitraryNetworkAccessGranted  map[string]bool `json:"arbitraryNetworkAccessGranted,omitempty"`
+	Disabled                       map[string]bool `json:"disabled,omitempty"`
 }
 
 // DefaultPluginSettings returns default plugin install policy.

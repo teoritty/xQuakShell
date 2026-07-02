@@ -29,3 +29,4 @@ Copy the binary next to `plugin.json` under `data/plugins/<id>/` or ship it in `
 
 - No vault secret access.
 - Terminal plugins require `isolation: per-session` (enforced by manifest validation).
+- A real telnet client that dials saved connection targets needs `allowArbitraryOutbound: true` (and optionally `allowPrivateNetworks: true` for LAN routers) in `capabilities.network`, plus install-time user consent.

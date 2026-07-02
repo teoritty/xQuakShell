@@ -29,8 +29,11 @@ type AppAPI struct {
 	pingMgr             *usecase.PingManager
 	plugins             *usecase.PluginManager
 	viewRelay           *usecase.PluginViewRelay
-	pluginVaultGrant         func(pluginID string) error
-	pluginMultiSessionGrant  func(pluginID string) error
+	githubRepoService   *usecase.GitHubRepositoryService
+	githubPluginService *usecase.GitHubPluginService
+	pluginVaultGrant              func(pluginID string) error
+	pluginMultiSessionGrant       func(pluginID string) error
+	pluginArbitraryNetworkGrant   func(pluginID string) error
 	ownerCache          map[string]map[string]string // sessionID -> uid->owner
 	groupCache          map[string]map[string]string // sessionID -> gid->group
 	ownerCacheMu        sync.Mutex
@@ -125,6 +128,17 @@ func (a *AppAPI) SetPluginVaultGrant(fn func(pluginID string) error) {
 // SetPluginMultiSessionGrant sets the callback used after install to record multi-session consent.
 func (a *AppAPI) SetPluginMultiSessionGrant(fn func(pluginID string) error) {
 	a.pluginMultiSessionGrant = fn
+}
+
+// SetPluginArbitraryNetworkGrant sets the callback used after install to record arbitrary network consent.
+func (a *AppAPI) SetPluginArbitraryNetworkGrant(fn func(pluginID string) error) {
+	a.pluginArbitraryNetworkGrant = fn
+}
+
+// SetGitHubServices wires GitHub repository and plugin services.
+func (a *AppAPI) SetGitHubServices(repoSvc *usecase.GitHubRepositoryService, pluginSvc *usecase.GitHubPluginService) {
+	a.githubRepoService = repoSvc
+	a.githubPluginService = pluginSvc
 }
 
 // Lifecycle: call once on app startup. Starts the idle lockout monitor when a lockout manager is configured.

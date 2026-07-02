@@ -40,7 +40,9 @@ Only `go-binary` is supported in v1.
       "write": ["${pluginData}"]
     },
     "network": {
-      "outbound": ["tcp:example.com:443"]
+      "outbound": ["tcp:example.com:443"],
+      "allowArbitraryOutbound": false,
+      "allowPrivateNetworks": false
     },
     "vault": {
       "readConnectionFields": ["host", "port"],
@@ -62,6 +64,7 @@ Only `go-binary` is supported in v1.
 Rules:
 
 - FS patterns must start with `${pluginData}` and resolve under the plugin install directory.
+- **Network outbound:** each `outbound` entry must be an explicit `tcp:hostname:port` pattern (no wildcards). Alternatively, set `allowArbitraryOutbound: true` to permit TCP dials to any public host/port — install shows a warning and requires explicit user consent. Set `allowPrivateNetworks: true` (requires `allowArbitraryOutbound`) to also allow loopback, RFC1918, and link-local targets. Allowlist and arbitrary modes may coexist; a dial succeeds if either mode permits the target.
 - Every `contributions.connectionProtocols[].id` must be listed in `capabilities.session.connectProtocols`.
 - Event subscribe allowlist: `core.session.*` or explicit `core.session.opened|closed|stateChanged`. Broad `core.*` is rejected.
 - Event publish must use namespace `plugin.<yourPluginId>.*`. Publishing to `core.*` is rejected.

@@ -50,7 +50,7 @@ Installed plugins are copied to `data/plugins/<id>/` under the xQuakShell execut
 - **IPC frames:** NDJSON lines are capped at **256 KiB**; oversize frames are rejected.
 - **Filesystem reads:** `fs.read` returns at most **256 KiB** per call; use `offset` to read larger files (max **16 MiB** total per file).
 - **Filesystem writes:** `fs.write` accepts at most **256 KiB** per chunk; omit `offset` to replace a file, or set `offset` for chunked writes.
-- **Network:** outbound patterns must be explicit `tcp:hostname:port` — wildcards in the host are rejected. Dial failures are reported as capability denied (no host leakage).
+- **Network:** outbound patterns must be explicit `tcp:hostname:port` — wildcards in the host are rejected. Set `allowArbitraryOutbound: true` in the manifest for session plugins that dial user-chosen hosts (telnet, custom protocols); install requires an explicit consent checkbox. Optional `allowPrivateNetworks: true` extends arbitrary mode to LAN/loopback. Dial failures use generic error codes (no host leakage).
 - **Vault IDOR:** plugins may access a connection only while they own an active session for that connection.
 - **Secrets:** `vault.getSecret` requires install-time user consent plus manifest declaration. Passphrases require an encrypted identity and an unlocked session cache.
 - **Manual start:** `StartPluginManual` requires `onManual` in `activationEvents`.

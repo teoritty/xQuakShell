@@ -53,4 +53,31 @@ var (
 
 	// ErrSessionScopeRequired indicates host IPC requires a session-scoped process key (per-session isolation).
 	ErrSessionScopeRequired = errors.New("plugin session scope required")
+
+	// ErrInvalidRepositoryURL indicates a malformed or unsupported GitHub repository URL.
+	ErrInvalidRepositoryURL = errors.New("invalid GitHub repository URL")
+
+	// ErrRepositoryNotFound indicates the GitHub repository does not exist or is inaccessible.
+	ErrRepositoryNotFound = errors.New("GitHub repository not found")
+
+	// ErrPluginManifestNotFound indicates xqsp.json was not found in the repository.
+	ErrPluginManifestNotFound = errors.New("xqsp.json not found in repository")
+
+	// ErrInvalidPluginMetadata indicates plugin metadata from GitHub is invalid.
+	ErrInvalidPluginMetadata = errors.New("invalid plugin metadata")
+
+	// ErrPlatformNotSupported indicates no binary exists for the current platform.
+	ErrPlatformNotSupported = errors.New("plugin does not support current platform")
+
+	// ErrReleaseAssetNotFound indicates the requested release asset was not found.
+	ErrReleaseAssetNotFound = errors.New("release asset not found")
+
+	// ErrChecksumMismatch indicates downloaded binary checksum verification failed.
+	ErrChecksumMismatch = errors.New("checksum verification failed")
+
+	// ErrRepositoryNotTrusted indicates the repository is not marked as trusted.
+	ErrRepositoryNotTrusted = errors.New("repository is not trusted")
+
+	// ErrGitHubRateLimitExceeded indicates GitHub API rate limit was exceeded.
+	ErrGitHubRateLimitExceeded = errors.New("GitHub API rate limit exceeded")
 )

@@ -972,7 +972,10 @@ export interface PluginInstallPreview {
   signatureVerified: boolean;
   checksumPresent: boolean;
   requiresSecretAccess: boolean;
+  multiSessionWarning?: boolean;
+  arbitraryNetworkWarning?: boolean;
   unsignedWarning: boolean;
+  untrustedSignatureWarning: boolean;
   untrustedSignatureWarning: boolean;
   permissions: string[];
 }
@@ -1109,15 +1112,164 @@ export async function installPlugin(
   sourceDir: string,
   grantSecretAccess = false,
   grantMultiSessionAccess = false,
+  grantArbitraryNetworkAccess = false,
 ): Promise<PluginInfo> {
   const app = getApp();
   if (!app?.InstallPlugin) {
     throw new Error('Plugin install is unavailable');
   }
   try {
-    return await app.InstallPlugin(sourceDir, grantSecretAccess, grantMultiSessionAccess);
+    return await app.InstallPlugin(sourceDir, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
   } catch (e) {
     handleError(e, 'Install plugin');
+    throw e;
+  }
+}
+
+export interface GitHubRepository {
+  url: string;
+  owner: string;
+  repo: string;
+  displayName: string;
+  addedAt: string;
+  lastFetchedAt?: string;
+  trusted: boolean;
+}
+
+export interface GitHubPluginMetadata {
+  repositoryUrl: string;
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  license: string;
+  platforms: { os: string; arch: string; assetName: string }[];
+  latestRelease: string;
+  publishedAt: string;
+  readme: string;
+  platformSupported: boolean;
+  installed: boolean;
+}
+
+export interface GitHubPluginList {
+  repositoryUrl: string;
+  plugins: GitHubPluginMetadata[];
+}
+
+export interface GitHubPluginPreview {
+  repositoryUrl: string;
+  repositoryTrusted: boolean;
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  license: string;
+  minCoreVersion: string;
+  currentPlatform: string;
+  platformSupported: boolean;
+  supportedPlatforms: string[];
+  latestRelease: string;
+  publishedDate: string;
+  readme: string;
+  requiresSecretAccess: boolean;
+  multiSessionWarning?: boolean;
+  arbitraryNetworkWarning: boolean;
+  unsignedPlugin: boolean;
+  untrustedSource: boolean;
+  warnings: string[];
+}
+
+export async function listGitHubRepositories(): Promise<GitHubRepository[]> {
+  const app = getApp();
+  if (!app?.ListGitHubRepositories) return [];
+  try {
+    return await app.ListGitHubRepositories();
+  } catch (e) {
+    handleError(e, 'List GitHub repositories');
+    return [];
+  }
+}
+
+export async function addGitHubRepository(url: string, trusted: boolean): Promise<void> {
+  const app = getApp();
+  if (!app?.AddGitHubRepository) throw new Error('GitHub repositories unavailable');
+  try {
+    await app.AddGitHubRepository({ url, trusted });
+  } catch (e) {
+    handleError(e, 'Add GitHub repository');
+    throw e;
+  }
+}
+
+export async function removeGitHubRepository(repoURL: string): Promise<void> {
+  const app = getApp();
+  if (!app?.RemoveGitHubRepository) throw new Error('GitHub repositories unavailable');
+  try {
+    await app.RemoveGitHubRepository(repoURL);
+  } catch (e) {
+    handleError(e, 'Remove GitHub repository');
+    throw e;
+  }
+}
+
+export async function setGitHubRepositoryTrust(repoURL: string, trusted: boolean): Promise<void> {
+  const app = getApp();
+  if (!app?.SetGitHubRepositoryTrust) throw new Error('GitHub repositories unavailable');
+  try {
+    await app.SetGitHubRepositoryTrust({ url: repoURL, trusted });
+  } catch (e) {
+    handleError(e, 'Update repository trust');
+    throw e;
+  }
+}
+
+export async function fetchGitHubPlugins(repoURL: string): Promise<GitHubPluginList | null> {
+  const app = getApp();
+  if (!app?.FetchGitHubPlugins) return null;
+  try {
+    return await app.FetchGitHubPlugins(repoURL);
+  } catch (e) {
+    handleError(e, 'Fetch GitHub plugins');
+    throw e;
+  }
+}
+
+export async function previewGitHubPluginInstall(repoURL: string): Promise<GitHubPluginPreview> {
+  const app = getApp();
+  if (!app?.PreviewGitHubPluginInstall) throw new Error('GitHub plugin install unavailable');
+  try {
+    return await app.PreviewGitHubPluginInstall(repoURL);
+  } catch (e) {
+    handleError(e, 'Preview GitHub plugin');
+    throw e;
+  }
+}
+
+export async function installGitHubPlugin(
+  repoURL: string,
+  grantSecretAccess = false,
+  grantMultiSessionAccess = false,
+  grantArbitraryNetworkAccess = false,
+): Promise<void> {
+  const app = getApp();
+  if (!app?.InstallGitHubPlugin) throw new Error('GitHub plugin install unavailable');
+  try {
+    await app.InstallGitHubPlugin(repoURL, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
+  } catch (e) {
+    handleError(e, 'Install GitHub plugin');
+    throw e;
+  }
+}
+
+export async function uninstallGitHubPlugin(pluginID: string, removeData = false): Promise<void> {
+  const app = getApp();
+  if (!app?.UninstallGitHubPlugin) throw new Error('GitHub plugin uninstall unavailable');
+  try {
+    await app.UninstallGitHubPlugin(pluginID, removeData);
+  } catch (e) {
+    handleError(e, 'Uninstall plugin');
     throw e;
   }
 }

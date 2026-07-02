@@ -5,8 +5,8 @@ import (
 	"crypto/ed25519"
 	"fmt"
 
-	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/domain"
+	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/usecase"
 )
 
@@ -21,6 +21,7 @@ type PluginInstallPreviewDTO struct {
 	ChecksumPresent           bool     `json:"checksumPresent"`
 	RequiresSecretAccess      bool     `json:"requiresSecretAccess"`
 	MultiSessionWarning       bool     `json:"multiSessionWarning"`
+	ArbitraryNetworkWarning   bool     `json:"arbitraryNetworkWarning"`
 	UnsignedWarning           bool     `json:"unsignedWarning"`
 	UntrustedSignatureWarning bool     `json:"untrustedSignatureWarning"`
 	Permissions               []string `json:"permissions"`
@@ -37,6 +38,7 @@ func previewToDTO(p usecase.InstallPreview) PluginInstallPreviewDTO {
 		ChecksumPresent:           p.ChecksumPresent,
 		RequiresSecretAccess:      p.RequiresSecretAccess,
 		MultiSessionWarning:       p.MultiSessionWarning,
+		ArbitraryNetworkWarning:   p.ArbitraryNetworkWarning,
 		UnsignedWarning:           p.UnsignedWarning,
 		UntrustedSignatureWarning: p.UntrustedSignatureWarning,
 		Permissions:               p.Permissions,

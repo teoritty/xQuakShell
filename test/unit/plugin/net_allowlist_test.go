@@ -69,3 +69,28 @@ func TestNetDialAllowedHost(t *testing.T) {
 		t.Fatalf("expected handle id, got %v", out)
 	}
 }
+
+func TestNetDialArbitraryMode(t *testing.T) {
+	caps := &domainplugin.NetworkCaps{AllowArbitraryOutbound: true}
+	server := ipc.NewHostServer(ipc.HostServerConfig{
+		PluginID: "com.test.arb",
+		Gate: capability.NewGate(domainplugin.Manifest{
+			Capabilities: domainplugin.CapabilitySet{Network: caps},
+		}),
+		Net: capability.NewNetProxy("com.test.arb", caps),
+	})
+
+	_, rpcErr := server.HandleRequest(context.Background(), "net.dial", mustJSON(map[string]any{
+		"network": "tcp",
+		"host":    "93.184.216.34",
+		"port":    80,
+	}))
+	if rpcErr != nil {
+		if rpcErr.Code == -32603 {
+			t.Skip("dial unreachable in this environment")
+		}
+		if rpcErr.Code == -32001 {
+			t.Fatalf("expected arbitrary mode to allow public IP dial, got %#v", rpcErr)
+		}
+	}
+}
