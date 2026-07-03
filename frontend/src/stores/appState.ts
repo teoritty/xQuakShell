@@ -57,11 +57,19 @@ export interface Connection {
 
 export type SessionState = 'connecting' | 'hostkey-required' | 'ready' | 'error' | 'closed';
 
+export interface SessionEmbed {
+  uiUrl: string;
+  tunnelUrl: string;
+  sandbox?: string[];
+}
+
 export interface Session {
   sessionId: string;
   connectionId: string;
   connectionName: string;
   protocol?: string;
+  surface?: 'terminal' | 'embed';
+  embed?: SessionEmbed;
   state: SessionState;
   errorMessage: string;
 }

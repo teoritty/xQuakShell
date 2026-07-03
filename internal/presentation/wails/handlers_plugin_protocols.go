@@ -49,6 +49,7 @@ type ConnectionProtocolDTO struct {
 	Label       string          `json:"label"`
 	DefaultPort int             `json:"defaultPort,omitempty"`
 	Icon        string          `json:"icon,omitempty"`
+	Surface     string          `json:"surface,omitempty"`
 	RemoteFS    bool            `json:"remoteFs,omitempty"`
 	Fields      []FieldGroupDTO `json:"fields,omitempty"`
 }
@@ -68,13 +69,14 @@ func (a *AppAPI) GetPluginConnectionProtocols() []ConnectionProtocolDTO {
 	})
 	seen := map[string]struct{}{"ssh": {}}
 	for _, p := range a.plugins.Registry().List() {
+		surface := p.Manifest.SessionSurface()
 		remoteFS := p.Manifest.Capabilities.Session != nil && p.Manifest.Capabilities.Session.RemoteFS
 		for _, cp := range p.Manifest.Contributions.ConnectionProtocols {
 			if _, ok := seen[cp.ID]; ok {
 				continue
 			}
 			seen[cp.ID] = struct{}{}
-			dto := mapConnectionProtocol(cp)
+			dto := mapConnectionProtocol(cp, surface)
 			dto.RemoteFS = remoteFS
 			out = append(out, dto)
 		}
@@ -82,12 +84,13 @@ func (a *AppAPI) GetPluginConnectionProtocols() []ConnectionProtocolDTO {
 	return out
 }
 
-func mapConnectionProtocol(p domainplugin.ConnectionProtocolContribution) ConnectionProtocolDTO {
+func mapConnectionProtocol(p domainplugin.ConnectionProtocolContribution, surface string) ConnectionProtocolDTO {
 	dto := ConnectionProtocolDTO{
 		ID:          p.ID,
 		Label:       p.Label,
 		DefaultPort: p.DefaultPort,
 		Icon:        p.Icon,
+		Surface:     surface,
 	}
 	for _, group := range p.Fields {
 		dto.Fields = append(dto.Fields, mapFieldGroup(group))

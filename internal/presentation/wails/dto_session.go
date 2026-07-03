@@ -8,12 +8,27 @@ import (
 
 // SessionDTO is the UI-facing representation of a session.
 type SessionDTO struct {
-	SessionID      string `json:"sessionId"`
-	ConnectionID   string `json:"connectionId"`
-	ConnectionName string `json:"connectionName"`
-	Protocol       string `json:"protocol,omitempty"`
-	State          string `json:"state"`
-	ErrorMessage   string `json:"errorMessage"`
+	SessionID      string           `json:"sessionId"`
+	ConnectionID   string           `json:"connectionId"`
+	ConnectionName string           `json:"connectionName"`
+	Protocol       string           `json:"protocol,omitempty"`
+	Surface        string           `json:"surface,omitempty"`
+	State          string           `json:"state"`
+	ErrorMessage   string           `json:"errorMessage"`
+	Embed          *SessionEmbedDTO `json:"embed,omitempty"`
+}
+
+// SessionEmbedDTO carries embed surface URLs for the frontend iframe.
+type SessionEmbedDTO struct {
+	UIUrl     string   `json:"uiUrl"`
+	TunnelUrl string   `json:"tunnelUrl"`
+	Sandbox   []string `json:"sandbox"`
+}
+
+// SessionEmbedReadyPayload is emitted when an embed session becomes interactive.
+type SessionEmbedReadyPayload struct {
+	SessionID string           `json:"sessionId"`
+	Embed     SessionEmbedDTO  `json:"embed"`
 }
 
 // RemoteNodeDTO is the UI-facing representation of a remote file/directory.
@@ -55,8 +70,21 @@ func SessionToDTO(s domain.ConnectionSession) SessionDTO {
 		ConnectionID:   s.ConnectionID,
 		ConnectionName: s.ConnectionName,
 		Protocol:       s.Protocol,
+		Surface:        s.Surface,
 		State:          string(s.State),
 		ErrorMessage:   s.ErrorMessage,
+	}
+}
+
+// SessionEmbedToDTO maps a domain embed descriptor to a DTO payload.
+func SessionEmbedToDTO(desc domain.SessionEmbedDescriptor) SessionEmbedReadyPayload {
+	return SessionEmbedReadyPayload{
+		SessionID: desc.SessionID,
+		Embed: SessionEmbedDTO{
+			UIUrl:     desc.UIUrl,
+			TunnelUrl: desc.TunnelUrl,
+			Sandbox:   desc.Sandbox,
+		},
 	}
 }
 

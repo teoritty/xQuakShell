@@ -80,6 +80,16 @@ func DefaultSessionHotkeysSettings() SessionHotkeysSettings {
 	}
 }
 
+// EmbedSettings configures session embed behavior.
+type EmbedSettings struct {
+	SuspendTcpWhenInactive bool `json:"suspendTcpWhenInactive,omitempty"`
+}
+
+// DefaultEmbedSettings returns default embed session settings.
+func DefaultEmbedSettings() EmbedSettings {
+	return EmbedSettings{}
+}
+
 // AppSettings stores user-configurable application settings inside the vault.
 type AppSettings struct {
 	Lockout            LockoutSettings        `json:"lockout"`
@@ -92,6 +102,7 @@ type AppSettings struct {
 	ExternalEditorPath string                 `json:"externalEditorPath,omitempty"`
 	AuditLog           AuditLogSettings       `json:"auditLog"`
 	Plugins            PluginSettings         `json:"plugins"`
+	Embed              EmbedSettings          `json:"embed"`
 }
 
 // PluginSettings configures plugin trust and install policy.
@@ -101,6 +112,7 @@ type PluginSettings struct {
 	SecretAccessGranted            map[string]bool `json:"secretAccessGranted,omitempty"`
 	MultiSessionAccessGranted      map[string]bool `json:"multiSessionAccessGranted,omitempty"`
 	ArbitraryNetworkAccessGranted  map[string]bool `json:"arbitraryNetworkAccessGranted,omitempty"`
+	LocalEmbedServerAccessGranted  map[string]bool `json:"localEmbedServerAccessGranted,omitempty"`
 	Disabled                       map[string]bool `json:"disabled,omitempty"`
 }
 

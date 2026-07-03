@@ -134,6 +134,8 @@ Every plugin → core RPC passes through a manifest-driven capability gate. Deni
 
 This section describes the runtime path for plugins with `capabilities.session.terminal: true` and `isolation: per-session` (required for terminal plugins unless `allowMultiSession` is explicitly set — see [plugin-manifest.md](./plugin-manifest.md#capabilities)).
 
+For **embed session surfaces** (VNC/RDP-style canvas clients), see [Session embed lifecycle](#session-embed-lifecycle) below.
+
 ### Sequence
 
 1. User opens a session tab → host sets UI state to `connecting`.
@@ -234,6 +236,131 @@ host.Register("session.connect", func(params json.RawMessage) (any, error) {
 
 Requires `capabilities.network` (allowlist or `allowArbitraryOutbound`) and `capabilities.session.terminal: true`. See [Network API](#network-api).
 
+## Session embed lifecycle
+
+Embed sessions replace the terminal with a **full-tab iframe** and a **binary WebSocket tunnel** terminated in the host (Mode A — core embed broker). The Go plugin stays a dumb TCP relay; protocol decode (noVNC, ironrdp-web, etc.) runs in `ui/` inside the iframe.
+
+Requires `capabilities.session.embed: true`, `isolation: per-session`, and `contributions.connectionProtocols[].embedEntry` (default `ui/embed.html`). **`terminal` and `embed` are mutually exclusive.**
+
+### Sequence
+
+1. User opens a session tab → host state `connecting`.
+2. Host starts the per-session plugin, `initialize`, `activate` (`onProtocol:<id>`), binds session, sends **`session.connect`** (same payload as terminal plugins).
+3. Plugin returns `{"accepted":true}` and dials the target in a goroutine (`net.dial`).
+4. Plugin calls **`session.registerEmbed`** → host mints a session-scoped token and URLs.
+5. Plugin calls **`session.tunnelOpen`** for each tunnel id (typically `"main"`).
+6. Plugin starts dumb relay: TCP ↔ `session.tunnelFrame` / `session.tunnelData`.
+7. Plugin calls **`session.updateState`** with `"ready"`.
+8. Host emits **`SessionEmbedReady`** to the UI with `uiUrl`, `tunnelUrl`, `sandbox`.
+9. Frontend mounts `SessionEmbedPanel`: iframe loads `uiUrl`; embed page opens WebSocket to `tunnelUrl`.
+10. Viewport: host sends **`embed.viewport`** postMessage (pixels + `devicePixelRatio`); optional **`session.embedViewport`** notification to plugin.
+11. Tab blur: **`embed.suspend`**, **`ReportEmbedActivity(false)`**, broker backpressure. Tab focus: **`embed.resume`** + full viewport report.
+12. Tab close: `session.disconnect`, token revoked, tunnels closed.
+
+Crash recovery re-sends `session.connect`; plugin must call `session.registerEmbed` again (new token). UI remounts iframe on `SessionEmbedReady`.
+
+### `session.registerEmbed`
+
+Plugin → host (`capabilities.session.embed` required):
+
+```json
+{
+  "sessionId": "...",
+  "uiEntry": "ui/vnc.html",
+  "tunnelIds": ["main"]
+}
+```
+
+Host response:
+
+```json
+{
+  "embedToken": "<64-hex>",
+  "uiUrl": "/embed/s/<token>/ui/index.html",
+  "tunnelUrl": "/embed/s/<token>/tunnel/main",
+  "expiresAt": "2026-07-03T20:00:00Z"
+}
+```
+
+- `uiEntry` must match the manifest `embedEntry` for the connection protocol.
+- Re-registering for the same session invalidates the previous token.
+
+### Tunnel IPC
+
+| Direction | Mechanism |
+|-----------|-----------|
+| Plugin → browser | RPC `session.tunnelFrame` (`dataBase64`, optional `eof`) |
+| Browser → plugin | Notification `session.tunnelData` (`sessionId`, `tunnelId`, `dataBase64`) |
+| Backpressure | Notification `session.tunnelBackpressure` / `session.tunnelResume` |
+
+Limits: max frame **64 KiB**; default aggregate **32 MiB/s** per session; max **4** tunnels per session. Oversized or rate-limited frames return `-32003`.
+
+Other plugin → host RPC: `session.tunnelOpen`, `session.tunnelClose`. **`session.writeTerminal` is not used.**
+
+### Host → plugin notifications (embed)
+
+| Method | When |
+|--------|------|
+| `session.embedViewport` | Container resized or tab re-activated (`widthPx`, `heightPx`, `devicePixelRatio`, `active`) |
+| `session.embedActivity` | Tab focus changed (`active`) |
+| `session.tunnelData` | Bytes from browser WebSocket |
+| `session.tunnelBackpressure` | WS consumer slow or tab inactive |
+| `session.tunnelResume` | Backpressure cleared |
+| `session.disconnect` | Tab closed |
+
+**`session.resize` (`cols`/`rows`) is terminal-only.** Embed clients must listen for host → iframe postMessage:
+
+```json
+{ "source": "xquakshell-host", "type": "embed.viewport", "widthPx": 1280, "heightPx": 720, "devicePixelRatio": 1.25 }
+{ "source": "xquakshell-host", "type": "embed.suspend" }
+{ "source": "xquakshell-host", "type": "embed.resume" }
+```
+
+Embed pages must **not** disconnect the WebSocket on suspend — pause rendering only.
+
+### Minimal embed plugin pattern
+
+```go
+client := pluginsdk.NewClient(host)
+embed := client.Embed()
+net := client.Net()
+
+pluginsdk.RegisterEmbedHostHandlers(host, &pluginsdk.EmbedHostHandlers{
+    OnTunnelData: func(p pluginsdk.TunnelDataParams) {
+        data, _ := base64.StdEncoding.DecodeString(p.DataBase64)
+        _ = net.Write(handleID, data)
+    },
+})
+
+host.Register("session.connect", func(params json.RawMessage) (any, error) {
+    var req pluginsdk.SessionConnectParams
+    _ = json.Unmarshal(params, &req)
+    go func() {
+        handleID, err := net.Dial(req.Host, req.Port)
+        if err != nil { /* session.updateState error */ return }
+        _, _ = embed.Register(pluginsdk.RegisterEmbedParams{
+            SessionID: req.SessionID,
+            UIEntry:   "ui/vnc.html",
+            TunnelIds: []string{"main"},
+        })
+        _ = embed.OpenTunnel(req.SessionID, "main")
+        // TCP read loop → embed.SendFrame; OnTunnelData → net.Write
+        _, _ = host.CallCore("session.updateState", map[string]string{
+            "sessionId": req.SessionID, "state": "ready",
+        })
+    }()
+    return map[string]bool{"accepted": true}, nil
+})
+```
+
+Requires `capabilities.session.embed`, `capabilities.network`, and static assets under `ui/`.
+
+### Mode B — local embed server (opt-in)
+
+`capabilities.session.localEmbedServer: true` allows `session.reportLocalEmbed` (loopback HTTP in the plugin). **Not recommended for VNC/RDP**; install requires separate consent. Mode A (core broker) is the default and reference path.
+
+See [ADR-008](./adr/008-session-embed-surfaces.md).
+
 ## Plugin IPC reference
 
 Complete method list as implemented in the core today.
@@ -273,6 +400,11 @@ Complete method list as implemented in the core today.
 | `session.writeInput` | `{"dataBase64":"..."}` | Terminal keyboard input |
 | `session.resize` | `{"cols":uint,"rows":uint}` | Terminal window resize |
 | `session.disconnect` | `{"sessionId":"..."}` | Session tab closed |
+| `session.embedViewport` | `sessionId`, `widthPx`, `heightPx`, `devicePixelRatio`, `active` | Embed container resized / tab activated |
+| `session.embedActivity` | `sessionId`, `active` | Session tab focus changed |
+| `session.tunnelData` | `sessionId`, `tunnelId`, `dataBase64` | Browser → plugin tunnel bytes |
+| `session.tunnelBackpressure` | `sessionId` | Pause TCP read (consumer slow / tab inactive) |
+| `session.tunnelResume` | `sessionId` | Resume after backpressure |
 | `deactivate` | omitted | Before shutdown |
 | `view.postMessage` | `{"panelId":"...","message":<json>}` | UI → plugin WebView panel |
 | `event` | `{"channel":"...","payload":<json>}` | Core event bus delivery to subscribers |
@@ -300,8 +432,13 @@ All methods below require a matching manifest capability unless marked “always
 | `net.close` | same as dial | `handleId` | `{"ok":true}` |
 | `vault.getConnection` | `vault.readConnectionFields` + active session ownership | `connectionId` | subset: `id`, `name`, `host`, `port`, `protocol`, `folderId` |
 | `vault.getSecret` | `vault.getSecret` + install consent | `connectionId`, `field` | `field`, `valueBase64` |
-| `session.updateState` | `session.terminal` | `sessionId`, `state`, `error?` | `{"ok":true}` |
+| `session.updateState` | `session.terminal` **or** `session.embed` | `sessionId`, `state`, `error?` | `{"ok":true}` |
 | `session.writeTerminal` | `session.terminal` | `sessionId`, `outputBase64` | `{"ok":true}` |
+| `session.registerEmbed` | `session.embed` | `sessionId`, `uiEntry`, `tunnelIds?` | `embedToken`, `uiUrl`, `tunnelUrl`, `expiresAt` |
+| `session.tunnelOpen` | `session.embed` | `sessionId`, `tunnelId` | `{"ok":true}` |
+| `session.tunnelFrame` | `session.embed` | `sessionId`, `tunnelId`, `dataBase64`, `eof?` | `{"ok":true}` |
+| `session.tunnelClose` | `session.embed` | `sessionId`, `tunnelId` | `{"ok":true}` |
+| `session.reportLocalEmbed` | `session.embed` + `localEmbedServer` | port, pathPrefix, token | `{"ok":true}` |
 | `events.subscribe` | `events.subscribe` allowlist | `channel` | `{"ok":true}` |
 | `events.publish` | `events.publish` namespace | `channel`, `payload` | `{"ok":true}` — max **100/s** |
 | `view.postMessage` | contributed `views` | `panelId`, `message` | `{"ok":true}` |
@@ -485,6 +622,7 @@ The core validates the binary matches the host OS at install time.
 
 - `PluginContributionsChanged` — refresh merged commands/views/status bar
 - `PluginStateChanged` — `{ pluginId, state, sessionId? }` where state is `starting|running|stopped|suspended|crashed`
+- `SessionEmbedReady` — `{ sessionId, embed: { uiUrl, tunnelUrl, sandbox } }` when embed registration completes
 - `PluginViewMessage` — plugin → host view relay
 
 ## RPC error codes

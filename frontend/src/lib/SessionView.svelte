@@ -1,5 +1,6 @@
 <script lang="ts">
   import Terminal from './Terminal.svelte';
+  import SessionEmbedPanel from './SessionEmbedPanel.svelte';
   import FileTree from './FileTree.svelte';
   import LocalFileTree from './LocalFileTree.svelte';
   import TransferPanel from './TransferPanel.svelte';
@@ -104,11 +105,17 @@
     </div>
   {:else if session.state === 'ready'}
     <div class="session-content" class:no-select={isDragging || fileDragging} class:terminal-only={!showFilePanel}>
+      {#if session.surface === 'embed' && session.embed}
+        <div class="embed-area" style="flex: {showFilePanel ? splitRatio : 100}">
+          <SessionEmbedPanel {session} {active} />
+        </div>
+      {:else}
       <div class="terminal-area" style="flex: {showFilePanel ? splitRatio : 100}">
         {#key session.sessionId}
           <Terminal sessionId={session.sessionId} {active} />
         {/key}
       </div>
+      {/if}
       {#if showFilePanel}
       <div
         class="split-handle-h"
@@ -213,6 +220,15 @@
   }
 
   .terminal-area {
+    display: flex;
+    flex-direction: column;
+    min-width: 200px;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .embed-area {
     display: flex;
     flex-direction: column;
     min-width: 200px;

@@ -31,8 +31,16 @@ func (g *Gate) Allow(method string) bool {
 		return g.manifest.Capabilities.Vault != nil && len(g.manifest.Capabilities.Vault.ReadConnectionFields) > 0
 	case "vault.getSecret":
 		return g.manifest.Capabilities.Vault != nil && len(g.manifest.Capabilities.Vault.GetSecret) > 0
-	case "session.updateState", "session.writeTerminal":
+	case "session.writeTerminal":
 		return g.manifest.Capabilities.Session != nil && g.manifest.Capabilities.Session.Terminal
+	case "session.updateState":
+		s := g.manifest.Capabilities.Session
+		return s != nil && (s.Terminal || s.Embed)
+	case "session.registerEmbed", "session.tunnelOpen", "session.tunnelFrame", "session.tunnelClose":
+		return g.manifest.Capabilities.Session != nil && g.manifest.Capabilities.Session.Embed
+	case "session.reportLocalEmbed":
+		s := g.manifest.Capabilities.Session
+		return s != nil && s.Embed && s.LocalEmbedServer
 	case "events.publish":
 		return g.manifest.Capabilities.Events != nil && len(g.manifest.Capabilities.Events.Publish) > 0
 	case "events.subscribe":

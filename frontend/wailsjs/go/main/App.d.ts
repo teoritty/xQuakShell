@@ -137,6 +137,10 @@ export function ReorderFolders(arg1:Array<string>,arg2:string):Promise<void>;
 
 export function ReportActivity():Promise<void>;
 
+export function ReportEmbedActivity(arg1:string,arg2:boolean):Promise<void>;
+
+export function ReportEmbedViewport(arg1:string,arg2:number,arg3:number,arg4:number):Promise<void>;
+
 export function ReportMinimized():Promise<void>;
 
 export function ReportRestored():Promise<void>;

@@ -294,3 +294,22 @@ Plugins **cannot** invoke Wails host methods or `HostFileSystem`. Their only fil
 
 See [adr/007-host-filesystem-trust.md](adr/007-host-filesystem-trust.md).
 
+## Session embed surfaces (ADR-008)
+
+Embed sessions serve plugin `ui/` assets and WebSocket tunnels through a **core-hosted broker** at `/embed/s/{token}/…` (same origin as the Wails app). Plugins do not bind listening HTTP ports by default.
+
+| Threat | Mitigation |
+|--------|------------|
+| IDOR (another session's embed) | 256-bit token bound to `sessionId`; revoked on close/crash |
+| Token guessing | Rate-limit failed `/embed/` lookups |
+| Path traversal in UI assets | Token lookup → plugin `ui/` root only; `pathsafe` checks |
+| XSS in plugin UI | CSP on embed routes; sandbox `allow-scripts allow-same-origin` |
+| Arbitrary external iframe URLs | Host rejects; only registered descriptors |
+| Secret in URL | Forbidden; tokens are path segments, not query params with secrets |
+| WS hijacking | Token required at tunnel upgrade |
+| Memory exhaustion | 64 KiB max frame; 32 MiB/s default bandwidth; inactive tab backpressure |
+
+Mode B (`localEmbedServer`) is opt-in with install consent and loopback-only binding. See [adr/008-session-embed-surfaces.md](adr/008-session-embed-surfaces.md).
+
+Tunnel payload bytes are **not** audit-logged. Control events (`session.embed.register`, `session.embed.revoke`, auth failures) may be logged without secrets.
+

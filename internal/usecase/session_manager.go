@@ -25,6 +25,8 @@ type sessionEntry struct {
 	pluginID           string
 	pluginOutput       chan []byte
 	pluginTerminalReady bool
+	sessionSurface     string
+	embedDescriptor    *domain.SessionEmbedDescriptor
 }
 
 // StateChangeFunc is called whenever a session transitions to a new state.
@@ -61,9 +63,11 @@ type SessionManager struct {
 	sftpClientFactory domain.SFTPClientFactory
 	connectors        map[string]domain.SessionConnector
 	pluginBridge      *PluginSessionBridge
+	embedTunnels      *EmbedTunnelService
 
 	onStateChange  StateChangeFunc
 	onStreamReady  OnStreamReadyFunc
+	onEmbedReady   OnEmbedReadyFunc
 	passphraseReq  PassphraseRequestFunc
 	hostKeyRequest HostKeyRequestFunc
 	pluginTerminalWriteTimeout time.Duration
@@ -183,6 +187,10 @@ func (m *SessionManager) CloseSession(sessionID string) error {
 	m.mu.Unlock()
 
 	entry.cancel()
+
+	if m.embedTunnels != nil {
+		_ = m.embedTunnels.RevokeBySession(sessionID)
+	}
 
 	if entry.pluginID != "" && m.pluginBridge != nil {
 		m.pluginBridge.Disconnect(context.Background(), entry.pluginID, sessionID)

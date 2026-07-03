@@ -99,6 +99,86 @@ func TestAllowMultiSessionWarningForNonTerminal(t *testing.T) {
 	}
 }
 
+func TestEmbedRequiresPerSessionIsolation(t *testing.T) {
+	m := Manifest{
+		ID:      "com.test.embed",
+		Name:    "E",
+		Version: "1.0.0",
+		Engine:  EngineConfig{Type: EngineGoBinary, Entry: "p.exe"},
+		Capabilities: CapabilitySet{
+			Session: &SessionCaps{
+				ConnectProtocols: []string{"vnc"},
+				Embed:            true,
+			},
+		},
+		Contributions: Contributions{
+			ConnectionProtocols: []ConnectionProtocolContribution{{ID: "vnc", Label: "VNC"}},
+		},
+	}
+	if err := m.Validate(); err == nil {
+		t.Fatal("expected embed+per-plugin default to fail validation")
+	}
+	m.Isolation = IsolationPerSession
+	if err := m.Validate(); err != nil {
+		t.Fatalf("expected per-session embed ok, got %v", err)
+	}
+}
+
+func TestTerminalAndEmbedMutuallyExclusive(t *testing.T) {
+	m := Manifest{
+		ID:        "com.test.both",
+		Name:      "B",
+		Version:   "1.0.0",
+		Engine:    EngineConfig{Type: EngineGoBinary, Entry: "p.exe"},
+		Isolation: IsolationPerSession,
+		Capabilities: CapabilitySet{
+			Session: &SessionCaps{
+				ConnectProtocols: []string{"x"},
+				Terminal:         true,
+				Embed:            true,
+			},
+		},
+	}
+	if err := m.Validate(); err == nil {
+		t.Fatal("expected terminal+embed to fail validation")
+	}
+}
+
+func TestEmbedDisallowsAllowMultiSession(t *testing.T) {
+	m := Manifest{
+		ID:        "com.test.embedmulti",
+		Name:      "M",
+		Version:   "1.0.0",
+		Engine:    EngineConfig{Type: EngineGoBinary, Entry: "p.exe"},
+		Isolation: IsolationPerSession,
+		Capabilities: CapabilitySet{
+			Session: &SessionCaps{
+				ConnectProtocols:  []string{"vnc"},
+				Embed:             true,
+				AllowMultiSession: true,
+			},
+		},
+	}
+	if err := m.Validate(); err == nil {
+		t.Fatal("expected embed+allowMultiSession to fail validation")
+	}
+}
+
+func TestRemoteFSRequiresTerminalOrEmbed(t *testing.T) {
+	m := Manifest{
+		ID:      "com.test.remotefs",
+		Name:    "R",
+		Version: "1.0.0",
+		Engine:  EngineConfig{Type: EngineGoBinary, Entry: "p.exe"},
+		Capabilities: CapabilitySet{
+			Session: &SessionCaps{RemoteFS: true},
+		},
+	}
+	if err := m.Validate(); err == nil {
+		t.Fatal("expected remoteFs without surface to fail validation")
+	}
+}
+
 func TestAllowMultiSessionRequiresPerPluginIsolation(t *testing.T) {
 	m := Manifest{
 		ID:        "com.test.multi",

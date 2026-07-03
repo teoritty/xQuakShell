@@ -73,15 +73,36 @@ func (m *Manifest) validateSessionCaps() error {
 	if m.Capabilities.Session == nil {
 		return nil
 	}
-	if m.Capabilities.Session.AllowMultiSession {
-		if m.Capabilities.Session.Terminal {
+	s := m.Capabilities.Session
+	if s.Terminal && s.Embed {
+		return fmt.Errorf("%w: terminal and embed are mutually exclusive", ErrInvalidManifest)
+	}
+	if s.Embed && s.AllowMultiSession {
+		return fmt.Errorf("%w: embed plugins may not use allowMultiSession", ErrInvalidManifest)
+	}
+	if s.LocalEmbedServer && !s.Embed {
+		return fmt.Errorf("%w: localEmbedServer requires embed", ErrInvalidManifest)
+	}
+	if s.RemoteFS && !s.Terminal && !s.Embed {
+		return fmt.Errorf("%w: remoteFs requires terminal or embed session surface", ErrInvalidManifest)
+	}
+	if s.Embed {
+		if len(s.ConnectProtocols) == 0 {
+			return fmt.Errorf("%w: embed requires capabilities.session.connectProtocols", ErrInvalidManifest)
+		}
+		if m.EffectiveIsolation() != IsolationPerSession {
+			return fmt.Errorf("%w: embed requires isolation per-session", ErrInvalidManifest)
+		}
+	}
+	if s.AllowMultiSession {
+		if s.Terminal {
 			return fmt.Errorf("%w: terminal plugins may not use allowMultiSession", ErrInvalidManifest)
 		}
 		if m.EffectiveIsolation() != IsolationPerPlugin {
 			return fmt.Errorf("%w: allowMultiSession requires per-plugin isolation", ErrInvalidManifest)
 		}
 	}
-	if m.Capabilities.Session.Terminal && m.EffectiveIsolation() != IsolationPerSession {
+	if s.Terminal && m.EffectiveIsolation() != IsolationPerSession {
 		return fmt.Errorf("%w: terminal requires isolation per-session", ErrInvalidManifest)
 	}
 	return nil
@@ -101,6 +122,40 @@ func (m *Manifest) validateViewEntries() error {
 		}
 	}
 	return nil
+}
+
+// SessionSurface returns "terminal", "embed", or "" for the plugin session UI type.
+func (m *Manifest) SessionSurface() string {
+	if m.Capabilities.Session == nil {
+		return ""
+	}
+	if m.Capabilities.Session.Embed {
+		return "embed"
+	}
+	if m.Capabilities.Session.Terminal {
+		return "terminal"
+	}
+	return ""
+}
+
+// RequiresLocalEmbedServerWarning reports whether install should warn about loopback HTTP.
+func (m *Manifest) RequiresLocalEmbedServerWarning() bool {
+	return m.Capabilities.Session != nil && m.Capabilities.Session.LocalEmbedServer
+}
+
+// EmbedEntryForProtocol returns the ui entry for a connection protocol (embed plugins only).
+func (m *Manifest) EmbedEntryForProtocol(protocolID string) string {
+	protocolID = strings.TrimSpace(protocolID)
+	for _, cp := range m.Contributions.ConnectionProtocols {
+		if strings.TrimSpace(cp.ID) == protocolID {
+			entry := strings.TrimSpace(cp.EmbedEntry)
+			if entry == "" {
+				return defaultEmbedEntry
+			}
+			return entry
+		}
+	}
+	return defaultEmbedEntry
 }
 
 // RequiresMultiSessionWarning reports whether install should warn about shared-process terminal access.
@@ -147,6 +202,15 @@ func (m *Manifest) validateConnectionProtocolCaps() error {
 		}
 		if _, ok := allowed[id]; !ok {
 			return fmt.Errorf("%w: connection protocol %q not listed in capabilities.session.connectProtocols", ErrInvalidManifest, id)
+		}
+		if m.Capabilities.Session != nil && m.Capabilities.Session.Embed {
+			entry := strings.TrimSpace(cp.EmbedEntry)
+			if entry == "" {
+				entry = defaultEmbedEntry
+			}
+			if err := ValidateViewAssetEntry(entry); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -274,6 +338,12 @@ func (m *Manifest) PermissionSummary() []string {
 	}
 	if m.RequiresMultiSessionWarning() {
 		lines = append(lines, "Shared process may access multiple sessions (allowMultiSession)")
+	}
+	if m.Capabilities.Session != nil && m.Capabilities.Session.Embed {
+		lines = append(lines, "Render session in embedded browser surface (embed)")
+	}
+	if m.RequiresLocalEmbedServerWarning() {
+		lines = append(lines, "Run local HTTP server for session UI (loopback only)")
 	}
 	if len(lines) == 0 {
 		lines = append(lines, "No elevated permissions requested")

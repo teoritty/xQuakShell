@@ -79,6 +79,18 @@ Plugin connectors receive `ConnectorHooks` to set PTY bridge, SFTP (`RemoteFS`),
 | **Plugins** | `internal/usecase/plugin_*.go`, handlers in `handlers_plugin*.go`, manifest FS checks in `infra/plugin/bundle/capabilities_validate.go`. |
 | **Plugin connection fields** | Manifest: `internal/domain/plugin/fields.go`, validation in `manifest_fields_validate.go`; persistence: `PluginFieldsService`, `Connection.pluginFields`, `VaultData.pluginSecrets`; UI: `PluginConnectionFields.svelte`, `GetPluginConnectionProtocols`. |
 | **Plugin protocols** | Out-of-process plugins via `PluginSessionBridge` and `session.connect` (with optional `fields`). |
+| **Session embed** | `EmbedTunnelService`, `internal/infra/embed/broker_handler.go`, `SessionEmbedPanel.svelte`, `session.registerEmbed` / tunnel IPC. See [adr/008-session-embed-surfaces.md](adr/008-session-embed-surfaces.md). |
+
+## Session embed data flow
+
+```mermaid
+flowchart LR
+  UI[SessionEmbedPanel] -->|iframe + WS| Broker[Embed broker /embed/s/token]
+  Broker --> Tunnels[EmbedTunnelService]
+  Tunnels -->|session.tunnelFrame RPC| Plugin[Plugin process]
+  Plugin -->|net.dial| Target[VNC/RDP server]
+  Broker -->|session.tunnelData notify| Plugin
+```
 
 ## Tests
 

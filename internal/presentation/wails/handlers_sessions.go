@@ -151,6 +151,22 @@ func (a *AppAPI) ResolveHostKey(sessionID, action, host, authorizedKey string) e
 	return a.sessions.RetrySession(context.Background(), sessionID)
 }
 
+// ReportEmbedViewport forwards pixel dimensions to the plugin process.
+func (a *AppAPI) ReportEmbedViewport(sessionID string, widthPx, heightPx int, devicePixelRatio float64) error {
+	if a.embedBridge == nil {
+		return nil
+	}
+	return a.embedBridge.ReportViewport(context.Background(), sessionID, widthPx, heightPx, devicePixelRatio, true)
+}
+
+// ReportEmbedActivity updates broker backpressure when the session tab focus changes.
+func (a *AppAPI) ReportEmbedActivity(sessionID string, active bool) error {
+	if a.embedBridge == nil {
+		return nil
+	}
+	return a.embedBridge.ReportActivity(context.Background(), sessionID, active)
+}
+
 // --- Internal helpers ---
 
 func (a *AppAPI) onSessionStateChange(session domain.ConnectionSession) {
