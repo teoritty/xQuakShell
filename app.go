@@ -97,6 +97,7 @@ func NewApp() *App {
 	}
 	api.SetGitHubServices(pluginRuntime.githubRepoService, pluginRuntime.githubPluginService)
 	pluginRuntime.setSessionRecoverer(api.Sessions())
+	pluginRuntime.wireEmbed(api)
 
 	return &App{api: api, plugins: pluginRuntime}
 }
@@ -292,6 +293,14 @@ func (a *App) SendTerminalInput(sessionID, data, commandLine string) error {
 
 func (a *App) TerminalResize(sessionID string, cols, rows int) error {
 	return a.api.TerminalResize(sessionID, cols, rows)
+}
+
+func (a *App) ReportEmbedViewport(sessionID string, widthPx, heightPx int, devicePixelRatio float64) error {
+	return a.api.ReportEmbedViewport(sessionID, widthPx, heightPx, devicePixelRatio)
+}
+
+func (a *App) ReportEmbedActivity(sessionID string, active bool) error {
+	return a.api.ReportEmbedActivity(sessionID, active)
 }
 
 func (a *App) ListPath(sessionID, path string) ([]presentation.RemoteNodeDTO, error) {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"ssh-client/internal/domain"
@@ -12,17 +13,22 @@ import (
 	"ssh-client/internal/infra/auditlog"
 	infracache "ssh-client/internal/infra/cache"
 	infragithub "ssh-client/internal/infra/github"
+	infrapluginembed "ssh-client/internal/infra/embed"
 	infraplugin "ssh-client/internal/infra/plugin"
 	infrapluginassets "ssh-client/internal/infra/plugin/assets"
 	infrapluginbundle "ssh-client/internal/infra/plugin/bundle"
 	infrapluginlifecycle "ssh-client/internal/infra/plugin/lifecycle"
 	infrapersistence "ssh-client/internal/infra/persistence"
 	infraportable "ssh-client/internal/infra/portable"
+	presentation "ssh-client/internal/presentation/wails"
 	"ssh-client/internal/usecase"
 )
 
 type pluginRuntime struct {
 	inbound             *usecase.PluginSessionInbound
+	embedInbound        *usecase.PluginEmbedInbound
+	embedTunnels        *usecase.EmbedTunnelService
+	embedBridge         *usecase.PluginEmbedBridge
 	viewInbound         *usecase.PluginViewInbound
 	viewRelay           *usecase.PluginViewRelay
 	vaultInbound        *usecase.PluginVaultInbound
@@ -47,6 +53,8 @@ type pluginRuntimeDeps struct {
 
 func newPluginRuntime(dataRoot string, deps pluginRuntimeDeps) *pluginRuntime {
 	inbound := usecase.NewPluginSessionInbound()
+	embedInbound := usecase.NewPluginEmbedInbound()
+	embedTunnels := usecase.NewEmbedTunnelService()
 	registry := usecase.NewPluginRegistry()
 	viewInbound := usecase.NewPluginViewInbound(registry)
 	portableRuntime := infraportable.NewRuntimeAdapter()
@@ -85,7 +93,7 @@ func newPluginRuntime(dataRoot string, deps pluginRuntimeDeps) *pluginRuntime {
 		DataRoot:          dataRoot,
 		Portable:          portableRuntime,
 		Vault:             vaultInbound,
-		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, sessionAuthorizer),
+		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, embedInbound, sessionAuthorizer),
 		Events:            eventBus,
 		Views:             viewInbound,
 		SessionAuthorizer: sessionAuthorizer,
@@ -163,8 +171,29 @@ func newPluginRuntime(dataRoot string, deps pluginRuntimeDeps) *pluginRuntime {
 		TickEvery: time.Minute,
 	})
 
+	pluginAssets := infrapluginassets.NewHandler(infrapluginassets.PluginRegistryUIRootResolver(func(id string) (domainplugin.InstalledPlugin, error) {
+		return registry.Get(id)
+	}))
+	embedBroker := infrapluginembed.NewBrokerHandler(embedTunnels, func(pluginID string) (string, error) {
+		p, err := registry.Get(pluginID)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(p.RootDir, "ui"), nil
+	})
+	compositeAssets := infrapluginembed.NewCompositeHandler(pluginAssets, embedBroker)
+
+	embedTunnels.SetPluginNotifier(func(ctx context.Context, pluginID, sessionID, method string, params []byte) error {
+		if manager == nil {
+			return nil
+		}
+		return manager.NotifyForSession(ctx, pluginID, sessionID, method, json.RawMessage(params))
+	})
+
 	return &pluginRuntime{
 		inbound:             inbound,
+		embedInbound:        embedInbound,
+		embedTunnels:        embedTunnels,
 		viewInbound:         viewInbound,
 		viewRelay:           viewRelay,
 		vaultInbound:        vaultInbound,
@@ -173,11 +202,24 @@ func newPluginRuntime(dataRoot string, deps pluginRuntimeDeps) *pluginRuntime {
 		supervisor:          supervisor,
 		githubRepoService:   githubRepoService,
 		githubPluginService: githubPluginService,
-		assets: infrapluginassets.NewHandler(infrapluginassets.PluginRegistryUIRootResolver(func(id string) (domainplugin.InstalledPlugin, error) {
-			return registry.Get(id)
-		})),
-		cancel: cancel,
+		assets:              compositeAssets,
+		cancel:              cancel,
 	}
+}
+
+func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
+	if r == nil || api == nil {
+		return
+	}
+	r.embedBridge = usecase.NewPluginEmbedBridge(r.manager, r.embedTunnels, api.Sessions())
+	if r.embedInbound != nil {
+		r.embedInbound.SetHandler(api.Sessions())
+	}
+	if r.embedTunnels != nil {
+		r.embedTunnels.SetEmbedReadyHandler(api.OnEmbedReady)
+	}
+	api.Sessions().SetEmbedTunnelService(r.embedTunnels)
+	api.SetEmbedBridge(r.embedBridge)
 }
 
 func (r *pluginRuntime) shutdown() {

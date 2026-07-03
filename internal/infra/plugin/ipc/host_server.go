@@ -123,7 +123,7 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 			return nil, proxyUnavailableError(method)
 		}
 		result, err = s.vault.GetSecret(ctx, s.pluginID, params)
-	case "session.updateState", "session.writeTerminal":
+	case "session.updateState", "session.writeTerminal", "session.registerEmbed", "session.tunnelOpen", "session.tunnelFrame", "session.tunnelClose", "session.reportLocalEmbed":
 		if s.sessions == nil {
 			return nil, &RPCError{Code: -32603, Message: "session handler unavailable"}
 		}

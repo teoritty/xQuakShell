@@ -36,6 +36,7 @@ type AppAPI struct {
 	pluginVaultGrant              func(pluginID string) error
 	pluginMultiSessionGrant       func(pluginID string) error
 	pluginArbitraryNetworkGrant   func(pluginID string) error
+	embedBridge         *usecase.PluginEmbedBridge
 	ownerCache          map[string]map[string]string // sessionID -> uid->owner
 	groupCache          map[string]map[string]string // sessionID -> gid->group
 	ownerCacheMu        sync.Mutex
@@ -147,6 +148,19 @@ func (a *AppAPI) SetPluginMultiSessionGrant(fn func(pluginID string) error) {
 // SetPluginArbitraryNetworkGrant sets the callback used after install to record arbitrary network consent.
 func (a *AppAPI) SetPluginArbitraryNetworkGrant(fn func(pluginID string) error) {
 	a.pluginArbitraryNetworkGrant = fn
+}
+
+// SetEmbedBridge wires embed viewport/activity forwarding.
+func (a *AppAPI) SetEmbedBridge(bridge *usecase.PluginEmbedBridge) {
+	a.embedBridge = bridge
+}
+
+// OnEmbedReady emits SessionEmbedReady when a plugin registers an embed surface.
+func (a *AppAPI) OnEmbedReady(desc domain.SessionEmbedDescriptor) {
+	if a == nil || a.ctx == nil {
+		return
+	}
+	wailsrt.EventsEmit(a.ctx, EventSessionEmbedReady, SessionEmbedToDTO(desc))
 }
 
 // SetGitHubServices wires GitHub repository and plugin services.

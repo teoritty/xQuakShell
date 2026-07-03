@@ -19,6 +19,7 @@ const (
 	EventPluginContributionsChanged = "PluginContributionsChanged"
 	EventPluginViewMessage          = "PluginViewMessage"
 	EventPluginStateChanged         = "PluginStateChanged"
+	EventSessionEmbedReady          = "SessionEmbedReady"
 )
 
 // TerminalOutputPayload carries terminal output data for a specific session.

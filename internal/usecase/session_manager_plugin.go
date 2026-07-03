@@ -27,8 +27,12 @@ func (m *SessionManager) HandlePluginUpdateState(pluginID, sessionID, state, err
 	case domain.SessionConnecting:
 		m.updateState(entry, domain.SessionConnecting, errMsg)
 	case domain.SessionReady:
-		m.markPluginSessionReady(entry)
-		m.updateState(entry, domain.SessionReady, errMsg)
+		if entry.sessionSurface == "embed" {
+			m.updateState(entry, domain.SessionReady, errMsg)
+		} else {
+			m.markPluginSessionReady(entry)
+			m.updateState(entry, domain.SessionReady, errMsg)
+		}
 	case domain.SessionError:
 		m.updateState(entry, domain.SessionError, errMsg)
 	default:
@@ -97,11 +101,21 @@ func (m *SessionManager) runPluginSession(entry *sessionEntry, conn *domain.Conn
 	}
 
 	entry.pluginID = pluginID
-	entry.pluginOutput = make(chan []byte, 128)
-	entry.ptyBridge = &pluginTerminalBridge{
-		notify: func(ctx context.Context, method string, params json.RawMessage) error {
-			return m.pluginBridge.NotifyForSession(ctx, pluginID, entry.info.SessionID, method, params)
-		},
+
+	isEmbed := false
+	if plugin, err := m.pluginBridge.plugins.Registry().Get(pluginID); err == nil {
+		isEmbed = plugin.Manifest.SessionSurface() == "embed"
+	}
+	if isEmbed {
+		entry.sessionSurface = "embed"
+		entry.info.Surface = "embed"
+	} else {
+		entry.pluginOutput = make(chan []byte, 128)
+		entry.ptyBridge = &pluginTerminalBridge{
+			notify: func(ctx context.Context, method string, params json.RawMessage) error {
+				return m.pluginBridge.NotifyForSession(ctx, pluginID, entry.info.SessionID, method, params)
+			},
+		}
 	}
 
 	if err := m.pluginBridge.Connect(entry.ctx, pluginID, entry.info.SessionID, conn); err != nil {
