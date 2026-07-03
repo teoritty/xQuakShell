@@ -4,7 +4,7 @@ import {
   selectedConnectionId, selectedFolderId, pingResults, platform,
   detailsConnectionId,
   showError, editingFiles,
-  type Folder, type Connection, type Session,
+  type Folder, type Connection, type Session, type SessionEmbed,
   type RemoteNode, type TransferItem, type SSHIdentityMeta,
   type HostKeyEvent, type PingResult
 } from './appState';
@@ -346,6 +346,31 @@ export async function closeSession(sessionId: string): Promise<void> {
       return;
     }
     handleError(e, 'Close session');
+  }
+}
+
+export async function reportEmbedViewport(
+  sessionId: string,
+  widthPx: number,
+  heightPx: number,
+  devicePixelRatio: number,
+): Promise<void> {
+  const app = getApp();
+  if (!app?.ReportEmbedViewport) return;
+  try {
+    await app.ReportEmbedViewport(sessionId, widthPx, heightPx, devicePixelRatio);
+  } catch (e) {
+    handleError(e, 'Report embed viewport');
+  }
+}
+
+export async function reportEmbedActivity(sessionId: string, active: boolean): Promise<void> {
+  const app = getApp();
+  if (!app?.ReportEmbedActivity) return;
+  try {
+    await app.ReportEmbedActivity(sessionId, active);
+  } catch (e) {
+    handleError(e, 'Report embed activity');
   }
 }
 
@@ -893,6 +918,19 @@ export function subscribeToEvents(): void {
     });
   });
 
+  rt.EventsOn('SessionEmbedReady', (data: { sessionId: string; embed: SessionEmbed }) => {
+    sessions.update(list => {
+      const idx = list.findIndex(s => s.sessionId === data.sessionId);
+      if (idx < 0) return list;
+      list[idx] = {
+        ...list[idx],
+        surface: 'embed',
+        embed: data.embed,
+      };
+      return [...list];
+    });
+  });
+
   rt.EventsOn('SessionClosed', (data: { sessionId: string }) => {
     sessions.update(list => list.filter(s => s.sessionId !== data.sessionId));
   });
@@ -1025,6 +1063,7 @@ export interface ConnectionProtocol {
   label: string;
   defaultPort?: number;
   icon?: string;
+  surface?: 'terminal' | 'embed';
   remoteFs?: boolean;
   fields?: FieldGroup[];
 }

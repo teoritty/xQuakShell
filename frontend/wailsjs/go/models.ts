@@ -405,6 +405,7 @@ export namespace wails {
 	    label: string;
 	    defaultPort?: number;
 	    icon?: string;
+	    surface?: string;
 	    remoteFs?: boolean;
 	    fields?: FieldGroupDTO[];
 	
@@ -418,6 +419,7 @@ export namespace wails {
 	        this.label = source["label"];
 	        this.defaultPort = source["defaultPort"];
 	        this.icon = source["icon"];
+	        this.surface = source["surface"];
 	        this.remoteFs = source["remoteFs"];
 	        this.fields = this.convertValues(source["fields"], FieldGroupDTO);
 	    }
@@ -972,13 +974,31 @@ export namespace wails {
 	        this.group = source["group"];
 	    }
 	}
+	export class SessionEmbedDTO {
+	    uiUrl: string;
+	    tunnelUrl: string;
+	    sandbox: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SessionEmbedDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.uiUrl = source["uiUrl"];
+	        this.tunnelUrl = source["tunnelUrl"];
+	        this.sandbox = source["sandbox"];
+	    }
+	}
 	export class SessionDTO {
 	    sessionId: string;
 	    connectionId: string;
 	    connectionName: string;
 	    protocol?: string;
+	    surface?: string;
 	    state: string;
 	    errorMessage: string;
+	    embed?: SessionEmbedDTO;
 	
 	    static createFrom(source: any = {}) {
 	        return new SessionDTO(source);
@@ -990,10 +1010,31 @@ export namespace wails {
 	        this.connectionId = source["connectionId"];
 	        this.connectionName = source["connectionName"];
 	        this.protocol = source["protocol"];
+	        this.surface = source["surface"];
 	        this.state = source["state"];
 	        this.errorMessage = source["errorMessage"];
+	        this.embed = this.convertValues(source["embed"], SessionEmbedDTO);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
+	
 	export class SetGitHubRepositoryTrustRequest {
 	    url: string;
 	    trusted: boolean;

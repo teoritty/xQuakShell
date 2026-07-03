@@ -270,6 +270,14 @@ export function ReportActivity() {
   return window['go']['main']['App']['ReportActivity']();
 }
 
+export function ReportEmbedActivity(arg1, arg2) {
+  return window['go']['main']['App']['ReportEmbedActivity'](arg1, arg2);
+}
+
+export function ReportEmbedViewport(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['ReportEmbedViewport'](arg1, arg2, arg3, arg4);
+}
+
 export function ReportMinimized() {
   return window['go']['main']['App']['ReportMinimized']();
 }
