@@ -1,5 +1,7 @@
 package plugin
 
+import "regexp"
+
 // FieldType identifies a declarative connection field widget type.
 type FieldType string
 
@@ -54,6 +56,37 @@ type FieldValidation struct {
 	Max          *float64 `json:"max,omitempty"`
 	Pattern      string   `json:"pattern,omitempty"`
 	MaxSizeBytes int      `json:"maxSizeBytes,omitempty"`
+
+	// compiled is populated once by validateRegexPatternSafe at manifest
+	// load time. Never set this manually; nil means "no pattern" or
+	// "not yet validated" — callers must not assume it's non-nil.
+	compiled *regexp.Regexp
+}
+
+// CompiledPattern returns the pattern compiled at manifest-load time, or nil.
+func (v *FieldValidation) CompiledPattern() *regexp.Regexp {
+	if v == nil {
+		return nil
+	}
+	return v.compiled
+}
+
+// IsFieldVisible reports whether a field is currently visible given a flat
+// snapshot of field values (id -> raw stored/incoming value; secret fields
+// may be represented by their non-empty secret ref — only truthiness matters
+// here, never the plaintext).
+//
+// This is the single source of truth for dependsOn evaluation on the host
+// side. It intentionally mirrors, but does not share code with, the 2-line
+// truthy check in frontend/src/lib/connectionDetails/PluginConnectionFields.svelte
+// (isVisible). Keep both in sync manually if dependsOn semantics ever change —
+// duplicating a 3-line predicate across Go/TS does not justify a codegen
+// pipeline.
+func IsFieldVisible(field FieldDef, values map[string]string) bool {
+	if field.DependsOn == "" {
+		return true
+	}
+	return values[field.DependsOn] != ""
 }
 
 // FieldOption is a select field choice.

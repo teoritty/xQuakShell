@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strconv"
 
 	"ssh-client/internal/domain"
@@ -42,6 +41,19 @@ func (s *PluginFieldsService) SavePluginFields(ctx context.Context, conn *domain
 	}
 	fieldDefs := protoDef.GetFlatFields()
 
+	snapshot := make(map[string]string, len(conn.PluginFields)+len(incoming))
+	for k, v := range conn.PluginFields {
+		snapshot[k] = v
+	}
+	for k, v := range incoming {
+		snapshot[k] = v
+	}
+
+	visible := make(map[string]bool, len(fieldDefs))
+	for i := range fieldDefs {
+		visible[fieldDefs[i].ID] = domainplugin.IsFieldVisible(fieldDefs[i], snapshot)
+	}
+
 	resolved := make(map[string]string, len(incoming))
 	secretsToStore := make(map[string][]byte)
 	secretsToDelete := make([]string, 0)
@@ -50,6 +62,9 @@ func (s *PluginFieldsService) SavePluginFields(ctx context.Context, conn *domain
 		def := findFieldDef(fieldDefs, id)
 		if def == nil {
 			return fmt.Errorf("field %q not declared in protocol %q manifest", id, conn.GetProtocol())
+		}
+		if !visible[id] {
+			continue
 		}
 		if err := validateFieldValue(value, def); err != nil {
 			return fmt.Errorf("validation failed for field %q: %w", id, err)
@@ -68,13 +83,18 @@ func (s *PluginFieldsService) SavePluginFields(ctx context.Context, conn *domain
 		resolved[id] = value
 	}
 
-	// Preserve existing secret refs when the UI did not send a new value.
 	for id, stored := range conn.PluginFields {
 		def := protoDef.FlatFields[id]
-		if def == nil || !def.Secret {
+		if def == nil {
 			continue
 		}
 		if _, sent := incoming[id]; sent {
+			continue
+		}
+		if !visible[id] {
+			if def.Secret {
+				secretsToDelete = append(secretsToDelete, stored)
+			}
 			continue
 		}
 		resolved[id] = stored
@@ -199,11 +219,11 @@ func validateFieldValue(value string, def *domainplugin.FieldDef) error {
 			return fmt.Errorf("value length %d exceeds maximum %d", len(value), def.Validation.MaxLength)
 		}
 		if def.Validation.Pattern != "" {
-			matched, err := regexp.MatchString(def.Validation.Pattern, value)
-			if err != nil {
-				return fmt.Errorf("regex error: %w", err)
+			re := def.Validation.CompiledPattern()
+			if re == nil {
+				return fmt.Errorf("field pattern not compiled")
 			}
-			if !matched {
+			if !re.MatchString(value) {
 				return fmt.Errorf("value does not match pattern %q", def.Validation.Pattern)
 			}
 		}

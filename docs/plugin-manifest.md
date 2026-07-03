@@ -129,7 +129,7 @@ Fields are grouped for display in Connection Details. The host validates manifes
 | `id` | string | yes | Unique within the protocol |
 | `label` | string | yes | Label in the form |
 | `type` | string | yes | `text`, `password`, `number`, `select`, `checkbox`, `textarea` |
-| `required` | bool | no | Enforced on save |
+| `required` | bool | no | Enforced on save **only while the field is visible** (see `dependsOn`). Fields hidden by `dependsOn` are never validated and are actively cleared from storage on save, even if a value was previously entered — do not rely on stale storage. |
 | `default` | any | no | Default for non-secret fields only |
 | `placeholder` | string | no | Input hint |
 | `description` | string | no | Help text |
@@ -199,6 +199,7 @@ Fields are grouped for display in Connection Details. The host validates manifes
 - Secret fields cannot have a `default`.
 - `select` fields must have `options`; default must match an option value.
 - `dependsOn` must reference an existing field id; cycles are rejected.
+- `dependsOn` cannot reference a `secret` field (host cannot evaluate visibility from encrypted values).
 - Unsafe regex patterns (nested quantifiers, deep nesting) are rejected at load time.
 - Protocol ids must not collide across installed plugins.
 

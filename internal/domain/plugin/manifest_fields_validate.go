@@ -35,6 +35,14 @@ func validateProtocolFields(proto ConnectionProtocolContribution) error {
 		}
 	}
 
+	fieldByID := make(map[string]*FieldDef, len(seenIDs))
+	for gi := range proto.Fields {
+		for fi := range proto.Fields[gi].Fields {
+			f := &proto.Fields[gi].Fields[fi]
+			fieldByID[f.ID] = f
+		}
+	}
+
 	fieldGraph := make(map[string][]string)
 
 	for _, group := range proto.Fields {
@@ -80,9 +88,11 @@ func validateProtocolFields(proto ConnectionProtocolContribution) error {
 			}
 
 			if field.Validation != nil && field.Validation.Pattern != "" {
-				if err := validateRegexPatternSafe(field.Validation.Pattern); err != nil {
+				compiled, err := validateRegexPatternSafe(field.Validation.Pattern)
+				if err != nil {
 					return fmt.Errorf("%w: invalid pattern in field %q: %v", ErrInvalidManifest, field.ID, err)
 				}
+				field.Validation.compiled = compiled
 			}
 
 			if field.Type == FieldTypeTextarea {
@@ -97,6 +107,9 @@ func validateProtocolFields(proto ConnectionProtocolContribution) error {
 			if field.DependsOn != "" {
 				if !seenIDs[field.DependsOn] {
 					return fmt.Errorf("%w: dependsOn %q references unknown field in field %q", ErrInvalidManifest, field.DependsOn, field.ID)
+				}
+				if depDef := fieldByID[field.DependsOn]; depDef != nil && depDef.Secret {
+					return fmt.Errorf("%w: field %q cannot depend on secret field %q", ErrInvalidManifest, field.ID, field.DependsOn)
 				}
 				fieldGraph[field.ID] = append(fieldGraph[field.ID], field.DependsOn)
 			}
@@ -145,17 +158,20 @@ func defaultMatchesType(defaultVal any, fieldType FieldType) bool {
 	return false
 }
 
-func validateRegexPatternSafe(pattern string) error {
+func validateRegexPatternSafe(pattern string) (*regexp.Regexp, error) {
 	if len(pattern) > 1000 {
-		return fmt.Errorf("pattern too long (max 1000 chars)")
+		return nil, fmt.Errorf("pattern too long (max 1000 chars)")
 	}
 
 	re, err := regexp.Compile(pattern)
 	if err != nil {
-		return fmt.Errorf("invalid regex syntax: %w", err)
+		return nil, fmt.Errorf("invalid regex syntax: %w", err)
 	}
 
-	return checkRegexSafety(re, pattern)
+	if err := checkRegexSafety(re, pattern); err != nil {
+		return nil, err
+	}
+	return re, nil
 }
 
 func checkRegexSafety(_ *regexp.Regexp, pattern string) error {
