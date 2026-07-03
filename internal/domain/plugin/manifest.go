@@ -79,10 +79,13 @@ type VaultCaps struct {
 
 // SessionCaps declares session-related permissions.
 type SessionCaps struct {
-	ConnectProtocols  []string `json:"connectProtocols,omitempty"`
-	Terminal          bool     `json:"terminal,omitempty"`
-	RemoteFS          bool     `json:"remoteFs,omitempty"`
-	AllowMultiSession bool     `json:"allowMultiSession,omitempty"`
+	ConnectProtocols       []string `json:"connectProtocols,omitempty"`
+	Terminal               bool     `json:"terminal,omitempty"`
+	Embed                  bool     `json:"embed,omitempty"`
+	LocalEmbedServer       bool     `json:"localEmbedServer,omitempty"`
+	RemoteFS               bool     `json:"remoteFs,omitempty"`
+	AllowMultiSession      bool     `json:"allowMultiSession,omitempty"`
+	MaxTunnelBandwidthKbps int      `json:"maxTunnelBandwidthKbps,omitempty"`
 }
 
 // Contributions holds declarative UI extension points.
@@ -115,8 +118,11 @@ type ConnectionProtocolContribution struct {
 	Label       string       `json:"label"`
 	DefaultPort int          `json:"defaultPort,omitempty"`
 	Icon        string       `json:"icon,omitempty"`
+	EmbedEntry  string       `json:"embedEntry,omitempty"`
 	Fields      []FieldGroup `json:"fields,omitempty"`
 }
+
+const defaultEmbedEntry = "ui/embed.html"
 
 // ViewContribution registers a declarative UI panel (Phase 5).
 type ViewContribution struct {
