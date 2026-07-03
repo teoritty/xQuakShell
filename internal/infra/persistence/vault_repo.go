@@ -138,6 +138,9 @@ func (r *VaultRepo) ensureVaultDataLocked() {
 	if r.data.Passwords == nil {
 		r.data.Passwords = map[string]domain.PasswordBlob{}
 	}
+	if r.data.PluginSecrets == nil {
+		r.data.PluginSecrets = map[string][]byte{}
+	}
 	if r.data.Settings == nil {
 		r.data.Settings = &domain.AppSettings{
 			Lockout:  domain.DefaultLockoutSettings(),

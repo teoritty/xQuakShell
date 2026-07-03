@@ -230,12 +230,11 @@ export namespace wails {
 	    port: number;
 	    order: number;
 	    protocol?: string;
-	    user?: string;
-	    identityIds?: string[];
 	    users?: ConnectionUserDTO[];
 	    defaultUserId?: string;
 	    tags?: string[];
 	    jumpChain?: JumpHopDTO[];
+	    pluginFields?: Record<string, string>;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConnectionDTO(source);
@@ -250,12 +249,137 @@ export namespace wails {
 	        this.port = source["port"];
 	        this.order = source["order"];
 	        this.protocol = source["protocol"];
-	        this.user = source["user"];
-	        this.identityIds = source["identityIds"];
 	        this.users = this.convertValues(source["users"], ConnectionUserDTO);
 	        this.defaultUserId = source["defaultUserId"];
 	        this.tags = source["tags"];
 	        this.jumpChain = this.convertValues(source["jumpChain"], JumpHopDTO);
+	        this.pluginFields = source["pluginFields"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class FieldOptionDTO {
+	    value: string;
+	    label: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FieldOptionDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.value = source["value"];
+	        this.label = source["label"];
+	    }
+	}
+	export class FieldValidationDTO {
+	    minLength?: number;
+	    maxLength?: number;
+	    min?: number;
+	    max?: number;
+	    pattern?: string;
+	    maxSizeBytes?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FieldValidationDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.minLength = source["minLength"];
+	        this.maxLength = source["maxLength"];
+	        this.min = source["min"];
+	        this.max = source["max"];
+	        this.pattern = source["pattern"];
+	        this.maxSizeBytes = source["maxSizeBytes"];
+	    }
+	}
+	export class FieldDefDTO {
+	    id: string;
+	    label: string;
+	    type: string;
+	    required: boolean;
+	    default?: any;
+	    placeholder?: string;
+	    description?: string;
+	    width?: string;
+	    order: number;
+	    validation?: FieldValidationDTO;
+	    options?: FieldOptionDTO[];
+	    dependsOn?: string;
+	    secret: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new FieldDefDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.type = source["type"];
+	        this.required = source["required"];
+	        this.default = source["default"];
+	        this.placeholder = source["placeholder"];
+	        this.description = source["description"];
+	        this.width = source["width"];
+	        this.order = source["order"];
+	        this.validation = this.convertValues(source["validation"], FieldValidationDTO);
+	        this.options = this.convertValues(source["options"], FieldOptionDTO);
+	        this.dependsOn = source["dependsOn"];
+	        this.secret = source["secret"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class FieldGroupDTO {
+	    id: string;
+	    label: string;
+	    order: number;
+	    fields: FieldDefDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new FieldGroupDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.order = source["order"];
+	        this.fields = this.convertValues(source["fields"], FieldDefDTO);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -281,6 +405,8 @@ export namespace wails {
 	    label: string;
 	    defaultPort?: number;
 	    icon?: string;
+	    remoteFs?: boolean;
+	    fields?: FieldGroupDTO[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ConnectionProtocolDTO(source);
@@ -292,8 +418,32 @@ export namespace wails {
 	        this.label = source["label"];
 	        this.defaultPort = source["defaultPort"];
 	        this.icon = source["icon"];
+	        this.remoteFs = source["remoteFs"];
+	        this.fields = this.convertValues(source["fields"], FieldGroupDTO);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
+	
+	
+	
+	
 	
 	export class FolderDTO {
 	    id: string;

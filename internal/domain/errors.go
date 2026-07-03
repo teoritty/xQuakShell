@@ -17,6 +17,9 @@ var ErrVaultLocked = errors.New("vault is locked")
 // ErrVaultDecryptFailed indicates decryption of the vault failed (wrong master password or corrupted data).
 var ErrVaultDecryptFailed = errors.New("vault decryption failed")
 
+// ErrUnsupportedVaultVersion indicates the vault file uses an unsupported schema version.
+var ErrUnsupportedVaultVersion = errors.New("unsupported vault version")
+
 // ErrSessionNotFound indicates no active session exists with the given ID.
 var ErrSessionNotFound = errors.New("session not found")
 

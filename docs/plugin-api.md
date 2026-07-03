@@ -72,9 +72,13 @@ For in-repo development, the core `go.mod` includes:
 replace github.com/xquakshell/pluginsdk => ./pkg/pluginsdk
 ```
 
-The typed `pluginsdk.Client` wraps `Host.CallCore` / `CallCoreContext` with a **5s default timeout** and helpers for vault, fs, and events.
+The typed `pluginsdk.Client` wraps `Host.CallCore` / `CallCoreContext` with a **5s default timeout** and helpers for vault, fs, net, and events.
+
+`pluginsdk.RegisterSessionHandler` and `SessionConnectParams` helpers (`GetString`, `GetInt`, `GetFloat`, `GetBool`) simplify session plugins that use connection fields. See [Connection fields](#connection-fields) and [Session plugin lifecycle](#session-plugin-lifecycle).
 
 Use `Host.OnDeactivate` (notification) and `Host.OnShutdown` (RPC request) for graceful teardown.
+
+Full IPC method reference: [Plugin IPC reference](#plugin-ipc-reference). Session plugins: [Session plugin lifecycle](#session-plugin-lifecycle).
 
 ## Signing (optional)
 
@@ -94,21 +98,365 @@ Use `Host.OnDeactivate` (notification) and `Host.OnShutdown` (RPC request) for g
 
 3. Add `publisher.pub` (base64 Ed25519 public key) to **Settings → Plugins → Trusted publishers** in xQuakShell.
 
-Signatures use Ed25519 over a canonical JSON envelope `{manifest, checksumsSha256}` where `checksumsSha256` is the SHA-256 (hex) of normalized `SHA256SUMS` bytes. Legacy manifest-only signatures must be re-signed after binding checksums.
+Signatures use Ed25519 over a canonical JSON envelope `{manifest, checksumsSha256}` where `checksumsSha256` is the SHA-256 (hex) of normalized `SHA256SUMS` bytes.
 
 ## IPC overview
 
-Plugins run out-of-process and communicate via JSON-RPC over NDJSON on stdin/stdout. The host calls methods like `initialize`, `activate`, `ping`, and plugin-contributed handlers.
+Plugins run out-of-process and communicate via **JSON-RPC 2.0 over NDJSON** on stdin/stdout.
+
+| Kind | Has `id` field | Response expected |
+|------|----------------|-------------------|
+| **Request** | yes | `result` or `error` |
+| **Notification** | no | none |
+
+**Limits and timeouts (as implemented today):**
+
+| Limit | Value |
+|-------|-------|
+| Max NDJSON frame size | 256 KiB |
+| Host → plugin RPC timeout (`initialize` excepted) | 5 s |
+| Host → plugin `initialize` timeout | 10 s |
+| Host → plugin `shutdown` timeout | 2 s |
+| Grace period after stdin close | 3 s |
+| Plugin → core default timeout (`pluginsdk`) | 5 s |
 
 **Shutdown sequence (host → plugin):**
 
 1. Notification `deactivate` (no response)
-2. RPC `shutdown` (plugin returns `{"ok":true}`; 2s timeout)
+2. RPC `shutdown` (plugin returns `{"ok":true}`; 2 s timeout)
 3. Stdin closed; process exit or force-kill after grace period
 
-Session plugins must declare every contributed protocol in `capabilities.session.connectProtocols`.
+Session plugins must declare every contributed protocol in `capabilities.session.connectProtocols` (see [plugin-manifest.md](./plugin-manifest.md#capabilities)).
 
-Capabilities declared in `plugin.json` are enforced by the core capability gate.
+Every plugin → core RPC passes through a manifest-driven capability gate. Denied calls return `-32001` and are audit-logged. See [security-model.md](./security-model.md#capability-gate).
+
+## Session plugin lifecycle
+
+This section describes the runtime path for plugins with `capabilities.session.terminal: true` and `isolation: per-session` (required for terminal plugins unless `allowMultiSession` is explicitly set — see [plugin-manifest.md](./plugin-manifest.md#capabilities)).
+
+### Sequence
+
+1. User opens a session tab → host sets UI state to `connecting`.
+2. Host creates a terminal input bridge (`session.writeInput` notifications) and an output channel (`session.writeTerminal` RPC).
+3. Host starts the per-session plugin process and sends `initialize`, then `activate` with reason `onProtocol:<protocolId>`.
+4. Host binds the session for IDOR checks, then sends **`session.connect` as a synchronous RPC** (5 s timeout).
+5. Plugin returns `{"accepted":true}` quickly. Long-running work (TCP dial, protocol handshake) must run in a goroutine.
+6. Plugin calls `session.updateState` with `"ready"` when the terminal stream is usable.
+7. Host starts streaming output to the UI (`TerminalOutput` Wails event). The terminal panel is shown only when session state is `ready`.
+8. Keyboard input: UI → `session.writeInput` notification → plugin.
+9. Window resize: UI → `session.resize` notification → plugin.
+10. Tab close: host sends `session.disconnect` notification, then stops the per-session process.
+
+On crash, the supervisor restarts the process (up to **3** attempts, exponential backoff from 200 ms), sends `activate` with reason `crash-recovery`, re-binds the session, and **re-sends `session.connect`** with freshly resolved `fields`. The UI shows `connecting` with message “Recovering from plugin crash”. If recovery fails, state becomes `error` (“Plugin process crashed (recovery failed)”).
+
+### `session.connect` contract
+
+Host sends (field names match JSON tags in the core):
+
+```json
+{
+  "sessionId": "...",
+  "connectionId": "...",
+  "protocol": "my-protocol",
+  "host": "example.com",
+  "port": 23,
+  "username": "optional-connection-username",
+  "fields": {
+    "myField": "value"
+  }
+}
+```
+
+- `host` / `port` come from the saved connection. When `port` is 0, the host uses `defaultPort` from the plugin’s `connectionProtocols` entry.
+- `fields` contains only keys declared in the manifest for that protocol; undeclared keys are rejected before the RPC is sent.
+- Secret field values are resolved in memory by the host; plugins must not call `vault.getSecret` for manifest-declared connection fields.
+
+Plugin must respond with `{"accepted":true}`. If the RPC returns an error, the session transitions to `error`.
+
+### `session.updateState` values
+
+Plugin → host (`capabilities.session.terminal: true` required):
+
+| `state` | Effect |
+|---------|--------|
+| `"connecting"` | UI stays on connecting screen |
+| `"ready"` | UI shows terminal; output stream attached |
+| `"error"` | UI shows error; optional `error` string → `errorMessage` |
+
+Calling `session.writeTerminal` before `"ready"` buffers output in the host (channel depth 128), but the user does not see the terminal until state is `ready`.
+
+### Terminal I/O (as implemented)
+
+**Host → plugin (notifications):**
+
+| Method | Params |
+|--------|--------|
+| `session.writeInput` | `{"dataBase64":"<bytes>"}` — **no `sessionId`**. Input is batched up to **512 bytes** or **8 ms**. |
+| `session.resize` | `{"cols":80,"rows":24}` — **no `sessionId`**. Pending input is flushed before resize. |
+| `session.disconnect` | `{"sessionId":"<id>"}` |
+
+With `isolation: per-session`, each OS process serves one session, so `sessionId` is omitted from `writeInput` / `resize`. Store `sessionId` from `session.connect` and pass it to `session.writeTerminal` / `session.updateState`.
+
+**Plugin → host (RPC):**
+
+| Method | Params |
+|--------|--------|
+| `session.writeTerminal` | `{"sessionId":"...","outputBase64":"<bytes>"}` |
+| `session.updateState` | `{"sessionId":"...","state":"ready","error":"optional"}` |
+
+If the UI consumer does not read terminal output within **2 seconds**, `session.writeTerminal` returns rate-limited (`-32003`).
+
+### Minimal session plugin pattern
+
+```go
+host.Register("session.connect", func(params json.RawMessage) (any, error) {
+    var req pluginsdk.SessionConnectParams
+    if err := json.Unmarshal(params, &req); err != nil {
+        return nil, err
+    }
+    go func() {
+        handleID, err := client.Net().Dial(req.Host, req.Port)
+        if err != nil {
+            _, _ = host.CallCore("session.updateState", pluginsdk.SessionUpdateParams{
+                SessionID: req.SessionID, State: "error", Error: "connect failed",
+            })
+            return
+        }
+        // read loop: client.Net().Read → session.writeTerminal
+        // writeInput handler: session.writeInput → client.Net().Write
+        _, _ = host.CallCore("session.updateState", pluginsdk.SessionUpdateParams{
+            SessionID: req.SessionID, State: "ready",
+        })
+    }()
+    return map[string]bool{"accepted": true}, nil
+})
+```
+
+Requires `capabilities.network` (allowlist or `allowArbitraryOutbound`) and `capabilities.session.terminal: true`. See [Network API](#network-api).
+
+## Plugin IPC reference
+
+Complete method list as implemented in the core today.
+
+### Host → plugin
+
+#### Lifecycle RPC (plugin must register handlers)
+
+| Method | Params | Response | Notes |
+|--------|--------|----------|-------|
+| `initialize` | see below | any JSON | Sent once per process start |
+| `ping` | omitted / `null` | any JSON | Used by `PingPlugin` when process is already running |
+| `activate` | `{"reason":"<trigger>"}` | any JSON | Not sent by dev `StartPlugin` — only `initialize` |
+| `shutdown` | omitted / `null` | `{"ok":true}` recommended | 2 s timeout |
+| `session.connect` | see [Session plugin lifecycle](#session-connect-contract) | `{"accepted":true}` | Sync RPC; failure → session error |
+
+**`initialize` params:**
+
+```json
+{
+  "pluginId": "com.example.plugin",
+  "apiVersion": "1.0.0",
+  "capabilities": { "...": "copy of manifest capabilities" },
+  "dataDir": "<plugin or session data directory>",
+  "coreVersion": "0.2.0-dev"
+}
+```
+
+**Observed `activate` reason values:** `onProtocol:<id>`, `onCommand:<id>`, `onStartup`, `onManual`, `crash-recovery`.
+
+`StartPlugin` (Settings → Start) calls `EnsureRunning` only — it sends **`initialize` without `activate`**. Production triggers use `Activate` / `ActivateForSession`, which send both.
+
+#### Host → plugin notifications
+
+| Method | Params | When |
+|--------|--------|------|
+| `session.writeInput` | `{"dataBase64":"..."}` | Terminal keyboard input |
+| `session.resize` | `{"cols":uint,"rows":uint}` | Terminal window resize |
+| `session.disconnect` | `{"sessionId":"..."}` | Session tab closed |
+| `deactivate` | omitted | Before shutdown |
+| `view.postMessage` | `{"panelId":"...","message":<json>}` | UI → plugin WebView panel |
+| `event` | `{"channel":"...","payload":<json>}` | Core event bus delivery to subscribers |
+
+#### Other host → plugin RPC
+
+| Method | Params | When |
+|--------|--------|------|
+| `command.execute` | `{"commandId":"...","args":<json>}` | Contributed command invoked |
+
+### Plugin → host
+
+All methods below require a matching manifest capability unless marked “always allowed”. Responses are typically `{"ok":true}` unless noted.
+
+| Method | Capability | Params | Response |
+|--------|------------|--------|----------|
+| `log.write` | always | `level`, `message`, optional `fields` map | `{"ok":true}` — max **50/s** |
+| `ping` | always | omitted | `{"pong":"ok"}` |
+| `fs.read` | `filesystem.read` | `path`, `offset?`, `maxBytes?` | `contentBase64`, `offset`, `totalSize`, `eof` |
+| `fs.list` | `filesystem.read` | `path` | `entries[{name,isDir}]` |
+| `fs.write` | `filesystem.write` | `path`, `contentBase64`, `offset?` | `{"ok":true}` |
+| `net.dial` | `network.outbound` and/or `allowArbitraryOutbound` | `network` (only `"tcp"`), `host`, `port` | `handleId` |
+| `net.read` | same as dial | `handleId`, `maxBytes?` | `contentBase64`, `eof` |
+| `net.write` | same as dial | `handleId`, `contentBase64` | `{"ok":true}` |
+| `net.close` | same as dial | `handleId` | `{"ok":true}` |
+| `vault.getConnection` | `vault.readConnectionFields` + active session ownership | `connectionId` | subset: `id`, `name`, `host`, `port`, `protocol`, `folderId` |
+| `vault.getSecret` | `vault.getSecret` + install consent | `connectionId`, `field` | `field`, `valueBase64` |
+| `session.updateState` | `session.terminal` | `sessionId`, `state`, `error?` | `{"ok":true}` |
+| `session.writeTerminal` | `session.terminal` | `sessionId`, `outputBase64` | `{"ok":true}` |
+| `events.subscribe` | `events.subscribe` allowlist | `channel` | `{"ok":true}` |
+| `events.publish` | `events.publish` namespace | `channel`, `payload` | `{"ok":true}` — max **100/s** |
+| `view.postMessage` | contributed `views` | `panelId`, `message` | `{"ok":true}` |
+
+FS paths must use the `${pluginData}` prefix (see [plugin-manifest.md](./plugin-manifest.md#capabilities)). Symlinks are rejected.
+
+Unknown plugin → core methods return `-32601` (`method not found`).
+
+## Network API
+
+Outbound TCP from plugins always goes through core `net.*` RPC — plugins cannot open sockets directly.
+
+### Manifest
+
+Either declare explicit allowlist patterns **or** arbitrary outbound mode (or both — dial succeeds if either permits the target):
+
+```json
+"capabilities": {
+  "network": {
+    "outbound": ["tcp:127.0.0.1:9"],
+    "allowArbitraryOutbound": true,
+    "allowPrivateNetworks": true
+  }
+}
+```
+
+- **Allowlist:** each `outbound` entry is `tcp:hostname:port` (no wildcards). Private/LAN/loopback IPs are blocked unless the pattern explicitly allowlists that host.
+- **`allowArbitraryOutbound`:** dial any resolvable public host on TCP ports 1–65535 after install-time user consent.
+- **`allowPrivateNetworks`:** requires `allowArbitraryOutbound`; also permits loopback, RFC1918, and link-local targets.
+
+See [security-model.md](./security-model.md#network-outbound-ssrf) for SSRF rules.
+
+### RPC usage
+
+```go
+client := pluginsdk.NewClient(host)
+net := client.Net()
+
+handleID, err := net.Dial("example.com", 23)
+data, eof, err := net.Read(handleID, 4096)
+err = net.Write(handleID, []byte("hello\r\n"))
+err = net.Close(handleID)
+```
+
+| Limit | Value |
+|-------|-------|
+| Max concurrent handles per plugin process | 8 |
+| TCP dial timeout | 10 s |
+| Max bytes per `net.read` / `net.write` call | 256 KiB |
+| Supported network | `"tcp"` only |
+
+Dial policy denial → `-32001`. Dial/transport failure after policy check → `-32603` with generic `"request failed"` (no host/port in the message). Unknown handle on read/write/close → `-32002`.
+
+Session plugins that connect to user-chosen hosts (telnet, custom protocols) typically need `allowArbitraryOutbound: true` and optionally `allowPrivateNetworks: true` for LAN devices.
+
+## SDK session helpers
+
+`RegisterSessionHandler` registers three host → plugin handlers:
+
+- `session.connect` → `OnConnect`
+- `session.writeInput` (notification) → `OnInput`
+- `session.disconnect` (notification) → `OnDisconnect`
+
+Typed params / helpers:
+
+```go
+pluginsdk.RegisterSessionHandler(host, &pluginsdk.SessionHandler{
+    OnConnect: func(params pluginsdk.SessionConnectParams) error { ... },
+    OnInput:   func(sessionID string, data []byte) error { ... },
+    OnDisconnect: func(sessionID string) error { ... },
+})
+```
+
+Field accessors on `SessionConnectParams`: `GetString`, `GetInt`, `GetFloat`, `GetBool`.
+
+Plugin → core typed structs: `SessionUpdateParams`, `SessionTerminalParams`. Network: `client.Net()` → `NetClient`.
+
+### Known SDK gaps (as of current code)
+
+- `SessionHandler.OnResize` exists in the struct but **`RegisterSessionHandler` does not register `session.resize`**. Register it manually:
+
+  ```go
+  host.RegisterNotification("session.resize", func(params json.RawMessage) { ... })
+  ```
+
+- `RegisterSessionHandler` reads `sessionId` from `session.writeInput` params, but the **host sends only `dataBase64`**. With `isolation: per-session`, use the `sessionId` captured from `session.connect` instead of the notification payload.
+
+## Connection fields
+
+Plugin session protocols can declare **connection fields** in `contributions.connectionProtocols[].fields`. The host renders these in the connection editor; plugins never draw that UI and never read the vault directly for those values.
+
+### Data flow
+
+1. **Manifest** — field groups and definitions are parsed once at plugin load and cached (`ProtocolDef`).
+2. **UI** — `GetPluginConnectionProtocols` returns field metadata; the user edits values in Connection Details.
+3. **Vault** — non-secret values are stored on `Connection.pluginFields`; secret values are stored in `VaultData.pluginSecrets` and referenced by `secret:<connectionId>.<fieldId>`.
+4. **Connect** — on `session.connect`, the host resolves secrets in memory and sends a `fields` map to the plugin. Resolved values exist only for the active session RPC; they are not logged.
+
+### Field types
+
+| Type | Stored as | Notes |
+|------|-----------|--------|
+| `text` | string | Optional `validation.pattern`, length bounds |
+| `password` | secret ref | Must set `secret: true`; no default allowed |
+| `number` | string (decimal) | Validated as float; optional min/max |
+| `select` | string | Must declare `options`; default must match an option |
+| `checkbox` | `"true"` / `"false"` | |
+| `textarea` | string | Max 1 MiB unless `validation.maxSizeBytes` set |
+
+See [plugin-manifest.md](./plugin-manifest.md#connection-protocol-fields) for the full schema.
+
+### session.connect payload
+
+The host sends (full lifecycle: [Session plugin lifecycle](#session-plugin-lifecycle)):
+
+```json
+{
+  "sessionId": "...",
+  "connectionId": "...",
+  "protocol": "telnet",
+  "host": "example.com",
+  "port": 23,
+  "fields": {
+    "username": "admin",
+    "password": "plaintext-only-in-RPC",
+    "terminalType": "vt100",
+    "enableLogging": "false"
+  }
+}
+```
+
+SSH connections do not include `fields`. The plugin receives only field IDs declared in its manifest; undeclared keys are rejected before the RPC is sent.
+
+### Typed SDK helpers
+
+See [SDK session helpers](#sdk-session-helpers) for `RegisterSessionHandler` and known gaps (`session.resize`, `sessionId` in `writeInput`).
+
+```go
+pluginsdk.RegisterSessionHandler(host, &pluginsdk.SessionHandler{
+    OnConnect: func(params pluginsdk.SessionConnectParams) error {
+        user := params.GetString("username")
+        pass := params.GetString("password")
+        term := params.GetString("terminalType")
+        logging := params.GetBool("enableLogging")
+        // ...
+        return nil
+    },
+})
+```
+
+Or read fields manually from `params.Fields`.
+
+### Reference manifest
+
+`plugins/demo-telnet/plugin.json` demonstrates auth and terminal settings field groups.
 
 ## Cross-compilation
 
@@ -122,6 +470,7 @@ The core validates the binary matches the host OS at install time.
 
 - `plugins/example-echo` — commands, views, status bar
 - `plugins/demo-terminal` — session connector demo
+- `plugins/demo-telnet` — telnet protocol with declarative connection fields
 - `plugins/example-events` — event bus subscribe/publish
 
 ## UI integration
@@ -140,11 +489,13 @@ The core validates the binary matches the host OS at install time.
 
 ## RPC error codes
 
-| Code | Meaning |
-|------|---------|
-| -32700 | Parse error |
-| -32602 | Invalid params |
-| -32603 | Internal error |
-| -32001 | Capability denied |
-| -32003 | Rate limited |
-| -32004 | Not implemented |
+| Code | Meaning | Typical cause |
+|------|---------|---------------|
+| -32700 | Parse error | Malformed JSON-RPC frame |
+| -32603 | Internal error | Dial/transport failure after policy check; proxy unavailable; generic host failure |
+| -32602 | Invalid params | Bad JSON shape or missing required fields |
+| -32601 | Method not found | Unknown plugin → core method |
+| -32001 | Capability denied | Manifest does not declare the capability; session not bound; vault IDOR |
+| -32002 | Resource not found | Unknown `net.*` handle ID |
+| -32003 | Rate limited | `log.write` (>50/s), `events.publish` (>100/s), terminal backpressure |
+| -32004 | Not implemented | Handler returned not-implemented |

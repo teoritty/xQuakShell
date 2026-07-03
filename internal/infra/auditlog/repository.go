@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -42,6 +41,8 @@ func initSchema(db *sql.DB) error {
 		ts TEXT NOT NULL,
 		session_id TEXT NOT NULL,
 		connection_id TEXT NOT NULL,
+		connection_name TEXT NOT NULL DEFAULT '',
+		host TEXT NOT NULL DEFAULT '',
 		username TEXT NOT NULL DEFAULT '',
 		input TEXT NOT NULL,
 		redacted INTEGER NOT NULL DEFAULT 0
@@ -68,27 +69,7 @@ func initSchema(db *sql.DB) error {
 	if _, err := db.Exec(ddl); err != nil {
 		return fmt.Errorf("audit init schema: %w", err)
 	}
-	return migrateSchema(db)
-}
-
-func migrateSchema(db *sql.DB) error {
-	cols := []string{"connection_name", "host"}
-	for _, col := range cols {
-		if _, err := db.Exec(`ALTER TABLE audit_events ADD COLUMN ` + col + ` TEXT NOT NULL DEFAULT ''`); err != nil {
-			if !isDuplicateColumnErr(err) {
-				return fmt.Errorf("audit migrate %s: %w", col, err)
-			}
-		}
-	}
 	return nil
-}
-
-func isDuplicateColumnErr(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "duplicate column") || strings.Contains(msg, "already exists")
 }
 
 // Append writes a new audit entry to the log.
@@ -238,7 +219,7 @@ func (r *SQLiteRepo) Close() error {
 	return r.db.Close()
 }
 
-// PurgeOlderThanDuration is a legacy helper for tests/shutdown hooks.
-func (r *SQLiteRepo) PurgeOlderThanDuration(d time.Duration) error {
+// PurgeOlderThanNow deletes audit entries older than the given duration from now.
+func (r *SQLiteRepo) PurgeOlderThanNow(d time.Duration) error {
 	return r.PurgeOlderThan(context.Background(), time.Now().Add(-d))
 }

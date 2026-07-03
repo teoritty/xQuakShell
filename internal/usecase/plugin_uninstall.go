@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"ssh-client/internal/domain"
 	domainplugin "ssh-client/internal/domain/plugin"
 )
 
@@ -23,6 +24,10 @@ func (m *PluginManager) UninstallPlugin(ctx context.Context, pluginID string, re
 	}
 	if pluginInfo.Source != domainplugin.SourceUser {
 		return fmt.Errorf("cannot uninstall bundled plugin: %s", pluginID)
+	}
+
+	if err := m.ensureNoConnectionsUsePlugin(ctx, pluginInfo); err != nil {
+		return err
 	}
 
 	if err := m.StopPlugin(ctx, pluginID); err != nil {
@@ -45,6 +50,39 @@ func (m *PluginManager) UninstallPlugin(ctx context.Context, pluginID string, re
 	}
 
 	return nil
+}
+
+func (m *PluginManager) ensureNoConnectionsUsePlugin(ctx context.Context, plugin domainplugin.InstalledPlugin) error {
+	if m.connChecker == nil {
+		return nil
+	}
+	protocols := make(map[string]struct{})
+	for _, cp := range plugin.Manifest.Contributions.ConnectionProtocols {
+		protocols[cp.ID] = struct{}{}
+	}
+	if len(protocols) == 0 {
+		return nil
+	}
+	conns, err := m.connChecker.GetAllConnections(ctx)
+	if err != nil {
+		return fmt.Errorf("check plugin connections: %w", err)
+	}
+	for _, conn := range conns {
+		if _, ok := protocols[conn.GetProtocol()]; ok {
+			return fmt.Errorf("cannot uninstall plugin: connection %q uses protocol %q", conn.Name, conn.GetProtocol())
+		}
+	}
+	return nil
+}
+
+// PluginConnectionChecker loads persisted connections for uninstall guards.
+type PluginConnectionChecker interface {
+	GetAllConnections(ctx context.Context) ([]domain.Connection, error)
+}
+
+// SetConnectionChecker configures connection lookup for uninstall guards.
+func (m *PluginManager) SetConnectionChecker(checker PluginConnectionChecker) {
+	m.connChecker = checker
 }
 
 func pluginDataDir(dataRoot, pluginID string) string {

@@ -20,9 +20,6 @@ const (
 
 // Connection holds the configuration for a connection.
 // Users holds one or more ConnectionUser references; DefaultUserID selects the active one.
-// Legacy fields User and IdentityIDs are kept for vault v1 backward compatibility
-// and are migrated into Users on vault upgrade.
-// Vault JSON may still contain a legacy "proxy" key; encoding/json ignores unknown fields on unmarshal.
 type Connection struct {
 	ID       string `json:"id"`
 	FolderID string `json:"folderId"`
@@ -31,16 +28,14 @@ type Connection struct {
 	Port     int    `json:"port"`
 	Order    int    `json:"order"`
 
-	// Legacy (v1) — migrated to Users on vault v2 upgrade.
-	User        string   `json:"user,omitempty"`
-	IdentityIDs []string `json:"identityIds,omitempty"`
-
-	// v2 fields
 	Protocol      string           `json:"protocol,omitempty"` // ssh (default); other values require a plugin connector
 	Users         []ConnectionUser `json:"users,omitempty"`
 	DefaultUserID string           `json:"defaultUserId,omitempty"`
 	Tags          []string         `json:"tags,omitempty"`
 	JumpChain     JumpChainConfig  `json:"jumpChain,omitempty"`
+
+	// PluginFields stores non-secret values and secret references for plugin protocols.
+	PluginFields map[string]string `json:"pluginFields,omitempty"`
 }
 
 // DefaultUser returns the ConnectionUser designated as default, or nil when none is set.
@@ -54,12 +49,11 @@ func (c *Connection) DefaultUser() *ConnectionUser {
 }
 
 // EffectiveUsername returns the username that should be used when opening a session.
-// It prefers the default user; falls back to the legacy User field.
 func (c *Connection) EffectiveUsername() string {
 	if u := c.DefaultUser(); u != nil {
 		return u.Username
 	}
-	return c.User
+	return ""
 }
 
 // GetProtocol returns the connection protocol, defaulting to ssh.
@@ -72,19 +66,21 @@ func (c *Connection) GetProtocol() string {
 
 // EffectiveHost returns the host to use for ping/connect based on protocol.
 func (c *Connection) EffectiveHost() string {
-	if c.GetProtocol() == ProtocolSSH {
-		return c.Host
-	}
-	return ""
+	return c.Host
 }
 
 // EffectivePort returns the port to use for ping/connect based on protocol.
-func (c *Connection) EffectivePort() int {
+func (c *Connection) EffectivePort(lookup ConnectionProtocolLookup) int {
+	if c.Port > 0 {
+		return c.Port
+	}
 	if c.GetProtocol() == ProtocolSSH {
-		if c.Port > 0 {
-			return c.Port
-		}
 		return DefaultSSHPort
+	}
+	if lookup != nil {
+		if port, ok := lookup.DefaultPortForProtocol(c.GetProtocol()); ok {
+			return port
+		}
 	}
 	return 0
 }
@@ -93,7 +89,9 @@ func (c *Connection) EffectivePort() int {
 // It deliberately allows empty host/username so draft connections can be saved.
 // Full readiness should be checked via ValidateForConnect before opening a session.
 func (c *Connection) Validate() error {
-	if c.Port < MinPort || c.Port > MaxPort {
+	if c.GetProtocol() != ProtocolSSH && c.Port == 0 {
+		// Plugin protocols may use manifest defaultPort when port is unset.
+	} else if c.Port < MinPort || c.Port > MaxPort {
 		return fmt.Errorf("port %d out of range [%d-%d]: %w", c.Port, MinPort, MaxPort, ErrInvalidConnectionConfig)
 	}
 	for i := range c.JumpChain.Hops {
@@ -152,23 +150,20 @@ func (c *Connection) validatePluginForConnect() error {
 }
 
 func (c *Connection) validateUsersForConnect() error {
-	if len(c.Users) > 0 {
-		if err := validateUniqueUserIDs(c.Users); err != nil {
-			return err
-		}
-		if c.DefaultUserID == "" {
-			return fmt.Errorf("default user must be selected: %w", ErrInvalidConnectionConfig)
-		}
-		defaultUser := c.DefaultUser()
-		if defaultUser == nil {
-			return fmt.Errorf("default user %q not found: %w", c.DefaultUserID, ErrInvalidConnectionConfig)
-		}
-		return defaultUser.Validate()
-	}
-	if c.User == "" {
+	if len(c.Users) == 0 {
 		return fmt.Errorf("at least one user must be configured: %w", ErrInvalidConnectionConfig)
 	}
-	return nil
+	if err := validateUniqueUserIDs(c.Users); err != nil {
+		return err
+	}
+	if c.DefaultUserID == "" {
+		return fmt.Errorf("default user must be selected: %w", ErrInvalidConnectionConfig)
+	}
+	defaultUser := c.DefaultUser()
+	if defaultUser == nil {
+		return fmt.Errorf("default user %q not found: %w", c.DefaultUserID, ErrInvalidConnectionConfig)
+	}
+	return defaultUser.Validate()
 }
 
 func validateUniqueUserIDs(users []ConnectionUser) error {
@@ -187,7 +182,7 @@ func validateUniqueUserIDs(users []ConnectionUser) error {
 
 // WithDefaults fills in default values for optional fields (e.g., port).
 func (c *Connection) WithDefaults() {
-	if c.Port == 0 {
+	if c.GetProtocol() == ProtocolSSH && c.Port == 0 {
 		c.Port = DefaultSSHPort
 	}
 }

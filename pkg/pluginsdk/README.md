@@ -33,6 +33,8 @@ host.Run()
 
 See `plugins/example-echo` in the xQuakShell repository for a complete reference plugin.
 
+Session plugins and full IPC reference: [docs/plugin-api.md](../../docs/plugin-api.md#session-plugin-lifecycle) (in-repo path).
+
 ## Compatibility
 
 Match `minCoreVersion` in your `plugin.json` to the host you target. The SDK NDJSON frame limit is 256 KiB (same as core IPC).

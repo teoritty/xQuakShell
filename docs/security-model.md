@@ -6,6 +6,54 @@ This document summarizes how xQuakShell constrains out-of-process plugins.
 
 
 
+## Session protocols
+
+- Every contributed `connectionProtocols[].id` must appear in `capabilities.session.connectProtocols`.
+- `session.connect` is rejected at runtime when the connection protocol is not declared for the target plugin.
+- Full session lifecycle and IPC payloads: [plugin-api.md — Session plugin lifecycle](./plugin-api.md#session-plugin-lifecycle).
+
+- **`session.connect.fields`** contains only keys declared in the plugin manifest for that protocol. Undeclared field ids are rejected before the RPC is sent.
+
+- Secret field values are resolved by the host at connect time; plugins must not call `vault.getSecret` for manifest-declared connection fields.
+
+
+
+## Connection field secrets
+
+
+
+Declarative connection fields replace most ad-hoc secret access for session plugins:
+
+
+
+| Concern | Behavior |
+
+|---------|----------|
+
+| Declaration | `secret: true` on field def; `password` type requires `secret: true` |
+
+| Storage | Plaintext secret bytes in `VaultData.pluginSecrets`; connection holds opaque ref `secret:<connId>.<fieldId>` |
+
+| Encryption at rest | Whole vault file encrypted (age + scrypt); same boundary as SSH passwords |
+
+| UI | Secret values never round-trip to the frontend after save |
+
+| Connect | Host resolves secrets once per `session.connect` / reconnect; values passed in RPC `fields` map |
+
+| Audit | `session.connect` logged with field **count** only (ring buffer + existing vault audit patterns); no secret values |
+
+| Validation | Host validates field values on save (required, pattern, options, size, checkbox encoding) |
+
+| Empty secret | Submitting empty string for a secret field removes the stored secret |
+
+| Uninstall | Plugin uninstall blocked while any connection uses one of its protocol ids |
+
+
+
+Plugins should treat `fields` as session-scoped credentials: do not persist them under `${pluginData}` unless the user explicitly opts in via a non-secret field.
+
+
+
 ## Capability gate
 
 
@@ -107,16 +155,6 @@ Authorization for vault and session data is enforced in the **usecase** layer:
 
 
 
-## Session protocols
-
-
-
-- Every contributed `connectionProtocols[].id` must appear in `capabilities.session.connectProtocols`.
-
-- `session.connect` is rejected at runtime when the connection protocol is not declared for the target plugin.
-
-
-
 ## Activation policy
 
 
@@ -182,6 +220,8 @@ Host↔iframe `postMessage` uses an explicit target origin:
 
 
 ## Network outbound (SSRF)
+
+Full `net.*` RPC reference and limits: [plugin-api.md — Network API](./plugin-api.md#network-api).
 
 - **Allowlist mode (default):** manifest `outbound` patterns are validated (`tcp:host:port` only; no wildcards). Host resolves the target before dial; loopback, RFC1918, link-local, and metadata IPs are blocked unless the manifest explicitly allowlists that IP literal. Dial uses the resolved IP address to prevent DNS rebinding between policy check and connect.
 - **Arbitrary outbound mode:** when `allowArbitraryOutbound: true`, plugins may dial any resolvable public host on TCP ports 1–65535 after install-time user consent (persisted in vault settings). Private/LAN/loopback addresses remain blocked unless `allowPrivateNetworks: true`. Combined allowlist + arbitrary: a dial succeeds if either mode permits the target.

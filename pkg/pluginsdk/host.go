@@ -301,12 +301,13 @@ type InitializeParams struct {
 
 // SessionConnectParams is sent from core on session.connect.
 type SessionConnectParams struct {
-	SessionID    string `json:"sessionId"`
-	ConnectionID string `json:"connectionId"`
-	Protocol     string `json:"protocol"`
-	Host         string `json:"host"`
-	Port         int    `json:"port"`
-	Username     string `json:"username,omitempty"`
+	SessionID    string            `json:"sessionId"`
+	ConnectionID string            `json:"connectionId"`
+	Protocol     string            `json:"protocol"`
+	Host         string            `json:"host"`
+	Port         int               `json:"port"`
+	Username     string            `json:"username,omitempty"`
+	Fields       map[string]string `json:"fields,omitempty"`
 }
 
 // SessionUpdateParams updates session state in the core.

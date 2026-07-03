@@ -77,7 +77,8 @@ Plugin connectors receive `ConnectorHooks` to set PTY bridge, SFTP (`RemoteFS`),
 | **Transfers** | `internal/usecase/transfer_service.go`, handlers in `handlers_transfers.go`. |
 | **Settings / ping / audit** | `settings_service.go`, `audit_service.go`, `ping_manager.go`, `handlers_settings_ping_audit.go`. |
 | **Plugins** | `internal/usecase/plugin_*.go`, handlers in `handlers_plugin*.go`, manifest FS checks in `infra/plugin/bundle/capabilities_validate.go`. |
-| **Plugin protocols** | Implement `domain.SessionConnector`, register in `main_connectors.go`. |
+| **Plugin connection fields** | Manifest: `internal/domain/plugin/fields.go`, validation in `manifest_fields_validate.go`; persistence: `PluginFieldsService`, `Connection.pluginFields`, `VaultData.pluginSecrets`; UI: `PluginConnectionFields.svelte`, `GetPluginConnectionProtocols`. |
+| **Plugin protocols** | Out-of-process plugins via `PluginSessionBridge` and `session.connect` (with optional `fields`). |
 
 ## Tests
 

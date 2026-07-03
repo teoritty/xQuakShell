@@ -23,9 +23,9 @@ type VaultData struct {
 	KeyBlobs    map[string]IdentityBlob `json:"keyBlobs"`
 	KnownHosts  []string                `json:"knownHosts"`
 
-	// v2 additions
-	Passwords map[string]PasswordBlob `json:"passwords,omitempty"`
-	Settings  *AppSettings            `json:"settings,omitempty"`
+	Passwords     map[string]PasswordBlob `json:"passwords,omitempty"`
+	PluginSecrets map[string][]byte       `json:"pluginSecrets,omitempty"`
+	Settings      *AppSettings            `json:"settings,omitempty"`
 }
 
 // NewVaultData returns an empty VaultData at the current schema version.
@@ -37,7 +37,8 @@ func NewVaultData() *VaultData {
 		Identities:  map[string]SSHIdentity{},
 		KeyBlobs:    map[string]IdentityBlob{},
 		KnownHosts:  []string{},
-		Passwords:   map[string]PasswordBlob{},
+		Passwords:     map[string]PasswordBlob{},
+		PluginSecrets: map[string][]byte{},
 		Settings: &AppSettings{
 			Lockout:        DefaultLockoutSettings(),
 			Terminal:       DefaultTerminalSettings(),

@@ -2,7 +2,6 @@ package plugin
 
 import (
 	"crypto/ed25519"
-	"errors"
 	"fmt"
 )
 
@@ -43,14 +42,6 @@ func EvaluateInstallTrust(m Manifest, checksumsDigest string, policy InstallTrus
 
 	ok, err := VerifyManifestSignature(m, checksumsDigest, policy.TrustedKeys)
 	if err != nil {
-		if errors.Is(err, ErrSignatureFormatOutdated) {
-			res.SignatureVerified = false
-			if policy.RequireSigned {
-				return res, fmt.Errorf("%w: %v", ErrInvalidManifest, err)
-			}
-			res.UntrustedSignatureWarning = true
-			return res, nil
-		}
 		return res, err
 	}
 	res.SignatureVerified = ok

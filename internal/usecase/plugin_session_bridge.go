@@ -5,29 +5,45 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"ssh-client/internal/domain"
 	domainplugin "ssh-client/internal/domain/plugin"
+	"ssh-client/internal/infra/auditlog"
 )
 
 // SessionConnectParams is sent to plugins via session.connect RPC.
 type SessionConnectParams struct {
-	SessionID    string `json:"sessionId"`
-	ConnectionID string `json:"connectionId"`
-	Protocol     string `json:"protocol"`
-	Host         string `json:"host"`
-	Port         int    `json:"port"`
-	Username     string `json:"username,omitempty"`
+	SessionID    string            `json:"sessionId"`
+	ConnectionID string            `json:"connectionId"`
+	Protocol     string            `json:"protocol"`
+	Host         string            `json:"host"`
+	Port         int               `json:"port"`
+	Username     string            `json:"username,omitempty"`
+	Fields       map[string]string `json:"fields,omitempty"`
 }
 
 // PluginSessionBridge connects non-SSH sessions through out-of-process plugins (ADR-001).
 type PluginSessionBridge struct {
 	plugins *PluginManager
+	fields  *PluginFieldsService
+	audit   *auditlog.PluginSessionAuditLog
+}
+
+// PluginSessionBridgeConfig configures the plugin session bridge.
+type PluginSessionBridgeConfig struct {
+	Plugins *PluginManager
+	Fields  *PluginFieldsService
+	Audit   *auditlog.PluginSessionAuditLog
 }
 
 // NewPluginSessionBridge creates a bridge over the plugin manager.
-func NewPluginSessionBridge(plugins *PluginManager) *PluginSessionBridge {
-	return &PluginSessionBridge{plugins: plugins}
+func NewPluginSessionBridge(cfg PluginSessionBridgeConfig) *PluginSessionBridge {
+	return &PluginSessionBridge{
+		plugins: cfg.Plugins,
+		fields:  cfg.Fields,
+		audit:   cfg.Audit,
+	}
 }
 
 // SupportsProtocol reports whether a plugin owns the protocol.
@@ -59,13 +75,11 @@ func (b *PluginSessionBridge) Connect(ctx context.Context, pluginID, sessionID s
 	}
 	b.plugins.SessionOpened(pluginID)
 
-	params := SessionConnectParams{
-		SessionID:    sessionID,
-		ConnectionID: conn.ID,
-		Protocol:     conn.GetProtocol(),
-		Host:         conn.Host,
-		Port:         conn.EffectivePort(),
-		Username:     conn.EffectiveUsername(),
+	params, err := b.buildConnectParams(ctx, pluginID, sessionID, conn)
+	if err != nil {
+		b.plugins.UnbindSession(pluginID, sessionID)
+		b.plugins.SessionClosed(ctx, pluginID, sessionID)
+		return err
 	}
 	raw, err := json.Marshal(params)
 	if err != nil {
@@ -74,10 +88,12 @@ func (b *PluginSessionBridge) Connect(ctx context.Context, pluginID, sessionID s
 
 	_, err = b.plugins.CallForSession(ctx, pluginID, sessionID, "session.connect", raw)
 	if err != nil {
+		b.recordAudit(pluginID, params, false, err.Error())
 		b.plugins.UnbindSession(pluginID, sessionID)
 		b.plugins.SessionClosed(ctx, pluginID, sessionID)
 		return fmt.Errorf("session.connect: %w", err)
 	}
+	b.recordAudit(pluginID, params, true, "")
 	return nil
 }
 
@@ -101,13 +117,9 @@ func (b *PluginSessionBridge) Reconnect(ctx context.Context, pluginID, sessionID
 	if err := b.plugins.BindSession(pluginID, sessionID); err != nil {
 		return err
 	}
-	params := SessionConnectParams{
-		SessionID:    sessionID,
-		ConnectionID: conn.ID,
-		Protocol:     protocol,
-		Host:         conn.Host,
-		Port:         conn.EffectivePort(),
-		Username:     conn.EffectiveUsername(),
+	params, err := b.buildConnectParams(ctx, pluginID, sessionID, conn)
+	if err != nil {
+		return err
 	}
 	raw, err := json.Marshal(params)
 	if err != nil {
@@ -115,9 +127,69 @@ func (b *PluginSessionBridge) Reconnect(ctx context.Context, pluginID, sessionID
 	}
 	_, err = b.plugins.CallForSession(ctx, pluginID, sessionID, "session.connect", raw)
 	if err != nil {
+		b.recordAudit(pluginID, params, false, err.Error())
 		return fmt.Errorf("session.connect: %w", err)
 	}
+	b.recordAudit(pluginID, params, true, "")
 	return nil
+}
+
+func (b *PluginSessionBridge) buildConnectParams(ctx context.Context, pluginID, sessionID string, conn *domain.Connection) (SessionConnectParams, error) {
+	protocol := conn.GetProtocol()
+	protoDef := b.plugins.Registry().GetProtocolDef(pluginID, protocol)
+	if protoDef == nil {
+		return SessionConnectParams{}, fmt.Errorf("plugin %q not registered for protocol %q", pluginID, protocol)
+	}
+
+	var resolvedFields map[string]string
+	if b.fields != nil {
+		var err error
+		resolvedFields, err = b.fields.ResolvePluginFields(ctx, conn, protoDef)
+		if err != nil {
+			return SessionConnectParams{}, fmt.Errorf("resolve fields: %w", err)
+		}
+	}
+
+	params := SessionConnectParams{
+		SessionID:    sessionID,
+		ConnectionID: conn.ID,
+		Protocol:     protocol,
+		Host:         conn.EffectiveHost(),
+		Port:         conn.EffectivePort(b.plugins.Registry()),
+		Username:     conn.EffectiveUsername(),
+		Fields:       resolvedFields,
+	}
+
+	if err := b.capabilityGate(params, protoDef); err != nil {
+		return SessionConnectParams{}, err
+	}
+	return params, nil
+}
+
+func (b *PluginSessionBridge) capabilityGate(params SessionConnectParams, protoDef *domainplugin.ProtocolDef) error {
+	allowedFields := protoDef.GetFieldIDs()
+	for fieldID := range params.Fields {
+		if !allowedFields[fieldID] {
+			return fmt.Errorf("%w: field %q not declared in manifest", domainplugin.ErrCapabilityDenied, fieldID)
+		}
+	}
+	return nil
+}
+
+func (b *PluginSessionBridge) recordAudit(pluginID string, params SessionConnectParams, success bool, errMsg string) {
+	if b.audit == nil {
+		return
+	}
+	b.audit.Record(auditlog.PluginSessionAuditEntry{
+		Timestamp:    time.Now(),
+		PluginID:     pluginID,
+		Action:       "session.connect",
+		ConnectionID: params.ConnectionID,
+		Protocol:     params.Protocol,
+		FieldCount:   len(params.Fields),
+		Success:      success,
+		Error:        errMsg,
+	})
 }
 
 func connAllowsPluginProtocol(b *PluginSessionBridge, pluginID, protocol string) bool {

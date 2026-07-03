@@ -15,4 +15,5 @@ export interface ConnectionDetailsDraft {
   users: ConnectionUser[];
   defaultUserId: string;
   jumpHops: JumpHop[];
+  pluginFields: Record<string, unknown>;
 }

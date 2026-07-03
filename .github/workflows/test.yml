@@ -32,12 +32,6 @@ jobs:
 
 
 
-      - name: Build reference plugins
-
-        run: make plugins
-
-
-
       - name: Layer import check
         shell: pwsh
         run: ./scripts/check-imports.ps1

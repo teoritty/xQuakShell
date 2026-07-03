@@ -29,9 +29,6 @@ type App struct {
 // NewApp creates a new App with all dependencies wired together.
 func NewApp() *App {
 	paths := portable.Default
-	if err := portable.MigrateLegacyLayout(paths); err != nil {
-		log.Printf("WARNING: portable data migration failed: %v", err)
-	}
 	if err := paths.EnsureDirs(); err != nil {
 		log.Printf("WARNING: create portable data dirs failed: %v", err)
 	}

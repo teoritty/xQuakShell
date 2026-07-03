@@ -32,6 +32,7 @@ type PluginManager struct {
 	pluginSettings *PluginVaultSettings
 	startAudit     PluginStartAuditFunc
 	stateChange    func(pluginID, state, sessionID string)
+	connChecker    PluginConnectionChecker
 
 	mu              sync.Mutex
 	sessionCounts   map[string]int

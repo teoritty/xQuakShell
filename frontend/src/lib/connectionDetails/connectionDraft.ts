@@ -17,6 +17,7 @@ export function createDraftFromConnection(
     users: (connection?.users || []).map((u) => ({ ...u })),
     defaultUserId: connection?.defaultUserId || '',
     jumpHops: (connection?.jumpChain || []).map((h, i) => ensureHopUiId({ ...h }, i)),
+    pluginFields: { ...(connection?.pluginFields || {}) },
   };
 }
 

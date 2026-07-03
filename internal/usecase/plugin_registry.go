@@ -9,28 +9,35 @@ import (
 
 // PluginRegistry holds discovered installed plugins.
 type PluginRegistry struct {
-	mu      sync.RWMutex
-	plugins map[string]domainplugin.InstalledPlugin
+	mu           sync.RWMutex
+	plugins      map[string]domainplugin.InstalledPlugin
+	protocolDefs map[string]map[string]*domainplugin.ProtocolDef // pluginID -> protocolID -> def
 }
 
 // NewPluginRegistry creates an empty plugin registry.
 func NewPluginRegistry() *PluginRegistry {
-	return &PluginRegistry{plugins: make(map[string]domainplugin.InstalledPlugin)}
+	return &PluginRegistry{
+		plugins:      make(map[string]domainplugin.InstalledPlugin),
+		protocolDefs: make(map[string]map[string]*domainplugin.ProtocolDef),
+	}
 }
 
 // Load replaces the registry contents with discovered plugins.
 func (r *PluginRegistry) Load(plugins []domainplugin.InstalledPlugin) error {
 	next := make(map[string]domainplugin.InstalledPlugin, len(plugins))
+	nextDefs := make(map[string]map[string]*domainplugin.ProtocolDef, len(plugins))
 	for _, p := range plugins {
 		if err := validateProtocolOwnership(next, p); err != nil {
 			return err
 		}
 		next[p.Manifest.ID] = p
+		nextDefs[p.Manifest.ID] = domainplugin.BuildProtocolDefs(&p.Manifest)
 	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.plugins = next
+	r.protocolDefs = nextDefs
 	return nil
 }
 
@@ -42,6 +49,7 @@ func (r *PluginRegistry) Register(p domainplugin.InstalledPlugin) error {
 		return err
 	}
 	r.plugins[p.Manifest.ID] = p
+	r.protocolDefs[p.Manifest.ID] = domainplugin.BuildProtocolDefs(&p.Manifest)
 	return nil
 }
 
@@ -53,6 +61,7 @@ func (r *PluginRegistry) Unregister(id string) error {
 		return fmt.Errorf("%w: %s", domainplugin.ErrPluginNotFound, id)
 	}
 	delete(r.plugins, id)
+	delete(r.protocolDefs, id)
 	return nil
 }
 
@@ -138,4 +147,42 @@ func (r *PluginRegistry) HasProtocol(protocol string) bool {
 		}
 	}
 	return false
+}
+
+// GetProtocolDef returns the cached protocol definition for a plugin and protocol ID.
+func (r *PluginRegistry) GetProtocolDef(pluginID, protocolID string) *domainplugin.ProtocolDef {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	defs, ok := r.protocolDefs[pluginID]
+	if !ok {
+		return nil
+	}
+	return defs[protocolID]
+}
+
+// ProtocolDefForConnection returns the protocol definition owning the given protocol ID.
+func (r *PluginRegistry) ProtocolDefForConnection(protocolID string) (*domainplugin.ProtocolDef, string, error) {
+	pluginID, err := r.PluginIDForProtocol(protocolID)
+	if err != nil {
+		return nil, "", err
+	}
+	def := r.GetProtocolDef(pluginID, protocolID)
+	if def == nil {
+		return nil, "", fmt.Errorf("%w: protocol %s", domainplugin.ErrPluginNotFound, protocolID)
+	}
+	return def, pluginID, nil
+}
+
+// DefaultPortForProtocol returns the default port from plugin manifest contributions.
+func (r *PluginRegistry) DefaultPortForProtocol(protocol string) (int, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, p := range r.plugins {
+		for _, cp := range p.Manifest.Contributions.ConnectionProtocols {
+			if cp.ID == protocol && cp.DefaultPort > 0 {
+				return cp.DefaultPort, true
+			}
+		}
+	}
+	return 0, false
 }

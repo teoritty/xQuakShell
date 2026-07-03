@@ -164,7 +164,7 @@ func (m *SessionManager) OpenSession(ctx context.Context, connectionID string) (
 		// ADR-001: non-SSH protocols are handled by out-of-process plugins.
 		go m.runPluginSession(entry, conn)
 	} else {
-		// ADR-004: legacy in-process telnet/RDP/VPN was removed from core; add a reference plugin instead.
+		// Non-SSH protocols require an installed plugin connector.
 		m.updateState(entry, domain.SessionError, fmt.Sprintf("protocol %s not yet implemented", proto))
 	}
 

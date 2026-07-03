@@ -7,6 +7,9 @@
   import ConnectionTags from './connectionDetails/ConnectionTags.svelte';
   import ConnectionUsers from './connectionDetails/ConnectionUsers.svelte';
   import JumpHosts from './connectionDetails/JumpHosts.svelte';
+  import PluginConnectionFields from './connectionDetails/PluginConnectionFields.svelte';
+  import { connectionDraftStore } from '../stores/connectionDraft';
+  import { get } from 'svelte/store';
   import {
     createDraftFromConnection,
     resolveDefaultPort,
@@ -42,8 +45,10 @@
     users: [],
     defaultUserId: '',
     jumpHops: [],
+    pluginFields: {},
   };
-  let protocols: ConnectionProtocol[] = [{ id: 'ssh', label: 'SSH', defaultPort: 22, icon: 'terminal' }];
+  let protocols: ConnectionProtocol[] = [{ id: 'ssh', label: 'SSH', defaultPort: 22, icon: 'terminal', remoteFs: true }];
+  let fieldErrors: Record<string, string> = {};
   let dirty = false;
   let saveStatus: SaveStatus = 'idle';
   let addingTag = false;
@@ -52,6 +57,8 @@
 
   $: connId = $detailsConnection?.id || '';
   $: isSSH = draft.protocol === 'ssh';
+  $: currentProtocol = protocols.find((p) => p.id === draft.protocol) ?? null;
+  $: isPluginProtocol = !!currentProtocol?.fields?.length;
 
   onMount(async () => {
     protocols = await getPluginConnectionProtocols();
@@ -65,6 +72,7 @@
     const c = $detailsConnection;
     const defaultPort = resolveDefaultPort(c?.protocol || 'ssh', protocols, c?.port);
     draft = createDraftFromConnection(c, defaultPort);
+    applyProtocolFieldDefaults();
     dirty = false;
     saveStatus = 'idle';
     addingTag = false;
@@ -124,8 +132,28 @@
   }
 
   function onProtocolChange(e: CustomEvent<{ protocol: string; defaultPort?: number }>) {
+    const previousProtocol = draft.protocol;
+    connectionDraftStore.setProtocolFields(previousProtocol, { ...draft.pluginFields });
     draft.protocol = e.detail.protocol;
     if (e.detail.defaultPort) draft.port = e.detail.defaultPort;
+    draft.pluginFields = { ...(get(connectionDraftStore).protocolFieldHistory[e.detail.protocol] ?? {}) };
+    applyProtocolFieldDefaults();
+    markDirty();
+  }
+
+  function applyProtocolFieldDefaults() {
+    if (!currentProtocol?.fields) return;
+    for (const group of currentProtocol.fields) {
+      for (const field of group.fields) {
+        if (draft.pluginFields[field.id] === undefined && field.default !== undefined) {
+          draft.pluginFields[field.id] = field.default;
+        }
+      }
+    }
+    draft.pluginFields = { ...draft.pluginFields };
+  }
+
+  function handleFieldChange() {
     markDirty();
   }
 
@@ -234,6 +262,13 @@
         on:keyimport={(e) => onHopKeyImport(e.detail)}
         on:keyremove={onHopKeyRemove}
         on:passwordchange={onHopPasswordChange}
+      />
+    {:else if isPluginProtocol && currentProtocol?.fields}
+      <PluginConnectionFields
+        groups={currentProtocol.fields}
+        bind:values={draft.pluginFields}
+        bind:errors={fieldErrors}
+        on:fieldchange={handleFieldChange}
       />
     {/if}
   </div>

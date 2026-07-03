@@ -40,6 +40,20 @@ export function buildConnectionSavePayload(
     users: filterDraftUsers(draft.users),
     defaultUserId: draft.defaultUserId,
     jumpChain: stripDraftHopIdsForSave(filterDraftHops(draft.jumpHops)),
+    pluginFields: serializePluginFields(draft.pluginFields),
     order: context.order,
   };
+}
+
+function serializePluginFields(fields: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined || value === null) continue;
+    if (typeof value === 'boolean') {
+      out[key] = value ? 'true' : 'false';
+      continue;
+    }
+    out[key] = String(value);
+  }
+  return out;
 }

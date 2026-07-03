@@ -47,13 +47,12 @@ export interface Connection {
   host: string;
   port: number;
   order: number;
-  user?: string;
-  identityIds?: string[];
   users?: ConnectionUser[];
   defaultUserId?: string;
   tags?: string[];
   jumpChain?: JumpHop[];
   protocol?: string;
+  pluginFields?: Record<string, string>;
 }
 
 export type SessionState = 'connecting' | 'hostkey-required' | 'ready' | 'error' | 'closed';

@@ -118,6 +118,7 @@ func newPluginRuntime(dataRoot string, deps pluginRuntimeDeps) *pluginRuntime {
 	})
 	manager.SetEventBus(eventBus)
 	manager.SetPluginSettings(deps.VaultSettings)
+	manager.SetConnectionChecker(deps.ConnRepo)
 	supervisor = usecase.NewPluginSupervisor(manager)
 	viewRelay := usecase.NewPluginViewRelay(manager, registry)
 	eventBus.SetSessionActiveChecker(func(pluginID string) bool {

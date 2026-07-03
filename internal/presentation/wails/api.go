@@ -7,6 +7,7 @@ import (
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"ssh-client/internal/domain"
+	"ssh-client/internal/infra/auditlog"
 	"ssh-client/internal/usecase"
 )
 
@@ -28,6 +29,7 @@ type AppAPI struct {
 	lockout             domain.LockoutManager
 	pingMgr             *usecase.PingManager
 	plugins             *usecase.PluginManager
+	pluginFields        *usecase.PluginFieldsService
 	viewRelay           *usecase.PluginViewRelay
 	githubRepoService   *usecase.GitHubRepositoryService
 	githubPluginService *usecase.GitHubPluginService
@@ -62,6 +64,13 @@ func NewAppAPI(
 	pluginVaultInbound *usecase.PluginVaultInbound,
 ) *AppAPI {
 	pingMgr := usecase.NewPingManager(connRepo, domain.DefaultPingSettings())
+	var pluginFieldsSvc *usecase.PluginFieldsService
+	var sessionAudit *auditlog.PluginSessionAuditLog
+	if pluginMgr != nil {
+		pluginFieldsSvc = usecase.NewPluginFieldsService(vaultRepo, pluginMgr.Registry())
+		sessionAudit = auditlog.NewPluginSessionAuditLog(512)
+		pingMgr.SetProtocolLookup(pluginMgr.Registry())
+	}
 	api := &AppAPI{
 		vaultRepo:         vaultRepo,
 		connRepo:          connRepo,
@@ -74,6 +83,7 @@ func NewAppAPI(
 		lockout:           lockoutMgr,
 		pingMgr:           pingMgr,
 		plugins:           pluginMgr,
+		pluginFields:      pluginFieldsSvc,
 		settingsSvc:       usecase.NewSettingsService(vaultRepo, lockoutMgr, pingMgr),
 		ownerCache:        make(map[string]map[string]string),
 		groupCache:        make(map[string]map[string]string),
@@ -93,7 +103,11 @@ func NewAppAPI(
 		PTYBridgeFactory:        sshSession.PTYBridgeFactory,
 		SFTPClientFactory:       sshSession.SFTPClientFactory,
 		Connectors:              sessionConnectors,
-		PluginBridge:            usecase.NewPluginSessionBridge(pluginMgr),
+		PluginBridge: usecase.NewPluginSessionBridge(usecase.PluginSessionBridgeConfig{
+			Plugins: pluginMgr,
+			Fields:  pluginFieldsSvc,
+			Audit:   sessionAudit,
+		}),
 		OnStateChange:           api.onSessionStateChange,
 		OnStreamReady:           api.onStreamReady,
 		PassphraseReq:           api.onPassphraseRequest,

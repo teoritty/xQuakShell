@@ -122,7 +122,7 @@ func (m *SessionManager) resolveHopAuthWithCtx(ctx context.Context, hop domain.J
 		if hop.KeyAuth == nil || len(hop.KeyAuth.IdentityIDs) == 0 {
 			return nil, "", fmt.Errorf("hop key auth requires at least one identity")
 		}
-		signers, err := m.loadSignersLegacy(ctx, hop.KeyAuth.IdentityIDs)
+		signers, err := m.loadSigners(ctx, hop.KeyAuth.IdentityIDs)
 		return signers, "", err
 	case domain.AuthMethodPassword:
 		if hop.PassAuth == nil || hop.PassAuth.PasswordID == "" {
@@ -138,13 +138,11 @@ func (m *SessionManager) resolveHopAuthWithCtx(ctx context.Context, hop domain.J
 	}
 }
 
-// resolveAuth determines SSH auth (signers and/or password) from the connection's
-// default user. Falls back to legacy IdentityIDs for v1 connections.
+// resolveAuth determines SSH auth (signers and/or password) from the connection's default user.
 func (m *SessionManager) resolveAuth(ctx context.Context, conn *domain.Connection) ([]domain.Signer, string, error) {
 	defaultUser := conn.DefaultUser()
 	if defaultUser == nil {
-		signers, err := m.loadSignersLegacy(ctx, conn.IdentityIDs)
-		return signers, "", err
+		return nil, "", fmt.Errorf("default user not configured")
 	}
 
 	switch defaultUser.Auth {
@@ -152,7 +150,7 @@ func (m *SessionManager) resolveAuth(ctx context.Context, conn *domain.Connectio
 		if defaultUser.KeyAuth == nil || len(defaultUser.KeyAuth.IdentityIDs) == 0 {
 			return nil, "", fmt.Errorf("key auth requires at least one identity")
 		}
-		signers, err := m.loadSignersLegacy(ctx, defaultUser.KeyAuth.IdentityIDs)
+		signers, err := m.loadSigners(ctx, defaultUser.KeyAuth.IdentityIDs)
 		return signers, "", err
 
 	case domain.AuthMethodPassword:
@@ -170,8 +168,8 @@ func (m *SessionManager) resolveAuth(ctx context.Context, conn *domain.Connectio
 	}
 }
 
-// loadSignersLegacy reads private keys by their IDs and parses them into SSH signers.
-func (m *SessionManager) loadSignersLegacy(ctx context.Context, identityIDs []string) ([]domain.Signer, error) {
+// loadSigners reads private keys by their IDs and parses them into SSH signers.
+func (m *SessionManager) loadSigners(ctx context.Context, identityIDs []string) ([]domain.Signer, error) {
 	if len(identityIDs) == 0 {
 		return nil, nil
 	}

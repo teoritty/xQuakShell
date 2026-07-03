@@ -1,6 +1,10 @@
 package wails
 
-import "ssh-client/internal/domain"
+import (
+	"strings"
+
+	"ssh-client/internal/domain"
+)
 
 // FolderDTO is the UI-facing representation of a folder.
 type FolderDTO struct {
@@ -50,12 +54,11 @@ type ConnectionDTO struct {
 	Port          int                 `json:"port"`
 	Order         int                 `json:"order"`
 	Protocol      string              `json:"protocol,omitempty"`
-	User          string              `json:"user,omitempty"`
-	IdentityIDs   []string            `json:"identityIds,omitempty"`
 	Users         []ConnectionUserDTO `json:"users,omitempty"`
 	DefaultUserID string              `json:"defaultUserId,omitempty"`
 	Tags          []string            `json:"tags,omitempty"`
 	JumpChain     []JumpHopDTO        `json:"jumpChain,omitempty"`
+	PluginFields  map[string]string   `json:"pluginFields,omitempty"`
 }
 
 // IdentityDTO is the UI-facing representation of an SSH identity.
@@ -97,13 +100,8 @@ func ConnectionToDTO(c domain.Connection) ConnectionDTO {
 		Port:          c.Port,
 		Order:         c.Order,
 		Protocol:      c.GetProtocol(),
-		User:          c.User,
-		IdentityIDs:   cloneStringSlice(c.IdentityIDs),
 		DefaultUserID: c.DefaultUserID,
 		Tags:          cloneStringSlice(c.Tags),
-	}
-	if dto.IdentityIDs == nil {
-		dto.IdentityIDs = []string{}
 	}
 	if dto.Tags == nil {
 		dto.Tags = []string{}
@@ -114,6 +112,7 @@ func ConnectionToDTO(c domain.Connection) ConnectionDTO {
 	for _, h := range c.JumpChain.Hops {
 		dto.JumpChain = append(dto.JumpChain, jumpHopToDTO(h))
 	}
+	dto.PluginFields = pluginFieldsToDTO(c.PluginFields)
 	return dto
 }
 
@@ -238,8 +237,6 @@ func DTOToConnection(d ConnectionDTO) domain.Connection {
 		Host:          d.Host,
 		Port:          d.Port,
 		Order:         d.Order,
-		User:          d.User,
-		IdentityIDs:   cloneStringSlice(d.IdentityIDs),
 		Protocol:      d.Protocol,
 		DefaultUserID: d.DefaultUserID,
 		Tags:          cloneStringSlice(d.Tags),
@@ -249,6 +246,9 @@ func DTOToConnection(d ConnectionDTO) domain.Connection {
 	}
 	for _, h := range d.JumpChain {
 		c.JumpChain.Hops = append(c.JumpChain.Hops, dtoToJumpHop(h))
+	}
+	if len(d.PluginFields) > 0 {
+		c.PluginFields = cloneStringMap(d.PluginFields)
 	}
 	return c
 }
@@ -276,4 +276,30 @@ func dtoToJumpHop(d JumpHopDTO) domain.JumpHop {
 	h.KeyAuth = keyAuthFromDTO(d.KeyAuth)
 	h.PassAuth = passAuthFromDTO(d.PassAuth)
 	return h
+}
+
+func pluginFieldsToDTO(fields map[string]string) map[string]string {
+	if len(fields) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(fields))
+	for k, v := range fields {
+		if strings.HasPrefix(v, "secret:") {
+			out[k] = ""
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }

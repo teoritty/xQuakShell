@@ -15,7 +15,11 @@ func TestVaultEncryptDecryptRoundtrip(t *testing.T) {
 		{ID: "f1", Name: "Test Folder", ParentID: "", Order: 0},
 	}
 	data.Connections = []domain.Connection{
-		{ID: "c1", FolderID: "f1", Name: "Test", Host: "example.com", Port: 22, User: "root"},
+		{
+			ID: "c1", FolderID: "f1", Name: "Test", Host: "example.com", Port: 22,
+			Users: []domain.ConnectionUser{{ID: "u1", Username: "root", Auth: domain.AuthMethodKey}},
+			DefaultUserID: "u1",
+		},
 	}
 	data.KnownHosts = []string{"example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest"}
 
@@ -68,7 +72,11 @@ func TestVaultFileRoundtrip(t *testing.T) {
 
 	data := domain.NewVaultData()
 	data.Connections = []domain.Connection{
-		{ID: "c1", Name: "Server", Host: "10.0.0.1", Port: 22, User: "admin"},
+		{
+			ID: "c1", Name: "Server", Host: "10.0.0.1", Port: 22,
+			Users: []domain.ConnectionUser{{ID: "u1", Username: "admin", Auth: domain.AuthMethodKey}},
+			DefaultUserID: "u1",
+		},
 	}
 
 	err := vault.WriteVaultFile(dir, passphrase, data)

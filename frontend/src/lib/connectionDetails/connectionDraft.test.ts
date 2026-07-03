@@ -27,10 +27,10 @@ const sshDraft: ConnectionDetailsDraft = {
     { id: 'hop-persist-123', host: 'bastion2', port: 2222, username: 'jump2', authMethod: 'key' },
     { id: '', host: '', port: 22, username: '', authMethod: 'key' },
   ],
+  pluginFields: {},
 };
 
 assert(isDraftHopUiId('draft-hop-123'), 'draft-hop ids are UI-only');
-assert(isDraftHopUiId('h-legacy-123'), 'legacy UI ids are UI-only');
 assert(!isDraftHopUiId('h-custom-persisted'), 'broad h-prefix must not be UI-only');
 assert(!isDraftHopUiId('550e8400-e29b-41d4-a716-446655440000'), 'uuid must be persistent');
 assert(!isDraftHopUiId('hop-persist-123'), 'persisted hop ids must not be UI-only');

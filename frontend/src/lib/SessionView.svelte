@@ -4,16 +4,25 @@
   import LocalFileTree from './LocalFileTree.svelte';
   import TransferPanel from './TransferPanel.svelte';
   import type { Session } from '../stores/appState';
-  import { closeSession, openSession, uploadFile, downloadFile } from '../stores/api';
+  import { closeSession, openSession, uploadFile, downloadFile, getPluginConnectionProtocols, type ConnectionProtocol } from '../stores/api';
+  import { onMount } from 'svelte';
   import { Loader2, XCircle, Circle } from 'lucide-svelte';
 
   export let session: Session;
   export let active: boolean = false;
 
+  let protocols: ConnectionProtocol[] = [];
   let splitRatio = 70;
   let isDragging = false;
   let fileSplitRatio = 50;
   let fileDragging = false;
+
+  onMount(async () => {
+    protocols = await getPluginConnectionProtocols();
+  });
+
+  $: currentProtocol = protocols.find((p) => p.id === (session.protocol || 'ssh')) ?? null;
+  $: showFilePanel = session.state === 'ready' && (session.protocol === 'ssh' || currentProtocol?.remoteFs === true);
 
   function startHResize(e: MouseEvent) {
     isDragging = true;
@@ -94,12 +103,13 @@
       </div>
     </div>
   {:else if session.state === 'ready'}
-    <div class="session-content" class:no-select={isDragging || fileDragging}>
-      <div class="terminal-area" style="flex: {splitRatio}">
+    <div class="session-content" class:no-select={isDragging || fileDragging} class:terminal-only={!showFilePanel}>
+      <div class="terminal-area" style="flex: {showFilePanel ? splitRatio : 100}">
         {#key session.sessionId}
           <Terminal sessionId={session.sessionId} {active} />
         {/key}
       </div>
+      {#if showFilePanel}
       <div
         class="split-handle-h"
         on:mousedown={startHResize}
@@ -120,8 +130,11 @@
           <LocalFileTree onDropDownload={handleDownload} />
         </div>
       </div>
+      {/if}
     </div>
+    {#if showFilePanel}
     <TransferPanel sessionId={session.sessionId} />
+    {/if}
   {:else}
     <div class="session-status">
       <div class="status-icon"><Circle size={28} /></div>
