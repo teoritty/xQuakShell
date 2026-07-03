@@ -33,7 +33,6 @@ type FieldDefDTO struct {
 	Options     []FieldOptionDTO    `json:"options,omitempty"`
 	DependsOn   string              `json:"dependsOn,omitempty"`
 	Secret      bool                `json:"secret"`
-	Aliases     []string            `json:"aliases,omitempty"`
 }
 
 // FieldGroupDTO groups connection fields for the UI.
@@ -121,7 +120,6 @@ func mapFieldDef(field domainplugin.FieldDef) FieldDefDTO {
 		Order:       field.Order,
 		DependsOn:   field.DependsOn,
 		Secret:      field.Secret,
-		Aliases:     append([]string(nil), field.Aliases...),
 	}
 	if field.Validation != nil {
 		dto.Validation = &FieldValidationDTO{

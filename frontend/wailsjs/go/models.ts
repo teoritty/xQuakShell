@@ -230,8 +230,6 @@ export namespace wails {
 	    port: number;
 	    order: number;
 	    protocol?: string;
-	    user?: string;
-	    identityIds?: string[];
 	    users?: ConnectionUserDTO[];
 	    defaultUserId?: string;
 	    tags?: string[];
@@ -251,8 +249,6 @@ export namespace wails {
 	        this.port = source["port"];
 	        this.order = source["order"];
 	        this.protocol = source["protocol"];
-	        this.user = source["user"];
-	        this.identityIds = source["identityIds"];
 	        this.users = this.convertValues(source["users"], ConnectionUserDTO);
 	        this.defaultUserId = source["defaultUserId"];
 	        this.tags = source["tags"];
@@ -328,7 +324,6 @@ export namespace wails {
 	    options?: FieldOptionDTO[];
 	    dependsOn?: string;
 	    secret: boolean;
-	    aliases?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new FieldDefDTO(source);
@@ -349,7 +344,6 @@ export namespace wails {
 	        this.options = this.convertValues(source["options"], FieldOptionDTO);
 	        this.dependsOn = source["dependsOn"];
 	        this.secret = source["secret"];
-	        this.aliases = source["aliases"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

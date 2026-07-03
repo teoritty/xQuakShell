@@ -98,7 +98,7 @@ Full IPC method reference: [Plugin IPC reference](#plugin-ipc-reference). Sessio
 
 3. Add `publisher.pub` (base64 Ed25519 public key) to **Settings → Plugins → Trusted publishers** in xQuakShell.
 
-Signatures use Ed25519 over a canonical JSON envelope `{manifest, checksumsSha256}` where `checksumsSha256` is the SHA-256 (hex) of normalized `SHA256SUMS` bytes. Legacy manifest-only signatures must be re-signed after binding checksums.
+Signatures use Ed25519 over a canonical JSON envelope `{manifest, checksumsSha256}` where `checksumsSha256` is the SHA-256 (hex) of normalized `SHA256SUMS` bytes.
 
 ## IPC overview
 
@@ -457,14 +457,6 @@ Or read fields manually from `params.Fields`.
 ### Reference manifest
 
 `plugins/demo-telnet/plugin.json` demonstrates auth and terminal settings field groups.
-
-### Migration from ad-hoc config
-
-If you previously used `vault.getSecret` or custom connection metadata:
-
-- Move user-editable connection options into `connectionProtocols[].fields`.
-- Use `aliases` on a field when renaming an ID so existing vault rows keep working.
-- Do not rely on `vault.getConnection` for plugin-specific options — use `session.connect` `fields` instead.
 
 ## Cross-compilation
 

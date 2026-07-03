@@ -73,16 +73,19 @@ func TestConnectionDTO_BlankJumpHopIDNotGenerated(t *testing.T) {
 
 func TestConnectionToDTO_DoesNotShareSlicesWithDomain(t *testing.T) {
 	conn := domain.Connection{
-		Tags:        []string{"prod"},
-		IdentityIDs: []string{"k1"},
+		Tags: []string{"prod"},
+		Users: []domain.ConnectionUser{{
+			ID: "u1",
+			KeyAuth: &domain.KeyAuthConfig{IdentityIDs: []string{"k1"}},
+		}},
 	}
 	dto := ConnectionToDTO(conn)
 	dto.Tags[0] = "changed"
-	dto.IdentityIDs[0] = "changed"
+	dto.Users[0].KeyAuth.IdentityIDs[0] = "changed"
 	if conn.Tags[0] != "prod" {
 		t.Fatal("tags shared with domain")
 	}
-	if conn.IdentityIDs[0] != "k1" {
+	if conn.Users[0].KeyAuth.IdentityIDs[0] != "k1" {
 		t.Fatal("identity ids shared with domain")
 	}
 }

@@ -60,21 +60,3 @@ func TestValidateManifestFieldsRejectsCyclicDependsOn(t *testing.T) {
 		t.Fatal("expected cyclic dependsOn rejection")
 	}
 }
-
-func TestBuildProtocolDefAliasIndex(t *testing.T) {
-	def := domainplugin.BuildProtocolDef(domainplugin.ConnectionProtocolContribution{
-		ID: "telnet",
-		Fields: []domainplugin.FieldGroup{
-			{
-				ID:    "g",
-				Label: "G",
-				Fields: []domainplugin.FieldDef{
-					{ID: "username", Label: "User", Type: domainplugin.FieldTypeText, Secret: false, Aliases: []string{"user"}},
-				},
-			},
-		},
-	})
-	if def.AliasIndex["user"] == nil || def.AliasIndex["user"].ID != "username" {
-		t.Fatalf("expected alias index, got %+v", def.AliasIndex)
-	}
-}

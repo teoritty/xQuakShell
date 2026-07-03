@@ -71,9 +71,6 @@ func (s *PluginFieldsService) SavePluginFields(ctx context.Context, conn *domain
 	// Preserve existing secret refs when the UI did not send a new value.
 	for id, stored := range conn.PluginFields {
 		def := protoDef.FlatFields[id]
-		if def == nil {
-			def = protoDef.AliasIndex[id]
-		}
 		if def == nil || !def.Secret {
 			continue
 		}
@@ -121,10 +118,7 @@ func (s *PluginFieldsService) ResolvePluginFields(ctx context.Context, conn *dom
 	for id, stored := range conn.PluginFields {
 		def := protoDef.FlatFields[id]
 		if def == nil {
-			def = protoDef.AliasIndex[id]
-			if def == nil {
-				continue
-			}
+			continue
 		}
 
 		if def.Secret {

@@ -19,10 +19,6 @@ const (
 	ChecksumsSHA256Len = sha256.Size * 2
 )
 
-// ErrSignatureFormatOutdated is returned when a signature was created with the old
-// manifest-only format (without checksums binding).
-var ErrSignatureFormatOutdated = errors.New("signature format outdated, plugin must be re-signed with checksums binding")
-
 // ErrMissingChecksumsDigest indicates a signed manifest was verified without a valid checksums digest.
 var ErrMissingChecksumsDigest = errors.New("missing checksums digest for signature verification")
 
@@ -43,12 +39,6 @@ func ManifestSigningPayload(m Manifest, checksumsSHA256 string) ([]byte, error) 
 		ChecksumsSHA256: checksumsSHA256,
 	}
 	return canonicalJSON(env)
-}
-
-func manifestSigningPayloadOld(m Manifest) ([]byte, error) {
-	copy := m
-	copy.Signature = ""
-	return json.Marshal(copy)
 }
 
 // SignManifest attaches a base64 Ed25519 signature for the canonical signing envelope.
@@ -83,14 +73,6 @@ func VerifyManifestSignature(m Manifest, checksumsSHA256 string, trustedKeys []e
 	}
 	if verifySignatureWithKeys(trustedKeys, payload, sig) {
 		return true, nil
-	}
-
-	oldPayload, err := manifestSigningPayloadOld(m)
-	if err != nil {
-		return false, err
-	}
-	if verifySignatureWithKeys(trustedKeys, oldPayload, sig) {
-		return false, ErrSignatureFormatOutdated
 	}
 	return false, nil
 }

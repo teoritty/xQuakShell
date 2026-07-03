@@ -97,16 +97,16 @@ $portableInHostHandlers += Test-HandlerBodyUses -FuncPattern 'func \(a \*AppAPI\
 $portableInHostHandlers += Test-HandlerBodyUses -FuncPattern 'func \(a \*AppAPI\) GetUserHomeDir' -ForbiddenPattern 'portableData'
 FailIfMatch -Label "host FS handlers must not use portableData" -Hits $portableInHostHandlers
 
-$legacyHits = @()
+$forbiddenFsSymbols = @()
 Get-ChildItem -Path $root -Filter "*.go" -Recurse |
     Where-Object { $_.FullName -notmatch '\\test\\' } |
     ForEach-Object {
-        $legacyHits += Find-NonCommentMatches -Path $_.FullName -Patterns @(
+        $forbiddenFsSymbols += Find-NonCommentMatches -Path $_.FullName -Patterns @(
             'LocalFileSystem'
             'NewLocalFS'
             'ErrLocalPathDenied'
         )
     }
-FailIfMatch -Label "legacy LocalFileSystem symbols must not remain in production code" -Hits $legacyHits
+FailIfMatch -Label "removed LocalFileSystem symbols must not remain in production code" -Hits $forbiddenFsSymbols
 
 Write-Host "filesystem boundary check: OK"

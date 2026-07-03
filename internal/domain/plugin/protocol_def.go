@@ -6,7 +6,6 @@ type ProtocolDef struct {
 	Groups     []FieldGroup
 	FlatFields map[string]*FieldDef
 	FieldIDs   map[string]bool
-	AliasIndex map[string]*FieldDef
 }
 
 // GetFieldIDs returns declared field IDs for capability checks.
@@ -33,7 +32,6 @@ func (p *ProtocolDef) GetFlatFields() []FieldDef {
 func BuildProtocolDef(proto ConnectionProtocolContribution) *ProtocolDef {
 	flatFields := make(map[string]*FieldDef)
 	fieldIDs := make(map[string]bool)
-	aliasIndex := make(map[string]*FieldDef)
 
 	for gi := range proto.Fields {
 		group := &proto.Fields[gi]
@@ -41,9 +39,6 @@ func BuildProtocolDef(proto ConnectionProtocolContribution) *ProtocolDef {
 			field := &group.Fields[fi]
 			flatFields[field.ID] = field
 			fieldIDs[field.ID] = true
-			for _, alias := range field.Aliases {
-				aliasIndex[alias] = field
-			}
 		}
 	}
 
@@ -52,7 +47,6 @@ func BuildProtocolDef(proto ConnectionProtocolContribution) *ProtocolDef {
 		Groups:     proto.Fields,
 		FlatFields: flatFields,
 		FieldIDs:   fieldIDs,
-		AliasIndex: aliasIndex,
 	}
 }
 

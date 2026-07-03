@@ -23,7 +23,6 @@ type VaultData struct {
 	KeyBlobs    map[string]IdentityBlob `json:"keyBlobs"`
 	KnownHosts  []string                `json:"knownHosts"`
 
-	// v2 additions
 	Passwords     map[string]PasswordBlob `json:"passwords,omitempty"`
 	PluginSecrets map[string][]byte       `json:"pluginSecrets,omitempty"`
 	Settings      *AppSettings            `json:"settings,omitempty"`

@@ -139,7 +139,6 @@ Fields are grouped for display in Connection Details. The host validates manifes
 | `options` | array | yes for `select` | `{ "value", "label" }` |
 | `dependsOn` | string | no | Field id; UI hides this field until dependency is truthy |
 | `secret` | bool | yes | `true` for secrets; required for `password` type |
-| `aliases` | string[] | no | Legacy ids for migration |
 
 **Validation object**
 
@@ -195,7 +194,7 @@ Fields are grouped for display in Connection Details. The host validates manifes
 
 **Manifest validation rules (fields)**
 
-- Field ids must be unique within a protocol; `aliases` must not collide with ids.
+- Field ids must be unique within a protocol.
 - `password` fields must have `secret: true`.
 - Secret fields cannot have a `default`.
 - `select` fields must have `options`; default must match an option value.
@@ -264,8 +263,6 @@ Trusted publisher public keys are configured in application settings. Unsigned p
 xqs-plugin checksums -dir .
 xqs-plugin sign -dir . -key publisher.key
 ```
-
-Legacy signatures (manifest-only, without checksums binding) are detected and rejected with a clear “signature format outdated” message — re-sign after running `checksums`.
 
 ## Bundle format
 

@@ -94,12 +94,6 @@ func validateProtocolFields(proto ConnectionProtocolContribution) error {
 				}
 			}
 
-			for _, alias := range field.Aliases {
-				if seenIDs[alias] {
-					return fmt.Errorf("%w: alias %q conflicts with existing field id in field %q", ErrInvalidManifest, alias, field.ID)
-				}
-			}
-
 			if field.DependsOn != "" {
 				if !seenIDs[field.DependsOn] {
 					return fmt.Errorf("%w: dependsOn %q references unknown field in field %q", ErrInvalidManifest, field.DependsOn, field.ID)

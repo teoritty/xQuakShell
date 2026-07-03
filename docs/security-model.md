@@ -46,8 +46,6 @@ Declarative connection fields replace most ad-hoc secret access for session plug
 
 | Empty secret | Submitting empty string for a secret field removes the stored secret |
 
-| Aliases | Stored keys may use alias id; resolve maps to canonical field id for the plugin |
-
 | Uninstall | Plugin uninstall blocked while any connection uses one of its protocol ids |
 
 

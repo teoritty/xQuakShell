@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -222,37 +220,6 @@ func TestSignedPluginWithoutChecksumsFailsWithClearError(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "signature not trusted") {
 		t.Fatalf("should not report signature not trusted: %v", err)
-	}
-}
-
-func TestOldSignatureFormatDetected(t *testing.T) {
-	pub, priv, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	m := domainplugin.Manifest{
-		ID: "com.old", Name: "Old", Version: "1",
-		Engine: domainplugin.EngineConfig{Type: domainplugin.EngineGoBinary, Entry: "old.exe"},
-	}
-	copy := m
-	payload, err := json.Marshal(copy)
-	if err != nil {
-		t.Fatal(err)
-	}
-	m.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(priv, payload))
-
-	digest := fakeChecksumsHex(0x03)
-	ok, err := domainplugin.VerifyManifestSignature(m, digest, []ed25519.PublicKey{pub})
-	if ok || !errors.Is(err, domainplugin.ErrSignatureFormatOutdated) {
-		t.Fatalf("expected outdated format error, ok=%v err=%v", ok, err)
-	}
-
-	_, err = domainplugin.EvaluateInstallTrust(m, digest, domainplugin.InstallTrustPolicy{
-		TrustedKeys:   []ed25519.PublicKey{pub},
-		RequireSigned: true,
-	})
-	if err == nil || !strings.Contains(err.Error(), "outdated") {
-		t.Fatalf("expected outdated format in trust eval, got %v", err)
 	}
 }
 

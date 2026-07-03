@@ -1011,7 +1011,6 @@ export interface FieldDef {
   options?: { value: string; label: string }[];
   dependsOn?: string;
   secret: boolean;
-  aliases?: string[];
 }
 
 export interface FieldGroup {

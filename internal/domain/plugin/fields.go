@@ -44,7 +44,6 @@ type FieldDef struct {
 	Options     []FieldOption    `json:"options,omitempty"`
 	DependsOn   string           `json:"dependsOn,omitempty"`
 	Secret      bool             `json:"secret"`
-	Aliases     []string         `json:"aliases,omitempty"`
 }
 
 // FieldValidation holds value constraints enforced by host on save.

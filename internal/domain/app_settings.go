@@ -27,16 +27,12 @@ type PingSettings struct {
 	Enabled         bool   `json:"enabled"`
 	Mode            string `json:"mode"`
 	IntervalSeconds int    `json:"intervalSeconds"`
-	IntervalMinutes int    `json:"intervalMinutes"`
 }
 
-// EffectiveIntervalSeconds returns the interval in seconds, migrating from legacy intervalMinutes if needed.
+// EffectiveIntervalSeconds returns the interval in seconds.
 func (p PingSettings) EffectiveIntervalSeconds() int {
 	if p.IntervalSeconds > 0 {
 		return p.IntervalSeconds
-	}
-	if p.IntervalMinutes > 0 {
-		return p.IntervalMinutes * 60
 	}
 	return 5
 }

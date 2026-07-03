@@ -43,8 +43,6 @@ func cloneConnections(in []Connection) []Connection {
 // CloneConnection returns a deep copy of a connection.
 func CloneConnection(in Connection) Connection {
 	out := in
-	out.User = in.User
-	out.IdentityIDs = cloneStrings(in.IdentityIDs)
 	out.Users = cloneConnectionUsers(in.Users)
 	out.Tags = cloneStrings(in.Tags)
 	out.JumpChain = cloneJumpChain(in.JumpChain)
