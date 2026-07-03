@@ -8,7 +8,6 @@ require (
 	github.com/kayrus/putty v1.0.5
 	github.com/pkg/sftp v1.13.10
 	github.com/wailsapp/wails/v2 v2.12.0
-	github.com/xquakshell/pluginsdk v0.0.0
 	golang.org/x/crypto v0.49.0
 	golang.org/x/sys v0.42.0
 	golang.org/x/time v0.15.0
