@@ -53,8 +53,11 @@ Runtime IPC methods and session lifecycle are documented in [plugin-api.md](./pl
     "session": {
       "connectProtocols": ["my-protocol"],
       "terminal": true,
+      "embed": false,
+      "localEmbedServer": false,
       "remoteFs": false,
-      "allowMultiSession": false
+      "allowMultiSession": false,
+      "maxTunnelBandwidthKbps": 0
     },
     "events": {
       "subscribe": ["core.session.*"],
@@ -73,9 +76,13 @@ Rules:
 - Event publish must use namespace `plugin.<yourPluginId>.*`. Publishing to `core.*` is rejected.
 - User-disabled plugins are stored in app settings (`plugins.disabled`).
 - **`terminal: true` requires `isolation: per-session`** unless `allowMultiSession: true` is set (install shows a warning and is audit-logged).
+- **`embed: true` requires `isolation: per-session`**. Mutually exclusive with `terminal: true`. Requires `connectProtocols`. **`allowMultiSession` is rejected** with embed.
+- **`localEmbedServer: true`** requires `embed: true`. Opt-in loopback HTTP server in the plugin (Mode B); install shows a separate consent line. Default path is Mode A (core embed broker).
+- **`remoteFs: true`** requires `terminal: true` or `embed: true` (adjunct file panel only).
+- **`maxTunnelBandwidthKbps`:** optional per-session tunnel rate cap (0 = host default 32 MiB/s).
 - **`allowMultiSession`:** when `false` (default) and `isolation: per-plugin`, only one bound session per plugin process is allowed; a second bind is rejected.
-- **`remoteFs`:** when `true`, the session UI shows the remote file panel (SFTP-style). Terminal-only plugins (e.g. telnet) should leave this `false`.
-- View `entry` paths must live under `ui/` (default `ui/index.html`).
+- **`remoteFs` (display):** when `true`, the session UI shows the remote file panel (SFTP-style). Terminal-only plugins (e.g. telnet) should leave this `false`.
+- View `entry` paths must live under `ui/` (default `ui/index.html`). Embed `embedEntry` paths follow the same rule.
 
 ## Contributions
 
@@ -92,10 +99,11 @@ Rules:
 ```json
 "connectionProtocols": [
   {
-    "id": "telnet",
-    "label": "Telnet",
-    "defaultPort": 23,
-    "icon": "terminal",
+    "id": "vnc",
+    "label": "VNC",
+    "defaultPort": 5900,
+    "icon": "monitor",
+    "embedEntry": "ui/vnc.html",
     "fields": []
   }
 ]
@@ -106,7 +114,8 @@ Rules:
 | `id` | string | yes | Protocol id (must match `capabilities.session.connectProtocols`) |
 | `label` | string | yes | Label in the connection editor |
 | `defaultPort` | int | no | Used when connection `port` is 0 (ping and `session.connect`) |
-| `icon` | string | no | UI icon hint |
+| `icon` | string | no | UI icon hint (e.g. `monitor` for VNC/RDP) |
+| `embedEntry` | string | no | HTML entry under `ui/` for embed sessions (default `ui/embed.html`) |
 | `fields` | array | no | Field groups (see below) |
 
 #### Connection protocol fields
