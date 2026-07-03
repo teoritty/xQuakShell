@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+
+	"ssh-client/internal/domain"
 )
 
 // --- Folders ---
@@ -44,16 +46,37 @@ func (a *AppAPI) GetAllConnections() ([]ConnectionDTO, error) {
 
 // SaveConnection creates or updates a connection.
 func (a *AppAPI) SaveConnection(dto ConnectionDTO) (ConnectionDTO, error) {
+	ctx := context.Background()
 	c := DTOToConnection(dto)
-	if err := a.connRepo.Save(context.Background(), &c); err != nil {
+	incomingFields := cloneStringMap(dto.PluginFields)
+	if err := a.connRepo.Save(ctx, &c); err != nil {
+		return ConnectionDTO{}, err
+	}
+	if a.pluginFields != nil {
+		if err := a.pluginFields.SavePluginFields(ctx, &c, incomingFields); err != nil {
+			return ConnectionDTO{}, err
+		}
+	}
+	saved, err := a.connRepo.GetByID(ctx, c.ID)
+	if err != nil {
 		return ConnectionDTO{}, err
 	}
 	if a.pingMgr != nil {
-		if h := c.EffectiveHost(); h != "" && c.EffectivePort() > 0 {
-			a.pingMgr.PingSingle(c.ID, h, c.EffectivePort())
+		if h := saved.EffectiveHost(); h != "" {
+			port := saved.EffectivePort(a.protocolLookup())
+			if port > 0 {
+				a.pingMgr.PingSingle(saved.ID, h, port)
+			}
 		}
 	}
-	return ConnectionToDTO(c), nil
+	return ConnectionToDTO(*saved), nil
+}
+
+func (a *AppAPI) protocolLookup() domain.ConnectionProtocolLookup {
+	if a.plugins == nil {
+		return nil
+	}
+	return a.plugins.Registry()
 }
 
 // DeleteConnection removes a connection by ID.

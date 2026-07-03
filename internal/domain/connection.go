@@ -41,6 +41,9 @@ type Connection struct {
 	DefaultUserID string           `json:"defaultUserId,omitempty"`
 	Tags          []string         `json:"tags,omitempty"`
 	JumpChain     JumpChainConfig  `json:"jumpChain,omitempty"`
+
+	// PluginFields stores non-secret values and secret references for plugin protocols.
+	PluginFields map[string]string `json:"pluginFields,omitempty"`
 }
 
 // DefaultUser returns the ConnectionUser designated as default, or nil when none is set.
@@ -72,19 +75,21 @@ func (c *Connection) GetProtocol() string {
 
 // EffectiveHost returns the host to use for ping/connect based on protocol.
 func (c *Connection) EffectiveHost() string {
-	if c.GetProtocol() == ProtocolSSH {
-		return c.Host
-	}
-	return ""
+	return c.Host
 }
 
 // EffectivePort returns the port to use for ping/connect based on protocol.
-func (c *Connection) EffectivePort() int {
+func (c *Connection) EffectivePort(lookup ConnectionProtocolLookup) int {
+	if c.Port > 0 {
+		return c.Port
+	}
 	if c.GetProtocol() == ProtocolSSH {
-		if c.Port > 0 {
-			return c.Port
-		}
 		return DefaultSSHPort
+	}
+	if lookup != nil {
+		if port, ok := lookup.DefaultPortForProtocol(c.GetProtocol()); ok {
+			return port
+		}
 	}
 	return 0
 }
@@ -93,7 +98,9 @@ func (c *Connection) EffectivePort() int {
 // It deliberately allows empty host/username so draft connections can be saved.
 // Full readiness should be checked via ValidateForConnect before opening a session.
 func (c *Connection) Validate() error {
-	if c.Port < MinPort || c.Port > MaxPort {
+	if c.GetProtocol() != ProtocolSSH && c.Port == 0 {
+		// Plugin protocols may use manifest defaultPort when port is unset.
+	} else if c.Port < MinPort || c.Port > MaxPort {
 		return fmt.Errorf("port %d out of range [%d-%d]: %w", c.Port, MinPort, MaxPort, ErrInvalidConnectionConfig)
 	}
 	for i := range c.JumpChain.Hops {
@@ -187,7 +194,7 @@ func validateUniqueUserIDs(users []ConnectionUser) error {
 
 // WithDefaults fills in default values for optional fields (e.g., port).
 func (c *Connection) WithDefaults() {
-	if c.Port == 0 {
+	if c.GetProtocol() == ProtocolSSH && c.Port == 0 {
 		c.Port = DefaultSSHPort
 	}
 }

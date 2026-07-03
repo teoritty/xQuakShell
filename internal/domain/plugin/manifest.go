@@ -111,10 +111,11 @@ type MenuContribution struct {
 
 // ConnectionProtocolContribution registers a connection protocol.
 type ConnectionProtocolContribution struct {
-	ID          string `json:"id"`
-	Label       string `json:"label"`
-	DefaultPort int    `json:"defaultPort,omitempty"`
-	Icon        string `json:"icon,omitempty"`
+	ID          string       `json:"id"`
+	Label       string       `json:"label"`
+	DefaultPort int          `json:"defaultPort,omitempty"`
+	Icon        string       `json:"icon,omitempty"`
+	Fields      []FieldGroup `json:"fields,omitempty"`
 }
 
 // ViewContribution registers a declarative UI panel (Phase 5).
@@ -204,7 +205,15 @@ func (m *Manifest) Validate() error {
 	if err := m.CompatibleWithCore(HostCoreVersion); err != nil {
 		return err
 	}
-	return m.ValidateCapabilities()
+	return m.ValidateCapabilitiesAndFields()
+}
+
+// ValidateCapabilitiesAndFields runs capability and contribution field validation.
+func (m *Manifest) ValidateCapabilitiesAndFields() error {
+	if err := m.ValidateCapabilities(); err != nil {
+		return err
+	}
+	return ValidateManifestFields(m)
 }
 
 // EntryPath resolves the plugin binary path relative to RootDir.

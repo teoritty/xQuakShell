@@ -23,12 +23,13 @@ type PingEventHandler func(results []PingResult)
 
 // PingManager periodically checks TCP reachability for connections.
 type PingManager struct {
-	mu       sync.RWMutex
-	settings domain.PingSettings
-	results  map[string]PingResult
-	handler  PingEventHandler
-	cancel   context.CancelFunc
-	connRepo domain.ConnectionRepository
+	mu              sync.RWMutex
+	settings        domain.PingSettings
+	results         map[string]PingResult
+	handler         PingEventHandler
+	cancel          context.CancelFunc
+	connRepo        domain.ConnectionRepository
+	protocolLookup  domain.ConnectionProtocolLookup
 }
 
 // NewPingManager creates a new PingManager.
@@ -64,6 +65,20 @@ func (pm *PingManager) Stop() {
 	}
 }
 
+// SetProtocolLookup configures default port resolution for plugin protocols.
+func (pm *PingManager) SetProtocolLookup(lookup domain.ConnectionProtocolLookup) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pm.protocolLookup = lookup
+}
+
+func (pm *PingManager) effectivePort(conn domain.Connection) int {
+	pm.mu.RLock()
+	lookup := pm.protocolLookup
+	pm.mu.RUnlock()
+	return conn.EffectivePort(lookup)
+}
+
 // PingByConnectionID loads a connection and pings it immediately.
 func (pm *PingManager) PingByConnectionID(ctx context.Context, connID string) {
 	if pm == nil || pm.connRepo == nil {
@@ -74,7 +89,7 @@ func (pm *PingManager) PingByConnectionID(ctx context.Context, connID string) {
 		return
 	}
 	host := conn.EffectiveHost()
-	port := conn.EffectivePort()
+	port := pm.effectivePort(*conn)
 	if host == "" || port <= 0 {
 		return
 	}
@@ -159,7 +174,7 @@ func (pm *PingManager) pingAll(ctx context.Context) {
 
 	for _, c := range conns {
 		host := c.EffectiveHost()
-		port := c.EffectivePort()
+		port := pm.effectivePort(c)
 		if host == "" || port <= 0 {
 			continue
 		}

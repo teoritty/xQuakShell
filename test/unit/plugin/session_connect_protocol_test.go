@@ -14,7 +14,7 @@ func TestSessionBridgeRejectsUndeclaredProtocol(t *testing.T) {
 	registry := usecase.NewPluginRegistry()
 	host := infraplugin.NewProcessHost(infraplugin.HostConfig{DataRoot: t.TempDir()})
 	manager := newTestPluginManager(t, registry, host)
-	bridge := usecase.NewPluginSessionBridge(manager)
+	bridge := usecase.NewPluginSessionBridge(usecase.PluginSessionBridgeConfig{Plugins: manager})
 
 	manifest := domainplugin.Manifest{
 		ID:      "com.test.noproto",

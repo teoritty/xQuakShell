@@ -32,6 +32,8 @@ Only `go-binary` is supported in v1.
 
 ## Capabilities
 
+Runtime IPC methods and session lifecycle are documented in [plugin-api.md](./plugin-api.md#plugin-ipc-reference).
+
 ```json
 {
   "capabilities": {
@@ -51,6 +53,7 @@ Only `go-binary` is supported in v1.
     "session": {
       "connectProtocols": ["my-protocol"],
       "terminal": true,
+      "remoteFs": false,
       "allowMultiSession": false
     },
     "events": {
@@ -71,6 +74,7 @@ Rules:
 - User-disabled plugins are stored in app settings (`plugins.disabled`).
 - **`terminal: true` requires `isolation: per-session`** unless `allowMultiSession: true` is set (install shows a warning and is audit-logged).
 - **`allowMultiSession`:** when `false` (default) and `isolation: per-plugin`, only one bound session per plugin process is allowed; a second bind is rejected.
+- **`remoteFs`:** when `true`, the session UI shows the remote file panel (SFTP-style). Terminal-only plugins (e.g. telnet) should leave this `false`.
 - View `entry` paths must live under `ui/` (default `ui/index.html`).
 
 ## Contributions
@@ -87,9 +91,123 @@ Rules:
 
 ```json
 "connectionProtocols": [
-  { "id": "telnet", "label": "Telnet", "defaultPort": 23 }
+  {
+    "id": "telnet",
+    "label": "Telnet",
+    "defaultPort": 23,
+    "icon": "terminal",
+    "fields": []
+  }
 ]
 ```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | yes | Protocol id (must match `capabilities.session.connectProtocols`) |
+| `label` | string | yes | Label in the connection editor |
+| `defaultPort` | int | no | Used when connection `port` is 0 (ping and `session.connect`) |
+| `icon` | string | no | UI icon hint |
+| `fields` | array | no | Field groups (see below) |
+
+#### Connection protocol fields
+
+Fields are grouped for display in Connection Details. The host validates manifest at load time and validates **values** on save.
+
+**Field group**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | yes | Group id |
+| `label` | string | yes | Group heading |
+| `order` | int | no | Sort order (lower first) |
+| `fields` | array | yes | Field definitions |
+
+**Field definition**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | yes | Unique within the protocol |
+| `label` | string | yes | Label in the form |
+| `type` | string | yes | `text`, `password`, `number`, `select`, `checkbox`, `textarea` |
+| `required` | bool | no | Enforced on save |
+| `default` | any | no | Default for non-secret fields only |
+| `placeholder` | string | no | Input hint |
+| `description` | string | no | Help text |
+| `width` | string | no | `full`, `half`, `third` |
+| `order` | int | no | Sort order within group |
+| `validation` | object | no | See below |
+| `options` | array | yes for `select` | `{ "value", "label" }` |
+| `dependsOn` | string | no | Field id; UI hides this field until dependency is truthy |
+| `secret` | bool | yes | `true` for secrets; required for `password` type |
+| `aliases` | string[] | no | Legacy ids for migration |
+
+**Validation object**
+
+| Field | Type | Applies to |
+|-------|------|------------|
+| `minLength` / `maxLength` | int | string types |
+| `min` / `max` | number | `number` |
+| `pattern` | string | string types (regex; ReDoS-safe subset enforced at load) |
+| `maxSizeBytes` | int | `textarea` (default cap 1 MiB if unset) |
+
+**Example**
+
+```json
+"connectionProtocols": [
+  {
+    "id": "telnet",
+    "label": "Telnet",
+    "defaultPort": 23,
+    "fields": [
+      {
+        "id": "auth",
+        "label": "Authentication",
+        "order": 1,
+        "fields": [
+          {
+            "id": "username",
+            "label": "Username",
+            "type": "text",
+            "required": true,
+            "width": "half",
+            "order": 1,
+            "secret": false,
+            "validation": {
+              "minLength": 3,
+              "maxLength": 50,
+              "pattern": "^[a-zA-Z0-9_]+$"
+            }
+          },
+          {
+            "id": "password",
+            "label": "Password",
+            "type": "password",
+            "width": "half",
+            "order": 2,
+            "secret": true
+          }
+        ]
+      }
+    ]
+  }
+]
+```
+
+**Manifest validation rules (fields)**
+
+- Field ids must be unique within a protocol; `aliases` must not collide with ids.
+- `password` fields must have `secret: true`.
+- Secret fields cannot have a `default`.
+- `select` fields must have `options`; default must match an option value.
+- `dependsOn` must reference an existing field id; cycles are rejected.
+- Unsafe regex patterns (nested quantifiers, deep nesting) are rejected at load time.
+- Protocol ids must not collide across installed plugins.
+
+**Runtime storage**
+
+- Non-secret values: `Connection.pluginFields[id]`.
+- Secret values: encrypted in the vault file (age + scrypt at rest); connection stores `secret:<connectionId>.<fieldId>`.
+- UI never receives secret plaintext on load (empty string for secret fields until the user re-enters a value).
 
 ### Views (WebView panels)
 
@@ -166,6 +284,7 @@ xqs-plugin checksums -dir .
 - `id`, `name`, `version`, `engine.entry` required
 - `engine.type` must be `go-binary`
 - Capability patterns validated at install
+- Connection protocol field declarations validated at manifest load (`ValidateManifestFields`)
 - Binary must exist and match host GOOS at discovery/install
 
 See also: [plugin-api.md](./plugin-api.md)

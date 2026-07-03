@@ -54,6 +54,7 @@ export interface Connection {
   tags?: string[];
   jumpChain?: JumpHop[];
   protocol?: string;
+  pluginFields?: Record<string, string>;
 }
 
 export type SessionState = 'connecting' | 'hostkey-required' | 'ready' | 'error' | 'closed';

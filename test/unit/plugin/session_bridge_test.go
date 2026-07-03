@@ -66,7 +66,7 @@ func TestDemoTerminalSessionConnect(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bridge := usecase.NewPluginSessionBridge(manager)
+	bridge := usecase.NewPluginSessionBridge(usecase.PluginSessionBridgeConfig{Plugins: manager})
 	conn := &domain.Connection{
 		ID:       "conn-1",
 		Host:     "example.com",

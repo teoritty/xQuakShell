@@ -990,24 +990,69 @@ export interface PluginPublisherKeyPair {
   privateKey: string;
 }
 
+export interface FieldDef {
+  id: string;
+  label: string;
+  type: 'text' | 'password' | 'number' | 'select' | 'checkbox' | 'textarea';
+  required: boolean;
+  default?: unknown;
+  placeholder?: string;
+  description?: string;
+  width?: 'full' | 'half' | 'third';
+  order: number;
+  validation?: {
+    minLength?: number;
+    maxLength?: number;
+    min?: number;
+    max?: number;
+    pattern?: string;
+    maxSizeBytes?: number;
+  };
+  options?: { value: string; label: string }[];
+  dependsOn?: string;
+  secret: boolean;
+  aliases?: string[];
+}
+
+export interface FieldGroup {
+  id: string;
+  label: string;
+  order: number;
+  fields: FieldDef[];
+}
+
 export interface ConnectionProtocol {
   id: string;
   label: string;
   defaultPort?: number;
   icon?: string;
+  remoteFs?: boolean;
+  fields?: FieldGroup[];
 }
 
+let protocolsCache: ConnectionProtocol[] | null = null;
+
 export async function getPluginConnectionProtocols(): Promise<ConnectionProtocol[]> {
+  if (protocolsCache) {
+    return protocolsCache;
+  }
   const app = getApp();
   if (!app?.GetPluginConnectionProtocols) {
-    return [{ id: 'ssh', label: 'SSH', defaultPort: 22, icon: 'terminal' }];
+    protocolsCache = [{ id: 'ssh', label: 'SSH', defaultPort: 22, icon: 'terminal', remoteFs: true }];
+    return protocolsCache;
   }
   try {
-    return await app.GetPluginConnectionProtocols();
+    protocolsCache = await app.GetPluginConnectionProtocols();
+    return protocolsCache;
   } catch (e) {
     handleError(e, 'Load connection protocols');
-    return [{ id: 'ssh', label: 'SSH', defaultPort: 22, icon: 'terminal' }];
+    protocolsCache = [{ id: 'ssh', label: 'SSH', defaultPort: 22, icon: 'terminal', remoteFs: true }];
+    return protocolsCache;
   }
+}
+
+export function invalidateProtocolsCache(): void {
+  protocolsCache = null;
 }
 
 export async function listPlugins(): Promise<PluginInfo[]> {
@@ -1119,7 +1164,9 @@ export async function installPlugin(
     throw new Error('Plugin install is unavailable');
   }
   try {
-    return await app.InstallPlugin(sourceDir, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
+    const result = await app.InstallPlugin(sourceDir, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
+    invalidateProtocolsCache();
+    return result;
   } catch (e) {
     handleError(e, 'Install plugin');
     throw e;

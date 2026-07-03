@@ -195,7 +195,7 @@ func (s *AuditService) RecordCommand(ctx context.Context, sessionID, line string
 		if settings.ShowConnection {
 			connectionName = conn.Name
 			h := conn.EffectiveHost()
-			p := conn.EffectivePort()
+			p := conn.EffectivePort(nil)
 			if h != "" {
 				if p > 0 {
 					host = fmt.Sprintf("%s:%d", h, p)

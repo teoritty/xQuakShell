@@ -13,8 +13,9 @@ func CloneVaultData(in *VaultData) *VaultData {
 		Identities:  cloneIdentities(in.Identities),
 		KeyBlobs:    cloneKeyBlobs(in.KeyBlobs),
 		KnownHosts:  cloneStrings(in.KnownHosts),
-		Passwords:   clonePasswords(in.Passwords),
-		Settings:    CloneAppSettings(in.Settings),
+		Passwords:     clonePasswords(in.Passwords),
+		PluginSecrets: clonePluginSecrets(in.PluginSecrets),
+		Settings:      CloneAppSettings(in.Settings),
 	}
 	return out
 }
@@ -47,6 +48,12 @@ func CloneConnection(in Connection) Connection {
 	out.Users = cloneConnectionUsers(in.Users)
 	out.Tags = cloneStrings(in.Tags)
 	out.JumpChain = cloneJumpChain(in.JumpChain)
+	if in.PluginFields != nil {
+		out.PluginFields = make(map[string]string, len(in.PluginFields))
+		for k, v := range in.PluginFields {
+			out.PluginFields[k] = v
+		}
+	}
 	return out
 }
 
@@ -134,6 +141,17 @@ func clonePasswords(in map[string]PasswordBlob) map[string]PasswordBlob {
 			Value: cloneBytes(v.Value),
 			Label: v.Label,
 		}
+	}
+	return out
+}
+
+func clonePluginSecrets(in map[string][]byte) map[string][]byte {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string][]byte, len(in))
+	for k, v := range in {
+		out[k] = cloneBytes(v)
 	}
 	return out
 }

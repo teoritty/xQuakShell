@@ -27,6 +27,7 @@ const sshDraft: ConnectionDetailsDraft = {
     { id: 'hop-persist-123', host: 'bastion2', port: 2222, username: 'jump2', authMethod: 'key' },
     { id: '', host: '', port: 22, username: '', authMethod: 'key' },
   ],
+  pluginFields: {},
 };
 
 assert(isDraftHopUiId('draft-hop-123'), 'draft-hop ids are UI-only');
