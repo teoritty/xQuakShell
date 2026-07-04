@@ -440,7 +440,7 @@ export async function sendTerminalInput(sessionId: string, data: string, command
   try {
     await app.SendTerminalInput(sessionId, data, commandLine);
   } catch (e) {
-    // terminal input errors are not shown in error dialog to avoid spam
+    console.debug('[terminal input]', sessionId, e);
   }
 }
 
