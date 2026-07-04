@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 
-import { getPluginContributions, type PluginContributions } from './api';
+import { getPluginContributions, invalidateProtocolsCache, refreshConnectionProtocols, type PluginContributions } from './api';
 
 
 
@@ -39,6 +39,8 @@ export function initPluginContributionEvents(): void {
   rt.EventsOn('PluginContributionsChanged', () => {
 
     void refreshPluginContributions();
+    invalidateProtocolsCache();
+    void refreshConnectionProtocols();
 
   });
 

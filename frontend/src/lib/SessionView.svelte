@@ -5,23 +5,18 @@
   import LocalFileTree from './LocalFileTree.svelte';
   import TransferPanel from './TransferPanel.svelte';
   import type { Session } from '../stores/appState';
-  import { closeSession, openSession, uploadFile, downloadFile, getPluginConnectionProtocols, type ConnectionProtocol } from '../stores/api';
-  import { onMount } from 'svelte';
+  import { closeSession, openSession, uploadFile, downloadFile, connectionProtocols } from '../stores/api';
   import { Loader2, XCircle, Circle } from 'lucide-svelte';
 
   export let session: Session;
   export let active: boolean = false;
 
-  let protocols: ConnectionProtocol[] = [];
   let splitRatio = 70;
   let isDragging = false;
   let fileSplitRatio = 50;
   let fileDragging = false;
 
-  onMount(async () => {
-    protocols = await getPluginConnectionProtocols();
-  });
-
+  $: protocols = $connectionProtocols;
   $: currentProtocol = protocols.find((p) => p.id === (session.protocol || 'ssh')) ?? null;
   $: showFilePanel = session.state === 'ready' && (session.protocol === 'ssh' || currentProtocol?.remoteFs === true);
 

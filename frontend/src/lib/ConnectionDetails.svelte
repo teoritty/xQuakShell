@@ -1,7 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { detailsConnection, detailsConnectionId, identities } from '../stores/appState';
-  import { saveConnection, getPluginConnectionProtocols, type ConnectionProtocol } from '../stores/api';
+  import {
+    saveConnection,
+    connectionProtocols,
+    connectionProtocolCatalogKey,
+    refreshConnectionProtocols,
+  } from '../stores/api';
   import ConnectionDetailsHeader from './connectionDetails/ConnectionDetailsHeader.svelte';
   import ConnectionBaseFields from './connectionDetails/ConnectionBaseFields.svelte';
   import ConnectionTags from './connectionDetails/ConnectionTags.svelte';
@@ -47,25 +52,32 @@
     jumpHops: [],
     pluginFields: {},
   };
-  let protocols: ConnectionProtocol[] = [{ id: 'ssh', label: 'SSH', defaultPort: 22, icon: 'terminal', remoteFs: true }];
   let fieldErrors: Record<string, string> = {};
   let dirty = false;
   let saveStatus: SaveStatus = 'idle';
   let addingTag = false;
   let newTagValue = '';
+  let boundCatalogKey = '';
   const autosaveState = createAutosaveTimerState();
 
+  $: protocols = $connectionProtocols;
+  $: protocolCatalogKey = connectionProtocolCatalogKey(protocols);
   $: connId = $detailsConnection?.id || '';
   $: isSSH = draft.protocol === 'ssh';
   $: currentProtocol = protocols.find((p) => p.id === draft.protocol) ?? null;
   $: isPluginProtocol = !!currentProtocol?.fields?.length;
+  $: protocolFormKey = `${connId}:${draft.protocol}:${protocolCatalogKey}`;
 
-  onMount(async () => {
-    protocols = await getPluginConnectionProtocols();
+  onMount(() => {
+    void refreshConnectionProtocols();
   });
 
   $: if (connId !== draft.editingId) {
     loadFromStore();
+    boundCatalogKey = protocolCatalogKey;
+  } else if (connId && protocolCatalogKey !== boundCatalogKey) {
+    boundCatalogKey = protocolCatalogKey;
+    resyncProtocolCatalog();
   }
 
   function loadFromStore() {
@@ -151,6 +163,16 @@
       }
     }
     draft.pluginFields = { ...draft.pluginFields };
+  }
+
+  function resyncProtocolCatalog() {
+    if (draft.protocol === 'ssh') return;
+    const c = $detailsConnection;
+    if (c && !c.port) {
+      draft.port = resolveDefaultPort(c.protocol || 'ssh', protocols, c.port);
+    }
+    applyProtocolFieldDefaults();
+    draft = { ...draft };
   }
 
   function handleFieldChange() {
@@ -241,36 +263,38 @@
       on:newtagvaluechange={(e) => { newTagValue = e.detail; }}
     />
 
-    {#if isSSH}
-      <ConnectionUsers
-        users={draft.users}
-        defaultUserId={draft.defaultUserId}
-        identities={$identities}
-        on:dirty={markDirty}
-        on:userschange={(e) => setDraftUsers(e.detail)}
-        on:defaultuserchange={(e) => { draft.defaultUserId = e.detail; }}
-        on:keyimport={(e) => onUserKeyImport(e.detail)}
-        on:keyremove={onUserKeyRemove}
-        on:passwordchange={onUserPasswordChange}
-      />
+    {#key protocolFormKey}
+      {#if isSSH}
+        <ConnectionUsers
+          users={draft.users}
+          defaultUserId={draft.defaultUserId}
+          identities={$identities}
+          on:dirty={markDirty}
+          on:userschange={(e) => setDraftUsers(e.detail)}
+          on:defaultuserchange={(e) => { draft.defaultUserId = e.detail; }}
+          on:keyimport={(e) => onUserKeyImport(e.detail)}
+          on:keyremove={onUserKeyRemove}
+          on:passwordchange={onUserPasswordChange}
+        />
 
-      <JumpHosts
-        jumpHops={draft.jumpHops}
-        identities={$identities}
-        on:dirty={markDirty}
-        on:hopschange={(e) => setDraftHops(e.detail)}
-        on:keyimport={(e) => onHopKeyImport(e.detail)}
-        on:keyremove={onHopKeyRemove}
-        on:passwordchange={onHopPasswordChange}
-      />
-    {:else if isPluginProtocol && currentProtocol?.fields}
-      <PluginConnectionFields
-        groups={currentProtocol.fields}
-        bind:values={draft.pluginFields}
-        bind:errors={fieldErrors}
-        on:fieldchange={handleFieldChange}
-      />
-    {/if}
+        <JumpHosts
+          jumpHops={draft.jumpHops}
+          identities={$identities}
+          on:dirty={markDirty}
+          on:hopschange={(e) => setDraftHops(e.detail)}
+          on:keyimport={(e) => onHopKeyImport(e.detail)}
+          on:keyremove={onHopKeyRemove}
+          on:passwordchange={onHopPasswordChange}
+        />
+      {:else if isPluginProtocol && currentProtocol?.fields}
+        <PluginConnectionFields
+          groups={currentProtocol.fields}
+          bind:values={draft.pluginFields}
+          bind:errors={fieldErrors}
+          on:fieldchange={handleFieldChange}
+        />
+      {/if}
+    {/key}
   </div>
 </div>
 {/if}
