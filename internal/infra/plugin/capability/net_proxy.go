@@ -6,10 +6,12 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -188,7 +190,9 @@ func (p *NetProxy) Close(params json.RawMessage) (json.RawMessage, error) {
 }
 
 // Read reads bytes from a handle owned by this plugin process.
-func (p *NetProxy) Read(params json.RawMessage) (json.RawMessage, error) {
+// Idle connections (no bytes yet) return an empty success so interactive
+// protocols can poll without treating RPC or socket timeouts as disconnect.
+func (p *NetProxy) Read(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
 	var req netReadParams
 	if err := json.Unmarshal(params, &req); err != nil {
 		return nil, fmt.Errorf("invalid net.read params: %w", err)
@@ -206,19 +210,63 @@ func (p *NetProxy) Read(params json.RawMessage) (json.RawMessage, error) {
 		return nil, err
 	}
 
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	buf := make([]byte, maxBytes)
-	if err := conn.SetReadDeadline(time.Now().Add(domainplugin.NetDialTimeout)); err != nil {
-		return nil, fmt.Errorf("net.read: %w", err)
+	type readResult struct {
+		n   int
+		err error
 	}
-	n, readErr := conn.Read(buf)
-	if readErr != nil && readErr != io.EOF {
-		return nil, fmt.Errorf("net.read: %w", readErr)
+	ch := make(chan readResult, 1)
+	go func() {
+		// Established TCP: block until data arrives or the connection closes.
+		_ = conn.SetReadDeadline(time.Time{})
+		n, readErr := conn.Read(buf)
+		ch <- readResult{n: n, err: readErr}
+	}()
+
+	select {
+	case <-ctx.Done():
+		_ = conn.SetReadDeadline(time.Now())
+		res := <-ch
+		if res.n > 0 {
+			return json.Marshal(netReadResult{
+				ContentBase64: base64.StdEncoding.EncodeToString(buf[:res.n]),
+				EOF:           res.err == io.EOF,
+			})
+		}
+		return json.Marshal(netReadResult{ContentBase64: "", EOF: false})
+	case res := <-ch:
+		if res.err == io.EOF {
+			return json.Marshal(netReadResult{
+				ContentBase64: base64.StdEncoding.EncodeToString(buf[:res.n]),
+				EOF:           true,
+			})
+		}
+		if res.err != nil {
+			if isNetReadIdle(res.err) {
+				return json.Marshal(netReadResult{ContentBase64: "", EOF: false})
+			}
+			return nil, fmt.Errorf("net.read: %w", res.err)
+		}
+		return json.Marshal(netReadResult{
+			ContentBase64: base64.StdEncoding.EncodeToString(buf[:res.n]),
+			EOF:           false,
+		})
 	}
-	result := netReadResult{
-		ContentBase64: base64.StdEncoding.EncodeToString(buf[:n]),
-		EOF:           readErr == io.EOF,
+}
+
+func isNetReadIdle(err error) bool {
+	if err == nil {
+		return false
 	}
-	return json.Marshal(result)
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 // Write writes bytes to a handle owned by this plugin process.
@@ -242,7 +290,7 @@ func (p *NetProxy) Write(params json.RawMessage) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := conn.SetWriteDeadline(time.Now().Add(domainplugin.NetDialTimeout)); err != nil {
+	if err := conn.SetWriteDeadline(time.Now().Add(domainplugin.NetWriteTimeout)); err != nil {
 		return nil, fmt.Errorf("net.write: %w", err)
 	}
 	if _, err := conn.Write(data); err != nil {

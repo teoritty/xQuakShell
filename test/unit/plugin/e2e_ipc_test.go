@@ -52,7 +52,7 @@ func TestNetProxyHandleOwnership(t *testing.T) {
 	if err != domainplugin.ErrHandleNotFound {
 		t.Fatalf("expected ErrHandleNotFound, got %v", err)
 	}
-	_, err = proxy.Read(mustJSON(map[string]string{"handleId": "missing"}))
+	_, err = proxy.Read(context.Background(), mustJSON(map[string]string{"handleId": "missing"}))
 	if err != domainplugin.ErrHandleNotFound {
 		t.Fatalf("expected ErrHandleNotFound, got %v", err)
 	}

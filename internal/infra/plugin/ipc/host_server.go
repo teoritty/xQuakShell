@@ -9,6 +9,7 @@ import (
 	"time"
 
 	domainplugin "ssh-client/internal/domain/plugin"
+	"ssh-client/internal/infra/loghub"
 	"ssh-client/internal/infra/plugin/capability"
 )
 
@@ -107,7 +108,7 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 		if s.net == nil {
 			return nil, proxyUnavailableError(method)
 		}
-		result, err = s.net.Read(params)
+		result, err = s.net.Read(ctx, params)
 	case "net.write":
 		if s.net == nil {
 			return nil, proxyUnavailableError(method)
@@ -182,6 +183,14 @@ func (s *HostServer) handleLogWrite(params json.RawMessage) {
 	if payload.Level == "" && payload.Message == "" && len(payload.Fields) == 0 {
 		return
 	}
+	fields := map[string]string{}
+	for k, v := range payload.Fields {
+		fields[k] = v
+	}
+	if redacted {
+		fields["redacted"] = "true"
+	}
+	loghub.PublishPluginLog(s.pluginID, payload.Level, payload.Message, fields)
 	if redacted {
 		slog.Info("plugin log", "pluginId", s.pluginID, "level", payload.Level, "message", payload.Message, "fields", payload.Fields, "redacted", true)
 		return

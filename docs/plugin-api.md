@@ -425,6 +425,8 @@ Example response:
 |-------|-------|
 | Max concurrent handles per plugin process | 8 |
 | TCP dial timeout | 10 s |
+| TCP write timeout (established connection) | 10 s |
+| `net.read` on established connection | Blocks until data, RPC cancel, or close; idle/cancel returns empty bytes (not an error) |
 | Max bytes per `net.read` / `net.write` call | 256 KiB |
 | Supported network | `"tcp"` only |
 

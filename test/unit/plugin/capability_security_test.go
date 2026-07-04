@@ -1,6 +1,7 @@
 package plugin_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -58,7 +59,7 @@ func TestNetProxyAllowsExplicitHostPort(t *testing.T) {
 	if dialOut.HandleID == "" {
 		t.Fatal("expected handleId")
 	}
-	readRaw, err := proxy.Read(mustJSON(map[string]any{
+	readRaw, err := proxy.Read(context.Background(), mustJSON(map[string]any{
 		"handleId": dialOut.HandleID,
 	}))
 	if err != nil {
