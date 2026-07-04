@@ -154,7 +154,14 @@ func (c *Conn) readLoop() {
 				continue
 			}
 			if msg.Method != "" && c.onRequest != nil {
-				c.handleIncomingRequest(*msg.ID, msg.Method, msg.Params)
+				c.wg.Add(1)
+				reqID := *msg.ID
+				reqMethod := msg.Method
+				reqParams := append(json.RawMessage(nil), msg.Params...)
+				go func() {
+					defer c.wg.Done()
+					c.handleIncomingRequest(reqID, reqMethod, reqParams)
+				}()
 				continue
 			}
 		}

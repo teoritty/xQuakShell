@@ -143,6 +143,10 @@ func (p *NetProxy) Dial(params json.RawMessage) (json.RawMessage, error) {
 			_ = conn.Close()
 			continue
 		}
+		if tc, ok := conn.(*net.TCPConn); ok {
+			_ = tc.SetKeepAlive(true)
+			_ = tc.SetKeepAlivePeriod(30 * time.Second)
+		}
 
 		handleID, err := newNetHandleID()
 		if err != nil {
