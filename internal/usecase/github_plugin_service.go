@@ -259,7 +259,7 @@ func (s *GitHubPluginService) downloadBinary(
 func findTempRoot(path string) string {
 	dir := filepath.Dir(path)
 	for i := 0; i < 5; i++ {
-		if strings.Contains(dir, "xqs-plugin-") || strings.Contains(dir, "xqs-github-stage-") {
+		if strings.Contains(dir, "xqsp-") || strings.Contains(dir, "xqs-github-stage-") {
 			return dir
 		}
 		parent := filepath.Dir(dir)

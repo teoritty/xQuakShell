@@ -35,7 +35,7 @@ func (d *BinaryDownloader) DownloadBinary(
 	ctx context.Context,
 	owner, repo, tag, assetName, expectedChecksum string,
 ) (string, error) {
-	tempDir, err := os.MkdirTemp(d.tempDir, "xqs-plugin-*")
+	tempDir, err := os.MkdirTemp(d.tempDir, "xqsp-*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp dir: %w", err)
 	}

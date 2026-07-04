@@ -630,7 +630,7 @@
 
   <p class="section-desc">
 
-    Manage out-of-process plugins. Install from a folder or a signed `.xqs-plugin` bundle.
+    Manage out-of-process plugins. Install from a folder or a signed `.xqsp` bundle.
 
   </p>
 

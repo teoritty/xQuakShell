@@ -12,7 +12,7 @@ import (
 
 func TestBundleExtractRejectsZipSlip(t *testing.T) {
 	dir := t.TempDir()
-	bundlePath := filepath.Join(dir, "evil.xqs-plugin")
+	bundlePath := filepath.Join(dir, "evil.xqsp")
 
 	zf, err := os.Create(bundlePath)
 	if err != nil {
@@ -41,7 +41,7 @@ func TestBundleExtractRejectsZipSlip(t *testing.T) {
 
 func TestBundleExtractRejectsDotDotSegment(t *testing.T) {
 	dir := t.TempDir()
-	bundlePath := filepath.Join(dir, "dots.xqs-plugin")
+	bundlePath := filepath.Join(dir, "dots.xqsp")
 
 	zf, err := os.Create(bundlePath)
 	if err != nil {
@@ -81,7 +81,7 @@ func TestBundleExtractRejectsMissingChecksumsOnRequire(t *testing.T) {
 
 func TestBundleExtractRejectsTooManyEntries(t *testing.T) {
 	dir := t.TempDir()
-	bundlePath := filepath.Join(dir, "big.xqs-plugin")
+	bundlePath := filepath.Join(dir, "big.xqsp")
 
 	zf, err := os.Create(bundlePath)
 	if err != nil {

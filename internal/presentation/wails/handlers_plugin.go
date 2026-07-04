@@ -107,7 +107,7 @@ func (a *AppAPI) SelectPluginSourceDir() (string, error) {
 	})
 }
 
-// SelectPluginBundleFile opens a file picker for .xqs-plugin bundles.
+// SelectPluginBundleFile opens a file picker for .xqsp bundles.
 func (a *AppAPI) SelectPluginBundleFile() (string, error) {
 	if a.ctx == nil {
 		return "", fmt.Errorf("no wails context")
@@ -115,7 +115,7 @@ func (a *AppAPI) SelectPluginBundleFile() (string, error) {
 	return wailsrt.OpenFileDialog(a.ctx, wailsrt.OpenDialogOptions{
 		Title: "Select Plugin Bundle",
 		Filters: []wailsrt.FileFilter{
-			{DisplayName: "xQuakShell Plugin (*.xqs-plugin)", Pattern: "*.xqs-plugin"},
+			{DisplayName: "xQuakShell Plugin (*.xqsp)", Pattern: "*.xqsp"},
 			{DisplayName: "All Files (*.*)", Pattern: "*.*"},
 		},
 	})

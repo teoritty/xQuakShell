@@ -271,7 +271,7 @@ Trusted publisher public keys are configured in application settings. Unsigned p
 
 ## Bundle format
 
-`.xqs-plugin` files are ZIP archives. Include `SHA256SUMS` with SHA-256 hashes of all files except the checksums file itself.
+`.xqsp` files are ZIP archives. Include `SHA256SUMS` with SHA-256 hashes of all files except the checksums file itself.
 
 Bundled and user-installed plugins **should** ship with a valid `SHA256SUMS` file. Discovery validates checksums when the file is present; signed plugins **require** `SHA256SUMS` for signature verification. Unsigned dev plugins may omit checksums.
 

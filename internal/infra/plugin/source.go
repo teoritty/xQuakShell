@@ -10,7 +10,7 @@ import (
 	"ssh-client/internal/infra/portable"
 )
 
-// LoadPluginSource loads a plugin directory or .xqs-plugin bundle.
+// LoadPluginSource loads a plugin directory or .xqsp bundle.
 func LoadPluginSource(path string) (domainplugin.InstalledPlugin, error) {
 	res, err := loadSource(path)
 	if err != nil {
@@ -20,7 +20,7 @@ func LoadPluginSource(path string) (domainplugin.InstalledPlugin, error) {
 	return res.plugin, nil
 }
 
-// InstallFromSource installs a plugin from a directory or .xqs-plugin bundle.
+// InstallFromSource installs a plugin from a directory or .xqsp bundle.
 func InstallFromSource(sourcePath, dataRoot string) (domainplugin.InstalledPlugin, error) {
 	res, err := loadSource(sourcePath)
 	if err != nil {
@@ -89,7 +89,7 @@ func loadSource(path string) (loadedSource, error) {
 		if err := os.MkdirAll(tempBase, 0o700); err != nil {
 			return loadedSource{}, fmt.Errorf("create portable temp dir: %w", err)
 		}
-		tempDir, err := os.MkdirTemp(tempBase, "xqs-plugin-*")
+		tempDir, err := os.MkdirTemp(tempBase, "xqsp-*")
 		if err != nil {
 			return loadedSource{}, err
 		}

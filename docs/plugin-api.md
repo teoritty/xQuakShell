@@ -25,7 +25,7 @@ See [plugin-manifest.md](./plugin-manifest.md) for the full schema.
 
 Required fields: `id`, `name`, `version`, `engine.type` (`go-binary`), `engine.entry`.
 
-## Bundles (`.xqs-plugin`)
+## Bundles (`.xqsp`)
 
 A bundle is a ZIP archive containing:
 
@@ -33,7 +33,7 @@ A bundle is a ZIP archive containing:
 - plugin binary and assets
 - `SHA256SUMS` (SHA-256 hashes of all files except the checksums file itself)
 
-Install via **Settings → Plugins → Install folder…** or **Install bundle…** (`.xqs-plugin` file).
+Install via **Settings → Plugins → Install folder…** or **Install bundle…** (`.xqsp` file).
 
 Installed plugins are copied to `data/plugins/<id>/` under the xQuakShell executable directory (ADR-006 portable layout).
 
@@ -55,7 +55,7 @@ See [security-model.md](./security-model.md) for the full threat model.
 1. Generate an Ed25519 publisher key pair (base64-encoded private key file).
 2. Write `SHA256SUMS` covering all plugin files (normalized LF line endings).
 3. Sign the manifest: Ed25519 over canonical JSON `{manifest, checksumsSha256}` where `checksumsSha256` is the hex SHA-256 of normalized `SHA256SUMS` bytes. Store the signature in `plugin.json` → `signature`.
-4. Pack files into a `.xqs-plugin` ZIP archive including `SHA256SUMS`.
+4. Pack files into a `.xqsp` ZIP archive including `SHA256SUMS`.
 5. Add the publisher public key (base64 Ed25519) to **Settings → Plugins → Trusted publishers** in xQuakShell.
 
 ## IPC overview

@@ -19,7 +19,7 @@ import (
 
 const (
 	// Extension is the plugin bundle file suffix.
-	Extension = ".xqs-plugin"
+	Extension = ".xqsp"
 	// ChecksumsFile lists SHA-256 hashes of bundle contents.
 	ChecksumsFile = "SHA256SUMS"
 )
@@ -54,7 +54,7 @@ type fileHash struct {
 	hash string
 }
 
-// Pack creates a .xqs-plugin zip from sourceDir including SHA256SUMS.
+// Pack creates a .xqsp zip from sourceDir including SHA256SUMS.
 func Pack(sourceDir, outPath string) error {
 	sourceDir, err := filepath.Abs(sourceDir)
 	if err != nil {
@@ -88,7 +88,7 @@ func Pack(sourceDir, outPath string) error {
 	return zw.Close()
 }
 
-// Extract unpacks a .xqs-plugin archive into destDir with zip-slip and zip-bomb guards.
+// Extract unpacks a .xqsp archive into destDir with zip-slip and zip-bomb guards.
 func Extract(bundlePath, destDir string) error {
 	r, err := zip.OpenReader(bundlePath)
 	if err != nil {

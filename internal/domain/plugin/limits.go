@@ -10,7 +10,7 @@ const (
 	// MaxFileBytes is the maximum sandboxed file size reachable via chunked I/O.
 	MaxFileBytes = 16 << 20
 
-	// MaxBundleUncompressedBytes is the total uncompressed size limit for .xqs-plugin archives.
+	// MaxBundleUncompressedBytes is the total uncompressed size limit for .xqsp archives.
 	MaxBundleUncompressedBytes = 64 << 20
 	// MaxBundleEntryCount is the maximum number of files in a plugin bundle.
 	MaxBundleEntryCount = 4096

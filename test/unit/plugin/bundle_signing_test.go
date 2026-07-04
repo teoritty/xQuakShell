@@ -295,7 +295,7 @@ func TestBundlePackValidateExtract(t *testing.T) {
 	dir := t.TempDir()
 	writeTestPluginTree(t, dir)
 
-	out := filepath.Join(t.TempDir(), "test.xqs-plugin")
+	out := filepath.Join(t.TempDir(), "test.xqsp")
 	if err := bundle.Pack(dir, out); err != nil {
 		t.Fatal(err)
 	}
