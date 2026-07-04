@@ -267,24 +267,15 @@ When present, `signature` is base64 Ed25519 over a canonical JSON **envelope** t
 
 Trusted publisher public keys are configured in application settings. Unsigned plugins can still be installed with explicit user confirmation unless **Require signed plugins** is enabled.
 
-**Signing order for authors:** generate checksums first, then sign:
-
-```bash
-xqs-plugin checksums -dir .
-xqs-plugin sign -dir . -key publisher.key
-```
+**Signing order for authors:** write `SHA256SUMS` first (hashes of all plugin files except the checksums file), then sign the manifest envelope `{manifest, checksumsSha256}`.
 
 ## Bundle format
 
-`.xqs-plugin` files are ZIP archives. `xqs-plugin pack` adds `SHA256SUMS` with SHA-256 hashes of all files except the checksums file itself.
+`.xqs-plugin` files are ZIP archives. Include `SHA256SUMS` with SHA-256 hashes of all files except the checksums file itself.
 
 Bundled and user-installed plugins **should** ship with a valid `SHA256SUMS` file. Discovery validates checksums when the file is present; signed plugins **require** `SHA256SUMS` for signature verification. Unsigned dev plugins may omit checksums.
 
-Generate or refresh checksums after changing plugin files:
-
-```bash
-xqs-plugin checksums -dir .
-```
+Refresh `SHA256SUMS` after changing plugin files (before signing or packing).
 
 ## Validation rules
 

@@ -1,4 +1,5 @@
-package pluginsdk
+// Package pluginhost provides a minimal JSON-RPC loop for integration test plugins.
+package pluginhost
 
 import (
 	"bufio"
@@ -14,13 +15,11 @@ import (
 	"time"
 )
 
-const jsonRPCVersion = "2.0"
-
-// DefaultCallTimeout is the default deadline for plugin→core RPC calls.
-const DefaultCallTimeout = 5 * time.Second
-
-// MaxFrameBytes limits NDJSON RPC frame size (matches core ipc codec).
-const MaxFrameBytes = 256 << 10
+const (
+	jsonRPCVersion   = "2.0"
+	defaultCallTimeout = 5 * time.Second
+	maxFrameBytes    = 256 << 10
+)
 
 // Message is a JSON-RPC 2.0 frame.
 type Message struct {
@@ -47,15 +46,15 @@ type NotificationHandler func(params json.RawMessage)
 
 // Host runs the plugin-side JSON-RPC loop on stdin/stdout.
 type Host struct {
-	in           *bufio.Reader
-	out          *jsonWriter
-	handlers     map[string]Handler
-	notify       map[string]NotificationHandler
-	pending      map[int64]chan Message
-	nextID       atomic.Int64
-	pendingMu    sync.Mutex
-	closeCh      chan struct{}
-	wg           sync.WaitGroup
+	in        *bufio.Reader
+	out       *jsonWriter
+	handlers  map[string]Handler
+	notify    map[string]NotificationHandler
+	pending   map[int64]chan Message
+	nextID    atomic.Int64
+	pendingMu sync.Mutex
+	closeCh   chan struct{}
+	wg        sync.WaitGroup
 }
 
 // NewHost creates a plugin host using os.Stdin and os.Stdout.
@@ -88,9 +87,9 @@ func (h *Host) RegisterNotification(method string, handler NotificationHandler) 
 	h.notify[method] = handler
 }
 
-// CallCore sends a JSON-RPC request to the core host with DefaultCallTimeout.
+// CallCore sends a JSON-RPC request to the core host.
 func (h *Host) CallCore(method string, params any) (json.RawMessage, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), DefaultCallTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultCallTimeout)
 	defer cancel()
 	return h.CallCoreContext(ctx, method, params)
 }
@@ -138,20 +137,10 @@ func (h *Host) CallCoreContext(ctx context.Context, method string, params any) (
 			return nil, fmt.Errorf("host connection closed")
 		}
 		if msg.Error != nil {
-			return nil, &CoreError{Code: msg.Error.Code, Message: msg.Error.Message, Data: msg.Error.Data}
+			return nil, fmt.Errorf("rpc error %d: %s", msg.Error.Code, msg.Error.Message)
 		}
 		return msg.Result, nil
 	}
-}
-
-// OnDeactivate registers a host notification handler for deactivate.
-func (h *Host) OnDeactivate(handler NotificationHandler) {
-	h.RegisterNotification("deactivate", handler)
-}
-
-// OnShutdown registers the shutdown RPC handler invoked by the core before stdin close.
-func (h *Host) OnShutdown(handler Handler) {
-	h.Register("shutdown", handler)
 }
 
 // Run blocks until stdin closes.
@@ -248,8 +237,8 @@ func (jw *jsonWriter) WriteMessage(msg Message) error {
 	if err != nil {
 		return err
 	}
-	if len(data) > MaxFrameBytes {
-		return fmt.Errorf("rpc frame exceeds %d bytes", MaxFrameBytes)
+	if len(data) > maxFrameBytes {
+		return fmt.Errorf("rpc frame exceeds %d bytes", maxFrameBytes)
 	}
 	if _, err := jw.w.Write(data); err != nil {
 		return err
@@ -263,8 +252,8 @@ func readMessage(r *bufio.Reader) (Message, error) {
 	for {
 		fragment, err := r.ReadSlice('\n')
 		line = append(line, fragment...)
-		if len(line) > MaxFrameBytes {
-			return Message{}, fmt.Errorf("rpc frame exceeds %d bytes", MaxFrameBytes)
+		if len(line) > maxFrameBytes {
+			return Message{}, fmt.Errorf("rpc frame exceeds %d bytes", maxFrameBytes)
 		}
 		if err == nil {
 			break
@@ -288,43 +277,4 @@ var errParseError = errors.New("jsonrpc parse error")
 
 func isParseError(err error) bool {
 	return errors.Is(err, errParseError)
-}
-
-// InitializeParams mirrors the core initialize payload.
-type InitializeParams struct {
-	PluginID     string          `json:"pluginId"`
-	APIVersion   string          `json:"apiVersion"`
-	Capabilities json.RawMessage `json:"capabilities"`
-	DataDir      string          `json:"dataDir"`
-	CoreVersion  string          `json:"coreVersion"`
-}
-
-// SessionConnectParams is sent from core on session.connect.
-type SessionConnectParams struct {
-	SessionID    string            `json:"sessionId"`
-	ConnectionID string            `json:"connectionId"`
-	Protocol     string            `json:"protocol"`
-	Host         string            `json:"host"`
-	Port         int               `json:"port"`
-	Username     string            `json:"username,omitempty"`
-	Fields       map[string]string `json:"fields,omitempty"`
-}
-
-// SessionUpdateParams updates session state in the core.
-type SessionUpdateParams struct {
-	SessionID string `json:"sessionId"`
-	State     string `json:"state"`
-	Error     string `json:"error,omitempty"`
-}
-
-// SessionTerminalParams sends terminal output to the core UI.
-type SessionTerminalParams struct {
-	SessionID    string `json:"sessionId"`
-	OutputBase64 string `json:"outputBase64"`
-}
-
-// ViewPostMessageParams sends a message from plugin to a view panel.
-type ViewPostMessageParams struct {
-	PanelID string `json:"panelId"`
-	Message any    `json:"message"`
 }

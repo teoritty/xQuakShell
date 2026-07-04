@@ -118,7 +118,7 @@ Authorization for vault and session data is enforced in the **usecase** layer:
 - `passphrase` is returned only when the identity is encrypted **and** the host `PassphraseCache` holds the user-supplied value for that session.
 
 - Secret values are never written to audit or plugin logs.
-- Plugins should use structured `log.write` with a `fields` map (`pluginsdk.LogInfo`). Sensitive field keys (`password`, `secret`, `token`, `key`, …) are stripped at the IPC boundary.
+- Plugins should use structured `log.write` with a `fields` map. Sensitive field keys (`password`, `secret`, `token`, `key`, …) are stripped at the IPC boundary.
 - Free-text `message` values still pass through heuristic redaction as a fallback.
 
 

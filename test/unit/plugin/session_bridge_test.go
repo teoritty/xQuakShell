@@ -5,17 +5,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
 
 	"ssh-client/internal/domain"
 	infraplugin "ssh-client/internal/infra/plugin"
-	"ssh-client/internal/infra/plugin/bundle"
 	"ssh-client/internal/usecase"
 )
 
@@ -46,7 +42,7 @@ func (s *sessionCapture) snapshot() (states []string, output []byte) {
 }
 
 func TestDemoTerminalSessionConnect(t *testing.T) {
-	pluginDir := buildDemoTerminalPlugin(t)
+	pluginDir := buildFixturePlugin(t, "plugin-demo-terminal")
 
 	inbound := usecase.NewPluginSessionInbound()
 	capture := &sessionCapture{}
@@ -109,47 +105,6 @@ func TestDemoTerminalSessionConnect(t *testing.T) {
 
 	bridge.Disconnect(ctx, pluginID, sessionID)
 	manager.StopAll(ctx)
-}
-
-func buildDemoTerminalPlugin(t *testing.T) string {
-	t.Helper()
-	root := repoRoot(t)
-	pluginSrc := filepath.Join(root, "plugins", "demo-terminal")
-	outDir := t.TempDir()
-
-	binName := "demo-terminal"
-	if runtime.GOOS == "windows" {
-		binName += ".exe"
-	}
-	binPath := filepath.Join(outDir, binName)
-
-	cmd := exec.Command("go", "build", "-ldflags=-s -w", "-trimpath", "-o", binPath, "./plugins/demo-terminal")
-	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("build demo-terminal: %v\n%s", err, out)
-	}
-
-	manifestSrc := filepath.Join(pluginSrc, "plugin.json")
-	manifestData, err := os.ReadFile(manifestSrc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pluginInstallDir := filepath.Join(outDir, "demo-terminal")
-	if err := os.MkdirAll(pluginInstallDir, 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(pluginInstallDir, "plugin.json"), manifestData, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(pluginInstallDir, binName), readFile(t, binPath), 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err := bundle.WriteChecksums(pluginInstallDir); err != nil {
-		t.Fatal(err)
-	}
-	return pluginInstallDir
 }
 
 func waitUntil(t *testing.T, timeout time.Duration, ok func() bool) {

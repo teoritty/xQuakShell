@@ -50,6 +50,4 @@ require (
 	modernc.org/memory v1.11.0 // indirect
 )
 
-replace github.com/xquakshell/pluginsdk => ./pkg/pluginsdk
-
 // replace github.com/wailsapp/wails/v2 v2.11.0 => C:\Users\fedor\go\pkg\mod

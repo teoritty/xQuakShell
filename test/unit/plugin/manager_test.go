@@ -62,30 +62,38 @@ func TestPluginManagerEchoPing(t *testing.T) {
 
 func buildExampleEchoPlugin(t *testing.T) string {
 	t.Helper()
+	return buildFixturePlugin(t, "plugin-echo")
+}
+
+func buildFixturePlugin(t *testing.T, fixtureName string) string {
+	t.Helper()
 	root := repoRoot(t)
-	pluginSrc := filepath.Join(root, "plugins", "example-echo")
+	pluginSrc := filepath.Join(root, "test", "fixtures", fixtureName)
 	outDir := t.TempDir()
 
-	binName := "example-echo"
+	manifestData, err := os.ReadFile(filepath.Join(pluginSrc, "plugin.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest domainplugin.Manifest
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	binName := manifest.Engine.Entry
 	if runtime.GOOS == "windows" {
 		binName += ".exe"
 	}
 	binPath := filepath.Join(outDir, binName)
 
-	cmd := exec.Command("go", "build", "-ldflags=-s -w", "-trimpath", "-o", binPath, "./plugins/example-echo")
+	cmd := exec.Command("go", "build", "-ldflags=-s -w", "-trimpath", "-o", binPath, "./test/fixtures/"+fixtureName)
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("build example-echo: %v\n%s", err, out)
+		t.Fatalf("build %s: %v\n%s", fixtureName, err, out)
 	}
 
-	manifestSrc := filepath.Join(pluginSrc, "plugin.json")
-	manifestData, err := os.ReadFile(manifestSrc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pluginInstallDir := filepath.Join(outDir, "example-echo")
+	pluginInstallDir := filepath.Join(outDir, fixtureName)
 	if err := os.MkdirAll(pluginInstallDir, 0700); err != nil {
 		t.Fatal(err)
 	}
