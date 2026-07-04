@@ -10,15 +10,19 @@
   import ConnectionDetailsHeader from './connectionDetails/ConnectionDetailsHeader.svelte';
   import ConnectionBaseFields from './connectionDetails/ConnectionBaseFields.svelte';
   import ConnectionTags from './connectionDetails/ConnectionTags.svelte';
-  import ConnectionUsers from './connectionDetails/ConnectionUsers.svelte';
-  import JumpHosts from './connectionDetails/JumpHosts.svelte';
-  import PluginConnectionFields from './connectionDetails/PluginConnectionFields.svelte';
+  import ConnectionProtocolForm from './connectionDetails/ConnectionProtocolForm.svelte';
   import { connectionDraftStore } from '../stores/connectionDraft';
   import { get } from 'svelte/store';
   import {
     createDraftFromConnection,
     resolveDefaultPort,
   } from './connectionDetails/connectionDraft';
+  import {
+    applyProtocolFieldDefaults,
+    refreshFormModeFromDraft,
+    type ConnectionFormMode,
+  } from './connectionDetails/connectionFormMode';
+  import type { ConnectionProtocol } from '../stores/api';
   import { buildConnectionSavePayload } from './connectionDetails/savePayload';
   import { adoptPersistedHopIds } from './connectionDetails/hopIds';
   import {
@@ -58,37 +62,46 @@
   let addingTag = false;
   let newTagValue = '';
   let boundCatalogKey = '';
+  let formMode: ConnectionFormMode = 'none';
+  let formProtocolDef: ConnectionProtocol | null = null;
   const autosaveState = createAutosaveTimerState();
 
   $: protocols = $connectionProtocols;
   $: protocolCatalogKey = connectionProtocolCatalogKey(protocols);
   $: connId = $detailsConnection?.id || '';
-  $: isSSH = draft.protocol === 'ssh';
-  $: currentProtocol = protocols.find((p) => p.id === draft.protocol) ?? null;
-  $: isPluginProtocol = !!currentProtocol?.fields?.length;
-  $: protocolFormKey = `${connId}:${draft.protocol}:${protocolCatalogKey}`;
+  $: formSectionKey = `${connId}:${formMode}:${protocolCatalogKey}`;
 
   onMount(() => {
     void refreshConnectionProtocols();
   });
 
-  $: if (connId !== draft.editingId) {
-    loadFromStore();
+  $: if (connId && connId !== draft.editingId) {
+    syncDraftFromConnection();
     boundCatalogKey = protocolCatalogKey;
   } else if (connId && protocolCatalogKey !== boundCatalogKey) {
     boundCatalogKey = protocolCatalogKey;
     resyncProtocolCatalog();
   }
 
-  function loadFromStore() {
+  function updateFormMode() {
+    const next = refreshFormModeFromDraft(draft, protocols);
+    formMode = next.mode;
+    formProtocolDef = next.protocolDef;
+  }
+
+  function syncDraftFromConnection() {
     const c = $detailsConnection;
-    const defaultPort = resolveDefaultPort(c?.protocol || 'ssh', protocols, c?.port);
+    if (!c) return;
+
+    const defaultPort = resolveDefaultPort(c.protocol || 'ssh', protocols, c.port);
     draft = createDraftFromConnection(c, defaultPort);
-    applyProtocolFieldDefaults();
+    applyProtocolFieldDefaults(draft, draft.protocol, protocols);
+    updateFormMode();
     dirty = false;
     saveStatus = 'idle';
     addingTag = false;
     newTagValue = '';
+    fieldErrors = {};
     cancelPendingAutosave(autosaveState, { invalidate: true });
   }
 
@@ -149,29 +162,19 @@
     draft.protocol = e.detail.protocol;
     if (e.detail.defaultPort) draft.port = e.detail.defaultPort;
     draft.pluginFields = { ...(get(connectionDraftStore).protocolFieldHistory[e.detail.protocol] ?? {}) };
-    applyProtocolFieldDefaults();
+    applyProtocolFieldDefaults(draft, draft.protocol, protocols);
+    updateFormMode();
+    fieldErrors = {};
     markDirty();
   }
 
-  function applyProtocolFieldDefaults() {
-    if (!currentProtocol?.fields) return;
-    for (const group of currentProtocol.fields) {
-      for (const field of group.fields) {
-        if (draft.pluginFields[field.id] === undefined && field.default !== undefined) {
-          draft.pluginFields[field.id] = field.default;
-        }
-      }
-    }
-    draft.pluginFields = { ...draft.pluginFields };
-  }
-
   function resyncProtocolCatalog() {
-    if (draft.protocol === 'ssh') return;
     const c = $detailsConnection;
     if (c && !c.port) {
       draft.port = resolveDefaultPort(c.protocol || 'ssh', protocols, c.port);
     }
-    applyProtocolFieldDefaults();
+    applyProtocolFieldDefaults(draft, draft.protocol, protocols);
+    updateFormMode();
     draft = { ...draft };
   }
 
@@ -188,14 +191,7 @@
     markDirty();
   }
 
-  function onUserKeyRemove(e: CustomEvent<{ userId: string; keyId: string }>) {
-    const { userId, keyId } = e.detail;
-    draft.users = removeIdentityFromUser(draft.users, userId, keyId);
-    markDirty();
-  }
-
-  async function onUserPasswordChange(e: CustomEvent<{ userId: string; value: string }>) {
-    const { userId, value } = e.detail;
+  async function onUserPasswordChange(userId: string, value: string) {
     const editingId = draft.editingId;
     const pwId = await importPasswordIfChanged(value, `user-${userId}`);
     if (!pwId || draft.editingId !== editingId) return;
@@ -213,20 +209,43 @@
     markDirty();
   }
 
-  function onHopKeyRemove(e: CustomEvent<{ hopId: string; keyId: string }>) {
-    const { hopId, keyId } = e.detail;
-    draft.jumpHops = removeIdentityFromHop(draft.jumpHops, hopId, keyId);
-    markDirty();
-  }
-
-  async function onHopPasswordChange(e: CustomEvent<{ hopId: string; value: string }>) {
-    const { hopId, value } = e.detail;
+  async function onHopPasswordChange(hopId: string, value: string) {
     const editingId = draft.editingId;
     const pwId = await importPasswordIfChanged(value, `hop-${hopId}`);
     if (!pwId || draft.editingId !== editingId) return;
     if (!draft.jumpHops.some((h) => h.id === hopId)) return;
     draft.jumpHops = setHopPassword(draft.jumpHops, hopId, pwId);
     markDirty();
+  }
+
+  function onKeyImport(id: string) {
+    if (draft.users.some((u) => u.id === id)) {
+      void onUserKeyImport(id);
+      return;
+    }
+    void onHopKeyImport(id);
+  }
+
+  function onKeyRemove(detail: { userId?: string; hopId?: string; keyId: string }) {
+    if (detail.userId) {
+      draft.users = removeIdentityFromUser(draft.users, detail.userId, detail.keyId);
+      markDirty();
+      return;
+    }
+    if (detail.hopId) {
+      draft.jumpHops = removeIdentityFromHop(draft.jumpHops, detail.hopId, detail.keyId);
+      markDirty();
+    }
+  }
+
+  function onPasswordChange(detail: { userId?: string; hopId?: string; value: string }) {
+    if (detail.userId) {
+      void onUserPasswordChange(detail.userId, detail.value);
+      return;
+    }
+    if (detail.hopId) {
+      void onHopPasswordChange(detail.hopId, detail.value);
+    }
   }
 
   function setDraftUsers(users: ConnectionUser[]) {
@@ -263,37 +282,25 @@
       on:newtagvaluechange={(e) => { newTagValue = e.detail; }}
     />
 
-    {#key protocolFormKey}
-      {#if isSSH}
-        <ConnectionUsers
-          users={draft.users}
-          defaultUserId={draft.defaultUserId}
-          identities={$identities}
-          on:dirty={markDirty}
-          on:userschange={(e) => setDraftUsers(e.detail)}
-          on:defaultuserchange={(e) => { draft.defaultUserId = e.detail; }}
-          on:keyimport={(e) => onUserKeyImport(e.detail)}
-          on:keyremove={onUserKeyRemove}
-          on:passwordchange={onUserPasswordChange}
-        />
-
-        <JumpHosts
-          jumpHops={draft.jumpHops}
-          identities={$identities}
-          on:dirty={markDirty}
-          on:hopschange={(e) => setDraftHops(e.detail)}
-          on:keyimport={(e) => onHopKeyImport(e.detail)}
-          on:keyremove={onHopKeyRemove}
-          on:passwordchange={onHopPasswordChange}
-        />
-      {:else if isPluginProtocol && currentProtocol?.fields}
-        <PluginConnectionFields
-          groups={currentProtocol.fields}
-          bind:values={draft.pluginFields}
-          bind:errors={fieldErrors}
-          on:fieldchange={handleFieldChange}
-        />
-      {/if}
+    {#key formSectionKey}
+      <ConnectionProtocolForm
+        mode={formMode}
+        protocolDef={formProtocolDef}
+        users={draft.users}
+        defaultUserId={draft.defaultUserId}
+        jumpHops={draft.jumpHops}
+        identities={$identities}
+        pluginFields={draft.pluginFields}
+        {fieldErrors}
+        on:dirty={markDirty}
+        on:userschange={(e) => setDraftUsers(e.detail)}
+        on:defaultuserchange={(e) => { draft.defaultUserId = e.detail; }}
+        on:hopschange={(e) => setDraftHops(e.detail)}
+        on:keyimport={(e) => onKeyImport(e.detail)}
+        on:keyremove={(e) => onKeyRemove(e.detail)}
+        on:passwordchange={(e) => onPasswordChange(e.detail)}
+        on:fieldchange={handleFieldChange}
+      />
     {/key}
   </div>
 </div>

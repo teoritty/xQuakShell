@@ -28,11 +28,13 @@
 
 <label class="connection-detail-field">
   <span class="connection-detail-field-label">Protocol</span>
-  <select value={protocol} on:change={onProtocolChange}>
-    {#each protocols as p}
-      <option value={p.id}>{p.label}</option>
-    {/each}
-  </select>
+  {#key protocol}
+    <select value={protocol} on:change={onProtocolChange}>
+      {#each protocols as p}
+        <option value={p.id}>{p.label}</option>
+      {/each}
+    </select>
+  {/key}
 </label>
 
 <div class="connection-detail-field-row">
