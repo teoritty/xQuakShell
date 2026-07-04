@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy, onMount } from 'svelte';
   import Modal from './Modal.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import PluginSettingsPanel from './PluginSettingsPanel.svelte';
@@ -95,6 +96,20 @@
   let auditShowConnection = false;
   let auditLogSecrets = false;
   let auditSecretsConfirmShow = false;
+  let debugLogWindowEnabled = false;
+
+  onMount(() => {
+    const rt = (window as any).runtime;
+    if (!rt?.EventsOn) return;
+    return rt.EventsOn('DebugLogWindowChanged', (data: { enabled?: boolean }) => {
+      debugLogWindowEnabled = data?.enabled ?? false;
+    });
+  });
+
+  onDestroy(() => {
+    const rt = (window as any).runtime;
+    if (rt?.EventsOff) rt.EventsOff('DebugLogWindowChanged');
+  });
 
   const tabs: { id: SettingsTabId; label: string; icon: typeof Shield }[] = [
     { id: 'about', label: 'About', icon: Info },
@@ -113,7 +128,7 @@
   $: visibleTabs = isSearching
     ? tabs.filter((tab) => tabHasSearchMatches(tab.id, searchQuery))
     : tabs;
-  $: showSaveButton = !(!isSearching && (activeTab === 'about' || activeTab === 'plugins'));
+  $: showSaveButton = !(!isSearching && activeTab === 'plugins');
 
   let settingsWasOpen = false;
   $: if (show && !settingsWasOpen) {
@@ -181,6 +196,7 @@
       auditRetentionCount = s.auditRetentionCount ?? 100;
       auditShowUsername = s.auditShowUsername ?? false;
       auditShowConnection = s.auditShowConnection ?? false;
+      debugLogWindowEnabled = s.debugLogWindowEnabled ?? false;
     }
     const sessionState = await getAuditSessionState();
     auditLogSecrets = sessionState?.logSecretsEnabled ?? false;
@@ -287,6 +303,7 @@
       auditRetentionCount,
       auditShowUsername,
       auditShowConnection,
+      debugLogWindowEnabled,
     });
     window.dispatchEvent(new CustomEvent('app-settings-updated'));
     uiScaleAtOpen = uiScalePercent;
@@ -349,6 +366,20 @@
                   Report an Issue
                 </button>
               </div>
+            </div>
+          {/if}
+
+          {#if isSearching ? shouldShowSettingsSection('about', 'developer', searchViewState) : activeTab === 'about'}
+            {#if sectionTabLabel('about', 'developer')}
+              <div class="section-tab-label">{SETTINGS_TAB_LABELS.about}</div>
+            {/if}
+            <div class="section">
+              <h4>Developer</h4>
+              <p class="section-desc">Opens a separate window with live logs from the application core and installed plugins. The window closes when the app exits.</p>
+              <label class="checkbox-row">
+                <input type="checkbox" bind:checked={debugLogWindowEnabled} />
+                Open debug log window
+              </label>
             </div>
           {/if}
 

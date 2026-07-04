@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -9,12 +10,23 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
+
+	"ssh-client/internal/infra/loghub"
+	"ssh-client/internal/presentation/logwindow"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
+	if logwindow.IsViewerMode(os.Args) {
+		logwindow.RunViewerApp(os.Args, assets)
+		return
+	}
+
+	loghub.InstallDefault()
+	log.SetOutput(loghub.NewLineWriter())
+
 	app := NewApp()
 
 	windowsOpts := &windows.Options{

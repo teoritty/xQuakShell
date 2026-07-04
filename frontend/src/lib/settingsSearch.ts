@@ -23,6 +23,11 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
     terms: ['About', 'SSH Client', 'Version', 'Check for Updates', 'Report an Issue'],
   },
   {
+    tabId: 'about',
+    sectionId: 'developer',
+    terms: ['Developer', 'Debug log', 'Debug log window', 'Open debug log window', 'logs', 'console'],
+  },
+  {
     tabId: 'appearance',
     sectionId: 'theme',
     terms: ['Appearance', 'Theme', 'Dark', 'Light'],

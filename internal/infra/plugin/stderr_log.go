@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	domainplugin "ssh-client/internal/domain/plugin"
+	"ssh-client/internal/infra/loghub"
 )
 
 const stderrMaxLineBytes = 64 << 10
@@ -59,6 +60,7 @@ func (rs *redactingStderrWriter) consume(reader *io.PipeReader) {
 
 func (rs *redactingStderrWriter) logLine(line string) {
 	message, redacted := domainplugin.RedactLogMessage(line)
+	loghub.PublishPluginStderr(rs.pluginID, message, redacted)
 	if redacted {
 		slog.Info("plugin stderr", "pluginId", rs.pluginID, "message", message, "redacted", true)
 		return

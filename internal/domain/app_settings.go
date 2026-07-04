@@ -90,6 +90,16 @@ func DefaultEmbedSettings() EmbedSettings {
 	return EmbedSettings{}
 }
 
+// DebugSettings configures developer diagnostics.
+type DebugSettings struct {
+	LogWindowEnabled bool `json:"logWindowEnabled,omitempty"`
+}
+
+// DefaultDebugSettings returns default debug settings.
+func DefaultDebugSettings() DebugSettings {
+	return DebugSettings{}
+}
+
 // AppSettings stores user-configurable application settings inside the vault.
 type AppSettings struct {
 	Lockout            LockoutSettings        `json:"lockout"`
@@ -103,6 +113,7 @@ type AppSettings struct {
 	AuditLog           AuditLogSettings       `json:"auditLog"`
 	Plugins            PluginSettings         `json:"plugins"`
 	Embed              EmbedSettings          `json:"embed"`
+	Debug              DebugSettings          `json:"debug"`
 }
 
 // PluginSettings configures plugin trust and install policy.

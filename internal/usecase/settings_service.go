@@ -77,6 +77,7 @@ func defaultAppSettings() domain.AppSettings {
 		SessionHotkeys: hotkeys,
 		AuditLog:       domain.DefaultAuditLogSettings(),
 		UIScalePercent: 100,
+		Debug:          domain.DefaultDebugSettings(),
 	}
 }
 

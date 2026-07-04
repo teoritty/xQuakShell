@@ -42,6 +42,7 @@ func (a *AppAPI) SaveSettings(dto AppSettingsDTO) error {
 			}
 		})
 	}
+	a.SyncDebugLogWindow(settings.Debug.LogWindowEnabled)
 	return nil
 }
 

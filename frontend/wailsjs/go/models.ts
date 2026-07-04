@@ -41,6 +41,7 @@ export namespace wails {
 	    auditRetentionCount: number;
 	    auditShowUsername: boolean;
 	    auditShowConnection: boolean;
+	    debugLogWindowEnabled: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppSettingsDTO(source);
@@ -74,6 +75,7 @@ export namespace wails {
 	        this.auditRetentionCount = source["auditRetentionCount"];
 	        this.auditShowUsername = source["auditShowUsername"];
 	        this.auditShowConnection = source["auditShowConnection"];
+	        this.debugLogWindowEnabled = source["debugLogWindowEnabled"];
 	    }
 	}
 	export class AuditEntryDTO {

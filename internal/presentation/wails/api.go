@@ -8,6 +8,8 @@ import (
 
 	"ssh-client/internal/domain"
 	"ssh-client/internal/infra/auditlog"
+	"ssh-client/internal/infra/loghub"
+	"ssh-client/internal/presentation/logwindow"
 	"ssh-client/internal/usecase"
 )
 
@@ -37,6 +39,7 @@ type AppAPI struct {
 	pluginMultiSessionGrant       func(pluginID string) error
 	pluginArbitraryNetworkGrant   func(pluginID string) error
 	embedBridge         *usecase.PluginEmbedBridge
+	logWindow           *logwindow.Manager
 	ownerCache          map[string]map[string]string // sessionID -> uid->owner
 	groupCache          map[string]map[string]string // sessionID -> gid->group
 	ownerCacheMu        sync.Mutex
@@ -126,8 +129,32 @@ func NewAppAPI(
 
 	api.auditSvc = usecase.NewAuditService(auditLogRepo, api.settingsSvc, api.sessions, connRepo, trackerFactory, sanitizerFactory)
 	api.transferSvc = usecase.NewTransferService(api.sessions, api.settingsSvc, hostFS)
+	api.logWindow = logwindow.NewManager(loghub.Default(), api.settingsSvc, api.emitDebugLogWindowChanged)
 
 	return api
+}
+
+func (a *AppAPI) emitDebugLogWindowChanged(enabled bool) {
+	if a == nil || a.ctx == nil {
+		return
+	}
+	wailsrt.EventsEmit(a.ctx, EventDebugLogWindowChanged, map[string]bool{"enabled": enabled})
+}
+
+// SyncDebugLogWindow starts or stops the debug log viewer subprocess.
+func (a *AppAPI) SyncDebugLogWindow(enabled bool) {
+	if a == nil || a.logWindow == nil {
+		return
+	}
+	a.logWindow.SyncEnabled(context.Background(), enabled)
+}
+
+// StopDebugLogWindow closes the debug log viewer subprocess.
+func (a *AppAPI) StopDebugLogWindow() {
+	if a == nil || a.logWindow == nil {
+		return
+	}
+	a.logWindow.Stop()
 }
 
 // Sessions exposes the session manager for composition-root wiring.
@@ -184,6 +211,7 @@ func (a *AppAPI) SetContext(ctx context.Context) {
 // Shutdown cleans up all resources when the application closes.
 // Order: stop ping → stop lockout → close all sessions → lock vault → close audit log.
 func (a *AppAPI) Shutdown() {
+	a.StopDebugLogWindow()
 	if a.pingMgr != nil {
 		a.pingMgr.Stop()
 	}
@@ -262,6 +290,7 @@ func (a *AppAPI) UnlockVault(masterPassword string) error {
 				}
 			})
 		}
+		a.SyncDebugLogWindow(data.Settings.Debug.LogWindowEnabled)
 	}
 
 	if a.auditSvc != nil {
