@@ -77,6 +77,7 @@ func (m *PluginManager) List() []PluginInfo {
 			RequiresSecretAccess: p.Manifest.RequiresSecretAccess(),
 			Signed:               p.Manifest.Signature != "",
 			Enabled:              m.isPluginEnabled(p.Manifest.ID),
+			InstalledReleaseTag:  installedReleaseTag(p),
 		})
 	}
 	return result
@@ -93,6 +94,14 @@ type PluginInfo struct {
 	RequiresSecretAccess bool
 	Signed               bool
 	Enabled              bool
+	InstalledReleaseTag  string
+}
+
+func installedReleaseTag(p domainplugin.InstalledPlugin) string {
+	if p.InstallMeta == nil {
+		return ""
+	}
+	return p.InstallMeta.ReleaseTag
 }
 
 // EnsureRunning starts the plugin process if not already running (per-plugin isolation only).

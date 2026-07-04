@@ -151,6 +151,8 @@ type InstalledPlugin struct {
 	Manifest Manifest
 	RootDir  string
 	Source   InstallSource
+	// InstallMeta records provenance for user-installed plugins (e.g. GitHub release tag).
+	InstallMeta *PluginInstallMeta
 	// ChecksumsDigest is the hex-encoded SHA-256 digest of the bundle's SHA256SUMS file,
 	// computed at load time immediately after checksum validation (before any temp-dir cleanup).
 	// Empty when the bundle has no SHA256SUMS. Used to bind manifest signature verification

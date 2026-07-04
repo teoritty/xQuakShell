@@ -104,6 +104,13 @@ func loadPluginDir(dir string) (domainplugin.InstalledPlugin, error) {
 		return domainplugin.InstalledPlugin{}, fmt.Errorf("checksums digest: %w", err)
 	}
 
+	var installMeta *domainplugin.PluginInstallMeta
+	if meta, ok, metaErr := LoadInstallMeta(dir); metaErr != nil {
+		return domainplugin.InstalledPlugin{}, metaErr
+	} else if ok {
+		installMeta = &meta
+	}
+
 	entryPath, err := ResolveEngineEntryPath(dir, manifest.Engine.Entry)
 	if err != nil {
 		return domainplugin.InstalledPlugin{}, err
@@ -127,6 +134,7 @@ func loadPluginDir(dir string) (domainplugin.InstalledPlugin, error) {
 		Manifest:        manifest,
 		RootDir:         dir,
 		Source:          source,
+		InstallMeta:     installMeta,
 		ChecksumsDigest: checksumsDigest,
 	}, nil
 }

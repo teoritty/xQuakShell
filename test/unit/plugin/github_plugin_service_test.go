@@ -76,7 +76,7 @@ func TestFetchPluginMetadata_ReturnsMultipleReleases(t *testing.T) {
 	}
 	svc := usecase.NewGitHubPluginService(client, nil, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil, nil, t.TempDir())
 
-	meta, err := svc.FetchPluginMetadata(context.Background(), "https://github.com/user/repo")
+	meta, err := svc.FetchPluginMetadata(context.Background(), "https://github.com/user/repo", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -121,5 +121,131 @@ func TestInstallPluginFromGitHub_UsesSelectedReleaseTag(t *testing.T) {
 	}
 	if downloader.lastTag != "v1.0.0" {
 		t.Fatalf("expected download tag v1.0.0, got %q", downloader.lastTag)
+	}
+}
+
+func TestFetchPluginMetadata_ForceRefreshBypassesCache(t *testing.T) {
+	client := &recordingGitHubClient{
+		manifest: []byte(testManifest),
+		releases: []infragithub.Release{
+			{TagName: "v1.0.0", Assets: []infragithub.Asset{{Name: "demo-windows-amd64.exe"}}},
+		},
+	}
+	cache := infracache.NewMemoryCache(domainplugin.DefaultCacheTTL)
+	svc := usecase.NewGitHubPluginService(client, nil, nil, cache, nil, nil, t.TempDir())
+	ctx := context.Background()
+
+	first, err := svc.FetchPluginMetadata(ctx, "https://github.com/user/repo", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := svc.FetchPluginMetadata(ctx, "https://github.com/user/repo", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != second {
+		t.Fatal("expected cached metadata pointer reuse")
+	}
+
+	client.releases[0].TagName = "v2.0.0"
+	third, err := svc.FetchPluginMetadata(ctx, "https://github.com/user/repo", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if third.LatestRelease != "v2.0.0" {
+		t.Fatalf("expected refreshed latest release v2.0.0, got %q", third.LatestRelease)
+	}
+}
+
+func TestValidateReleaseTag_RejectsUnknownTag(t *testing.T) {
+	client := &recordingGitHubClient{
+		manifest: []byte(testManifest),
+		releases: []infragithub.Release{
+			{TagName: "v1.0.0", Assets: []infragithub.Asset{{Name: "demo-windows-amd64.exe"}}},
+		},
+	}
+	svc := usecase.NewGitHubPluginService(client, nil, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil, nil, t.TempDir())
+	_, err := svc.PreviewInstall(context.Background(), "https://github.com/user/repo", "v9.9.9")
+	if err == nil {
+		t.Fatal("expected invalid release tag error")
+	}
+	if !errors.Is(err, domainplugin.ErrInvalidReleaseTag) {
+		t.Fatalf("expected ErrInvalidReleaseTag, got %v", err)
+	}
+}
+
+func TestFetchPluginMetadata_ListViewSkipsChecksumDownloads(t *testing.T) {
+	client := &recordingGitHubClient{
+		manifest: []byte(testManifest),
+		releases: []infragithub.Release{
+			{
+				TagName: "v1.0.0",
+				Assets: []infragithub.Asset{
+					{Name: "SHA256SUMS"},
+					{Name: "demo-windows-amd64.exe"},
+				},
+			},
+		},
+	}
+	downloader := &recordingDownloader{}
+	svc := usecase.NewGitHubPluginService(client, downloader, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil, nil, t.TempDir())
+
+	if _, err := svc.FetchPluginMetadata(context.Background(), "https://github.com/user/repo", false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if downloader.lastTag != "" {
+		t.Fatalf("list metadata should not download release assets, got tag %q", downloader.lastTag)
+	}
+}
+
+func TestFetchPluginMetadataForRelease_LoadsChecksumsForInstall(t *testing.T) {
+	client := &recordingGitHubClient{
+		manifest: []byte(testManifest),
+		releases: []infragithub.Release{
+			{
+				TagName: "v1.0.0",
+				Assets: []infragithub.Asset{
+					{Name: "SHA256SUMS"},
+					{Name: "demo-windows-amd64.exe"},
+				},
+			},
+		},
+	}
+	downloader := &recordingDownloader{}
+	svc := usecase.NewGitHubPluginService(client, downloader, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil, nil, t.TempDir())
+
+	if _, err := svc.FetchPluginMetadataForRelease(context.Background(), "https://github.com/user/repo", "v1.0.0"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if downloader.lastTag != "v1.0.0" {
+		t.Fatalf("expected checksum download for release metadata, got tag %q", downloader.lastTag)
+	}
+}
+
+func TestInvalidateMetadataCache_ClearsRepoAndTagEntries(t *testing.T) {
+	client := &recordingGitHubClient{
+		manifest: []byte(testManifest),
+		releases: []infragithub.Release{
+			{TagName: "v1.0.0", Assets: []infragithub.Asset{{Name: "demo-windows-amd64.exe"}}},
+		},
+	}
+	cache := infracache.NewMemoryCache(domainplugin.DefaultCacheTTL)
+	svc := usecase.NewGitHubPluginService(client, nil, nil, cache, nil, nil, t.TempDir())
+	ctx := context.Background()
+
+	if _, err := svc.FetchPluginMetadata(ctx, "https://github.com/user/repo", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.FetchPluginMetadataForRelease(ctx, "https://github.com/user/repo", "v1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.InvalidateMetadataCache(ctx, "https://github.com/user/repo", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, _ := cache.Get(ctx, "metadata:https://github.com/user/repo"); found {
+		t.Fatal("expected list metadata cache cleared")
+	}
+	if _, found, _ := cache.Get(ctx, "metadata:https://github.com/user/repo:v1.0.0"); found {
+		t.Fatal("expected tag metadata cache cleared")
 	}
 }

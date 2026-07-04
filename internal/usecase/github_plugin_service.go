@@ -50,14 +50,16 @@ func NewGitHubPluginService(
 }
 
 // FetchPluginMetadata retrieves plugin metadata from a GitHub repository.
-func (s *GitHubPluginService) FetchPluginMetadata(ctx context.Context, repoURL string) (*domainplugin.GitHubPluginMetadata, error) {
+func (s *GitHubPluginService) FetchPluginMetadata(ctx context.Context, repoURL string, forceRefresh bool) (*domainplugin.GitHubPluginMetadata, error) {
 	normalizedURL, err := domainplugin.NormalizeURL(repoURL)
 	if err != nil {
 		return nil, err
 	}
 
 	cacheKey := "metadata:" + normalizedURL
-	if cached, found, err := s.cache.Get(ctx, cacheKey); err == nil && found {
+	if forceRefresh {
+		_ = s.InvalidateMetadataCache(ctx, normalizedURL, "")
+	} else if cached, found, err := s.cache.Get(ctx, cacheKey); err == nil && found {
 		if meta, ok := cached.(*domainplugin.GitHubPluginMetadata); ok {
 			return meta, nil
 		}
@@ -91,7 +93,7 @@ func (s *GitHubPluginService) FetchPluginMetadata(ctx context.Context, repoURL s
 		return nil, fmt.Errorf("%w in %s/%s", domainplugin.ErrNoReleases, owner, repo)
 	}
 
-	availableReleases, err := s.buildReleaseSummaries(ctx, owner, repo, releases)
+	availableReleases, err := s.buildReleaseSummaries(releases)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +141,11 @@ func (s *GitHubPluginService) FetchPluginMetadataForRelease(ctx context.Context,
 	}
 	releaseTag = strings.TrimSpace(releaseTag)
 	if releaseTag == "" {
-		return s.FetchPluginMetadata(ctx, normalizedURL)
+		return s.FetchPluginMetadata(ctx, normalizedURL, false)
+	}
+
+	if err := s.validateReleaseTag(ctx, normalizedURL, releaseTag); err != nil {
+		return nil, err
 	}
 
 	cacheKey := "metadata:" + normalizedURL + ":" + releaseTag
@@ -218,6 +224,39 @@ func (s *GitHubPluginService) FetchPluginMetadataForRelease(ctx context.Context,
 	return metadata, nil
 }
 
+// InvalidateMetadataCache removes cached metadata for a repository and optional release tag.
+func (s *GitHubPluginService) InvalidateMetadataCache(ctx context.Context, repoURL, releaseTag string) error {
+	normalizedURL, err := domainplugin.NormalizeURL(repoURL)
+	if err != nil {
+		return err
+	}
+	releaseTag = strings.TrimSpace(releaseTag)
+	if releaseTag != "" {
+		return s.cache.Delete(ctx, "metadata:"+normalizedURL+":"+releaseTag)
+	}
+	if err := s.cache.Delete(ctx, "metadata:"+normalizedURL); err != nil {
+		return err
+	}
+	return s.cache.DeletePrefix(ctx, "metadata:"+normalizedURL+":")
+}
+
+func (s *GitHubPluginService) validateReleaseTag(ctx context.Context, repoURL, releaseTag string) error {
+	releaseTag = strings.TrimSpace(releaseTag)
+	if releaseTag == "" {
+		return nil
+	}
+	metadata, err := s.FetchPluginMetadata(ctx, repoURL, false)
+	if err != nil {
+		return err
+	}
+	for _, release := range metadata.AvailableReleases {
+		if release.Tag == releaseTag {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: %q", domainplugin.ErrInvalidReleaseTag, releaseTag)
+}
+
 // PreviewInstall builds install preview information for a GitHub plugin.
 func (s *GitHubPluginService) PreviewInstall(ctx context.Context, repoURL, releaseTag string) (GitHubPluginPreviewDTO, error) {
 	normalizedURL, err := domainplugin.NormalizeURL(repoURL)
@@ -269,6 +308,11 @@ func (s *GitHubPluginService) InstallPluginFromGitHub(
 		return fmt.Errorf("repository not registered: %w", err)
 	}
 
+	releaseTag = strings.TrimSpace(releaseTag)
+	if err := s.validateReleaseTag(ctx, normalizedURL, releaseTag); err != nil {
+		return err
+	}
+
 	metadata, err := s.FetchPluginMetadataForRelease(ctx, normalizedURL, releaseTag)
 	if err != nil {
 		return err
@@ -295,6 +339,18 @@ func (s *GitHubPluginService) InstallPluginFromGitHub(
 		return err
 	}
 	defer os.RemoveAll(stageDir)
+
+	installTag := releaseTag
+	if installTag == "" {
+		installTag = metadata.LatestRelease
+	}
+	if err := infraplugin.WriteInstallMeta(stageDir, domainplugin.PluginInstallMeta{
+		Source:        domainplugin.InstallMetaSourceGitHub,
+		RepositoryURL: normalizedURL,
+		ReleaseTag:    installTag,
+	}); err != nil {
+		return err
+	}
 
 	policy, err := InstallTrustPolicy(s.pluginManager.settingsReader)
 	if err != nil {
@@ -332,6 +388,7 @@ func (s *GitHubPluginService) InstallPluginFromGitHub(
 	}
 
 	_ = s.storage.UpdateFetchedAt(ctx, normalizedURL, time.Now())
+	_ = s.InvalidateMetadataCache(ctx, normalizedURL, "")
 
 	if err := s.pluginManager.EnsureRunning(ctx, installed.Manifest.ID); err != nil {
 		slog.Warn("plugin installed but failed to auto-start", "plugin", installed.Manifest.ID, "error", err)
@@ -342,18 +399,27 @@ func (s *GitHubPluginService) InstallPluginFromGitHub(
 
 // UninstallPlugin completely removes a user-installed plugin and optionally its data.
 func (s *GitHubPluginService) UninstallPlugin(ctx context.Context, pluginID string, removeData bool) error {
-	return s.pluginManager.UninstallPlugin(ctx, pluginID, removeData)
+	var repoURL string
+	if s.pluginManager != nil {
+		if plugin, err := s.pluginManager.Registry().Get(pluginID); err == nil && plugin.InstallMeta != nil {
+			repoURL = plugin.InstallMeta.RepositoryURL
+		}
+	}
+	if err := s.pluginManager.UninstallPlugin(ctx, pluginID, removeData); err != nil {
+		return err
+	}
+	if repoURL != "" {
+		_ = s.InvalidateMetadataCache(ctx, repoURL, "")
+	}
+	return nil
 }
 
 func (s *GitHubPluginService) buildReleaseSummaries(
-	ctx context.Context,
-	owner, repo string,
 	releases []infragithub.Release,
 ) ([]domainplugin.GitHubReleaseSummary, error) {
 	summaries := make([]domainplugin.GitHubReleaseSummary, 0, len(releases))
 	for i := range releases {
-		checksums := s.loadReleaseChecksums(ctx, owner, repo, &releases[i])
-		platforms := extractPlatformsFromRelease(releases[i].Assets, checksums)
+		platforms := extractPlatformsFromRelease(releases[i].Assets, nil)
 		summaries = append(summaries, domainplugin.GitHubReleaseSummary{
 			Tag:               releases[i].TagName,
 			Name:              releases[i].Name,

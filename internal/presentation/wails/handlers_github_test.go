@@ -147,3 +147,54 @@ func TestAddGitHubRepository_SuccessPersistsRepository(t *testing.T) {
 		t.Fatalf("unexpected repository: %+v", repos[0])
 	}
 }
+
+func TestFetchGitHubPlugins_EnrichesInstalledState(t *testing.T) {
+	api := newGitHubAddTestAPI(t, &stubGitHubAPIClient{
+		manifest: []byte(testXQSPManifest),
+		releases: []infragithub.Release{{
+			TagName: "v1.0.0",
+			Assets: []infragithub.Asset{
+				{Name: "demo-windows-amd64.exe"},
+			},
+		}},
+	})
+
+	registry := usecase.NewPluginRegistry()
+	if err := registry.Register(domainplugin.InstalledPlugin{
+		Manifest: domainplugin.Manifest{
+			ID:      "com.example.demo",
+			Name:    "Demo Plugin",
+			Version: "1.0.0",
+			Engine: domainplugin.EngineConfig{
+				Type:  domainplugin.EngineGoBinary,
+				Entry: "plugin.exe",
+			},
+		},
+		InstallMeta: &domainplugin.PluginInstallMeta{
+			Source:        domainplugin.InstallMetaSourceGitHub,
+			RepositoryURL: "https://github.com/user/repo",
+			ReleaseTag:    "v1.0.0",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	api.plugins = usecase.NewPluginManagerWithConfig(usecase.PluginManagerConfig{
+		Registry:    registry,
+		InstallRoot: t.TempDir(),
+	})
+
+	dto, err := api.FetchGitHubPlugins(FetchGitHubPluginsRequest{
+		URL:          "https://github.com/user/repo",
+		ForceRefresh: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dto.Plugins) != 1 {
+		t.Fatalf("expected one plugin, got %d", len(dto.Plugins))
+	}
+	plugin := dto.Plugins[0]
+	if !plugin.Installed || plugin.InstalledVersion != "1.0.0" || plugin.InstalledReleaseTag != "v1.0.0" {
+		t.Fatalf("unexpected installed state: %+v", plugin)
+	}
+}

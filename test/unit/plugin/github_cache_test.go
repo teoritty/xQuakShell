@@ -36,3 +36,23 @@ func TestMemoryCache_Expires(t *testing.T) {
 		t.Fatal("expected expired entry")
 	}
 }
+
+func TestMemoryCache_DeletePrefix(t *testing.T) {
+	cache := infracache.NewMemoryCache(time.Hour)
+	ctx := context.Background()
+	_ = cache.Set(ctx, "metadata:https://github.com/a/b", "list")
+	_ = cache.Set(ctx, "metadata:https://github.com/a/b:v1.0.0", "tag")
+	_ = cache.Set(ctx, "metadata:https://github.com/c/d", "other")
+	if err := cache.DeletePrefix(ctx, "metadata:https://github.com/a/b"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := cache.Get(ctx, "metadata:https://github.com/a/b"); ok {
+		t.Fatal("expected list cache cleared")
+	}
+	if _, ok, _ := cache.Get(ctx, "metadata:https://github.com/a/b:v1.0.0"); ok {
+		t.Fatal("expected tag cache cleared")
+	}
+	if _, ok, _ := cache.Get(ctx, "metadata:https://github.com/c/d"); !ok {
+		t.Fatal("expected unrelated cache entry to remain")
+	}
+}

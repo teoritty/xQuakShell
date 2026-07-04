@@ -33,7 +33,7 @@ func (a *AppAPI) AddGitHubRepository(req AddGitHubRepositoryRequest) error {
 		return fmt.Errorf("GitHub plugin service not available")
 	}
 	ctx := context.Background()
-	if _, err := a.githubPluginService.FetchPluginMetadata(ctx, req.URL); err != nil {
+	if _, err := a.githubPluginService.FetchPluginMetadata(ctx, req.URL, true); err != nil {
 		return err
 	}
 	return a.githubRepoService.AddRepository(ctx, req.URL, req.Trusted)
@@ -57,23 +57,33 @@ func (a *AppAPI) SetGitHubRepositoryTrust(req SetGitHubRepositoryTrustRequest) e
 	return a.githubRepoService.SetRepositoryTrust(ctx, req.URL, req.Trusted)
 }
 
+// FetchGitHubPluginsRequest controls plugin discovery from a repository.
+type FetchGitHubPluginsRequest struct {
+	URL          string `json:"url"`
+	ForceRefresh bool   `json:"forceRefresh"`
+}
+
 // FetchGitHubPlugins retrieves available plugins from a repository.
-func (a *AppAPI) FetchGitHubPlugins(repoURL string) (*GitHubPluginListDTO, error) {
+func (a *AppAPI) FetchGitHubPlugins(req FetchGitHubPluginsRequest) (*GitHubPluginListDTO, error) {
 	if a.githubPluginService == nil {
 		return nil, fmt.Errorf("GitHub plugin service not available")
 	}
 
 	ctx := context.Background()
-	metadata, err := a.githubPluginService.FetchPluginMetadata(ctx, repoURL)
+	metadata, err := a.githubPluginService.FetchPluginMetadata(ctx, req.URL, req.ForceRefresh)
 	if err != nil {
 		return nil, err
 	}
 
-	installed := false
+	state := installedPluginState{}
 	if a.plugins != nil {
 		for _, info := range a.plugins.List() {
 			if info.ID == metadata.ID {
-				installed = true
+				state = installedPluginState{
+					installed:           true,
+					installedVersion:    info.Version,
+					installedReleaseTag: info.InstalledReleaseTag,
+				}
 				break
 			}
 		}
@@ -81,7 +91,7 @@ func (a *AppAPI) FetchGitHubPlugins(repoURL string) (*GitHubPluginListDTO, error
 
 	dto := &GitHubPluginListDTO{
 		RepositoryURL: metadata.RepositoryURL,
-		Plugins:       []GitHubPluginMetadataDTO{metadataToDTO(metadata, installed)},
+		Plugins:       []GitHubPluginMetadataDTO{metadataToDTO(metadata, state)},
 	}
 	return dto, nil
 }

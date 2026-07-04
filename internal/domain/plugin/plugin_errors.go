@@ -75,6 +75,9 @@ var (
 	// ErrReleaseAssetNotFound indicates the requested release asset was not found.
 	ErrReleaseAssetNotFound = errors.New("release asset not found")
 
+	// ErrInvalidReleaseTag indicates the requested release tag is not published for the plugin.
+	ErrInvalidReleaseTag = errors.New("invalid GitHub release tag")
+
 	// ErrChecksumMismatch indicates downloaded binary checksum verification failed.
 	ErrChecksumMismatch = errors.New("checksum verification failed")
 

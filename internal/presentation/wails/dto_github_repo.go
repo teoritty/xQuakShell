@@ -78,7 +78,9 @@ type GitHubPluginMetadataDTO struct {
 	README            string                    `json:"readme"`
 	MinCoreVersion    string                    `json:"minCoreVersion"`
 	PlatformSupported bool                      `json:"platformSupported"`
-	Installed         bool                      `json:"installed"`
+	Installed         bool   `json:"installed"`
+	InstalledVersion  string `json:"installedVersion"`
+	InstalledReleaseTag string `json:"installedReleaseTag"`
 }
 
 // PlatformInfoDTO represents platform support info.
@@ -151,22 +153,30 @@ func githubPreviewToDTO(p usecase.GitHubPluginPreviewDTO) GitHubPluginPreviewRes
 	}
 }
 
-func metadataToDTO(metadata *domainplugin.GitHubPluginMetadata, installed bool) GitHubPluginMetadataDTO {
+type installedPluginState struct {
+	installed         bool
+	installedVersion  string
+	installedReleaseTag string
+}
+
+func metadataToDTO(metadata *domainplugin.GitHubPluginMetadata, state installedPluginState) GitHubPluginMetadataDTO {
 	dto := GitHubPluginMetadataDTO{
-		RepositoryURL:     metadata.RepositoryURL,
-		ID:                metadata.ID,
-		Name:              metadata.Name,
-		Version:           metadata.Version,
-		Description:       metadata.Description,
-		Author:            metadata.Author,
-		License:           metadata.License,
-		LatestRelease:     metadata.LatestRelease,
-		Prerelease:        metadata.Prerelease,
-		PublishedAt:       metadata.PublishedAt,
-		README:            metadata.README,
-		MinCoreVersion:    metadata.MinCoreVersion,
-		PlatformSupported: metadata.SupportsCurrentPlatform(),
-		Installed:         installed,
+		RepositoryURL:       metadata.RepositoryURL,
+		ID:                  metadata.ID,
+		Name:                metadata.Name,
+		Version:             metadata.Version,
+		Description:         metadata.Description,
+		Author:              metadata.Author,
+		License:             metadata.License,
+		LatestRelease:       metadata.LatestRelease,
+		Prerelease:          metadata.Prerelease,
+		PublishedAt:         metadata.PublishedAt,
+		README:              metadata.README,
+		MinCoreVersion:      metadata.MinCoreVersion,
+		PlatformSupported:   metadata.SupportsCurrentPlatform(),
+		Installed:           state.installed,
+		InstalledVersion:    state.installedVersion,
+		InstalledReleaseTag: state.installedReleaseTag,
 	}
 	for _, p := range metadata.Platforms {
 		dto.Platforms = append(dto.Platforms, PlatformInfoDTO{

@@ -499,8 +499,8 @@ func (a *App) SetGitHubRepositoryTrust(req presentation.SetGitHubRepositoryTrust
 	return a.api.SetGitHubRepositoryTrust(req)
 }
 
-func (a *App) FetchGitHubPlugins(repoURL string) (*presentation.GitHubPluginListDTO, error) {
-	return a.api.FetchGitHubPlugins(repoURL)
+func (a *App) FetchGitHubPlugins(req presentation.FetchGitHubPluginsRequest) (*presentation.GitHubPluginListDTO, error) {
+	return a.api.FetchGitHubPlugins(req)
 }
 
 func (a *App) PreviewGitHubPluginInstall(repoURL, releaseTag string) (presentation.GitHubPluginPreviewResponseDTO, error) {
