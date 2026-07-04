@@ -4,7 +4,7 @@
   import { FitAddon } from '@xterm/addon-fit';
   import { LigaturesAddon } from '@xterm/addon-ligatures';
   import { WebLinksAddon } from '@xterm/addon-web-links';
-  import { sendTerminalInput, terminalResize, getSettings } from '../stores/api';
+  import { sendTerminalInput, terminalResize, getSettings, takePendingTerminalOutput, registerTerminalOutputConsumer, clearPendingTerminalOutput } from '../stores/api';
   import { getUiScaleFactor } from './uiScale';
   import { dataHasEnter, extractCommandLine } from './terminalCommandLine';
 
@@ -19,8 +19,9 @@
   let dataDisposable: { dispose: () => void } | null = null;
   let resizeDisposable: { dispose: () => void } | null = null;
   let initDone = false;
-  /** Drops TerminalOutput until subscription is installed (avoids stale lines). */
+  /** Drops live TerminalOutput until subscription is installed. */
   let acceptOutput = false;
+  let unregisterOutputConsumer: (() => void) | null = null;
   const mountSessionId = sessionId;
   /** Captured on Enter keydown before xterm/PTY consume the line. */
   let pendingCommandLine = '';
@@ -37,6 +38,23 @@
     term.options.fontSize = next;
     term.refresh(0, term.rows - 1);
     scheduleRefit();
+  }
+
+  function writeBytesToTerm(bytes: Uint8Array, scroll = true) {
+    if (!term || bytes.length === 0) return;
+    term.write(bytes, scroll ? () => term?.scrollToBottom() : undefined);
+  }
+
+  function writeTerminalPayload(output: string, scroll = true) {
+    writeBytesToTerm(decodeTerminalOutput(output), scroll);
+  }
+
+  function decodeTerminalOutput(output: string): Uint8Array {
+    try {
+      return Uint8Array.from(atob(output), (c) => c.charCodeAt(0));
+    } catch {
+      return new TextEncoder().encode(output);
+    }
   }
 
   const onUiScaleChanged = () => applyTerminalFontSize();
@@ -262,18 +280,21 @@
 
     const rt = (window as any).runtime;
     if (rt) {
+      for (const chunk of takePendingTerminalOutput(mountSessionId)) {
+        writeBytesToTerm(chunk);
+      }
+
       const handler = (data: { sessionId: string; output: string }) => {
         if (!acceptOutput || data.sessionId !== mountSessionId || !term) return;
-        try {
-          const bytes = Uint8Array.from(atob(data.output), (c) => c.charCodeAt(0));
-          term.write(bytes, () => term?.scrollToBottom());
-        } catch {
-          term.write(data.output);
-        }
+        writeTerminalPayload(data.output);
       };
       const unsubscribe = rt.EventsOn('TerminalOutput', handler);
       eventOff = unsubscribe;
       acceptOutput = true;
+      unregisterOutputConsumer = registerTerminalOutputConsumer(mountSessionId);
+      for (const chunk of takePendingTerminalOutput(mountSessionId)) {
+        writeBytesToTerm(chunk);
+      }
     }
   });
 
@@ -283,6 +304,8 @@
     window.removeEventListener('ui-scale-changed', onUiScaleChanged);
     if (resizeObserver) resizeObserver.disconnect();
     if (eventOff) eventOff();
+    if (unregisterOutputConsumer) unregisterOutputConsumer();
+    clearPendingTerminalOutput(mountSessionId);
     dataDisposable?.dispose();
     resizeDisposable?.dispose();
     if (term) term.dispose();

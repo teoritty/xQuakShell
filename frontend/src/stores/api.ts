@@ -8,7 +8,7 @@ import {
   type RemoteNode, type TransferItem, type SSHIdentityMeta,
   type HostKeyEvent, type PingResult
 } from './appState';
-import { get } from 'svelte/store';
+import { get, writable } from 'svelte/store';
 import {
   applyUiScalePercent,
   DEFAULT_UI_SCALE_PERCENT,
@@ -49,6 +49,7 @@ export interface AppSettings {
   auditRetentionCount: number;
   auditShowUsername: boolean;
   auditShowConnection: boolean;
+  debugLogWindowEnabled: boolean;
 }
 
 export interface AuditEntry {
@@ -99,6 +100,7 @@ export async function unlockVault(masterPassword: string): Promise<void> {
   await refreshFolders();
   await refreshAllConnections();
   await refreshIdentities();
+  await refreshConnectionProtocols();
   await applyAppearanceSettings();
 }
 
@@ -900,6 +902,59 @@ export function disableAuditSecretLogging(): void {
   }
 }
 
+const MAX_PENDING_TERMINAL_BYTES = 256 << 10;
+const pendingTerminalOutput = new Map<string, Uint8Array[]>();
+const terminalOutputConsumers = new Set<string>();
+
+function decodeTerminalOutput(output: string): Uint8Array {
+  try {
+    return Uint8Array.from(atob(output), (c) => c.charCodeAt(0));
+  } catch {
+    return new TextEncoder().encode(output);
+  }
+}
+
+function appendPendingTerminalOutput(sessionId: string, bytes: Uint8Array): void {
+  if (bytes.length === 0) return;
+  let chunks = pendingTerminalOutput.get(sessionId);
+  if (!chunks) {
+    chunks = [];
+    pendingTerminalOutput.set(sessionId, chunks);
+  }
+  chunks.push(bytes);
+  let total = 0;
+  for (const chunk of chunks) {
+    total += chunk.length;
+  }
+  while (total > MAX_PENDING_TERMINAL_BYTES && chunks.length > 1) {
+    const removed = chunks.shift()!;
+    total -= removed.length;
+  }
+  if (total > MAX_PENDING_TERMINAL_BYTES && chunks.length === 1) {
+    const overflow = total - MAX_PENDING_TERMINAL_BYTES;
+    chunks[0] = chunks[0].slice(overflow);
+  }
+}
+
+/** Returns buffered output emitted before the terminal component mounted. */
+export function takePendingTerminalOutput(sessionId: string): Uint8Array[] {
+  const chunks = pendingTerminalOutput.get(sessionId) ?? [];
+  pendingTerminalOutput.delete(sessionId);
+  return chunks;
+}
+
+export function clearPendingTerminalOutput(sessionId: string): void {
+  pendingTerminalOutput.delete(sessionId);
+}
+
+/** Marks a session as having a live terminal subscriber (skip global buffering). */
+export function registerTerminalOutputConsumer(sessionId: string): () => void {
+  terminalOutputConsumers.add(sessionId);
+  return () => {
+    terminalOutputConsumers.delete(sessionId);
+  };
+}
+
 export function subscribeToEvents(): void {
   const rt = getWailsRuntime();
   if (!rt) return;
@@ -918,6 +973,12 @@ export function subscribeToEvents(): void {
     });
   });
 
+  rt.EventsOn('TerminalOutput', (data: { sessionId: string; output: string }) => {
+    if (!data?.sessionId) return;
+    if (terminalOutputConsumers.has(data.sessionId)) return;
+    appendPendingTerminalOutput(data.sessionId, decodeTerminalOutput(data.output));
+  });
+
   rt.EventsOn('SessionEmbedReady', (data: { sessionId: string; embed: SessionEmbed }) => {
     sessions.update(list => {
       const idx = list.findIndex(s => s.sessionId === data.sessionId);
@@ -932,6 +993,8 @@ export function subscribeToEvents(): void {
   });
 
   rt.EventsOn('SessionClosed', (data: { sessionId: string }) => {
+    clearPendingTerminalOutput(data.sessionId);
+    terminalOutputConsumers.delete(data.sessionId);
     sessions.update(list => list.filter(s => s.sessionId !== data.sessionId));
   });
 
@@ -1068,25 +1131,51 @@ export interface ConnectionProtocol {
   fields?: FieldGroup[];
 }
 
+const DEFAULT_SSH_PROTOCOL: ConnectionProtocol = {
+  id: 'ssh',
+  label: 'SSH',
+  defaultPort: 22,
+  icon: 'terminal',
+  remoteFs: true,
+};
+
+/** Live protocol catalog for connection editor and session chrome. */
+export const connectionProtocols = writable<ConnectionProtocol[]>([DEFAULT_SSH_PROTOCOL]);
+
 let protocolsCache: ConnectionProtocol[] | null = null;
+
+function protocolCatalogKey(list: ConnectionProtocol[]): string {
+  return list.map((p) => `${p.id}:${p.fields?.length ?? 0}`).join('|');
+}
+
+/** Returns a stable signature of the protocol catalog (ids + field counts). */
+export function connectionProtocolCatalogKey(list: ConnectionProtocol[]): string {
+  return protocolCatalogKey(list);
+}
+
+/** Reloads plugin connection protocols from the backend and updates {@link connectionProtocols}. */
+export async function refreshConnectionProtocols(): Promise<ConnectionProtocol[]> {
+  const app = getApp();
+  if (!app?.GetPluginConnectionProtocols) {
+    // Wails may not be bound yet — keep the current store value and do not cache.
+    return get(connectionProtocols);
+  }
+  try {
+    const list = await app.GetPluginConnectionProtocols();
+    protocolsCache = list;
+    connectionProtocols.set(list);
+    return list;
+  } catch (e) {
+    handleError(e, 'Load connection protocols');
+    return get(connectionProtocols);
+  }
+}
 
 export async function getPluginConnectionProtocols(): Promise<ConnectionProtocol[]> {
   if (protocolsCache) {
     return protocolsCache;
   }
-  const app = getApp();
-  if (!app?.GetPluginConnectionProtocols) {
-    protocolsCache = [{ id: 'ssh', label: 'SSH', defaultPort: 22, icon: 'terminal', remoteFs: true }];
-    return protocolsCache;
-  }
-  try {
-    protocolsCache = await app.GetPluginConnectionProtocols();
-    return protocolsCache;
-  } catch (e) {
-    handleError(e, 'Load connection protocols');
-    protocolsCache = [{ id: 'ssh', label: 'SSH', defaultPort: 22, icon: 'terminal', remoteFs: true }];
-    return protocolsCache;
-  }
+  return refreshConnectionProtocols();
 }
 
 export function invalidateProtocolsCache(): void {
@@ -1204,6 +1293,7 @@ export async function installPlugin(
   try {
     const result = await app.InstallPlugin(sourceDir, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
     invalidateProtocolsCache();
+    await refreshConnectionProtocols();
     return result;
   } catch (e) {
     handleError(e, 'Install plugin');
@@ -1368,6 +1458,8 @@ export async function uninstallGitHubPlugin(pluginID: string, removeData = false
   if (!app?.UninstallGitHubPlugin) throw new Error('GitHub plugin uninstall unavailable');
   try {
     await app.UninstallGitHubPlugin(pluginID, removeData);
+    invalidateProtocolsCache();
+    await refreshConnectionProtocols();
   } catch (e) {
     handleError(e, 'Uninstall plugin');
     throw e;
