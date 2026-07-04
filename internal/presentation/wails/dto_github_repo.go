@@ -51,21 +51,34 @@ type GitHubPluginListDTO struct {
 	Plugins       []GitHubPluginMetadataDTO `json:"plugins"`
 }
 
+// GitHubReleaseSummaryDTO describes a published GitHub release.
+type GitHubReleaseSummaryDTO struct {
+	Tag               string            `json:"tag"`
+	Name              string            `json:"name"`
+	PublishedAt       string            `json:"publishedAt"`
+	Prerelease        bool              `json:"prerelease"`
+	PlatformSupported bool              `json:"platformSupported"`
+	Platforms         []PlatformInfoDTO `json:"platforms"`
+}
+
 // GitHubPluginMetadataDTO represents plugin metadata for UI.
 type GitHubPluginMetadataDTO struct {
-	RepositoryURL     string            `json:"repositoryUrl"`
-	ID                string            `json:"id"`
-	Name              string            `json:"name"`
-	Version           string            `json:"version"`
-	Description       string            `json:"description"`
-	Author            string            `json:"author"`
-	License           string            `json:"license"`
-	Platforms         []PlatformInfoDTO `json:"platforms"`
-	LatestRelease     string            `json:"latestRelease"`
-	PublishedAt       string            `json:"publishedAt"`
-	README            string            `json:"readme"`
-	PlatformSupported bool              `json:"platformSupported"`
-	Installed         bool              `json:"installed"`
+	RepositoryURL     string                    `json:"repositoryUrl"`
+	ID                string                    `json:"id"`
+	Name              string                    `json:"name"`
+	Version           string                    `json:"version"`
+	Description       string                    `json:"description"`
+	Author            string                    `json:"author"`
+	License           string                    `json:"license"`
+	Platforms         []PlatformInfoDTO         `json:"platforms"`
+	AvailableReleases []GitHubReleaseSummaryDTO `json:"availableReleases"`
+	LatestRelease     string                    `json:"latestRelease"`
+	Prerelease        bool                      `json:"prerelease"`
+	PublishedAt       string                    `json:"publishedAt"`
+	README            string                    `json:"readme"`
+	MinCoreVersion    string                    `json:"minCoreVersion"`
+	PlatformSupported bool                      `json:"platformSupported"`
+	Installed         bool                      `json:"installed"`
 }
 
 // PlatformInfoDTO represents platform support info.
@@ -90,6 +103,8 @@ type GitHubPluginPreviewResponseDTO struct {
 	PlatformSupported    bool     `json:"platformSupported"`
 	SupportedPlatforms   []string `json:"supportedPlatforms"`
 	LatestRelease        string   `json:"latestRelease"`
+	ReleaseTag           string   `json:"releaseTag"`
+	Prerelease           bool     `json:"prerelease"`
 	PublishedDate        string   `json:"publishedDate"`
 	README               string   `json:"readme"`
 	RequiresSecretAccess    bool     `json:"requiresSecretAccess"`
@@ -123,6 +138,8 @@ func githubPreviewToDTO(p usecase.GitHubPluginPreviewDTO) GitHubPluginPreviewRes
 		PlatformSupported:    p.PlatformSupported,
 		SupportedPlatforms:   supported,
 		LatestRelease:        p.LatestRelease,
+		ReleaseTag:           p.ReleaseTag,
+		Prerelease:           p.Prerelease,
 		PublishedDate:        p.PublishedDate,
 		README:               p.README,
 		RequiresSecretAccess:    p.RequiresSecretAccess,
@@ -144,8 +161,10 @@ func metadataToDTO(metadata *domainplugin.GitHubPluginMetadata, installed bool) 
 		Author:            metadata.Author,
 		License:           metadata.License,
 		LatestRelease:     metadata.LatestRelease,
+		Prerelease:        metadata.Prerelease,
 		PublishedAt:       metadata.PublishedAt,
 		README:            metadata.README,
+		MinCoreVersion:    metadata.MinCoreVersion,
 		PlatformSupported: metadata.SupportsCurrentPlatform(),
 		Installed:         installed,
 	}
@@ -155,6 +174,23 @@ func metadataToDTO(metadata *domainplugin.GitHubPluginMetadata, installed bool) 
 			Arch:      p.Arch,
 			AssetName: p.AssetName,
 		})
+	}
+	for _, release := range metadata.AvailableReleases {
+		summary := GitHubReleaseSummaryDTO{
+			Tag:               release.Tag,
+			Name:              release.Name,
+			PublishedAt:       release.PublishedAt,
+			Prerelease:        release.Prerelease,
+			PlatformSupported: release.PlatformSupported,
+		}
+		for _, p := range release.Platforms {
+			summary.Platforms = append(summary.Platforms, PlatformInfoDTO{
+				OS:        p.OS,
+				Arch:      p.Arch,
+				AssetName: p.AssetName,
+			})
+		}
+		dto.AvailableReleases = append(dto.AvailableReleases, summary)
 	}
 	return dto
 }

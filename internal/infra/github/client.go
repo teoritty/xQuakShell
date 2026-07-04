@@ -3,9 +3,11 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -27,9 +29,14 @@ type Client struct {
 
 // NewClient creates a new GitHub API client.
 func NewClient() *Client {
+	return NewClientWithBaseURL(APIBaseURL)
+}
+
+// NewClientWithBaseURL creates a client for the given GitHub API base URL.
+func NewClientWithBaseURL(baseURL string) *Client {
 	return &Client{
 		httpClient: &http.Client{Timeout: DefaultTimeout},
-		baseURL:    APIBaseURL,
+		baseURL:    baseURL,
 	}
 }
 
@@ -39,6 +46,8 @@ type Release struct {
 	Name        string  `json:"name"`
 	Body        string  `json:"body"`
 	PublishedAt string  `json:"published_at"`
+	Draft       bool    `json:"draft"`
+	Prerelease  bool    `json:"prerelease"`
 	Assets      []Asset `json:"assets"`
 }
 
@@ -51,9 +60,13 @@ type Asset struct {
 }
 
 // GetFileContent fetches a file from the repository (raw content).
-func (c *Client) GetFileContent(ctx context.Context, owner, repo, path string) ([]byte, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s/contents/%s", c.baseURL, owner, repo, path)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+// ref is an optional branch or tag name; empty uses the default branch.
+func (c *Client) GetFileContent(ctx context.Context, owner, repo, path, ref string) ([]byte, error) {
+	fileURL := fmt.Sprintf("%s/repos/%s/%s/contents/%s", c.baseURL, owner, repo, path)
+	if ref != "" {
+		fileURL += "?ref=" + url.QueryEscape(ref)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fileURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -84,8 +97,30 @@ func (c *Client) GetFileContent(ctx context.Context, owner, repo, path string) (
 }
 
 // GetLatestRelease fetches the latest release for a repository.
+// GitHub's /releases/latest excludes pre-releases, so this falls back to the
+// releases list when only pre-releases are published.
 func (c *Client) GetLatestRelease(ctx context.Context, owner, repo string) (*Release, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s/releases/latest", c.baseURL, owner, repo)
+	release, err := c.fetchReleaseURL(ctx, fmt.Sprintf("%s/repos/%s/%s/releases/latest", c.baseURL, owner, repo))
+	if err == nil {
+		return release, nil
+	}
+	if !errors.Is(err, errReleaseEndpointNotFound) {
+		return nil, err
+	}
+
+	releases, err := c.ListPublishedReleases(ctx, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	if len(releases) == 0 {
+		return nil, fmt.Errorf("%w in %s/%s", domainplugin.ErrNoReleases, owner, repo)
+	}
+	return &releases[0], nil
+}
+
+var errReleaseEndpointNotFound = errors.New("release endpoint not found")
+
+func (c *Client) fetchReleaseURL(ctx context.Context, url string) (*Release, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -105,7 +140,7 @@ func (c *Client) GetLatestRelease(ctx context.Context, owner, repo string) (*Rel
 
 	switch resp.StatusCode {
 	case http.StatusNotFound:
-		return nil, fmt.Errorf("%w: %s/%s", domainplugin.ErrRepositoryNotFound, owner, repo)
+		return nil, errReleaseEndpointNotFound
 	case http.StatusOK:
 		var release Release
 		if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
@@ -116,6 +151,49 @@ func (c *Client) GetLatestRelease(ctx context.Context, owner, repo string) (*Rel
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("GitHub API error (%d): %s", resp.StatusCode, string(body))
 	}
+}
+
+// ListPublishedReleases returns published GitHub releases, newest first.
+func (c *Client) ListPublishedReleases(ctx context.Context, owner, repo string) ([]Release, error) {
+	return c.listPublishedReleases(ctx, owner, repo)
+}
+
+func (c *Client) listPublishedReleases(ctx context.Context, owner, repo string) ([]Release, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/releases?per_page=30", c.baseURL, owner, repo)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("User-Agent", userAgent)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if err := checkRateLimit(resp); err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("GitHub API error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var releases []Release
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+		return nil, err
+	}
+
+	published := make([]Release, 0, len(releases))
+	for _, release := range releases {
+		if !release.Draft {
+			published = append(published, release)
+		}
+	}
+	return published, nil
 }
 
 // GetReleaseByTag fetches a release by tag name.

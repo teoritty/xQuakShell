@@ -77,7 +77,7 @@ export function ImportPuTTYReg(arg1:string):Promise<Array<wails.PuTTYSessionDTO>
 
 export function ImportPuTTYRegAsConnections(arg1:string,arg2:string):Promise<Array<wails.ConnectionDTO>>;
 
-export function InstallGitHubPlugin(arg1:string,arg2:boolean,arg3:boolean,arg4:boolean):Promise<void>;
+export function InstallGitHubPlugin(arg1:string,arg2:string,arg3:boolean,arg4:boolean,arg5:boolean):Promise<void>;
 
 export function InstallPlugin(arg1:string,arg2:boolean,arg3:boolean,arg4:boolean):Promise<wails.PluginDTO>;
 
@@ -111,7 +111,7 @@ export function PingPlugin(arg1:string):Promise<wails.PluginPingResultDTO>;
 
 export function PreparePluginViewPanel(arg1:string,arg2:string):Promise<string>;
 
-export function PreviewGitHubPluginInstall(arg1:string):Promise<wails.GitHubPluginPreviewResponseDTO>;
+export function PreviewGitHubPluginInstall(arg1:string,arg2:string):Promise<wails.GitHubPluginPreviewResponseDTO>;
 
 export function PreviewPluginInstall(arg1:string):Promise<wails.PluginInstallPreviewDTO>;
 

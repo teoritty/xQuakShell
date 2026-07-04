@@ -5,24 +5,36 @@ import (
 	"runtime"
 )
 
+// GitHubReleaseSummary describes a published GitHub release for plugin discovery.
+type GitHubReleaseSummary struct {
+	Tag               string         `json:"tag"`
+	Name              string         `json:"name"`
+	PublishedAt       string         `json:"publishedAt"`
+	Prerelease        bool           `json:"prerelease"`
+	Platforms         []PlatformInfo `json:"platforms"`
+	PlatformSupported bool           `json:"platformSupported"`
+}
+
 // GitHubPluginMetadata contains plugin information extracted from xqsp.json.
 type GitHubPluginMetadata struct {
-	RepositoryURL  string         `json:"repositoryUrl"`
-	ID             string         `json:"id"`
-	Name           string         `json:"name"`
-	Version        string         `json:"version"`
-	Description    string         `json:"description,omitempty"`
-	Author         string         `json:"author,omitempty"`
-	Homepage       string         `json:"homepage,omitempty"`
-	License        string         `json:"license,omitempty"`
-	MinCoreVersion string         `json:"minCoreVersion,omitempty"`
-	Platforms      []PlatformInfo `json:"platforms"`
-	Tags           []string       `json:"tags,omitempty"`
-	README         string         `json:"readme,omitempty"`
-	LatestRelease  string         `json:"latestRelease"`
-	PublishedAt    string         `json:"publishedAt,omitempty"`
-	DownloadCount  int            `json:"downloadCount"`
-	Manifest       Manifest       `json:"-"`
+	RepositoryURL     string                 `json:"repositoryUrl"`
+	ID                string                 `json:"id"`
+	Name              string                 `json:"name"`
+	Version           string                 `json:"version"`
+	Description       string                 `json:"description,omitempty"`
+	Author            string                 `json:"author,omitempty"`
+	Homepage          string                 `json:"homepage,omitempty"`
+	License           string                 `json:"license,omitempty"`
+	MinCoreVersion    string                 `json:"minCoreVersion,omitempty"`
+	Platforms         []PlatformInfo         `json:"platforms"`
+	AvailableReleases []GitHubReleaseSummary `json:"availableReleases"`
+	Tags              []string               `json:"tags,omitempty"`
+	README            string                 `json:"readme,omitempty"`
+	LatestRelease     string                 `json:"latestRelease"`
+	Prerelease        bool                   `json:"prerelease"`
+	PublishedAt       string                 `json:"publishedAt,omitempty"`
+	DownloadCount     int                    `json:"downloadCount"`
+	Manifest          Manifest               `json:"-"`
 }
 
 // PlatformInfo describes platform support for a binary.
@@ -119,4 +131,16 @@ func CurrentPlatformOS() string {
 // CurrentPlatformArch returns runtime GOARCH for plugin matching.
 func CurrentPlatformArch() string {
 	return runtime.GOARCH
+}
+
+// ReleaseSummarySupportsCurrentPlatform reports whether a release supports this host.
+func ReleaseSummarySupportsCurrentPlatform(platforms []PlatformInfo) bool {
+	currentOS := CurrentPlatformOS()
+	currentArch := CurrentPlatformArch()
+	for i := range platforms {
+		if platforms[i].OS == currentOS && platforms[i].Arch == currentArch {
+			return true
+		}
+	}
+	return false
 }

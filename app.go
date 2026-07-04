@@ -503,12 +503,12 @@ func (a *App) FetchGitHubPlugins(repoURL string) (*presentation.GitHubPluginList
 	return a.api.FetchGitHubPlugins(repoURL)
 }
 
-func (a *App) PreviewGitHubPluginInstall(repoURL string) (presentation.GitHubPluginPreviewResponseDTO, error) {
-	return a.api.PreviewGitHubPluginInstall(repoURL)
+func (a *App) PreviewGitHubPluginInstall(repoURL, releaseTag string) (presentation.GitHubPluginPreviewResponseDTO, error) {
+	return a.api.PreviewGitHubPluginInstall(repoURL, releaseTag)
 }
 
-func (a *App) InstallGitHubPlugin(repoURL string, grantSecretAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) error {
-	return a.api.InstallGitHubPlugin(repoURL, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
+func (a *App) InstallGitHubPlugin(repoURL, releaseTag string, grantSecretAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) error {
+	return a.api.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
 }
 
 func (a *App) UninstallGitHubPlugin(pluginID string, removeData bool) error {

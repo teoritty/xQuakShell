@@ -150,8 +150,8 @@ export function ImportPuTTYRegAsConnections(arg1, arg2) {
   return window['go']['main']['App']['ImportPuTTYRegAsConnections'](arg1, arg2);
 }
 
-export function InstallGitHubPlugin(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['InstallGitHubPlugin'](arg1, arg2, arg3, arg4);
+export function InstallGitHubPlugin(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['InstallGitHubPlugin'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function InstallPlugin(arg1, arg2, arg3, arg4) {
@@ -218,8 +218,8 @@ export function PreparePluginViewPanel(arg1, arg2) {
   return window['go']['main']['App']['PreparePluginViewPanel'](arg1, arg2);
 }
 
-export function PreviewGitHubPluginInstall(arg1) {
-  return window['go']['main']['App']['PreviewGitHubPluginInstall'](arg1);
+export function PreviewGitHubPluginInstall(arg1, arg2) {
+  return window['go']['main']['App']['PreviewGitHubPluginInstall'](arg1, arg2);
 }
 
 export function PreviewPluginInstall(arg1) {

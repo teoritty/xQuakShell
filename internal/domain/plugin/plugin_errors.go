@@ -60,6 +60,9 @@ var (
 	// ErrRepositoryNotFound indicates the GitHub repository does not exist or is inaccessible.
 	ErrRepositoryNotFound = errors.New("GitHub repository not found")
 
+	// ErrNoReleases indicates the repository exists but has no published GitHub releases.
+	ErrNoReleases = errors.New("no GitHub releases found")
+
 	// ErrPluginManifestNotFound indicates xqsp.json was not found in the repository.
 	ErrPluginManifestNotFound = errors.New("xqsp.json not found in repository")
 

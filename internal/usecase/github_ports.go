@@ -9,8 +9,10 @@ import (
 
 // GitHubAPIClient abstracts GitHub repository and release access.
 type GitHubAPIClient interface {
-	GetFileContent(ctx context.Context, owner, repo, path string) ([]byte, error)
+	GetFileContent(ctx context.Context, owner, repo, path, ref string) ([]byte, error)
 	GetLatestRelease(ctx context.Context, owner, repo string) (*infragithub.Release, error)
+	ListPublishedReleases(ctx context.Context, owner, repo string) ([]infragithub.Release, error)
+	GetReleaseByTag(ctx context.Context, owner, repo, tag string) (*infragithub.Release, error)
 }
 
 // PluginBinaryDownloader downloads plugin binaries from GitHub Releases.

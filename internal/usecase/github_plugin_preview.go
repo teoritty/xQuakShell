@@ -22,6 +22,8 @@ type GitHubPluginPreviewDTO struct {
 	PlatformSupported    bool     `json:"platformSupported"`
 	SupportedPlatforms   []string `json:"supportedPlatforms"`
 	LatestRelease        string   `json:"latestRelease"`
+	ReleaseTag           string   `json:"releaseTag"`
+	Prerelease           bool     `json:"prerelease"`
 	PublishedDate        string   `json:"publishedDate"`
 	README               string   `json:"readme"`
 	RequiresSecretAccess    bool     `json:"requiresSecretAccess"`
@@ -76,6 +78,8 @@ func BuildPreviewDTO(metadata *domainplugin.GitHubPluginMetadata, repoTrusted, u
 		PlatformSupported:    metadata.SupportsCurrentPlatform(),
 		SupportedPlatforms:   supportedPlatforms,
 		LatestRelease:        metadata.LatestRelease,
+		ReleaseTag:           metadata.LatestRelease,
+		Prerelease:           metadata.Prerelease,
 		PublishedDate:        metadata.PublishedAt,
 		README:               metadata.README,
 		RequiresSecretAccess:    metadata.RequiresSecretAccess(),

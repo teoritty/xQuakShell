@@ -68,7 +68,7 @@ func (s *GitHubPluginService) FetchPluginMetadata(ctx context.Context, repoURL s
 		return nil, err
 	}
 
-	manifestContent, err := s.apiClient.GetFileContent(ctx, owner, repo, domainplugin.XQSPManifestFile)
+	manifestContent, err := s.apiClient.GetFileContent(ctx, owner, repo, domainplugin.XQSPManifestFile, "")
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return nil, domainplugin.ErrPluginManifestNotFound
@@ -81,15 +81,114 @@ func (s *GitHubPluginService) FetchPluginMetadata(ctx context.Context, repoURL s
 		return nil, err
 	}
 
-	readmeContent, _ := s.apiClient.GetFileContent(ctx, owner, repo, "README.md")
+	readmeContent, _ := s.apiClient.GetFileContent(ctx, owner, repo, "README.md", "")
 
-	latestRelease, err := s.apiClient.GetLatestRelease(ctx, owner, repo)
+	releases, err := s.apiClient.ListPublishedReleases(ctx, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	if len(releases) == 0 {
+		return nil, fmt.Errorf("%w in %s/%s", domainplugin.ErrNoReleases, owner, repo)
+	}
+
+	availableReleases, err := s.buildReleaseSummaries(ctx, owner, repo, releases)
+	if err != nil {
+		return nil, err
+	}
+	if !hasReleaseWithPlatforms(availableReleases) {
+		return nil, fmt.Errorf("%w: no release assets match supported platform naming", domainplugin.ErrInvalidPluginMetadata)
+	}
+
+	latest := releases[0]
+	latestSummary := availableReleases[0]
+
+	metadata := &domainplugin.GitHubPluginMetadata{
+		RepositoryURL:     normalizedURL,
+		ID:                xqsp.ID,
+		Name:              xqsp.Name,
+		Version:           xqsp.Version,
+		Description:       xqsp.Description,
+		Author:            xqsp.Author,
+		Homepage:          xqsp.Homepage,
+		License:           xqsp.License,
+		MinCoreVersion:    xqsp.MinCoreVersion,
+		Platforms:         latestSummary.Platforms,
+		AvailableReleases: availableReleases,
+		Tags:              xqsp.Tags,
+		README:            string(readmeContent),
+		LatestRelease:     latest.TagName,
+		Prerelease:        latest.Prerelease,
+		PublishedAt:       infragithub.ParseReleasePublishedAt(latest.PublishedAt),
+		DownloadCount:     infragithub.TotalDownloadCount(latest.Assets),
+		Manifest:          xqsp.Manifest,
+	}
+
+	if err := metadata.Validate(); err != nil {
+		return nil, err
+	}
+
+	_ = s.cache.Set(ctx, cacheKey, metadata)
+	return metadata, nil
+}
+
+// FetchPluginMetadataForRelease retrieves metadata for a specific release tag.
+func (s *GitHubPluginService) FetchPluginMetadataForRelease(ctx context.Context, repoURL, releaseTag string) (*domainplugin.GitHubPluginMetadata, error) {
+	normalizedURL, err := domainplugin.NormalizeURL(repoURL)
+	if err != nil {
+		return nil, err
+	}
+	releaseTag = strings.TrimSpace(releaseTag)
+	if releaseTag == "" {
+		return s.FetchPluginMetadata(ctx, normalizedURL)
+	}
+
+	cacheKey := "metadata:" + normalizedURL + ":" + releaseTag
+	if cached, found, err := s.cache.Get(ctx, cacheKey); err == nil && found {
+		if meta, ok := cached.(*domainplugin.GitHubPluginMetadata); ok {
+			return meta, nil
+		}
+	}
+
+	owner, repo, err := domainplugin.ParseGitHubURL(normalizedURL)
 	if err != nil {
 		return nil, err
 	}
 
-	checksums := s.loadReleaseChecksums(ctx, owner, repo, latestRelease)
-	platforms := extractPlatformsFromRelease(latestRelease.Assets, checksums)
+	release, err := s.apiClient.GetReleaseByTag(ctx, owner, repo, releaseTag)
+	if err != nil {
+		return nil, err
+	}
+
+	manifestContent, err := s.apiClient.GetFileContent(ctx, owner, repo, domainplugin.XQSPManifestFile, releaseTag)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			manifestContent, err = s.apiClient.GetFileContent(ctx, owner, repo, domainplugin.XQSPManifestFile, "")
+			if err != nil {
+				if strings.Contains(err.Error(), "not found") {
+					return nil, domainplugin.ErrPluginManifestNotFound
+				}
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
+	}
+
+	xqsp, err := domainplugin.ParseXQSPManifest(manifestContent)
+	if err != nil {
+		return nil, err
+	}
+
+	readmeContent, _ := s.apiClient.GetFileContent(ctx, owner, repo, "README.md", releaseTag)
+	if len(readmeContent) == 0 {
+		readmeContent, _ = s.apiClient.GetFileContent(ctx, owner, repo, "README.md", "")
+	}
+
+	checksums := s.loadReleaseChecksums(ctx, owner, repo, release)
+	platforms := extractPlatformsFromRelease(release.Assets, checksums)
+	if len(platforms) == 0 {
+		return nil, fmt.Errorf("%w: no release assets match supported platform naming", domainplugin.ErrInvalidPluginMetadata)
+	}
 
 	metadata := &domainplugin.GitHubPluginMetadata{
 		RepositoryURL:  normalizedURL,
@@ -104,9 +203,10 @@ func (s *GitHubPluginService) FetchPluginMetadata(ctx context.Context, repoURL s
 		Platforms:      platforms,
 		Tags:           xqsp.Tags,
 		README:         string(readmeContent),
-		LatestRelease:  latestRelease.TagName,
-		PublishedAt:    infragithub.ParseReleasePublishedAt(latestRelease.PublishedAt),
-		DownloadCount:  infragithub.TotalDownloadCount(latestRelease.Assets),
+		LatestRelease:  release.TagName,
+		Prerelease:     release.Prerelease,
+		PublishedAt:    infragithub.ParseReleasePublishedAt(release.PublishedAt),
+		DownloadCount:  infragithub.TotalDownloadCount(release.Assets),
 		Manifest:       xqsp.Manifest,
 	}
 
@@ -119,13 +219,13 @@ func (s *GitHubPluginService) FetchPluginMetadata(ctx context.Context, repoURL s
 }
 
 // PreviewInstall builds install preview information for a GitHub plugin.
-func (s *GitHubPluginService) PreviewInstall(ctx context.Context, repoURL string) (GitHubPluginPreviewDTO, error) {
+func (s *GitHubPluginService) PreviewInstall(ctx context.Context, repoURL, releaseTag string) (GitHubPluginPreviewDTO, error) {
 	normalizedURL, err := domainplugin.NormalizeURL(repoURL)
 	if err != nil {
 		return GitHubPluginPreviewDTO{}, err
 	}
 
-	metadata, err := s.FetchPluginMetadata(ctx, normalizedURL)
+	metadata, err := s.FetchPluginMetadataForRelease(ctx, normalizedURL, releaseTag)
 	if err != nil {
 		return GitHubPluginPreviewDTO{}, err
 	}
@@ -155,6 +255,7 @@ func (s *GitHubPluginService) PreviewInstall(ctx context.Context, repoURL string
 func (s *GitHubPluginService) InstallPluginFromGitHub(
 	ctx context.Context,
 	repoURL string,
+	releaseTag string,
 	grantSecretAccess bool,
 	grantMultiSessionAccess bool,
 	grantArbitraryNetworkAccess bool,
@@ -168,7 +269,7 @@ func (s *GitHubPluginService) InstallPluginFromGitHub(
 		return fmt.Errorf("repository not registered: %w", err)
 	}
 
-	metadata, err := s.FetchPluginMetadata(ctx, normalizedURL)
+	metadata, err := s.FetchPluginMetadataForRelease(ctx, normalizedURL, releaseTag)
 	if err != nil {
 		return err
 	}
@@ -242,6 +343,36 @@ func (s *GitHubPluginService) InstallPluginFromGitHub(
 // UninstallPlugin completely removes a user-installed plugin and optionally its data.
 func (s *GitHubPluginService) UninstallPlugin(ctx context.Context, pluginID string, removeData bool) error {
 	return s.pluginManager.UninstallPlugin(ctx, pluginID, removeData)
+}
+
+func (s *GitHubPluginService) buildReleaseSummaries(
+	ctx context.Context,
+	owner, repo string,
+	releases []infragithub.Release,
+) ([]domainplugin.GitHubReleaseSummary, error) {
+	summaries := make([]domainplugin.GitHubReleaseSummary, 0, len(releases))
+	for i := range releases {
+		checksums := s.loadReleaseChecksums(ctx, owner, repo, &releases[i])
+		platforms := extractPlatformsFromRelease(releases[i].Assets, checksums)
+		summaries = append(summaries, domainplugin.GitHubReleaseSummary{
+			Tag:               releases[i].TagName,
+			Name:              releases[i].Name,
+			PublishedAt:       infragithub.ParseReleasePublishedAt(releases[i].PublishedAt),
+			Prerelease:        releases[i].Prerelease,
+			Platforms:         platforms,
+			PlatformSupported: domainplugin.ReleaseSummarySupportsCurrentPlatform(platforms),
+		})
+	}
+	return summaries, nil
+}
+
+func hasReleaseWithPlatforms(releases []domainplugin.GitHubReleaseSummary) bool {
+	for _, release := range releases {
+		if len(release.Platforms) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *GitHubPluginService) downloadBinary(

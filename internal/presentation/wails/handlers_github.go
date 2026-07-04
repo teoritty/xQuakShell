@@ -29,7 +29,13 @@ func (a *AppAPI) AddGitHubRepository(req AddGitHubRepositoryRequest) error {
 	if a.githubRepoService == nil {
 		return fmt.Errorf("GitHub repository service not available")
 	}
+	if a.githubPluginService == nil {
+		return fmt.Errorf("GitHub plugin service not available")
+	}
 	ctx := context.Background()
+	if _, err := a.githubPluginService.FetchPluginMetadata(ctx, req.URL); err != nil {
+		return err
+	}
 	return a.githubRepoService.AddRepository(ctx, req.URL, req.Trusted)
 }
 
@@ -81,12 +87,12 @@ func (a *AppAPI) FetchGitHubPlugins(repoURL string) (*GitHubPluginListDTO, error
 }
 
 // PreviewGitHubPluginInstall returns install preview and warnings for a GitHub plugin.
-func (a *AppAPI) PreviewGitHubPluginInstall(repoURL string) (GitHubPluginPreviewResponseDTO, error) {
+func (a *AppAPI) PreviewGitHubPluginInstall(repoURL, releaseTag string) (GitHubPluginPreviewResponseDTO, error) {
 	if a.githubPluginService == nil {
 		return GitHubPluginPreviewResponseDTO{}, fmt.Errorf("GitHub plugin service not available")
 	}
 	ctx := context.Background()
-	preview, err := a.githubPluginService.PreviewInstall(ctx, repoURL)
+	preview, err := a.githubPluginService.PreviewInstall(ctx, repoURL, releaseTag)
 	if err != nil {
 		return GitHubPluginPreviewResponseDTO{}, err
 	}
@@ -94,13 +100,13 @@ func (a *AppAPI) PreviewGitHubPluginInstall(repoURL string) (GitHubPluginPreview
 }
 
 // InstallGitHubPlugin installs a plugin from GitHub.
-func (a *AppAPI) InstallGitHubPlugin(repoURL string, grantSecretAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) error {
+func (a *AppAPI) InstallGitHubPlugin(repoURL, releaseTag string, grantSecretAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) error {
 	if a.githubPluginService == nil {
 		return fmt.Errorf("GitHub plugin service not available")
 	}
 
 	ctx := context.Background()
-	if err := a.githubPluginService.InstallPluginFromGitHub(ctx, repoURL, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess); err != nil {
+	if err := a.githubPluginService.InstallPluginFromGitHub(ctx, repoURL, releaseTag, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess); err != nil {
 		return err
 	}
 	a.EmitPluginContributionsChanged()

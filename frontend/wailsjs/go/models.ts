@@ -465,6 +465,46 @@ export namespace wails {
 	        this.order = source["order"];
 	    }
 	}
+	export class GitHubReleaseSummaryDTO {
+	    tag: string;
+	    name: string;
+	    publishedAt: string;
+	    prerelease: boolean;
+	    platformSupported: boolean;
+	    platforms: PlatformInfoDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new GitHubReleaseSummaryDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tag = source["tag"];
+	        this.name = source["name"];
+	        this.publishedAt = source["publishedAt"];
+	        this.prerelease = source["prerelease"];
+	        this.platformSupported = source["platformSupported"];
+	        this.platforms = this.convertValues(source["platforms"], PlatformInfoDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class PlatformInfoDTO {
 	    os: string;
 	    arch: string;
@@ -490,9 +530,12 @@ export namespace wails {
 	    author: string;
 	    license: string;
 	    platforms: PlatformInfoDTO[];
+	    availableReleases: GitHubReleaseSummaryDTO[];
 	    latestRelease: string;
+	    prerelease: boolean;
 	    publishedAt: string;
 	    readme: string;
+	    minCoreVersion: string;
 	    platformSupported: boolean;
 	    installed: boolean;
 	
@@ -510,9 +553,12 @@ export namespace wails {
 	        this.author = source["author"];
 	        this.license = source["license"];
 	        this.platforms = this.convertValues(source["platforms"], PlatformInfoDTO);
+	        this.availableReleases = this.convertValues(source["availableReleases"], GitHubReleaseSummaryDTO);
 	        this.latestRelease = source["latestRelease"];
+	        this.prerelease = source["prerelease"];
 	        this.publishedAt = source["publishedAt"];
 	        this.readme = source["readme"];
+	        this.minCoreVersion = source["minCoreVersion"];
 	        this.platformSupported = source["platformSupported"];
 	        this.installed = source["installed"];
 	    }
@@ -582,6 +628,8 @@ export namespace wails {
 	    platformSupported: boolean;
 	    supportedPlatforms: string[];
 	    latestRelease: string;
+	    releaseTag: string;
+	    prerelease: boolean;
 	    publishedDate: string;
 	    readme: string;
 	    requiresSecretAccess: boolean;
@@ -610,6 +658,8 @@ export namespace wails {
 	        this.platformSupported = source["platformSupported"];
 	        this.supportedPlatforms = source["supportedPlatforms"];
 	        this.latestRelease = source["latestRelease"];
+	        this.releaseTag = source["releaseTag"];
+	        this.prerelease = source["prerelease"];
 	        this.publishedDate = source["publishedDate"];
 	        this.readme = source["readme"];
 	        this.requiresSecretAccess = source["requiresSecretAccess"];
@@ -620,6 +670,7 @@ export namespace wails {
 	        this.warnings = source["warnings"];
 	    }
 	}
+	
 	export class GitHubRepositoryDTO {
 	    url: string;
 	    owner: string;
