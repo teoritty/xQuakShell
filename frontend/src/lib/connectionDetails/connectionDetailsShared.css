@@ -14,13 +14,49 @@
 }
 
 .connection-detail-field input,
-.connection-detail-field select {
+.connection-detail-field select,
+.connection-detail-field textarea {
   width: 100%;
 }
 
 .connection-detail-field-row {
   display: flex;
   gap: 8px;
+}
+
+.connection-detail-field-row > .connection-detail-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.connection-detail-field-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 2px 0;
+}
+
+.connection-detail-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.connection-detail-checkbox input {
+  margin: 0;
+  width: auto;
+  flex-shrink: 0;
+}
+
+.connection-detail-field-error {
+  font-size: 10px;
+  color: var(--danger);
+}
+
+.connection-detail-required {
+  color: var(--danger);
 }
 
 .connection-detail-section-header {

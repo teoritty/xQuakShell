@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { FieldGroup, FieldDef } from '../../stores/api';
   import { createEventDispatcher } from 'svelte';
+  import './connectionDetailsShared.css';
 
   export let groups: FieldGroup[] = [];
   export let values: Record<string, unknown> = {};
@@ -8,6 +9,8 @@
   export let readonly = false;
 
   const dispatch = createEventDispatcher<{ fieldchange: { fieldId: string; value: unknown } }>();
+
+  type FieldRow = { kind: 'row'; fields: FieldDef[] } | { kind: 'single'; field: FieldDef };
 
   $: compiledPatterns = (() => {
     const result: Record<string, RegExp> = {};
@@ -30,11 +33,62 @@
     .map((g) => ({
       ...g,
       fields: [...g.fields].sort((a, b) => a.order - b.order),
+      rows: groupFieldsIntoRows(
+        [...g.fields].sort((a, b) => a.order - b.order),
+        values,
+      ),
     }));
 
-  function isVisible(field: FieldDef): boolean {
+  function isVisible(field: FieldDef, vals: Record<string, unknown>): boolean {
     if (!field.dependsOn) return true;
-    return !!values[field.dependsOn];
+    return !!vals[field.dependsOn];
+  }
+
+  function groupFieldsIntoRows(fields: FieldDef[], vals: Record<string, unknown>): FieldRow[] {
+    const rows: FieldRow[] = [];
+    let currentRow: FieldDef[] = [];
+    let currentWidth: 'half' | 'third' | null = null;
+
+    function flushRow() {
+      if (currentRow.length > 0) {
+        rows.push({ kind: 'row', fields: currentRow });
+        currentRow = [];
+        currentWidth = null;
+      }
+    }
+
+    for (const field of fields) {
+      if (!isVisible(field, vals)) continue;
+
+      const w = field.width;
+      if (field.type === 'checkbox' || w === 'full' || !w) {
+        flushRow();
+        rows.push({ kind: 'single', field });
+        continue;
+      }
+
+      if (w === 'half') {
+        if (currentWidth === 'half' && currentRow.length < 2) {
+          currentRow.push(field);
+        } else {
+          flushRow();
+          currentWidth = 'half';
+          currentRow = [field];
+        }
+        if (currentRow.length === 2) flushRow();
+      } else if (w === 'third') {
+        if (currentWidth === 'third' && currentRow.length < 3) {
+          currentRow.push(field);
+        } else {
+          flushRow();
+          currentWidth = 'third';
+          currentRow = [field];
+        }
+        if (currentRow.length === 3) flushRow();
+      }
+    }
+    flushRow();
+    return rows;
   }
 
   function validateField(field: FieldDef): string {
@@ -65,17 +119,6 @@
     dispatch('fieldchange', { fieldId: field.id, value });
   }
 
-  function widthClass(w?: string): string {
-    switch (w) {
-      case 'half':
-        return 'field-half';
-      case 'third':
-        return 'field-third';
-      default:
-        return 'field-full';
-    }
-  }
-
   function checkboxValue(field: FieldDef): boolean {
     const val = values[field.id];
     if (typeof val === 'boolean') return val;
@@ -89,21 +132,23 @@
   }
 </script>
 
-<div class="plugin-fields">
-  {#each sortedGroups as group}
-    <fieldset class="field-group">
-      {#if group.label}
-        <legend>{group.label}</legend>
-      {/if}
+{#each sortedGroups as group}
+  <div class="connection-detail-field">
+    {#if group.label}
+      <div class="connection-detail-section-header">
+        <span class="connection-detail-field-label">{group.label}</span>
+      </div>
+    {/if}
 
-      <div class="fields-row">
-        {#each group.fields as field}
-          {#if isVisible(field)}
-            <div class="field-wrapper {widthClass(field.width)}">
-              <label for="field-{field.id}">
+    {#each group.rows as row}
+      {#if row.kind === 'row'}
+        <div class="connection-detail-field-row">
+          {#each row.fields as field (field.id)}
+            <label class="connection-detail-field">
+              <span class="connection-detail-field-label">
                 {field.label}
-                {#if field.required}<span class="required">*</span>{/if}
-              </label>
+                {#if field.required}<span class="connection-detail-required">*</span>{/if}
+              </span>
 
               {#if field.type === 'text'}
                 <input
@@ -142,14 +187,6 @@
                     <option value={opt.value}>{opt.label}</option>
                   {/each}
                 </select>
-              {:else if field.type === 'checkbox'}
-                <input
-                  id="field-{field.id}"
-                  type="checkbox"
-                  checked={checkboxValue(field)}
-                  disabled={readonly}
-                  on:change={(e) => handleInput(field, serializeCheckbox(e.currentTarget.checked))}
-                />
               {:else if field.type === 'textarea'}
                 <textarea
                   id="field-{field.id}"
@@ -160,69 +197,104 @@
                 ></textarea>
               {/if}
 
-              {#if field.description}
-                <small class="field-description">{field.description}</small>
+              {#if field.description && field.type !== 'checkbox'}
+                <span class="connection-detail-field-hint">{field.description}</span>
               {/if}
 
               {#if errors[field.id]}
-                <span class="field-error">{errors[field.id]}</span>
+                <span class="connection-detail-field-error">{errors[field.id]}</span>
               {/if}
-            </div>
-          {/if}
-        {/each}
-      </div>
-    </fieldset>
-  {/each}
-</div>
+            </label>
+          {/each}
+        </div>
+      {:else}
+        {@const field = row.field}
+        {#if field.type === 'checkbox'}
+          <div class="connection-detail-field">
+            <label class="connection-detail-checkbox">
+              <input
+                id="field-{field.id}"
+                type="checkbox"
+                checked={checkboxValue(field)}
+                disabled={readonly}
+                on:change={(e) => handleInput(field, serializeCheckbox(e.currentTarget.checked))}
+              />
+              <span>
+                {field.label}
+                {#if field.required}<span class="connection-detail-required">*</span>{/if}
+              </span>
+            </label>
+            {#if field.description}
+              <span class="connection-detail-field-hint">{field.description}</span>
+            {/if}
+            {#if errors[field.id]}
+              <span class="connection-detail-field-error">{errors[field.id]}</span>
+            {/if}
+          </div>
+        {:else}
+          <label class="connection-detail-field">
+            <span class="connection-detail-field-label">
+              {field.label}
+              {#if field.required}<span class="connection-detail-required">*</span>{/if}
+            </span>
 
-<style>
-  .plugin-fields {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
+            {#if field.type === 'text'}
+              <input
+                id="field-{field.id}"
+                type="text"
+                value={String(values[field.id] ?? field.default ?? '')}
+                placeholder={field.placeholder ?? ''}
+                disabled={readonly}
+                on:input={(e) => handleInput(field, e.currentTarget.value)}
+              />
+            {:else if field.type === 'password'}
+              <input
+                id="field-{field.id}"
+                type="password"
+                value={String(values[field.id] ?? '')}
+                placeholder={field.placeholder ?? ''}
+                disabled={readonly}
+                on:input={(e) => handleInput(field, e.currentTarget.value)}
+              />
+            {:else if field.type === 'number'}
+              <input
+                id="field-{field.id}"
+                type="number"
+                value={values[field.id] ?? field.default ?? ''}
+                disabled={readonly}
+                on:input={(e) => handleInput(field, Number(e.currentTarget.value))}
+              />
+            {:else if field.type === 'select'}
+              <select
+                id="field-{field.id}"
+                value={String(values[field.id] ?? field.default ?? '')}
+                disabled={readonly}
+                on:change={(e) => handleInput(field, e.currentTarget.value)}
+              >
+                {#each field.options ?? [] as opt}
+                  <option value={opt.value}>{opt.label}</option>
+                {/each}
+              </select>
+            {:else if field.type === 'textarea'}
+              <textarea
+                id="field-{field.id}"
+                value={String(values[field.id] ?? field.default ?? '')}
+                placeholder={field.placeholder ?? ''}
+                disabled={readonly}
+                on:input={(e) => handleInput(field, e.currentTarget.value)}
+              ></textarea>
+            {/if}
 
-  .field-group {
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 16px;
-  }
+            {#if field.description}
+              <span class="connection-detail-field-hint">{field.description}</span>
+            {/if}
 
-  .fields-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .field-wrapper {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .field-full {
-    width: 100%;
-  }
-
-  .field-half {
-    width: calc(50% - 6px);
-  }
-
-  .field-third {
-    width: calc(33.33% - 8px);
-  }
-
-  .required {
-    color: var(--danger);
-  }
-
-  .field-error {
-    color: var(--danger);
-    font-size: 0.85em;
-  }
-
-  .field-description {
-    color: var(--text-secondary);
-    font-size: 0.85em;
-  }
-</style>
+            {#if errors[field.id]}
+              <span class="connection-detail-field-error">{errors[field.id]}</span>
+            {/if}
+          </label>
+        {/if}
+      {/if}
+    {/each}
+  </div>
+{/each}
