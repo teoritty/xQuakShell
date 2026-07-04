@@ -59,7 +59,16 @@
   import Modal from './Modal.svelte';
   import GitHubReadmePanel from './GitHubReadmePanel.svelte';
   import { formatPublishedDate } from './githubReadme';
+  import {
+    defaultReleaseTagForPlugin,
+    formatInstalledVersion,
+    githubInstallPreviewLines,
+    githubPluginStatusLabel,
+  } from './pluginDisplay';
+  import { createSingleFlightRunner } from './repoFetchSingleFlight';
   import { Puzzle, ShieldAlert, BadgeCheck, FileArchive, FolderOpen, Github, RefreshCw } from 'lucide-svelte';
+
+  export let showAdvanced = false;
 
 
 
@@ -96,6 +105,18 @@
   let repoPlugins: Record<string, GitHubPluginMetadata[]> = {};
 
   let reposLoading = false;
+
+  let repoFetchErrors: Record<string, string> = {};
+
+  let refreshingRepoUrl = '';
+
+  const runRepoPluginsFetch = createSingleFlightRunner<void>();
+
+  let githubReposLoadPromise: Promise<void> | null = null;
+
+  let githubPreviewBusy = false;
+
+  let previewingPluginId = '';
 
   let addRepoDialogOpen = false;
 
@@ -164,7 +185,7 @@
   $: showNewRepoURLError = newRepoURL.trim().length > 0 && !newRepoURLValid;
 
   function defaultReleaseTag(plugin: GitHubPluginMetadata): string {
-    return plugin.availableReleases?.[0]?.tag ?? plugin.latestRelease ?? '';
+    return defaultReleaseTagForPlugin(plugin);
   }
 
   function getSelectedReleaseTag(plugin: GitHubPluginMetadata): string {
@@ -183,11 +204,33 @@
   function syncSelectedReleaseTags(plugins: GitHubPluginMetadata[]) {
     const next = { ...selectedReleaseByPlugin };
     for (const plugin of plugins) {
-      if (!next[plugin.id]) {
-        next[plugin.id] = defaultReleaseTag(plugin);
-      }
+      next[plugin.id] = defaultReleaseTag(plugin);
     }
     selectedReleaseByPlugin = next;
+  }
+
+  let previousActiveTab: 'installed' | 'github' = activeTab;
+  let repoFetchInFlight: Record<string, boolean> = {};
+
+  $: if (activeTab !== previousActiveTab) {
+    previousActiveTab = activeTab;
+    if (activeTab === 'github') {
+      void backgroundRefreshGitHub();
+    } else {
+      void refreshPlugins();
+    }
+  }
+
+  async function backgroundRefreshGitHub() {
+    if (githubReposLoadPromise || repositories.length === 0) return;
+    await Promise.all(
+      repositories.map((repo) => {
+        if (repoPlugins[repo.url]?.length) {
+          return Promise.resolve();
+        }
+        return refreshRepoPlugins(repo.url, false);
+      }),
+    );
   }
 
   function setSelectedReleaseTag(pluginId: string, tag: string) {
@@ -472,30 +515,62 @@
 
   }
 
-  async function loadGitHubRepositories() {
-    reposLoading = true;
-    try {
-      repositories = await listGitHubRepositories();
-      for (const repo of repositories) {
-        await refreshRepoPlugins(repo.url);
-      }
-    } catch (e) {
-      errorMessage = e instanceof Error ? e.message : 'Failed to load GitHub repositories';
-    } finally {
-      reposLoading = false;
+  async function loadGitHubRepositories(forceRefresh = false) {
+    if (githubReposLoadPromise) {
+      return githubReposLoadPromise;
     }
+
+    reposLoading = true;
+    githubReposLoadPromise = (async () => {
+      try {
+        repositories = await listGitHubRepositories();
+        await Promise.all(repositories.map((repo) => refreshRepoPlugins(repo.url, forceRefresh)));
+      } catch (e) {
+        errorMessage = e instanceof Error ? e.message : 'Failed to load GitHub repositories';
+      } finally {
+        reposLoading = false;
+        githubReposLoadPromise = null;
+      }
+    })();
+
+    return githubReposLoadPromise;
   }
 
-  async function refreshRepoPlugins(repoURL: string) {
-    try {
-      const result = await fetchGitHubPlugins(repoURL);
-      if (result?.plugins) {
-        repoPlugins = { ...repoPlugins, [repoURL]: result.plugins };
-        syncSelectedReleaseTags(result.plugins);
+  async function refreshRepoPlugins(repoURL: string, forceRefresh = false) {
+    return runRepoPluginsFetch(repoURL, async () => {
+      repoFetchInFlight = { ...repoFetchInFlight, [repoURL]: true };
+      if (forceRefresh) {
+        refreshingRepoUrl = repoURL;
       }
-    } catch (e) {
-      errorMessage = e instanceof Error ? e.message : 'Failed to fetch plugins';
-    }
+
+      try {
+        const nextErrors = { ...repoFetchErrors };
+        delete nextErrors[repoURL];
+        repoFetchErrors = nextErrors;
+
+        const result = await fetchGitHubPlugins(repoURL, forceRefresh);
+        if (result.plugins?.length) {
+          repoPlugins = { ...repoPlugins, [repoURL]: result.plugins };
+          syncSelectedReleaseTags(result.plugins);
+        } else {
+          const cleared = { ...repoPlugins };
+          delete cleared[repoURL];
+          repoPlugins = cleared;
+        }
+      } catch (e) {
+        repoFetchErrors = {
+          ...repoFetchErrors,
+          [repoURL]: e instanceof Error ? e.message : 'Failed to fetch plugins',
+        };
+      } finally {
+        const nextInFlight = { ...repoFetchInFlight };
+        delete nextInFlight[repoURL];
+        repoFetchInFlight = nextInFlight;
+        if (refreshingRepoUrl === repoURL) {
+          refreshingRepoUrl = '';
+        }
+      }
+    });
   }
 
   function showAddRepoDialog() {
@@ -528,7 +603,7 @@
     try {
       await addGitHubRepository(newRepoURL.trim(), false);
       closeAddRepoDialog();
-      await loadGitHubRepositories();
+      await loadGitHubRepositories(true);
     } catch (e) {
       errorMessage = e instanceof Error ? e.message : 'Failed to add repository';
     } finally {
@@ -540,7 +615,7 @@
     errorMessage = '';
     try {
       await setGitHubRepositoryTrust(repo.url, !repo.trusted);
-      await loadGitHubRepositories();
+      await loadGitHubRepositories(false);
     } catch (e) {
       errorMessage = e instanceof Error ? e.message : 'Failed to update trust';
     }
@@ -553,7 +628,7 @@
       const next = { ...repoPlugins };
       delete next[repoURL];
       repoPlugins = next;
-      await loadGitHubRepositories();
+      await loadGitHubRepositories(true);
     } catch (e) {
       errorMessage = e instanceof Error ? e.message : 'Failed to remove repository';
     }
@@ -572,20 +647,25 @@
   }
 
   async function showGitHubInstallConfirm(repoURL: string, plugin: GitHubPluginMetadata) {
+    if (githubPreviewBusy || githubInstallBusy) return;
     errorMessage = '';
     pendingGitHubRepoURL = repoURL;
     pendingGitHubReleaseTag = getSelectedReleaseTag(plugin);
+    githubPreviewBusy = true;
+    previewingPluginId = plugin.id;
     try {
       githubInstallPreview = await previewGitHubPluginInstall(repoURL, pendingGitHubReleaseTag);
       githubInstallTrustConfirmed = false;
       githubGrantSecretAccess = false;
       githubGrantMultiSession = false;
-
       githubGrantArbitraryNetwork = false;
       githubInstallConfirmOpen = true;
       selectedGitHubPlugin = plugin;
     } catch (e) {
       errorMessage = e instanceof Error ? e.message : 'Failed to preview plugin';
+    } finally {
+      githubPreviewBusy = false;
+      previewingPluginId = '';
     }
   }
 
@@ -609,8 +689,13 @@
         githubGrantArbitraryNetwork,
       );
       closeGitHubInstallConfirm();
+      if (selectedGitHubPlugin?.id) {
+        const next = { ...selectedReleaseByPlugin };
+        delete next[selectedGitHubPlugin.id];
+        selectedReleaseByPlugin = next;
+      }
       await refreshPlugins();
-      await loadGitHubRepositories();
+      await loadGitHubRepositories(true);
     } catch (e) {
       errorMessage = e instanceof Error ? e.message : 'Install failed';
     } finally {
@@ -636,14 +721,22 @@
       await uninstallGitHubPlugin(pendingUninstallPlugin.id, removePluginData);
       closeUninstallConfirm();
       await refreshPlugins();
-      await loadGitHubRepositories();
+      await loadGitHubRepositories(true);
     } catch (e) {
       errorMessage = e instanceof Error ? e.message : 'Uninstall failed';
     }
   }
 
-  function isPluginInstalled(pluginId: string): boolean {
-    return plugins.some((p) => p.id === pluginId);
+  $: githubInstallPreviewMessage = githubInstallPreview
+    ? githubInstallPreviewLines(
+        githubInstallPreview.name,
+        pendingGitHubReleaseTag || githubInstallPreview.releaseTag || githubInstallPreview.latestRelease,
+        githubInstallPreview.version,
+      ).join('\n')
+    : '';
+
+  function isRepoPluginsLoading(repoURL: string): boolean {
+    return repoFetchInFlight[repoURL] === true;
   }
 
 
@@ -697,6 +790,7 @@
 
     <h3>Plugins</h3>
 
+    {#if showAdvanced}
     <div class="install-actions">
 
       <button type="button" class="btn-secondary" on:click={startInstallFromFolder}>
@@ -716,6 +810,7 @@
       </button>
 
     </div>
+    {/if}
 
   </div>
 
@@ -727,8 +822,13 @@
 
   </p>
 
+  {#if !showAdvanced}
+    <p class="section-desc">Enable <strong>Advanced</strong> in the footer to install from a folder or bundle and manage publisher trust.</p>
+  {/if}
 
 
+
+  {#if showAdvanced}
   <div class="trust-panel">
 
     <h4>Trust policy</h4>
@@ -778,6 +878,7 @@
     </div>
 
   </div>
+  {/if}
 
 
 
@@ -888,23 +989,42 @@
             {/if}
           </div>
           <div class="repo-actions">
-            <button type="button" class="btn-secondary" on:click={() => refreshRepoPlugins(repo.url)}>
-              <RefreshCw size={12} /> Refresh
+            <button
+              type="button"
+              class="btn-secondary"
+              disabled={refreshingRepoUrl === repo.url || isRepoPluginsLoading(repo.url)}
+              on:click={() => refreshRepoPlugins(repo.url, true)}
+            >
+              <RefreshCw size={12} class={refreshingRepoUrl === repo.url ? 'spinning' : ''} />
+              {refreshingRepoUrl === repo.url ? 'Refreshing…' : 'Refresh'}
             </button>
             <button type="button" class="btn-secondary" on:click={() => toggleRepoTrust(repo)}>
               {repo.trusted ? 'Untrust' : 'Trust'}
             </button>
             <button type="button" class="btn-danger" on:click={() => removeRepo(repo.url)}>Remove</button>
           </div>
-          {#if repoPlugins[repo.url]?.length}
+          {#if isRepoPluginsLoading(repo.url)}
+            <p class="muted">Loading plugins…</p>
+          {:else if repoFetchErrors[repo.url]}
+            <p class="warn-line">{repoFetchErrors[repo.url]}</p>
+            <button type="button" class="btn-secondary" on:click={() => refreshRepoPlugins(repo.url, false)}>Retry</button>
+          {:else if repoPlugins[repo.url]?.length}
             <div class="plugins-list">
               {#each repoPlugins[repo.url] as plugin (plugin.id)}
                 {@const selectedRelease = getSelectedRelease(plugin)}
+                {@const status = githubPluginStatusLabel(plugin)}
                 <div class="plugin-card">
                   <div class="plugin-title">
                     <strong>{plugin.name}</strong>
-                    <span class="version">{getSelectedReleaseTag(plugin)}</span>
-                    {#if selectedRelease?.prerelease}
+                    {#if status.kind === 'installed'}
+                      <span class="version">{status.text}</span>
+                    {:else}
+                      <span class="badge not-installed">{status.text}</span>
+                      {#if plugin.latestRelease}
+                        <span class="latest-release">Latest: {plugin.latestRelease}</span>
+                      {/if}
+                    {/if}
+                    {#if !plugin.installed && selectedRelease?.prerelease}
                       <span class="badge warn">Pre-release</span>
                     {/if}
                   </div>
@@ -931,15 +1051,24 @@
                   {/if}
                   <div class="plugin-actions-row">
                     <button type="button" class="btn-secondary" on:click={() => showPluginDetails(plugin, repo.url)}>Details</button>
-                    {#if plugin.installed || isPluginInstalled(plugin.id)}
+                    {#if plugin.installed}
                       <button type="button" class="btn-danger" on:click={() => showUninstallConfirm(plugin)}>Uninstall</button>
                     {:else if selectedRelease?.platformSupported ?? plugin.platformSupported}
-                      <button type="button" class="btn-secondary" on:click={() => showGitHubInstallConfirm(repo.url, plugin)}>Install</button>
+                      <button
+                        type="button"
+                        class="btn-secondary"
+                        disabled={githubPreviewBusy && previewingPluginId === plugin.id}
+                        on:click={() => showGitHubInstallConfirm(repo.url, plugin)}
+                      >
+                        {githubPreviewBusy && previewingPluginId === plugin.id ? 'Loading…' : 'Install'}
+                      </button>
                     {/if}
                   </div>
                 </div>
               {/each}
             </div>
+          {:else}
+            <p class="muted">No plugin metadata</p>
           {/if}
         </li>
       {/each}
@@ -1057,7 +1186,14 @@
       <div class="plugin-details-layout">
         <aside class="plugin-details-meta">
           <div class="plugin-details-badges">
-            <span class="version-badge">{getSelectedReleaseTag(selectedGitHubPlugin)}</span>
+            {#if selectedGitHubPlugin.installed}
+              <span class="version-badge">Installed {formatInstalledVersion(selectedGitHubPlugin.installedVersion)}</span>
+            {:else}
+              <span class="badge not-installed">Not installed</span>
+              {#if selectedGitHubPlugin.latestRelease}
+                <span class="latest-release">Latest: {selectedGitHubPlugin.latestRelease}</span>
+              {/if}
+            {/if}
             {#if detailsRelease?.prerelease}
               <span class="badge warn">Pre-release</span>
             {/if}
@@ -1120,10 +1256,11 @@
 
       <div class="plugin-details-footer">
         <button type="button" class="btn-secondary" on:click={closePluginDetails}>Close</button>
-        {#if selectedDetailsRepoURL && !(selectedGitHubPlugin.installed || isPluginInstalled(selectedGitHubPlugin.id)) && (detailsRelease?.platformSupported ?? selectedGitHubPlugin.platformSupported)}
+        {#if selectedDetailsRepoURL && !selectedGitHubPlugin.installed && (detailsRelease?.platformSupported ?? selectedGitHubPlugin.platformSupported)}
           <button
             type="button"
             class="btn-secondary"
+            disabled={githubPreviewBusy && previewingPluginId === selectedGitHubPlugin.id}
             on:click={() => {
               const plugin = selectedGitHubPlugin;
               const repoURL = selectedDetailsRepoURL;
@@ -1132,7 +1269,7 @@
               void showGitHubInstallConfirm(repoURL, plugin);
             }}
           >
-            Install
+            {githubPreviewBusy && previewingPluginId === selectedGitHubPlugin.id ? 'Loading…' : 'Install'}
           </button>
         {/if}
       </div>
@@ -1143,7 +1280,8 @@
 {#if githubInstallConfirmOpen && githubInstallPreview}
   <div class="dialog-overlay" role="presentation" on:click={closeGitHubInstallConfirm} on:keydown={(e) => e.key === 'Escape' && closeGitHubInstallConfirm()}>
     <div class="dialog" role="dialog" on:click|stopPropagation on:keydown|stopPropagation>
-      <h4>Install {githubInstallPreview.name} ({pendingGitHubReleaseTag || githubInstallPreview.releaseTag || githubInstallPreview.latestRelease})</h4>
+      <h4>Install {githubInstallPreview.name}</h4>
+      <pre class="install-preview">{githubInstallPreviewMessage}</pre>
       {#if githubInstallPreview.warnings?.length}
         <div class="warning-box">
           <strong>Security Warning</strong>
@@ -1182,7 +1320,7 @@
       {/if}
       <div class="dialog-actions">
         <button type="button" class="btn-secondary" on:click={closeGitHubInstallConfirm}>Cancel</button>
-        <button type="button" class="btn-secondary" disabled={!githubInstallTrustConfirmed || githubInstallBusy || (githubInstallPreview.requiresSecretAccess && !githubGrantSecretAccess) || (githubInstallPreview.arbitraryNetworkWarning && !githubGrantArbitraryNetwork) || (githubInstallPreview.multiSessionWarning && !githubGrantMultiSession)} on:click={confirmGitHubInstall}>
+        <button type="button" class="btn-secondary" disabled={!githubInstallTrustConfirmed || githubInstallBusy || githubPreviewBusy || (githubInstallPreview.requiresSecretAccess && !githubGrantSecretAccess) || (githubInstallPreview.arbitraryNetworkWarning && !githubGrantArbitraryNetwork) || (githubInstallPreview.multiSessionWarning && !githubGrantMultiSession)} on:click={confirmGitHubInstall}>
           {githubInstallBusy ? 'Installing…' : 'Install'}
         </button>
       </div>
@@ -1280,6 +1418,8 @@
   .repo-url { font-size: 12px; color: var(--text-muted, #888); }
 
   .badge.warn { color: #e6b35a; font-size: 11px; }
+  .badge.not-installed { color: var(--danger, #f44747); font-size: 11px; font-weight: 600; }
+  .latest-release { color: var(--text-muted, #888); font-size: 11px; }
 
   .plugins-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color, #333); }
 
@@ -1408,6 +1548,15 @@
   .readme { white-space: pre-wrap; font-size: 12px; max-height: 320px; overflow: auto; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; }
 
   .install-preview { white-space: pre-wrap; font-size: 12px; max-height: 240px; overflow: auto; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin: 0; }
+
+  :global(.spinning) {
+    animation: plugin-refresh-spin 0.8s linear infinite;
+  }
+
+  @keyframes plugin-refresh-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
 
 </style>
 

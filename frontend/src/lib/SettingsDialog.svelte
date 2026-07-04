@@ -130,6 +130,8 @@
     : tabs;
   $: showSaveButton = !(!isSearching && activeTab === 'plugins');
 
+  let pluginsAdvancedMode = false;
+
   let settingsWasOpen = false;
   $: if (show && !settingsWasOpen) {
     settingsWasOpen = true;
@@ -270,6 +272,7 @@
 
   function closeSettings() {
     applyUiScalePercent(uiScaleAtOpen);
+    pluginsAdvancedMode = false;
     show = false;
   }
 
@@ -656,20 +659,30 @@
             {#if sectionTabLabel('plugins', 'manage')}
               <div class="section-tab-label">{SETTINGS_TAB_LABELS.plugins}</div>
             {/if}
-            <PluginSettingsPanel />
+            <PluginSettingsPanel showAdvanced={pluginsAdvancedMode} />
           {/if}
         {/if}
       </div>
     </div>
 
     <div class="settings-footer">
-      <button class="secondary" on:click={closeSettings}>Cancel</button>
-      {#if showSaveButton}
-        <button class="primary" on:click={handleSave} disabled={saving}>
-          <Save size={13} />
-          {saving ? 'Saving...' : 'Save'}
-        </button>
-      {/if}
+      <div class="settings-footer-left">
+        {#if !isSearching && activeTab === 'plugins'}
+          <label class="advanced-toggle">
+            <input type="checkbox" bind:checked={pluginsAdvancedMode} />
+            Advanced
+          </label>
+        {/if}
+      </div>
+      <div class="settings-footer-actions">
+        <button class="secondary" on:click={closeSettings}>Cancel</button>
+        {#if showSaveButton}
+          <button class="primary" on:click={handleSave} disabled={saving}>
+            <Save size={13} />
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        {/if}
+      </div>
     </div>
   </Modal>
 {/if}
@@ -928,11 +941,30 @@
 
   .settings-footer {
     display: flex;
-    justify-content: flex-end;
-    gap: 6px;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
     padding-top: 12px;
     border-top: 1px solid var(--border-color);
     margin-top: 12px;
+  }
+  .settings-footer-left {
+    min-width: 0;
+  }
+  .settings-footer-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-left: auto;
+  }
+  .advanced-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
   }
   .settings-footer button {
     padding: 5px 14px;

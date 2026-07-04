@@ -1337,6 +1337,8 @@ export interface GitHubPluginMetadata {
   minCoreVersion: string;
   platformSupported: boolean;
   installed: boolean;
+  installedVersion: string;
+  installedReleaseTag: string;
 }
 
 export interface GitHubPluginList {
@@ -1414,11 +1416,11 @@ export async function setGitHubRepositoryTrust(repoURL: string, trusted: boolean
   }
 }
 
-export async function fetchGitHubPlugins(repoURL: string): Promise<GitHubPluginList | null> {
+export async function fetchGitHubPlugins(repoURL: string, forceRefresh = false): Promise<GitHubPluginList> {
   const app = getApp();
-  if (!app?.FetchGitHubPlugins) return null;
+  if (!app?.FetchGitHubPlugins) throw new Error('GitHub plugin discovery unavailable');
   try {
-    return await app.FetchGitHubPlugins(repoURL);
+    return await app.FetchGitHubPlugins({ url: repoURL, forceRefresh });
   } catch (e) {
     handleError(e, 'Fetch GitHub plugins');
     throw e;

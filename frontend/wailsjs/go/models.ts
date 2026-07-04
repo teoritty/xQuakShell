@@ -445,6 +445,20 @@ export namespace wails {
 		}
 	}
 	
+	export class FetchGitHubPluginsRequest {
+	    url: string;
+	    forceRefresh: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new FetchGitHubPluginsRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.forceRefresh = source["forceRefresh"];
+	    }
+	}
 	
 	
 	
@@ -540,6 +554,8 @@ export namespace wails {
 	    minCoreVersion: string;
 	    platformSupported: boolean;
 	    installed: boolean;
+	    installedVersion: string;
+	    installedReleaseTag: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new GitHubPluginMetadataDTO(source);
@@ -563,6 +579,8 @@ export namespace wails {
 	        this.minCoreVersion = source["minCoreVersion"];
 	        this.platformSupported = source["platformSupported"];
 	        this.installed = source["installed"];
+	        this.installedVersion = source["installedVersion"];
+	        this.installedReleaseTag = source["installedReleaseTag"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

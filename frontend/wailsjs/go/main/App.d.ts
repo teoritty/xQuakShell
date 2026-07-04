@@ -33,7 +33,7 @@ export function EnableAuditSecretLogging(arg1:boolean):Promise<void>;
 
 export function ExecutePluginCommand(arg1:string,arg2:string,arg3:json.RawMessage):Promise<json.RawMessage>;
 
-export function FetchGitHubPlugins(arg1:string):Promise<wails.GitHubPluginListDTO>;
+export function FetchGitHubPlugins(arg1:wails.FetchGitHubPluginsRequest):Promise<wails.GitHubPluginListDTO>;
 
 export function GeneratePluginPublisherKeyPair():Promise<wails.PluginPublisherKeyPairDTO>;
 
