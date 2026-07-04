@@ -10,6 +10,7 @@
   export let checkboxLabel = '';
   export let confirmLabel = 'Delete';
   export let cancelLabel = 'Cancel';
+  export let confirmDisabled = false;
 
   const dispatch = createEventDispatcher();
 
@@ -19,6 +20,7 @@
 
   function confirm() {
     if (requireCheckbox && !checked) return;
+    if (confirmDisabled) return;
     dispatch('confirm');
   }
 
@@ -28,7 +30,7 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') cancel();
-    if (e.key === 'Enter' && (!requireCheckbox || checked)) confirm();
+    if (e.key === 'Enter' && (!requireCheckbox || checked) && !confirmDisabled) confirm();
   }
 </script>
 
@@ -44,6 +46,7 @@
       </div>
       <div class="confirm-body">
         <p class="confirm-message">{message}</p>
+        <slot name="body" />
         {#if requireCheckbox}
           <label class="confirm-checkbox">
             <input type="checkbox" bind:checked />
@@ -56,7 +59,7 @@
         <button
           class="danger"
           on:click={confirm}
-          disabled={requireCheckbox && !checked}
+          disabled={(requireCheckbox && !checked) || confirmDisabled}
         >
           {confirmLabel}
         </button>
@@ -137,6 +140,18 @@
     line-height: 1.4;
   }
 
+  .confirm-body :global(ul) {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 12px;
+    color: var(--text-primary);
+    line-height: 1.5;
+  }
+
+  .critical .confirm-body :global(ul) {
+    color: var(--danger, #f44747);
+  }
+
   .confirm-checkbox {
     display: flex;
     align-items: center;
@@ -149,6 +164,13 @@
     margin: 0;
     width: 14px;
     height: 14px;
+  }
+
+  .critical .confirm-checkbox {
+    color: var(--danger, #f44747);
+  }
+  .critical .confirm-checkbox input {
+    accent-color: var(--danger, #f44747);
   }
 
   .confirm-footer {

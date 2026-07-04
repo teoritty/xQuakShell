@@ -51,8 +51,14 @@
 
     type GitHubPluginPreview,
 
+    type GitHubReleaseSummary,
+
   } from '../stores/api';
 
+  import ConfirmDialog from './ConfirmDialog.svelte';
+  import Modal from './Modal.svelte';
+  import GitHubReadmePanel from './GitHubReadmePanel.svelte';
+  import { formatPublishedDate } from './githubReadme';
   import { Puzzle, ShieldAlert, BadgeCheck, FileArchive, FolderOpen, Github, RefreshCw } from 'lucide-svelte';
 
 
@@ -93,9 +99,11 @@
 
   let addRepoDialogOpen = false;
 
-  let newRepoURL = '';
+  let addRepoUntrustedConfirmOpen = false;
 
-  let newRepoTrusted = false;
+  let addRepoBusy = false;
+
+  let newRepoURL = '';
 
   let githubInstallPreview: GitHubPluginPreview | null = null;
 
@@ -111,17 +119,80 @@
 
   let pendingGitHubRepoURL = '';
 
+  let pendingGitHubReleaseTag = '';
+
   let githubInstallBusy = false;
 
   let pluginDetailsOpen = false;
 
   let selectedGitHubPlugin: GitHubPluginMetadata | null = null;
 
+  let selectedDetailsRepoURL = '';
+
+  let selectedReleaseByPlugin: Record<string, string> = {};
+
   let uninstallConfirmOpen = false;
 
   let removePluginData = false;
 
   let pendingUninstallPlugin: GitHubPluginMetadata | null = null;
+
+  function isGitHubRepositoryURL(value: string): boolean {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+
+    let url = trimmed.replace(/\/+$/, '');
+    if (!/^https?:\/\//i.test(url)) {
+      url = `https://github.com/${url.replace(/^github\.com\/?/i, '')}`;
+    }
+
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'https:') return false;
+      if (parsed.hostname !== 'github.com') return false;
+
+      const parts = parsed.pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+      if (parts.length < 2) return false;
+      if (!/^[\w.-]+$/.test(parts[0]) || !/^[\w.-]+$/.test(parts[1])) return false;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  $: newRepoURLValid = isGitHubRepositoryURL(newRepoURL);
+  $: showNewRepoURLError = newRepoURL.trim().length > 0 && !newRepoURLValid;
+
+  function defaultReleaseTag(plugin: GitHubPluginMetadata): string {
+    return plugin.availableReleases?.[0]?.tag ?? plugin.latestRelease ?? '';
+  }
+
+  function getSelectedReleaseTag(plugin: GitHubPluginMetadata): string {
+    return selectedReleaseByPlugin[plugin.id] ?? defaultReleaseTag(plugin);
+  }
+
+  function getSelectedRelease(plugin: GitHubPluginMetadata): GitHubReleaseSummary | null {
+    const tag = getSelectedReleaseTag(plugin);
+    return plugin.availableReleases?.find((release) => release.tag === tag) ?? plugin.availableReleases?.[0] ?? null;
+  }
+
+  function releaseOptionLabel(release: GitHubReleaseSummary): string {
+    return release.prerelease ? `${release.tag} (pre-release)` : release.tag;
+  }
+
+  function syncSelectedReleaseTags(plugins: GitHubPluginMetadata[]) {
+    const next = { ...selectedReleaseByPlugin };
+    for (const plugin of plugins) {
+      if (!next[plugin.id]) {
+        next[plugin.id] = defaultReleaseTag(plugin);
+      }
+    }
+    selectedReleaseByPlugin = next;
+  }
+
+  function setSelectedReleaseTag(pluginId: string, tag: string) {
+    selectedReleaseByPlugin = { ...selectedReleaseByPlugin, [pluginId]: tag };
+  }
 
 
 
@@ -420,6 +491,7 @@
       const result = await fetchGitHubPlugins(repoURL);
       if (result?.plugins) {
         repoPlugins = { ...repoPlugins, [repoURL]: result.plugins };
+        syncSelectedReleaseTags(result.plugins);
       }
     } catch (e) {
       errorMessage = e instanceof Error ? e.message : 'Failed to fetch plugins';
@@ -428,23 +500,39 @@
 
   function showAddRepoDialog() {
     newRepoURL = '';
-    newRepoTrusted = false;
+    addRepoUntrustedConfirmOpen = false;
+    addRepoBusy = false;
     addRepoDialogOpen = true;
   }
 
   function closeAddRepoDialog() {
     addRepoDialogOpen = false;
+    addRepoUntrustedConfirmOpen = false;
+    addRepoBusy = false;
+  }
+
+  function proceedAddRepo() {
+    if (!newRepoURLValid || addRepoBusy) return;
+    errorMessage = '';
+    addRepoUntrustedConfirmOpen = true;
+  }
+
+  function cancelAddRepoUntrustedConfirm() {
+    addRepoUntrustedConfirmOpen = false;
   }
 
   async function confirmAddRepo() {
-    if (!newRepoURL.trim()) return;
+    if (!newRepoURLValid || addRepoBusy) return;
+    addRepoBusy = true;
     errorMessage = '';
     try {
-      await addGitHubRepository(newRepoURL.trim(), newRepoTrusted);
-      addRepoDialogOpen = false;
+      await addGitHubRepository(newRepoURL.trim(), false);
+      closeAddRepoDialog();
       await loadGitHubRepositories();
     } catch (e) {
       errorMessage = e instanceof Error ? e.message : 'Failed to add repository';
+    } finally {
+      addRepoBusy = false;
     }
   }
 
@@ -471,21 +559,24 @@
     }
   }
 
-  function showPluginDetails(plugin: GitHubPluginMetadata) {
+  function showPluginDetails(plugin: GitHubPluginMetadata, repoURL: string) {
     selectedGitHubPlugin = plugin;
+    selectedDetailsRepoURL = repoURL;
     pluginDetailsOpen = true;
   }
 
   function closePluginDetails() {
     pluginDetailsOpen = false;
     selectedGitHubPlugin = null;
+    selectedDetailsRepoURL = '';
   }
 
   async function showGitHubInstallConfirm(repoURL: string, plugin: GitHubPluginMetadata) {
     errorMessage = '';
     pendingGitHubRepoURL = repoURL;
+    pendingGitHubReleaseTag = getSelectedReleaseTag(plugin);
     try {
-      githubInstallPreview = await previewGitHubPluginInstall(repoURL);
+      githubInstallPreview = await previewGitHubPluginInstall(repoURL, pendingGitHubReleaseTag);
       githubInstallTrustConfirmed = false;
       githubGrantSecretAccess = false;
       githubGrantMultiSession = false;
@@ -502,6 +593,7 @@
     githubInstallConfirmOpen = false;
     githubInstallPreview = null;
     pendingGitHubRepoURL = '';
+    pendingGitHubReleaseTag = '';
   }
 
   async function confirmGitHubInstall() {
@@ -511,6 +603,7 @@
     try {
       await installGitHubPlugin(
         pendingGitHubRepoURL,
+        pendingGitHubReleaseTag,
         githubGrantSecretAccess,
         githubGrantMultiSession,
         githubGrantArbitraryNetwork,
@@ -806,22 +899,41 @@
           {#if repoPlugins[repo.url]?.length}
             <div class="plugins-list">
               {#each repoPlugins[repo.url] as plugin (plugin.id)}
+                {@const selectedRelease = getSelectedRelease(plugin)}
                 <div class="plugin-card">
                   <div class="plugin-title">
                     <strong>{plugin.name}</strong>
-                    <span class="version">v{plugin.version}</span>
+                    <span class="version">{getSelectedReleaseTag(plugin)}</span>
+                    {#if selectedRelease?.prerelease}
+                      <span class="badge warn">Pre-release</span>
+                    {/if}
                   </div>
                   {#if plugin.description}
                     <p class="plugin-desc">{plugin.description}</p>
                   {/if}
-                  {#if !plugin.platformSupported}
+                  {#if !(selectedRelease?.platformSupported ?? plugin.platformSupported)}
                     <p class="warn-line">Not compatible with your platform</p>
                   {/if}
+                  {#if plugin.availableReleases?.length}
+                    <div class="version-select-row">
+                      <label for={`release-${plugin.id}`}>Version</label>
+                      <select
+                        id={`release-${plugin.id}`}
+                        class="version-select"
+                        value={getSelectedReleaseTag(plugin)}
+                        on:change={(e) => setSelectedReleaseTag(plugin.id, e.currentTarget.value)}
+                      >
+                        {#each plugin.availableReleases as release (release.tag)}
+                          <option value={release.tag}>{releaseOptionLabel(release)}</option>
+                        {/each}
+                      </select>
+                    </div>
+                  {/if}
                   <div class="plugin-actions-row">
-                    <button type="button" class="btn-secondary" on:click={() => showPluginDetails(plugin)}>Details</button>
+                    <button type="button" class="btn-secondary" on:click={() => showPluginDetails(plugin, repo.url)}>Details</button>
                     {#if plugin.installed || isPluginInstalled(plugin.id)}
                       <button type="button" class="btn-danger" on:click={() => showUninstallConfirm(plugin)}>Uninstall</button>
-                    {:else if plugin.platformSupported}
+                    {:else if selectedRelease?.platformSupported ?? plugin.platformSupported}
                       <button type="button" class="btn-secondary" on:click={() => showGitHubInstallConfirm(repo.url, plugin)}>Install</button>
                     {/if}
                   </div>
@@ -891,41 +1003,147 @@
   <div class="dialog-overlay" role="presentation" on:click={closeAddRepoDialog} on:keydown={(e) => e.key === 'Escape' && closeAddRepoDialog()}>
     <div class="dialog" role="dialog" on:click|stopPropagation on:keydown|stopPropagation>
       <h4>Add GitHub Repository</h4>
-      <input type="text" bind:value={newRepoURL} placeholder="https://github.com/user/repo" class="key-input" />
-      <label class="checkbox-row">
-        <input type="checkbox" bind:checked={newRepoTrusted} />
-        I trust this repository (skip some security warnings)
-      </label>
+      <input
+        type="text"
+        bind:value={newRepoURL}
+        placeholder="https://github.com/user/repo"
+        class="key-input"
+        class:invalid={showNewRepoURLError}
+        disabled={addRepoBusy}
+      />
+      {#if showNewRepoURLError}
+        <p class="field-error">Enter a valid GitHub repository URL (https://github.com/owner/repo)</p>
+      {/if}
       <div class="dialog-actions">
-        <button type="button" class="btn-secondary" on:click={closeAddRepoDialog}>Cancel</button>
-        <button type="button" class="btn-secondary" on:click={confirmAddRepo}>Add Repository</button>
+        <button type="button" class="btn-secondary" on:click={closeAddRepoDialog} disabled={addRepoBusy}>Cancel</button>
+        <button type="button" class="btn-secondary" disabled={!newRepoURLValid || addRepoBusy} on:click={proceedAddRepo}>
+          {addRepoBusy ? 'Adding…' : 'Continue'}
+        </button>
       </div>
     </div>
   </div>
 {/if}
 
+<ConfirmDialog
+  show={addRepoUntrustedConfirmOpen}
+  title="Add Untrusted Repository"
+  message="Plugins from untrusted GitHub repositories can execute code on your machine. The repository owner can publish updates at any time. Only proceed if you trust the author and accept these risks."
+  critical={true}
+  requireCheckbox={true}
+  confirmDisabled={addRepoBusy}
+  checkboxLabel="I understand the risks and trust this repository. I take full responsibility."
+  confirmLabel={addRepoBusy ? 'Adding…' : 'Add Repository'}
+  cancelLabel="Cancel"
+  on:confirm={confirmAddRepo}
+  on:cancel={cancelAddRepoUntrustedConfirm}
+>
+  <ul slot="body" class="repo-risk-list">
+    <li>Malicious or compromised plugin binaries</li>
+    <li>Access to connection secrets (if requested by a plugin)</li>
+    <li>Arbitrary network connections</li>
+    <li>Unsigned or unverified plugin code</li>
+  </ul>
+</ConfirmDialog>
+
 {#if pluginDetailsOpen && selectedGitHubPlugin}
-  <div class="dialog-overlay" role="presentation" on:click={closePluginDetails} on:keydown={(e) => e.key === 'Escape' && closePluginDetails()}>
-    <div class="dialog dialog-large" role="dialog" on:click|stopPropagation on:keydown|stopPropagation>
-      <h4>{selectedGitHubPlugin.name}</h4>
-      <p class="plugin-meta">v{selectedGitHubPlugin.version} · {selectedGitHubPlugin.latestRelease}</p>
-      {#if selectedGitHubPlugin.author}<p class="plugin-desc">Author: {selectedGitHubPlugin.author}</p>{/if}
-      {#if selectedGitHubPlugin.license}<p class="plugin-desc">License: {selectedGitHubPlugin.license}</p>{/if}
-      <p class="plugin-desc">Platforms: {selectedGitHubPlugin.platforms.map((p) => `${p.os}/${p.arch}`).join(', ')}</p>
-      {#if selectedGitHubPlugin.readme}
-        <pre class="readme">{selectedGitHubPlugin.readme}</pre>
-      {/if}
-      <div class="dialog-actions">
+  {@const detailsRelease = getSelectedRelease(selectedGitHubPlugin)}
+  <Modal
+    show={pluginDetailsOpen}
+    title={selectedGitHubPlugin.name}
+    contentClass="plugin-details-modal"
+    on:close={closePluginDetails}
+  >
+    <div class="plugin-details">
+      <div class="plugin-details-layout">
+        <aside class="plugin-details-meta">
+          <div class="plugin-details-badges">
+            <span class="version-badge">{getSelectedReleaseTag(selectedGitHubPlugin)}</span>
+            {#if detailsRelease?.prerelease}
+              <span class="badge warn">Pre-release</span>
+            {/if}
+          </div>
+
+          {#if selectedGitHubPlugin.description}
+            <p class="plugin-details-description">{selectedGitHubPlugin.description}</p>
+          {/if}
+
+          <div class="meta-stack">
+            {#if selectedGitHubPlugin.author}
+              <div class="meta-item">
+                <span class="meta-label">Author</span>
+                <span class="meta-value">{selectedGitHubPlugin.author}</span>
+              </div>
+            {/if}
+            {#if selectedGitHubPlugin.license}
+              <div class="meta-item">
+                <span class="meta-label">License</span>
+                <span class="meta-value">{selectedGitHubPlugin.license}</span>
+              </div>
+            {/if}
+            {#if detailsRelease?.publishedAt || selectedGitHubPlugin.publishedAt}
+              <div class="meta-item">
+                <span class="meta-label">Published</span>
+                <span class="meta-value">{formatPublishedDate(detailsRelease?.publishedAt || selectedGitHubPlugin.publishedAt)}</span>
+              </div>
+            {/if}
+            {#if selectedGitHubPlugin.minCoreVersion}
+              <div class="meta-item">
+                <span class="meta-label">Min core</span>
+                <span class="meta-value">{selectedGitHubPlugin.minCoreVersion}</span>
+              </div>
+            {/if}
+          </div>
+
+          {#if detailsRelease?.platforms?.length || selectedGitHubPlugin.platforms?.length}
+            <div class="platform-section">
+              <span class="meta-label">Platforms</span>
+              <div class="platform-chips">
+                {#each (detailsRelease?.platforms ?? selectedGitHubPlugin.platforms) as platform (platform.os + platform.arch)}
+                  <span class="platform-chip">{platform.os}/{platform.arch}</span>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        </aside>
+
+        <section class="plugin-details-readme">
+          <span class="meta-label">README</span>
+          <div class="readme-scroll">
+            <GitHubReadmePanel
+              markdown={selectedGitHubPlugin.readme}
+              repositoryUrl={selectedGitHubPlugin.repositoryUrl}
+              ref={getSelectedReleaseTag(selectedGitHubPlugin)}
+            />
+          </div>
+        </section>
+      </div>
+
+      <div class="plugin-details-footer">
         <button type="button" class="btn-secondary" on:click={closePluginDetails}>Close</button>
+        {#if selectedDetailsRepoURL && !(selectedGitHubPlugin.installed || isPluginInstalled(selectedGitHubPlugin.id)) && (detailsRelease?.platformSupported ?? selectedGitHubPlugin.platformSupported)}
+          <button
+            type="button"
+            class="btn-secondary"
+            on:click={() => {
+              const plugin = selectedGitHubPlugin;
+              const repoURL = selectedDetailsRepoURL;
+              if (!plugin || !repoURL) return;
+              closePluginDetails();
+              void showGitHubInstallConfirm(repoURL, plugin);
+            }}
+          >
+            Install
+          </button>
+        {/if}
       </div>
     </div>
-  </div>
+  </Modal>
 {/if}
 
 {#if githubInstallConfirmOpen && githubInstallPreview}
   <div class="dialog-overlay" role="presentation" on:click={closeGitHubInstallConfirm} on:keydown={(e) => e.key === 'Escape' && closeGitHubInstallConfirm()}>
     <div class="dialog" role="dialog" on:click|stopPropagation on:keydown|stopPropagation>
-      <h4>Install {githubInstallPreview.name}</h4>
+      <h4>Install {githubInstallPreview.name} ({pendingGitHubReleaseTag || githubInstallPreview.releaseTag || githubInstallPreview.latestRelease})</h4>
       {#if githubInstallPreview.warnings?.length}
         <div class="warning-box">
           <strong>Security Warning</strong>
@@ -1014,6 +1232,8 @@
   .key-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
   .key-input { flex: 1; min-width: 200px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border-color, #333); background: transparent; color: inherit; }
+  .key-input.invalid { border-color: var(--danger, #f44747); }
+  .field-error { margin: 0; font-size: 12px; color: var(--danger, #f44747); }
 
   .key-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 
@@ -1061,11 +1281,115 @@
 
   .badge.warn { color: #e6b35a; font-size: 11px; }
 
-  .repo-actions, .plugin-actions-row { display: flex; gap: 8px; flex-wrap: wrap; }
-
   .plugins-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color, #333); }
 
-  .plugin-card { border: 1px solid var(--border-color, #333); border-radius: 6px; padding: 10px; }
+  .plugin-card { border: 1px solid var(--border-color, #333); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+
+  .version-select-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .version-select-row label { color: var(--text-muted, #888); min-width: 52px; }
+  .version-select {
+    flex: 1;
+    min-width: 0;
+    padding: 5px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color, #333);
+    background: transparent;
+    color: inherit;
+    font-size: 12px;
+  }
+
+  .repo-actions, .plugin-actions-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .plugin-actions-row { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-color, #333); }
+
+  :global(.modal-content.plugin-details-modal) {
+    width: min(1400px, 94vw);
+    max-width: min(1400px, 94vw);
+    min-width: min(1000px, 94vw);
+    max-height: 90vh;
+  }
+
+  .plugin-details { display: flex; flex-direction: column; gap: 16px; flex: 1; min-height: 0; }
+  .plugin-details-layout {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 28px;
+    align-items: stretch;
+    flex: 1;
+    min-height: 520px;
+  }
+  .plugin-details-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+  }
+  .plugin-details-readme {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    min-height: 0;
+  }
+  .readme-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 14px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color, #333);
+    background: var(--bg-tertiary, rgba(0, 0, 0, 0.2));
+  }
+
+  .plugin-details-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .version-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color, #333);
+    font-size: 12px;
+    color: var(--text-primary);
+    background: var(--bg-tertiary, rgba(255,255,255,0.04));
+  }
+  .plugin-details-description { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-primary); }
+  .meta-stack { display: flex; flex-direction: column; gap: 12px; }
+  .meta-item { display: flex; flex-direction: column; gap: 4px; }
+  .meta-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted, #888); }
+  .meta-value { font-size: 13px; color: var(--text-primary); }
+  .platform-section { display: flex; flex-direction: column; gap: 8px; }
+  .platform-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .platform-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color, #333);
+    font-size: 11px;
+    color: var(--text-primary);
+  }
+  .plugin-details-footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; border-top: 1px solid var(--border-color, #333); }
+
+  @media (max-width: 960px) {
+    :global(.modal-content.plugin-details-modal) {
+      min-width: 0;
+      width: 96vw;
+      max-width: 96vw;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .plugin-details-layout {
+      grid-template-columns: 1fr;
+      min-height: 0;
+    }
+    .plugin-details-readme {
+      min-height: 280px;
+    }
+    .readme-scroll {
+      min-height: 240px;
+      max-height: 50vh;
+    }
+  }
 
   .btn-danger { border: 1px solid #ff6b6b; color: #ff6b6b; background: transparent; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 12px; }
 

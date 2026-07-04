@@ -1221,6 +1221,15 @@ export interface GitHubRepository {
   trusted: boolean;
 }
 
+export interface GitHubReleaseSummary {
+  tag: string;
+  name: string;
+  publishedAt: string;
+  prerelease: boolean;
+  platformSupported: boolean;
+  platforms: { os: string; arch: string; assetName: string }[];
+}
+
 export interface GitHubPluginMetadata {
   repositoryUrl: string;
   id: string;
@@ -1230,9 +1239,12 @@ export interface GitHubPluginMetadata {
   author: string;
   license: string;
   platforms: { os: string; arch: string; assetName: string }[];
+  availableReleases: GitHubReleaseSummary[];
   latestRelease: string;
+  prerelease: boolean;
   publishedAt: string;
   readme: string;
+  minCoreVersion: string;
   platformSupported: boolean;
   installed: boolean;
 }
@@ -1256,6 +1268,8 @@ export interface GitHubPluginPreview {
   platformSupported: boolean;
   supportedPlatforms: string[];
   latestRelease: string;
+  releaseTag: string;
+  prerelease: boolean;
   publishedDate: string;
   readme: string;
   requiresSecretAccess: boolean;
@@ -1321,11 +1335,11 @@ export async function fetchGitHubPlugins(repoURL: string): Promise<GitHubPluginL
   }
 }
 
-export async function previewGitHubPluginInstall(repoURL: string): Promise<GitHubPluginPreview> {
+export async function previewGitHubPluginInstall(repoURL: string, releaseTag = ''): Promise<GitHubPluginPreview> {
   const app = getApp();
   if (!app?.PreviewGitHubPluginInstall) throw new Error('GitHub plugin install unavailable');
   try {
-    return await app.PreviewGitHubPluginInstall(repoURL);
+    return await app.PreviewGitHubPluginInstall(repoURL, releaseTag);
   } catch (e) {
     handleError(e, 'Preview GitHub plugin');
     throw e;
@@ -1334,6 +1348,7 @@ export async function previewGitHubPluginInstall(repoURL: string): Promise<GitHu
 
 export async function installGitHubPlugin(
   repoURL: string,
+  releaseTag = '',
   grantSecretAccess = false,
   grantMultiSessionAccess = false,
   grantArbitraryNetworkAccess = false,
@@ -1341,7 +1356,7 @@ export async function installGitHubPlugin(
   const app = getApp();
   if (!app?.InstallGitHubPlugin) throw new Error('GitHub plugin install unavailable');
   try {
-    await app.InstallGitHubPlugin(repoURL, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
+    await app.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
   } catch (e) {
     handleError(e, 'Install GitHub plugin');
     throw e;
