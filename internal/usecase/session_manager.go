@@ -27,7 +27,8 @@ type OnStreamReadyFunc func(sessionID string, outputCh <-chan []byte)
 
 // SessionManager manages the lifecycle of parallel sessions (tabs) for all protocols.
 type SessionManager struct {
-	registry *SessionRegistry
+	registry     *SessionRegistry
+	sshConnector *SSHConnector
 
 	connRepo          domain.ConnectionRepository
 	vaultRepo         domain.VaultRepository
@@ -83,7 +84,19 @@ func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 		connectors[c.Protocol()] = c
 	}
 	return &SessionManager{
-		registry:          NewSessionRegistry(),
+		registry: NewSessionRegistry(),
+		sshConnector: NewSSHConnector(SSHConnectorConfig{
+			VaultRepo:               cfg.VaultRepo,
+			IdentRepo:               cfg.IdentRepo,
+			PasswordRepo:            cfg.PasswordRepo,
+			KnownHosts:              cfg.KnownHosts,
+			SSHFactory:              cfg.SSHFactory,
+			PassphraseCache:         cfg.PassphraseCache,
+			HostKeyCallbackBuilder:  cfg.HostKeyCallbackBuilder,
+			JumpTransportBuilder:    cfg.JumpTransportBuilder,
+			PrivateKeySignerFactory: cfg.PrivateKeySignerFactory,
+			PassphraseReq:           cfg.PassphraseReq,
+		}),
 		connRepo:          cfg.ConnRepo,
 		vaultRepo:         cfg.VaultRepo,
 		identRepo:         cfg.IdentRepo,

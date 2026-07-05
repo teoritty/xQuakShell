@@ -352,12 +352,12 @@ func TestOpenSession_RejectsInvalidDefaultUserAuth(t *testing.T) {
 }
 
 func TestResolveHopAuthWithCtx_RejectsUnknownAuthMethod(t *testing.T) {
-	sm := NewSessionManager(SessionManagerConfig{
+	c := NewSSHConnector(SSHConnectorConfig{
 		VaultRepo:    sshTestVaultRepo{},
 		IdentRepo:    sshTestIdentRepo{},
 		PasswordRepo: sshTestPasswordRepo{},
 	})
-	_, _, err := sm.resolveHopAuthWithCtx(context.Background(), domain.JumpHop{
+	_, _, err := c.resolveHopAuthWithCtx(context.Background(), domain.JumpHop{
 		Host:     "bastion",
 		Port:     22,
 		Username: "jump",
@@ -369,12 +369,12 @@ func TestResolveHopAuthWithCtx_RejectsUnknownAuthMethod(t *testing.T) {
 }
 
 func TestResolveHopAuthWithCtx_RejectsKeyAuthWithoutIdentities(t *testing.T) {
-	sm := NewSessionManager(SessionManagerConfig{
+	c := NewSSHConnector(SSHConnectorConfig{
 		VaultRepo:    sshTestVaultRepo{},
 		IdentRepo:    sshTestIdentRepo{},
 		PasswordRepo: sshTestPasswordRepo{},
 	})
-	_, _, err := sm.resolveHopAuthWithCtx(context.Background(), domain.JumpHop{
+	_, _, err := c.resolveHopAuthWithCtx(context.Background(), domain.JumpHop{
 		Host:     "bastion",
 		Port:     22,
 		Username: "jump",
