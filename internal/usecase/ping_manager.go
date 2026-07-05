@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"ssh-client/internal/domain"
-	"ssh-client/internal/pkg/conlimit"
 	"ssh-client/internal/pkg/safego"
 )
 
@@ -42,20 +41,22 @@ type PingManager struct {
 	cancel         context.CancelFunc
 	connRepo       domain.ConnectionRepository
 	protocolLookup domain.ConnectionProtocolLookup
-	limiter        *conlimit.Limiter
+	limiter        domain.ConcurrencyLimiter
 	cycleMu        sync.Mutex
 	cycleRunning   bool
 	dial           pingDialFunc
 }
 
 // NewPingManager creates a new PingManager.
-func NewPingManager(connRepo domain.ConnectionRepository, settings domain.PingSettings) *PingManager {
-	limit := settings.EffectiveMaxConcurrent()
+func NewPingManager(connRepo domain.ConnectionRepository, settings domain.PingSettings, limiter domain.ConcurrencyLimiter) *PingManager {
+	if limiter == nil {
+		panic("usecase: PingManager requires ConcurrencyLimiter")
+	}
 	return &PingManager{
 		settings: settings,
 		results:  make(map[string]PingResult),
 		connRepo: connRepo,
-		limiter:  conlimit.New(limit),
+		limiter:  limiter,
 		dial:     defaultPingDial,
 	}
 }

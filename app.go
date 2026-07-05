@@ -16,6 +16,7 @@ import (
 	infraputty "ssh-client/internal/infra/putty"
 	infrasftp "ssh-client/internal/infra/sftp"
 	infrassh "ssh-client/internal/infra/ssh"
+	"ssh-client/internal/pkg/conlimit"
 	"ssh-client/internal/pkg/safego"
 	presentation "ssh-client/internal/presentation/wails"
 	"ssh-client/internal/usecase"
@@ -100,6 +101,8 @@ func NewApp() *App {
 		pluginRuntime.manager, pluginRuntime.inbound, pluginRuntime.viewInbound,
 		pluginRuntime.vaultInbound,
 		logStream, pluginSessionAudit,
+		conlimit.New(domain.DefaultPingSettings().EffectiveMaxConcurrent()),
+		conlimit.New(domain.DefaultTransferSettings().MaxConcurrent),
 	)
 	if pluginRuntime.manager != nil {
 		pluginRuntime.manager.SetCrashHandler(api.Sessions())

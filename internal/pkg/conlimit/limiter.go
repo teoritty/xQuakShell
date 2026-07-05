@@ -5,8 +5,11 @@ import (
 	"context"
 	"sync"
 
+	"ssh-client/internal/domain"
 	"ssh-client/internal/pkg/safego"
 )
+
+var _ domain.ConcurrencyLimiter = (*Limiter)(nil)
 
 // Limiter bounds the number of concurrent operations that hold an acquired slot.
 type Limiter struct {
@@ -17,7 +20,7 @@ type Limiter struct {
 }
 
 // New creates a limiter with the given slot capacity.
-func New(limit int) *Limiter {
+func New(limit int) domain.ConcurrencyLimiter {
 	l := &Limiter{limit: limit}
 	l.cond = sync.NewCond(&l.mu)
 	return l

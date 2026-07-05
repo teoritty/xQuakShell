@@ -67,8 +67,10 @@ func NewAppAPI(
 	pluginVaultInbound *usecase.PluginVaultInbound,
 	logStream domain.LogStream,
 	pluginSessionAudit domainplugin.SessionAuditor,
+	pingLimiter domain.ConcurrencyLimiter,
+	transferLimiter domain.ConcurrencyLimiter,
 ) *AppAPI {
-	pingMgr := usecase.NewPingManager(connRepo, domain.DefaultPingSettings())
+	pingMgr := usecase.NewPingManager(connRepo, domain.DefaultPingSettings(), pingLimiter)
 	var pluginFieldsSvc *usecase.PluginFieldsService
 	if pluginMgr != nil {
 		pluginFieldsSvc = usecase.NewPluginFieldsService(vaultRepo, pluginMgr.Registry())
@@ -127,7 +129,7 @@ func NewAppAPI(
 	}
 
 	api.auditSvc = usecase.NewAuditService(auditLogRepo, api.settingsSvc, api.sessions, connRepo, trackerFactory, sanitizerFactory)
-	api.transferSvc = usecase.NewTransferService(api.sessions, api.settingsSvc, hostFS)
+	api.transferSvc = usecase.NewTransferService(api.sessions, api.settingsSvc, hostFS, transferLimiter)
 	api.logWindow = logwindow.NewManager(logStream, api.settingsSvc, api.emitDebugLogWindowChanged)
 
 	return api

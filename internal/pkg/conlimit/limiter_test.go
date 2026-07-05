@@ -71,11 +71,12 @@ func TestLimiterAcquireContextCancel(t *testing.T) {
 func TestLimiterSetLimit(t *testing.T) {
 	l := New(4)
 	l.SetLimit(8)
-	if got := l.Limit(); got != 8 {
+	concrete := l.(*Limiter)
+	if got := concrete.Limit(); got != 8 {
 		t.Fatalf("Limit() = %d, want 8", got)
 	}
 	l.SetLimit(0)
-	if got := l.Limit(); got != 1 {
+	if got := concrete.Limit(); got != 1 {
 		t.Fatalf("Limit() after zero = %d, want 1", got)
 	}
 }

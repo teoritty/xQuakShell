@@ -92,6 +92,65 @@ func (stubConn) SetDeadline(time.Time) error      { return nil }
 func (stubConn) SetReadDeadline(time.Time) error  { return nil }
 func (stubConn) SetWriteDeadline(time.Time) error { return nil }
 
+type stubConcurrencyLimiter struct {
+	mu     sync.Mutex
+	cond   *sync.Cond
+	active int
+	limit  int
+}
+
+func newStubConcurrencyLimiter(limit int) *stubConcurrencyLimiter {
+	if limit < 1 {
+		limit = 1
+	}
+	l := &stubConcurrencyLimiter{limit: limit}
+	l.cond = sync.NewCond(&l.mu)
+	return l
+}
+
+func (l *stubConcurrencyLimiter) Acquire(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-ctx.Done():
+			l.cond.Broadcast()
+		case <-done:
+		}
+	}()
+	l.mu.Lock()
+	for l.active >= l.limit {
+		l.cond.Wait()
+		if ctx.Err() != nil {
+			l.mu.Unlock()
+			return ctx.Err()
+		}
+	}
+	l.active++
+	l.mu.Unlock()
+	return nil
+}
+
+func (l *stubConcurrencyLimiter) Release() {
+	l.mu.Lock()
+	l.active--
+	l.cond.Signal()
+	l.mu.Unlock()
+}
+
+func (l *stubConcurrencyLimiter) SetLimit(limit int) {
+	if limit < 1 {
+		limit = 1
+	}
+	l.mu.Lock()
+	l.limit = limit
+	l.cond.Broadcast()
+	l.mu.Unlock()
+}
+
 func testConnections(n int) []domain.Connection {
 	conns := make([]domain.Connection, n)
 	for i := range conns {
@@ -109,7 +168,7 @@ func newTestPingManager(conns []domain.Connection, maxConcurrent int, dialer *re
 		Enabled:       true,
 		Mode:          domain.PingModeInterval,
 		MaxConcurrent: maxConcurrent,
-	})
+	}, newStubConcurrencyLimiter(maxConcurrent))
 	pm.dial = dialer.dial
 	return pm
 }

@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"ssh-client/internal/domain"
-	"ssh-client/internal/pkg/conlimit"
 	"ssh-client/internal/pkg/safego"
 )
 
@@ -32,18 +31,21 @@ type TransferService struct {
 	sessions  *SessionManager
 	settings  *SettingsService
 	hostFS    domain.HostFileSystem
-	limiter   *conlimit.Limiter
+	limiter   domain.ConcurrencyLimiter
 	cancelsMu sync.Mutex
 	cancels   map[string]context.CancelFunc
 }
 
 // NewTransferService creates a transfer orchestrator.
-func NewTransferService(sessions *SessionManager, settings *SettingsService, hostFS domain.HostFileSystem) *TransferService {
+func NewTransferService(sessions *SessionManager, settings *SettingsService, hostFS domain.HostFileSystem, limiter domain.ConcurrencyLimiter) *TransferService {
+	if limiter == nil {
+		panic("usecase: TransferService requires ConcurrencyLimiter")
+	}
 	return &TransferService{
 		sessions: sessions,
 		settings: settings,
 		hostFS:   hostFS,
-		limiter:  conlimit.New(4),
+		limiter:  limiter,
 		cancels:  make(map[string]context.CancelFunc),
 	}
 }
