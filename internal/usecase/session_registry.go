@@ -24,6 +24,25 @@ type sessionEntry struct {
 	pluginTerminalReady bool
 	sessionSurface      string
 	embedDescriptor     *domain.SessionEmbedDescriptor
+	readyOnce           sync.Once
+	readyCh             chan struct{}
+}
+
+func newSessionEntry(info domain.ConnectionSession, ctx context.Context, cancel context.CancelFunc, connectionID string) *sessionEntry {
+	return &sessionEntry{
+		info:         info,
+		ctx:          ctx,
+		cancel:       cancel,
+		connectionID: connectionID,
+		readyCh:      make(chan struct{}),
+	}
+}
+
+func (e *sessionEntry) signalReadyIfTerminal(state domain.SessionState) {
+	switch state {
+	case domain.SessionReady, domain.SessionError, domain.SessionClosed:
+		e.readyOnce.Do(func() { close(e.readyCh) })
+	}
 }
 
 // SessionRegistry is the single owner of session runtime state.
@@ -136,4 +155,14 @@ func (r *SessionRegistry) StillRegistered(id string) bool {
 	_, ok := r.sessions[id]
 	r.mu.RUnlock()
 	return ok
+}
+
+// WaitReady returns a channel that closes when the session reaches a terminal
+// readiness state (ready, error, or closed).
+func (r *SessionRegistry) WaitReady(sessionID string) (<-chan struct{}, error) {
+	entry, ok := r.Get(sessionID)
+	if !ok {
+		return nil, domain.ErrSessionNotFound
+	}
+	return entry.readyCh, nil
 }

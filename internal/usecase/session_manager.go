@@ -29,6 +29,7 @@ type OnStreamReadyFunc func(sessionID string, outputCh <-chan []byte)
 type SessionManager struct {
 	registry     *SessionRegistry
 	sshConnector *SSHConnector
+	io           *SessionIOService
 
 	connRepo          domain.ConnectionRepository
 	vaultRepo         domain.VaultRepository
@@ -83,7 +84,7 @@ func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 	for _, c := range cfg.Connectors {
 		connectors[c.Protocol()] = c
 	}
-	return &SessionManager{
+	sm := &SessionManager{
 		registry: NewSessionRegistry(),
 		sshConnector: NewSSHConnector(SSHConnectorConfig{
 			VaultRepo:               cfg.VaultRepo,
@@ -117,6 +118,14 @@ func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 		hostKeyRequest:    cfg.HostKeyRequest,
 		pluginTerminalWriteTimeout: cfg.PluginTerminalWriteTimeout,
 	}
+	sm.io = NewSessionIOService(SessionIOServiceConfig{
+		Registry:          sm.registry,
+		VaultRepo:         cfg.VaultRepo,
+		PTYBridgeFactory:  cfg.PTYBridgeFactory,
+		SFTPClientFactory: cfg.SFTPClientFactory,
+		OnDisconnected:    sm.NotifySessionDisconnected,
+	})
+	return sm
 }
 
 // OpenSession creates a new session for the given connection ID.
@@ -135,18 +144,13 @@ func (m *SessionManager) OpenSession(ctx context.Context, connectionID string) (
 	sessionID := generateSessionID()
 	sessionCtx, cancel := context.WithCancel(context.Background())
 
-	entry := &sessionEntry{
-		info: domain.ConnectionSession{
-			SessionID:      sessionID,
-			ConnectionID:   connectionID,
-			ConnectionName: conn.Name,
-			Protocol:       proto,
-			State:          domain.SessionConnecting,
-		},
-		ctx:          sessionCtx,
-		cancel:       cancel,
-		connectionID: connectionID,
-	}
+	entry := newSessionEntry(domain.ConnectionSession{
+		SessionID:      sessionID,
+		ConnectionID:   connectionID,
+		ConnectionName: conn.Name,
+		Protocol:       proto,
+		State:          domain.SessionConnecting,
+	}, sessionCtx, cancel, connectionID)
 
 	m.registry.Put(sessionID, entry)
 
@@ -174,6 +178,8 @@ func (m *SessionManager) CloseSession(sessionID string) error {
 	}
 
 	entry.cancel()
+
+	entry.readyOnce.Do(func() { close(entry.readyCh) })
 
 	if m.embedTunnels != nil {
 		_ = m.embedTunnels.RevokeBySession(sessionID)

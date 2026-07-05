@@ -16,6 +16,7 @@ func (m *SessionManager) updateState(entry *sessionEntry, state domain.SessionSt
 		e.info.State = state
 		e.info.ErrorMessage = errMsg
 		info = e.info
+		e.signalReadyIfTerminal(state)
 	}) {
 		return
 	}

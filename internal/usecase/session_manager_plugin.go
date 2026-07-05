@@ -171,14 +171,10 @@ func (m *SessionManager) BindPluginSessionForTest(sessionID, pluginID string, ou
 	entry, ok := m.registry.Get(sessionID)
 	if !ok {
 		ctx, cancel := context.WithCancel(context.Background())
-		entry = &sessionEntry{
-			info: domain.ConnectionSession{
-				SessionID: sessionID,
-				State:     domain.SessionReady,
-			},
-			ctx:    ctx,
-			cancel: cancel,
-		}
+		entry = newSessionEntry(domain.ConnectionSession{
+			SessionID: sessionID,
+			State:     domain.SessionReady,
+		}, ctx, cancel, "")
 		m.registry.Put(sessionID, entry)
 	}
 	m.registry.Mutate(sessionID, func(e *sessionEntry) {
