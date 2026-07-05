@@ -186,3 +186,17 @@ func (r *PluginRegistry) DefaultPortForProtocol(protocol string) (int, bool) {
 	}
 	return 0, false
 }
+
+// PluginManifestLookup resolves manifest fields for embed validation (ADR-009).
+type PluginManifestLookup interface {
+	EmbedEntryForProtocol(pluginID, protocol string) (string, error)
+}
+
+// EmbedEntryForProtocol returns the expected ui entry for a plugin protocol.
+func (r *PluginRegistry) EmbedEntryForProtocol(pluginID, protocol string) (string, error) {
+	plugin, err := r.Get(pluginID)
+	if err != nil {
+		return "", err
+	}
+	return plugin.Manifest.EmbedEntryForProtocol(protocol), nil
+}
