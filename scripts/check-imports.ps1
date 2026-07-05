@@ -58,6 +58,18 @@ Test-LayerImports -Dir $presentation -ForbiddenPatterns @(
     '"ssh-client/internal/infra'
 ) -Label "internal/presentation must not import internal/infra"
 
+$presentationRepoHits = @()
+$presentationRepoHits += Get-ChildItem -Path $presentation -Filter "*.go" -Recurse |
+    Where-Object { $_.Name -notlike "*_test.go" } |
+    Select-String -Pattern '\.(connRepo|passwordRepo|identRepo)\.'
+$presentationRepoHits += Get-ChildItem -Path $presentation -Filter "*.go" -Recurse |
+    Where-Object { $_.Name -notlike "*_test.go" } |
+    Select-String -Pattern '\t(connRepo|passwordRepo|identRepo)\s{2,}domain\.(Connection|Password|Identity)Repository'
+if ($presentationRepoHits) {
+    Write-Error "internal/presentation must not reference vault repositories directly; use VaultService:`n$($presentationRepoHits | Out-String)"
+    exit 1
+}
+
 $infra = Join-Path $root "internal\infra"
 Test-LayerImports -Dir $infra -ForbiddenPatterns @(
     '"ssh-client/internal/usecase'

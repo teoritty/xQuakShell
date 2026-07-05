@@ -16,10 +16,8 @@ import (
 type AppAPI struct {
 	ctx                 context.Context
 	vaultRepo           domain.VaultRepository
-	connRepo            domain.ConnectionRepository
-	identRepo           domain.IdentityRepository
-	passwordRepo        domain.PasswordRepository
 	knownHosts          domain.KnownHostsRepository
+	vaultSvc            *usecase.VaultService
 	sessions            *usecase.SessionManager
 	settingsSvc         *usecase.SettingsService
 	auditSvc            *usecase.AuditService
@@ -30,7 +28,6 @@ type AppAPI struct {
 	lockout             domain.LockoutManager
 	pingMgr             *usecase.PingManager
 	plugins             *usecase.PluginManager
-	pluginFields        *usecase.PluginFieldsService
 	viewRelay           *usecase.PluginViewRelay
 	githubRepoService   *usecase.GitHubRepositoryService
 	githubPluginService *usecase.GitHubPluginService
@@ -73,23 +70,30 @@ func NewAppAPI(
 ) *AppAPI {
 	pingMgr := usecase.NewPingManager(connRepo, domain.DefaultPingSettings(), pingLimiter, pinger)
 	var pluginFieldsSvc *usecase.PluginFieldsService
+	var protocolLookup domain.ConnectionProtocolLookup
 	if pluginMgr != nil {
 		pluginFieldsSvc = usecase.NewPluginFieldsService(vaultRepo, pluginMgr.Registry())
-		pingMgr.SetProtocolLookup(pluginMgr.Registry())
+		protocolLookup = pluginMgr.Registry()
+		pingMgr.SetProtocolLookup(protocolLookup)
 	}
+	vaultSvc := usecase.NewVaultService(usecase.VaultServiceConfig{
+		ConnRepo:       connRepo,
+		PasswordRepo:   passwordRepo,
+		IdentRepo:      identRepo,
+		PluginFields:   pluginFieldsSvc,
+		PingMgr:        pingMgr,
+		ProtocolLookup: protocolLookup,
+	})
 	api := &AppAPI{
 		vaultRepo:         vaultRepo,
-		connRepo:          connRepo,
-		identRepo:         identRepo,
-		passwordRepo:      passwordRepo,
 		knownHosts:        knownHosts,
+		vaultSvc:          vaultSvc,
 		hostFS:            hostFS,
 		portableData:      portableData,
 		puttyImport:       usecase.NewPuTTYImportService(connRepo, identRepo, puttyImporter),
 		lockout:           lockoutMgr,
 		pingMgr:           pingMgr,
 		plugins:           pluginMgr,
-		pluginFields:      pluginFieldsSvc,
 		settingsSvc:       usecase.NewSettingsService(vaultRepo, lockoutMgr, pingMgr),
 		ownerCache:        make(map[string]map[string]string),
 		groupCache:        make(map[string]map[string]string),

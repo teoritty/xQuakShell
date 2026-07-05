@@ -25,7 +25,7 @@ flowchart TB
 - **main** (`app.go`) wires repositories, SSH adapters (`internal/infra/ssh`), portable layout, and plugin runtime.
 - **presentation/wails** — Wails facade: `api.go`, handler files, DTOs, events. Handlers delegate to use cases; no direct infra imports.
 - **presentation/logwindow** — debug log viewer subprocess and TCP stream server; depends on `domain.LogStream` only.
-- **usecase** — orchestration (`SessionManager`, `TransferService`, `AuditService`, `SettingsService`, plugins). Depends only on **domain** and stdlib.
+- **usecase** — orchestration (`SessionManager`, `TransferService`, `AuditService`, `SettingsService`, `VaultService`, plugins). Depends only on **domain** and stdlib.
 - **domain** — entities and ports split across `vault_data.go`, `app_settings.go`, `repositories.go`, `host_fs.go`, `portable_data.go`, etc.
 - **infra** — persistence, SSH dialer, SFTP, audit log, host FS, portable data store, plugin host, embed broker (`domain.EmbedTunnelPort`), etc.
 
@@ -104,7 +104,7 @@ Plugin connectors receive `ConnectorHooks` to set PTY bridge, SFTP (`RemoteFS`),
 
 | Area | Entry points |
 |------|----------------|
-| **Vault / connections** | Repositories in `internal/infra/persistence`, DTOs in `dto_connection.go`, handlers in `handlers_vault.go`. |
+| **Vault / connections** | `internal/usecase/vault_service.go` (CRUD orchestration), repositories wired in `app.go` only, DTOs in `dto_connection.go`, thin handlers in `handlers_vault.go`. |
 | **SSH sessions** | `internal/usecase/session_manager*.go`, PTY/SFTP init via `SessionManager.InitSessionIO`, handlers in `handlers_sessions.go`. |
 | **Remote file browser** | `handlers_remote_fs.go` (DTO mapping); SSH exec via `SessionManager.Exec`. |
 | **Local file browser** | `domain.HostFileSystem`, `internal/infra/host/host_fs.go`, `handlers_local_fs.go` (routing table in file header). |

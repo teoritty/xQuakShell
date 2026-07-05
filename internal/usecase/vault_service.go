@@ -1,0 +1,84 @@
+package usecase
+
+import (
+	"context"
+
+	"ssh-client/internal/domain"
+)
+
+// VaultService orchestrates CRUD for vault-stored folders, connections, passwords, and identities.
+// Single orchestration entry for vault CRUD from presentation; do not call repositories from handlers.
+type VaultService struct {
+	connRepo       domain.ConnectionRepository
+	passwordRepo   domain.PasswordRepository
+	identRepo      domain.IdentityRepository
+	pluginFields   *PluginFieldsService
+	pingMgr        *PingManager
+	protocolLookup domain.ConnectionProtocolLookup
+}
+
+// VaultServiceConfig holds dependencies for VaultService.
+type VaultServiceConfig struct {
+	ConnRepo       domain.ConnectionRepository
+	PasswordRepo   domain.PasswordRepository
+	IdentRepo      domain.IdentityRepository
+	PluginFields   *PluginFieldsService
+	PingMgr        *PingManager
+	ProtocolLookup domain.ConnectionProtocolLookup
+}
+
+// NewVaultService creates a VaultService with the provided dependencies.
+func NewVaultService(cfg VaultServiceConfig) *VaultService {
+	if cfg.ConnRepo == nil {
+		panic("usecase: VaultService requires ConnectionRepository")
+	}
+	if cfg.PasswordRepo == nil {
+		panic("usecase: VaultService requires PasswordRepository")
+	}
+	if cfg.IdentRepo == nil {
+		panic("usecase: VaultService requires IdentityRepository")
+	}
+	return &VaultService{
+		connRepo:       cfg.ConnRepo,
+		passwordRepo:   cfg.PasswordRepo,
+		identRepo:      cfg.IdentRepo,
+		pluginFields:   cfg.PluginFields,
+		pingMgr:        cfg.PingMgr,
+		protocolLookup: cfg.ProtocolLookup,
+	}
+}
+
+// GetAllFolders returns all connection folders in the vault.
+func (s *VaultService) GetAllFolders(ctx context.Context) ([]domain.ConnectionFolder, error) {
+	return s.connRepo.GetAllFolders(ctx)
+}
+
+// SaveFolder creates or updates a connection folder.
+func (s *VaultService) SaveFolder(ctx context.Context, folder *domain.ConnectionFolder) error {
+	return s.connRepo.SaveFolder(ctx, folder)
+}
+
+// DeleteFolder removes a folder, its descendants, and all connections in that subtree.
+func (s *VaultService) DeleteFolder(ctx context.Context, id string) error {
+	return s.connRepo.DeleteFolder(ctx, id)
+}
+
+// ImportPassword stores a password in the vault and returns its ID.
+func (s *VaultService) ImportPassword(ctx context.Context, password []byte, label string) (string, error) {
+	return s.passwordRepo.Import(ctx, password, label)
+}
+
+// DeletePassword removes a password from the vault.
+func (s *VaultService) DeletePassword(ctx context.Context, id string) error {
+	return s.passwordRepo.Delete(ctx, id)
+}
+
+// GetAllIdentities returns metadata for all SSH identities.
+func (s *VaultService) GetAllIdentities(ctx context.Context) ([]domain.SSHIdentity, error) {
+	return s.identRepo.GetAll(ctx)
+}
+
+// ImportIdentity imports a PEM private key into the vault.
+func (s *VaultService) ImportIdentity(ctx context.Context, pemData []byte, comment string) (*domain.SSHIdentity, error) {
+	return s.identRepo.Import(ctx, pemData, comment)
+}

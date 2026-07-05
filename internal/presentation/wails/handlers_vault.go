@@ -4,15 +4,13 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-
-	"ssh-client/internal/domain"
 )
 
 // --- Folders ---
 
 // GetFolders returns all folders.
 func (a *AppAPI) GetFolders() ([]FolderDTO, error) {
-	fs, err := a.connRepo.GetAllFolders(context.Background())
+	fs, err := a.vaultSvc.GetAllFolders(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -22,7 +20,7 @@ func (a *AppAPI) GetFolders() ([]FolderDTO, error) {
 // SaveFolder creates or updates a folder.
 func (a *AppAPI) SaveFolder(dto FolderDTO) (FolderDTO, error) {
 	f := DTOToFolder(dto)
-	if err := a.connRepo.SaveFolder(context.Background(), &f); err != nil {
+	if err := a.vaultSvc.SaveFolder(context.Background(), &f); err != nil {
 		return FolderDTO{}, err
 	}
 	return FolderToDTO(f), nil
@@ -30,14 +28,14 @@ func (a *AppAPI) SaveFolder(dto FolderDTO) (FolderDTO, error) {
 
 // DeleteFolder removes a folder, its descendant folders, and all connections inside that subtree.
 func (a *AppAPI) DeleteFolder(id string) error {
-	return a.connRepo.DeleteFolder(context.Background(), id)
+	return a.vaultSvc.DeleteFolder(context.Background(), id)
 }
 
 // --- Connections ---
 
 // GetAllConnections returns all connections.
 func (a *AppAPI) GetAllConnections() ([]ConnectionDTO, error) {
-	cs, err := a.connRepo.GetAllConnections(context.Background())
+	cs, err := a.vaultSvc.GetAllConnections(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -46,81 +44,56 @@ func (a *AppAPI) GetAllConnections() ([]ConnectionDTO, error) {
 
 // SaveConnection creates or updates a connection.
 func (a *AppAPI) SaveConnection(dto ConnectionDTO) (ConnectionDTO, error) {
-	ctx := context.Background()
 	c := DTOToConnection(dto)
-	incomingFields := cloneStringMap(dto.PluginFields)
-	if err := a.connRepo.Save(ctx, &c); err != nil {
-		return ConnectionDTO{}, err
-	}
-	if a.pluginFields != nil {
-		if err := a.pluginFields.SavePluginFields(ctx, &c, incomingFields); err != nil {
-			return ConnectionDTO{}, err
-		}
-	}
-	saved, err := a.connRepo.GetByID(ctx, c.ID)
+	saved, err := a.vaultSvc.SaveConnection(context.Background(), &c, cloneStringMap(dto.PluginFields))
 	if err != nil {
 		return ConnectionDTO{}, err
-	}
-	if a.pingMgr != nil {
-		if h := saved.EffectiveHost(); h != "" {
-			port := saved.EffectivePort(a.protocolLookup())
-			if port > 0 {
-				a.pingMgr.PingSingle(ctx, saved.ID, h, port)
-			}
-		}
 	}
 	return ConnectionToDTO(*saved), nil
 }
 
-func (a *AppAPI) protocolLookup() domain.ConnectionProtocolLookup {
-	if a.plugins == nil {
-		return nil
-	}
-	return a.plugins.Registry()
-}
-
 // DeleteConnection removes a connection by ID.
 func (a *AppAPI) DeleteConnection(id string) error {
-	return a.connRepo.Delete(context.Background(), id)
+	return a.vaultSvc.DeleteConnection(context.Background(), id)
 }
 
 // MoveConnections moves connections to a target folder.
 func (a *AppAPI) MoveConnections(connectionIDs []string, targetFolderID string) error {
-	return a.connRepo.MoveToFolder(context.Background(), connectionIDs, targetFolderID)
+	return a.vaultSvc.MoveConnections(context.Background(), connectionIDs, targetFolderID)
 }
 
 // MoveFolder changes a folder's parent.
 func (a *AppAPI) MoveFolder(folderID, targetParentID string) error {
-	return a.connRepo.MoveFolder(context.Background(), folderID, targetParentID)
+	return a.vaultSvc.MoveFolder(context.Background(), folderID, targetParentID)
 }
 
 // ReorderConnections updates the order of connections within a folder.
 func (a *AppAPI) ReorderConnections(connectionIDs []string, folderID string) error {
-	return a.connRepo.ReorderConnections(context.Background(), connectionIDs, folderID)
+	return a.vaultSvc.ReorderConnections(context.Background(), connectionIDs, folderID)
 }
 
 // ReorderFolders updates the order of folders under a parent.
 func (a *AppAPI) ReorderFolders(folderIDs []string, parentID string) error {
-	return a.connRepo.ReorderFolders(context.Background(), folderIDs, parentID)
+	return a.vaultSvc.ReorderFolders(context.Background(), folderIDs, parentID)
 }
 
 // --- Passwords ---
 
 // ImportPassword stores a password in the vault and returns its ID.
 func (a *AppAPI) ImportPassword(password, label string) (string, error) {
-	return a.passwordRepo.Import(context.Background(), []byte(password), label)
+	return a.vaultSvc.ImportPassword(context.Background(), []byte(password), label)
 }
 
 // DeletePassword removes a password from the vault.
 func (a *AppAPI) DeletePassword(id string) error {
-	return a.passwordRepo.Delete(context.Background(), id)
+	return a.vaultSvc.DeletePassword(context.Background(), id)
 }
 
 // --- Identities ---
 
 // GetIdentities returns metadata for all SSH identities.
 func (a *AppAPI) GetIdentities() ([]IdentityDTO, error) {
-	ids, err := a.identRepo.GetAll(context.Background())
+	ids, err := a.vaultSvc.GetAllIdentities(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +107,7 @@ func (a *AppAPI) ImportIdentity(pemBase64, comment string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("decode pem base64: %w", err)
 	}
-	identity, err := a.identRepo.Import(context.Background(), pemData, comment)
+	identity, err := a.vaultSvc.ImportIdentity(context.Background(), pemData, comment)
 	if err != nil {
 		return "", err
 	}
