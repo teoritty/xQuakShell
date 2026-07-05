@@ -118,11 +118,11 @@ func NewAppAPI(
 		PassphraseReq:           api.onPassphraseRequest,
 		HostKeyRequest:          api.onHostKeyRequest,
 	})
-	if pluginInbound != nil {
-		pluginInbound.SetHandler(api.sessions)
+	if pluginInbound != nil && api.sessions.PluginBridge() != nil {
+		pluginInbound.SetHandler(api.sessions.PluginBridge())
 	}
-	if pluginVaultInbound != nil {
-		pluginVaultInbound.SetAuthorizer(api.sessions)
+	if pluginVaultInbound != nil && api.sessions.PluginBridge() != nil {
+		pluginVaultInbound.SetAuthorizer(api.sessions.PluginBridge())
 	}
 	if pluginViewInbound != nil {
 		pluginViewInbound.SetHandler(api)

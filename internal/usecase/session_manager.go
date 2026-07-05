@@ -111,19 +111,30 @@ func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 		ptyBridgeFactory:  cfg.PTYBridgeFactory,
 		sftpClientFactory: cfg.SFTPClientFactory,
 		connectors:        connectors,
-		pluginBridge:      cfg.PluginBridge,
 		onStateChange:     cfg.OnStateChange,
 		onStreamReady:     cfg.OnStreamReady,
 		passphraseReq:     cfg.PassphraseReq,
 		hostKeyRequest:    cfg.HostKeyRequest,
 		pluginTerminalWriteTimeout: cfg.PluginTerminalWriteTimeout,
 	}
+	pluginBridge := cfg.PluginBridge
+	if pluginBridge == nil {
+		pluginBridge = NewPluginSessionBridge(PluginSessionBridgeConfig{})
+	}
+	sm.pluginBridge = pluginBridge
 	sm.io = NewSessionIOService(SessionIOServiceConfig{
 		Registry:          sm.registry,
 		VaultRepo:         cfg.VaultRepo,
 		PTYBridgeFactory:  cfg.PTYBridgeFactory,
 		SFTPClientFactory: cfg.SFTPClientFactory,
 		OnDisconnected:    sm.NotifySessionDisconnected,
+	})
+	pluginBridge.WireSessionRuntime(PluginSessionRuntimeConfig{
+		Registry:                   sm.registry,
+		ConnRepo:                   cfg.ConnRepo,
+		OnStateChange:              cfg.OnStateChange,
+		OnStreamReady:              cfg.OnStreamReady,
+		PluginTerminalWriteTimeout: cfg.PluginTerminalWriteTimeout,
 	})
 	return sm
 }
@@ -161,7 +172,7 @@ func (m *SessionManager) OpenSession(ctx context.Context, connectionID string) (
 		safego.GoNamed("session.connect", func() { m.connectSession(entry, conn) })
 	} else if m.pluginBridge != nil && m.pluginBridge.SupportsProtocol(proto) {
 		// ADR-001: non-SSH protocols are handled by out-of-process plugins.
-		safego.GoNamed("session.plugin", func() { m.runPluginSession(entry, conn) })
+		safego.GoNamed("session.plugin", func() { m.pluginBridge.RunSession(sessionID, conn) })
 	} else {
 		// Non-SSH protocols require an installed plugin connector.
 		m.updateState(entry, domain.SessionError, fmt.Sprintf("protocol %s not yet implemented", proto))

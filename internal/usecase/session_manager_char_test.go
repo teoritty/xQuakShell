@@ -13,7 +13,8 @@ import (
 
 func charTestSessionManager(t *testing.T) *SessionManager {
 	t.Helper()
-	return NewSessionManager(SessionManagerConfig{})
+	bridge := NewPluginSessionBridge(PluginSessionBridgeConfig{})
+	return NewSessionManager(SessionManagerConfig{PluginBridge: bridge})
 }
 
 func charTestEmbedPlugin(t *testing.T) (*PluginManager, *PluginSessionBridge) {
@@ -73,11 +74,14 @@ func TestChar_HandlePluginUpdateState_Ready(t *testing.T) {
 
 	var streamReady sync.WaitGroup
 	streamReady.Add(1)
-	sm.onStreamReady = func(id string, ch <-chan []byte) {
-		if id == sessionID && ch != nil {
-			streamReady.Done()
-		}
-	}
+	sm.pluginBridge.WireSessionRuntime(PluginSessionRuntimeConfig{
+		Registry:      sm.registry,
+		OnStreamReady: func(id string, ch <-chan []byte) {
+			if id == sessionID && ch != nil {
+				streamReady.Done()
+			}
+		},
+	})
 
 	if err := sm.HandlePluginUpdateState("com.test.plugin", sessionID, string(domain.SessionReady), ""); err != nil {
 		t.Fatal(err)

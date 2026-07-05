@@ -23,10 +23,23 @@ type SessionConnectParams struct {
 }
 
 // PluginSessionBridge connects non-SSH sessions through out-of-process plugins (ADR-001).
+//
+// WHY plugin-session protocol methods live here and not in SessionManager (ADR-009):
+// A plugin session's state machine (connect → ready → crash → recover) is
+// plugin-subsystem domain logic, not generic session bookkeeping. Before
+// ADR-009 these methods lived on SessionManager and reached into
+// PluginSessionBridge's internals to do their job — a sign they were in the
+// wrong place. They now own that logic directly against SessionRegistry.
 type PluginSessionBridge struct {
 	plugins *PluginManager
 	fields  *PluginFieldsService
 	audit   domainplugin.SessionAuditor
+
+	registry                   *SessionRegistry
+	connRepo                   domain.ConnectionRepository
+	onStateChange              StateChangeFunc
+	onStreamReady              OnStreamReadyFunc
+	pluginTerminalWriteTimeout time.Duration
 }
 
 // PluginSessionBridgeConfig configures the plugin session bridge.
@@ -34,6 +47,27 @@ type PluginSessionBridgeConfig struct {
 	Plugins *PluginManager
 	Fields  *PluginFieldsService
 	Audit   domainplugin.SessionAuditor
+}
+
+// PluginSessionRuntimeConfig wires session registry and callbacks after SessionManager creation.
+type PluginSessionRuntimeConfig struct {
+	Registry                   *SessionRegistry
+	ConnRepo                   domain.ConnectionRepository
+	OnStateChange              StateChangeFunc
+	OnStreamReady              OnStreamReadyFunc
+	PluginTerminalWriteTimeout time.Duration
+}
+
+// WireSessionRuntime binds registry and presentation callbacks (called from NewSessionManager).
+func (b *PluginSessionBridge) WireSessionRuntime(cfg PluginSessionRuntimeConfig) {
+	if b == nil {
+		return
+	}
+	b.registry = cfg.Registry
+	b.connRepo = cfg.ConnRepo
+	b.onStateChange = cfg.OnStateChange
+	b.onStreamReady = cfg.OnStreamReady
+	b.pluginTerminalWriteTimeout = cfg.PluginTerminalWriteTimeout
 }
 
 // NewPluginSessionBridge creates a bridge over the plugin manager.
