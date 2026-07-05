@@ -49,10 +49,10 @@ See [adr/007-host-filesystem-trust.md](adr/007-host-filesystem-trust.md).
 | `internal/domain` | stdlib, `golang.org/x/crypto/ssh`, `internal/domain/*` — **not** `internal/presentation`, `internal/infra`, `internal/pkg`, `main` |
 | `internal/usecase` | `internal/domain`, `internal/pkg/safego`, stdlib — **not** `internal/infra/*`, other `internal/pkg/*`, third-party |
 | `internal/infra/*` | `internal/domain`, `internal/pkg`, third-party, stdlib — **not** `internal/usecase`, `internal/presentation` |
-| `internal/presentation/*` | `internal/domain`, `internal/usecase`, `internal/pkg/safego`, stdlib |
+| `internal/presentation/*` | `internal/domain`, `internal/usecase`, `internal/presentation/*`, `internal/pkg/safego`, stdlib, `github.com/wailsapp/wails/v2/*`, `golang.org/x/sys/*` — **not** `internal/infra/*`, other `internal/pkg/*`, other third-party |
 | `main` | all internal packages as needed for composition |
 
-Run `powershell -File scripts/check-imports.ps1` to verify layer imports.
+Run `powershell -File scripts/check-imports.ps1` (or `go test ./test/unit/architecture/...`) to verify layer imports. Canonical rules: [`test/unit/architecture/rules.go`](../test/unit/architecture/rules.go).
 
 ## Concurrency limiting port
 
