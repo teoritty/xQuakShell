@@ -50,4 +50,9 @@ Test-LayerImports -Dir $presentation -ForbiddenPatterns @(
     '"ssh-client/internal/infra'
 ) -Label "internal/presentation must not import internal/infra"
 
+$infra = Join-Path $root "internal\infra"
+Test-LayerImports -Dir $infra -ForbiddenPatterns @(
+    '"ssh-client/internal/usecase'
+) -Label "internal/infra must not import internal/usecase"
+
 Write-Host "layer import check: OK"

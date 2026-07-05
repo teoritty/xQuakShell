@@ -27,7 +27,7 @@ flowchart TB
 - **presentation/logwindow** — debug log viewer subprocess and TCP stream server; depends on `domain.LogStream` only.
 - **usecase** — orchestration (`SessionManager`, `TransferService`, `AuditService`, `SettingsService`, plugins). Depends only on **domain** and stdlib.
 - **domain** — entities and ports split across `vault_data.go`, `app_settings.go`, `repositories.go`, `host_fs.go`, `portable_data.go`, etc.
-- **infra** — persistence, SSH dialer, SFTP, audit log, host FS, portable data store, plugin host, etc.
+- **infra** — persistence, SSH dialer, SFTP, audit log, host FS, portable data store, plugin host, embed broker (`domain.EmbedTunnelPort`), etc.
 
 ## Filesystem zones (ADR-007)
 
@@ -48,7 +48,7 @@ See [adr/007-host-filesystem-trust.md](adr/007-host-filesystem-trust.md).
 |--------|-------------|
 | `internal/domain` | stdlib, `golang.org/x/crypto/ssh`, `internal/domain/*` — **not** `internal/presentation`, `internal/infra`, `internal/pkg`, `main` |
 | `internal/usecase` | `internal/domain`, `internal/pkg/safego`, stdlib — **not** `internal/infra/*`, other `internal/pkg/*`, third-party |
-| `internal/infra/*` | `internal/domain`, `internal/pkg`, third-party, stdlib |
+| `internal/infra/*` | `internal/domain`, `internal/pkg`, third-party, stdlib — **not** `internal/usecase`, `internal/presentation` |
 | `internal/presentation/*` | `internal/domain`, `internal/usecase`, `internal/pkg/safego`, stdlib |
 | `main` | all internal packages as needed for composition |
 
@@ -136,7 +136,8 @@ One type (`ProcessHost`), one file per reason to change.
 ```mermaid
 flowchart LR
   UI[SessionEmbedPanel] -->|iframe + WS| Broker[Embed broker /embed/s/token]
-  Broker --> Tunnels[EmbedTunnelService]
+  Broker --> Port[EmbedTunnelPort domain]
+  Port -.implemented by.-> Tunnels[EmbedTunnelService usecase]
   Tunnels -->|session.tunnelFrame RPC| Plugin[Plugin process]
   Plugin -->|net.dial| Target[VNC/RDP server]
   Broker -->|session.tunnelData notify| Plugin

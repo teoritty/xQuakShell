@@ -37,17 +37,17 @@ type embedEntry struct {
 	reg        domain.EmbedRegistration
 	tunnelOpen map[string]bool
 	limiter    *rate.Limiter
-	wsConns    map[string]*EmbedWSConn
+	wsConns    map[string]*embedWSConn
 	active     bool
 }
 
-type EmbedWSConn struct {
+type embedWSConn struct {
 	send chan []byte
 	done chan struct{}
 }
 
 // Send returns the outbound frame channel for browser delivery.
-func (c *EmbedWSConn) Send() <-chan []byte {
+func (c *embedWSConn) Send() <-chan []byte {
 	if c == nil {
 		return nil
 	}
@@ -55,7 +55,7 @@ func (c *EmbedWSConn) Send() <-chan []byte {
 }
 
 // Done signals WebSocket teardown.
-func (c *EmbedWSConn) Done() <-chan struct{} {
+func (c *embedWSConn) Done() <-chan struct{} {
 	if c == nil {
 		return nil
 	}
@@ -116,7 +116,7 @@ func (s *EmbedTunnelService) Register(ctx context.Context, reg domain.EmbedRegis
 		reg:        reg,
 		tunnelOpen: make(map[string]bool),
 		limiter:    rate.NewLimiter(rate.Limit(domain.DefaultTunnelBandwidthBytesPerSec), domain.MaxTunnelFrameSize),
-		wsConns:    make(map[string]*EmbedWSConn),
+		wsConns:    make(map[string]*embedWSConn),
 		active:     true,
 	}
 	if v, ok := s.sessionActive[reg.SessionID]; ok {
@@ -305,7 +305,7 @@ func (s *EmbedTunnelService) SetSessionActive(sessionID string, active bool) {
 }
 
 // AttachWebSocket registers a browser tunnel consumer.
-func (s *EmbedTunnelService) AttachWebSocket(token, tunnelID string) (*EmbedWSConn, domain.EmbedRegistration, error) {
+func (s *EmbedTunnelService) AttachWebSocket(token, tunnelID string) (domain.EmbedTunnelStream, domain.EmbedRegistration, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry, ok := s.entries[token]
@@ -318,7 +318,7 @@ func (s *EmbedTunnelService) AttachWebSocket(token, tunnelID string) (*EmbedWSCo
 	if old, ok := entry.wsConns[tunnelID]; ok {
 		close(old.done)
 	}
-	conn := &EmbedWSConn{
+	conn := &embedWSConn{
 		send: make(chan []byte, 256),
 		done: make(chan struct{}),
 	}
@@ -378,4 +378,7 @@ func embedTunnelPath(token, tunnelID string) string {
 	return fmt.Sprintf("/embed/s/%s/tunnel/%s", token, tunnelID)
 }
 
-var _ domain.EmbedTunnelRegistry = (*EmbedTunnelService)(nil)
+var (
+	_ domain.EmbedTunnelRegistry = (*EmbedTunnelService)(nil)
+	_ domain.EmbedTunnelPort     = (*EmbedTunnelService)(nil)
+)

@@ -11,7 +11,6 @@ import (
 	"ssh-client/internal/infra/plugin/assets"
 	"ssh-client/internal/pkg/pathsafe"
 	"ssh-client/internal/pkg/safego"
-	"ssh-client/internal/usecase"
 
 	"github.com/gorilla/websocket"
 )
@@ -36,14 +35,14 @@ type UIRootResolver func(pluginID string) (string, error)
 
 // BrokerHandler serves embed UI assets and WebSocket tunnels.
 type BrokerHandler struct {
-	tunnels  *usecase.EmbedTunnelService
+	tunnels  domain.EmbedTunnelPort
 	resolve  UIRootResolver
 	failMu   sync.Mutex
 	failures map[string][]time.Time
 }
 
 // NewBrokerHandler creates an embed broker HTTP handler.
-func NewBrokerHandler(tunnels *usecase.EmbedTunnelService, resolve UIRootResolver) *BrokerHandler {
+func NewBrokerHandler(tunnels domain.EmbedTunnelPort, resolve UIRootResolver) *BrokerHandler {
 	return &BrokerHandler{
 		tunnels:  tunnels,
 		resolve:  resolve,
@@ -154,7 +153,7 @@ func (h *BrokerHandler) serveTunnel(w http.ResponseWriter, r *http.Request, toke
 	h.pumpPluginToWS(ws, conn)
 }
 
-func (h *BrokerHandler) pumpWSToPlugin(r *http.Request, sessionID, tunnelID string, ws *websocket.Conn, conn *usecase.EmbedWSConn) {
+func (h *BrokerHandler) pumpWSToPlugin(r *http.Request, sessionID, tunnelID string, ws *websocket.Conn, conn domain.EmbedTunnelStream) {
 	defer ws.Close()
 	for {
 		select {
@@ -176,7 +175,7 @@ func (h *BrokerHandler) pumpWSToPlugin(r *http.Request, sessionID, tunnelID stri
 	}
 }
 
-func (h *BrokerHandler) pumpPluginToWS(ws *websocket.Conn, conn *usecase.EmbedWSConn) {
+func (h *BrokerHandler) pumpPluginToWS(ws *websocket.Conn, conn domain.EmbedTunnelStream) {
 	for {
 		select {
 		case data, ok := <-conn.Send():

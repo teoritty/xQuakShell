@@ -37,6 +37,19 @@ type EmbedRegistration struct {
 	Revoked   bool
 }
 
+// EmbedTunnelStream is the browser-side tunnel handle returned by AttachWebSocket.
+type EmbedTunnelStream interface {
+	Send() <-chan []byte
+	Done() <-chan struct{}
+}
+
+// EmbedTunnelPort is the infra-facing port for the embed HTTP broker (/embed/s/…).
+type EmbedTunnelPort interface {
+	Lookup(token string) (EmbedRegistration, error)
+	AttachWebSocket(token, tunnelID string) (EmbedTunnelStream, EmbedRegistration, error)
+	RouteTunnelFrameToPlugin(ctx context.Context, sessionID, tunnelID string, data []byte) error
+}
+
 // EmbedTunnelRegistry manages embed token lifecycle and tunnel frame routing.
 type EmbedTunnelRegistry interface {
 	Register(ctx context.Context, reg EmbedRegistration) (SessionEmbedDescriptor, error)
