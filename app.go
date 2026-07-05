@@ -108,15 +108,18 @@ func NewApp() *App {
 		conlimit.New(domain.DefaultTransferSettings().MaxConcurrent),
 		infrapinger.NewTCPPinger(3*time.Second),
 	)
-	if pluginRuntime.manager != nil {
-		pluginRuntime.manager.SetCrashHandler(api.Sessions())
-		pluginRuntime.manager.SetSessionOwnershipChecker(api.Sessions())
+	if pluginRuntime.manager != nil && api.Sessions().PluginBridge() != nil {
+		bridge := api.Sessions().PluginBridge()
+		pluginRuntime.manager.SetCrashHandler(bridge)
+		pluginRuntime.manager.SetSessionOwnershipChecker(bridge)
 	}
 	if pluginRuntime.viewRelay != nil {
 		api.SetPluginViewRelay(pluginRuntime.viewRelay)
 	}
 	api.SetGitHubServices(pluginRuntime.githubRepoService, pluginRuntime.githubPluginService)
-	pluginRuntime.setSessionRecoverer(api.Sessions())
+	if bridge := api.Sessions().PluginBridge(); bridge != nil {
+		pluginRuntime.setSessionRecoverer(bridge)
+	}
 	pluginRuntime.wireEmbed(api)
 
 	return &App{api: api, plugins: pluginRuntime}

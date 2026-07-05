@@ -80,7 +80,7 @@ func TestHostKeyService_ResolveHostKeyUnknownAction(t *testing.T) {
 
 func TestHostKeyService_ResolveHostKeyAdd(t *testing.T) {
 	repo := &mockKnownHostsRepo{}
-	mgr := &SessionManager{}
+	mgr := NewSessionManager(SessionManagerConfig{})
 	svc := NewHostKeyService(repo, mgr)
 	keyLine := testAuthorizedKey(t)
 	err := svc.ResolveHostKey(context.Background(), "missing-session", "add", "host", keyLine)

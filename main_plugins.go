@@ -225,9 +225,9 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 	if r == nil || api == nil {
 		return
 	}
-	r.embedBridge = usecase.NewPluginEmbedBridge(r.manager, r.embedTunnels, api.Sessions())
+	r.embedBridge = usecase.NewPluginEmbedBridge(r.manager, r.embedTunnels, r.embedTunnels)
 	if r.embedInbound != nil {
-		r.embedInbound.SetHandler(api.Sessions())
+		r.embedInbound.SetHandler(r.embedTunnels)
 	}
 	if r.embedTunnels != nil {
 		r.embedTunnels.SetEmbedReadyHandler(api.OnEmbedReady)

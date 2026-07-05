@@ -2,260 +2,118 @@ package usecase
 
 import (
 	"context"
-	"fmt"
-	"log/slog"
-	"sync"
-	"time"
 
 	"ssh-client/internal/domain"
-	"ssh-client/internal/pkg/safego"
 )
-
-// sessionEntry holds runtime state for a single session (tab).
-type sessionEntry struct {
-	info         domain.ConnectionSession
-	ctx          context.Context
-	cancel       context.CancelFunc
-	sshClient    domain.SSHClient
-	remoteFS     domain.RemoteFS
-	ptyBridge    domain.TerminalPTYBridge
-	ptyCols      uint32
-	ptyRows      uint32
-	hostKeyInfo  *domain.HostKeyInfo
-	connectionID string
-	pluginID           string
-	pluginOutput       chan []byte
-	pluginTerminalReady bool
-	sessionSurface     string
-	embedDescriptor    *domain.SessionEmbedDescriptor
-}
 
 // StateChangeFunc is called whenever a session transitions to a new state.
 type StateChangeFunc func(session domain.ConnectionSession)
 
 // PassphraseRequestFunc is called when an encrypted key needs a passphrase.
-// The implementation should prompt the user and return the passphrase or an error.
 type PassphraseRequestFunc func(identityID, comment string) (string, error)
 
 // HostKeyRequestFunc is called when a host key decision is needed from the user.
-// The sessionID identifies the session, info carries the key details.
 type HostKeyRequestFunc func(sessionID string, info domain.HostKeyInfo)
 
 // OnStreamReadyFunc is called when a stream-based plugin connector has started
 // the terminal output. The API uses this to begin streaming to the frontend.
 type OnStreamReadyFunc func(sessionID string, outputCh <-chan []byte)
 
-// SessionManager manages the lifecycle of parallel sessions (tabs) for all protocols.
+// SessionManager is the composition-root facade Wails/AppAPI code depends on.
+//
+// WHY THIS IS A THIN FACADE AND NOT WHERE THE LOGIC LIVES (ADR-009):
+// Every method here is a one-line delegate. If you're about to add a new
+// method with actual logic in this file, don't — put it on
+// SessionLifecycleService, SSHConnector, SessionIOService,
+// PluginSessionBridge, or EmbedTunnelService instead, and add a delegate
+// here only if presentation/wails needs to call it. This file exists so
+// external callers don't need to know about the five internal components.
 type SessionManager struct {
-	mu       sync.RWMutex
-	sessions map[string]*sessionEntry
-
-	connRepo          domain.ConnectionRepository
-	vaultRepo         domain.VaultRepository
-	identRepo         domain.IdentityRepository
-	passwordRepo      domain.PasswordRepository
-	knownHosts        domain.KnownHostsRepository
-	sshFactory        domain.SSHClientFactory
-	passphraseCache   domain.PassphraseCache
-	hostKeyCB         domain.HostKeyCallbackBuilder
-	jumpTransport     domain.JumpTransportBuilder
-	keySigner         domain.PrivateKeySignerFactory
-	ptyBridgeFactory  domain.PTYBridgeFactory
-	sftpClientFactory domain.SFTPClientFactory
-	connectors        map[string]domain.SessionConnector
-	pluginBridge      *PluginSessionBridge
-	embedTunnels      *EmbedTunnelService
-
-	onStateChange  StateChangeFunc
-	onStreamReady  OnStreamReadyFunc
-	onEmbedReady   OnEmbedReadyFunc
-	passphraseReq  PassphraseRequestFunc
-	hostKeyRequest HostKeyRequestFunc
-	pluginTerminalWriteTimeout time.Duration
-}
-
-// SessionManagerConfig holds dependencies for creating a SessionManager.
-type SessionManagerConfig struct {
-	ConnRepo                domain.ConnectionRepository
-	VaultRepo               domain.VaultRepository
-	IdentRepo               domain.IdentityRepository
-	PasswordRepo            domain.PasswordRepository
-	KnownHosts              domain.KnownHostsRepository
-	SSHFactory              domain.SSHClientFactory
-	PassphraseCache         domain.PassphraseCache
-	HostKeyCallbackBuilder  domain.HostKeyCallbackBuilder
-	JumpTransportBuilder    domain.JumpTransportBuilder
-	PrivateKeySignerFactory domain.PrivateKeySignerFactory
-	PTYBridgeFactory        domain.PTYBridgeFactory
-	SFTPClientFactory       domain.SFTPClientFactory
-	Connectors              []domain.SessionConnector
-	PluginBridge            *PluginSessionBridge
-	OnStateChange           StateChangeFunc
-	OnStreamReady           OnStreamReadyFunc
-	PassphraseReq           PassphraseRequestFunc
-	HostKeyRequest          HostKeyRequestFunc
-	PluginTerminalWriteTimeout time.Duration
+	lifecycle *SessionLifecycleService
+	io        *SessionIOService
+	plugins   *PluginSessionBridge
+	embed     *EmbedTunnelService
+	registry  *SessionRegistry
 }
 
 // NewSessionManager creates a SessionManager with the given dependencies.
 func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
-	connectors := make(map[string]domain.SessionConnector)
-	for _, c := range cfg.Connectors {
-		connectors[c.Protocol()] = c
+	registry := NewSessionRegistry()
+	sshConnector := NewSSHConnector(SSHConnectorConfig{
+		VaultRepo:               cfg.VaultRepo,
+		IdentRepo:               cfg.IdentRepo,
+		PasswordRepo:            cfg.PasswordRepo,
+		KnownHosts:              cfg.KnownHosts,
+		SSHFactory:              cfg.SSHFactory,
+		PassphraseCache:         cfg.PassphraseCache,
+		HostKeyCallbackBuilder:  cfg.HostKeyCallbackBuilder,
+		JumpTransportBuilder:    cfg.JumpTransportBuilder,
+		PrivateKeySignerFactory: cfg.PrivateKeySignerFactory,
+		PassphraseReq:           cfg.PassphraseReq,
+	})
+	plugins := cfg.PluginBridge
+	if plugins == nil {
+		plugins = NewPluginSessionBridge(PluginSessionBridgeConfig{})
 	}
-	return &SessionManager{
-		sessions:          make(map[string]*sessionEntry),
-		connRepo:          cfg.ConnRepo,
-		vaultRepo:         cfg.VaultRepo,
-		identRepo:         cfg.IdentRepo,
-		passwordRepo:      cfg.PasswordRepo,
-		knownHosts:        cfg.KnownHosts,
-		sshFactory:        cfg.SSHFactory,
-		passphraseCache:   cfg.PassphraseCache,
-		hostKeyCB:         cfg.HostKeyCallbackBuilder,
-		jumpTransport:     cfg.JumpTransportBuilder,
-		keySigner:         cfg.PrivateKeySignerFactory,
-		ptyBridgeFactory:  cfg.PTYBridgeFactory,
-		sftpClientFactory: cfg.SFTPClientFactory,
-		connectors:        connectors,
-		pluginBridge:      cfg.PluginBridge,
-		onStateChange:     cfg.OnStateChange,
-		onStreamReady:     cfg.OnStreamReady,
-		passphraseReq:     cfg.PassphraseReq,
-		hostKeyRequest:    cfg.HostKeyRequest,
-		pluginTerminalWriteTimeout: cfg.PluginTerminalWriteTimeout,
-	}
+	lifecycle := NewSessionLifecycleService(SessionLifecycleConfig{
+		Registry:        registry,
+		ConnRepo:        cfg.ConnRepo,
+		SSHConnector:    sshConnector,
+		Plugins:         plugins,
+		PassphraseCache: cfg.PassphraseCache,
+		OnStateChange:   cfg.OnStateChange,
+		HostKeyRequest:  cfg.HostKeyRequest,
+	})
+	io := NewSessionIOService(SessionIOServiceConfig{
+		Registry:          registry,
+		VaultRepo:         cfg.VaultRepo,
+		PTYBridgeFactory:  cfg.PTYBridgeFactory,
+		SFTPClientFactory: cfg.SFTPClientFactory,
+		OnDisconnected:    lifecycle.NotifySessionDisconnected,
+	})
+	lifecycle.SetIO(io)
+	plugins.WireSessionRuntime(PluginSessionRuntimeConfig{
+		Registry:                   registry,
+		ConnRepo:                   cfg.ConnRepo,
+		OnStateChange:              cfg.OnStateChange,
+		OnStreamReady:              cfg.OnStreamReady,
+		PluginTerminalWriteTimeout: cfg.PluginTerminalWriteTimeout,
+	})
+	return &SessionManager{lifecycle: lifecycle, io: io, plugins: plugins, registry: registry}
 }
 
-// OpenSession creates a new session for the given connection ID.
-// Returns the session ID immediately; the connection happens asynchronously.
 func (m *SessionManager) OpenSession(ctx context.Context, connectionID string) (string, error) {
-	conn, err := m.connRepo.GetByID(ctx, connectionID)
-	if err != nil {
-		return "", fmt.Errorf("open session: %w", err)
-	}
-
-	if err := conn.ValidateForConnect(); err != nil {
-		return "", fmt.Errorf("open session: %w", err)
-	}
-
-	proto := conn.GetProtocol()
-	sessionID := generateSessionID()
-	sessionCtx, cancel := context.WithCancel(context.Background())
-
-	entry := &sessionEntry{
-		info: domain.ConnectionSession{
-			SessionID:      sessionID,
-			ConnectionID:   connectionID,
-			ConnectionName: conn.Name,
-			Protocol:       proto,
-			State:          domain.SessionConnecting,
-		},
-		ctx:          sessionCtx,
-		cancel:       cancel,
-		connectionID: connectionID,
-	}
-
-	m.mu.Lock()
-	m.sessions[sessionID] = entry
-	m.mu.Unlock()
-
-	m.notifyStateChange(entry.info)
-
-	if proto == domain.ProtocolSSH {
-		// ADR-001: SSH uses the in-process fast path.
-		safego.GoNamed("session.connect", func() { m.connectSession(entry, conn) })
-	} else if m.pluginBridge != nil && m.pluginBridge.SupportsProtocol(proto) {
-		// ADR-001: non-SSH protocols are handled by out-of-process plugins.
-		safego.GoNamed("session.plugin", func() { m.runPluginSession(entry, conn) })
-	} else {
-		// Non-SSH protocols require an installed plugin connector.
-		m.updateState(entry, domain.SessionError, fmt.Sprintf("protocol %s not yet implemented", proto))
-	}
-
-	return sessionID, nil
+	return m.lifecycle.OpenSession(ctx, connectionID)
 }
 
-// CloseSession terminates a session by its ID, releasing all resources.
 func (m *SessionManager) CloseSession(sessionID string) error {
-	m.mu.Lock()
-	entry, ok := m.sessions[sessionID]
-	if !ok {
-		m.mu.Unlock()
-		return domain.ErrSessionNotFound
-	}
-	delete(m.sessions, sessionID)
-	m.mu.Unlock()
-
-	entry.cancel()
-
-	if m.embedTunnels != nil {
-		_ = m.embedTunnels.RevokeBySession(sessionID)
-	}
-
-	if entry.pluginID != "" && m.pluginBridge != nil {
-		m.pluginBridge.Disconnect(context.Background(), entry.pluginID, sessionID)
-	}
-	if entry.pluginOutput != nil {
-		close(entry.pluginOutput)
-	}
-
-	if entry.ptyBridge != nil {
-		if err := entry.ptyBridge.Close(); err != nil {
-			slog.Warn("close pty bridge failed", "sessionID", sessionID, "err", err)
-		}
-	}
-	if entry.remoteFS != nil {
-		if err := entry.remoteFS.Close(); err != nil {
-			slog.Warn("close remote fs failed", "sessionID", sessionID, "err", err)
-		}
-	}
-	if entry.sshClient != nil {
-		if err := entry.sshClient.Close(); err != nil {
-			slog.Warn("close ssh client failed", "sessionID", sessionID, "err", err)
-		}
-	}
-
-	entry.info.State = domain.SessionClosed
-	m.notifyStateChange(entry.info)
-	return nil
+	return m.lifecycle.CloseSession(sessionID)
 }
 
-// CloseAll terminates all active sessions. Used during application shutdown.
 func (m *SessionManager) CloseAll() {
-	m.mu.Lock()
-	ids := make([]string, 0, len(m.sessions))
-	for id := range m.sessions {
-		ids = append(ids, id)
-	}
-	m.mu.Unlock()
-
-	for _, id := range ids {
-		m.CloseSession(id)
-	}
-	m.passphraseCache.Clear()
+	m.lifecycle.CloseAll()
 }
 
-// GetState returns the current session info for a given session ID.
 func (m *SessionManager) GetState(sessionID string) (domain.ConnectionSession, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	entry, ok := m.sessions[sessionID]
-	if !ok {
-		return domain.ConnectionSession{}, domain.ErrSessionNotFound
-	}
-	return entry.info, nil
+	return m.lifecycle.GetState(sessionID)
 }
 
-// GetAllSessions returns info for all active sessions.
 func (m *SessionManager) GetAllSessions() []domain.ConnectionSession {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	return m.lifecycle.GetAllSessions()
+}
 
-	result := make([]domain.ConnectionSession, 0, len(m.sessions))
-	for _, entry := range m.sessions {
-		result = append(result, entry.info)
-	}
-	return result
+func (m *SessionManager) RetrySession(ctx context.Context, sessionID string) error {
+	return m.lifecycle.RetrySession(ctx, sessionID)
+}
+
+func (m *SessionManager) NotifySessionDisconnected(sessionID string) {
+	m.lifecycle.NotifySessionDisconnected(sessionID)
+}
+
+func (m *SessionManager) GetHostKeyInfo(sessionID string) (*domain.HostKeyInfo, error) {
+	return m.lifecycle.GetHostKeyInfo(sessionID)
+}
+
+func (m *SessionManager) PluginBridge() *PluginSessionBridge {
+	return m.plugins
 }

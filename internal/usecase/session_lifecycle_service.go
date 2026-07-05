@@ -1,0 +1,299 @@
+package usecase
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
+
+	"ssh-client/internal/domain"
+	"ssh-client/internal/pkg/safego"
+)
+
+// SessionLifecycleService orchestrates session open, close, retry, and SSH connect.
+//
+// WHY THIS FILE/TYPE EXISTS (see ADR-009, docs/adr/009-session-manager-decomposition.md):
+// Session lifecycle coordinates registry, SSH connector, IO, plugin bridge, and
+// embed services. It must not implement PTY, plugin RPC, or embed protocol details.
+type SessionLifecycleService struct {
+	registry        *SessionRegistry
+	connRepo        domain.ConnectionRepository
+	sshConnector    *SSHConnector
+	io              *SessionIOService
+	plugins         *PluginSessionBridge
+	embed           *EmbedTunnelService
+	passphraseCache domain.PassphraseCache
+	onStateChange   StateChangeFunc
+	hostKeyRequest  HostKeyRequestFunc
+}
+
+// SessionLifecycleConfig configures SessionLifecycleService.
+type SessionLifecycleConfig struct {
+	Registry        *SessionRegistry
+	ConnRepo        domain.ConnectionRepository
+	SSHConnector    *SSHConnector
+	Plugins         *PluginSessionBridge
+	PassphraseCache domain.PassphraseCache
+	OnStateChange   StateChangeFunc
+	HostKeyRequest  HostKeyRequestFunc
+}
+
+// NewSessionLifecycleService creates a lifecycle orchestrator.
+func NewSessionLifecycleService(cfg SessionLifecycleConfig) *SessionLifecycleService {
+	return &SessionLifecycleService{
+		registry:        cfg.Registry,
+		connRepo:        cfg.ConnRepo,
+		sshConnector:    cfg.SSHConnector,
+		plugins:         cfg.Plugins,
+		passphraseCache: cfg.PassphraseCache,
+		onStateChange:   cfg.OnStateChange,
+		hostKeyRequest:  cfg.HostKeyRequest,
+	}
+}
+
+// SetIO wires the IO service after construction (breaks NotifySessionDisconnected cycle).
+func (s *SessionLifecycleService) SetIO(io *SessionIOService) {
+	s.io = io
+}
+
+// SetEmbed wires the embed tunnel service for session teardown.
+func (s *SessionLifecycleService) SetEmbed(embed *EmbedTunnelService) {
+	s.embed = embed
+}
+
+// OpenSession creates a new session for the given connection ID.
+func (s *SessionLifecycleService) OpenSession(ctx context.Context, connectionID string) (string, error) {
+	conn, err := s.connRepo.GetByID(ctx, connectionID)
+	if err != nil {
+		return "", fmt.Errorf("open session: %w", err)
+	}
+	if err := conn.ValidateForConnect(); err != nil {
+		return "", fmt.Errorf("open session: %w", err)
+	}
+
+	proto := conn.GetProtocol()
+	sessionID := generateSessionID()
+	sessionCtx, cancel := context.WithCancel(context.Background())
+
+	entry := newSessionEntry(domain.ConnectionSession{
+		SessionID:      sessionID,
+		ConnectionID:   connectionID,
+		ConnectionName: conn.Name,
+		Protocol:       proto,
+		State:          domain.SessionConnecting,
+	}, sessionCtx, cancel, connectionID)
+
+	s.registry.Put(sessionID, entry)
+	s.notifyStateChange(entry.info)
+
+	if proto == domain.ProtocolSSH {
+		safego.GoNamed("session.connect", func() { s.connectSession(entry, conn) })
+	} else if s.plugins != nil && s.plugins.SupportsProtocol(proto) {
+		safego.GoNamed("session.plugin", func() { s.plugins.RunSession(sessionID, conn) })
+	} else {
+		s.updateState(entry, domain.SessionError, fmt.Sprintf("protocol %s not yet implemented", proto))
+	}
+	return sessionID, nil
+}
+
+// CloseSession terminates a session by its ID, releasing all resources.
+func (s *SessionLifecycleService) CloseSession(sessionID string) error {
+	entry, ok := s.registry.Delete(sessionID)
+	if !ok {
+		return domain.ErrSessionNotFound
+	}
+
+	entry.cancel()
+	entry.readyOnce.Do(func() { close(entry.readyCh) })
+
+	if s.embed != nil {
+		_ = s.embed.RevokeBySession(sessionID)
+	}
+	if entry.pluginID != "" && s.plugins != nil {
+		s.plugins.Disconnect(context.Background(), entry.pluginID, sessionID)
+	}
+	if entry.pluginOutput != nil {
+		close(entry.pluginOutput)
+	}
+	if entry.ptyBridge != nil {
+		if err := entry.ptyBridge.Close(); err != nil {
+			slog.Warn("close pty bridge failed", "sessionID", sessionID, "err", err)
+		}
+	}
+	if entry.remoteFS != nil {
+		if err := entry.remoteFS.Close(); err != nil {
+			slog.Warn("close remote fs failed", "sessionID", sessionID, "err", err)
+		}
+	}
+	if entry.sshClient != nil {
+		if err := entry.sshClient.Close(); err != nil {
+			slog.Warn("close ssh client failed", "sessionID", sessionID, "err", err)
+		}
+	}
+
+	entry.info.State = domain.SessionClosed
+	s.notifyStateChange(entry.info)
+	return nil
+}
+
+// CloseAll terminates all active sessions.
+func (s *SessionLifecycleService) CloseAll() {
+	for _, id := range s.registry.IDs() {
+		s.CloseSession(id)
+	}
+	if s.passphraseCache != nil {
+		s.passphraseCache.Clear()
+	}
+}
+
+// GetState returns the current session info for a given session ID.
+func (s *SessionLifecycleService) GetState(sessionID string) (domain.ConnectionSession, error) {
+	entry, ok := s.registry.Get(sessionID)
+	if !ok {
+		return domain.ConnectionSession{}, domain.ErrSessionNotFound
+	}
+	return entry.info, nil
+}
+
+// GetAllSessions returns info for all active sessions.
+func (s *SessionLifecycleService) GetAllSessions() []domain.ConnectionSession {
+	entries := s.registry.All()
+	result := make([]domain.ConnectionSession, 0, len(entries))
+	for _, entry := range entries {
+		result = append(result, entry.info)
+	}
+	return result
+}
+
+// RetrySession re-attempts the SSH connection for a session in hostkey-required state.
+func (s *SessionLifecycleService) RetrySession(ctx context.Context, sessionID string) error {
+	var info domain.ConnectionSession
+	var connID string
+	transitioned := s.registry.CompareAndTransition(
+		sessionID,
+		domain.SessionHostKeyRequired, domain.SessionConnecting,
+		func(e *sessionEntry) {
+			e.info.ErrorMessage = ""
+			e.hostKeyInfo = nil
+			info = e.info
+			connID = e.connectionID
+		},
+	)
+	if !transitioned {
+		if _, ok := s.registry.Get(sessionID); !ok {
+			return domain.ErrSessionNotFound
+		}
+		return fmt.Errorf("session %s not in hostkey-required state", sessionID)
+	}
+	s.notifyStateChange(info)
+
+	entry, _ := s.registry.Get(sessionID)
+	conn, err := s.connRepo.GetByID(ctx, connID)
+	if err != nil {
+		slog.Error("retry session: load connection failed", "sessionID", sessionID, "err", err)
+		s.updateState(entry, domain.SessionError, "Connection not found")
+		return nil
+	}
+	if err := conn.ValidateForConnect(); err != nil {
+		slog.Error("retry session: invalid connection", "sessionID", sessionID, "err", err)
+		s.updateState(entry, domain.SessionError, "Invalid connection configuration")
+		return nil
+	}
+	safego.GoNamed("session.reconnect", func() { s.connectSession(entry, conn) })
+	return nil
+}
+
+// NotifySessionDisconnected updates state when the SSH connection is lost.
+func (s *SessionLifecycleService) NotifySessionDisconnected(sessionID string) {
+	entry, ok := s.registry.Get(sessionID)
+	if !ok || entry.info.State != domain.SessionReady {
+		return
+	}
+	s.updateState(entry, domain.SessionError, "Connection lost")
+}
+
+// GetHostKeyInfo returns pending host key info for a session.
+func (s *SessionLifecycleService) GetHostKeyInfo(sessionID string) (*domain.HostKeyInfo, error) {
+	entry, ok := s.registry.Get(sessionID)
+	if !ok {
+		return nil, domain.ErrSessionNotFound
+	}
+	return entry.hostKeyInfo, nil
+}
+
+func (s *SessionLifecycleService) connectSession(entry *sessionEntry, conn *domain.Connection) {
+	result := s.sshConnector.Connect(entry.ctx, conn)
+	if result.HostKeyInfo != nil {
+		s.applyHostKeyRequired(entry, *result.HostKeyInfo, result.Err)
+		return
+	}
+	if result.Err != nil {
+		slog.Error("session connect failed", "sessionID", entry.info.SessionID, "err", result.Err)
+		s.updateState(entry, domain.SessionError, sshConnectErrorMessage(result.Err))
+		return
+	}
+
+	s.registry.Mutate(entry.info.SessionID, func(e *sessionEntry) {
+		e.sshClient = result.Client
+	})
+	if result.JumpCleanup != nil {
+		safego.GoNamed("session.jumpCleanup", func() {
+			<-entry.ctx.Done()
+			result.JumpCleanup()
+		})
+	}
+	if s.io != nil {
+		safego.GoNamed("session.serverAlive", func() { s.io.RunServerAlive(entry) })
+	}
+	s.updateState(entry, domain.SessionReady, "")
+}
+
+func (s *SessionLifecycleService) applyHostKeyRequired(entry *sessionEntry, hkInfo domain.HostKeyInfo, err error) {
+	s.registry.Mutate(entry.info.SessionID, func(e *sessionEntry) {
+		e.hostKeyInfo = &hkInfo
+	})
+	msg := "Host key verification required"
+	if hkInfo.Mismatch || errors.Is(err, domain.ErrHostKeyMismatch) {
+		msg = "Host key mismatch"
+	}
+	s.updateState(entry, domain.SessionHostKeyRequired, msg)
+	if s.hostKeyRequest != nil {
+		s.hostKeyRequest(entry.info.SessionID, hkInfo)
+	}
+}
+
+func (s *SessionLifecycleService) updateState(entry *sessionEntry, state domain.SessionState, errMsg string) {
+	sessionID := entry.info.SessionID
+	var info domain.ConnectionSession
+	if !s.registry.Mutate(sessionID, func(e *sessionEntry) {
+		e.info.State = state
+		e.info.ErrorMessage = errMsg
+		info = e.info
+		e.signalReadyIfTerminal(state)
+	}) {
+		return
+	}
+	s.notifyStateChange(info)
+}
+
+func (s *SessionLifecycleService) notifyStateChange(info domain.ConnectionSession) {
+	if s.onStateChange != nil {
+		s.onStateChange(info)
+	}
+}
+
+func sshConnectErrorMessage(err error) string {
+	if err == nil {
+		return "Connection failed"
+	}
+	msg := err.Error()
+	switch {
+	case strings.HasPrefix(msg, "authentication failed:"):
+		return "Authentication failed"
+	case strings.HasPrefix(msg, "jump chain connection failed:"):
+		return "Jump chain connection failed"
+	default:
+		return "Connection failed"
+	}
+}

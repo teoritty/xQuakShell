@@ -40,6 +40,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check-fs-boundaries.ps1
 
+      - name: Session manager boundary check
+        shell: pwsh
+        run: ./scripts/check-session-manager-boundaries.ps1
+
       - name: Unit tests
 
         run: go test ./... -race -count=1

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,11 @@ type PluginTunnelNotifier func(ctx context.Context, pluginID, sessionID, method 
 type EmbedReadyFunc func(desc domain.SessionEmbedDescriptor)
 
 // EmbedTunnelService manages embed token lifecycle and tunnel frame routing.
+//
+// WHY embed protocol handlers live here and not in SessionManager (ADR-009):
+// Embed token minting, manifest validation, and tunnel frame routing are embed-
+// subsystem concerns. SessionManager only delegates; this service owns session
+// registry lookups and plugin manifest checks for embed RPC.
 type EmbedTunnelService struct {
 	mu sync.RWMutex
 
@@ -30,6 +36,9 @@ type EmbedTunnelService struct {
 	limiterFactory domain.RateLimiterFactory
 	notifyPlugin   PluginTunnelNotifier
 	onEmbedReady   EmbedReadyFunc
+
+	registry         *SessionRegistry
+	manifestLookup   PluginManifestLookup
 }
 
 type embedEntry struct {
@@ -86,6 +95,17 @@ func (s *EmbedTunnelService) SetEmbedReadyHandler(fn EmbedReadyFunc) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.onEmbedReady = fn
+}
+
+// WireSessionContext binds session registry and manifest lookup for plugin RPC handlers.
+func (s *EmbedTunnelService) WireSessionContext(registry *SessionRegistry, lookup PluginManifestLookup) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.registry = registry
+	s.manifestLookup = lookup
+	s.mu.Unlock()
 }
 
 // Register mints a new embed token for a session (replaces any prior token).
@@ -382,6 +402,20 @@ func embedUIPath(token, uiEntry string) string {
 
 func embedTunnelPath(token, tunnelID string) string {
 	return fmt.Sprintf("/embed/s/%s/tunnel/%s", token, tunnelID)
+}
+
+func extractEmbedToken(uiURL string) string {
+	const prefix = "/embed/s/"
+	idx := strings.Index(uiURL, prefix)
+	if idx < 0 {
+		return ""
+	}
+	rest := uiURL[idx+len(prefix):]
+	parts := strings.SplitN(rest, "/", 2)
+	if len(parts) == 0 {
+		return ""
+	}
+	return parts[0]
 }
 
 var (
