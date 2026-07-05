@@ -12,6 +12,7 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 
 	"ssh-client/internal/domain"
+	"ssh-client/internal/pkg/safego"
 )
 
 // --- Sessions ---
@@ -31,7 +32,7 @@ func (a *AppAPI) OpenSession(connectionID string) (string, error) {
 		})
 	}
 
-	go a.initSessionPTYAndSFTP(sessionID)
+	safego.GoNamed("session.initPTY", func() { a.initSessionPTYAndSFTP(sessionID) })
 
 	return sessionID, nil
 }
@@ -57,9 +58,9 @@ func (a *AppAPI) CloseSession(sessionID string) error {
 			"sessionId": sessionID,
 		})
 	}
-	go func() {
+	safego.GoNamed("session.gc", func() {
 		runtime.GC()
-	}()
+	})
 	return nil
 }
 
@@ -91,7 +92,7 @@ func (a *AppAPI) SendTerminalInput(sessionID, data, commandLine string) error {
 	}
 
 	if a.auditSvc != nil {
-		go a.trackAuditInput(sessionID, data, commandLine)
+		safego.GoNamed("audit.trackInput", func() { a.trackAuditInput(sessionID, data, commandLine) })
 	}
 	return nil
 }
@@ -209,7 +210,7 @@ func (a *AppAPI) onPassphraseRequest(identityID, comment string) (string, error)
 
 // onStreamReady is called when a plugin stream connector has started the terminal bridge.
 func (a *AppAPI) onStreamReady(sessionID string, outputCh <-chan []byte) {
-	go a.streamTerminalOutput(sessionID, outputCh)
+	safego.GoNamed("session.streamOutput", func() { a.streamTerminalOutput(sessionID, outputCh) })
 	if a.ctx != nil {
 		wailsrt.EventsEmit(a.ctx, EventTerminalReady, map[string]interface{}{"sessionId": sessionID})
 	}
@@ -223,7 +224,7 @@ func (a *AppAPI) initSessionPTYAndSFTP(sessionID string) {
 		return
 	}
 
-	go a.streamTerminalOutput(sessionID, outputCh)
+	safego.GoNamed("session.streamOutput", func() { a.streamTerminalOutput(sessionID, outputCh) })
 
 	if a.ctx != nil {
 		wailsrt.EventsEmit(a.ctx, EventSFTPReady, map[string]interface{}{

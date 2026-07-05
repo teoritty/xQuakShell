@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"ssh-client/internal/domain"
+	"ssh-client/internal/pkg/safego"
 )
 
 // TransferProgress describes transfer state for UI callbacks.
@@ -117,13 +118,13 @@ func (s *TransferService) acquireSlot(ctx context.Context) error {
 	limit := s.maxConcurrent()
 	done := make(chan struct{})
 	defer close(done)
-	go func() {
+	safego.GoNamed("transfer.acquireSlot", func() {
 		select {
 		case <-ctx.Done():
 			s.cond.Broadcast()
 		case <-done:
 		}
-	}()
+	})
 	s.mu.Lock()
 	for s.active >= limit {
 		s.cond.Wait()
@@ -194,9 +195,9 @@ func (s *TransferService) uploadFile(parentCtx context.Context, sessionID, local
 	}
 
 	doneCh := make(chan error, 1)
-	go func() {
+	safego.GoNamed("transfer.upload", func() {
 		doneCh <- fs.Upload(ctx, localPath, remotePath, progress)
-	}()
+	})
 	err = <-doneCh
 
 	state := "completed"
@@ -246,9 +247,9 @@ func (s *TransferService) uploadRecursive(parentCtx context.Context, sessionID, 
 	}
 
 	doneCh := make(chan error, 1)
-	go func() {
+	safego.GoNamed("transfer.uploadRecursive", func() {
 		doneCh <- fs.UploadRecursive(ctx, localDir, remoteDir, progress)
-	}()
+	})
 	err = <-doneCh
 	state := "completed"
 	if err != nil {
@@ -296,9 +297,9 @@ func (s *TransferService) downloadRecursive(parentCtx context.Context, sessionID
 	}
 
 	doneCh := make(chan error, 1)
-	go func() {
+	safego.GoNamed("transfer.downloadRecursive", func() {
 		doneCh <- fs.DownloadRecursive(ctx, remoteDir, localDir, progress)
-	}()
+	})
 	err = <-doneCh
 	state := "completed"
 	if err != nil {
@@ -352,9 +353,9 @@ func (s *TransferService) downloadFile(parentCtx context.Context, sessionID, rem
 	}
 
 	doneCh := make(chan error, 1)
-	go func() {
+	safego.GoNamed("transfer.download", func() {
 		doneCh <- fs.Download(ctx, remotePath, localPath, progress)
-	}()
+	})
 	err = <-doneCh
 	state := "completed"
 	if err != nil {

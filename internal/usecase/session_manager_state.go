@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"ssh-client/internal/domain"
+	"ssh-client/internal/pkg/safego"
 )
 
 func (m *SessionManager) updateState(entry *sessionEntry, state domain.SessionState, errMsg string) {
@@ -62,7 +63,7 @@ func (m *SessionManager) RetrySession(ctx context.Context, sessionID string) err
 		return nil
 	}
 
-	go m.connectSession(entry, conn)
+	safego.GoNamed("session.reconnect", func() { m.connectSession(entry, conn) })
 	return nil
 }
 

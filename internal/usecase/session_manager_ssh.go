@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"ssh-client/internal/domain"
+	"ssh-client/internal/pkg/safego"
 )
 
 // connectSession performs the SSH handshake in a goroutine.
@@ -62,10 +63,10 @@ func (m *SessionManager) connectSession(entry *sessionEntry, conn *domain.Connec
 		}
 		sshCfg.Transport = transport
 
-		go func() {
+		safego.GoNamed("session.jumpCleanup", func() {
 			<-entry.ctx.Done()
 			chainCleanup()
-		}()
+		})
 	}
 
 	client, err := m.sshFactory.Create(entry.ctx, sshCfg)
@@ -83,7 +84,7 @@ func (m *SessionManager) connectSession(entry *sessionEntry, conn *domain.Connec
 	entry.sshClient = client
 	m.mu.Unlock()
 
-	go m.runServerAlive(entry)
+	safego.GoNamed("session.serverAlive", func() { m.runServerAlive(entry) })
 
 	m.updateState(entry, domain.SessionReady, "")
 }

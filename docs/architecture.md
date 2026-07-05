@@ -46,12 +46,22 @@ See [adr/007-host-filesystem-trust.md](adr/007-host-filesystem-trust.md).
 | Package | May import |
 |--------|-------------|
 | `internal/domain` | stdlib, `golang.org/x/crypto/ssh`, `internal/domain/*` — **not** `internal/presentation`, `internal/infra`, `internal/pkg`, `main` |
-| `internal/usecase` | `internal/domain`, stdlib — **not** `internal/infra/*`, `internal/pkg/*`, third-party |
+| `internal/usecase` | `internal/domain`, `internal/pkg/safego`, stdlib — **not** `internal/infra/*`, other `internal/pkg/*`, third-party |
 | `internal/infra/*` | `internal/domain`, `internal/pkg`, third-party, stdlib |
 | `internal/presentation/wails` | `internal/domain`, `internal/usecase`, stdlib |
 | `main` | all internal packages as needed for composition |
 
 Run `powershell -File scripts/check-imports.ps1` to verify layer imports.
+
+## Goroutine policy
+
+Background goroutines in production code must use [`internal/pkg/safego`](../internal/pkg/safego) — raw `go` launches are forbidden outside tests and plugin fixtures.
+
+- Use **`safego.GoNamed("component.action", fn)`** with dotted names (`ipc.readLoop`, `session.initPTY`, `vault.debounceFlush`).
+- Panics in background goroutines are recovered and logged via `slog.Error`; they must not crash the process.
+- Cleanup (`defer`, `WaitGroup.Done`, context cancellation) remains the caller's responsibility inside `fn`.
+
+Run `make check-goroutines` (or `powershell -File scripts/check-goroutines.ps1`) to enforce this rule.
 
 ## SSH types in domain
 

@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"ssh-client/internal/pkg/safego"
 )
 
 const pluginSupervisorMaxAttempts = 3
@@ -54,7 +56,7 @@ func (s *PluginSupervisor) HandleCrash(pluginID, sessionID string) {
 	s.inflight[key] = struct{}{}
 	s.mu.Unlock()
 
-	go s.restartWithBackoff(pluginID, sessionID, key)
+	safego.GoNamed("plugin.restartBackoff", func() { s.restartWithBackoff(pluginID, sessionID, key) })
 }
 
 func (s *PluginSupervisor) restartWithBackoff(pluginID, sessionID, key string) {

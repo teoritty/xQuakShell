@@ -5,6 +5,8 @@ import (
 	"runtime"
 	"syscall"
 	"time"
+
+	"ssh-client/internal/pkg/safego"
 )
 
 // watchParentExit terminates the viewer when the parent process exits.
@@ -12,7 +14,7 @@ func watchParentExit(parentPID int) {
 	if parentPID <= 0 {
 		return
 	}
-	go func() {
+	safego.GoNamed("logwindow.viewerParent", func() {
 		if waitProcessExit(parentPID) {
 			os.Exit(0)
 		}
@@ -23,7 +25,7 @@ func watchParentExit(parentPID int) {
 				os.Exit(0)
 			}
 		}
-	}()
+	})
 }
 
 func processAlive(pid int) bool {

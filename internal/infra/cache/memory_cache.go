@@ -7,6 +7,7 @@ import (
 	"time"
 
 	domainplugin "ssh-client/internal/domain/plugin"
+	"ssh-client/internal/pkg/safego"
 )
 
 // MemoryCache implements an in-memory cache with TTL.
@@ -27,7 +28,7 @@ func NewMemoryCache(defaultTTL time.Duration) *MemoryCache {
 		items:      make(map[string]*item),
 		defaultTTL: defaultTTL,
 	}
-	go c.cleanupLoop()
+	safego.GoNamed("cache.cleanup", c.cleanupLoop)
 	return c
 }
 

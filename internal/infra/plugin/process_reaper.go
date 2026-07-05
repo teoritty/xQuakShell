@@ -4,6 +4,8 @@ import (
 	"context"
 	"os/exec"
 	"sync"
+
+	"ssh-client/internal/pkg/safego"
 )
 
 // processReaper owns the single (*exec.Cmd).Wait call for a plugin child process.
@@ -24,7 +26,7 @@ func newProcessReaper(cmd *exec.Cmd) *processReaper {
 // Start launches the background goroutine that waits on the child process.
 func (r *processReaper) Start() {
 	r.once.Do(func() {
-		go r.wait()
+		safego.GoNamed("plugin.reaperWait", r.wait)
 	})
 }
 

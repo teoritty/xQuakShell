@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ssh-client/internal/domain"
+	"ssh-client/internal/pkg/safego"
 )
 
 // PingResult holds the outcome of a single host TCP ping.
@@ -52,7 +53,7 @@ func (pm *PingManager) Start(handler PingEventHandler) {
 	pm.cancel = cancel
 	pm.mu.Unlock()
 
-	go pm.run(ctx)
+	safego.GoNamed("ping.run", func() { pm.run(ctx) })
 }
 
 // Stop halts periodic pinging.
@@ -93,7 +94,7 @@ func (pm *PingManager) PingByConnectionID(ctx context.Context, connID string) {
 	if host == "" || port <= 0 {
 		return
 	}
-	go pm.PingSingle(connID, host, port)
+	safego.GoNamed("ping.single", func() { pm.PingSingle(connID, host, port) })
 }
 
 // PingSingle pings a single connection immediately.
@@ -179,10 +180,11 @@ func (pm *PingManager) pingAll(ctx context.Context) {
 			continue
 		}
 		wg.Add(1)
-		go func(id, h string, p int) {
+		id, h, p := c.ID, host, port
+		safego.GoNamed("ping.batch", func() {
 			defer wg.Done()
 			resultsCh <- tcpPing(id, h, p)
-		}(c.ID, host, port)
+		})
 	}
 
 	wg.Wait()

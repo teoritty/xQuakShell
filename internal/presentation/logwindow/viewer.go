@@ -14,6 +14,7 @@ import (
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"ssh-client/internal/infra/loghub"
+	"ssh-client/internal/pkg/safego"
 )
 
 const eventDebugLogLine = "DebugLogLine"
@@ -56,7 +57,7 @@ func RunViewerApp(args []string, assets embed.FS) {
 		BackgroundColour: &options.RGBA{R: 30, G: 30, B: 30, A: 255},
 		OnStartup: func(ctx context.Context) {
 			app.startup(ctx)
-			go streamLogs(ctx, opts.Addr)
+			safego.GoNamed("logwindow.streamLogs", func() { streamLogs(ctx, opts.Addr) })
 		},
 		Bind: []interface{}{app},
 		Windows: &windows.Options{

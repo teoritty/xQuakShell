@@ -14,6 +14,7 @@ import (
 	"ssh-client/internal/domain"
 	"ssh-client/internal/infra/plugin/capability"
 	"ssh-client/internal/infra/plugin/ipc"
+	"ssh-client/internal/pkg/safego"
 )
 
 const (
@@ -208,7 +209,7 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	h.mu.Unlock()
 
 	running = true
-	go h.waitProcess(key, mp)
+	safego.GoNamed("plugin.waitProcess", func() { h.waitProcess(key, mp) })
 	return nil
 }
 

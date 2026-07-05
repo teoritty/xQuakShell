@@ -9,6 +9,7 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 
 	"ssh-client/internal/domain"
+	"ssh-client/internal/pkg/safego"
 )
 
 const (
@@ -99,14 +100,14 @@ func (b *PTYBridge) Start(ctx context.Context, sshClient domain.SSHClient, opts 
 
 	outputCh := make(chan []byte, 64)
 
-	go b.readLoop(ctx, stdout, outputCh)
+	safego.GoNamed("pty.readLoop", func() { b.readLoop(ctx, stdout, outputCh) })
 
-	go func() {
+	safego.GoNamed("pty.sessionWait", func() {
 		session.Wait()
 		b.mu.Lock()
 		b.closed = true
 		b.mu.Unlock()
-	}()
+	})
 
 	return outputCh, nil
 }

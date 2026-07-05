@@ -10,6 +10,7 @@ import (
 	"ssh-client/internal/domain"
 	"ssh-client/internal/infra/plugin/assets"
 	"ssh-client/internal/pkg/pathsafe"
+	"ssh-client/internal/pkg/safego"
 	"ssh-client/internal/usecase"
 
 	"github.com/gorilla/websocket"
@@ -149,7 +150,7 @@ func (h *BrokerHandler) serveTunnel(w http.ResponseWriter, r *http.Request, toke
 		return
 	}
 	defer ws.Close()
-	go h.pumpWSToPlugin(r, regData.SessionID, tunnelID, ws, conn)
+	safego.GoNamed("embed.pumpWS", func() { h.pumpWSToPlugin(r, regData.SessionID, tunnelID, ws, conn) })
 	h.pumpPluginToWS(ws, conn)
 }
 

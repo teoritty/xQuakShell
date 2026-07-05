@@ -10,6 +10,8 @@ import (
 	"time"
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"ssh-client/internal/pkg/safego"
 )
 
 // Local filesystem Wails handlers — routing map (single source of truth):
@@ -124,7 +126,7 @@ func (a *AppAPI) StartFileWatch(localPath string) {
 		return
 	}
 	initialMod := info.ModTime()
-	go func() {
+	safego.GoNamed("localfs.watch", func() {
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 		timeout := time.After(time.Hour)
@@ -145,7 +147,7 @@ func (a *AppAPI) StartFileWatch(localPath string) {
 				}
 			}
 		}
-	}()
+	})
 }
 
 // OpenFileWithSystem opens a local file with the system's default application or the specified editor.

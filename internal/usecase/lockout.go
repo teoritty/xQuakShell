@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"ssh-client/internal/domain"
+	"ssh-client/internal/pkg/safego"
 )
 
 // IdleLockoutManager implements domain.LockoutManager with idle timeout and minimize detection.
@@ -40,7 +41,7 @@ func (m *IdleLockoutManager) Start(handler domain.LockoutEventHandler) {
 	m.stopCh = make(chan struct{})
 	m.running = true
 
-	go m.monitorLoop()
+	safego.GoNamed("lockout.monitor", m.monitorLoop)
 }
 
 // Stop ceases monitoring.

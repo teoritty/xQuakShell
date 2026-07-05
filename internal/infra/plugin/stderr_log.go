@@ -7,6 +7,7 @@ import (
 
 	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/infra/loghub"
+	"ssh-client/internal/pkg/safego"
 )
 
 const stderrMaxLineBytes = 64 << 10
@@ -30,7 +31,7 @@ func newRedactingStderrWriter(pluginID string) *redactingStderrWriter {
 		writer:   writer,
 		done:     make(chan struct{}),
 	}
-	go rs.consume(reader)
+	safego.GoNamed("plugin.stderrConsume", func() { rs.consume(reader) })
 	return rs
 }
 

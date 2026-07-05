@@ -9,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"ssh-client/internal/pkg/safego"
 )
 
 const inboundRequestTimeout = 30 * time.Second
@@ -53,7 +55,7 @@ func NewConn(readFrom io.Reader, writeTo io.Writer, onNotify func(string, json.R
 		closeCh:   make(chan struct{}),
 	}
 	c.wg.Add(1)
-	go c.readLoop()
+	safego.GoNamed("ipc.readLoop", c.readLoop)
 	return c
 }
 
@@ -157,10 +159,10 @@ func (c *Conn) readLoop() {
 				reqID := *msg.ID
 				reqMethod := msg.Method
 				reqParams := append(json.RawMessage(nil), msg.Params...)
-				go func() {
+				safego.GoNamed("ipc.handleRequest", func() {
 					defer c.wg.Done()
 					c.handleIncomingRequest(reqID, reqMethod, reqParams)
-				}()
+				})
 				continue
 			}
 		}

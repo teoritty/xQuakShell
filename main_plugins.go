@@ -20,6 +20,7 @@ import (
 	infrapluginlifecycle "ssh-client/internal/infra/plugin/lifecycle"
 	infrapersistence "ssh-client/internal/infra/persistence"
 	infraportable "ssh-client/internal/infra/portable"
+	"ssh-client/internal/pkg/safego"
 	presentation "ssh-client/internal/presentation/wails"
 	"ssh-client/internal/usecase"
 )
@@ -166,9 +167,11 @@ func newPluginRuntime(dataRoot string, deps pluginRuntimeDeps) *pluginRuntime {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go infrapluginlifecycle.RunIdleSuspender(ctx, manager, infrapluginlifecycle.Config{
-		IdleAfter: 5 * time.Minute,
-		TickEvery: time.Minute,
+	safego.GoNamed("plugin.idleSuspender", func() {
+		infrapluginlifecycle.RunIdleSuspender(ctx, manager, infrapluginlifecycle.Config{
+			IdleAfter: 5 * time.Minute,
+			TickEvery: time.Minute,
+		})
 	})
 
 	pluginAssets := infrapluginassets.NewHandler(infrapluginassets.PluginRegistryUIRootResolver(func(id string) (domainplugin.InstalledPlugin, error) {

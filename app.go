@@ -14,6 +14,7 @@ import (
 	infraputty "ssh-client/internal/infra/putty"
 	infrasftp "ssh-client/internal/infra/sftp"
 	infrassh "ssh-client/internal/infra/ssh"
+	"ssh-client/internal/pkg/safego"
 	presentation "ssh-client/internal/presentation/wails"
 	"ssh-client/internal/usecase"
 )
@@ -137,7 +138,9 @@ func (a *App) startup(ctx context.Context) {
 	a.api.SetPluginMultiSessionGrant(a.grantPluginMultiSessionAccess)
 	a.api.SetPluginArbitraryNetworkGrant(a.grantPluginArbitraryNetworkAccess)
 	if a.plugins != nil && a.plugins.manager != nil {
-		go a.plugins.manager.ActivateStartupPlugins(context.Background())
+		safego.GoNamed("plugin.startupActivate", func() {
+			a.plugins.manager.ActivateStartupPlugins(context.Background())
+		})
 		a.plugins.manager.SetStateChangeHandler(a.api.EmitPluginStateChanged)
 	}
 }

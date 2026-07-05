@@ -10,6 +10,7 @@ import (
 
 	"ssh-client/internal/domain"
 	"ssh-client/internal/infra/vault"
+	"ssh-client/internal/pkg/safego"
 )
 
 const vaultPersistDebounce = 400 * time.Millisecond
@@ -53,10 +54,10 @@ func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
 	// visibly linger for several minutes before the runtime's background
 	// scavenger reclaims it on its own. Runs in a goroutine so it never
 	// blocks the caller waiting on Unlock's return.
-	go func() {
+	safego.GoNamed("vault.unlockGC", func() {
 		runtime.GC()
 		debug.FreeOSMemory()
-	}()
+	})
 
 	r.passphrase = masterPassword
 	r.data = data
@@ -209,10 +210,10 @@ func (r *VaultRepo) flushGeneration(gen uint64) {
 	// lingering for minutes while the Go runtime's background scavenger gets
 	// around to it on its own schedule. Runs in a goroutine so it never
 	// blocks the caller waiting on this flush.
-	go func() {
+	safego.GoNamed("vault.flushGC", func() {
 		runtime.GC()
 		debug.FreeOSMemory()
-	}()
+	})
 
 	r.mu.Lock()
 	if err != nil {

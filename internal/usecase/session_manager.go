@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"ssh-client/internal/domain"
+	"ssh-client/internal/pkg/safego"
 )
 
 // sessionEntry holds runtime state for a single session (tab).
@@ -163,10 +164,10 @@ func (m *SessionManager) OpenSession(ctx context.Context, connectionID string) (
 
 	if proto == domain.ProtocolSSH {
 		// ADR-001: SSH uses the in-process fast path.
-		go m.connectSession(entry, conn)
+		safego.GoNamed("session.connect", func() { m.connectSession(entry, conn) })
 	} else if m.pluginBridge != nil && m.pluginBridge.SupportsProtocol(proto) {
 		// ADR-001: non-SSH protocols are handled by out-of-process plugins.
-		go m.runPluginSession(entry, conn)
+		safego.GoNamed("session.plugin", func() { m.runPluginSession(entry, conn) })
 	} else {
 		// Non-SSH protocols require an installed plugin connector.
 		m.updateState(entry, domain.SessionError, fmt.Sprintf("protocol %s not yet implemented", proto))

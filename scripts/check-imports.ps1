@@ -25,9 +25,16 @@ function Test-LayerImports {
 $usecase = Join-Path $root "internal\usecase"
 Test-LayerImports -Dir $usecase -ForbiddenPatterns @(
     '"ssh-client/internal/infra',
-    '"ssh-client/internal/pkg',
     '"github.com/'
-) -Label "internal/usecase must import only internal/domain and stdlib"
+) -Label "internal/usecase must not import internal/infra or third-party packages"
+
+$usecasePkgHits = Get-ChildItem -Path $usecase -Filter "*.go" -Recurse |
+    Select-String -Pattern '"ssh-client/internal/pkg' |
+    Where-Object { $_.Line -notmatch '"ssh-client/internal/pkg/safego"' }
+if ($usecasePkgHits) {
+    Write-Error "internal/usecase may import only internal/pkg/safego from internal/pkg:`n$($usecasePkgHits | Out-String)"
+    exit 1
+}
 
 $domain = Join-Path $root "internal\domain"
 $domainHits = Get-ChildItem -Path $domain -Filter "*.go" -Recurse |

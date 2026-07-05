@@ -16,6 +16,7 @@ import (
 	"time"
 
 	domainplugin "ssh-client/internal/domain/plugin"
+	"ssh-client/internal/pkg/safego"
 )
 
 type ipResolver interface {
@@ -237,12 +238,12 @@ func (p *NetProxy) Read(ctx context.Context, params json.RawMessage) (json.RawMe
 		err error
 	}
 	ch := make(chan readResult, 1)
-	go func() {
+	safego.GoNamed("plugin.netProxyRead", func() {
 		// Established TCP: block until data arrives or the connection closes.
 		_ = conn.SetReadDeadline(time.Time{})
 		n, readErr := conn.Read(buf)
 		ch <- readResult{n: n, err: readErr}
-	}()
+	})
 
 	select {
 	case <-ctx.Done():

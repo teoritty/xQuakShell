@@ -16,6 +16,7 @@ import (
 
 	"ssh-client/internal/domain"
 	"ssh-client/internal/infra/loghub"
+	"ssh-client/internal/pkg/safego"
 )
 
 // SettingsSaver persists debug log window preference changes.
@@ -79,7 +80,7 @@ func (m *Manager) startLocked(ctx context.Context) {
 	m.listener = ln
 	m.shuttingDown = false
 
-	go m.acceptLoop(ln)
+	safego.GoNamed("logwindow.accept", func() { m.acceptLoop(ln) })
 
 	exe, err := os.Executable()
 	if err != nil {
@@ -107,7 +108,7 @@ func (m *Manager) startLocked(ctx context.Context) {
 	m.cmd = cmd
 	m.running = true
 
-	go m.watchChild(cmd)
+	safego.GoNamed("logwindow.watchChild", func() { m.watchChild(cmd) })
 	_ = ctx
 }
 
@@ -130,7 +131,7 @@ func (m *Manager) acceptLoop(ln net.Listener) {
 		if err != nil {
 			return
 		}
-		go m.serveClient(conn)
+		safego.GoNamed("logwindow.serveClient", func() { m.serveClient(conn) })
 	}
 }
 
@@ -183,7 +184,7 @@ func (m *Manager) watchChild(cmd *exec.Cmd) {
 }
 
 func (m *Manager) disableSettingAsync() {
-	go func() {
+	safego.GoNamed("logwindow.disableSetting", func() {
 		if m.settings == nil {
 			if m.notify != nil {
 				m.notify(false)
@@ -208,7 +209,7 @@ func (m *Manager) disableSettingAsync() {
 		if m.notify != nil {
 			m.notify(false)
 		}
-	}()
+	})
 }
 
 // ReadStream connects to the parent stream address and invokes handler for each entry.
