@@ -168,23 +168,27 @@ func (s *SessionLifecycleService) GetAllSessions() []domain.ConnectionSession {
 
 // RetrySession re-attempts the SSH connection for a session in hostkey-required state.
 func (s *SessionLifecycleService) RetrySession(ctx context.Context, sessionID string) error {
-	entry, ok := s.registry.Get(sessionID)
-	if !ok {
-		return domain.ErrSessionNotFound
-	}
-	if entry.info.State != domain.SessionHostKeyRequired {
+	var info domain.ConnectionSession
+	var connID string
+	transitioned := s.registry.CompareAndTransition(
+		sessionID,
+		domain.SessionHostKeyRequired, domain.SessionConnecting,
+		func(e *sessionEntry) {
+			e.info.ErrorMessage = ""
+			e.hostKeyInfo = nil
+			info = e.info
+			connID = e.connectionID
+		},
+	)
+	if !transitioned {
+		if _, ok := s.registry.Get(sessionID); !ok {
+			return domain.ErrSessionNotFound
+		}
 		return fmt.Errorf("session %s not in hostkey-required state", sessionID)
 	}
-	var info domain.ConnectionSession
-	s.registry.Mutate(sessionID, func(e *sessionEntry) {
-		e.info.State = domain.SessionConnecting
-		e.info.ErrorMessage = ""
-		e.hostKeyInfo = nil
-		info = e.info
-	})
-	connID := entry.connectionID
 	s.notifyStateChange(info)
 
+	entry, _ := s.registry.Get(sessionID)
 	conn, err := s.connRepo.GetByID(ctx, connID)
 	if err != nil {
 		slog.Error("retry session: load connection failed", "sessionID", sessionID, "err", err)
