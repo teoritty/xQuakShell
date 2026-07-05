@@ -26,9 +26,7 @@ func (m *SessionManager) SetOnEmbedReady(fn OnEmbedReadyFunc) {
 
 // PluginIDForSession returns the plugin that owns an open session.
 func (m *SessionManager) PluginIDForSession(sessionID string) (string, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	entry, ok := m.sessions[sessionID]
+	entry, ok := m.registry.Get(sessionID)
 	if !ok || entry.pluginID == "" {
 		return "", false
 	}
@@ -43,14 +41,14 @@ func (m *SessionManager) HandlePluginRegisterEmbed(ctx context.Context, pluginID
 	if m.embedTunnels == nil {
 		return nil, fmt.Errorf("embed tunnel service unavailable")
 	}
-	m.mu.RLock()
-	entry, ok := m.sessions[sessionID]
-	if !ok || entry.pluginID != pluginID {
-		m.mu.RUnlock()
+	var protocol string
+	if !m.registry.View(sessionID, func(entry *sessionEntry) {
+		if entry.pluginID == pluginID {
+			protocol = entry.info.Protocol
+		}
+	}) || protocol == "" {
 		return nil, domain.ErrSessionNotFound
 	}
-	protocol := entry.info.Protocol
-	m.mu.RUnlock()
 
 	plugin, err := m.pluginBridge.plugins.Registry().Get(pluginID)
 	if err != nil {
@@ -76,13 +74,11 @@ func (m *SessionManager) HandlePluginRegisterEmbed(ctx context.Context, pluginID
 		return nil, err
 	}
 
-	m.mu.Lock()
-	if entry, ok := m.sessions[sessionID]; ok {
+	m.registry.Mutate(sessionID, func(entry *sessionEntry) {
 		entry.embedDescriptor = &desc
 		entry.sessionSurface = "embed"
 		entry.info.Surface = "embed"
-	}
-	m.mu.Unlock()
+	})
 
 	resp := map[string]any{
 		"embedToken": extractEmbedToken(desc.UIUrl),
@@ -142,9 +138,7 @@ func (m *SessionManager) HandlePluginReportLocalEmbed(_ context.Context, pluginI
 }
 
 func (m *SessionManager) assertPluginSession(pluginID, sessionID string) error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	entry, ok := m.sessions[sessionID]
+	entry, ok := m.registry.Get(sessionID)
 	if !ok || entry.pluginID != pluginID {
 		return domain.ErrSessionNotFound
 	}

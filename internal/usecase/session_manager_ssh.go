@@ -80,9 +80,9 @@ func (m *SessionManager) connectSession(entry *sessionEntry, conn *domain.Connec
 		return
 	}
 
-	m.mu.Lock()
-	entry.sshClient = client
-	m.mu.Unlock()
+	m.registry.Mutate(entry.info.SessionID, func(e *sessionEntry) {
+		e.sshClient = client
+	})
 
 	safego.GoNamed("session.serverAlive", func() { m.runServerAlive(entry) })
 
@@ -103,9 +103,9 @@ func (m *SessionManager) handleHostKeyError(entry *sessionEntry, conn *domain.Co
 		hkInfo.Mismatch = mismatch
 	}
 
-	m.mu.Lock()
-	entry.hostKeyInfo = &hkInfo
-	m.mu.Unlock()
+	m.registry.Mutate(entry.info.SessionID, func(e *sessionEntry) {
+		e.hostKeyInfo = &hkInfo
+	})
 	msg := "Host key verification required"
 	if mismatch {
 		msg = "Host key mismatch"

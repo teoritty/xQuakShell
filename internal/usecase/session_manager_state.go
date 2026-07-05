@@ -10,16 +10,15 @@ import (
 )
 
 func (m *SessionManager) updateState(entry *sessionEntry, state domain.SessionState, errMsg string) {
-	m.mu.Lock()
-	_, stillRegistered := m.sessions[entry.info.SessionID]
-	if !stillRegistered {
-		m.mu.Unlock()
+	sessionID := entry.info.SessionID
+	var info domain.ConnectionSession
+	if !m.registry.Mutate(sessionID, func(e *sessionEntry) {
+		e.info.State = state
+		e.info.ErrorMessage = errMsg
+		info = e.info
+	}) {
 		return
 	}
-	entry.info.State = state
-	entry.info.ErrorMessage = errMsg
-	info := entry.info
-	m.mu.Unlock()
 	m.notifyStateChange(info)
 }
 
@@ -32,23 +31,23 @@ func (m *SessionManager) notifyStateChange(info domain.ConnectionSession) {
 // RetrySession re-attempts the SSH connection for a session in hostkey-required state.
 // Called after the user has added/replaced the host key via the UI.
 func (m *SessionManager) RetrySession(ctx context.Context, sessionID string) error {
-	m.mu.Lock()
-	entry, ok := m.sessions[sessionID]
+	entry, ok := m.registry.Get(sessionID)
 	if !ok {
-		m.mu.Unlock()
 		return domain.ErrSessionNotFound
 	}
 	if entry.info.State != domain.SessionHostKeyRequired {
-		m.mu.Unlock()
 		return fmt.Errorf("session %s not in hostkey-required state", sessionID)
 	}
-	entry.info.State = domain.SessionConnecting
-	entry.info.ErrorMessage = ""
-	entry.hostKeyInfo = nil
+	var info domain.ConnectionSession
+	m.registry.Mutate(sessionID, func(e *sessionEntry) {
+		e.info.State = domain.SessionConnecting
+		e.info.ErrorMessage = ""
+		e.hostKeyInfo = nil
+		info = e.info
+	})
 	connID := entry.connectionID
-	m.mu.Unlock()
 
-	m.notifyStateChange(entry.info)
+	m.notifyStateChange(info)
 
 	conn, err := m.connRepo.GetByID(ctx, connID)
 	if err != nil {
@@ -70,26 +69,19 @@ func (m *SessionManager) RetrySession(ctx context.Context, sessionID string) err
 // NotifySessionDisconnected is called when the terminal output stream closes (e.g. SSH connection lost).
 // Updates the session state to SessionError so the UI can show "Connection lost" and offer Reconnect.
 func (m *SessionManager) NotifySessionDisconnected(sessionID string) {
-	m.mu.Lock()
-	entry, ok := m.sessions[sessionID]
+	entry, ok := m.registry.Get(sessionID)
 	if !ok {
-		m.mu.Unlock()
 		return
 	}
 	if entry.info.State != domain.SessionReady {
-		m.mu.Unlock()
 		return
 	}
-	m.mu.Unlock()
 	m.updateState(entry, domain.SessionError, "Connection lost")
 }
 
 // GetHostKeyInfo returns the pending host key info for a session, if any.
 func (m *SessionManager) GetHostKeyInfo(sessionID string) (*domain.HostKeyInfo, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	entry, ok := m.sessions[sessionID]
+	entry, ok := m.registry.Get(sessionID)
 	if !ok {
 		return nil, domain.ErrSessionNotFound
 	}

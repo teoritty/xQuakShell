@@ -15,13 +15,14 @@ const pluginTerminalWriteTimeout = 2 * time.Second
 
 // HandlePluginUpdateState applies plugin-reported session state (IDOR-checked).
 func (m *SessionManager) HandlePluginUpdateState(pluginID, sessionID, state, errMsg string) error {
-	m.mu.Lock()
-	entry, ok := m.sessions[sessionID]
-	if !ok || entry.pluginID != pluginID {
-		m.mu.Unlock()
+	var entry *sessionEntry
+	if !m.registry.View(sessionID, func(e *sessionEntry) {
+		if e.pluginID == pluginID {
+			entry = e
+		}
+	}) || entry == nil {
 		return domain.ErrSessionNotFound
 	}
-	m.mu.Unlock()
 
 	switch domain.SessionState(state) {
 	case domain.SessionConnecting:
@@ -43,15 +44,16 @@ func (m *SessionManager) HandlePluginUpdateState(pluginID, sessionID, state, err
 
 // HandlePluginWriteTerminal pushes terminal bytes from a plugin into the UI stream.
 func (m *SessionManager) HandlePluginWriteTerminal(pluginID, sessionID string, data []byte) error {
-	m.mu.RLock()
-	entry, ok := m.sessions[sessionID]
-	if !ok || entry.pluginID != pluginID || entry.pluginOutput == nil {
-		m.mu.RUnlock()
+	var ch chan []byte
+	var ctx context.Context
+	if !m.registry.View(sessionID, func(entry *sessionEntry) {
+		if entry.pluginID == pluginID && entry.pluginOutput != nil {
+			ch = entry.pluginOutput
+			ctx = entry.ctx
+		}
+	}) || ch == nil {
 		return domain.ErrSessionNotFound
 	}
-	ch := entry.pluginOutput
-	ctx := entry.ctx
-	m.mu.RUnlock()
 
 	select {
 	case ch <- data:
@@ -72,17 +74,18 @@ func (m *SessionManager) pluginTerminalWriteTimeoutOrDefault() time.Duration {
 }
 
 func (m *SessionManager) markPluginSessionReady(entry *sessionEntry) {
-	m.mu.Lock()
-	if entry.pluginTerminalReady {
-		m.mu.Unlock()
-		return
-	}
-	entry.pluginTerminalReady = true
-	outputCh := entry.pluginOutput
 	sessionID := entry.info.SessionID
-	m.mu.Unlock()
-
-	if outputCh == nil || m.onStreamReady == nil {
+	var outputCh chan []byte
+	var alreadyReady bool
+	m.registry.Mutate(sessionID, func(e *sessionEntry) {
+		if e.pluginTerminalReady {
+			alreadyReady = true
+			return
+		}
+		e.pluginTerminalReady = true
+		outputCh = e.pluginOutput
+	})
+	if alreadyReady || outputCh == nil || m.onStreamReady == nil {
 		return
 	}
 	m.onStreamReady(sessionID, outputCh)
@@ -100,27 +103,34 @@ func (m *SessionManager) runPluginSession(entry *sessionEntry, conn *domain.Conn
 		return
 	}
 
-	entry.pluginID = pluginID
+	sessionID := entry.info.SessionID
+	m.registry.Mutate(sessionID, func(e *sessionEntry) {
+		e.pluginID = pluginID
+	})
 
 	isEmbed := false
 	if plugin, err := m.pluginBridge.plugins.Registry().Get(pluginID); err == nil {
 		isEmbed = plugin.Manifest.SessionSurface() == "embed"
 	}
 	if isEmbed {
-		entry.sessionSurface = "embed"
-		entry.info.Surface = "embed"
+		m.registry.Mutate(sessionID, func(e *sessionEntry) {
+			e.sessionSurface = "embed"
+			e.info.Surface = "embed"
+		})
 	} else {
-		entry.pluginOutput = make(chan []byte, 128)
-		entry.ptyBridge = &pluginTerminalBridge{
-			notify: func(ctx context.Context, method string, params json.RawMessage) error {
-				return m.pluginBridge.NotifyForSession(ctx, pluginID, entry.info.SessionID, method, params)
-			},
-		}
+		m.registry.Mutate(sessionID, func(e *sessionEntry) {
+			e.pluginOutput = make(chan []byte, 128)
+			e.ptyBridge = &pluginTerminalBridge{
+				notify: func(ctx context.Context, method string, params json.RawMessage) error {
+					return m.pluginBridge.NotifyForSession(ctx, pluginID, sessionID, method, params)
+				},
+			}
+		})
 	}
 
-	if err := m.pluginBridge.Connect(entry.ctx, pluginID, entry.info.SessionID, conn); err != nil {
+	if err := m.pluginBridge.Connect(entry.ctx, pluginID, sessionID, conn); err != nil {
 		m.updateState(entry, domain.SessionError, err.Error())
-		slog.Debug("plugin session connect failed", "sessionID", entry.info.SessionID, "err", err)
+		slog.Debug("plugin session connect failed", "sessionID", sessionID, "err", err)
 	}
 }
 
@@ -128,9 +138,7 @@ var _ PluginSessionSink = (*SessionManager)(nil)
 
 // PluginOwnsConnection reports whether the plugin has an active session for the connection.
 func (m *SessionManager) PluginOwnsConnection(pluginID, connectionID string) bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	for _, entry := range m.sessions {
+	for _, entry := range m.registry.All() {
 		if entry.pluginID != pluginID || entry.connectionID != connectionID {
 			continue
 		}
@@ -147,9 +155,7 @@ func (m *SessionManager) PluginOwnsSession(pluginID, sessionID string) bool {
 	if pluginID == "" || sessionID == "" {
 		return false
 	}
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	entry, ok := m.sessions[sessionID]
+	entry, ok := m.registry.Get(sessionID)
 	if !ok || entry.pluginID != pluginID {
 		return false
 	}
@@ -162,9 +168,7 @@ func (m *SessionManager) BindPluginSessionForTest(sessionID, pluginID string, ou
 	if len(outputBuffer) > 0 {
 		buf = outputBuffer[0]
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	entry, ok := m.sessions[sessionID]
+	entry, ok := m.registry.Get(sessionID)
 	if !ok {
 		ctx, cancel := context.WithCancel(context.Background())
 		entry = &sessionEntry{
@@ -175,18 +179,19 @@ func (m *SessionManager) BindPluginSessionForTest(sessionID, pluginID string, ou
 			ctx:    ctx,
 			cancel: cancel,
 		}
-		m.sessions[sessionID] = entry
+		m.registry.Put(sessionID, entry)
 	}
-	entry.pluginID = pluginID
-	entry.pluginOutput = make(chan []byte, buf)
+	m.registry.Mutate(sessionID, func(e *sessionEntry) {
+		e.pluginID = pluginID
+		e.pluginOutput = make(chan []byte, buf)
+	})
 	return nil
 }
 
 // HandlePluginProcessCrashed marks plugin-owned sessions for recovery.
 func (m *SessionManager) HandlePluginProcessCrashed(pluginID, sessionID string) {
-	m.mu.RLock()
 	var targets []*sessionEntry
-	for _, entry := range m.sessions {
+	for _, entry := range m.registry.All() {
 		if entry.pluginID != pluginID {
 			continue
 		}
@@ -198,7 +203,6 @@ func (m *SessionManager) HandlePluginProcessCrashed(pluginID, sessionID string) 
 		}
 		targets = append(targets, entry)
 	}
-	m.mu.RUnlock()
 
 	for _, entry := range targets {
 		m.updateState(entry, domain.SessionConnecting, "Recovering from plugin crash")
@@ -207,18 +211,14 @@ func (m *SessionManager) HandlePluginProcessCrashed(pluginID, sessionID string) 
 
 // RecoverPluginSession re-sends session.connect after a plugin process restart.
 func (m *SessionManager) RecoverPluginSession(ctx context.Context, pluginID, sessionID string) error {
-	m.mu.RLock()
-	entry, ok := m.sessions[sessionID]
+	entry, ok := m.registry.Get(sessionID)
 	if !ok || entry.pluginID != pluginID {
-		m.mu.RUnlock()
 		return domain.ErrSessionNotFound
 	}
 	if entry.info.State == domain.SessionClosed {
-		m.mu.RUnlock()
 		return domain.ErrSessionNotFound
 	}
 	connectionID := entry.connectionID
-	m.mu.RUnlock()
 
 	if m.pluginBridge == nil {
 		return fmt.Errorf("plugin bridge unavailable")
@@ -237,17 +237,13 @@ func (m *SessionManager) RecoverPluginSession(ctx context.Context, pluginID, ses
 
 // FailPluginSessionRecovery marks a session as failed after recovery attempts are exhausted.
 func (m *SessionManager) FailPluginSessionRecovery(pluginID, sessionID string) {
-	m.mu.RLock()
-	entry, ok := m.sessions[sessionID]
+	entry, ok := m.registry.Get(sessionID)
 	if !ok || entry.pluginID != pluginID {
-		m.mu.RUnlock()
 		return
 	}
 	if entry.info.State == domain.SessionClosed {
-		m.mu.RUnlock()
 		return
 	}
-	m.mu.RUnlock()
 	m.updateState(entry, domain.SessionError, "Plugin process crashed (recovery failed)")
 }
 

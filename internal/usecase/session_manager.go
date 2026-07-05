@@ -4,31 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sync"
 	"time"
 
 	"ssh-client/internal/domain"
 	"ssh-client/internal/pkg/safego"
 )
-
-// sessionEntry holds runtime state for a single session (tab).
-type sessionEntry struct {
-	info         domain.ConnectionSession
-	ctx          context.Context
-	cancel       context.CancelFunc
-	sshClient    domain.SSHClient
-	remoteFS     domain.RemoteFS
-	ptyBridge    domain.TerminalPTYBridge
-	ptyCols      uint32
-	ptyRows      uint32
-	hostKeyInfo  *domain.HostKeyInfo
-	connectionID string
-	pluginID           string
-	pluginOutput       chan []byte
-	pluginTerminalReady bool
-	sessionSurface     string
-	embedDescriptor    *domain.SessionEmbedDescriptor
-}
 
 // StateChangeFunc is called whenever a session transitions to a new state.
 type StateChangeFunc func(session domain.ConnectionSession)
@@ -47,8 +27,7 @@ type OnStreamReadyFunc func(sessionID string, outputCh <-chan []byte)
 
 // SessionManager manages the lifecycle of parallel sessions (tabs) for all protocols.
 type SessionManager struct {
-	mu       sync.RWMutex
-	sessions map[string]*sessionEntry
+	registry *SessionRegistry
 
 	connRepo          domain.ConnectionRepository
 	vaultRepo         domain.VaultRepository
@@ -104,7 +83,7 @@ func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 		connectors[c.Protocol()] = c
 	}
 	return &SessionManager{
-		sessions:          make(map[string]*sessionEntry),
+		registry:          NewSessionRegistry(),
 		connRepo:          cfg.ConnRepo,
 		vaultRepo:         cfg.VaultRepo,
 		identRepo:         cfg.IdentRepo,
@@ -156,9 +135,7 @@ func (m *SessionManager) OpenSession(ctx context.Context, connectionID string) (
 		connectionID: connectionID,
 	}
 
-	m.mu.Lock()
-	m.sessions[sessionID] = entry
-	m.mu.Unlock()
+	m.registry.Put(sessionID, entry)
 
 	m.notifyStateChange(entry.info)
 
@@ -178,14 +155,10 @@ func (m *SessionManager) OpenSession(ctx context.Context, connectionID string) (
 
 // CloseSession terminates a session by its ID, releasing all resources.
 func (m *SessionManager) CloseSession(sessionID string) error {
-	m.mu.Lock()
-	entry, ok := m.sessions[sessionID]
+	entry, ok := m.registry.Delete(sessionID)
 	if !ok {
-		m.mu.Unlock()
 		return domain.ErrSessionNotFound
 	}
-	delete(m.sessions, sessionID)
-	m.mu.Unlock()
 
 	entry.cancel()
 
@@ -223,12 +196,7 @@ func (m *SessionManager) CloseSession(sessionID string) error {
 
 // CloseAll terminates all active sessions. Used during application shutdown.
 func (m *SessionManager) CloseAll() {
-	m.mu.Lock()
-	ids := make([]string, 0, len(m.sessions))
-	for id := range m.sessions {
-		ids = append(ids, id)
-	}
-	m.mu.Unlock()
+	ids := m.registry.IDs()
 
 	for _, id := range ids {
 		m.CloseSession(id)
@@ -238,10 +206,7 @@ func (m *SessionManager) CloseAll() {
 
 // GetState returns the current session info for a given session ID.
 func (m *SessionManager) GetState(sessionID string) (domain.ConnectionSession, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	entry, ok := m.sessions[sessionID]
+	entry, ok := m.registry.Get(sessionID)
 	if !ok {
 		return domain.ConnectionSession{}, domain.ErrSessionNotFound
 	}
@@ -250,11 +215,9 @@ func (m *SessionManager) GetState(sessionID string) (domain.ConnectionSession, e
 
 // GetAllSessions returns info for all active sessions.
 func (m *SessionManager) GetAllSessions() []domain.ConnectionSession {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	result := make([]domain.ConnectionSession, 0, len(m.sessions))
-	for _, entry := range m.sessions {
+	entries := m.registry.All()
+	result := make([]domain.ConnectionSession, 0, len(entries))
+	for _, entry := range entries {
 		result = append(result, entry.info)
 	}
 	return result

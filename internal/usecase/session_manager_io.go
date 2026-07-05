@@ -14,10 +14,7 @@ const serverAliveInterval = 30 * time.Second
 
 // GetSSHClient returns the SSH client for a session.
 func (m *SessionManager) GetSSHClient(sessionID string) (domain.SSHClient, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	entry, ok := m.sessions[sessionID]
+	entry, ok := m.registry.Get(sessionID)
 	if !ok {
 		return nil, domain.ErrSessionNotFound
 	}
@@ -29,10 +26,7 @@ func (m *SessionManager) GetSSHClient(sessionID string) (domain.SSHClient, error
 
 // GetRemoteFS returns the remote filesystem for a session.
 func (m *SessionManager) GetRemoteFS(sessionID string) (domain.RemoteFS, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	entry, ok := m.sessions[sessionID]
+	entry, ok := m.registry.Get(sessionID)
 	if !ok {
 		return nil, domain.ErrSessionNotFound
 	}
@@ -44,10 +38,7 @@ func (m *SessionManager) GetRemoteFS(sessionID string) (domain.RemoteFS, error) 
 
 // GetPTYBridge returns the PTY bridge for a session.
 func (m *SessionManager) GetPTYBridge(sessionID string) (domain.TerminalPTYBridge, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	entry, ok := m.sessions[sessionID]
+	entry, ok := m.registry.Get(sessionID)
 	if !ok {
 		return nil, domain.ErrSessionNotFound
 	}
@@ -59,10 +50,7 @@ func (m *SessionManager) GetPTYBridge(sessionID string) (domain.TerminalPTYBridg
 
 // GetSessionContext returns the context for a session.
 func (m *SessionManager) GetSessionContext(sessionID string) (context.Context, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	entry, ok := m.sessions[sessionID]
+	entry, ok := m.registry.Get(sessionID)
 	if !ok {
 		return nil, domain.ErrSessionNotFound
 	}
@@ -71,25 +59,19 @@ func (m *SessionManager) GetSessionContext(sessionID string) (context.Context, e
 
 // SetRemoteFS stores the SFTP remote filesystem for a session.
 func (m *SessionManager) SetRemoteFS(sessionID string, fs domain.RemoteFS) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if entry, ok := m.sessions[sessionID]; ok {
+	m.registry.Mutate(sessionID, func(entry *sessionEntry) {
 		entry.remoteFS = fs
-	}
+	})
 }
 
 // SetPTYBridge stores the PTY bridge for a session and applies any window size
 // that the frontend requested before the bridge existed (resize/bridge-start race).
 func (m *SessionManager) SetPTYBridge(sessionID string, bridge domain.TerminalPTYBridge) {
-	m.mu.Lock()
-	entry, ok := m.sessions[sessionID]
-	if !ok {
-		m.mu.Unlock()
-		return
-	}
-	entry.ptyBridge = bridge
-	cols, rows := entry.ptyCols, entry.ptyRows
-	m.mu.Unlock()
+	var cols, rows uint32
+	m.registry.Mutate(sessionID, func(entry *sessionEntry) {
+		entry.ptyBridge = bridge
+		cols, rows = entry.ptyCols, entry.ptyRows
+	})
 
 	if bridge != nil && cols > 0 && rows > 0 {
 		if err := bridge.Resize(cols, rows); err != nil {
@@ -102,16 +84,14 @@ func (m *SessionManager) SetPTYBridge(sessionID string, bridge domain.TerminalPT
 // bridge is ready. When the bridge has not started yet the size is buffered and
 // applied later by SetPTYBridge, so an early resize is never lost.
 func (m *SessionManager) ResizeTerminal(sessionID string, cols, rows uint32) error {
-	m.mu.Lock()
-	entry, ok := m.sessions[sessionID]
-	if !ok {
-		m.mu.Unlock()
+	var bridge domain.TerminalPTYBridge
+	if !m.registry.Mutate(sessionID, func(entry *sessionEntry) {
+		entry.ptyCols = cols
+		entry.ptyRows = rows
+		bridge = entry.ptyBridge
+	}) {
 		return domain.ErrSessionNotFound
 	}
-	entry.ptyCols = cols
-	entry.ptyRows = rows
-	bridge := entry.ptyBridge
-	m.mu.Unlock()
 
 	if bridge == nil {
 		return nil
@@ -210,9 +190,10 @@ func (m *SessionManager) Exec(sessionID, cmd string) (string, error) {
 // runServerAlive sends periodic keepalive requests to detect connection loss.
 // The SSH client reference is captured once under the read-lock to avoid a race with CloseSession.
 func (m *SessionManager) runServerAlive(entry *sessionEntry) {
-	m.mu.RLock()
-	client := entry.sshClient
-	m.mu.RUnlock()
+	var client domain.SSHClient
+	m.registry.View(entry.info.SessionID, func(e *sessionEntry) {
+		client = e.sshClient
+	})
 	if client == nil {
 		return
 	}
