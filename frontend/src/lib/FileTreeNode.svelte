@@ -126,7 +126,10 @@
 </div>
 
 <style>
-  .tree-node { user-select: none; }
+  .tree-node {
+    display: block;
+    user-select: none;
+  }
 
   .node-row {
     display: flex;
