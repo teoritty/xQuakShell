@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"ssh-client/internal/domain"
 	domainplugin "ssh-client/internal/domain/plugin"
@@ -16,6 +17,7 @@ import (
 	infraputty "ssh-client/internal/infra/putty"
 	infrasftp "ssh-client/internal/infra/sftp"
 	infrassh "ssh-client/internal/infra/ssh"
+	infrapinger "ssh-client/internal/infra/pinger"
 	"ssh-client/internal/pkg/conlimit"
 	"ssh-client/internal/pkg/safego"
 	presentation "ssh-client/internal/presentation/wails"
@@ -103,6 +105,7 @@ func NewApp() *App {
 		logStream, pluginSessionAudit,
 		conlimit.New(domain.DefaultPingSettings().EffectiveMaxConcurrent()),
 		conlimit.New(domain.DefaultTransferSettings().MaxConcurrent),
+		infrapinger.NewTCPPinger(3*time.Second),
 	)
 	if pluginRuntime.manager != nil {
 		pluginRuntime.manager.SetCrashHandler(api.Sessions())

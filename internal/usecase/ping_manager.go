@@ -12,8 +12,6 @@ import (
 	"ssh-client/internal/pkg/safego"
 )
 
-const defaultPingTimeout = 3 * time.Second
-
 // PingResult holds the outcome of a single host TCP ping.
 type PingResult struct {
 	ConnectionID string `json:"connectionId"`
@@ -30,8 +28,6 @@ type pingJob struct {
 	port   int
 }
 
-type pingDialFunc func(ctx context.Context, network, address string) (net.Conn, error)
-
 // PingManager periodically checks TCP reachability for connections.
 type PingManager struct {
 	mu             sync.RWMutex
@@ -42,28 +38,26 @@ type PingManager struct {
 	connRepo       domain.ConnectionRepository
 	protocolLookup domain.ConnectionProtocolLookup
 	limiter        domain.ConcurrencyLimiter
+	pinger         domain.Pinger
 	cycleMu        sync.Mutex
 	cycleRunning   bool
-	dial           pingDialFunc
 }
 
 // NewPingManager creates a new PingManager.
-func NewPingManager(connRepo domain.ConnectionRepository, settings domain.PingSettings, limiter domain.ConcurrencyLimiter) *PingManager {
+func NewPingManager(connRepo domain.ConnectionRepository, settings domain.PingSettings, limiter domain.ConcurrencyLimiter, pinger domain.Pinger) *PingManager {
 	if limiter == nil {
 		panic("usecase: PingManager requires ConcurrencyLimiter")
+	}
+	if pinger == nil {
+		panic("usecase: PingManager requires Pinger")
 	}
 	return &PingManager{
 		settings: settings,
 		results:  make(map[string]PingResult),
 		connRepo: connRepo,
 		limiter:  limiter,
-		dial:     defaultPingDial,
+		pinger:   pinger,
 	}
-}
-
-func defaultPingDial(ctx context.Context, network, address string) (net.Conn, error) {
-	d := net.Dialer{Timeout: defaultPingTimeout}
-	return d.DialContext(ctx, network, address)
 }
 
 // Start begins periodic pinging.
@@ -289,13 +283,10 @@ func (pm *PingManager) pingAll(ctx context.Context) {
 func (pm *PingManager) tcpPing(ctx context.Context, connID, host string, port int) PingResult {
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	start := time.Now()
-	conn, err := pm.dial(ctx, "tcp", addr)
+	err := pm.pinger.Ping(ctx, "tcp", addr)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
 		return PingResult{ConnectionID: connID, Reachable: false, LatencyMs: latency}
-	}
-	if closeErr := conn.Close(); closeErr != nil {
-		slog.Warn("ping: failed to close tcp conn", "addr", addr, "err", closeErr)
 	}
 	return PingResult{ConnectionID: connID, Reachable: true, LatencyMs: latency}
 }

@@ -62,6 +62,14 @@ Run `powershell -File scripts/check-imports.ps1` to verify layer imports.
 
 Usecase depends on the domain interface; `conlimit.New(...)` is called only in the composition root and passed through `presentation.NewAppAPI` into usecase constructors. Do not import `internal/pkg/conlimit` from `internal/usecase` or `internal/presentation`.
 
+## TCP ping port
+
+| Port | Implementation | Used by | Wired in |
+|------|----------------|---------|----------|
+| `domain.Pinger` | `internal/infra/pinger` | `PingManager` | `main` (`app.go`) only |
+
+Usecase depends on the domain interface; `pinger.NewTCPPinger(...)` is called only in the composition root and passed through `presentation.NewAppAPI` into `NewPingManager`. Do not import `internal/infra/pinger` from `internal/usecase` or `internal/presentation`. Usecase must not call `net.Dial*` directly — only `domain.Pinger`.
+
 ## Bandwidth rate limiting port
 
 | Port | Implementation | Used by | Wired in |
@@ -102,7 +110,7 @@ Plugin connectors receive `ConnectorHooks` to set PTY bridge, SFTP (`RemoteFS`),
 | **Local file browser** | `domain.HostFileSystem`, `internal/infra/host/host_fs.go`, `handlers_local_fs.go` (routing table in file header). |
 | **Portable temp / data paths** | `domain.PortableDataStore`, `internal/infra/portable/data_store.go`. |
 | **Transfers** | `domain.ConcurrencyLimiter` (`internal/pkg/conlimit`), `internal/usecase/transfer_service.go`, handlers in `handlers_transfers.go`. |
-| **Settings / ping / audit** | `domain.ConcurrencyLimiter` (`internal/pkg/conlimit`), `settings_service.go`, `audit_service.go`, `ping_manager.go`, `handlers_settings_ping_audit.go`. |
+| **Settings / ping / audit** | `domain.ConcurrencyLimiter` (`internal/pkg/conlimit`), `domain.Pinger` (`internal/infra/pinger`), `settings_service.go`, `audit_service.go`, `ping_manager.go`, `handlers_settings_ping_audit.go`. |
 | **Debug log window** | `domain.LogStream`, `internal/infra/loghub`, `internal/presentation/logwindow`. |
 | **Plugins** | `internal/usecase/plugin_*.go`, handlers in `handlers_plugin*.go`, manifest FS checks in `infra/plugin/bundle/capabilities_validate.go`. |
 | **Plugin connection fields** | Manifest: `internal/domain/plugin/fields.go`, validation in `manifest_fields_validate.go`; persistence: `PluginFieldsService`, `Connection.pluginFields`, `VaultData.pluginSecrets`; UI: `PluginConnectionFields.svelte`, `GetPluginConnectionProtocols`. |

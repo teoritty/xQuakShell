@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -48,49 +47,38 @@ func (s *stubConnRepo) ReorderConnections(context.Context, []string, string) err
 }
 func (s *stubConnRepo) ReorderFolders(context.Context, []string, string) error { return nil }
 
-type recordingDialer struct {
+type recordingPinger struct {
 	mu     sync.Mutex
 	active int
 	peak   int
 	delay  time.Duration
-	dials  int32
+	pings  int32
 }
 
-func (d *recordingDialer) dial(ctx context.Context, network, address string) (net.Conn, error) {
-	atomic.AddInt32(&d.dials, 1)
-	d.mu.Lock()
-	d.active++
-	if d.active > d.peak {
-		d.peak = d.active
+func (p *recordingPinger) Ping(ctx context.Context, network, address string) error {
+	atomic.AddInt32(&p.pings, 1)
+	p.mu.Lock()
+	p.active++
+	if p.active > p.peak {
+		p.peak = p.active
 	}
-	delay := d.delay
-	d.mu.Unlock()
+	delay := p.delay
+	p.mu.Unlock()
 
 	select {
 	case <-ctx.Done():
-		d.mu.Lock()
-		d.active--
-		d.mu.Unlock()
-		return nil, ctx.Err()
+		p.mu.Lock()
+		p.active--
+		p.mu.Unlock()
+		return ctx.Err()
 	case <-time.After(delay):
 	}
 
-	d.mu.Lock()
-	d.active--
-	d.mu.Unlock()
-	return &stubConn{}, nil
+	p.mu.Lock()
+	p.active--
+	p.mu.Unlock()
+	return nil
 }
-
-type stubConn struct{}
-
-func (stubConn) Read([]byte) (int, error)         { return 0, errors.New("closed") }
-func (stubConn) Write([]byte) (int, error)        { return 0, errors.New("closed") }
-func (stubConn) Close() error                     { return nil }
-func (stubConn) LocalAddr() net.Addr              { return nil }
-func (stubConn) RemoteAddr() net.Addr             { return nil }
-func (stubConn) SetDeadline(time.Time) error      { return nil }
-func (stubConn) SetReadDeadline(time.Time) error  { return nil }
-func (stubConn) SetWriteDeadline(time.Time) error { return nil }
 
 type stubConcurrencyLimiter struct {
 	mu     sync.Mutex
@@ -163,24 +151,31 @@ func testConnections(n int) []domain.Connection {
 	return conns
 }
 
-func newTestPingManager(conns []domain.Connection, maxConcurrent int, dialer *recordingDialer) *PingManager {
-	pm := NewPingManager(&stubConnRepo{conns: conns}, domain.PingSettings{
+func newTestPingManager(conns []domain.Connection, maxConcurrent int, pinger domain.Pinger) *PingManager {
+	return NewPingManager(&stubConnRepo{conns: conns}, domain.PingSettings{
 		Enabled:       true,
 		Mode:          domain.PingModeInterval,
 		MaxConcurrent: maxConcurrent,
-	}, newStubConcurrencyLimiter(maxConcurrent))
-	pm.dial = dialer.dial
-	return pm
+	}, newStubConcurrencyLimiter(maxConcurrent), pinger)
+}
+
+func TestNewPingManagerPanicsOnNilPinger(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic for nil Pinger")
+		}
+	}()
+	NewPingManager(&stubConnRepo{}, domain.DefaultPingSettings(), newStubConcurrencyLimiter(1), nil)
 }
 
 func TestPingAllRespectsMaxConcurrent(t *testing.T) {
-	dialer := &recordingDialer{delay: 50 * time.Millisecond}
-	pm := newTestPingManager(testConnections(50), 4, dialer)
+	pinger := &recordingPinger{delay: 50 * time.Millisecond}
+	pm := newTestPingManager(testConnections(50), 4, pinger)
 
 	pm.pingAll(context.Background())
 
-	if dialer.peak > 4 {
-		t.Fatalf("peak concurrent = %d, want <= 4", dialer.peak)
+	if pinger.peak > 4 {
+		t.Fatalf("peak concurrent = %d, want <= 4", pinger.peak)
 	}
 	if got := len(pm.GetResults()); got != 50 {
 		t.Fatalf("results = %d, want 50", got)
@@ -188,8 +183,8 @@ func TestPingAllRespectsMaxConcurrent(t *testing.T) {
 }
 
 func TestPingAllSingleFlight(t *testing.T) {
-	dialer := &recordingDialer{delay: 200 * time.Millisecond}
-	pm := newTestPingManager(testConnections(10), 2, dialer)
+	pinger := &recordingPinger{delay: 200 * time.Millisecond}
+	pm := newTestPingManager(testConnections(10), 2, pinger)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -204,14 +199,14 @@ func TestPingAllSingleFlight(t *testing.T) {
 	}()
 	wg.Wait()
 
-	if got := atomic.LoadInt32(&dialer.dials); got != 10 {
-		t.Fatalf("dials = %d, want 10 (second cycle skipped)", got)
+	if got := atomic.LoadInt32(&pinger.pings); got != 10 {
+		t.Fatalf("pings = %d, want 10 (second cycle skipped)", got)
 	}
 }
 
 func TestPingAllContextCancel(t *testing.T) {
-	dialer := &recordingDialer{delay: 500 * time.Millisecond}
-	pm := newTestPingManager(testConnections(20), 2, dialer)
+	pinger := &recordingPinger{delay: 500 * time.Millisecond}
+	pm := newTestPingManager(testConnections(20), 2, pinger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -231,8 +226,8 @@ func TestPingAllContextCancel(t *testing.T) {
 }
 
 func TestPingSingleUsesLimiter(t *testing.T) {
-	dialer := &recordingDialer{delay: 100 * time.Millisecond}
-	pm := newTestPingManager(nil, 2, dialer)
+	pinger := &recordingPinger{delay: 100 * time.Millisecond}
+	pm := newTestPingManager(nil, 2, pinger)
 
 	ctx := context.Background()
 	var wg sync.WaitGroup
@@ -245,7 +240,7 @@ func TestPingSingleUsesLimiter(t *testing.T) {
 	}
 	wg.Wait()
 
-	if dialer.peak > 2 {
-		t.Fatalf("peak concurrent = %d, want <= 2", dialer.peak)
+	if pinger.peak > 2 {
+		t.Fatalf("peak concurrent = %d, want <= 2", pinger.peak)
 	}
 }

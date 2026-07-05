@@ -69,8 +69,9 @@ func NewAppAPI(
 	pluginSessionAudit domainplugin.SessionAuditor,
 	pingLimiter domain.ConcurrencyLimiter,
 	transferLimiter domain.ConcurrencyLimiter,
+	pinger domain.Pinger,
 ) *AppAPI {
-	pingMgr := usecase.NewPingManager(connRepo, domain.DefaultPingSettings(), pingLimiter)
+	pingMgr := usecase.NewPingManager(connRepo, domain.DefaultPingSettings(), pingLimiter, pinger)
 	var pluginFieldsSvc *usecase.PluginFieldsService
 	if pluginMgr != nil {
 		pluginFieldsSvc = usecase.NewPluginFieldsService(vaultRepo, pluginMgr.Registry())
