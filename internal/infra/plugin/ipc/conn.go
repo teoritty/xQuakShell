@@ -26,6 +26,7 @@ type Conn struct {
 	onNotify   func(method string, params json.RawMessage)
 	onRequest  RequestHandler
 	closeCh    chan struct{}
+	closeOnce  sync.Once
 	wg         sync.WaitGroup
 	readErr    error
 	mu         sync.Mutex
@@ -103,11 +104,9 @@ func (c *Conn) CloseWrite() {
 
 // Close stops the read loop. Does not close underlying pipes.
 func (c *Conn) Close() {
-	select {
-	case <-c.closeCh:
-	default:
+	c.closeOnce.Do(func() {
 		close(c.closeCh)
-	}
+	})
 	c.wg.Wait()
 }
 

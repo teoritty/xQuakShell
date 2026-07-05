@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"strings"
 	"testing"
-	"time"
 
 	"ssh-client/internal/infra/plugin/ipc"
 )
@@ -12,16 +11,11 @@ import (
 func TestConnParseErrorReturns32700(t *testing.T) {
 	var hostOut bytes.Buffer
 	conn := ipc.NewConn(strings.NewReader("{broken\n"), &hostOut, nil, nil)
-	defer conn.Close()
+	conn.Close()
 
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		if strings.Contains(hostOut.String(), "-32700") {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
+	if !strings.Contains(hostOut.String(), "-32700") {
+		t.Fatalf("expected -32700 in host response %q", hostOut.String())
 	}
-	t.Fatalf("expected -32700 in host response %q", hostOut.String())
 }
 
 func TestNewParseErrorResponse(t *testing.T) {

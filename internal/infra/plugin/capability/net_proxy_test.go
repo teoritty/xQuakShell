@@ -3,8 +3,12 @@ package capability
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -214,5 +218,118 @@ func TestNetProxyReadReturnsDataWhenAvailable(t *testing.T) {
 	}
 	if result.ContentBase64 == "" {
 		t.Fatal("expected banner bytes")
+	}
+}
+
+func reservedNetSlots(p *NetProxy) int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.handles) + p.pendingDials
+}
+
+func TestNetProxyDialEnforcesConnectionLimitUnderConcurrency(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	port := listener.Addr().(*net.TCPAddr).Port
+	host := listener.Addr().(*net.TCPAddr).IP.String()
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+
+	proxy := NewNetProxy("com.test", &domainplugin.NetworkCaps{
+		Outbound: []string{fmt.Sprintf("tcp:%s:%d", host, port)},
+	})
+	proxy.resolver = mapResolver{
+		host: {net.ParseIP(host)},
+	}
+
+	for i := 0; i < domainplugin.MaxNetConnectionsPerPlugin-1; i++ {
+		proxy.mu.Lock()
+		proxy.handles[fmt.Sprintf("stub-%d", i)] = newIdleConn()
+		proxy.mu.Unlock()
+	}
+
+	const workers = 32
+	var wg sync.WaitGroup
+	var peak atomic.Int32
+	stopPeak := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-stopPeak:
+				return
+			default:
+				if n := int32(reservedNetSlots(proxy)); n > peak.Load() {
+					peak.Store(n)
+				}
+			}
+		}
+	}()
+
+	var successes atomic.Int32
+	var rateLimited atomic.Int32
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			_, err := proxy.Dial(json.RawMessage(fmt.Sprintf(`{"host":%q,"port":%d}`, host, port)))
+			if err == nil {
+				successes.Add(1)
+				return
+			}
+			if errors.Is(err, domainplugin.ErrRateLimited) {
+				rateLimited.Add(1)
+				return
+			}
+			t.Errorf("unexpected dial error: %v", err)
+		}()
+	}
+	wg.Wait()
+	close(stopPeak)
+
+	if got := successes.Load(); got != 1 {
+		t.Fatalf("expected exactly 1 successful dial, got %d", got)
+	}
+	if got := rateLimited.Load(); got != workers-1 {
+		t.Fatalf("expected %d rate-limited dials, got %d", workers-1, got)
+	}
+	if got := int(peak.Load()); got > domainplugin.MaxNetConnectionsPerPlugin {
+		t.Fatalf("peak reserved slots %d exceeds max %d", got, domainplugin.MaxNetConnectionsPerPlugin)
+	}
+	if got := reservedNetSlots(proxy); got != domainplugin.MaxNetConnectionsPerPlugin {
+		t.Fatalf("expected %d reserved slots after test, got %d", domainplugin.MaxNetConnectionsPerPlugin, got)
+	}
+	if proxy.pendingDials != 0 {
+		t.Fatalf("expected pendingDials=0, got %d", proxy.pendingDials)
+	}
+}
+
+func TestNetProxyPendingDialsReleasedOnDialFailure(t *testing.T) {
+	proxy := NewNetProxy("com.test", &domainplugin.NetworkCaps{
+		AllowArbitraryOutbound: true,
+	})
+	proxy.resolver = mapResolver{
+		"127.0.0.1": {net.ParseIP("127.0.0.1")},
+	}
+
+	_, err := proxy.Dial(json.RawMessage(`{"host":"127.0.0.1","port":1}`))
+	if err == nil {
+		t.Fatal("expected dial failure to closed port")
+	}
+	if proxy.pendingDials != 0 {
+		t.Fatalf("expected pendingDials=0 after failed dial, got %d", proxy.pendingDials)
+	}
+	if got := reservedNetSlots(proxy); got != 0 {
+		t.Fatalf("expected 0 reserved slots, got %d", got)
 	}
 }

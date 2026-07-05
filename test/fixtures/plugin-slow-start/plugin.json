@@ -1,0 +1,10 @@
+{
+  "id": "com.xquakshell.slow-start",
+  "name": "Slow Start",
+  "version": "0.1.0",
+  "engine": {
+    "type": "go-binary",
+    "entry": "plugin-slow-start"
+  },
+  "activationEvents": ["onManual"]
+}

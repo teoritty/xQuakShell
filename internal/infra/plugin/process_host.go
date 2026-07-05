@@ -59,6 +59,26 @@ type managedProcess struct {
 	netProxy  *capability.NetProxy
 	state     domainplugin.ProcessState
 	job       pluginJob // platform-specific; closed on finalize
+	cleanupOnce sync.Once
+}
+
+func (mp *managedProcess) closeResources(killProcess bool) {
+	mp.cleanupOnce.Do(func() {
+		if mp.stderr != nil {
+			_ = mp.stderr.Close()
+		}
+		if mp.netProxy != nil {
+			mp.netProxy.CloseAll()
+		}
+		if mp.conn != nil {
+			mp.conn.Close()
+		}
+		if killProcess && mp.cmd != nil && mp.cmd.Process != nil && mp.reaper != nil {
+			_ = mp.reaper.Kill()
+			untrackPluginPID(mp.cmd.Process.Pid)
+		}
+		closePluginJob(mp.job)
+	})
 }
 
 // NewProcessHost creates a process host with capability proxies and audit hooks.
@@ -74,11 +94,29 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	key := processKey(plugin, sessionID)
 
 	h.mu.Lock()
-	if existing, ok := h.processes[key]; ok && existing.state == domainplugin.ProcessRunning {
-		h.mu.Unlock()
-		return domainplugin.ErrPluginAlreadyRunning
+	if existing, ok := h.processes[key]; ok {
+		switch existing.state {
+		case domainplugin.ProcessRunning, domainplugin.ProcessStarting:
+			h.mu.Unlock()
+			return domainplugin.ErrPluginAlreadyRunning
+		}
 	}
+	// Reserve→Act→Commit: check+reserve atomically under lock.
+	mp := &managedProcess{
+		key:       key,
+		plugin:    plugin,
+		sessionID: sessionID,
+		state:     domainplugin.ProcessStarting,
+	}
+	h.processes[key] = mp
 	h.mu.Unlock()
+
+	running := false
+	defer func() {
+		if !running {
+			h.releaseStartReservation(key, mp)
+		}
+	}()
 
 	entryPath, err := ResolveEngineEntryPath(plugin.RootDir, plugin.Manifest.Engine.Entry)
 	if err != nil {
@@ -114,59 +152,34 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 
 	reaper := newProcessReaper(cmd)
 	reaper.Start()
-
-	abortStart := func() {
-		_ = reaper.Kill()
-		_ = stderrLog.Close()
-	}
+	mp.cmd = cmd
+	mp.reaper = reaper
+	mp.stderr = stderrLog
 
 	job, err := createPluginJob()
 	if err != nil {
-		abortStart()
 		return fmt.Errorf("create plugin job: %w", err)
 	}
+	mp.job = job
 	if err := assignProcessToJob(job, cmd.Process.Pid); err != nil {
-		closePluginJob(job)
-		abortStart()
 		return fmt.Errorf("assign plugin %s to job: %w", plugin.Manifest.ID, err)
 	}
 	if err := applyPluginResourceLimits(cmd.Process.Pid, job); err != nil {
-		closePluginJob(job)
-		abortStart()
 		return fmt.Errorf("apply plugin %s resource limits: %w", plugin.Manifest.ID, err)
 	}
 
 	isolation := plugin.Manifest.EffectiveIsolation()
 	dataDir, err := EnsurePluginInstanceDataDir(h.cfg.DataRoot, plugin.Manifest.ID, sessionID, isolation)
 	if err != nil {
-		closePluginJob(job)
-		abortStart()
 		return fmt.Errorf("create plugin data dir: %w", err)
 	}
 
 	conn, netProxy, err := h.newConn(plugin, dataDir, sessionID, stdout, stdin)
 	if err != nil {
-		closePluginJob(job)
-		abortStart()
 		return err
 	}
-
-	mp := &managedProcess{
-		key:       key,
-		plugin:    plugin,
-		sessionID: sessionID,
-		cmd:       cmd,
-		reaper:    reaper,
-		stderr:    stderrLog,
-		conn:      conn,
-		netProxy:  netProxy,
-		state:     domainplugin.ProcessStarting,
-		job:       job,
-	}
-
-	h.mu.Lock()
-	h.processes[key] = mp
-	h.mu.Unlock()
+	mp.conn = conn
+	mp.netProxy = netProxy
 
 	initCtx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
@@ -183,12 +196,10 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	}
 	params, err := ipc.EncodeParams(initParams)
 	if err != nil {
-		h.finalizeProcess(key, mp)
 		return err
 	}
 
 	if _, err := conn.Call(initCtx, "initialize", params); err != nil {
-		h.finalizeProcess(key, mp)
 		return fmt.Errorf("plugin initialize: %w", err)
 	}
 
@@ -196,6 +207,7 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	mp.state = domainplugin.ProcessRunning
 	h.mu.Unlock()
 
+	running = true
 	go h.waitProcess(key, mp)
 	return nil
 }
@@ -248,11 +260,15 @@ func (h *ProcessHost) Stop(ctx context.Context, pluginID, sessionID string) erro
 		mp.conn.CloseWrite()
 	}
 
-	waitCtx, waitCancel := context.WithTimeout(ctx, stopGracePeriod)
-	waitErr := mp.reaper.Wait(waitCtx)
-	waitCancel()
-	if waitErr != nil {
-		_ = mp.reaper.Kill()
+	if mp.reaper != nil {
+		waitCtx, waitCancel := context.WithTimeout(ctx, stopGracePeriod)
+		waitErr := mp.reaper.Wait(waitCtx)
+		waitCancel()
+		if waitErr != nil {
+			_ = mp.reaper.Kill()
+		}
+	} else if mp.cmd != nil && mp.cmd.Process != nil {
+		_ = mp.cmd.Process.Kill()
 	}
 
 	h.finalizeProcess(key, mp)
@@ -350,20 +366,13 @@ func (h *ProcessHost) runningProcess(pluginID, sessionID string) (*managedProces
 func (h *ProcessHost) waitProcess(key string, mp *managedProcess) {
 	<-mp.reaper.Done()
 	exitErr := mp.reaper.ExitErr()
-
-	if mp.stderr != nil {
-		_ = mp.stderr.Close()
-	}
-	if mp.conn != nil {
-		mp.conn.Close()
-	}
+	mp.closeResources(false)
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	current, ok := h.processes[key]
 	if !ok || current != mp {
-		closePluginJob(mp.job)
 		return
 	}
 
@@ -375,7 +384,6 @@ func (h *ProcessHost) waitProcess(key string, mp *managedProcess) {
 		mp.state = domainplugin.ProcessStopped
 	}
 	delete(h.processes, key)
-	closePluginJob(mp.job)
 	if mp.cmd != nil && mp.cmd.Process != nil {
 		untrackPluginPID(mp.cmd.Process.Pid)
 	}
@@ -385,22 +393,14 @@ func (h *ProcessHost) waitProcess(key string, mp *managedProcess) {
 	}
 }
 
+// releaseStartReservation drops a ProcessStarting reservation after a failed Start.
+func (h *ProcessHost) releaseStartReservation(key string, mp *managedProcess) {
+	h.finalizeProcess(key, mp)
+}
+
 // finalizeProcess releases IPC and job resources without calling Wait (reaper owns Wait).
 func (h *ProcessHost) finalizeProcess(key string, mp *managedProcess) {
-	if mp.stderr != nil {
-		_ = mp.stderr.Close()
-	}
-	if mp.netProxy != nil {
-		mp.netProxy.CloseAll()
-	}
-	if mp.conn != nil {
-		mp.conn.Close()
-	}
-	if mp.cmd.Process != nil && mp.reaper != nil {
-		_ = mp.reaper.Kill()
-		untrackPluginPID(mp.cmd.Process.Pid)
-	}
-	closePluginJob(mp.job)
+	mp.closeResources(true)
 
 	h.mu.Lock()
 	if current, ok := h.processes[key]; ok && current == mp {

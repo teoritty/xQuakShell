@@ -31,6 +31,7 @@ type NetProxy struct {
 	resolver             ipResolver
 	mu                   sync.Mutex
 	handles              map[string]net.Conn
+	pendingDials         int // slots reserved while dial is in progress
 }
 
 // NewNetProxy creates a network proxy from manifest network capabilities.
@@ -107,12 +108,22 @@ func (p *NetProxy) Dial(params json.RawMessage) (json.RawMessage, error) {
 		return nil, domainplugin.ErrCapabilityDenied
 	}
 
+	// Reserve→Act→Commit: check+reserve atomically under lock.
 	p.mu.Lock()
-	if len(p.handles) >= domainplugin.MaxNetConnectionsPerPlugin {
+	if len(p.handles)+p.pendingDials >= domainplugin.MaxNetConnectionsPerPlugin {
 		p.mu.Unlock()
 		return nil, domainplugin.ErrRateLimited
 	}
+	p.pendingDials++
+	committed := false
 	p.mu.Unlock()
+	defer func() {
+		if !committed {
+			p.mu.Lock()
+			p.pendingDials--
+			p.mu.Unlock()
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), domainplugin.NetDialTimeout)
 	defer cancel()
@@ -155,7 +166,9 @@ func (p *NetProxy) Dial(params json.RawMessage) (json.RawMessage, error) {
 		}
 
 		p.mu.Lock()
+		p.pendingDials--
 		p.handles[handleID] = conn
+		committed = true
 		p.mu.Unlock()
 
 		if p.allowArbitrary {
