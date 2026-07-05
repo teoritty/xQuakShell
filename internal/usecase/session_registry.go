@@ -124,13 +124,40 @@ func (r *SessionRegistry) Mutate(id string, fn func(entry *sessionEntry)) bool {
 	return true
 }
 
+// CompareAndTransition atomically moves the session from `from` state to `to`
+// state, running fn (if non-nil) under the same write lock to update any
+// other fields that must change together with the state (error message,
+// hostKeyInfo, etc.). Returns false if the session doesn't exist or is not
+// currently in `from` state — in which case nothing is mutated.
+//
+// WHY THIS EXISTS (ADR-009 follow-up): a naive Get-check-then-Mutate sequence
+// has a TOCTOU window between the check and the mutation — two concurrent
+// callers can both pass the check before either one mutates. The original
+// pre-decomposition code avoided this by holding a single mu.Lock() across
+// both the check and the write; this method restores that guarantee without
+// reintroducing a shared lock outside SessionRegistry.
+func (r *SessionRegistry) CompareAndTransition(id string, from, to domain.SessionState, fn func(entry *sessionEntry)) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	entry, ok := r.sessions[id]
+	if !ok || entry.info.State != from {
+		return false
+	}
+	entry.info.State = to
+	if fn != nil {
+		fn(entry)
+	}
+	return true
+}
+
 // View runs fn under the read lock IF the session exists. Use for reads that
 // need a consistent multi-field snapshot (e.g. reading pluginID + ctx together).
 func (r *SessionRegistry) View(id string, fn func(entry *sessionEntry)) bool {
 	r.mu.RLock()
 	entry, ok := r.sessions[id]
 	if !ok {
-		r.mu.Unlock()
+		r.mu.RUnlock()
 		return false
 	}
 	fn(entry)

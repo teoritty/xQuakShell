@@ -107,6 +107,37 @@ func TestChar_HandlePluginUpdateState_IDOR(t *testing.T) {
 	}
 }
 
+func TestChar_HandlePluginUpdateState_UnknownSession(t *testing.T) {
+	sm := charTestSessionManager(t)
+	err := sm.HandlePluginUpdateState("any-plugin", "does-not-exist", string(domain.SessionReady), "")
+	if err != domain.ErrSessionNotFound {
+		t.Fatalf("expected ErrSessionNotFound, got %v", err)
+	}
+}
+
+func TestChar_HandlePluginWriteTerminal_UnknownSession(t *testing.T) {
+	sm := charTestSessionManager(t)
+	err := sm.HandlePluginWriteTerminal("any-plugin", "does-not-exist", []byte("hello"))
+	if err != domain.ErrSessionNotFound {
+		t.Fatalf("expected ErrSessionNotFound, got %v", err)
+	}
+}
+
+func TestChar_HandlePluginRegisterEmbed_UnknownSession(t *testing.T) {
+	sm := charTestSessionManager(t)
+	sm.SetEmbedTunnelService(newTestEmbedTunnelService())
+	_, err := sm.HandlePluginRegisterEmbed(context.Background(), "any-plugin", "does-not-exist", "ui/x.html", nil)
+	if err != domain.ErrSessionNotFound {
+		t.Fatalf("expected ErrSessionNotFound, got %v", err)
+	}
+}
+
+func TestChar_RunServerAlive_UnknownSession(t *testing.T) {
+	sm := charTestSessionManager(t)
+	entry := &sessionEntry{info: domain.ConnectionSession{SessionID: "does-not-exist"}, ctx: context.Background()}
+	sm.io.RunServerAlive(entry)
+}
+
 func TestChar_HandlePluginProcessCrashed(t *testing.T) {
 	sm := charTestSessionManager(t)
 	if err := sm.BindPluginSessionForTest("sess-crash", "plugin-a"); err != nil {
@@ -221,6 +252,39 @@ func TestChar_RetrySession_NotHostKeyRequired(t *testing.T) {
 	err := sm.RetrySession(context.Background(), "sess-retry")
 	if err == nil {
 		t.Fatal("expected error when not in hostkey-required state")
+	}
+}
+
+func TestChar_RetrySession_ConcurrentCallsOnlyOneWins(t *testing.T) {
+	sm := NewSessionManager(SessionManagerConfig{
+		PluginBridge: NewPluginSessionBridge(PluginSessionBridgeConfig{}),
+		ConnRepo:     &stubConnRepo{},
+	})
+	const sessionID = "sess-hostkey"
+	sm.registry.Put(sessionID, newSessionEntry(
+		domain.ConnectionSession{SessionID: sessionID, State: domain.SessionHostKeyRequired},
+		context.Background(), func() {}, "conn-x",
+	))
+
+	var wg sync.WaitGroup
+	results := make([]error, 2)
+	for i := range results {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			results[i] = sm.lifecycle.RetrySession(context.Background(), sessionID)
+		}(i)
+	}
+	wg.Wait()
+
+	errCount := 0
+	for _, err := range results {
+		if err != nil {
+			errCount++
+		}
+	}
+	if errCount != 1 {
+		t.Fatalf("expected exactly one RetrySession call to fail with state error, got %d errors: %v", errCount, results)
 	}
 }
 
