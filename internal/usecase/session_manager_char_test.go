@@ -74,7 +74,7 @@ func TestChar_HandlePluginUpdateState_Ready(t *testing.T) {
 
 	var streamReady sync.WaitGroup
 	streamReady.Add(1)
-	sm.pluginBridge.WireSessionRuntime(PluginSessionRuntimeConfig{
+	sm.plugins.WireSessionRuntime(PluginSessionRuntimeConfig{
 		Registry:      sm.registry,
 		OnStreamReady: func(id string, ch <-chan []byte) {
 			if id == sessionID && ch != nil {
@@ -208,7 +208,7 @@ func TestChar_CloseSession_RevokesEmbed(t *testing.T) {
 	if err := sm.CloseSession(sessionID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sm.embedTunnels.Lookup(token); err == nil {
+	if _, err := sm.embed.Lookup(token); err == nil {
 		t.Fatal("expected embed token revoked after close")
 	}
 }
