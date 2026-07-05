@@ -110,6 +110,12 @@ func normalizeSettings(s domain.AppSettings) domain.AppSettings {
 	if s.Ping.IntervalSeconds < 1 {
 		s.Ping.IntervalSeconds = 5
 	}
+	if s.Ping.MaxConcurrent <= 0 {
+		s.Ping.MaxConcurrent = 16
+	}
+	if s.Ping.MaxConcurrent > 64 {
+		s.Ping.MaxConcurrent = 64
+	}
 
 	if s.Lockout.IdleTimeout < time.Minute {
 		s.Lockout.IdleTimeout = domain.DefaultLockoutSettings().IdleTimeout

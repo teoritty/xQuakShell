@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"ssh-client/internal/domain"
+	"ssh-client/internal/pkg/conlimit"
 	"ssh-client/internal/pkg/safego"
 )
 
@@ -31,23 +32,20 @@ type TransferService struct {
 	sessions  *SessionManager
 	settings  *SettingsService
 	hostFS    domain.HostFileSystem
-	mu        sync.Mutex
-	cond      *sync.Cond
-	active    int
+	limiter   *conlimit.Limiter
 	cancelsMu sync.Mutex
 	cancels   map[string]context.CancelFunc
 }
 
 // NewTransferService creates a transfer orchestrator.
 func NewTransferService(sessions *SessionManager, settings *SettingsService, hostFS domain.HostFileSystem) *TransferService {
-	s := &TransferService{
+	return &TransferService{
 		sessions: sessions,
 		settings: settings,
 		hostFS:   hostFS,
+		limiter:  conlimit.New(4),
 		cancels:  make(map[string]context.CancelFunc),
 	}
-	s.cond = sync.NewCond(&s.mu)
-	return s
 }
 
 // Upload copies a local file or directory to the remote path.
@@ -115,34 +113,12 @@ func (s *TransferService) maxConcurrent() int {
 }
 
 func (s *TransferService) acquireSlot(ctx context.Context) error {
-	limit := s.maxConcurrent()
-	done := make(chan struct{})
-	defer close(done)
-	safego.GoNamed("transfer.acquireSlot", func() {
-		select {
-		case <-ctx.Done():
-			s.cond.Broadcast()
-		case <-done:
-		}
-	})
-	s.mu.Lock()
-	for s.active >= limit {
-		s.cond.Wait()
-		if ctx.Err() != nil {
-			s.mu.Unlock()
-			return ctx.Err()
-		}
-	}
-	s.active++
-	s.mu.Unlock()
-	return nil
+	s.limiter.SetLimit(s.maxConcurrent())
+	return s.limiter.Acquire(ctx)
 }
 
 func (s *TransferService) releaseSlot() {
-	s.mu.Lock()
-	s.active--
-	s.cond.Signal()
-	s.mu.Unlock()
+	s.limiter.Release()
 }
 
 func (s *TransferService) registerCancel(transferID string, cancel context.CancelFunc) {

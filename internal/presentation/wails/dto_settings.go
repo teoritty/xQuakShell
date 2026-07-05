@@ -32,6 +32,7 @@ type AppSettingsDTO struct {
 	PingMode                 string `json:"pingMode"`
 	PingIntervalSeconds      int    `json:"pingIntervalSeconds"`
 	PingIntervalMin          int    `json:"pingIntervalMin"`
+	MaxConcurrentPings       int    `json:"maxConcurrentPings"`
 	ExternalEditorPath       string `json:"externalEditorPath"`
 	TransferSpeedLimitKbps   int    `json:"transferSpeedLimitKbps"`
 	ConnectionTimeoutSeconds int    `json:"connectionTimeoutSeconds"`
@@ -90,6 +91,7 @@ func AppSettingsToDTO(s domain.AppSettings) AppSettingsDTO {
 		PingEnabled:              s.Ping.Enabled,
 		PingMode:                 s.Ping.Mode,
 		PingIntervalSeconds:      s.Ping.EffectiveIntervalSeconds(),
+		MaxConcurrentPings:       s.Ping.EffectiveMaxConcurrent(),
 		ExternalEditorPath:       s.ExternalEditorPath,
 		TransferSpeedLimitKbps:   s.Transfer.SpeedLimitKbps,
 		ConnectionTimeoutSeconds: s.Transfer.ConnectionTimeoutSec,
@@ -127,6 +129,7 @@ func DTOToAppSettings(dto AppSettingsDTO) domain.AppSettings {
 			Enabled:         dto.PingEnabled,
 			Mode:            dto.PingMode,
 			IntervalSeconds: dto.PingIntervalSeconds,
+			MaxConcurrent:   dto.MaxConcurrentPings,
 		},
 		ExternalEditorPath: dto.ExternalEditorPath,
 		Transfer: domain.TransferSettings{

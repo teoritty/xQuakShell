@@ -35,6 +35,7 @@ export interface AppSettings {
   pingMode: string;
   pingIntervalSeconds: number;
   pingIntervalMin: number;
+  maxConcurrentPings: number;
   externalEditorPath: string;
   transferSpeedLimitKbps: number;
   connectionTimeoutSeconds: number;

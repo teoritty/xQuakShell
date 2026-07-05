@@ -27,6 +27,7 @@ type PingSettings struct {
 	Enabled         bool   `json:"enabled"`
 	Mode            string `json:"mode"`
 	IntervalSeconds int    `json:"intervalSeconds"`
+	MaxConcurrent   int    `json:"maxConcurrent"`
 }
 
 // EffectiveIntervalSeconds returns the interval in seconds.
@@ -37,12 +38,21 @@ func (p PingSettings) EffectiveIntervalSeconds() int {
 	return 5
 }
 
+// EffectiveMaxConcurrent returns the max parallel ping workers.
+func (p PingSettings) EffectiveMaxConcurrent() int {
+	if p.MaxConcurrent > 0 {
+		return p.MaxConcurrent
+	}
+	return 16
+}
+
 // DefaultPingSettings returns reasonable defaults for ping monitoring.
 func DefaultPingSettings() PingSettings {
 	return PingSettings{
 		Enabled:         true,
 		Mode:            PingModeInterval,
 		IntervalSeconds: 5,
+		MaxConcurrent:   16,
 	}
 }
 

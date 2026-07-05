@@ -65,7 +65,7 @@ func (a *AppAPI) SaveConnection(dto ConnectionDTO) (ConnectionDTO, error) {
 		if h := saved.EffectiveHost(); h != "" {
 			port := saved.EffectivePort(a.protocolLookup())
 			if port > 0 {
-				a.pingMgr.PingSingle(saved.ID, h, port)
+				a.pingMgr.PingSingle(ctx, saved.ID, h, port)
 			}
 		}
 	}

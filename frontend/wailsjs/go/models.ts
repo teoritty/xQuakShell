@@ -27,6 +27,7 @@ export namespace wails {
 	    pingMode: string;
 	    pingIntervalSeconds: number;
 	    pingIntervalMin: number;
+	    maxConcurrentPings: number;
 	    externalEditorPath: string;
 	    transferSpeedLimitKbps: number;
 	    connectionTimeoutSeconds: number;
@@ -61,6 +62,7 @@ export namespace wails {
 	        this.pingMode = source["pingMode"];
 	        this.pingIntervalSeconds = source["pingIntervalSeconds"];
 	        this.pingIntervalMin = source["pingIntervalMin"];
+	        this.maxConcurrentPings = source["maxConcurrentPings"];
 	        this.externalEditorPath = source["externalEditorPath"];
 	        this.transferSpeedLimitKbps = source["transferSpeedLimitKbps"];
 	        this.connectionTimeoutSeconds = source["connectionTimeoutSeconds"];

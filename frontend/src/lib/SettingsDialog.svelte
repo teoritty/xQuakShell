@@ -79,6 +79,7 @@
   let pingEnabled = true;
   let pingMode = 'interval';
   let pingIntervalSeconds = 5;
+  let maxConcurrentPings = 16;
   let transferSpeedLimitKbps = 0;
   let connectionTimeoutSeconds = 15;
   let maxConcurrentTransfers = 4;
@@ -185,6 +186,7 @@
       pingEnabled = s.pingEnabled ?? true;
       pingMode = s.pingMode ?? 'interval';
       pingIntervalSeconds = s.pingIntervalSeconds ?? 5;
+      maxConcurrentPings = s.maxConcurrentPings ?? 16;
       transferSpeedLimitKbps = s.transferSpeedLimitKbps ?? 0;
       connectionTimeoutSeconds = s.connectionTimeoutSeconds ?? 15;
       maxConcurrentTransfers = s.maxConcurrentTransfers ?? 4;
@@ -293,6 +295,7 @@
       pingEnabled,
       pingMode,
       pingIntervalSeconds,
+      maxConcurrentPings,
       transferSpeedLimitKbps,
       connectionTimeoutSeconds,
       maxConcurrentTransfers,
@@ -569,6 +572,16 @@
                   min="5"
                   max="300"
                   disabled={pingMode !== 'interval' || !pingEnabled}
+                />
+              </label>
+              <label class="field-inline">
+                <span>Max concurrent pings</span>
+                <input
+                  type="number"
+                  bind:value={maxConcurrentPings}
+                  min="1"
+                  max="64"
+                  disabled={!pingEnabled}
                 />
               </label>
             </div>
