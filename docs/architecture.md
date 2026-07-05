@@ -25,7 +25,7 @@ flowchart TB
 - **main** (`app.go`) wires repositories, SSH adapters (`internal/infra/ssh`), portable layout, and plugin runtime.
 - **presentation/wails** — Wails facade: `api.go`, handler files, DTOs, events. Handlers delegate to use cases; no direct infra imports.
 - **presentation/logwindow** — debug log viewer subprocess and TCP stream server; depends on `domain.LogStream` only.
-- **usecase** — orchestration (`SessionManager`, `TransferService`, `AuditService`, `SettingsService`, `VaultService`, plugins). Depends only on **domain** and stdlib.
+- **usecase** — orchestration (`SessionManager`, `TransferService`, `AuditService`, `SettingsService`, `VaultService`, `HostKeyService`, `RemoteFSService`, `LocalFSService`, plugins). Depends only on **domain** and stdlib.
 - **domain** — entities and ports split across `vault_data.go`, `app_settings.go`, `repositories.go`, `host_fs.go`, `portable_data.go`, etc.
 - **infra** — persistence, SSH dialer, SFTP, audit log, host FS, portable data store, plugin host, embed broker (`domain.EmbedTunnelPort`), etc.
 
@@ -35,7 +35,7 @@ Three trust boundaries — do not mix:
 
 | Zone | Domain port | Infra implementation | Path policy | Key methods |
 |------|-------------|------------------------|-------------|-------------|
-| Host user FS | `HostFileSystem` | `internal/infra/host/host_fs.go` | No sandbox root; trusted host UI | `List`, `Stat`, `Remove`, `Mkdir`, `Rename`, `CreateFile` — used by Local Files UI and `TransferService` |
+| Host user FS | `HostFileSystem`, `HostAppLauncher` | `internal/infra/host/host_fs.go`, `launcher_*.go` | No sandbox root; trusted host UI | `List`, `Stat`, `Remove`, `Mkdir`, `Rename`, `CreateFile`, `OpenDefault`, `OpenWith` — used by `LocalFSService`, `TransferService` |
 | Portable app data | `PortableDataStore` | `internal/infra/portable/data_store.go` | Jailed to `<exe>/data` | `ResolvePath`, `Remove`, `ReadFile`, `EnsureTempDir` — used by plugin install/uninstall and GitHub staging temp |
 | Plugin sandbox | (IPC only) | `internal/infra/plugin/capability/fs_proxy.go` | Manifest roots + symlink checks | `fs.*` RPC only |
 
@@ -106,8 +106,9 @@ Plugin connectors receive `ConnectorHooks` to set PTY bridge, SFTP (`RemoteFS`),
 |------|----------------|
 | **Vault / connections** | `internal/usecase/vault_service.go` (CRUD orchestration), repositories wired in `app.go` only, DTOs in `dto_connection.go`, thin handlers in `handlers_vault.go`. |
 | **SSH sessions** | `internal/usecase/session_manager*.go`, PTY/SFTP init via `SessionManager.InitSessionIO`, handlers in `handlers_sessions.go`. |
-| **Remote file browser** | `handlers_remote_fs.go` (DTO mapping); SSH exec via `SessionManager.Exec`. |
-| **Local file browser** | `domain.HostFileSystem`, `internal/infra/host/host_fs.go`, `handlers_local_fs.go` (routing table in file header). |
+| **Host keys** | `internal/usecase/host_key_service.go` (parse, add/replace/remove, resolve prompt); `domain.ParseAuthorizedSSHKey`; handlers delegate in `handlers_sessions.go` and `handlers_remote_fs.go`. |
+| **Remote file browser** | `internal/usecase/remote_fs_service.go` (SFTP ops, getent UID/GID cache); thin DTO handlers in `handlers_remote_fs.go`. |
+| **Local file browser** | `internal/usecase/local_fs_service.go` orchestrates `HostFileSystem` + `HostAppLauncher`; infra in `internal/infra/host/`; thin handlers in `handlers_local_fs.go` (routing table in file header). |
 | **Portable temp / data paths** | `domain.PortableDataStore`, `internal/infra/portable/data_store.go`. |
 | **Transfers** | `domain.ConcurrencyLimiter` (`internal/pkg/conlimit`), `internal/usecase/transfer_service.go`, handlers in `handlers_transfers.go`. |
 | **Settings / ping / audit** | `domain.ConcurrencyLimiter` (`internal/pkg/conlimit`), `domain.Pinger` (`internal/infra/pinger`), `settings_service.go`, `audit_service.go`, `ping_manager.go`, `handlers_settings_ping_audit.go`. |

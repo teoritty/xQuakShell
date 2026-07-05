@@ -54,6 +54,9 @@ type KnownHostsRepository interface {
 // through domain without importing golang.org/x/crypto/ssh directly.
 type Signer = ssh.Signer
 
+// PublicKey is a type alias for ssh.PublicKey.
+type PublicKey = ssh.PublicKey
+
 // SSHClient wraps an active SSH connection with session creation capability.
 type SSHClient interface {
 	NewSession() (*ssh.Session, error)

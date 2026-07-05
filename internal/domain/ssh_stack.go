@@ -2,10 +2,20 @@ package domain
 
 import (
 	"context"
+	"fmt"
 	"net"
 
 	"golang.org/x/crypto/ssh"
 )
+
+// ParseAuthorizedSSHKey parses an OpenSSH authorized_keys line or bare key blob.
+func ParseAuthorizedSSHKey(authorizedKey string) (ssh.PublicKey, error) {
+	key, _, _, _, err := ssh.ParseAuthorizedKey([]byte(authorizedKey))
+	if err != nil {
+		return nil, fmt.Errorf("parse authorized key: %w", err)
+	}
+	return key, nil
+}
 
 // HostKeyVerificationError wraps ErrUnknownHost or ErrHostKeyMismatch together with the
 // key info so callers can show a host key prompt without depending on the ssh library.

@@ -1,6 +1,6 @@
 //go:build !windows
 
-package wails
+package host
 
 import (
 	"os"
@@ -9,7 +9,7 @@ import (
 	"syscall"
 )
 
-func getLocalFileOwner(info os.FileInfo, _ string) string {
+func fileOwner(info os.FileInfo) string {
 	if info == nil {
 		return ""
 	}

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
-	gossh "golang.org/x/crypto/ssh"
 
 	"ssh-client/internal/domain"
 	"ssh-client/internal/pkg/safego"
@@ -46,10 +45,9 @@ func (a *AppAPI) CloseSession(sessionID string) error {
 	if a.auditSvc != nil {
 		a.auditSvc.RemoveSession(sessionID)
 	}
-	a.ownerCacheMu.Lock()
-	delete(a.ownerCache, sessionID)
-	delete(a.groupCache, sessionID)
-	a.ownerCacheMu.Unlock()
+	if a.remoteFS != nil {
+		a.remoteFS.ClearSessionCache(sessionID)
+	}
 	if a.ctx != nil {
 		wailsrt.EventsEmit(a.ctx, EventSessionClosed, map[string]string{"sessionId": sessionID})
 	}
@@ -131,25 +129,10 @@ func (a *AppAPI) TerminalResize(sessionID string, cols, rows int) error {
 // ResolveHostKey handles the user's decision on a pending host key verification.
 // action is "add" or "replace"; after resolving, retries the session connection.
 func (a *AppAPI) ResolveHostKey(sessionID, action, host, authorizedKey string) error {
-	key, _, _, _, err := gossh.ParseAuthorizedKey([]byte(authorizedKey))
-	if err != nil {
-		return fmt.Errorf("parse host key: %w", err)
+	if a.hostKeys == nil {
+		return fmt.Errorf("host key service unavailable")
 	}
-
-	switch action {
-	case "add":
-		if err := a.knownHosts.Add(context.Background(), host, key); err != nil {
-			return fmt.Errorf("add host key: %w", err)
-		}
-	case "replace":
-		if err := a.knownHosts.Replace(context.Background(), host, key); err != nil {
-			return fmt.Errorf("replace host key: %w", err)
-		}
-	default:
-		return fmt.Errorf("unknown host key action %q", action)
-	}
-
-	return a.sessions.RetrySession(context.Background(), sessionID)
+	return a.hostKeys.ResolveHostKey(context.Background(), sessionID, action, host, authorizedKey)
 }
 
 // ReportEmbedViewport forwards pixel dimensions to the plugin process.

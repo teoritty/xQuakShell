@@ -2,7 +2,6 @@ package wails
 
 import (
 	"context"
-	"sync"
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -16,13 +15,14 @@ import (
 type AppAPI struct {
 	ctx                 context.Context
 	vaultRepo           domain.VaultRepository
-	knownHosts          domain.KnownHostsRepository
 	vaultSvc            *usecase.VaultService
 	sessions            *usecase.SessionManager
 	settingsSvc         *usecase.SettingsService
 	auditSvc            *usecase.AuditService
 	transferSvc         *usecase.TransferService
-	hostFS              domain.HostFileSystem
+	hostKeys            *usecase.HostKeyService
+	remoteFS            *usecase.RemoteFSService
+	localFS             *usecase.LocalFSService
 	portableData        domain.PortableDataStore
 	puttyImport         *usecase.PuTTYImportService
 	lockout             domain.LockoutManager
@@ -36,9 +36,6 @@ type AppAPI struct {
 	pluginArbitraryNetworkGrant   func(pluginID string) error
 	embedBridge         *usecase.PluginEmbedBridge
 	logWindow           *logwindow.Manager
-	ownerCache          map[string]map[string]string // sessionID -> uid->owner
-	groupCache          map[string]map[string]string // sessionID -> gid->group
-	ownerCacheMu        sync.Mutex
 }
 
 // NewAppAPI creates a new AppAPI with the given dependencies.
@@ -54,6 +51,8 @@ func NewAppAPI(
 	auditLogRepo domain.AuditLogRepository,
 	lockoutMgr domain.LockoutManager,
 	hostFS domain.HostFileSystem,
+	hostLauncher domain.HostAppLauncher,
+	isHiddenLocal func(fullPath, name string) bool,
 	portableData domain.PortableDataStore,
 	trackerFactory domain.CommandLineTrackerFactory,
 	sanitizerFactory domain.AuditInputSanitizerFactory,
@@ -85,18 +84,14 @@ func NewAppAPI(
 		ProtocolLookup: protocolLookup,
 	})
 	api := &AppAPI{
-		vaultRepo:         vaultRepo,
-		knownHosts:        knownHosts,
-		vaultSvc:          vaultSvc,
-		hostFS:            hostFS,
-		portableData:      portableData,
-		puttyImport:       usecase.NewPuTTYImportService(connRepo, identRepo, puttyImporter),
-		lockout:           lockoutMgr,
-		pingMgr:           pingMgr,
-		plugins:           pluginMgr,
-		settingsSvc:       usecase.NewSettingsService(vaultRepo, lockoutMgr, pingMgr),
-		ownerCache:        make(map[string]map[string]string),
-		groupCache:        make(map[string]map[string]string),
+		vaultRepo:    vaultRepo,
+		vaultSvc:     vaultSvc,
+		portableData: portableData,
+		puttyImport:  usecase.NewPuTTYImportService(connRepo, identRepo, puttyImporter),
+		lockout:      lockoutMgr,
+		pingMgr:      pingMgr,
+		plugins:      pluginMgr,
+		settingsSvc:  usecase.NewSettingsService(vaultRepo, lockoutMgr, pingMgr),
 	}
 
 	api.sessions = usecase.NewSessionManager(usecase.SessionManagerConfig{
@@ -135,6 +130,13 @@ func NewAppAPI(
 
 	api.auditSvc = usecase.NewAuditService(auditLogRepo, api.settingsSvc, api.sessions, connRepo, trackerFactory, sanitizerFactory)
 	api.transferSvc = usecase.NewTransferService(api.sessions, api.settingsSvc, hostFS, transferLimiter)
+	api.hostKeys = usecase.NewHostKeyService(knownHosts, api.sessions)
+	api.remoteFS = usecase.NewRemoteFSService(api.sessions)
+	api.localFS = usecase.NewLocalFSService(usecase.LocalFSServiceConfig{
+		HostFS:   hostFS,
+		Launcher: hostLauncher,
+		IsHidden: isHiddenLocal,
+	})
 	api.logWindow = logwindow.NewManager(logStream, api.settingsSvc, api.emitDebugLogWindowChanged)
 
 	return api

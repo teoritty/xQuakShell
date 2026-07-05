@@ -64,8 +64,9 @@ func (fs *HostFS) Stat(localPath string) (domain.HostFileInfo, error) {
 		return domain.HostFileInfo{}, err
 	}
 	return domain.HostFileInfo{
-		IsDir: info.IsDir(),
-		Size:  info.Size(),
+		IsDir:   info.IsDir(),
+		Size:    info.Size(),
+		ModTime: info.ModTime(),
 	}, nil
 }
 
@@ -96,6 +97,7 @@ func (fs *HostFS) List(dirPath string, includeHidden bool, isHidden func(fullPat
 			Size:    info.Size(),
 			ModTime: info.ModTime().Format("2006-01-02 15:04:05"),
 			Mode:    info.Mode().String(),
+			Owner:   fileOwner(info),
 		})
 	}
 	sort.Slice(result, func(i, j int) bool {

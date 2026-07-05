@@ -93,6 +93,9 @@ func TestHostFSStatFile(t *testing.T) {
 	if info.Size != 5 {
 		t.Fatalf("expected size 5, got %d", info.Size)
 	}
+	if info.ModTime.IsZero() {
+		t.Fatal("expected non-zero ModTime")
+	}
 }
 
 func TestHostFSStatDirectory(t *testing.T) {

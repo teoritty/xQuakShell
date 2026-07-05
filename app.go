@@ -76,6 +76,7 @@ func NewApp() *App {
 	portableRuntime := portable.NewRuntimeAdapter()
 	portableLayout := portable.NewLayoutAdapter(paths)
 	hostFS := host.NewHostFS()
+	hostLauncher := host.NewAppLauncher()
 	portableData := portable.NewDataStore(portableLayout.DataRoot(), portableLayout.TempDir(), portableRuntime)
 
 	pluginRuntime := newPluginRuntime(vaultDir, portableData, pluginRuntimeDeps{
@@ -96,7 +97,7 @@ func NewApp() *App {
 	api := presentation.NewAppAPI(
 		vaultRepo, connRepo, identRepo, passwordRepo, knownHostsRepo,
 		sshDialer, sshSession, newSessionConnectors(),
-		auditLogRepo, lockoutMgr, hostFS, portableData,
+		auditLogRepo, lockoutMgr, hostFS, hostLauncher, host.IsHiddenLocal, portableData,
 		auditlog.NewCommandLineTrackerFactory(),
 		auditlog.SanitizerFactory(),
 		infraputty.PortAdapter{},

@@ -1,14 +1,18 @@
 package domain
 
-import "errors"
+import (
+	"errors"
+	"time"
+)
 
 // ErrHostPathInvalid is returned when a host filesystem path is malformed.
 var ErrHostPathInvalid = errors.New("host path invalid")
 
 // HostFileInfo describes basic metadata for a host filesystem path.
 type HostFileInfo struct {
-	IsDir bool
-	Size  int64
+	IsDir   bool
+	Size    int64
+	ModTime time.Time
 }
 
 // LocalFileEntry describes a file or directory entry for the local file browser.
@@ -19,6 +23,13 @@ type LocalFileEntry struct {
 	Size    int64
 	ModTime string
 	Mode    string
+	Owner   string
+}
+
+// HostAppLauncher opens files with the system default app or a specified editor.
+type HostAppLauncher interface {
+	OpenDefault(path string) error
+	OpenWith(appPath, filePath string) error
 }
 
 // HostFileSystem provides trusted filesystem access for the core application UI.
