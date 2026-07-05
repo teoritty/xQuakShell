@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	domainplugin "ssh-client/internal/domain/plugin"
@@ -269,23 +268,19 @@ func checkRateLimit(resp *http.Response) error {
 
 // ParseReleasePublishedAt parses GitHub's published_at timestamp.
 func ParseReleasePublishedAt(raw string) string {
-	if raw == "" {
-		return ""
-	}
-	t, err := time.Parse(time.RFC3339, raw)
-	if err != nil {
-		return raw
-	}
-	return t.Format(time.RFC3339)
+	return domainplugin.ParseReleasePublishedAt(raw)
 }
 
 // TotalDownloadCount sums asset download counts.
 func TotalDownloadCount(assets []Asset) int {
-	total := 0
-	for _, a := range assets {
-		total += a.DownloadCount
+	domainAssets := make([]domainplugin.GitHubReleaseAsset, len(assets))
+	for i := range assets {
+		domainAssets[i] = domainplugin.GitHubReleaseAsset{
+			Name:          assets[i].Name,
+			DownloadCount: assets[i].DownloadCount,
+		}
 	}
-	return total
+	return domainplugin.TotalReleaseDownloadCount(domainAssets)
 }
 
 // FindAsset returns the asset with the given name.
@@ -300,18 +295,5 @@ func FindAsset(assets []Asset, name string) (*Asset, error) {
 
 // ParseChecksumsFile parses SHA256SUMS content into asset name -> checksum map.
 func ParseChecksumsFile(content string) map[string]string {
-	out := make(map[string]string)
-	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.Fields(line)
-		if len(parts) < 2 {
-			continue
-		}
-		hash := strings.TrimPrefix(parts[0], "*")
-		out[parts[len(parts)-1]] = hash
-	}
-	return out
+	return domainplugin.ParseChecksumsFile(content)
 }

@@ -9,7 +9,6 @@ import (
 
 	"ssh-client/internal/domain"
 	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/auditlog"
 )
 
 // SessionConnectParams is sent to plugins via session.connect RPC.
@@ -27,14 +26,14 @@ type SessionConnectParams struct {
 type PluginSessionBridge struct {
 	plugins *PluginManager
 	fields  *PluginFieldsService
-	audit   *auditlog.PluginSessionAuditLog
+	audit   domainplugin.SessionAuditor
 }
 
 // PluginSessionBridgeConfig configures the plugin session bridge.
 type PluginSessionBridgeConfig struct {
 	Plugins *PluginManager
 	Fields  *PluginFieldsService
-	Audit   *auditlog.PluginSessionAuditLog
+	Audit   domainplugin.SessionAuditor
 }
 
 // NewPluginSessionBridge creates a bridge over the plugin manager.
@@ -180,7 +179,7 @@ func (b *PluginSessionBridge) recordAudit(pluginID string, params SessionConnect
 	if b.audit == nil {
 		return
 	}
-	b.audit.Record(auditlog.PluginSessionAuditEntry{
+	b.audit.RecordSessionAudit(domainplugin.SessionAuditEntry{
 		Timestamp:    time.Now(),
 		PluginID:     pluginID,
 		Action:       "session.connect",

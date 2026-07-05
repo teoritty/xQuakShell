@@ -7,14 +7,13 @@ import (
 
 	domainplugin "ssh-client/internal/domain/plugin"
 	infracache "ssh-client/internal/infra/cache"
-	infragithub "ssh-client/internal/infra/github"
 	infrapersistence "ssh-client/internal/infra/persistence"
 	"ssh-client/internal/usecase"
 )
 
 type stubGitHubAPIClient struct {
 	manifest   []byte
-	releases   []infragithub.Release
+	releases   []domainplugin.GitHubRelease
 	releaseErr error
 }
 
@@ -28,7 +27,7 @@ func (s *stubGitHubAPIClient) GetFileContent(_ context.Context, _, _, path, _ st
 	return nil, errors.New("file not found: " + path)
 }
 
-func (s *stubGitHubAPIClient) GetLatestRelease(_ context.Context, _, _ string) (*infragithub.Release, error) {
+func (s *stubGitHubAPIClient) GetLatestRelease(_ context.Context, _, _ string) (*domainplugin.GitHubRelease, error) {
 	releases, err := s.ListPublishedReleases(context.Background(), "", "")
 	if err != nil || len(releases) == 0 {
 		return nil, s.releaseErr
@@ -37,14 +36,14 @@ func (s *stubGitHubAPIClient) GetLatestRelease(_ context.Context, _, _ string) (
 	return &release, nil
 }
 
-func (s *stubGitHubAPIClient) ListPublishedReleases(_ context.Context, _, _ string) ([]infragithub.Release, error) {
+func (s *stubGitHubAPIClient) ListPublishedReleases(_ context.Context, _, _ string) ([]domainplugin.GitHubRelease, error) {
 	if s.releaseErr != nil {
 		return nil, s.releaseErr
 	}
 	return s.releases, nil
 }
 
-func (s *stubGitHubAPIClient) GetReleaseByTag(_ context.Context, _, _, tag string) (*infragithub.Release, error) {
+func (s *stubGitHubAPIClient) GetReleaseByTag(_ context.Context, _, _, tag string) (*domainplugin.GitHubRelease, error) {
 	for i := range s.releases {
 		if s.releases[i].TagName == tag {
 			release := s.releases[i]
@@ -77,6 +76,7 @@ func newGitHubAddTestAPI(t *testing.T, client usecase.GitHubAPIClient) *AppAPI {
 	repoService := usecase.NewGitHubRepositoryService(storage, cache)
 	pluginService := usecase.NewGitHubPluginService(
 		client,
+		nil,
 		nil,
 		nil,
 		cache,
@@ -120,9 +120,9 @@ func TestAddGitHubRepository_ValidationFailureDoesNotPersist(t *testing.T) {
 func TestAddGitHubRepository_SuccessPersistsRepository(t *testing.T) {
 	api := newGitHubAddTestAPI(t, &stubGitHubAPIClient{
 		manifest: []byte(testXQSPManifest),
-		releases: []infragithub.Release{{
+		releases: []domainplugin.GitHubRelease{{
 			TagName: "v1.0.0",
-			Assets: []infragithub.Asset{
+			Assets: []domainplugin.GitHubReleaseAsset{
 				{Name: "demo-windows-amd64.exe"},
 			},
 		}},
@@ -151,9 +151,9 @@ func TestAddGitHubRepository_SuccessPersistsRepository(t *testing.T) {
 func TestFetchGitHubPlugins_EnrichesInstalledState(t *testing.T) {
 	api := newGitHubAddTestAPI(t, &stubGitHubAPIClient{
 		manifest: []byte(testXQSPManifest),
-		releases: []infragithub.Release{{
+		releases: []domainplugin.GitHubRelease{{
 			TagName: "v1.0.0",
-			Assets: []infragithub.Asset{
+			Assets: []domainplugin.GitHubReleaseAsset{
 				{Name: "demo-windows-amd64.exe"},
 			},
 		}},

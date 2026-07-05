@@ -7,9 +7,9 @@
 #   make portable       - build + download WebView2 for Windows portable
 #   make install        - install frontend deps
 
-.PHONY: build dev clean rebuild portable install check check-imports check-fs-boundaries check-goroutines
+.PHONY: build dev clean rebuild portable install check check-imports check-fs-boundaries check-goroutines check-file-size
 
-check: check-imports check-fs-boundaries check-goroutines
+check: check-imports check-fs-boundaries check-goroutines check-file-size
 
 check-imports:
 	powershell -File scripts/check-imports.ps1
@@ -19,6 +19,9 @@ check-fs-boundaries:
 
 check-goroutines:
 	powershell -File scripts/check-goroutines.ps1
+
+check-file-size:
+	powershell -File scripts/check-file-size.ps1
 
 # Default target: full Wails build
 build:

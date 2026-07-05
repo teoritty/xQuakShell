@@ -91,6 +91,44 @@ Plugin connectors receive `ConnectorHooks` to set PTY bridge, SFTP (`RemoteFS`),
 | **Plugin protocols** | Out-of-process plugins via `PluginSessionBridge` and `session.connect` (with optional `fields`). |
 | **Session embed** | `EmbedTunnelService`, `internal/infra/embed/broker_handler.go`, `SessionEmbedPanel.svelte`, `session.registerEmbed` / tunnel IPC. See [adr/008-session-embed-surfaces.md](adr/008-session-embed-surfaces.md). |
 
+## SRP: plugin GitHub usecase
+
+One type (`GitHubPluginService`), one file per reason to change — same pattern as `session_manager*.go`.
+
+| File | Reason to change |
+|------|------------------|
+| `github_plugin_service.go` | Public facade: struct + constructor only (≤100 lines) |
+| `github_metadata_cache.go` | Metadata cache keys and invalidation |
+| `github_metadata_fetch.go` | GitHub API metadata fetch (list + by-tag) |
+| `github_release_validator.go` | Release tag validation |
+| `github_binary_fetch.go` | Release asset download via downloader port |
+| `github_plugin_preview.go` | Install preview DTO |
+| `github_plugin_install.go` | Install orchestration pipeline |
+| `github_plugin_uninstall.go` | Uninstall + cache invalidation |
+| `github_ports.go` | GitHub usecase ports (domain DTOs only) |
+
+Pure platform/checksum parsing lives in `internal/domain/plugin/github_platform.go`. Security-critical flows stay isolated: list metadata must not download assets; release metadata may download checksums; install downloads verified binaries.
+
+## SRP: plugin process host
+
+One type (`ProcessHost`), one file per reason to change.
+
+| File | Reason to change |
+|------|------------------|
+| `process_host.go` | Struct, constructor, interface assertion (≤100 lines) |
+| `managed_process.go` | Managed process state + resource cleanup |
+| `process_host_registry.go` | Process map, lookup, state queries |
+| `process_host_lifecycle.go` | Wait, finalize, reservation rollback |
+| `process_spawner.go` | Child process spawn and pipes |
+| `process_sandbox.go` | Job objects, resource limits, data dir |
+| `process_ipc_factory.go` | IPC server and capability proxy wiring |
+| `process_initializer.go` | Plugin initialize handshake |
+| `process_host_start.go` | Start pipeline orchestration |
+| `process_host_stop.go` | Stop and StopAll |
+| `process_host_rpc.go` | Call and Notify |
+
+**SRP rules (enforced in CI):** new concern → new file; `internal/usecase` must not import `internal/infra`; `make check` includes `check-file-size` (300 lines for concern files, 100 for facades).
+
 ## Session embed data flow
 
 ```mermaid

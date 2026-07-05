@@ -148,8 +148,8 @@ func newPluginRuntime(dataRoot string, deps pluginRuntimeDeps) *pluginRuntime {
 	if err != nil {
 		log.Printf("WARNING: github repo storage init failed: %v", err)
 	}
-	githubClient := infragithub.NewClient()
-	githubDownloader := infraplugin.NewBinaryDownloader(githubClient)
+	githubClient := infragithub.NewUseCaseClient(infragithub.NewClient())
+	githubDownloader := infraplugin.NewBinaryDownloader(infragithub.NewClient())
 
 	var githubRepoService *usecase.GitHubRepositoryService
 	var githubPluginService *usecase.GitHubPluginService
@@ -158,7 +158,8 @@ func newPluginRuntime(dataRoot string, deps pluginRuntimeDeps) *pluginRuntime {
 		githubPluginService = usecase.NewGitHubPluginService(
 			githubClient,
 			githubDownloader,
-			nil,
+			infraplugin.StageGitHubPlugin,
+			infraplugin.InstallMetaWriter{},
 			githubCache,
 			manager,
 			githubRepoStorage,

@@ -1,4 +1,4 @@
-package usecase_test
+package plugin_test
 
 import (
 	"context"

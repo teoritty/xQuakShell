@@ -8,14 +8,13 @@ import (
 
 	domainplugin "ssh-client/internal/domain/plugin"
 	infracache "ssh-client/internal/infra/cache"
-	infragithub "ssh-client/internal/infra/github"
 	infrapersistence "ssh-client/internal/infra/persistence"
 	"ssh-client/internal/usecase"
 )
 
 type recordingGitHubClient struct {
 	manifest []byte
-	releases []infragithub.Release
+	releases []domainplugin.GitHubRelease
 }
 
 func (r *recordingGitHubClient) GetFileContent(_ context.Context, _, _, path, _ string) ([]byte, error) {
@@ -25,7 +24,7 @@ func (r *recordingGitHubClient) GetFileContent(_ context.Context, _, _, path, _ 
 	return nil, errors.New("file not found: " + path)
 }
 
-func (r *recordingGitHubClient) GetLatestRelease(_ context.Context, _, _ string) (*infragithub.Release, error) {
+func (r *recordingGitHubClient) GetLatestRelease(_ context.Context, _, _ string) (*domainplugin.GitHubRelease, error) {
 	if len(r.releases) == 0 {
 		return nil, domainplugin.ErrNoReleases
 	}
@@ -33,11 +32,11 @@ func (r *recordingGitHubClient) GetLatestRelease(_ context.Context, _, _ string)
 	return &release, nil
 }
 
-func (r *recordingGitHubClient) ListPublishedReleases(_ context.Context, _, _ string) ([]infragithub.Release, error) {
+func (r *recordingGitHubClient) ListPublishedReleases(_ context.Context, _, _ string) ([]domainplugin.GitHubRelease, error) {
 	return r.releases, nil
 }
 
-func (r *recordingGitHubClient) GetReleaseByTag(_ context.Context, _, _, tag string) (*infragithub.Release, error) {
+func (r *recordingGitHubClient) GetReleaseByTag(_ context.Context, _, _, tag string) (*domainplugin.GitHubRelease, error) {
 	for i := range r.releases {
 		if r.releases[i].TagName == tag {
 			release := r.releases[i]
@@ -66,15 +65,20 @@ const testManifest = `{
   }
 }`
 
+func newTestGitHubPluginService(t *testing.T, client usecase.GitHubAPIClient, downloader usecase.PluginBinaryDownloader, cache domainplugin.GitHubCache, storage domainplugin.GitHubRepositoryStorage) *usecase.GitHubPluginService {
+	t.Helper()
+	return usecase.NewGitHubPluginService(client, downloader, nil, nil, cache, nil, storage, t.TempDir())
+}
+
 func TestFetchPluginMetadata_ReturnsMultipleReleases(t *testing.T) {
 	client := &recordingGitHubClient{
 		manifest: []byte(testManifest),
-		releases: []infragithub.Release{
-			{TagName: "v2.0.0", Assets: []infragithub.Asset{{Name: "demo-windows-amd64.exe"}}},
-			{TagName: "v1.0.0", Prerelease: true, Assets: []infragithub.Asset{{Name: "demo-windows-amd64.exe"}}},
+		releases: []domainplugin.GitHubRelease{
+			{TagName: "v2.0.0", Assets: []domainplugin.GitHubReleaseAsset{{Name: "demo-windows-amd64.exe"}}},
+			{TagName: "v1.0.0", Prerelease: true, Assets: []domainplugin.GitHubReleaseAsset{{Name: "demo-windows-amd64.exe"}}},
 		},
 	}
-	svc := usecase.NewGitHubPluginService(client, nil, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil, nil, t.TempDir())
+	svc := newTestGitHubPluginService(t, client, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil)
 
 	meta, err := svc.FetchPluginMetadata(context.Background(), "https://github.com/user/repo", false)
 	if err != nil {
@@ -91,9 +95,9 @@ func TestFetchPluginMetadata_ReturnsMultipleReleases(t *testing.T) {
 func TestInstallPluginFromGitHub_UsesSelectedReleaseTag(t *testing.T) {
 	client := &recordingGitHubClient{
 		manifest: []byte(testManifest),
-		releases: []infragithub.Release{
-			{TagName: "v2.0.0", Assets: []infragithub.Asset{{Name: "demo-windows-amd64.exe"}}},
-			{TagName: "v1.0.0", Assets: []infragithub.Asset{{Name: "demo-windows-amd64.exe"}}},
+		releases: []domainplugin.GitHubRelease{
+			{TagName: "v2.0.0", Assets: []domainplugin.GitHubReleaseAsset{{Name: "demo-windows-amd64.exe"}}},
+			{TagName: "v1.0.0", Assets: []domainplugin.GitHubReleaseAsset{{Name: "demo-windows-amd64.exe"}}},
 		},
 	}
 	downloader := &recordingDownloader{}
@@ -113,7 +117,7 @@ func TestInstallPluginFromGitHub_UsesSelectedReleaseTag(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc := usecase.NewGitHubPluginService(client, downloader, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil, storage, dir)
+	svc := usecase.NewGitHubPluginService(client, downloader, nil, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil, storage, dir)
 
 	err = svc.InstallPluginFromGitHub(ctx, "https://github.com/user/repo", "v1.0.0", false, false, false)
 	if err == nil {
@@ -127,12 +131,12 @@ func TestInstallPluginFromGitHub_UsesSelectedReleaseTag(t *testing.T) {
 func TestFetchPluginMetadata_ForceRefreshBypassesCache(t *testing.T) {
 	client := &recordingGitHubClient{
 		manifest: []byte(testManifest),
-		releases: []infragithub.Release{
-			{TagName: "v1.0.0", Assets: []infragithub.Asset{{Name: "demo-windows-amd64.exe"}}},
+		releases: []domainplugin.GitHubRelease{
+			{TagName: "v1.0.0", Assets: []domainplugin.GitHubReleaseAsset{{Name: "demo-windows-amd64.exe"}}},
 		},
 	}
 	cache := infracache.NewMemoryCache(domainplugin.DefaultCacheTTL)
-	svc := usecase.NewGitHubPluginService(client, nil, nil, cache, nil, nil, t.TempDir())
+	svc := newTestGitHubPluginService(t, client, nil, cache, nil)
 	ctx := context.Background()
 
 	first, err := svc.FetchPluginMetadata(ctx, "https://github.com/user/repo", false)
@@ -160,11 +164,11 @@ func TestFetchPluginMetadata_ForceRefreshBypassesCache(t *testing.T) {
 func TestValidateReleaseTag_RejectsUnknownTag(t *testing.T) {
 	client := &recordingGitHubClient{
 		manifest: []byte(testManifest),
-		releases: []infragithub.Release{
-			{TagName: "v1.0.0", Assets: []infragithub.Asset{{Name: "demo-windows-amd64.exe"}}},
+		releases: []domainplugin.GitHubRelease{
+			{TagName: "v1.0.0", Assets: []domainplugin.GitHubReleaseAsset{{Name: "demo-windows-amd64.exe"}}},
 		},
 	}
-	svc := usecase.NewGitHubPluginService(client, nil, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil, nil, t.TempDir())
+	svc := newTestGitHubPluginService(t, client, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil)
 	_, err := svc.PreviewInstall(context.Background(), "https://github.com/user/repo", "v9.9.9")
 	if err == nil {
 		t.Fatal("expected invalid release tag error")
@@ -177,10 +181,10 @@ func TestValidateReleaseTag_RejectsUnknownTag(t *testing.T) {
 func TestFetchPluginMetadata_ListViewSkipsChecksumDownloads(t *testing.T) {
 	client := &recordingGitHubClient{
 		manifest: []byte(testManifest),
-		releases: []infragithub.Release{
+		releases: []domainplugin.GitHubRelease{
 			{
 				TagName: "v1.0.0",
-				Assets: []infragithub.Asset{
+				Assets: []domainplugin.GitHubReleaseAsset{
 					{Name: "SHA256SUMS"},
 					{Name: "demo-windows-amd64.exe"},
 				},
@@ -188,7 +192,7 @@ func TestFetchPluginMetadata_ListViewSkipsChecksumDownloads(t *testing.T) {
 		},
 	}
 	downloader := &recordingDownloader{}
-	svc := usecase.NewGitHubPluginService(client, downloader, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil, nil, t.TempDir())
+	svc := newTestGitHubPluginService(t, client, downloader, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil)
 
 	if _, err := svc.FetchPluginMetadata(context.Background(), "https://github.com/user/repo", false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -201,10 +205,10 @@ func TestFetchPluginMetadata_ListViewSkipsChecksumDownloads(t *testing.T) {
 func TestFetchPluginMetadataForRelease_LoadsChecksumsForInstall(t *testing.T) {
 	client := &recordingGitHubClient{
 		manifest: []byte(testManifest),
-		releases: []infragithub.Release{
+		releases: []domainplugin.GitHubRelease{
 			{
 				TagName: "v1.0.0",
-				Assets: []infragithub.Asset{
+				Assets: []domainplugin.GitHubReleaseAsset{
 					{Name: "SHA256SUMS"},
 					{Name: "demo-windows-amd64.exe"},
 				},
@@ -212,7 +216,7 @@ func TestFetchPluginMetadataForRelease_LoadsChecksumsForInstall(t *testing.T) {
 		},
 	}
 	downloader := &recordingDownloader{}
-	svc := usecase.NewGitHubPluginService(client, downloader, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil, nil, t.TempDir())
+	svc := newTestGitHubPluginService(t, client, downloader, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil)
 
 	if _, err := svc.FetchPluginMetadataForRelease(context.Background(), "https://github.com/user/repo", "v1.0.0"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -225,12 +229,12 @@ func TestFetchPluginMetadataForRelease_LoadsChecksumsForInstall(t *testing.T) {
 func TestInvalidateMetadataCache_ClearsRepoAndTagEntries(t *testing.T) {
 	client := &recordingGitHubClient{
 		manifest: []byte(testManifest),
-		releases: []infragithub.Release{
-			{TagName: "v1.0.0", Assets: []infragithub.Asset{{Name: "demo-windows-amd64.exe"}}},
+		releases: []domainplugin.GitHubRelease{
+			{TagName: "v1.0.0", Assets: []domainplugin.GitHubReleaseAsset{{Name: "demo-windows-amd64.exe"}}},
 		},
 	}
 	cache := infracache.NewMemoryCache(domainplugin.DefaultCacheTTL)
-	svc := usecase.NewGitHubPluginService(client, nil, nil, cache, nil, nil, t.TempDir())
+	svc := newTestGitHubPluginService(t, client, nil, cache, nil)
 	ctx := context.Background()
 
 	if _, err := svc.FetchPluginMetadata(ctx, "https://github.com/user/repo", false); err != nil {

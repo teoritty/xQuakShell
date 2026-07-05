@@ -1,7 +1,6 @@
 package plugin_test
 
 import (
-	"strings"
 	"testing"
 
 	domainplugin "ssh-client/internal/domain/plugin"
@@ -55,26 +54,8 @@ func TestGitHubPluginMetadata_SupportsCurrentPlatform(t *testing.T) {
 }
 
 func TestParseGitHubAssetNameConvention(t *testing.T) {
-	osName, arch := parseGitHubAssetName("demo-telnet-windows-amd64.exe")
+	osName, arch := domainplugin.ParseGitHubAssetName("demo-telnet-windows-amd64.exe")
 	if osName != "windows" || arch != "amd64" {
 		t.Fatalf("got %s/%s", osName, arch)
 	}
-}
-
-func parseGitHubAssetName(filename string) (string, string) {
-	name := strings.ToLower(filename)
-	name = strings.TrimSuffix(name, ".exe")
-	name = strings.TrimSuffix(name, ".zip")
-	name = strings.TrimSuffix(name, ".tar.gz")
-	name = strings.TrimSuffix(name, ".tgz")
-	parts := strings.Split(name, "-")
-	if len(parts) < 3 {
-		return "", ""
-	}
-	arch := parts[len(parts)-1]
-	osName := parts[len(parts)-2]
-	if !domainplugin.IsValidPlatformOS(osName) || !domainplugin.IsValidPlatformArch(arch) {
-		return "", ""
-	}
-	return osName, arch
 }

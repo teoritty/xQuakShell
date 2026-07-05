@@ -1,12 +1,11 @@
 package usecase
 
 import (
+	"context"
 	"fmt"
-	"strings"
 
 	domainplugin "ssh-client/internal/domain/plugin"
 )
-
 // GitHubPluginPreviewDTO contains information shown before installation.
 type GitHubPluginPreviewDTO struct {
 	RepositoryURL        string   `json:"repositoryUrl"`
@@ -110,22 +109,35 @@ func InstallTrustPolicy(reader PluginSettingsReader) (domainplugin.InstallTrustP
 	return policy, nil
 }
 
-func parseGitHubAssetName(filename string) (osName, arch string) {
-	name := strings.ToLower(filename)
-	name = strings.TrimSuffix(name, ".exe")
-	name = strings.TrimSuffix(name, ".zip")
-	name = strings.TrimSuffix(name, ".tar.gz")
-	name = strings.TrimSuffix(name, ".tgz")
-
-	parts := strings.Split(name, "-")
-	if len(parts) < 3 {
-		return "", ""
+// PreviewInstall builds install preview information for a GitHub plugin.
+func (s *GitHubPluginService) PreviewInstall(ctx context.Context, repoURL, releaseTag string) (GitHubPluginPreviewDTO, error) {
+	normalizedURL, err := domainplugin.NormalizeURL(repoURL)
+	if err != nil {
+		return GitHubPluginPreviewDTO{}, err
 	}
 
-	arch = parts[len(parts)-1]
-	osName = parts[len(parts)-2]
-	if !domainplugin.IsValidPlatformOS(osName) || !domainplugin.IsValidPlatformArch(arch) {
-		return "", ""
+	metadata, err := s.FetchPluginMetadataForRelease(ctx, normalizedURL, releaseTag)
+	if err != nil {
+		return GitHubPluginPreviewDTO{}, err
 	}
-	return osName, arch
+
+	repoTrusted := false
+	if repo, err := s.storage.Get(ctx, normalizedURL); err == nil && repo != nil {
+		repoTrusted = repo.Trusted
+	}
+
+	policy, err := InstallTrustPolicy(s.pluginManager.settingsReader)
+	if err != nil {
+		return GitHubPluginPreviewDTO{}, err
+	}
+
+	unsignedPlugin := metadata.Manifest.Signature == ""
+	if metadata.Manifest.Signature != "" {
+		trust, err := domainplugin.EvaluateInstallTrust(metadata.Manifest, "", policy)
+		if err == nil {
+			unsignedPlugin = trust.UnsignedWarning || trust.UntrustedSignatureWarning
+		}
+	}
+
+	return BuildPreviewDTO(metadata, repoTrusted, unsignedPlugin), nil
 }
