@@ -83,7 +83,6 @@ func newGitHubAddTestAPI(t *testing.T, client usecase.GitHubAPIClient) *wails.Ap
 		cache,
 		nil,
 		storage,
-		dir,
 	)
 
 	api := &wails.AppAPI{}

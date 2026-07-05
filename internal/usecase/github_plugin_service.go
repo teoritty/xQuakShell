@@ -13,7 +13,6 @@ type GitHubPluginService struct {
 	cache             domainplugin.GitHubCache
 	pluginManager     *PluginManager
 	storage           domainplugin.GitHubRepositoryStorage
-	dataRoot          string
 }
 
 // NewGitHubPluginService creates a new GitHub plugin service.
@@ -25,7 +24,6 @@ func NewGitHubPluginService(
 	cache domainplugin.GitHubCache,
 	pluginManager *PluginManager,
 	storage domainplugin.GitHubRepositoryStorage,
-	dataRoot string,
 ) *GitHubPluginService {
 	return &GitHubPluginService{
 		apiClient:         apiClient,
@@ -35,6 +33,5 @@ func NewGitHubPluginService(
 		cache:             cache,
 		pluginManager:     pluginManager,
 		storage:           storage,
-		dataRoot:          dataRoot,
 	}
 }

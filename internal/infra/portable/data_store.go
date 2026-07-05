@@ -76,6 +76,24 @@ func (s *DataStore) ResolvePath(path string) (string, error) {
 	return resolved, nil
 }
 
+// Remove deletes a file or directory tree under the portable data root.
+func (s *DataStore) Remove(path string) error {
+	resolved, err := s.ResolvePath(path)
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(resolved)
+}
+
+// ReadFile reads a file under the portable data root.
+func (s *DataStore) ReadFile(path string) ([]byte, error) {
+	resolved, err := s.ResolvePath(path)
+	if err != nil {
+		return nil, err
+	}
+	return os.ReadFile(resolved)
+}
+
 func (s *DataStore) requireWritable() error {
 	if s == nil || s.portable == nil {
 		return nil

@@ -50,9 +50,14 @@ type recordingDownloader struct {
 	lastTag string
 }
 
-func (d *recordingDownloader) DownloadBinary(_ context.Context, _, _, tag, _, _ string) (string, error) {
+func (d *recordingDownloader) DownloadBinary(_ context.Context, _, _, tag, _, _ string) (string, func(), error) {
 	d.lastTag = tag
-	return "", errors.New("download disabled in test")
+	return "", func() {}, errors.New("download disabled in test")
+}
+
+func (d *recordingDownloader) DownloadAssetContent(_ context.Context, _, _, tag, _ string) ([]byte, error) {
+	d.lastTag = tag
+	return nil, errors.New("download disabled in test")
 }
 
 const testManifest = `{
@@ -67,7 +72,7 @@ const testManifest = `{
 
 func newTestGitHubPluginService(t *testing.T, client usecase.GitHubAPIClient, downloader usecase.PluginBinaryDownloader, cache domainplugin.GitHubCache, storage domainplugin.GitHubRepositoryStorage) *usecase.GitHubPluginService {
 	t.Helper()
-	return usecase.NewGitHubPluginService(client, downloader, nil, nil, cache, nil, storage, t.TempDir())
+	return usecase.NewGitHubPluginService(client, downloader, nil, nil, cache, nil, storage)
 }
 
 func TestFetchPluginMetadata_ReturnsMultipleReleases(t *testing.T) {
@@ -117,7 +122,7 @@ func TestInstallPluginFromGitHub_UsesSelectedReleaseTag(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc := usecase.NewGitHubPluginService(client, downloader, nil, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil, storage, dir)
+	svc := usecase.NewGitHubPluginService(client, downloader, nil, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil, storage)
 
 	err = svc.InstallPluginFromGitHub(ctx, "https://github.com/user/repo", "v1.0.0", false, false, false)
 	if err == nil {

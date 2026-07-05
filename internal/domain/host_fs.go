@@ -5,6 +5,12 @@ import "errors"
 // ErrHostPathInvalid is returned when a host filesystem path is malformed.
 var ErrHostPathInvalid = errors.New("host path invalid")
 
+// HostFileInfo describes basic metadata for a host filesystem path.
+type HostFileInfo struct {
+	IsDir bool
+	Size  int64
+}
+
 // LocalFileEntry describes a file or directory entry for the local file browser.
 type LocalFileEntry struct {
 	Name    string
@@ -28,6 +34,7 @@ type LocalFileEntry struct {
 type HostFileSystem interface {
 	DefaultPath() string
 	ResolvePath(path string) (string, error)
+	Stat(localPath string) (HostFileInfo, error)
 	List(dirPath string, includeHidden bool, isHidden func(fullPath, name string) bool) ([]LocalFileEntry, error)
 	Remove(localPath string) error
 	Mkdir(dirPath string) error

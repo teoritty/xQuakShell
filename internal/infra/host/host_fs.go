@@ -53,6 +53,22 @@ func (fs *HostFS) ResolvePath(path string) (string, error) {
 	return resolved, nil
 }
 
+// Stat returns basic metadata for a host filesystem path.
+func (fs *HostFS) Stat(localPath string) (domain.HostFileInfo, error) {
+	path, err := fs.ResolvePath(localPath)
+	if err != nil {
+		return domain.HostFileInfo{}, err
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return domain.HostFileInfo{}, err
+	}
+	return domain.HostFileInfo{
+		IsDir: info.IsDir(),
+		Size:  info.Size(),
+	}, nil
+}
+
 // List returns directory entries under path.
 func (fs *HostFS) List(dirPath string, includeHidden bool, isHidden func(fullPath, name string) bool) ([]domain.LocalFileEntry, error) {
 	dirPath, err := fs.ResolvePath(dirPath)

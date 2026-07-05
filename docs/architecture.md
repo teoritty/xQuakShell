@@ -33,11 +33,11 @@ flowchart TB
 
 Three trust boundaries — do not mix:
 
-| Zone | Domain port | Infra implementation | Path policy |
-|------|-------------|------------------------|-------------|
-| Host user FS | `HostFileSystem` | `internal/infra/host/host_fs.go` | No sandbox root; trusted host UI |
-| Portable app data | `PortableDataStore` | `internal/infra/portable/data_store.go` | Jailed to `<exe>/data` |
-| Plugin sandbox | (IPC only) | `internal/infra/plugin/capability/fs_proxy.go` | Manifest roots + symlink checks |
+| Zone | Domain port | Infra implementation | Path policy | Key methods |
+|------|-------------|------------------------|-------------|-------------|
+| Host user FS | `HostFileSystem` | `internal/infra/host/host_fs.go` | No sandbox root; trusted host UI | `List`, `Stat`, `Remove`, `Mkdir`, `Rename`, `CreateFile` — used by Local Files UI and `TransferService` |
+| Portable app data | `PortableDataStore` | `internal/infra/portable/data_store.go` | Jailed to `<exe>/data` | `ResolvePath`, `Remove`, `ReadFile`, `EnsureTempDir` — used by plugin install/uninstall and GitHub staging temp |
+| Plugin sandbox | (IPC only) | `internal/infra/plugin/capability/fs_proxy.go` | Manifest roots + symlink checks | `fs.*` RPC only |
 
 Run `powershell -File scripts/check-fs-boundaries.ps1` to verify zone separation.
 See [adr/007-host-filesystem-trust.md](adr/007-host-filesystem-trust.md).

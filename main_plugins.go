@@ -53,7 +53,7 @@ type pluginRuntimeDeps struct {
 	ExeDir          string
 }
 
-func newPluginRuntime(dataRoot string, deps pluginRuntimeDeps) *pluginRuntime {
+func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, deps pluginRuntimeDeps) *pluginRuntime {
 	inbound := usecase.NewPluginSessionInbound()
 	embedInbound := usecase.NewPluginEmbedInbound()
 	embedTunnels := usecase.NewEmbedTunnelService(ratelimit.Factory{})
@@ -121,6 +121,7 @@ func newPluginRuntime(dataRoot string, deps pluginRuntimeDeps) *pluginRuntime {
 		LoadBundle:     infraplugin.LoadPluginSource,
 		InstallBundle:  infraplugin.InstallFromSource,
 		InstallRoot:    dataRoot,
+		PortableData:   portableData,
 		Bundle:         infrapluginbundle.BundleAdapter{},
 		Portable:       portableRuntime,
 		PluginSettings: deps.VaultSettings,
@@ -150,7 +151,16 @@ func newPluginRuntime(dataRoot string, deps pluginRuntimeDeps) *pluginRuntime {
 		log.Printf("WARNING: github repo storage init failed: %v", err)
 	}
 	githubClient := infragithub.NewUseCaseClient(infragithub.NewClient())
-	githubDownloader := infraplugin.NewBinaryDownloader(infragithub.NewClient())
+	tempDir := ""
+	if portableData != nil {
+		if dir, err := portableData.EnsureTempDir(); err == nil {
+			tempDir = dir
+		} else {
+			log.Printf("WARNING: portable temp dir unavailable for GitHub downloads: %v", err)
+		}
+	}
+	githubDownloader := infraplugin.NewBinaryDownloader(infragithub.NewClient(), tempDir)
+	githubStager := infraplugin.NewGitHubPluginStager(tempDir)
 
 	var githubRepoService *usecase.GitHubRepositoryService
 	var githubPluginService *usecase.GitHubPluginService
@@ -159,12 +169,11 @@ func newPluginRuntime(dataRoot string, deps pluginRuntimeDeps) *pluginRuntime {
 		githubPluginService = usecase.NewGitHubPluginService(
 			githubClient,
 			githubDownloader,
-			infraplugin.StageGitHubPlugin,
+			githubStager,
 			infraplugin.InstallMetaWriter{},
 			githubCache,
 			manager,
 			githubRepoStorage,
-			dataRoot,
 		)
 	}
 

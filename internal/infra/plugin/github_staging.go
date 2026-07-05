@@ -11,45 +11,53 @@ import (
 	"ssh-client/internal/infra/plugin/bundle"
 )
 
-// StageGitHubPlugin prepares a plugin directory from a downloaded binary and manifest.
-func StageGitHubPlugin(binaryPath string, manifest domainplugin.Manifest) (string, error) {
-	tempDir, err := os.MkdirTemp("", "xqs-github-stage-*")
-	if err != nil {
-		return "", fmt.Errorf("create staging dir: %w", err)
+// NewGitHubPluginStager returns a stager that creates staging directories under tempBase.
+// When tempBase is empty, os.TempDir() is used.
+func NewGitHubPluginStager(tempBase string) func(string, domainplugin.Manifest) (string, func(), error) {
+	return func(binaryPath string, manifest domainplugin.Manifest) (string, func(), error) {
+		return stageGitHubPlugin(tempBase, binaryPath, manifest)
 	}
+}
 
-	cleanup := func() {
-		_ = os.RemoveAll(tempDir)
+func stageGitHubPlugin(tempBase string, binaryPath string, manifest domainplugin.Manifest) (string, func(), error) {
+	noop := func() {}
+	if tempBase == "" {
+		tempBase = os.TempDir()
 	}
+	tempDir, err := os.MkdirTemp(tempBase, "xqs-github-stage-*")
+	if err != nil {
+		return "", noop, fmt.Errorf("create staging dir: %w", err)
+	}
+	cleanup := func() { _ = os.RemoveAll(tempDir) }
 
 	entryName := manifest.Engine.Entry
 	destBinary := filepath.Join(tempDir, entryName)
 	if err := copyFileTo(binaryPath, destBinary); err != nil {
 		cleanup()
-		return "", fmt.Errorf("copy binary: %w", err)
+		return "", noop, fmt.Errorf("copy binary: %w", err)
 	}
 	if err := os.Chmod(destBinary, 0o700); err != nil {
 		cleanup()
-		return "", err
+		return "", noop, err
 	}
 
 	manifestPath := filepath.Join(tempDir, "plugin.json")
 	data, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		cleanup()
-		return "", err
+		return "", noop, err
 	}
 	if err := os.WriteFile(manifestPath, data, 0o600); err != nil {
 		cleanup()
-		return "", err
+		return "", noop, err
 	}
 
 	if err := bundle.WriteChecksums(tempDir); err != nil {
 		cleanup()
-		return "", fmt.Errorf("write checksums: %w", err)
+		return "", noop, fmt.Errorf("write checksums: %w", err)
 	}
 
-	return tempDir, nil
+	return tempDir, cleanup, nil
 }
 
 func copyFileTo(src, dest string) error {

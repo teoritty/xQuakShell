@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -34,13 +33,17 @@ func (m *PluginManager) UninstallPlugin(ctx context.Context, pluginID string, re
 		slog.Warn("failed to stop plugin before uninstall", "plugin", pluginID, "error", err)
 	}
 
-	if err := os.RemoveAll(pluginInfo.RootDir); err != nil {
+	if m.portableData == nil {
+		return fmt.Errorf("portable data store unavailable")
+	}
+
+	if err := m.portableData.Remove(pluginInfo.RootDir); err != nil {
 		return fmt.Errorf("failed to remove plugin files: %w", err)
 	}
 
 	if removeData {
 		dataDir := pluginDataDir(m.installRoot, pluginID)
-		if err := os.RemoveAll(dataDir); err != nil {
+		if err := m.portableData.Remove(dataDir); err != nil {
 			slog.Warn("failed to remove plugin data", "plugin", pluginID, "error", err)
 		}
 	}
@@ -86,6 +89,6 @@ func (m *PluginManager) SetConnectionChecker(checker PluginConnectionChecker) {
 }
 
 func pluginDataDir(dataRoot, pluginID string) string {
-	safeID := strings.ReplaceAll(pluginID, string(os.PathSeparator), "_")
+	safeID := strings.ReplaceAll(pluginID, string(filepath.Separator), "_")
 	return filepath.Join(dataRoot, "plugins", safeID, "data")
 }

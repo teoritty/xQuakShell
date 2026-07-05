@@ -78,7 +78,7 @@ func NewApp() *App {
 	hostFS := host.NewHostFS()
 	portableData := portable.NewDataStore(portableLayout.DataRoot(), portableLayout.TempDir(), portableRuntime)
 
-	pluginRuntime := newPluginRuntime(vaultDir, pluginRuntimeDeps{
+	pluginRuntime := newPluginRuntime(vaultDir, portableData, pluginRuntimeDeps{
 		ConnRepo:        connRepo,
 		PasswordRepo:    passwordRepo,
 		IdentRepo:       identRepo,

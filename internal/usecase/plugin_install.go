@@ -38,6 +38,7 @@ type PluginManagerConfig struct {
 	LoadBundle     BundleLoader
 	InstallBundle  BundleInstaller
 	InstallRoot    string
+	PortableData   domain.PortableDataStore
 	Bundle         domainplugin.BundlePort
 	Portable       domain.PortableRuntime
 	SettingsReader PluginSettingsReader
@@ -58,6 +59,7 @@ func NewPluginManagerWithConfig(cfg PluginManagerConfig) *PluginManager {
 		loadBundle:     cfg.LoadBundle,
 		installBundle:  cfg.InstallBundle,
 		installRoot:    cfg.InstallRoot,
+		portableData:   cfg.PortableData,
 		bundle:         cfg.Bundle,
 		portable:       cfg.Portable,
 		settingsReader: cfg.SettingsReader,

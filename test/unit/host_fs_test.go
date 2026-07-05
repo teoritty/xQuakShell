@@ -75,3 +75,34 @@ func TestHostFSCreateFileOutsidePortableRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestHostFSStatFile(t *testing.T) {
+	fs := host.NewHostFS()
+	dir := t.TempDir()
+	target := filepath.Join(dir, "data.bin")
+	if err := os.WriteFile(target, []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	info, err := fs.Stat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.IsDir {
+		t.Fatal("expected file, got directory")
+	}
+	if info.Size != 5 {
+		t.Fatalf("expected size 5, got %d", info.Size)
+	}
+}
+
+func TestHostFSStatDirectory(t *testing.T) {
+	fs := host.NewHostFS()
+	dir := t.TempDir()
+	info, err := fs.Stat(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.IsDir {
+		t.Fatal("expected directory")
+	}
+}

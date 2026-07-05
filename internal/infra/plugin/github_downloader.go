@@ -22,11 +22,15 @@ type BinaryDownloader struct {
 	tempDir      string
 }
 
-// NewBinaryDownloader creates a new downloader.
-func NewBinaryDownloader(githubClient *infragithub.Client) *BinaryDownloader {
+// NewBinaryDownloader creates a new downloader using tempBase for staging directories.
+// When tempBase is empty, os.TempDir() is used.
+func NewBinaryDownloader(githubClient *infragithub.Client, tempBase string) *BinaryDownloader {
+	if tempBase == "" {
+		tempBase = os.TempDir()
+	}
 	return &BinaryDownloader{
 		githubClient: githubClient,
-		tempDir:      os.TempDir(),
+		tempDir:      tempBase,
 	}
 }
 
@@ -34,72 +38,91 @@ func NewBinaryDownloader(githubClient *infragithub.Client) *BinaryDownloader {
 func (d *BinaryDownloader) DownloadBinary(
 	ctx context.Context,
 	owner, repo, tag, assetName, expectedChecksum string,
-) (string, error) {
+) (string, func(), error) {
+	noop := func() {}
+	if d == nil || d.githubClient == nil {
+		return "", noop, fmt.Errorf("plugin downloader unavailable")
+	}
+
 	tempDir, err := os.MkdirTemp(d.tempDir, "xqsp-*")
 	if err != nil {
-		return "", fmt.Errorf("failed to create temp dir: %w", err)
+		return "", noop, fmt.Errorf("failed to create temp dir: %w", err)
 	}
+	cleanup := func() { _ = os.RemoveAll(tempDir) }
 
 	release, err := d.githubClient.GetReleaseByTag(ctx, owner, repo, tag)
 	if err != nil {
-		_ = os.RemoveAll(tempDir)
-		return "", err
+		cleanup()
+		return "", noop, err
 	}
 
 	asset, err := infragithub.FindAsset(release.Assets, assetName)
 	if err != nil {
-		_ = os.RemoveAll(tempDir)
-		return "", err
+		cleanup()
+		return "", noop, err
 	}
 
 	reader, err := d.githubClient.DownloadAsset(ctx, asset.BrowserDownloadURL)
 	if err != nil {
-		_ = os.RemoveAll(tempDir)
-		return "", err
+		cleanup()
+		return "", noop, err
 	}
 	defer reader.Close()
 
 	tempFile := filepath.Join(tempDir, assetName)
 	outFile, err := os.Create(tempFile)
 	if err != nil {
-		_ = os.RemoveAll(tempDir)
-		return "", err
+		cleanup()
+		return "", noop, err
 	}
 
 	hasher := sha256.New()
 	writer := io.MultiWriter(outFile, hasher)
 	if _, err := io.Copy(writer, reader); err != nil {
 		outFile.Close()
-		_ = os.RemoveAll(tempDir)
-		return "", err
+		cleanup()
+		return "", noop, err
 	}
 	if err := outFile.Close(); err != nil {
-		_ = os.RemoveAll(tempDir)
-		return "", err
+		cleanup()
+		return "", noop, err
 	}
 
 	actualChecksum := hex.EncodeToString(hasher.Sum(nil))
 	if expectedChecksum != "" && !strings.EqualFold(actualChecksum, expectedChecksum) {
-		_ = os.RemoveAll(tempDir)
-		return "", fmt.Errorf("checksum mismatch: expected %s, got %s", expectedChecksum, actualChecksum)
+		cleanup()
+		return "", noop, fmt.Errorf("checksum mismatch: expected %s, got %s", expectedChecksum, actualChecksum)
 	}
 
 	lower := strings.ToLower(assetName)
 	if strings.HasSuffix(lower, ".zip") || strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".tgz") {
 		extractDir := filepath.Join(tempDir, "extracted")
 		if err := d.extractArchive(tempFile, extractDir); err != nil {
-			_ = os.RemoveAll(tempDir)
-			return "", err
+			cleanup()
+			return "", noop, err
 		}
 		executable, err := d.findExecutable(extractDir)
 		if err != nil {
-			_ = os.RemoveAll(tempDir)
-			return "", err
+			cleanup()
+			return "", noop, err
 		}
-		return executable, nil
+		return executable, cleanup, nil
 	}
 
-	return tempFile, nil
+	return tempFile, cleanup, nil
+}
+
+// DownloadAssetContent downloads a release asset and returns its contents.
+func (d *BinaryDownloader) DownloadAssetContent(
+	ctx context.Context,
+	owner, repo, tag, assetName string,
+) ([]byte, error) {
+	path, cleanup, err := d.DownloadBinary(ctx, owner, repo, tag, assetName, "")
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+	return os.ReadFile(path)
 }
 
 func (d *BinaryDownloader) extractArchive(archivePath, destDir string) error {

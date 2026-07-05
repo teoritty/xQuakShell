@@ -24,6 +24,7 @@ type PluginManager struct {
 	loadBundle     BundleLoader
 	installBundle  BundleInstaller
 	installRoot    string
+	portableData   domain.PortableDataStore
 	bundle         domainplugin.BundlePort
 	portable       domain.PortableRuntime
 	events         *PluginEventBus

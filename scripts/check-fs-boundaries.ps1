@@ -109,4 +109,14 @@ Get-ChildItem -Path $root -Filter "*.go" -Recurse |
     }
 FailIfMatch -Label "removed LocalFileSystem symbols must not remain in production code" -Hits $forbiddenFsSymbols
 
+$usecaseDir = Join-Path $root "internal\usecase"
+$usecaseFsHits = @()
+Get-ChildItem -Path $usecaseDir -Filter "*.go" -Recurse | ForEach-Object {
+    $usecaseFsHits += Find-NonCommentMatches -Path $_.FullName -Patterns @(
+        '\bos\.(Stat|Lstat|Remove|RemoveAll|ReadFile|WriteFile|Open|Create|Mkdir|Rename|ReadDir|Chmod|Chown)\b'
+        '"os"'
+    )
+}
+FailIfMatch -Label "internal/usecase must not call os.* filesystem APIs" -Hits $usecaseFsHits
+
 Write-Host "filesystem boundary check: OK"

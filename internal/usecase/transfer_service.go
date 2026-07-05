@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sync"
 
@@ -59,11 +58,11 @@ func (s *TransferService) Upload(ctx context.Context, sessionID, localPath, remo
 	if err != nil {
 		return err
 	}
-	info, err := os.Stat(resolved)
+	info, err := s.hostFS.Stat(localPath)
 	if err != nil {
 		return err
 	}
-	if info.IsDir() {
+	if info.IsDir {
 		return s.uploadRecursive(ctx, sessionID, resolved, remotePath, onProgress)
 	}
 	return s.uploadFile(ctx, sessionID, resolved, remotePath, onProgress)
@@ -339,7 +338,7 @@ func (s *TransferService) downloadFile(parentCtx context.Context, sessionID, rem
 	if err != nil {
 		if ctx.Err() == context.Canceled {
 			state = "cancelled"
-			_ = os.Remove(localPath)
+			_ = s.hostFS.Remove(localPath)
 		} else {
 			state = "failed"
 		}

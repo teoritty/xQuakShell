@@ -14,4 +14,6 @@ type PortableDataStore interface {
 	TempDir() string
 	EnsureTempDir() (string, error)
 	ResolvePath(path string) (string, error)
+	Remove(path string) error
+	ReadFile(path string) ([]byte, error)
 }

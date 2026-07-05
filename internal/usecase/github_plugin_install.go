@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 	"time"
 
@@ -89,7 +88,7 @@ func (s *GitHubPluginService) downloadAndStage(
 	}
 	defer binaryCleanup()
 
-	stageDir, err = s.stager(binaryPath, metadata.Manifest)
+	stageDir, stageCleanup, err := s.stager(binaryPath, metadata.Manifest)
 	if err != nil {
 		return "", func() {}, err
 	}
@@ -104,12 +103,12 @@ func (s *GitHubPluginService) downloadAndStage(
 			RepositoryURL: normalizedURL,
 			ReleaseTag:    installTag,
 		}); err != nil {
-			_ = os.RemoveAll(stageDir)
+			stageCleanup()
 			return "", func() {}, err
 		}
 	}
 
-	return stageDir, func() { _ = os.RemoveAll(stageDir) }, nil
+	return stageDir, stageCleanup, nil
 }
 
 func enforceInstallConsents(
