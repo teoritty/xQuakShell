@@ -1,4 +1,4 @@
-package wails
+package wails_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	domainplugin "ssh-client/internal/domain/plugin"
 	infracache "ssh-client/internal/infra/cache"
 	infrapersistence "ssh-client/internal/infra/persistence"
+	"ssh-client/internal/presentation/wails"
 	"ssh-client/internal/usecase"
 )
 
@@ -63,7 +64,7 @@ const testXQSPManifest = `{
   }
 }`
 
-func newGitHubAddTestAPI(t *testing.T, client usecase.GitHubAPIClient) *AppAPI {
+func newGitHubAddTestAPI(t *testing.T, client usecase.GitHubAPIClient) *wails.AppAPI {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -85,10 +86,9 @@ func newGitHubAddTestAPI(t *testing.T, client usecase.GitHubAPIClient) *AppAPI {
 		dir,
 	)
 
-	return &AppAPI{
-		githubRepoService:   repoService,
-		githubPluginService: pluginService,
-	}
+	api := &wails.AppAPI{}
+	api.SetGitHubServices(repoService, pluginService)
+	return api
 }
 
 func TestAddGitHubRepository_ValidationFailureDoesNotPersist(t *testing.T) {
@@ -97,7 +97,7 @@ func TestAddGitHubRepository_ValidationFailureDoesNotPersist(t *testing.T) {
 		releaseErr: domainplugin.ErrNoReleases,
 	})
 
-	err := api.AddGitHubRepository(AddGitHubRepositoryRequest{
+	err := api.AddGitHubRepository(wails.AddGitHubRepositoryRequest{
 		URL:     "https://github.com/user/repo",
 		Trusted: false,
 	})
@@ -128,7 +128,7 @@ func TestAddGitHubRepository_SuccessPersistsRepository(t *testing.T) {
 		}},
 	})
 
-	err := api.AddGitHubRepository(AddGitHubRepositoryRequest{
+	err := api.AddGitHubRepository(wails.AddGitHubRepositoryRequest{
 		URL:     "https://github.com/user/repo",
 		Trusted: true,
 	})
@@ -178,12 +178,12 @@ func TestFetchGitHubPlugins_EnrichesInstalledState(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	api.plugins = usecase.NewPluginManagerWithConfig(usecase.PluginManagerConfig{
+	api.SetPluginManager(usecase.NewPluginManagerWithConfig(usecase.PluginManagerConfig{
 		Registry:    registry,
 		InstallRoot: t.TempDir(),
-	})
+	}))
 
-	dto, err := api.FetchGitHubPlugins(FetchGitHubPluginsRequest{
+	dto, err := api.FetchGitHubPlugins(wails.FetchGitHubPluginsRequest{
 		URL:          "https://github.com/user/repo",
 		ForceRefresh: false,
 	})

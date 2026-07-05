@@ -2,7 +2,6 @@ package main
 
 import (
 	"embed"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 
-	"ssh-client/internal/infra/loghub"
 	"ssh-client/internal/presentation/logwindow"
 )
 
@@ -23,9 +21,6 @@ func main() {
 		logwindow.RunViewerApp(os.Args, assets)
 		return
 	}
-
-	loghub.InstallDefault()
-	log.SetOutput(loghub.NewLineWriter())
 
 	app := NewApp()
 

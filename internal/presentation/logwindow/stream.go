@@ -3,11 +3,11 @@ package logwindow
 import (
 	"encoding/json"
 
-	"ssh-client/internal/infra/loghub"
+	"ssh-client/internal/domain"
 )
 
 // EncodeLine serializes an entry as NDJSON.
-func EncodeLine(e loghub.Entry) ([]byte, error) {
+func EncodeLine(e domain.DebugLogEntry) ([]byte, error) {
 	data, err := json.Marshal(e)
 	if err != nil {
 		return nil, err
@@ -16,8 +16,8 @@ func EncodeLine(e loghub.Entry) ([]byte, error) {
 }
 
 // DecodeLine parses one NDJSON log entry.
-func DecodeLine(data []byte) (loghub.Entry, error) {
-	var e loghub.Entry
+func DecodeLine(data []byte) (domain.DebugLogEntry, error) {
+	var e domain.DebugLogEntry
 	err := json.Unmarshal(data, &e)
 	return e, err
 }

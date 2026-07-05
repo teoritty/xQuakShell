@@ -13,7 +13,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"ssh-client/internal/infra/loghub"
+	"ssh-client/internal/domain"
 	"ssh-client/internal/pkg/safego"
 )
 
@@ -76,7 +76,7 @@ func streamLogs(ctx context.Context, addr string) {
 	}
 	backoff := time.Second
 	for {
-		err := ReadStream(ctx, addr, func(entry loghub.Entry) {
+		err := ReadStream(ctx, addr, func(entry domain.DebugLogEntry) {
 			if ctx != nil {
 				wailsrt.EventsEmit(ctx, eventDebugLogLine, entry)
 			}

@@ -7,8 +7,7 @@ import (
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/auditlog"
-	"ssh-client/internal/infra/loghub"
+	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/presentation/logwindow"
 	"ssh-client/internal/usecase"
 )
@@ -66,13 +65,13 @@ func NewAppAPI(
 	pluginInbound *usecase.PluginSessionInbound,
 	pluginViewInbound *usecase.PluginViewInbound,
 	pluginVaultInbound *usecase.PluginVaultInbound,
+	logStream domain.LogStream,
+	pluginSessionAudit domainplugin.SessionAuditor,
 ) *AppAPI {
 	pingMgr := usecase.NewPingManager(connRepo, domain.DefaultPingSettings())
 	var pluginFieldsSvc *usecase.PluginFieldsService
-	var sessionAudit *auditlog.PluginSessionAuditLog
 	if pluginMgr != nil {
 		pluginFieldsSvc = usecase.NewPluginFieldsService(vaultRepo, pluginMgr.Registry())
-		sessionAudit = auditlog.NewPluginSessionAuditLog(512)
 		pingMgr.SetProtocolLookup(pluginMgr.Registry())
 	}
 	api := &AppAPI{
@@ -110,7 +109,7 @@ func NewAppAPI(
 		PluginBridge: usecase.NewPluginSessionBridge(usecase.PluginSessionBridgeConfig{
 			Plugins: pluginMgr,
 			Fields:  pluginFieldsSvc,
-			Audit:   sessionAudit,
+			Audit:   pluginSessionAudit,
 		}),
 		OnStateChange:           api.onSessionStateChange,
 		OnStreamReady:           api.onStreamReady,
@@ -129,7 +128,7 @@ func NewAppAPI(
 
 	api.auditSvc = usecase.NewAuditService(auditLogRepo, api.settingsSvc, api.sessions, connRepo, trackerFactory, sanitizerFactory)
 	api.transferSvc = usecase.NewTransferService(api.sessions, api.settingsSvc, hostFS)
-	api.logWindow = logwindow.NewManager(loghub.Default(), api.settingsSvc, api.emitDebugLogWindowChanged)
+	api.logWindow = logwindow.NewManager(logStream, api.settingsSvc, api.emitDebugLogWindowChanged)
 
 	return api
 }
@@ -194,6 +193,11 @@ func (a *AppAPI) OnEmbedReady(desc domain.SessionEmbedDescriptor) {
 func (a *AppAPI) SetGitHubServices(repoSvc *usecase.GitHubRepositoryService, pluginSvc *usecase.GitHubPluginService) {
 	a.githubRepoService = repoSvc
 	a.githubPluginService = pluginSvc
+}
+
+// SetPluginManager wires the plugin manager for handler delegation.
+func (a *AppAPI) SetPluginManager(mgr *usecase.PluginManager) {
+	a.plugins = mgr
 }
 
 // Lifecycle: call once on app startup. Starts the idle lockout monitor when a lockout manager is configured.

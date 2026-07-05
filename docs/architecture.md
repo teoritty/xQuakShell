@@ -24,6 +24,7 @@ flowchart TB
 
 - **main** (`app.go`) wires repositories, SSH adapters (`internal/infra/ssh`), portable layout, and plugin runtime.
 - **presentation/wails** — Wails facade: `api.go`, handler files, DTOs, events. Handlers delegate to use cases; no direct infra imports.
+- **presentation/logwindow** — debug log viewer subprocess and TCP stream server; depends on `domain.LogStream` only.
 - **usecase** — orchestration (`SessionManager`, `TransferService`, `AuditService`, `SettingsService`, plugins). Depends only on **domain** and stdlib.
 - **domain** — entities and ports split across `vault_data.go`, `app_settings.go`, `repositories.go`, `host_fs.go`, `portable_data.go`, etc.
 - **infra** — persistence, SSH dialer, SFTP, audit log, host FS, portable data store, plugin host, etc.
@@ -48,7 +49,7 @@ See [adr/007-host-filesystem-trust.md](adr/007-host-filesystem-trust.md).
 | `internal/domain` | stdlib, `golang.org/x/crypto/ssh`, `internal/domain/*` — **not** `internal/presentation`, `internal/infra`, `internal/pkg`, `main` |
 | `internal/usecase` | `internal/domain`, `internal/pkg/safego`, stdlib — **not** `internal/infra/*`, other `internal/pkg/*`, third-party |
 | `internal/infra/*` | `internal/domain`, `internal/pkg`, third-party, stdlib |
-| `internal/presentation/wails` | `internal/domain`, `internal/usecase`, stdlib |
+| `internal/presentation/*` | `internal/domain`, `internal/usecase`, `internal/pkg/safego`, stdlib |
 | `main` | all internal packages as needed for composition |
 
 Run `powershell -File scripts/check-imports.ps1` to verify layer imports.
@@ -86,6 +87,7 @@ Plugin connectors receive `ConnectorHooks` to set PTY bridge, SFTP (`RemoteFS`),
 | **Portable temp / data paths** | `domain.PortableDataStore`, `internal/infra/portable/data_store.go`. |
 | **Transfers** | `internal/usecase/transfer_service.go`, handlers in `handlers_transfers.go`. |
 | **Settings / ping / audit** | `settings_service.go`, `audit_service.go`, `ping_manager.go`, `handlers_settings_ping_audit.go`. |
+| **Debug log window** | `domain.LogStream`, `internal/infra/loghub`, `internal/presentation/logwindow`. |
 | **Plugins** | `internal/usecase/plugin_*.go`, handlers in `handlers_plugin*.go`, manifest FS checks in `infra/plugin/bundle/capabilities_validate.go`. |
 | **Plugin connection fields** | Manifest: `internal/domain/plugin/fields.go`, validation in `manifest_fields_validate.go`; persistence: `PluginFieldsService`, `Connection.pluginFields`, `VaultData.pluginSecrets`; UI: `PluginConnectionFields.svelte`, `GetPluginConnectionProtocols`. |
 | **Plugin protocols** | Out-of-process plugins via `PluginSessionBridge` and `session.connect` (with optional `fields`). |

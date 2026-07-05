@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"ssh-client/internal/domain"
 )
 
 // InstallDefault configures slog and the standard log package to publish into Default().
@@ -45,7 +47,7 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 		source = "plugin:" + v
 		delete(fields, "pluginId")
 	}
-	h.hub.Publish(Entry{
+	h.hub.Publish(domain.DebugLogEntry{
 		Time:    r.Time,
 		Level:   strings.ToLower(r.Level.String()),
 		Source:  source,
@@ -96,7 +98,7 @@ func PublishPluginLog(pluginID, level, message string, fields map[string]string)
 	for k, v := range fields {
 		outFields[k] = v
 	}
-	Default().Publish(Entry{
+	Default().Publish(domain.DebugLogEntry{
 		Time:    time.Now(),
 		Level:   strings.ToLower(level),
 		Source:  src,
@@ -111,7 +113,7 @@ func PublishPluginStderr(pluginID, message string, redacted bool) {
 	if redacted {
 		fields["redacted"] = "true"
 	}
-	Default().Publish(Entry{
+	Default().Publish(domain.DebugLogEntry{
 		Time:    time.Now(),
 		Level:   "info",
 		Source:  "plugin-stderr:" + pluginID,
@@ -122,7 +124,7 @@ func PublishPluginStderr(pluginID, message string, redacted bool) {
 
 // PublishStdLog records a line from the standard log package.
 func PublishStdLog(line string) {
-	Default().Publish(Entry{
+	Default().Publish(domain.DebugLogEntry{
 		Time:    time.Now(),
 		Level:   "info",
 		Source:  "core",

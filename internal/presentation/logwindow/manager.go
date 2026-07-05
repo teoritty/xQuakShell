@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/loghub"
 	"ssh-client/internal/pkg/safego"
 )
 
@@ -30,7 +29,7 @@ type ChangeNotifier func(enabled bool)
 
 // Manager owns the log viewer child process and TCP stream server.
 type Manager struct {
-	hub      *loghub.Hub
+	stream   domain.LogStream
 	settings SettingsSaver
 	notify   ChangeNotifier
 
@@ -42,11 +41,11 @@ type Manager struct {
 }
 
 // NewManager creates a log window manager.
-func NewManager(hub *loghub.Hub, settings SettingsSaver, notify ChangeNotifier) *Manager {
-	if hub == nil {
-		hub = loghub.Default()
+func NewManager(stream domain.LogStream, settings SettingsSaver, notify ChangeNotifier) *Manager {
+	if stream == nil {
+		panic("logwindow: LogStream is required")
 	}
-	return &Manager{hub: hub, settings: settings, notify: notify}
+	return &Manager{stream: stream, settings: settings, notify: notify}
 }
 
 // SyncEnabled starts or stops the log viewer to match the desired state.
@@ -137,8 +136,8 @@ func (m *Manager) acceptLoop(ln net.Listener) {
 
 func (m *Manager) serveClient(conn net.Conn) {
 	defer conn.Close()
-	id, backlog, live := m.hub.Subscribe(128)
-	defer m.hub.Unsubscribe(id)
+	id, backlog, live := m.stream.Subscribe(128)
+	defer m.stream.Unsubscribe(id)
 
 	for _, entry := range backlog {
 		if err := writeEntry(conn, entry); err != nil {
@@ -152,7 +151,7 @@ func (m *Manager) serveClient(conn net.Conn) {
 	}
 }
 
-func writeEntry(w io.Writer, entry loghub.Entry) error {
+func writeEntry(w io.Writer, entry domain.DebugLogEntry) error {
 	line, err := EncodeLine(entry)
 	if err != nil {
 		return err
@@ -213,7 +212,7 @@ func (m *Manager) disableSettingAsync() {
 }
 
 // ReadStream connects to the parent stream address and invokes handler for each entry.
-func ReadStream(ctx context.Context, addr string, handler func(loghub.Entry)) error {
+func ReadStream(ctx context.Context, addr string, handler func(domain.DebugLogEntry)) error {
 	d := net.Dialer{Timeout: 10 * time.Second}
 	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {

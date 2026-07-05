@@ -1,11 +1,15 @@
 package loghub
 
-import "testing"
+import (
+	"testing"
+
+	"ssh-client/internal/domain"
+)
 
 func TestHubRingBuffer(t *testing.T) {
 	h := NewHub(3)
 	for i := 0; i < 5; i++ {
-		h.Publish(Entry{Message: string(rune('a' + i))})
+		h.Publish(domain.DebugLogEntry{Message: string(rune('a' + i))})
 	}
 	snap := h.Snapshot()
 	if len(snap) != 3 {
@@ -23,7 +27,7 @@ func TestHubSubscribeLive(t *testing.T) {
 	if len(backlog) != 0 {
 		t.Fatalf("expected empty backlog")
 	}
-	h.Publish(Entry{Message: "live"})
+	h.Publish(domain.DebugLogEntry{Message: "live"})
 	select {
 	case e := <-ch:
 		if e.Message != "live" {

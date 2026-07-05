@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"ssh-client/internal/infra/loghub"
+	"ssh-client/internal/domain"
 )
 
 func TestEncodeDecodeLine(t *testing.T) {
-	entry := loghub.Entry{
+	entry := domain.DebugLogEntry{
 		Time:    time.Now().UTC(),
 		Level:   "info",
 		Source:  "core",

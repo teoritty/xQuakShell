@@ -7,8 +7,10 @@ import (
 	"net/http"
 
 	"ssh-client/internal/domain"
+	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/infra/auditlog"
 	"ssh-client/internal/infra/host"
+	"ssh-client/internal/infra/loghub"
 	"ssh-client/internal/infra/persistence"
 	"ssh-client/internal/infra/portable"
 	infraputty "ssh-client/internal/infra/putty"
@@ -29,6 +31,10 @@ type App struct {
 
 // NewApp creates a new App with all dependencies wired together.
 func NewApp() *App {
+	loghub.InstallDefault()
+	logStream := loghub.Default()
+	log.SetOutput(loghub.NewLineWriter())
+
 	paths := portable.Default
 	if err := paths.EnsureDirs(); err != nil {
 		log.Printf("WARNING: create portable data dirs failed: %v", err)
@@ -79,6 +85,11 @@ func NewApp() *App {
 		ExeDir:          paths.ExeDir(),
 	})
 
+	var pluginSessionAudit domainplugin.SessionAuditor
+	if pluginRuntime.manager != nil {
+		pluginSessionAudit = auditlog.NewPluginSessionAuditLog(512)
+	}
+
 	api := presentation.NewAppAPI(
 		vaultRepo, connRepo, identRepo, passwordRepo, knownHostsRepo,
 		sshDialer, sshSession, newSessionConnectors(),
@@ -88,6 +99,7 @@ func NewApp() *App {
 		infraputty.PortAdapter{},
 		pluginRuntime.manager, pluginRuntime.inbound, pluginRuntime.viewInbound,
 		pluginRuntime.vaultInbound,
+		logStream, pluginSessionAudit,
 	)
 	if pluginRuntime.manager != nil {
 		pluginRuntime.manager.SetCrashHandler(api.Sessions())

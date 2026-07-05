@@ -45,4 +45,9 @@ if ($domainHits) {
     exit 1
 }
 
+$presentation = Join-Path $root "internal\presentation"
+Test-LayerImports -Dir $presentation -ForbiddenPatterns @(
+    '"ssh-client/internal/infra'
+) -Label "internal/presentation must not import internal/infra"
+
 Write-Host "layer import check: OK"
