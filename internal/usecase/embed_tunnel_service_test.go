@@ -2,14 +2,36 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"ssh-client/internal/domain"
+	domainplugin "ssh-client/internal/domain/plugin"
 )
 
+type stubRateLimiter struct {
+	allow bool
+}
+
+func (s stubRateLimiter) AllowN(int) bool {
+	return s.allow
+}
+
+type stubRateLimiterFactory struct {
+	allow bool
+}
+
+func (f stubRateLimiterFactory) New(int, int) domain.RateLimiter {
+	return stubRateLimiter{allow: f.allow}
+}
+
+func newTestEmbedTunnelService() *EmbedTunnelService {
+	return NewEmbedTunnelService(stubRateLimiterFactory{allow: true})
+}
+
 func TestEmbedTunnelRegisterRevoke(t *testing.T) {
-	svc := NewEmbedTunnelService()
+	svc := newTestEmbedTunnelService()
 	ctx := context.Background()
 
 	desc, err := svc.Register(ctx, domain.EmbedRegistration{
@@ -42,7 +64,7 @@ func TestEmbedTunnelRegisterRevoke(t *testing.T) {
 }
 
 func TestEmbedTunnelInactiveBackpressure(t *testing.T) {
-	svc := NewEmbedTunnelService()
+	svc := newTestEmbedTunnelService()
 	ctx := context.Background()
 	_, err := svc.Register(ctx, domain.EmbedRegistration{
 		SessionID: "sess-2",
@@ -64,7 +86,7 @@ func TestEmbedTunnelInactiveBackpressure(t *testing.T) {
 }
 
 func TestEmbedTunnelRegisterReplacesPriorToken(t *testing.T) {
-	svc := NewEmbedTunnelService()
+	svc := newTestEmbedTunnelService()
 	ctx := context.Background()
 	first, err := svc.Register(ctx, domain.EmbedRegistration{
 		SessionID: "sess-3",
@@ -88,5 +110,27 @@ func TestEmbedTunnelRegisterReplacesPriorToken(t *testing.T) {
 	}
 	if first.UIUrl == second.UIUrl {
 		t.Fatal("expected new token on re-register")
+	}
+}
+
+func TestEmbedTunnelRateLimited(t *testing.T) {
+	svc := NewEmbedTunnelService(stubRateLimiterFactory{allow: false})
+	ctx := context.Background()
+	_, err := svc.Register(ctx, domain.EmbedRegistration{
+		SessionID: "sess-4",
+		PluginID:  "com.test.vnc",
+		UIEntry:   "ui/vnc.html",
+		TunnelIDs: []string{"main"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc.SetSessionActive("sess-4", true)
+	if err := svc.OpenTunnel("sess-4", "main"); err != nil {
+		t.Fatal(err)
+	}
+	err = svc.RouteTunnelFrameFromPlugin(ctx, "sess-4", "main", []byte("x"))
+	if !errors.Is(err, domainplugin.ErrRateLimited) {
+		t.Fatalf("expected ErrRateLimited, got %v", err)
 	}
 }

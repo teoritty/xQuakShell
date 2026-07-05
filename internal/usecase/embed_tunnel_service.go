@@ -10,8 +10,6 @@ import (
 
 	"ssh-client/internal/domain"
 	domainplugin "ssh-client/internal/domain/plugin"
-
-	"golang.org/x/time/rate"
 )
 
 const embedSandboxDefault = "allow-scripts allow-same-origin"
@@ -26,17 +24,18 @@ type EmbedReadyFunc func(desc domain.SessionEmbedDescriptor)
 type EmbedTunnelService struct {
 	mu sync.RWMutex
 
-	entries       map[string]*embedEntry // token -> entry
-	sessionToken  map[string]string      // sessionID -> active token
-	sessionActive map[string]bool
-	notifyPlugin  PluginTunnelNotifier
-	onEmbedReady  EmbedReadyFunc
+	entries        map[string]*embedEntry // token -> entry
+	sessionToken   map[string]string      // sessionID -> active token
+	sessionActive  map[string]bool
+	limiterFactory domain.RateLimiterFactory
+	notifyPlugin   PluginTunnelNotifier
+	onEmbedReady   EmbedReadyFunc
 }
 
 type embedEntry struct {
 	reg        domain.EmbedRegistration
 	tunnelOpen map[string]bool
-	limiter    *rate.Limiter
+	limiter    domain.RateLimiter
 	wsConns    map[string]*embedWSConn
 	active     bool
 }
@@ -63,11 +62,15 @@ func (c *embedWSConn) Done() <-chan struct{} {
 }
 
 // NewEmbedTunnelService creates an embed tunnel registry and broker coordinator.
-func NewEmbedTunnelService() *EmbedTunnelService {
+func NewEmbedTunnelService(factory domain.RateLimiterFactory) *EmbedTunnelService {
+	if factory == nil {
+		panic("usecase: EmbedTunnelService requires RateLimiterFactory")
+	}
 	return &EmbedTunnelService{
-		entries:       make(map[string]*embedEntry),
-		sessionToken:  make(map[string]string),
-		sessionActive: make(map[string]bool),
+		entries:        make(map[string]*embedEntry),
+		sessionToken:   make(map[string]string),
+		sessionActive:  make(map[string]bool),
+		limiterFactory: factory,
 	}
 }
 
@@ -115,9 +118,12 @@ func (s *EmbedTunnelService) Register(ctx context.Context, reg domain.EmbedRegis
 	entry := &embedEntry{
 		reg:        reg,
 		tunnelOpen: make(map[string]bool),
-		limiter:    rate.NewLimiter(rate.Limit(domain.DefaultTunnelBandwidthBytesPerSec), domain.MaxTunnelFrameSize),
-		wsConns:    make(map[string]*embedWSConn),
-		active:     true,
+		limiter: s.limiterFactory.New(
+			domain.DefaultTunnelBandwidthBytesPerSec,
+			domain.MaxTunnelFrameSize,
+		),
+		wsConns: make(map[string]*embedWSConn),
+		active:  true,
 	}
 	if v, ok := s.sessionActive[reg.SessionID]; ok {
 		entry.active = v
@@ -233,7 +239,7 @@ func (s *EmbedTunnelService) RouteTunnelFrameFromPlugin(_ context.Context, sessi
 		s.mu.RUnlock()
 		return domainplugin.ErrTerminalBackpressure
 	}
-	if !entry.limiter.AllowN(time.Now(), len(data)) {
+	if !entry.limiter.AllowN(len(data)) {
 		s.mu.RUnlock()
 		return domainplugin.ErrRateLimited
 	}

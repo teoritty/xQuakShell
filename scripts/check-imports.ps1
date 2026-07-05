@@ -28,6 +28,14 @@ Test-LayerImports -Dir $usecase -ForbiddenPatterns @(
     '"github.com/'
 ) -Label "internal/usecase must not import internal/infra or third-party packages"
 
+$usecaseGolangHits = Get-ChildItem -Path $usecase -Filter "*.go" -Recurse |
+    Where-Object { $_.Name -notlike "*_test.go" } |
+    Select-String -Pattern '"golang.org/'
+if ($usecaseGolangHits) {
+    Write-Error "internal/usecase production code must not import golang.org packages:`n$($usecaseGolangHits | Out-String)"
+    exit 1
+}
+
 $usecasePkgHits = Get-ChildItem -Path $usecase -Filter "*.go" -Recurse |
     Select-String -Pattern '"ssh-client/internal/pkg' |
     Where-Object { $_.Line -notmatch '"ssh-client/internal/pkg/safego"' }

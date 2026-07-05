@@ -20,6 +20,7 @@ import (
 	infrapluginlifecycle "ssh-client/internal/infra/plugin/lifecycle"
 	infrapersistence "ssh-client/internal/infra/persistence"
 	infraportable "ssh-client/internal/infra/portable"
+	"ssh-client/internal/pkg/ratelimit"
 	"ssh-client/internal/pkg/safego"
 	presentation "ssh-client/internal/presentation/wails"
 	"ssh-client/internal/usecase"
@@ -55,7 +56,7 @@ type pluginRuntimeDeps struct {
 func newPluginRuntime(dataRoot string, deps pluginRuntimeDeps) *pluginRuntime {
 	inbound := usecase.NewPluginSessionInbound()
 	embedInbound := usecase.NewPluginEmbedInbound()
-	embedTunnels := usecase.NewEmbedTunnelService()
+	embedTunnels := usecase.NewEmbedTunnelService(ratelimit.Factory{})
 	registry := usecase.NewPluginRegistry()
 	viewInbound := usecase.NewPluginViewInbound(registry)
 	portableRuntime := infraportable.NewRuntimeAdapter()

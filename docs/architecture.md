@@ -62,6 +62,14 @@ Run `powershell -File scripts/check-imports.ps1` to verify layer imports.
 
 Usecase depends on the domain interface; `conlimit.New(...)` is called only in the composition root and passed through `presentation.NewAppAPI` into usecase constructors. Do not import `internal/pkg/conlimit` from `internal/usecase` or `internal/presentation`.
 
+## Bandwidth rate limiting port
+
+| Port | Implementation | Used by | Wired in |
+|------|----------------|---------|----------|
+| `domain.RateLimiter` + `domain.RateLimiterFactory` | `internal/pkg/ratelimit` | `EmbedTunnelService` | `main_plugins.go` only |
+
+Usecase depends on the domain interfaces; `ratelimit.Factory{}` is created only in the composition root and passed into `NewEmbedTunnelService`. Do not import `internal/pkg/ratelimit` from `internal/usecase` or `internal/presentation`.
+
 ## Goroutine policy
 
 Background goroutines in production code must use [`internal/pkg/safego`](../internal/pkg/safego) — raw `go` launches are forbidden outside tests and plugin fixtures.
@@ -99,7 +107,7 @@ Plugin connectors receive `ConnectorHooks` to set PTY bridge, SFTP (`RemoteFS`),
 | **Plugins** | `internal/usecase/plugin_*.go`, handlers in `handlers_plugin*.go`, manifest FS checks in `infra/plugin/bundle/capabilities_validate.go`. |
 | **Plugin connection fields** | Manifest: `internal/domain/plugin/fields.go`, validation in `manifest_fields_validate.go`; persistence: `PluginFieldsService`, `Connection.pluginFields`, `VaultData.pluginSecrets`; UI: `PluginConnectionFields.svelte`, `GetPluginConnectionProtocols`. |
 | **Plugin protocols** | Out-of-process plugins via `PluginSessionBridge` and `session.connect` (with optional `fields`). |
-| **Session embed** | `EmbedTunnelService`, `internal/infra/embed/broker_handler.go`, `SessionEmbedPanel.svelte`, `session.registerEmbed` / tunnel IPC. See [adr/008-session-embed-surfaces.md](adr/008-session-embed-surfaces.md). |
+| **Session embed** | `domain.RateLimiterFactory` (`internal/pkg/ratelimit`), `EmbedTunnelService`, `internal/infra/embed/broker_handler.go`, `SessionEmbedPanel.svelte`, `session.registerEmbed` / tunnel IPC. See [adr/008-session-embed-surfaces.md](adr/008-session-embed-surfaces.md). |
 
 ## SRP: plugin GitHub usecase
 
