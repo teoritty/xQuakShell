@@ -21,6 +21,7 @@ type PluginInstallPreviewDTO struct {
 	ChecksumPresent           bool     `json:"checksumPresent"`
 	RequiresSecretAccess       bool     `json:"requiresSecretAccess"`
 	RequiresAuthProviderAccess bool     `json:"requiresAuthProviderAccess"`
+	RequiresTunnelProviderAccess bool     `json:"requiresTunnelProviderAccess"`
 	MultiSessionWarning        bool     `json:"multiSessionWarning"`
 	ArbitraryNetworkWarning   bool     `json:"arbitraryNetworkWarning"`
 	UnsignedWarning           bool     `json:"unsignedWarning"`
@@ -39,6 +40,7 @@ func previewToDTO(p usecase.InstallPreview) PluginInstallPreviewDTO {
 		ChecksumPresent:           p.ChecksumPresent,
 		RequiresSecretAccess:       p.RequiresSecretAccess,
 		RequiresAuthProviderAccess: p.RequiresAuthProviderAccess,
+		RequiresTunnelProviderAccess: p.RequiresTunnelProviderAccess,
 		MultiSessionWarning:        p.MultiSessionWarning,
 		ArbitraryNetworkWarning:   p.ArbitraryNetworkWarning,
 		UnsignedWarning:           p.UnsignedWarning,

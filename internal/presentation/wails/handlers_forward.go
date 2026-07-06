@@ -21,6 +21,7 @@ func (a *AppAPI) SaveForwardRule(connectionID string, rule domain.ForwardRule) e
 	if err := rule.Validate(); err != nil {
 		return err
 	}
+	rule.BindAddress = domain.EffectiveBindAddress(rule.BindAddress)
 	conn, err := a.vaultSvc.GetConnection(context.Background(), connectionID)
 	if err != nil {
 		return err

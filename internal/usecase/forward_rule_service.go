@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"sync"
 
 	"ssh-client/internal/domain"
 	"ssh-client/internal/pkg/safego"
@@ -15,17 +16,21 @@ const defaultForwardConnLimit = 64
 
 // ForwardRuleRunner starts/stops native (non-plugin) local/remote port forwards.
 type ForwardRuleRunner struct {
+	mu      sync.Mutex
 	client  domain.TunnelChannelDialer
 	active  map[string]io.Closer
-	sem     chan struct{}
+	limiter domain.ConcurrencyLimiter
 }
 
 // NewForwardRuleRunner creates a forward rule runner for one live SSH session.
-func NewForwardRuleRunner(client domain.TunnelChannelDialer) *ForwardRuleRunner {
+func NewForwardRuleRunner(client domain.TunnelChannelDialer, limiter domain.ConcurrencyLimiter) *ForwardRuleRunner {
+	if limiter == nil {
+		panic("usecase: ForwardRuleRunner requires ConcurrencyLimiter")
+	}
 	return &ForwardRuleRunner{
-		client: client,
-		active: make(map[string]io.Closer),
-		sem:    make(chan struct{}, defaultForwardConnLimit),
+		client:  client,
+		active:  make(map[string]io.Closer),
+		limiter: limiter,
 	}
 }
 
@@ -42,11 +47,14 @@ func (r *ForwardRuleRunner) Start(ctx context.Context, rule domain.ForwardRule) 
 }
 
 func (r *ForwardRuleRunner) startLocal(ctx context.Context, rule domain.ForwardRule) error {
-	ln, err := net.Listen("tcp", net.JoinHostPort(rule.BindAddress, strconv.Itoa(rule.BindPort)))
+	bindAddr := domain.EffectiveBindAddress(rule.BindAddress)
+	ln, err := net.Listen("tcp", net.JoinHostPort(bindAddr, strconv.Itoa(rule.BindPort)))
 	if err != nil {
 		return fmt.Errorf("listen local forward %s: %w", rule.ID, err)
 	}
+	r.mu.Lock()
 	r.active[rule.ID] = ln
+	r.mu.Unlock()
 	safego.Go(func() {
 		for {
 			local, err := ln.Accept()
@@ -61,12 +69,10 @@ func (r *ForwardRuleRunner) startLocal(ctx context.Context, rule domain.ForwardR
 
 func (r *ForwardRuleRunner) spliceLocalToRemote(ctx context.Context, local net.Conn, targetHost string, targetPort int) {
 	defer local.Close()
-	select {
-	case r.sem <- struct{}{}:
-		defer func() { <-r.sem }()
-	case <-ctx.Done():
+	if err := r.limiter.Acquire(ctx); err != nil {
 		return
 	}
+	defer r.limiter.Release()
 	remote, err := r.client.OpenDirectTCP(ctx, net.JoinHostPort(targetHost, strconv.Itoa(targetPort)))
 	if err != nil {
 		return
@@ -76,25 +82,32 @@ func (r *ForwardRuleRunner) spliceLocalToRemote(ctx context.Context, local net.C
 }
 
 func (r *ForwardRuleRunner) startRemote(ctx context.Context, rule domain.ForwardRule) error {
-	ln, err := r.client.ListenTCP(ctx, net.JoinHostPort(rule.BindAddress, strconv.Itoa(rule.BindPort)))
+	bindAddr := domain.EffectiveBindAddress(rule.BindAddress)
+	ln, err := r.client.ListenTCP(ctx, net.JoinHostPort(bindAddr, strconv.Itoa(rule.BindPort)))
 	if err != nil {
 		return fmt.Errorf("listen remote forward %s: %w", rule.ID, err)
 	}
+	r.mu.Lock()
 	r.active[rule.ID] = ln
+	r.mu.Unlock()
 	safego.Go(func() {
 		for {
 			remote, err := ln.Accept()
 			if err != nil {
 				return
 			}
-			safego.Go(func() { r.spliceRemoteToLocal(remote, rule.TargetHost, rule.TargetPort) })
+			safego.Go(func() { r.spliceRemoteToLocal(ctx, remote, rule.TargetHost, rule.TargetPort) })
 		}
 	})
 	return nil
 }
 
-func (r *ForwardRuleRunner) spliceRemoteToLocal(remote net.Conn, targetHost string, targetPort int) {
+func (r *ForwardRuleRunner) spliceRemoteToLocal(ctx context.Context, remote net.Conn, targetHost string, targetPort int) {
 	defer remote.Close()
+	if err := r.limiter.Acquire(ctx); err != nil {
+		return
+	}
+	defer r.limiter.Release()
 	local, err := net.Dial("tcp", net.JoinHostPort(targetHost, strconv.Itoa(targetPort)))
 	if err != nil {
 		return
@@ -105,6 +118,8 @@ func (r *ForwardRuleRunner) spliceRemoteToLocal(remote net.Conn, targetHost stri
 
 // Stop closes one active forward rule listener.
 func (r *ForwardRuleRunner) Stop(ruleID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if c, ok := r.active[ruleID]; ok {
 		c.Close()
 		delete(r.active, ruleID)
@@ -113,7 +128,10 @@ func (r *ForwardRuleRunner) Stop(ruleID string) {
 
 // StopAll closes all active forward rule listeners.
 func (r *ForwardRuleRunner) StopAll() {
-	for id := range r.active {
-		r.Stop(id)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for id, c := range r.active {
+		c.Close()
+		delete(r.active, id)
 	}
 }

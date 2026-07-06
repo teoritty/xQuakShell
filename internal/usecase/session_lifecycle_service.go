@@ -24,6 +24,7 @@ type SessionLifecycleService struct {
 	plugins         *PluginSessionBridge
 	embed           *EmbedTunnelService
 	dynamicForward  *DynamicForwardCoordinator
+	forwardLimiter  func() domain.ConcurrencyLimiter
 	passphraseCache domain.PassphraseCache
 	onStateChange   StateChangeFunc
 	hostKeyRequest  HostKeyRequestFunc
@@ -37,6 +38,7 @@ type SessionLifecycleConfig struct {
 	Plugins         *PluginSessionBridge
 	PassphraseCache domain.PassphraseCache
 	DynamicForward  *DynamicForwardCoordinator
+	ForwardConnLimiterFactory func() domain.ConcurrencyLimiter
 	OnStateChange   StateChangeFunc
 	HostKeyRequest  HostKeyRequestFunc
 }
@@ -50,6 +52,7 @@ func NewSessionLifecycleService(cfg SessionLifecycleConfig) *SessionLifecycleSer
 		plugins:         cfg.Plugins,
 		passphraseCache: cfg.PassphraseCache,
 		dynamicForward:  cfg.DynamicForward,
+		forwardLimiter:  cfg.ForwardConnLimiterFactory,
 		onStateChange:   cfg.OnStateChange,
 		hostKeyRequest:  cfg.HostKeyRequest,
 	}
@@ -245,7 +248,11 @@ func (s *SessionLifecycleService) connectSession(entry *sessionEntry, conn *doma
 
 	s.registry.Mutate(entry.info.SessionID, func(e *sessionEntry) {
 		e.sshClient = result.Client
-		e.forwardRunner = NewForwardRuleRunner(result.Client)
+		var limiter domain.ConcurrencyLimiter
+		if s.forwardLimiter != nil {
+			limiter = s.forwardLimiter()
+		}
+		e.forwardRunner = NewForwardRuleRunner(result.Client, limiter)
 	})
 	for _, rule := range conn.ForwardRules {
 		if !rule.Enabled {

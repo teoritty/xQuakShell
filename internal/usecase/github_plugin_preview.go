@@ -27,6 +27,7 @@ type GitHubPluginPreviewDTO struct {
 	README               string   `json:"readme"`
 	RequiresSecretAccess       bool     `json:"requiresSecretAccess"`
 	RequiresAuthProviderAccess bool     `json:"requiresAuthProviderAccess"`
+	RequiresTunnelProviderAccess bool     `json:"requiresTunnelProviderAccess"`
 	MultiSessionWarning        bool     `json:"multiSessionWarning"`
 	ArbitraryNetworkWarning bool     `json:"arbitraryNetworkWarning"`
 	UnsignedPlugin          bool     `json:"unsignedPlugin"`
@@ -59,6 +60,9 @@ func BuildPreviewDTO(metadata *domainplugin.GitHubPluginMetadata, repoTrusted, u
 	if metadata.Manifest.RequiresAuthProviderAccess() {
 		warnings = append(warnings, "This plugin can participate in SSH authentication")
 	}
+	if metadata.Manifest.RequiresTunnelProviderAccess() {
+		warnings = append(warnings, "This plugin can route dynamic port-forward connections")
+	}
 	arbitraryNetworkWarning := metadata.Manifest.RequiresArbitraryNetworkAccess()
 	if arbitraryNetworkWarning {
 		warnings = append(warnings, "This plugin can connect to any host on the network")
@@ -87,6 +91,7 @@ func BuildPreviewDTO(metadata *domainplugin.GitHubPluginMetadata, repoTrusted, u
 		README:               metadata.README,
 		RequiresSecretAccess:       metadata.RequiresSecretAccess(),
 		RequiresAuthProviderAccess: metadata.Manifest.RequiresAuthProviderAccess(),
+		RequiresTunnelProviderAccess: metadata.Manifest.RequiresTunnelProviderAccess(),
 		MultiSessionWarning:        metadata.Manifest.RequiresMultiSessionWarning(),
 		ArbitraryNetworkWarning: arbitraryNetworkWarning,
 		UnsignedPlugin:          unsignedPlugin,

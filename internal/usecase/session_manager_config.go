@@ -34,4 +34,5 @@ type SessionManagerConfig struct {
 	AuthStarter                PluginAuthStarter
 	AuthGrantReader            PluginAuthGrantReader
 	DynamicForward             *DynamicForwardCoordinator
+	ForwardConnLimiterFactory  func() domain.ConcurrencyLimiter
 }

@@ -116,6 +116,7 @@ func NewApp() *App {
 		logStream, pluginSessionAudit,
 		conlimit.New(domain.DefaultPingSettings().EffectiveMaxConcurrent()),
 		conlimit.New(domain.DefaultTransferSettings().MaxConcurrent),
+		func() domain.ConcurrencyLimiter { return conlimit.New(64) },
 		infrapinger.NewTCPPinger(3*time.Second),
 		sshAuth,
 	)
@@ -157,6 +158,13 @@ func (a *App) grantPluginAuthProviderAccess(pluginID string) error {
 	return a.plugins.grantAuthProviderAccess(context.Background(), pluginID)
 }
 
+func (a *App) grantPluginTunnelProviderAccess(pluginID string) error {
+	if a.plugins == nil {
+		return nil
+	}
+	return a.plugins.grantTunnelProviderAccess(context.Background(), pluginID)
+}
+
 func (a *App) grantPluginArbitraryNetworkAccess(pluginID string) error {
 	if a.plugins == nil {
 		return nil
@@ -176,6 +184,7 @@ func (a *App) startup(ctx context.Context) {
 	a.api.SetContext(ctx)
 	a.api.SetPluginVaultGrant(a.grantPluginSecretAccess)
 	a.api.SetPluginAuthGrant(a.grantPluginAuthProviderAccess)
+	a.api.SetPluginTunnelGrant(a.grantPluginTunnelProviderAccess)
 	a.api.SetPluginMultiSessionGrant(a.grantPluginMultiSessionAccess)
 	a.api.SetPluginArbitraryNetworkGrant(a.grantPluginArbitraryNetworkAccess)
 	if a.plugins != nil && a.plugins.manager != nil {
@@ -499,8 +508,8 @@ func (a *App) ValidateTrustedPublisherKey(keyB64 string) error {
 	return a.api.ValidateTrustedPublisherKey(keyB64)
 }
 
-func (a *App) InstallPlugin(sourceDir string, grantSecretAccess bool, grantAuthProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) (presentation.PluginDTO, error) {
-	return a.api.InstallPlugin(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
+func (a *App) InstallPlugin(sourceDir string, grantSecretAccess bool, grantAuthProviderAccess bool, grantTunnelProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) (presentation.PluginDTO, error) {
+	return a.api.InstallPlugin(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
 }
 
 func (a *App) GetPluginConnectionProtocols() []presentation.ConnectionProtocolDTO {
@@ -551,8 +560,8 @@ func (a *App) PreviewGitHubPluginInstall(repoURL, releaseTag string) (presentati
 	return a.api.PreviewGitHubPluginInstall(repoURL, releaseTag)
 }
 
-func (a *App) InstallGitHubPlugin(repoURL, releaseTag string, grantSecretAccess bool, grantAuthProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) error {
-	return a.api.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
+func (a *App) InstallGitHubPlugin(repoURL, releaseTag string, grantSecretAccess bool, grantAuthProviderAccess bool, grantTunnelProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) error {
+	return a.api.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
 }
 
 func (a *App) UninstallGitHubPlugin(pluginID string, removeData bool) error {

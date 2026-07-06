@@ -7,6 +7,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 
 	"ssh-client/internal/domain"
 	domainplugin "ssh-client/internal/domain/plugin"
@@ -47,6 +48,11 @@ func (s *TunnelDynamicService) Dial(ctx context.Context, tunnelID, targetHost st
 		return err
 	}
 	s.mu.Lock()
+	if _, exists := s.channels[tunnelID]; exists {
+		s.mu.Unlock()
+		conn.Close()
+		return domainplugin.ErrTunnelNotFound
+	}
 	s.channels[tunnelID] = conn
 	s.mu.Unlock()
 	return nil
@@ -67,10 +73,16 @@ func (s *TunnelDynamicService) Bind(localConnID, tunnelID string) error {
 	if !okL || !okR {
 		return domainplugin.ErrTunnelNotFound
 	}
-	close(entry.stop)
-	<-entry.done
+	s.stopReading(entry)
 	safego.Go(func() { splice(entry.conn, remote) })
 	return nil
+}
+
+func (s *TunnelDynamicService) stopReading(entry *localEntry) {
+	close(entry.stop)
+	_ = entry.conn.SetReadDeadline(time.Now())
+	<-entry.done
+	_ = entry.conn.SetReadDeadline(time.Time{})
 }
 
 // CloseChannel closes an unbound SSH tunnel channel.
@@ -136,6 +148,11 @@ func (s *TunnelDynamicService) RegisterLocal(ctx context.Context, pluginID, rule
 				_ = s.notify(ctx, pluginID, "", "tunnel.localFrame", params)
 			}
 			if err != nil {
+				select {
+				case <-entry.stop:
+					return
+				default:
+				}
 				if s.notify != nil {
 					params, _ := json.Marshal(map[string]string{"localConnId": localConnID})
 					_ = s.notify(ctx, pluginID, "", "tunnel.localClose", params)
@@ -165,8 +182,7 @@ func (s *TunnelDynamicService) closeLocal(localConnID string) {
 	if !ok {
 		return
 	}
-	close(entry.stop)
-	<-entry.done
+	s.stopReading(entry)
 }
 
 // WriteLocal writes plugin protocol bytes to a pre-bind local connection.

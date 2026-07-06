@@ -88,6 +88,8 @@
 
   let grantAuthProviderAccess = false;
 
+  let grantTunnelProviderAccess = false;
+
   let grantMultiSessionAccess = false;
 
   let grantArbitraryNetworkAccess = false;
@@ -137,6 +139,8 @@
   let githubGrantSecretAccess = false;
 
   let githubGrantAuthProviderAccess = false;
+
+  let githubGrantTunnelProviderAccess = false;
 
   let githubGrantMultiSession = false;
 
@@ -308,11 +312,9 @@
       installPreview = await previewPluginInstall(sourcePath);
 
       grantSecretAccess = false;
-
       grantAuthProviderAccess = false;
-
+      grantTunnelProviderAccess = false;
       grantMultiSessionAccess = false;
-
       grantArbitraryNetworkAccess = false;
 
       installConfirmOpen = true;
@@ -361,6 +363,7 @@
         pendingSourcePath,
         grantSecretAccess,
         grantAuthProviderAccess,
+        grantTunnelProviderAccess,
         grantMultiSessionAccess,
         grantArbitraryNetworkAccess,
       );
@@ -665,6 +668,7 @@
       githubInstallTrustConfirmed = false;
       githubGrantSecretAccess = false;
       githubGrantAuthProviderAccess = false;
+      githubGrantTunnelProviderAccess = false;
       githubGrantMultiSession = false;
       githubGrantArbitraryNetwork = false;
       githubInstallConfirmOpen = true;
@@ -694,6 +698,7 @@
         pendingGitHubReleaseTag,
         githubGrantSecretAccess,
         githubGrantAuthProviderAccess,
+        githubGrantTunnelProviderAccess,
         githubGrantMultiSession,
         githubGrantArbitraryNetwork,
       );
@@ -1117,6 +1122,12 @@
           I understand this plugin can participate in SSH authentication
         </label>
       {/if}
+      {#if installPreview.requiresTunnelProviderAccess}
+        <label class="checkbox-row">
+          <input type="checkbox" bind:checked={grantTunnelProviderAccess} />
+          I understand this plugin can route dynamic port-forward connections
+        </label>
+      {/if}
       {#if installPreview.multiSessionWarning}
         <label class="checkbox-row">
           <input type="checkbox" bind:checked={grantMultiSessionAccess} />
@@ -1132,6 +1143,7 @@
             installBusy
             || (installPreview.requiresSecretAccess && !grantSecretAccess)
             || (installPreview.requiresAuthProviderAccess && !grantAuthProviderAccess)
+            || (installPreview.requiresTunnelProviderAccess && !grantTunnelProviderAccess)
             || (installPreview.arbitraryNetworkWarning && !grantArbitraryNetworkAccess)
             || (installPreview.multiSessionWarning && !grantMultiSessionAccess)
           }
@@ -1324,6 +1336,12 @@
           I understand this plugin can participate in SSH authentication
         </label>
       {/if}
+      {#if githubInstallPreview.requiresTunnelProviderAccess}
+        <label class="checkbox-row">
+          <input type="checkbox" bind:checked={githubGrantTunnelProviderAccess} />
+          I understand this plugin can route dynamic port-forward connections
+        </label>
+      {/if}
       {#if githubInstallPreview.arbitraryNetworkWarning}
         <div class="warning-box">
           <strong>Network access warning</strong>
@@ -1342,7 +1360,7 @@
       {/if}
       <div class="dialog-actions">
         <button type="button" class="btn-secondary" on:click={closeGitHubInstallConfirm}>Cancel</button>
-        <button type="button" class="btn-secondary" disabled={!githubInstallTrustConfirmed || githubInstallBusy || githubPreviewBusy || (githubInstallPreview.requiresSecretAccess && !githubGrantSecretAccess) || (githubInstallPreview.requiresAuthProviderAccess && !githubGrantAuthProviderAccess) || (githubInstallPreview.arbitraryNetworkWarning && !githubGrantArbitraryNetwork) || (githubInstallPreview.multiSessionWarning && !githubGrantMultiSession)} on:click={confirmGitHubInstall}>
+        <button type="button" class="btn-secondary" disabled={!githubInstallTrustConfirmed || githubInstallBusy || githubPreviewBusy || (githubInstallPreview.requiresSecretAccess && !githubGrantSecretAccess) || (githubInstallPreview.requiresAuthProviderAccess && !githubGrantAuthProviderAccess) || (githubInstallPreview.requiresTunnelProviderAccess && !githubGrantTunnelProviderAccess) || (githubInstallPreview.arbitraryNetworkWarning && !githubGrantArbitraryNetwork) || (githubInstallPreview.multiSessionWarning && !githubGrantMultiSession)} on:click={confirmGitHubInstall}>
           {githubInstallBusy ? 'Installing…' : 'Install'}
         </button>
       </div>

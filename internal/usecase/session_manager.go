@@ -67,8 +67,9 @@ func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 		SSHConnector:    sshConnector,
 		Plugins:         plugins,
 		PassphraseCache: cfg.PassphraseCache,
-		DynamicForward:  cfg.DynamicForward,
-		OnStateChange:   cfg.OnStateChange,
+		DynamicForward:            cfg.DynamicForward,
+		ForwardConnLimiterFactory: cfg.ForwardConnLimiterFactory,
+		OnStateChange:             cfg.OnStateChange,
 		HostKeyRequest:  cfg.HostKeyRequest,
 	})
 	io := NewSessionIOService(SessionIOServiceConfig{

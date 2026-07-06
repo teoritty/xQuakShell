@@ -1075,6 +1075,7 @@ export interface PluginInstallPreview {
   checksumPresent: boolean;
   requiresSecretAccess: boolean;
   requiresAuthProviderAccess?: boolean;
+  requiresTunnelProviderAccess?: boolean;
   multiSessionWarning?: boolean;
   arbitraryNetworkWarning?: boolean;
   unsignedWarning: boolean;
@@ -1286,6 +1287,7 @@ export async function installPlugin(
   sourceDir: string,
   grantSecretAccess = false,
   grantAuthProviderAccess = false,
+  grantTunnelProviderAccess = false,
   grantMultiSessionAccess = false,
   grantArbitraryNetworkAccess = false,
 ): Promise<PluginInfo> {
@@ -1294,7 +1296,7 @@ export async function installPlugin(
     throw new Error('Plugin install is unavailable');
   }
   try {
-    const result = await app.InstallPlugin(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
+    const result = await app.InstallPlugin(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
     invalidateProtocolsCache();
     await refreshConnectionProtocols();
     return result;
@@ -1369,6 +1371,7 @@ export interface GitHubPluginPreview {
   readme: string;
   requiresSecretAccess: boolean;
   requiresAuthProviderAccess?: boolean;
+  requiresTunnelProviderAccess?: boolean;
   multiSessionWarning?: boolean;
   arbitraryNetworkWarning: boolean;
   unsignedPlugin: boolean;
@@ -1447,13 +1450,14 @@ export async function installGitHubPlugin(
   releaseTag = '',
   grantSecretAccess = false,
   grantAuthProviderAccess = false,
+  grantTunnelProviderAccess = false,
   grantMultiSessionAccess = false,
   grantArbitraryNetworkAccess = false,
 ): Promise<void> {
   const app = getApp();
   if (!app?.InstallGitHubPlugin) throw new Error('GitHub plugin install unavailable');
   try {
-    await app.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
+    await app.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
   } catch (e) {
     handleError(e, 'Install GitHub plugin');
     throw e;

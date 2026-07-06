@@ -22,13 +22,32 @@ type PluginTunnelStarter interface {
 	EnsureRunning(ctx context.Context, pluginID string) error
 }
 
+// PluginTunnelGrantReader reports install-time tunnel provider consent.
+type PluginTunnelGrantReader interface {
+	IsTunnelProviderGranted(pluginID string) bool
+}
+
+type tunnelHandleOwner struct {
+	sessionID string
+	pluginID  string
+}
+
+type dynamicRuleEntry struct {
+	sessionID string
+	rule      domain.ForwardRule
+}
+
 // DynamicForwardCoordinator manages dynamic (-D) forward rules bound to SSH sessions.
 type DynamicForwardCoordinator struct {
-	mu       sync.Mutex
-	sessions map[string]*sessionDynamicForward
-	rules    map[string]string // ruleID -> sessionID
-	notify   PluginTunnelNotifier
-	starter  PluginTunnelStarter
+	mu             sync.Mutex
+	sessions       map[string]*sessionDynamicForward
+	rules          map[string]dynamicRuleEntry // ruleID -> binding
+	localOwners    map[string]tunnelHandleOwner
+	tunnelOwners   map[string]tunnelHandleOwner
+	preBindDone    map[string]chan struct{}
+	notify         PluginTunnelNotifier
+	starter        PluginTunnelStarter
+	tunnelGrant    PluginTunnelGrantReader
 }
 
 type sessionDynamicForward struct {
@@ -41,10 +60,13 @@ type sessionDynamicForward struct {
 // NewDynamicForwardCoordinator creates a coordinator for plugin-mediated dynamic forwards.
 func NewDynamicForwardCoordinator(notify PluginTunnelNotifier, starter PluginTunnelStarter) *DynamicForwardCoordinator {
 	return &DynamicForwardCoordinator{
-		sessions: make(map[string]*sessionDynamicForward),
-		rules:    make(map[string]string),
-		notify:   notify,
-		starter:  starter,
+		sessions:     make(map[string]*sessionDynamicForward),
+		rules:        make(map[string]dynamicRuleEntry),
+		localOwners:  make(map[string]tunnelHandleOwner),
+		tunnelOwners: make(map[string]tunnelHandleOwner),
+		preBindDone:  make(map[string]chan struct{}),
+		notify:       notify,
+		starter:      starter,
 	}
 }
 
@@ -59,6 +81,13 @@ func (c *DynamicForwardCoordinator) SetNotifier(notify PluginTunnelNotifier) {
 func (c *DynamicForwardCoordinator) SetStarter(starter PluginTunnelStarter) {
 	if c != nil {
 		c.starter = starter
+	}
+}
+
+// SetTunnelGrantReader wires install-time tunnel provider consent checks.
+func (c *DynamicForwardCoordinator) SetTunnelGrantReader(reader PluginTunnelGrantReader) {
+	if c != nil {
+		c.tunnelGrant = reader
 	}
 }
 
@@ -87,7 +116,7 @@ func (c *DynamicForwardCoordinator) StartSession(parentCtx context.Context, sess
 			continue
 		}
 		c.mu.Lock()
-		c.rules[rule.ID] = sessionID
+		c.rules[rule.ID] = dynamicRuleEntry{sessionID: sessionID, rule: rule}
 		c.mu.Unlock()
 		if err := c.startDynamicRule(ctx, sf, rule); err != nil {
 			c.mu.Lock()
@@ -98,15 +127,15 @@ func (c *DynamicForwardCoordinator) StartSession(parentCtx context.Context, sess
 }
 
 func (c *DynamicForwardCoordinator) startDynamicRule(ctx context.Context, sf *sessionDynamicForward, rule domain.ForwardRule) error {
+	if c.tunnelGrant != nil && !c.tunnelGrant.IsTunnelProviderGranted(rule.PluginID) {
+		return domainplugin.ErrCapabilityDenied
+	}
 	if c.starter != nil {
 		if err := c.starter.EnsureRunning(ctx, rule.PluginID); err != nil {
 			return err
 		}
 	}
-	bindAddr := rule.BindAddress
-	if bindAddr == "" {
-		bindAddr = "127.0.0.1"
-	}
+	bindAddr := domain.EffectiveBindAddress(rule.BindAddress)
 	ln, err := net.Listen("tcp", net.JoinHostPort(bindAddr, strconv.Itoa(rule.BindPort)))
 	if err != nil {
 		return fmt.Errorf("listen dynamic forward %s: %w", rule.ID, err)
@@ -134,16 +163,65 @@ func (c *DynamicForwardCoordinator) handleLocalAccept(ctx context.Context, sf *s
 		conn.Close()
 		return
 	}
+
+	bound := make(chan struct{})
+	c.mu.Lock()
+	c.localOwners[localConnID] = tunnelHandleOwner{sessionID: sf.sessionID, pluginID: rule.PluginID}
+	c.preBindDone[localConnID] = bound
+	c.mu.Unlock()
+
 	safego.Go(func() {
 		timer := time.NewTimer(domainplugin.PreBindTunnelTimeout)
 		defer timer.Stop()
 		select {
 		case <-ctx.Done():
-			_ = sf.service.CloseLocal(localConnID)
+			c.cleanupPreBindLocal(sf, localConnID)
 		case <-timer.C:
-			_ = sf.service.CloseLocal(localConnID)
+			c.cleanupPreBindLocal(sf, localConnID)
+		case <-bound:
 		}
 	})
+}
+
+func (c *DynamicForwardCoordinator) cleanupPreBindLocal(sf *sessionDynamicForward, localConnID string) {
+	_ = sf.service.CloseLocal(localConnID)
+	c.mu.Lock()
+	delete(c.localOwners, localConnID)
+	delete(c.preBindDone, localConnID)
+	c.mu.Unlock()
+}
+
+func (c *DynamicForwardCoordinator) markLocalBound(localConnID string) {
+	c.mu.Lock()
+	if done, ok := c.preBindDone[localConnID]; ok {
+		close(done)
+		delete(c.preBindDone, localConnID)
+	}
+	delete(c.localOwners, localConnID)
+	c.mu.Unlock()
+}
+
+func (c *DynamicForwardCoordinator) releaseTunnelOwner(tunnelID string) {
+	c.mu.Lock()
+	delete(c.tunnelOwners, tunnelID)
+	c.mu.Unlock()
+}
+
+func (c *DynamicForwardCoordinator) clearSessionOwners(sessionID string) {
+	for id, owner := range c.localOwners {
+		if owner.sessionID == sessionID {
+			delete(c.localOwners, id)
+			if done, ok := c.preBindDone[id]; ok {
+				close(done)
+				delete(c.preBindDone, id)
+			}
+		}
+	}
+	for id, owner := range c.tunnelOwners {
+		if owner.sessionID == sessionID {
+			delete(c.tunnelOwners, id)
+		}
+	}
 }
 
 // StopSession tears down listeners and pre-bind state for a session.
@@ -152,11 +230,12 @@ func (c *DynamicForwardCoordinator) StopSession(sessionID string) {
 	sf, ok := c.sessions[sessionID]
 	if ok {
 		delete(c.sessions, sessionID)
-		for ruleID, sid := range c.rules {
-			if sid == sessionID {
+		for ruleID, entry := range c.rules {
+			if entry.sessionID == sessionID {
 				delete(c.rules, ruleID)
 			}
 		}
+		c.clearSessionOwners(sessionID)
 	}
 	c.mu.Unlock()
 	if !ok {
@@ -168,15 +247,37 @@ func (c *DynamicForwardCoordinator) StopSession(sessionID string) {
 	}
 }
 
-func (c *DynamicForwardCoordinator) sessionForRule(ruleID string) (*sessionDynamicForward, error) {
+func (c *DynamicForwardCoordinator) sessionForRule(pluginID, ruleID string) (*sessionDynamicForward, error) {
 	c.mu.Lock()
-	sessionID, ok := c.rules[ruleID]
-	sf := c.sessions[sessionID]
+	entry, ok := c.rules[ruleID]
+	sf := c.sessions[entry.sessionID]
 	c.mu.Unlock()
-	if !ok || sf == nil {
+	if !ok || entry.rule.PluginID != pluginID || sf == nil {
 		return nil, domainplugin.ErrTunnelNotFound
 	}
 	return sf, nil
+}
+
+func (c *DynamicForwardCoordinator) serviceForLocal(pluginID, localConnID string) (*TunnelDynamicService, error) {
+	c.mu.Lock()
+	owner, ok := c.localOwners[localConnID]
+	sf := c.sessions[owner.sessionID]
+	c.mu.Unlock()
+	if !ok || owner.pluginID != pluginID || sf == nil || sf.service == nil {
+		return nil, domainplugin.ErrTunnelNotFound
+	}
+	return sf.service, nil
+}
+
+func (c *DynamicForwardCoordinator) serviceForChannel(pluginID, tunnelID string) (*TunnelDynamicService, error) {
+	c.mu.Lock()
+	owner, ok := c.tunnelOwners[tunnelID]
+	sf := c.sessions[owner.sessionID]
+	c.mu.Unlock()
+	if !ok || owner.pluginID != pluginID || sf == nil || sf.service == nil {
+		return nil, domainplugin.ErrTunnelNotFound
+	}
+	return sf.service, nil
 }
 
 // TunnelDial implements domainplugin.TunnelInboundPort.
@@ -189,7 +290,7 @@ func (c *DynamicForwardCoordinator) TunnelDial(ctx context.Context, pluginID str
 	if err := json.Unmarshal(params, &req); err != nil {
 		return nil, err
 	}
-	sf, err := c.sessionForRule(req.RuleID)
+	sf, err := c.sessionForRule(pluginID, req.RuleID)
 	if err != nil {
 		return nil, err
 	}
@@ -200,30 +301,33 @@ func (c *DynamicForwardCoordinator) TunnelDial(ctx context.Context, pluginID str
 	if err := sf.service.Dial(ctx, tunnelID, req.TargetHost, req.TargetPort); err != nil {
 		return nil, err
 	}
-	_ = pluginID
+	c.mu.Lock()
+	c.tunnelOwners[tunnelID] = tunnelHandleOwner{sessionID: sf.sessionID, pluginID: pluginID}
+	c.mu.Unlock()
 	return json.Marshal(map[string]string{"tunnelId": tunnelID})
 }
 
 // TunnelClose implements domainplugin.TunnelInboundPort.
-func (c *DynamicForwardCoordinator) TunnelClose(_ context.Context, _ string, params json.RawMessage) (json.RawMessage, error) {
+func (c *DynamicForwardCoordinator) TunnelClose(_ context.Context, pluginID string, params json.RawMessage) (json.RawMessage, error) {
 	var req struct {
 		TunnelID string `json:"tunnelId"`
 	}
 	if err := json.Unmarshal(params, &req); err != nil {
 		return nil, err
 	}
-	svc, err := c.serviceWithChannel(req.TunnelID)
+	svc, err := c.serviceForChannel(pluginID, req.TunnelID)
 	if err != nil {
 		return nil, err
 	}
 	if err := svc.CloseChannel(req.TunnelID); err != nil {
 		return nil, err
 	}
+	c.releaseTunnelOwner(req.TunnelID)
 	return json.Marshal(map[string]bool{"ok": true})
 }
 
 // TunnelLocalWrite implements domainplugin.TunnelInboundPort.
-func (c *DynamicForwardCoordinator) TunnelLocalWrite(_ context.Context, _ string, params json.RawMessage) (json.RawMessage, error) {
+func (c *DynamicForwardCoordinator) TunnelLocalWrite(_ context.Context, pluginID string, params json.RawMessage) (json.RawMessage, error) {
 	var req struct {
 		LocalConnID string `json:"localConnId"`
 		DataBase64  string `json:"dataBase64"`
@@ -235,7 +339,7 @@ func (c *DynamicForwardCoordinator) TunnelLocalWrite(_ context.Context, _ string
 	if err != nil {
 		return nil, err
 	}
-	svc, err := c.serviceWithLocal(req.LocalConnID)
+	svc, err := c.serviceForLocal(pluginID, req.LocalConnID)
 	if err != nil {
 		return nil, err
 	}
@@ -246,25 +350,32 @@ func (c *DynamicForwardCoordinator) TunnelLocalWrite(_ context.Context, _ string
 }
 
 // TunnelLocalClose implements domainplugin.TunnelInboundPort.
-func (c *DynamicForwardCoordinator) TunnelLocalClose(_ context.Context, _ string, params json.RawMessage) (json.RawMessage, error) {
+func (c *DynamicForwardCoordinator) TunnelLocalClose(_ context.Context, pluginID string, params json.RawMessage) (json.RawMessage, error) {
 	var req struct {
 		LocalConnID string `json:"localConnId"`
 	}
 	if err := json.Unmarshal(params, &req); err != nil {
 		return nil, err
 	}
-	svc, err := c.serviceWithLocal(req.LocalConnID)
+	svc, err := c.serviceForLocal(pluginID, req.LocalConnID)
 	if err != nil {
 		return nil, err
 	}
 	if err := svc.CloseLocal(req.LocalConnID); err != nil {
 		return nil, err
 	}
+	c.mu.Lock()
+	delete(c.localOwners, req.LocalConnID)
+	if done, ok := c.preBindDone[req.LocalConnID]; ok {
+		close(done)
+		delete(c.preBindDone, req.LocalConnID)
+	}
+	c.mu.Unlock()
 	return json.Marshal(map[string]bool{"ok": true})
 }
 
 // TunnelBind implements domainplugin.TunnelInboundPort.
-func (c *DynamicForwardCoordinator) TunnelBind(_ context.Context, _ string, params json.RawMessage) (json.RawMessage, error) {
+func (c *DynamicForwardCoordinator) TunnelBind(_ context.Context, pluginID string, params json.RawMessage) (json.RawMessage, error) {
 	var req struct {
 		LocalConnID string `json:"localConnId"`
 		TunnelID    string `json:"tunnelId"`
@@ -272,8 +383,11 @@ func (c *DynamicForwardCoordinator) TunnelBind(_ context.Context, _ string, para
 	if err := json.Unmarshal(params, &req); err != nil {
 		return nil, err
 	}
-	svc, err := c.serviceWithLocal(req.LocalConnID)
+	svc, err := c.serviceForLocal(pluginID, req.LocalConnID)
 	if err != nil {
+		return nil, err
+	}
+	if _, err := c.serviceForChannel(pluginID, req.TunnelID); err != nil {
 		return nil, err
 	}
 	if !svc.HasChannel(req.TunnelID) {
@@ -282,29 +396,9 @@ func (c *DynamicForwardCoordinator) TunnelBind(_ context.Context, _ string, para
 	if err := svc.Bind(req.LocalConnID, req.TunnelID); err != nil {
 		return nil, err
 	}
+	c.markLocalBound(req.LocalConnID)
+	c.releaseTunnelOwner(req.TunnelID)
 	return json.Marshal(map[string]bool{"ok": true})
-}
-
-func (c *DynamicForwardCoordinator) serviceWithLocal(localConnID string) (*TunnelDynamicService, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, sf := range c.sessions {
-		if sf.service != nil && sf.service.HasLocal(localConnID) {
-			return sf.service, nil
-		}
-	}
-	return nil, domainplugin.ErrTunnelNotFound
-}
-
-func (c *DynamicForwardCoordinator) serviceWithChannel(tunnelID string) (*TunnelDynamicService, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, sf := range c.sessions {
-		if sf.service != nil && sf.service.HasChannel(tunnelID) {
-			return sf.service, nil
-		}
-	}
-	return nil, domainplugin.ErrTunnelNotFound
 }
 
 var _ domainplugin.TunnelInboundPort = (*DynamicForwardCoordinator)(nil)

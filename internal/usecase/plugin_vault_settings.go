@@ -95,6 +95,35 @@ func (s *PluginVaultSettings) IsAuthProviderGranted(pluginID string) bool {
 	return data.Settings.Plugins.AuthProviderAccessGranted[pluginID]
 }
 
+// GrantTunnelProviderAccess records install-time consent for tunnel.provider plugins.
+func (s *PluginVaultSettings) GrantTunnelProviderAccess(ctx context.Context, pluginID string) error {
+	if s == nil || s.vault == nil {
+		return nil
+	}
+	return s.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		if data.Settings == nil {
+			data.Settings = &domain.AppSettings{}
+		}
+		if data.Settings.Plugins.TunnelProviderAccessGranted == nil {
+			data.Settings.Plugins.TunnelProviderAccessGranted = make(map[string]bool)
+		}
+		data.Settings.Plugins.TunnelProviderAccessGranted[pluginID] = true
+		return nil
+	})
+}
+
+// IsTunnelProviderGranted reports whether install-time tunnel provider consent was recorded.
+func (s *PluginVaultSettings) IsTunnelProviderGranted(pluginID string) bool {
+	if s == nil || s.vault == nil {
+		return false
+	}
+	data, err := s.vault.GetData()
+	if err != nil || data.Settings == nil {
+		return false
+	}
+	return data.Settings.Plugins.TunnelProviderAccessGranted[pluginID]
+}
+
 // GrantArbitraryNetworkAccess records install-time consent for allowArbitraryOutbound plugins.
 func (s *PluginVaultSettings) GrantArbitraryNetworkAccess(ctx context.Context, pluginID string) error {
 	if s == nil || s.vault == nil {

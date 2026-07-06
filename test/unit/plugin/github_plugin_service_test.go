@@ -124,7 +124,7 @@ func TestInstallPluginFromGitHub_UsesSelectedReleaseTag(t *testing.T) {
 
 	svc := usecase.NewGitHubPluginService(client, downloader, nil, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil, storage)
 
-	err = svc.InstallPluginFromGitHub(ctx, "https://github.com/user/repo", "v1.0.0", false, false, false, false)
+	err = svc.InstallPluginFromGitHub(ctx, "https://github.com/user/repo", "v1.0.0", false, false, false, false, false)
 	if err == nil {
 		t.Fatal("expected install to fail at download stage")
 	}

@@ -111,6 +111,7 @@ type GitHubPluginPreviewResponseDTO struct {
 	README               string   `json:"readme"`
 	RequiresSecretAccess       bool     `json:"requiresSecretAccess"`
 	RequiresAuthProviderAccess bool     `json:"requiresAuthProviderAccess"`
+	RequiresTunnelProviderAccess bool     `json:"requiresTunnelProviderAccess"`
 	MultiSessionWarning        bool     `json:"multiSessionWarning"`
 	ArbitraryNetworkWarning bool     `json:"arbitraryNetworkWarning"`
 	UnsignedPlugin          bool     `json:"unsignedPlugin"`
@@ -147,6 +148,7 @@ func githubPreviewToDTO(p usecase.GitHubPluginPreviewDTO) GitHubPluginPreviewRes
 		README:               p.README,
 		RequiresSecretAccess:       p.RequiresSecretAccess,
 		RequiresAuthProviderAccess: p.RequiresAuthProviderAccess,
+		RequiresTunnelProviderAccess: p.RequiresTunnelProviderAccess,
 		MultiSessionWarning:        p.MultiSessionWarning,
 		ArbitraryNetworkWarning: p.ArbitraryNetworkWarning,
 		UnsignedPlugin:          p.UnsignedPlugin,

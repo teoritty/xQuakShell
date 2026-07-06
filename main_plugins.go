@@ -246,6 +246,9 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 	}
 	api.Sessions().SetEmbedTunnelService(r.embedTunnels)
 	api.Sessions().SetDynamicForward(r.dynamicForward)
+	if r.dynamicForward != nil && r.vaultSettings != nil {
+		r.dynamicForward.SetTunnelGrantReader(r.vaultSettings)
+	}
 	api.SetEmbedBridge(r.embedBridge)
 }
 
@@ -281,6 +284,13 @@ func (r *pluginRuntime) grantAuthProviderAccess(ctx context.Context, pluginID st
 		return nil
 	}
 	return r.vaultSettings.GrantAuthProviderAccess(ctx, pluginID)
+}
+
+func (r *pluginRuntime) grantTunnelProviderAccess(ctx context.Context, pluginID string) error {
+	if r == nil || r.vaultSettings == nil {
+		return nil
+	}
+	return r.vaultSettings.GrantTunnelProviderAccess(ctx, pluginID)
 }
 
 func (r *pluginRuntime) grantArbitraryNetworkAccess(ctx context.Context, pluginID string) error {

@@ -216,6 +216,11 @@ func (m *Manifest) RequiresAuthProviderAccess() bool {
 	return m.Capabilities.Auth != nil && m.Capabilities.Auth.Provider
 }
 
+// RequiresTunnelProviderAccess reports whether the plugin declared tunnel.provider.
+func (m *Manifest) RequiresTunnelProviderAccess() bool {
+	return m.Capabilities.Tunnel != nil && m.Capabilities.Tunnel.Provider
+}
+
 // Validate checks required manifest fields.
 func (m *Manifest) Validate() error {
 	if err := ValidateID(m.ID); err != nil {

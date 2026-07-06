@@ -138,7 +138,7 @@ func (a *AppAPI) PreviewPluginInstall(sourcePath string) (PluginInstallPreviewDT
 }
 
 // InstallPlugin copies a plugin bundle into user storage after user consent.
-func (a *AppAPI) InstallPlugin(sourcePath string, grantSecretAccess bool, grantAuthProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) (PluginDTO, error) {
+func (a *AppAPI) InstallPlugin(sourcePath string, grantSecretAccess bool, grantAuthProviderAccess bool, grantTunnelProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) (PluginDTO, error) {
 	if a.plugins == nil {
 		return PluginDTO{}, errPluginManagerUnavailable
 	}
@@ -155,6 +155,9 @@ func (a *AppAPI) InstallPlugin(sourcePath string, grantSecretAccess bool, grantA
 	}
 	if preview.RequiresAuthProviderAccess && !grantAuthProviderAccess {
 		return PluginDTO{}, fmt.Errorf("auth provider consent required for this plugin")
+	}
+	if preview.RequiresTunnelProviderAccess && !grantTunnelProviderAccess {
+		return PluginDTO{}, fmt.Errorf("tunnel provider consent required for this plugin")
 	}
 	if preview.MultiSessionWarning && !grantMultiSessionAccess {
 		return PluginDTO{}, fmt.Errorf("multi-session consent required for this plugin")
@@ -178,6 +181,11 @@ func (a *AppAPI) InstallPlugin(sourcePath string, grantSecretAccess bool, grantA
 	}
 	if preview.RequiresAuthProviderAccess && grantAuthProviderAccess && a.pluginAuthGrant != nil {
 		if err := a.pluginAuthGrant(installed.Manifest.ID); err != nil {
+			return PluginDTO{}, err
+		}
+	}
+	if preview.RequiresTunnelProviderAccess && grantTunnelProviderAccess && a.pluginTunnelGrant != nil {
+		if err := a.pluginTunnelGrant(installed.Manifest.ID); err != nil {
 			return PluginDTO{}, err
 		}
 	}

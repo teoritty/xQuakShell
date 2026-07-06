@@ -33,6 +33,7 @@ type AppAPI struct {
 	githubPluginService *usecase.GitHubPluginService
 	pluginVaultGrant              func(pluginID string) error
 	pluginAuthGrant               func(pluginID string) error
+	pluginTunnelGrant             func(pluginID string) error
 	pluginMultiSessionGrant       func(pluginID string) error
 	pluginArbitraryNetworkGrant   func(pluginID string) error
 	embedBridge         *usecase.PluginEmbedBridge
@@ -66,6 +67,7 @@ func NewAppAPI(
 	pluginSessionAudit domainplugin.SessionAuditor,
 	pingLimiter domain.ConcurrencyLimiter,
 	transferLimiter domain.ConcurrencyLimiter,
+	forwardConnLimiterFactory func() domain.ConcurrencyLimiter,
 	pinger domain.Pinger,
 	sshAuth *usecase.SSHAuthWiring,
 ) *AppAPI {
@@ -119,6 +121,7 @@ func NewAppAPI(
 		OnStreamReady:  api.onStreamReady,
 		PassphraseReq:  api.onPassphraseRequest,
 		HostKeyRequest: api.onHostKeyRequest,
+		ForwardConnLimiterFactory: forwardConnLimiterFactory,
 	}
 	if sshAuth != nil && sshAuth.Enabled() {
 		smCfg.AuthProvider = sshAuth.Provider
@@ -189,6 +192,11 @@ func (a *AppAPI) SetPluginVaultGrant(fn func(pluginID string) error) {
 // SetPluginAuthGrant sets the callback used after install to record auth provider consent.
 func (a *AppAPI) SetPluginAuthGrant(fn func(pluginID string) error) {
 	a.pluginAuthGrant = fn
+}
+
+// SetPluginTunnelGrant sets the callback used after install to record tunnel provider consent.
+func (a *AppAPI) SetPluginTunnelGrant(fn func(pluginID string) error) {
+	a.pluginTunnelGrant = fn
 }
 
 // SetPluginMultiSessionGrant sets the callback used after install to record multi-session consent.
