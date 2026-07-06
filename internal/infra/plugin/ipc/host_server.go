@@ -197,6 +197,9 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 		if errors.Is(err, domainplugin.ErrAuthProviderBusy) {
 			return nil, &RPCError{Code: -32005, Message: "auth provider busy"}
 		}
+		if errors.Is(err, domainplugin.ErrTunnelAlreadyExists) {
+			return nil, &RPCError{Code: -32008, Message: "tunnel already exists"}
+		}
 		if errors.Is(err, domainplugin.ErrTunnelNotFound) {
 			return nil, &RPCError{Code: -32002, Message: "resource not found"}
 		}

@@ -65,6 +65,9 @@ var (
 	// ErrTunnelNotFound indicates a tunnel or local connection handle is unknown.
 	ErrTunnelNotFound = errors.New("tunnel not found")
 
+	// ErrTunnelAlreadyExists indicates a tunnelId is already registered in the pre-bind registry.
+	ErrTunnelAlreadyExists = errors.New("tunnel already exists")
+
 	// ErrInvalidRepositoryURL indicates a malformed or unsupported GitHub repository URL.
 	ErrInvalidRepositoryURL = errors.New("invalid GitHub repository URL")
 

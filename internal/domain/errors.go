@@ -47,5 +47,8 @@ var ErrCircularFolder = errors.New("circular folder hierarchy detected")
 // ErrConnectionNotFound indicates no connection exists with the given ID.
 var ErrConnectionNotFound = errors.New("connection not found")
 
+// ErrForwardRuleNotFound indicates the requested forward rule does not exist on the connection.
+var ErrForwardRuleNotFound = errors.New("forward rule not found")
+
 // ErrAuditLogWrite indicates an audit log entry could not be persisted.
 var ErrAuditLogWrite = errors.New("failed to write audit log entry")

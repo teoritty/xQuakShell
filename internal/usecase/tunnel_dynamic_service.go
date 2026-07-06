@@ -94,7 +94,7 @@ func (s *TunnelDynamicService) Dial(ctx context.Context, tunnelID, targetHost st
 	if _, exists := s.channels[tunnelID]; exists {
 		s.mu.Unlock()
 		conn.Close()
-		return domainplugin.ErrTunnelNotFound
+		return domainplugin.ErrTunnelAlreadyExists
 	}
 	s.channels[tunnelID] = conn
 	s.mu.Unlock()

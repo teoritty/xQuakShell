@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"ssh-client/internal/domain"
 	"ssh-client/internal/pkg/safego"
 	presentation "ssh-client/internal/presentation/wails"
 )
@@ -449,11 +448,11 @@ func (a *App) UninstallGitHubPlugin(pluginID string, removeData bool) error {
 	return a.api.UninstallGitHubPlugin(pluginID, removeData)
 }
 
-func (a *App) ListForwardRules(connectionID string) ([]domain.ForwardRule, error) {
+func (a *App) ListForwardRules(connectionID string) ([]presentation.ForwardRuleDTO, error) {
 	return a.api.ListForwardRules(connectionID)
 }
 
-func (a *App) SaveForwardRule(connectionID string, rule domain.ForwardRule) error {
+func (a *App) SaveForwardRule(connectionID string, rule presentation.ForwardRuleDTO) error {
 	return a.api.SaveForwardRule(connectionID, rule)
 }
 

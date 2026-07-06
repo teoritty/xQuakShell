@@ -110,6 +110,46 @@ func (sessionNotBoundHandler) Handle(_ context.Context, _, _ string, _ json.RawM
 	return nil, domainplugin.ErrSessionNotBound
 }
 
+type tunnelAlreadyExistsInbound struct{}
+
+func (tunnelAlreadyExistsInbound) TunnelDial(_ context.Context, _ string, _ json.RawMessage) (json.RawMessage, error) {
+	return nil, domainplugin.ErrTunnelAlreadyExists
+}
+
+func (tunnelAlreadyExistsInbound) TunnelClose(_ context.Context, _ string, _ json.RawMessage) (json.RawMessage, error) {
+	return nil, domainplugin.ErrTunnelNotFound
+}
+
+func (tunnelAlreadyExistsInbound) TunnelLocalWrite(_ context.Context, _ string, _ json.RawMessage) (json.RawMessage, error) {
+	return nil, domainplugin.ErrTunnelNotFound
+}
+
+func (tunnelAlreadyExistsInbound) TunnelLocalClose(_ context.Context, _ string, _ json.RawMessage) (json.RawMessage, error) {
+	return nil, domainplugin.ErrTunnelNotFound
+}
+
+func (tunnelAlreadyExistsInbound) TunnelBind(_ context.Context, _ string, _ json.RawMessage) (json.RawMessage, error) {
+	return nil, domainplugin.ErrTunnelNotFound
+}
+
+func TestHostServerTunnelAlreadyExistsMapsConflict(t *testing.T) {
+	dialProxy := capability.NewTunnelDialProxy("test", &domainplugin.TunnelCaps{Provider: true}, tunnelAlreadyExistsInbound{})
+	server := ipc.NewHostServer(ipc.HostServerConfig{
+		PluginID: "test",
+		Gate: capability.NewGate(domainplugin.Manifest{
+			Capabilities: domainplugin.CapabilitySet{
+				Tunnel: &domainplugin.TunnelCaps{Provider: true},
+			},
+		}),
+		TunnelDial: dialProxy,
+	})
+
+	_, rpcErr := server.HandleRequest(context.Background(), "tunnel.dial", json.RawMessage(`{"ruleId":"r1","targetHost":"example.com","targetPort":80}`))
+	if rpcErr == nil || rpcErr.Code != -32008 {
+		t.Fatalf("expected tunnel already exists -32008, got %#v", rpcErr)
+	}
+}
+
 func TestHostServerSessionNotBoundMapsCapabilityDenied(t *testing.T) {
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID: "test",

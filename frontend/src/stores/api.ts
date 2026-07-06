@@ -14,6 +14,14 @@ import {
   DEFAULT_UI_SCALE_PERCENT,
   normalizeUiScalePercent,
 } from '../lib/uiScale';
+import {
+  DeleteForwardRule as wailsDeleteForwardRule,
+  ListForwardRules as wailsListForwardRules,
+  SaveForwardRule as wailsSaveForwardRule,
+  SetForwardRuleEnabled as wailsSetForwardRuleEnabled,
+} from '../../wailsjs/go/main/App';
+import { wails } from '../../wailsjs/go/models';
+import type { ForwardRule } from './appState';
 
 export interface SessionHotkeysSettings {
   create: string;
@@ -1586,27 +1594,50 @@ export function releasePluginViewPanel(token: string): void {
   app?.ReleasePluginViewPanel?.(token);
 }
 
-export async function listForwardRules(connectionId: string): Promise<import('./appState').ForwardRule[]> {
-  const app = getApp();
-  if (!app?.ListForwardRules) return [];
+function forwardRuleToDTO(rule: ForwardRule): wails.ForwardRuleDTO {
+  return new wails.ForwardRuleDTO({
+    id: rule.id,
+    kind: rule.kind,
+    bindAddress: rule.bindAddress,
+    bindPort: rule.bindPort,
+    targetHost: rule.targetHost,
+    targetPort: rule.targetPort,
+    pluginId: rule.pluginId,
+    providerId: rule.providerId,
+    enabled: rule.enabled,
+  });
+}
+
+function forwardRuleFromDTO(dto: wails.ForwardRuleDTO): ForwardRule {
+  return {
+    id: dto.id,
+    kind: dto.kind as ForwardRule['kind'],
+    bindAddress: dto.bindAddress,
+    bindPort: dto.bindPort,
+    targetHost: dto.targetHost,
+    targetPort: dto.targetPort,
+    pluginId: dto.pluginId,
+    providerId: dto.providerId,
+    enabled: dto.enabled,
+  };
+}
+
+export async function listForwardRules(connectionId: string): Promise<ForwardRule[]> {
   try {
-    return (await app.ListForwardRules(connectionId)) || [];
+    const rules = await wailsListForwardRules(connectionId);
+    return (rules || []).map(forwardRuleFromDTO);
   } catch (e) {
     handleError(e, 'List forward rules');
     return [];
   }
 }
 
-export async function saveForwardRule(connectionId: string, rule: import('./appState').ForwardRule): Promise<void> {
-  const app = getApp();
-  if (!app?.SaveForwardRule) throw new Error('Forward rules API unavailable');
-  await app.SaveForwardRule(connectionId, rule);
+export async function saveForwardRule(connectionId: string, rule: ForwardRule): Promise<void> {
+  await wailsSaveForwardRule(connectionId, forwardRuleToDTO(rule));
 }
 
 export async function deleteForwardRule(connectionId: string, ruleId: string): Promise<void> {
-  const app = getApp();
-  if (!app?.DeleteForwardRule) throw new Error('Forward rules API unavailable');
-  await app.DeleteForwardRule(connectionId, ruleId);
+  await wailsDeleteForwardRule(connectionId, ruleId);
 }
 
 export async function setForwardRuleEnabled(
@@ -1614,7 +1645,5 @@ export async function setForwardRuleEnabled(
   ruleId: string,
   enabled: boolean,
 ): Promise<void> {
-  const app = getApp();
-  if (!app?.SetForwardRuleEnabled) throw new Error('Forward rules API unavailable');
-  await app.SetForwardRuleEnabled(connectionId, ruleId, enabled);
+  await wailsSetForwardRuleEnabled(connectionId, ruleId, enabled);
 }

@@ -42,6 +42,10 @@ export function DeleteFolder(arg1) {
   return window['go']['main']['App']['DeleteFolder'](arg1);
 }
 
+export function DeleteForwardRule(arg1, arg2) {
+  return window['go']['main']['App']['DeleteForwardRule'](arg1, arg2);
+}
+
 export function DeletePassword(arg1) {
   return window['go']['main']['App']['DeletePassword'](arg1);
 }
@@ -160,6 +164,10 @@ export function InstallPlugin(arg1, arg2, arg3, arg4, arg5, arg6) {
 
 export function IsVaultUnlocked() {
   return window['go']['main']['App']['IsVaultUnlocked']();
+}
+
+export function ListForwardRules(arg1) {
+  return window['go']['main']['App']['ListForwardRules'](arg1);
 }
 
 export function ListGitHubRepositories() {
@@ -298,6 +306,10 @@ export function SaveFolder(arg1) {
   return window['go']['main']['App']['SaveFolder'](arg1);
 }
 
+export function SaveForwardRule(arg1, arg2) {
+  return window['go']['main']['App']['SaveForwardRule'](arg1, arg2);
+}
+
 export function SavePluginSettings(arg1) {
   return window['go']['main']['App']['SavePluginSettings'](arg1);
 }
@@ -328,6 +340,10 @@ export function SelectPluginSourceDir() {
 
 export function SendTerminalInput(arg1, arg2, arg3) {
   return window['go']['main']['App']['SendTerminalInput'](arg1, arg2, arg3);
+}
+
+export function SetForwardRuleEnabled(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SetForwardRuleEnabled'](arg1, arg2, arg3);
 }
 
 export function SetGitHubRepositoryTrust(arg1) {

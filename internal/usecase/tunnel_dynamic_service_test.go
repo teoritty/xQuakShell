@@ -121,8 +121,8 @@ func TestTunnelDynamicService_DialRejectsDuplicateTunnelID(t *testing.T) {
 	if err := svc.Dial(context.Background(), "tn-dup", "example.com", 80); err != nil {
 		t.Fatalf("first Dial: %v", err)
 	}
-	if err := svc.Dial(context.Background(), "tn-dup", "example.com", 80); err != domainplugin.ErrTunnelNotFound {
-		t.Fatalf("second Dial = %v, want ErrTunnelNotFound", err)
+	if err := svc.Dial(context.Background(), "tn-dup", "example.com", 80); err != domainplugin.ErrTunnelAlreadyExists {
+		t.Fatalf("second Dial = %v, want ErrTunnelAlreadyExists", err)
 	}
 }
 

@@ -23,6 +23,8 @@ export function DeleteConnection(arg1:string):Promise<void>;
 
 export function DeleteFolder(arg1:string):Promise<void>;
 
+export function DeleteForwardRule(arg1:string,arg2:string):Promise<void>;
+
 export function DeletePassword(arg1:string):Promise<void>;
 
 export function DisableAuditSecretLogging():Promise<void>;
@@ -82,6 +84,8 @@ export function InstallGitHubPlugin(arg1:string,arg2:string,arg3:boolean,arg4:bo
 export function InstallPlugin(arg1:string,arg2:boolean,arg3:boolean,arg4:boolean,arg5:boolean,arg6:boolean):Promise<wails.PluginDTO>;
 
 export function IsVaultUnlocked():Promise<boolean>;
+
+export function ListForwardRules(arg1:string):Promise<Array<wails.ForwardRuleDTO>>;
 
 export function ListGitHubRepositories():Promise<Array<wails.GitHubRepositoryDTO>>;
 
@@ -151,6 +155,8 @@ export function SaveConnection(arg1:wails.ConnectionDTO):Promise<wails.Connectio
 
 export function SaveFolder(arg1:wails.FolderDTO):Promise<wails.FolderDTO>;
 
+export function SaveForwardRule(arg1:string,arg2:wails.ForwardRuleDTO):Promise<void>;
+
 export function SavePluginSettings(arg1:wails.PluginSettingsDTO):Promise<void>;
 
 export function SaveSettings(arg1:wails.AppSettingsDTO):Promise<void>;
@@ -166,6 +172,8 @@ export function SelectPluginBundleFile():Promise<string>;
 export function SelectPluginSourceDir():Promise<string>;
 
 export function SendTerminalInput(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function SetForwardRuleEnabled(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
 export function SetGitHubRepositoryTrust(arg1:wails.SetGitHubRepositoryTrustRequest):Promise<void>;
 
