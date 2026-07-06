@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"strconv"
 	"sync/atomic"
@@ -308,6 +309,57 @@ func TestTunnelDynamicService_RegisterLocalPreBindTimeoutEvictsEntry(t *testing.
 	buf := make([]byte, 1)
 	if _, err := peer.Read(buf); err == nil {
 		t.Fatal("expected peer read error after timeout close")
+	}
+}
+
+func TestTunnelDynamicService_RegisterLocalPreBindTimeoutNotifiesLocalClose(t *testing.T) {
+	local, peer := net.Pipe()
+	t.Cleanup(func() { local.Close(); peer.Close() })
+
+	var closeNotified int
+	var evictedPlugin, evictedID string
+	const localConnID = "lc-timeout-notify"
+	notify := func(_ context.Context, pluginID, _, method string, params []byte) error {
+		if method == "tunnel.localClose" {
+			closeNotified++
+			var p struct {
+				LocalConnID string `json:"localConnId"`
+			}
+			_ = json.Unmarshal(params, &p)
+			if p.LocalConnID != localConnID {
+				t.Errorf("localConnId = %q, want %q", p.LocalConnID, localConnID)
+			}
+			if pluginID != "plugin-a" {
+				t.Errorf("pluginID = %q, want plugin-a", pluginID)
+			}
+		}
+		return nil
+	}
+
+	svc := NewTunnelDynamicService(nil, notify)
+	svc.SetPreBindTimeoutForTest(50 * time.Millisecond)
+	svc.SetPreBindEvictHook(func(pluginID, id string) {
+		evictedPlugin = pluginID
+		evictedID = id
+	})
+
+	if err := svc.RegisterLocal(context.Background(), "plugin-a", "r", "socks5", localConnID, local); err != nil {
+		t.Fatalf("RegisterLocal: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for svc.HasLocal(localConnID) {
+		if time.Now().After(deadline) {
+			t.Fatal("entry still present after pre-bind timeout")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if closeNotified != 1 {
+		t.Fatalf("tunnel.localClose notifications = %d, want 1", closeNotified)
+	}
+	if evictedPlugin != "plugin-a" || evictedID != localConnID {
+		t.Fatalf("evict hook = (%q, %q), want (plugin-a, %q)", evictedPlugin, evictedID, localConnID)
 	}
 }
 

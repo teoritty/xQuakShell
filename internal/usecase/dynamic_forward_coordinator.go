@@ -104,6 +104,11 @@ func (c *DynamicForwardCoordinator) StartSession(parentCtx context.Context, sess
 	}
 	ctx, cancel := context.WithCancel(parentCtx)
 	svc := NewTunnelDynamicService(dialer, c.notify)
+	svc.SetPreBindEvictHook(func(_ string, localConnID string) {
+		c.mu.Lock()
+		delete(c.localOwners, localConnID)
+		c.mu.Unlock()
+	})
 	sf := &sessionDynamicForward{
 		sessionID: sessionID,
 		service:   svc,

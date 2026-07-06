@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"sync/atomic"
 	"testing"
@@ -54,6 +55,160 @@ func TestDynamicForwardCoordinator_StopSessionClosesPreBindLocals(t *testing.T) 
 	if _, err := peer.Read(buf); err == nil {
 		t.Fatal("expected peer read error after StopSession")
 	}
+}
+
+func TestDynamicForwardCoordinator_PreBindLocalTimeoutReleasesOwnerAndNotifies(t *testing.T) {
+	var closeNotified int
+	var notifiedConnID string
+	const localConnID = "lc-coord-timeout"
+	notify := func(_ context.Context, pluginID, _, method string, params []byte) error {
+		if method == "tunnel.localClose" {
+			closeNotified++
+			var p struct {
+				LocalConnID string `json:"localConnId"`
+			}
+			_ = json.Unmarshal(params, &p)
+			notifiedConnID = p.LocalConnID
+			if pluginID != "plugin-a" {
+				t.Errorf("pluginID = %q, want plugin-a", pluginID)
+			}
+		}
+		return nil
+	}
+
+	coord := NewDynamicForwardCoordinator(notify, nil)
+	const sessionID = "sess-prebind-timeout"
+	ctx := context.Background()
+	coord.StartDynamicForwardSessionForTest(ctx, sessionID, stubTunnelDialer{}, nil)
+
+	coord.mu.Lock()
+	sf := coord.sessions[sessionID]
+	coord.mu.Unlock()
+	if sf == nil || sf.service == nil {
+		t.Fatal("session service not started")
+	}
+	sf.service.SetPreBindTimeoutForTest(50 * time.Millisecond)
+
+	local, peer := net.Pipe()
+	t.Cleanup(func() { local.Close(); peer.Close() })
+
+	if err := coord.RegisterPreBindLocalForTest(ctx, sessionID, "plugin-a", "rule-1", "socks5", localConnID, local); err != nil {
+		t.Fatalf("RegisterPreBindLocalForTest: %v", err)
+	}
+
+	coord.mu.Lock()
+	_, hasOwner := coord.localOwners[localConnID]
+	coord.mu.Unlock()
+	if !hasOwner {
+		t.Fatal("expected localOwners entry before timeout")
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for sf.service.HasLocal(localConnID) {
+		if time.Now().After(deadline) {
+			t.Fatal("entry still present after pre-bind timeout")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	coord.mu.Lock()
+	_, hasOwner = coord.localOwners[localConnID]
+	coord.mu.Unlock()
+	if hasOwner {
+		t.Fatal("localOwners entry still present after pre-bind timeout")
+	}
+	if closeNotified != 1 {
+		t.Fatalf("tunnel.localClose notifications = %d, want 1", closeNotified)
+	}
+	if notifiedConnID != localConnID {
+		t.Fatalf("notified localConnId = %q, want %q", notifiedConnID, localConnID)
+	}
+}
+
+func TestDynamicForwardCoordinator_PreBindLocalTimeoutReleasesLocalProxy(t *testing.T) {
+	const localConnID = "lc-proxy-timeout"
+	coord := NewDynamicForwardCoordinator(nil, nil)
+	localProxy := capability.NewTunnelLocalProxy("plugin-a", stubTunnelLocalInbound{}, nil)
+
+	notify := func(_ context.Context, _, _, method string, params []byte) error {
+		switch method {
+		case "tunnel.localAccept":
+			var p struct {
+				LocalConnID string `json:"localConnId"`
+			}
+			_ = json.Unmarshal(params, &p)
+			localProxy.RegisterLocal(p.LocalConnID)
+		case "tunnel.localClose":
+			var p struct {
+				LocalConnID string `json:"localConnId"`
+			}
+			_ = json.Unmarshal(params, &p)
+			localProxy.ReleaseLocal(p.LocalConnID)
+		}
+		return nil
+	}
+
+	coord.SetNotifier(notify)
+	const sessionID = "sess-proxy-timeout"
+	ctx := context.Background()
+	coord.StartDynamicForwardSessionForTest(ctx, sessionID, stubTunnelDialer{}, nil)
+
+	coord.mu.Lock()
+	sf := coord.sessions[sessionID]
+	coord.mu.Unlock()
+	if sf == nil || sf.service == nil {
+		t.Fatal("session service not started")
+	}
+	sf.service.SetPreBindTimeoutForTest(50 * time.Millisecond)
+
+	local, peer := net.Pipe()
+	t.Cleanup(func() { local.Close(); peer.Close() })
+
+	if err := coord.RegisterPreBindLocalForTest(ctx, sessionID, "plugin-a", "rule-1", "socks5", localConnID, local); err != nil {
+		t.Fatalf("RegisterPreBindLocalForTest: %v", err)
+	}
+	if err := localRequireLocal(localProxy, localConnID); err != nil {
+		t.Fatalf("expected local registered after accept: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for sf.service.HasLocal(localConnID) {
+		if time.Now().After(deadline) {
+			t.Fatal("entry still present after pre-bind timeout")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if err := localRequireLocal(localProxy, localConnID); !errors.Is(err, domainplugin.ErrHandleNotFound) {
+		t.Fatalf("local write after timeout = %v, want ErrHandleNotFound", err)
+	}
+}
+
+func localRequireLocal(p *capability.TunnelLocalProxy, id string) error {
+	_, err := p.LocalWrite(context.Background(), json.RawMessage(`{"localConnId":"`+id+`","dataBase64":"YQ=="}`))
+	return err
+}
+
+type stubTunnelLocalInbound struct{}
+
+func (stubTunnelLocalInbound) TunnelDial(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return nil, domainplugin.ErrCapabilityDenied
+}
+
+func (stubTunnelLocalInbound) TunnelClose(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return nil, domainplugin.ErrCapabilityDenied
+}
+
+func (stubTunnelLocalInbound) TunnelLocalWrite(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return json.Marshal(map[string]bool{"ok": true})
+}
+
+func (stubTunnelLocalInbound) TunnelLocalClose(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return json.Marshal(map[string]bool{"ok": true})
+}
+
+func (stubTunnelLocalInbound) TunnelBind(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return json.Marshal(map[string]bool{"ok": true})
 }
 
 func TestDynamicForwardCoordinator_DialSlotReleasedAfterBoundSplice(t *testing.T) {

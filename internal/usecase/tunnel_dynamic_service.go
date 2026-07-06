@@ -21,6 +21,7 @@ type localEntry struct {
 	stop         chan struct{}
 	done         chan struct{}
 	preBindTimer *time.Timer
+	pluginID     string
 }
 
 func (e *localEntry) disarmPreBindTimer() {
@@ -30,6 +31,9 @@ func (e *localEntry) disarmPreBindTimer() {
 	}
 }
 
+// PreBindEvictHook is called when a pre-bind local connection is evicted by timeout.
+type PreBindEvictHook func(pluginID, localConnID string)
+
 // TunnelDynamicService manages pre-bind local/tunnel channel registries for dynamic forwards.
 type TunnelDynamicService struct {
 	mu             sync.Mutex
@@ -37,6 +41,7 @@ type TunnelDynamicService struct {
 	channels       map[string]net.Conn
 	dialer         domain.TunnelChannelDialer
 	notify         PluginTunnelNotifier
+	onPreBindEvict PreBindEvictHook
 	preBindTimeout time.Duration // zero → domainplugin.PreBindTunnelTimeout
 }
 
@@ -47,6 +52,13 @@ func NewTunnelDynamicService(dialer domain.TunnelChannelDialer, notify PluginTun
 		channels: make(map[string]net.Conn),
 		dialer:   dialer,
 		notify:   notify,
+	}
+}
+
+// SetPreBindEvictHook wires cleanup when a pre-bind local is evicted by timeout.
+func (s *TunnelDynamicService) SetPreBindEvictHook(hook PreBindEvictHook) {
+	if s != nil {
+		s.onPreBindEvict = hook
 	}
 }
 
@@ -78,10 +90,19 @@ func (s *TunnelDynamicService) evictPreBindLocal(localConnID string) {
 		return
 	}
 	entry.disarmPreBindTimer()
+	pluginID := entry.pluginID
 	delete(s.local, localConnID)
 	s.mu.Unlock()
 	s.stopReading(entry)
 	_ = entry.conn.Close()
+
+	if s.notify != nil {
+		params, _ := json.Marshal(map[string]string{"localConnId": localConnID})
+		_ = s.notify(context.Background(), pluginID, "", "tunnel.localClose", params)
+	}
+	if s.onPreBindEvict != nil {
+		s.onPreBindEvict(pluginID, localConnID)
+	}
 }
 
 // Dial opens an SSH direct-tcpip channel and stores it under tunnelID.
@@ -185,9 +206,10 @@ func (s *TunnelDynamicService) HasChannel(tunnelID string) bool {
 // RegisterLocal stores a pre-bind local connection and starts frame forwarding to the plugin.
 func (s *TunnelDynamicService) RegisterLocal(ctx context.Context, pluginID, ruleID, providerID, localConnID string, conn net.Conn) error {
 	entry := &localEntry{
-		conn: conn,
-		stop: make(chan struct{}),
-		done: make(chan struct{}),
+		conn:     conn,
+		stop:     make(chan struct{}),
+		done:     make(chan struct{}),
+		pluginID: pluginID,
 	}
 	s.mu.Lock()
 	if len(s.local)+len(s.channels) >= maxPreBindTunnelEntries {
