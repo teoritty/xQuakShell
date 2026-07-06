@@ -22,7 +22,7 @@ flowchart TB
   end
 ```
 
-- **main** (`app.go`) wires repositories, SSH adapters (`internal/infra/ssh`), portable layout, and plugin runtime.
+- **main** (`main.go` + `main_*.go`) wires repositories, SSH adapters (`internal/infra/ssh`), portable layout, and plugin runtime. **`app.go`** is the Wails binding facade only (see [adr/010-composition-root.md](adr/010-composition-root.md)).
 - **presentation/wails** — Wails facade: `api.go`, handler files, DTOs, events. Handlers delegate to use cases; no direct infra imports.
 - **presentation/logwindow** — debug log viewer subprocess and TCP stream server; depends on `domain.LogStream` only.
 - **usecase** — orchestration (`SessionManager`, `TransferService`, `AuditService`, `SettingsService`, `VaultService`, `HostKeyService`, `RemoteFSService`, `LocalFSService`, plugins). Depends only on **domain** and stdlib.
@@ -58,7 +58,7 @@ Run `powershell -File scripts/check-imports.ps1` (or `go test ./test/unit/archit
 
 | Port | Implementation | Used by | Wired in |
 |------|----------------|---------|----------|
-| `domain.ConcurrencyLimiter` | `internal/pkg/conlimit` | `PingManager`, `TransferService` | `main` (`app.go`) only |
+| `domain.ConcurrencyLimiter` | `internal/pkg/conlimit` | `PingManager`, `TransferService` | `main_compose.go` only |
 
 Usecase depends on the domain interface; `conlimit.New(...)` is called only in the composition root and passed through `presentation.NewAppAPI` into usecase constructors. Do not import `internal/pkg/conlimit` from `internal/usecase` or `internal/presentation`.
 
@@ -66,7 +66,7 @@ Usecase depends on the domain interface; `conlimit.New(...)` is called only in t
 
 | Port | Implementation | Used by | Wired in |
 |------|----------------|---------|----------|
-| `domain.Pinger` | `internal/infra/pinger` | `PingManager` | `main` (`app.go`) only |
+| `domain.Pinger` | `internal/infra/pinger` | `PingManager` | `main_compose.go` only |
 
 Usecase depends on the domain interface; `pinger.NewTCPPinger(...)` is called only in the composition root and passed through `presentation.NewAppAPI` into `NewPingManager`. Do not import `internal/infra/pinger` from `internal/usecase` or `internal/presentation`. Usecase must not call `net.Dial*` directly — only `domain.Pinger`.
 
@@ -104,7 +104,7 @@ Plugin connectors receive `ConnectorHooks` to set PTY bridge, SFTP (`RemoteFS`),
 
 | Area | Entry points |
 |------|----------------|
-| **Vault / connections** | `internal/usecase/vault_service.go` (CRUD orchestration), repositories wired in `app.go` only, DTOs in `dto_connection.go`, thin handlers in `handlers_vault.go`. |
+| **Vault / connections** | `internal/usecase/vault_service.go` (CRUD orchestration), repositories wired in `main_compose.go` only, DTOs in `dto_connection.go`, thin handlers in `handlers_vault.go`. |
 | **SSH sessions** | `internal/usecase/session_manager*.go`, PTY/SFTP init via `SessionManager.InitSessionIO`, handlers in `handlers_sessions.go`. |
 | **Host keys** | `internal/usecase/host_key_service.go` (parse, add/replace/remove, resolve prompt); `domain.ParseAuthorizedSSHKey`; handlers delegate in `handlers_sessions.go` and `handlers_remote_fs.go`. |
 | **Remote file browser** | `internal/usecase/remote_fs_service.go` (SFTP ops, getent UID/GID cache); thin DTO handlers in `handlers_remote_fs.go`. |

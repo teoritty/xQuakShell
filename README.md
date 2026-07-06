@@ -121,8 +121,12 @@ Bundles WebView2 Fixed Runtime into `build/bin/WebView2/`.
 
 ```text
 xQuakShell/
-  app.go
-  main.go
+  main.go              # Wails bootstrap, calls composeApp()
+  main_compose.go      # composition root: core DI
+  main_ssh_auth.go     # composition root: plugin SSH auth wiring
+  main_plugins.go      # composition root: plugin runtime
+  main_connectors.go   # composition root: session connectors
+  app.go               # Wails binding facade (no DI)
   frontend/src/
   internal/
     domain/

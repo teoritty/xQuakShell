@@ -172,6 +172,7 @@ func isStdLib(module, importPath string) bool {
 }
 
 // LayerFromRelPath maps a repository-relative file path to its architecture layer.
+// app.go is LayerMain for import rules but must not import infra (see composition_root.go / ADR-010).
 func LayerFromRelPath(relPath string) (Layer, bool) {
 	relPath = filepathToSlash(relPath)
 	switch {

@@ -3,25 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
-	"time"
 
 	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/auditlog"
-	"ssh-client/internal/infra/host"
-	"ssh-client/internal/infra/loghub"
-	"ssh-client/internal/infra/persistence"
-	"ssh-client/internal/infra/portable"
-	infraputty "ssh-client/internal/infra/putty"
-	infrasftp "ssh-client/internal/infra/sftp"
-	infrassh "ssh-client/internal/infra/ssh"
-	infrapinger "ssh-client/internal/infra/pinger"
-	"ssh-client/internal/pkg/conlimit"
 	"ssh-client/internal/pkg/safego"
 	presentation "ssh-client/internal/presentation/wails"
-	"ssh-client/internal/usecase"
 )
 
 // App is the main application struct bound to Wails.
@@ -30,111 +16,6 @@ type App struct {
 	ctx     context.Context
 	api     *presentation.AppAPI
 	plugins *pluginRuntime
-}
-
-// NewApp creates a new App with all dependencies wired together.
-func NewApp() *App {
-	loghub.InstallDefault()
-	logStream := loghub.Default()
-	log.SetOutput(loghub.NewLineWriter())
-
-	paths := portable.Default
-	if err := paths.EnsureDirs(); err != nil {
-		log.Printf("WARNING: create portable data dirs failed: %v", err)
-	}
-	if err := portable.InitRuntime(paths); err != nil {
-		log.Printf("WARNING: portable runtime init failed: %v", err)
-	}
-	if portable.DataRootReadOnly() {
-		log.Printf("WARNING: portable data root is read-only; file and plugin writes are disabled")
-	}
-	vaultDir := paths.VaultDir()
-
-	vaultRepo := persistence.NewVaultRepo(vaultDir)
-	connRepo := persistence.NewConnectionRepo(vaultRepo)
-	identRepo := persistence.NewIdentityRepo(vaultRepo)
-	passwordRepo := persistence.NewPasswordRepo(vaultRepo)
-	knownHostsRepo := persistence.NewKnownHostsRepo(vaultRepo)
-	sshDialer := infrassh.NewDialer()
-
-	auditLogRepo, err := auditlog.NewSQLiteRepo(vaultDir)
-	if err != nil {
-		log.Printf("WARNING: audit log unavailable: %v", err)
-	}
-
-	lockoutMgr := usecase.NewIdleLockoutManager(domain.DefaultLockoutSettings())
-
-	sshSession := usecase.SSHSessionDeps{
-		PassphraseCache:         infrassh.NewPassphraseCache(),
-		HostKeyCallbackBuilder:  infrassh.NewHostKeyCallbackBuilder(),
-		JumpTransportBuilder:    infrassh.NewJumpTransportBuilder(),
-		PrivateKeySignerFactory: infrassh.NewPrivateKeySignerFactory(),
-		PTYBridgeFactory:        infrassh.NewPTYBridgeFactory(),
-		SFTPClientFactory:       infrasftp.NewSFTPClientFactory(),
-	}
-
-	portableRuntime := portable.NewRuntimeAdapter()
-	portableLayout := portable.NewLayoutAdapter(paths)
-	hostFS := host.NewHostFS()
-	hostLauncher := host.NewAppLauncher()
-	portableData := portable.NewDataStore(portableLayout.DataRoot(), portableLayout.TempDir(), portableRuntime)
-
-	pluginRuntime := newPluginRuntime(vaultDir, portableData, pluginRuntimeDeps{
-		ConnRepo:        connRepo,
-		PasswordRepo:    passwordRepo,
-		IdentRepo:       identRepo,
-		AuditLog:        auditLogRepo,
-		VaultSettings:   usecase.NewPluginVaultSettings(vaultRepo),
-		PassphraseCache: sshSession.PassphraseCache,
-		ExeDir:          paths.ExeDir(),
-	})
-
-	var pluginSessionAudit domainplugin.SessionAuditor
-	var sshAuth *usecase.SSHAuthWiring
-	if pluginRuntime.manager != nil {
-		pluginSessionAudit = auditlog.NewPluginSessionAuditLog(512)
-		attempts := usecase.NewPluginAuthAttemptRegistry()
-		sshAuth = &usecase.SSHAuthWiring{
-			Attempts:    attempts,
-			Provider:    usecase.NewPluginAuthBridge(pluginRuntime.manager, attempts),
-			Builder:     infrassh.NewPluginAuthMethodBuilder(),
-			Lookup:   pluginRuntime.manager.Registry(),
-			Starter:  pluginRuntime.manager,
-			GrantReader: pluginRuntime.vaultSettings,
-		}
-	}
-
-	api := presentation.NewAppAPI(
-		vaultRepo, connRepo, identRepo, passwordRepo, knownHostsRepo,
-		sshDialer, sshSession, newSessionConnectors(),
-		auditLogRepo, lockoutMgr, hostFS, hostLauncher, host.IsHiddenLocal, portableData,
-		auditlog.NewCommandLineTrackerFactory(),
-		auditlog.SanitizerFactory(),
-		infraputty.PortAdapter{},
-		pluginRuntime.manager, pluginRuntime.inbound, pluginRuntime.viewInbound,
-		pluginRuntime.vaultInbound,
-		logStream, pluginSessionAudit,
-		conlimit.New(domain.DefaultPingSettings().EffectiveMaxConcurrent()),
-		conlimit.New(domain.DefaultTransferSettings().MaxConcurrent),
-		func() domain.ConcurrencyLimiter { return conlimit.New(64) },
-		infrapinger.NewTCPPinger(3*time.Second),
-		sshAuth,
-	)
-	if pluginRuntime.manager != nil && api.Sessions().PluginBridge() != nil {
-		bridge := api.Sessions().PluginBridge()
-		pluginRuntime.manager.SetCrashHandler(bridge)
-		pluginRuntime.manager.SetSessionOwnershipChecker(bridge)
-	}
-	if pluginRuntime.viewRelay != nil {
-		api.SetPluginViewRelay(pluginRuntime.viewRelay)
-	}
-	api.SetGitHubServices(pluginRuntime.githubRepoService, pluginRuntime.githubPluginService)
-	if bridge := api.Sessions().PluginBridge(); bridge != nil {
-		pluginRuntime.setSessionRecoverer(bridge)
-	}
-	pluginRuntime.wireEmbed(api)
-
-	return &App{api: api, plugins: pluginRuntime}
 }
 
 func (a *App) grantPluginMultiSessionAccess(pluginID string) error {
