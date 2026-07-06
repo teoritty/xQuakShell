@@ -19,7 +19,8 @@ type managedProcess struct {
 	stderr          io.WriteCloser
 	conn            *ipc.Conn
 	netProxy        *capability.NetProxy
-	releaseDialSlot func()
+	tunnelDial      *capability.TunnelDialProxy
+	tunnelLocal     *capability.TunnelLocalProxy
 	state           domainplugin.ProcessState
 	job             pluginJob
 	cleanupOnce     sync.Once
@@ -32,6 +33,12 @@ func (mp *managedProcess) closeResources(killProcess bool) {
 		}
 		if mp.netProxy != nil {
 			mp.netProxy.CloseAll()
+		}
+		if mp.tunnelDial != nil {
+			mp.tunnelDial.CloseAll()
+		}
+		if mp.tunnelLocal != nil {
+			mp.tunnelLocal.CloseAll()
 		}
 		if mp.conn != nil {
 			mp.conn.Close()

@@ -3,8 +3,13 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 )
+
+type tunnelLocalNotifyParams struct {
+	LocalConnID string `json:"localConnId"`
+}
 
 // CallWithTimeout invokes a JSON-RPC method with an explicit timeout override.
 func (h *ProcessHost) CallWithTimeout(ctx context.Context, pluginID, sessionID, method string, params json.RawMessage, timeout time.Duration) (json.RawMessage, error) {
@@ -29,6 +34,31 @@ func (h *ProcessHost) Notify(ctx context.Context, pluginID, sessionID, method st
 	if err != nil {
 		return err
 	}
+	h.syncTunnelLocalNotify(mp, method, params)
 	_ = ctx
 	return mp.conn.Notify(method, params)
+}
+
+func (h *ProcessHost) syncTunnelLocalNotify(mp *managedProcess, method string, params json.RawMessage) {
+	if mp == nil || mp.tunnelLocal == nil {
+		return
+	}
+	switch method {
+	case "tunnel.localAccept":
+		if localConnID := parseTunnelLocalConnID(params); localConnID != "" {
+			mp.tunnelLocal.RegisterLocal(localConnID)
+		}
+	case "tunnel.localClose":
+		if localConnID := parseTunnelLocalConnID(params); localConnID != "" {
+			mp.tunnelLocal.ReleaseLocal(localConnID)
+		}
+	}
+}
+
+func parseTunnelLocalConnID(params json.RawMessage) string {
+	var req tunnelLocalNotifyParams
+	if err := json.Unmarshal(params, &req); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(req.LocalConnID)
 }

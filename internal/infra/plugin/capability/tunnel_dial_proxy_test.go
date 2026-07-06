@@ -3,6 +3,8 @@ package capability
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -10,7 +12,8 @@ import (
 )
 
 type countingTunnelInbound struct {
-	dials atomic.Int32
+	dials  atomic.Int32
+	closes atomic.Int32
 }
 
 func (c *countingTunnelInbound) TunnelDial(context.Context, string, json.RawMessage) (json.RawMessage, error) {
@@ -19,15 +22,16 @@ func (c *countingTunnelInbound) TunnelDial(context.Context, string, json.RawMess
 }
 
 func (c *countingTunnelInbound) TunnelClose(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	c.closes.Add(1)
 	return json.Marshal(map[string]bool{"ok": true})
 }
 
 func (c *countingTunnelInbound) TunnelLocalWrite(context.Context, string, json.RawMessage) (json.RawMessage, error) {
-	return nil, domainplugin.ErrNotImplemented
+	return json.Marshal(map[string]bool{"ok": true})
 }
 
 func (c *countingTunnelInbound) TunnelLocalClose(context.Context, string, json.RawMessage) (json.RawMessage, error) {
-	return nil, domainplugin.ErrNotImplemented
+	return json.Marshal(map[string]bool{"ok": true})
 }
 
 func (c *countingTunnelInbound) TunnelBind(context.Context, string, json.RawMessage) (json.RawMessage, error) {
@@ -45,29 +49,201 @@ func TestTunnelDialProxy_EnforcesChannelLimit(t *testing.T) {
 	if _, err := proxy.Dial(ctx, json.RawMessage(`{}`)); err != domainplugin.ErrRateLimited {
 		t.Fatalf("second dial = %v, want ErrRateLimited", err)
 	}
-	proxy.ReleaseSlot()
+	proxy.ReleaseTunnel("t1")
 	if _, err := proxy.Dial(ctx, json.RawMessage(`{}`)); err != nil {
-		t.Fatalf("dial after ReleaseSlot: %v", err)
+		t.Fatalf("dial after ReleaseTunnel: %v", err)
 	}
 }
 
-func TestTunnelLocalProxy_ReleaseSlotOnBind(t *testing.T) {
+func TestTunnelDialProxy_RejectUnknownTunnelOnClose(t *testing.T) {
 	inbound := &countingTunnelInbound{}
-	var released bool
-	proxy := NewTunnelDialProxy("p1", &domainplugin.TunnelCaps{MaxConcurrentChannels: 1}, inbound)
-	local := NewTunnelLocalProxy("p1", inbound, func() { released = true; proxy.ReleaseSlot() })
+	proxy := NewTunnelDialProxy("p1", nil, inbound)
+	ctx := context.Background()
+
+	_, err := proxy.Close(ctx, json.RawMessage(`{"tunnelId":"foreign"}`))
+	if !errors.Is(err, domainplugin.ErrHandleNotFound) {
+		t.Fatalf("expected ErrHandleNotFound, got %v", err)
+	}
+	if inbound.closes.Load() != 0 {
+		t.Fatal("inbound TunnelClose should not be called for unknown tunnelId")
+	}
+}
+
+func TestTunnelDialProxy_CommitsHandleOnDial(t *testing.T) {
+	inbound := &countingTunnelInbound{}
+	proxy := NewTunnelDialProxy("p1", nil, inbound)
 	ctx := context.Background()
 
 	if _, err := proxy.Dial(ctx, json.RawMessage(`{}`)); err != nil {
 		t.Fatalf("dial: %v", err)
 	}
-	if _, err := local.Bind(ctx, json.RawMessage(`{"localConnId":"l","tunnelId":"t"}`)); err != nil {
+	if err := proxy.requireTunnel("t1"); err != nil {
+		t.Fatalf("expected owned tunnel t1: %v", err)
+	}
+	if _, err := proxy.Close(ctx, json.RawMessage(`{"tunnelId":"t1"}`)); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if err := proxy.requireTunnel("t1"); !errors.Is(err, domainplugin.ErrHandleNotFound) {
+		t.Fatalf("expected tunnel removed after close, got %v", err)
+	}
+}
+
+func TestTunnelLocalProxy_ReleaseTunnelOnBind(t *testing.T) {
+	inbound := &countingTunnelInbound{}
+	proxy := NewTunnelDialProxy("p1", &domainplugin.TunnelCaps{MaxConcurrentChannels: 1}, inbound)
+	local := NewTunnelLocalProxy("p1", inbound, proxy)
+	ctx := context.Background()
+
+	if _, err := proxy.Dial(ctx, json.RawMessage(`{}`)); err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	local.RegisterLocal("l")
+	if _, err := local.Bind(ctx, json.RawMessage(`{"localConnId":"l","tunnelId":"t1"}`)); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
-	if !released {
-		t.Fatal("expected onBind callback")
-	}
 	if _, err := proxy.Dial(ctx, json.RawMessage(`{}`)); err != nil {
-		t.Fatalf("dial after bind should succeed after slot release: %v", err)
+		t.Fatalf("dial after bind should succeed after tunnel release: %v", err)
 	}
+}
+
+type slowTunnelInbound struct {
+	release chan struct{}
+}
+
+func (s *slowTunnelInbound) TunnelDial(ctx context.Context, _ string, _ json.RawMessage) (json.RawMessage, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-s.release:
+		return json.Marshal(map[string]string{"tunnelId": "slow"})
+	}
+}
+
+func (s *slowTunnelInbound) TunnelClose(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return json.Marshal(map[string]bool{"ok": true})
+}
+
+func (s *slowTunnelInbound) TunnelLocalWrite(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return nil, domainplugin.ErrNotImplemented
+}
+
+func (s *slowTunnelInbound) TunnelLocalClose(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return nil, domainplugin.ErrNotImplemented
+}
+
+func (s *slowTunnelInbound) TunnelBind(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return json.Marshal(map[string]bool{"ok": true})
+}
+
+func reservedTunnelSlots(p *TunnelDialProxy) int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.tunnels) + p.pendingDials
+}
+
+func TestTunnelDialProxy_EnforcesChannelLimitUnderConcurrency(t *testing.T) {
+	inbound := &slowTunnelInbound{release: make(chan struct{}, 8)}
+	max := 2
+	proxy := NewTunnelDialProxy("p1", &domainplugin.TunnelCaps{MaxConcurrentChannels: max}, inbound)
+
+	for i := 0; i < max-1; i++ {
+		proxy.mu.Lock()
+		proxy.tunnels["stub"] = struct{}{}
+		proxy.mu.Unlock()
+	}
+
+	const workers = 16
+	var wg sync.WaitGroup
+	var peak atomic.Int32
+	stopPeak := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-stopPeak:
+				return
+			default:
+				if n := int32(reservedTunnelSlots(proxy)); n > peak.Load() {
+					peak.Store(n)
+				}
+			}
+		}
+	}()
+
+	var successes atomic.Int32
+	var rateLimited atomic.Int32
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			_, err := proxy.Dial(context.Background(), json.RawMessage(`{}`))
+			if err == nil {
+				successes.Add(1)
+				return
+			}
+			if errors.Is(err, domainplugin.ErrRateLimited) {
+				rateLimited.Add(1)
+				return
+			}
+			t.Errorf("unexpected dial error: %v", err)
+		}()
+	}
+	close(inbound.release)
+	wg.Wait()
+	close(stopPeak)
+
+	if got := successes.Load(); got != 1 {
+		t.Fatalf("expected exactly 1 successful dial, got %d", got)
+	}
+	if got := rateLimited.Load(); got != workers-1 {
+		t.Fatalf("expected %d rate-limited dials, got %d", workers-1, got)
+	}
+	if got := int(peak.Load()); got > max {
+		t.Fatalf("peak reserved slots %d exceeds max %d", got, max)
+	}
+	if got := reservedTunnelSlots(proxy); got != max {
+		t.Fatalf("expected %d reserved slots after test, got %d", max, got)
+	}
+	if proxy.pendingDials != 0 {
+		t.Fatalf("expected pendingDials=0, got %d", proxy.pendingDials)
+	}
+}
+
+func TestTunnelDialProxy_PendingDialsReleasedOnDialFailure(t *testing.T) {
+	inbound := &countingTunnelInbound{}
+	inbound.dials.Store(0)
+	failInbound := &failingTunnelInbound{}
+	proxy := NewTunnelDialProxy("p1", &domainplugin.TunnelCaps{MaxConcurrentChannels: 4}, failInbound)
+
+	_, err := proxy.Dial(context.Background(), json.RawMessage(`{}`))
+	if err == nil {
+		t.Fatal("expected dial failure")
+	}
+	if proxy.pendingDials != 0 {
+		t.Fatalf("expected pendingDials=0 after failed dial, got %d", proxy.pendingDials)
+	}
+	if got := reservedTunnelSlots(proxy); got != 0 {
+		t.Fatalf("expected 0 reserved slots, got %d", got)
+	}
+}
+
+type failingTunnelInbound struct{}
+
+func (failingTunnelInbound) TunnelDial(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return nil, errors.New("dial failed")
+}
+
+func (failingTunnelInbound) TunnelClose(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return nil, domainplugin.ErrNotImplemented
+}
+
+func (failingTunnelInbound) TunnelLocalWrite(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return nil, domainplugin.ErrNotImplemented
+}
+
+func (failingTunnelInbound) TunnelLocalClose(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return nil, domainplugin.ErrNotImplemented
+}
+
+func (failingTunnelInbound) TunnelBind(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return nil, domainplugin.ErrNotImplemented
 }

@@ -57,3 +57,68 @@ func TestNetProxyHandleOwnership(t *testing.T) {
 		t.Fatalf("expected ErrHandleNotFound, got %v", err)
 	}
 }
+
+func TestTunnelProxyHandleOwnership(t *testing.T) {
+	tunnelManifest := domainplugin.Manifest{
+		ID: "plugin-a",
+		Capabilities: domainplugin.CapabilitySet{
+			Tunnel: &domainplugin.TunnelCaps{Provider: true},
+		},
+	}
+	inbound := &tunnelOwnershipInbound{}
+	tunnelDial := capability.NewTunnelDialProxy("plugin-a", tunnelManifest.Capabilities.Tunnel, inbound)
+	tunnelLocal := capability.NewTunnelLocalProxy("plugin-a", inbound, tunnelDial)
+	server := ipc.NewHostServer(ipc.HostServerConfig{
+		PluginID:    "plugin-a",
+		Gate:        capability.NewGate(tunnelManifest),
+		TunnelDial:  tunnelDial,
+		TunnelLocal: tunnelLocal,
+	})
+	ctx := context.Background()
+
+	_, rpcErr := server.HandleRequest(ctx, "tunnel.close", mustJSON(map[string]string{"tunnelId": "missing"}))
+	if rpcErr == nil || rpcErr.Code != -32002 {
+		t.Fatalf("expected resource not found for unknown tunnelId, got %#v", rpcErr)
+	}
+	if inbound.closes != 0 {
+		t.Fatal("inbound TunnelClose should not run for unknown tunnelId")
+	}
+
+	_, rpcErr = server.HandleRequest(ctx, "tunnel.localWrite", mustJSON(map[string]string{
+		"localConnId": "missing",
+		"dataBase64":  "YQ==",
+	}))
+	if rpcErr == nil || rpcErr.Code != -32002 {
+		t.Fatalf("expected resource not found for unknown localConnId, got %#v", rpcErr)
+	}
+	if inbound.writes != 0 {
+		t.Fatal("inbound TunnelLocalWrite should not run for unknown localConnId")
+	}
+}
+
+type tunnelOwnershipInbound struct {
+	closes int
+	writes int
+}
+
+func (t *tunnelOwnershipInbound) TunnelDial(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return json.Marshal(map[string]string{"tunnelId": "t1"})
+}
+
+func (t *tunnelOwnershipInbound) TunnelClose(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	t.closes++
+	return json.Marshal(map[string]bool{"ok": true})
+}
+
+func (t *tunnelOwnershipInbound) TunnelLocalWrite(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	t.writes++
+	return json.Marshal(map[string]bool{"ok": true})
+}
+
+func (t *tunnelOwnershipInbound) TunnelLocalClose(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return json.Marshal(map[string]bool{"ok": true})
+}
+
+func (t *tunnelOwnershipInbound) TunnelBind(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return json.Marshal(map[string]bool{"ok": true})
+}

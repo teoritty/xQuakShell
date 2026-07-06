@@ -59,7 +59,7 @@ func (c *DynamicForwardCoordinator) TunnelClose(_ context.Context, pluginID stri
 	c.mu.Unlock()
 	c.releaseTunnelOwner(req.TunnelID)
 	if c.dialSlotRelease != nil && owner.sessionID != "" {
-		c.dialSlotRelease(pluginID, owner.sessionID)
+		c.dialSlotRelease(pluginID, owner.sessionID, req.TunnelID)
 	}
 	return json.Marshal(map[string]bool{"ok": true})
 }

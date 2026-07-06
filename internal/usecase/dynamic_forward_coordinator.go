@@ -25,8 +25,8 @@ type PluginTunnelGrantReader interface {
 	IsTunnelProviderGranted(pluginID string) bool
 }
 
-// TunnelDialSlotReleaser releases a per-plugin tunnel.dial concurrency slot.
-type TunnelDialSlotReleaser func(pluginID, sessionID string)
+// TunnelDialSlotReleaser releases a per-plugin tunnel.dial handle and concurrency slot.
+type TunnelDialSlotReleaser func(pluginID, sessionID, tunnelID string)
 
 type tunnelHandleOwner struct {
 	sessionID string
@@ -197,7 +197,7 @@ func (c *DynamicForwardCoordinator) armChannelTimeout(pluginID, tunnelID string,
 		_ = sf.service.CloseChannel(tunnelID)
 		c.releaseTunnelOwner(tunnelID)
 		if c.dialSlotRelease != nil {
-			c.dialSlotRelease(pluginID, sf.sessionID)
+			c.dialSlotRelease(pluginID, sf.sessionID, tunnelID)
 		}
 	})
 	c.channelTimers[tunnelID] = timer
@@ -217,7 +217,7 @@ func (c *DynamicForwardCoordinator) clearSessionOwners(sessionID string) {
 				delete(c.channelTimers, id)
 			}
 			if c.dialSlotRelease != nil {
-				c.dialSlotRelease(owner.pluginID, sessionID)
+				c.dialSlotRelease(owner.pluginID, sessionID, id)
 			}
 			delete(c.tunnelOwners, id)
 		}

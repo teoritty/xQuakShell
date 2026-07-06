@@ -8,14 +8,14 @@ import (
 	"ssh-client/internal/infra/plugin/ipc"
 )
 
-func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sessionID string, stdout io.Reader, stdin io.Writer) (*ipc.Conn, *capability.NetProxy, func(), error) {
+func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sessionID string, stdout io.Reader, stdin io.Writer) (*ipc.Conn, *capability.NetProxy, *capability.TunnelDialProxy, *capability.TunnelLocalProxy, error) {
 	fs, err := capability.NewFSProxy(plugin.Manifest.Capabilities.FS, dataDir)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	netProxy := capability.NewNetProxy(plugin.Manifest.ID, plugin.Manifest.Capabilities.Network)
 	tunnelDial := capability.NewTunnelDialProxy(plugin.Manifest.ID, plugin.Manifest.Capabilities.Tunnel, h.cfg.Tunnel)
-	tunnelLocal := capability.NewTunnelLocalProxy(plugin.Manifest.ID, h.cfg.Tunnel, tunnelDial.ReleaseSlot)
+	tunnelLocal := capability.NewTunnelLocalProxy(plugin.Manifest.ID, h.cfg.Tunnel, tunnelDial)
 	var sessions domainplugin.SessionRPCHandler
 	if h.cfg.SessionRPC != nil {
 		sessions = h.cfg.SessionRPC(plugin, sessionID)
@@ -35,5 +35,5 @@ func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sess
 		OnActivity:  h.cfg.OnPluginActivity,
 	})
 	conn := ipc.NewConn(stdout, stdin, nil, server.RequestHandler())
-	return conn, netProxy, tunnelDial.ReleaseSlot, nil
+	return conn, netProxy, tunnelDial, tunnelLocal, nil
 }
