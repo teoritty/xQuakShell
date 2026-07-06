@@ -19,8 +19,8 @@ func TestPluginAuthAttemptRegistry_AuthorizeRejectsForeignAuthMethodID(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Authorize("plugin-a", a.ID, "other", ""); err != domainplugin.ErrAuthAttemptNotBound {
-		t.Fatalf("Authorize() = %v, want ErrAuthAttemptNotBound", err)
+	if err := r.Authorize("plugin-a", a.ID, "other", ""); err != domainplugin.ErrSessionNotBound {
+		t.Fatalf("Authorize() = %v, want ErrSessionNotBound", err)
 	}
 }
 
@@ -29,8 +29,8 @@ func TestPluginAuthBridge_AuthorizeFailureBlocksRPC(t *testing.T) {
 	bridge := NewPluginAuthBridge(caller, NewPluginAuthAttemptRegistry())
 	method := domain.PluginAuthMethod{PluginID: "p1", AuthMethodID: "otp", Kind: domain.AuthProviderKindKeyboardInteractive}
 	_, err := bridge.Prepare(context.Background(), "missing-attempt", method)
-	if !errors.Is(err, domainplugin.ErrAuthAttemptNotBound) {
-		t.Fatalf("Prepare() = %v, want ErrAuthAttemptNotBound", err)
+	if !errors.Is(err, domainplugin.ErrSessionNotBound) {
+		t.Fatalf("Prepare() = %v, want ErrSessionNotBound", err)
 	}
 	if len(caller.methods) != 0 {
 		t.Fatal("expected no RPC when authorize fails")

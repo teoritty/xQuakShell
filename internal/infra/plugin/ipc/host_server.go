@@ -184,7 +184,7 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 			s.auditDenied(method, err.Error())
 			return nil, capabilityDeniedError(method)
 		}
-		if errors.Is(err, domainplugin.ErrSessionNotBound) || errors.Is(err, domainplugin.ErrAuthAttemptNotBound) {
+		if errors.Is(err, domainplugin.ErrSessionNotBound) {
 			s.auditDenied(method, err.Error())
 			if strings.HasPrefix(method, "auth.") {
 				return nil, &RPCError{Code: -32006, Message: "auth attempt not found"}

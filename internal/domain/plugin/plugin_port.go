@@ -43,6 +43,7 @@ type SessionRPCAuthorizer interface {
 }
 
 // AuthAttemptAuthorizer validates in-flight SSH auth attempts before auth.* RPC (usecase implements).
+// Authorize returns ErrSessionNotBound when the attempt is missing or not owned by the caller.
 type AuthAttemptAuthorizer interface {
 	Authorize(pluginID, attemptID, authMethodID, connectionID string) error
 }

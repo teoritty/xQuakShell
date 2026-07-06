@@ -518,7 +518,7 @@ The core validates the binary matches the host OS at install time.
 | -32003 | Rate limited | `log.write` (>50/s), `events.publish` (>100/s), terminal backpressure |
 | -32004 | Not implemented | Handler returned not-implemented |
 | -32005 | Auth provider busy | Too many concurrent `auth.*` attempts for one plugin |
-| -32006 | Auth attempt not found | Invalid or foreign `attemptId` on auth RPC |
+| -32006 | Auth attempt not found | `ErrSessionNotBound` on `auth.*` RPC (invalid or foreign `attemptId`) |
 | -32007 | Auth challenge timeout | Keyboard-interactive / OTP round exceeded host timeout |
 
 ### Auth provider (host → plugin)

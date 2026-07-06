@@ -103,3 +103,26 @@ func TestHostServerNilNetProxyDoesNotPanic(t *testing.T) {
 		t.Fatalf("expected request failed -32603, got %#v", rpcErr)
 	}
 }
+
+type sessionNotBoundHandler struct{}
+
+func (sessionNotBoundHandler) Handle(_ context.Context, _, _ string, _ json.RawMessage) (json.RawMessage, error) {
+	return nil, domainplugin.ErrSessionNotBound
+}
+
+func TestHostServerSessionNotBoundMapsCapabilityDenied(t *testing.T) {
+	server := ipc.NewHostServer(ipc.HostServerConfig{
+		PluginID: "test",
+		Gate: capability.NewGate(domainplugin.Manifest{
+			Capabilities: domainplugin.CapabilitySet{
+				Session: &domainplugin.SessionCaps{Terminal: true},
+			},
+		}),
+		Sessions: sessionNotBoundHandler{},
+	})
+
+	_, rpcErr := server.HandleRequest(context.Background(), "session.updateState", json.RawMessage(`{"sessionId":"s1"}`))
+	if rpcErr == nil || rpcErr.Code != -32001 {
+		t.Fatalf("expected capability denied -32001, got %#v", rpcErr)
+	}
+}

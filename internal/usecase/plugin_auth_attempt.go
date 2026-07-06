@@ -53,16 +53,17 @@ func (r *PluginAuthAttemptRegistry) Begin(pluginID, connectionID, authMethodID s
 	return a, nil
 }
 
-// Authorize returns ErrAuthAttemptNotBound when the attempt is missing or not owned by the caller.
+// Authorize returns ErrSessionNotBound when the attempt is missing or not owned by the caller
+// (same sentinel as PluginSessionAuthorizer — host_server maps auth.* IDOR to -32006).
 func (r *PluginAuthAttemptRegistry) Authorize(pluginID, attemptID, authMethodID, connectionID string) error {
 	r.mu.Lock()
 	a, ok := r.attempts[attemptID]
 	r.mu.Unlock()
 	if !ok || a.PluginID != pluginID || a.AuthMethodID != authMethodID {
-		return domainplugin.ErrAuthAttemptNotBound
+		return domainplugin.ErrSessionNotBound
 	}
 	if connectionID != "" && a.ConnectionID != connectionID {
-		return domainplugin.ErrAuthAttemptNotBound
+		return domainplugin.ErrSessionNotBound
 	}
 	return nil
 }
