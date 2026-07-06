@@ -102,7 +102,8 @@ func (s *TunnelDynamicService) Dial(ctx context.Context, tunnelID, targetHost st
 }
 
 // Bind hands off local and tunnel connections to the native splice path.
-func (s *TunnelDynamicService) Bind(localConnID, tunnelID string) error {
+// onSpliceDone is invoked exactly once after both ends close; nil is ignored.
+func (s *TunnelDynamicService) Bind(localConnID, tunnelID string, onSpliceDone func()) error {
 	s.mu.Lock()
 	entry, okL := s.local[localConnID]
 	remote, okR := s.channels[tunnelID]
@@ -118,7 +119,12 @@ func (s *TunnelDynamicService) Bind(localConnID, tunnelID string) error {
 		return domainplugin.ErrTunnelNotFound
 	}
 	s.stopReading(entry)
-	safego.Go(func() { splice(entry.conn, remote) })
+	safego.Go(func() {
+		splice(entry.conn, remote)
+		if onSpliceDone != nil {
+			onSpliceDone()
+		}
+	})
 	return nil
 }
 

@@ -10,14 +10,18 @@ import (
 	domainplugin "ssh-client/internal/domain/plugin"
 )
 
-// TunnelDialProxy enforces per-plugin channel limits and tunnelId ownership for tunnel.dial / tunnel.close.
+// TunnelDialProxy enforces per-plugin SSH channel limits and tunnelId ownership for tunnel.dial / tunnel.close.
+//
+// tunnels tracks every live direct-tcpip channel from successful tunnel.dial until the channel is
+// fully closed (unbound tunnel.close, pre-bind timeout, or post-bind splice completion). tunnel.bind
+// does not release a slot — same reserve→act→commit model as NetProxy.handles.
 type TunnelDialProxy struct {
 	pluginID     string
 	inbound      domainplugin.TunnelInboundPort
 	max          int
 	mu           sync.Mutex
-	tunnels      map[string]struct{}
-	pendingDials int
+	tunnels      map[string]struct{} // active SSH channels counting toward max
+	pendingDials int                 // slots reserved while dial is in progress
 }
 
 // NewTunnelDialProxy creates a tunnel dial proxy with a channel limit from manifest (0 = default).
@@ -112,7 +116,8 @@ func (p *TunnelDialProxy) Close(ctx context.Context, params json.RawMessage) (js
 	return result, nil
 }
 
-// ReleaseTunnel removes a tunnelId from this process after bind or host-initiated timeout.
+// ReleaseTunnel releases a channel slot when the host closes an SSH channel without a plugin
+// tunnel.close RPC (pre-bind timeout, post-bind splice completion, session cleanup).
 func (p *TunnelDialProxy) ReleaseTunnel(tunnelID string) {
 	if p == nil {
 		return

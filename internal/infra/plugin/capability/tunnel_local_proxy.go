@@ -112,7 +112,7 @@ func (p *TunnelLocalProxy) LocalClose(ctx context.Context, params json.RawMessag
 	return result, nil
 }
 
-// Bind handles tunnel.bind.
+// Bind handles tunnel.bind. The dial-proxy channel slot stays reserved until the SSH channel closes.
 func (p *TunnelLocalProxy) Bind(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
 	if p == nil || p.inbound == nil {
 		return nil, domainplugin.ErrCapabilityDenied
@@ -141,7 +141,6 @@ func (p *TunnelLocalProxy) Bind(ctx context.Context, params json.RawMessage) (js
 		return nil, err
 	}
 	p.ReleaseLocal(localConnID)
-	p.dial.ReleaseTunnel(tunnelID)
 	return result, nil
 }
 

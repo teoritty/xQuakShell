@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"sync"
 
 	domainplugin "ssh-client/internal/domain/plugin"
 )
@@ -127,7 +128,18 @@ func (c *DynamicForwardCoordinator) TunnelBind(_ context.Context, pluginID strin
 	if !svc.HasChannel(req.TunnelID) {
 		return nil, domainplugin.ErrTunnelNotFound
 	}
-	if err := svc.Bind(req.LocalConnID, req.TunnelID); err != nil {
+	c.mu.Lock()
+	owner := c.localOwners[req.LocalConnID]
+	c.mu.Unlock()
+	var releaseOnce sync.Once
+	onSpliceDone := func() {
+		releaseOnce.Do(func() {
+			if c.dialSlotRelease != nil {
+				c.dialSlotRelease(owner.pluginID, owner.sessionID, req.TunnelID)
+			}
+		})
+	}
+	if err := svc.Bind(req.LocalConnID, req.TunnelID, onSpliceDone); err != nil {
 		return nil, err
 	}
 	c.markLocalBound(req.LocalConnID)

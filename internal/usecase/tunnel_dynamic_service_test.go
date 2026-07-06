@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ func TestTunnelDynamicService_BindUnblocksWithoutClientData(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- svc.Bind(localConnID, "tn-1")
+		done <- svc.Bind(localConnID, "tn-1", nil)
 	}()
 
 	select {
@@ -93,7 +94,7 @@ func TestTunnelDynamicService_BindDoesNotNotifyLocalCloseOnStop(t *testing.T) {
 	if err := svc.Dial(context.Background(), "tn-1", "example.com", 80); err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
-	if err := svc.Bind(localConnID, "tn-1"); err != nil {
+	if err := svc.Bind(localConnID, "tn-1", nil); err != nil {
 		t.Fatalf("Bind: %v", err)
 	}
 	if closeNotified {
@@ -127,7 +128,7 @@ func TestTunnelDynamicService_DialRejectsDuplicateTunnelID(t *testing.T) {
 
 func TestTunnelDynamicService_BindRequiresBothSides(t *testing.T) {
 	svc := NewTunnelDynamicService(nil, nil)
-	if err := svc.Bind("missing-local", "missing-tunnel"); err != domainplugin.ErrTunnelNotFound {
+	if err := svc.Bind("missing-local", "missing-tunnel", nil); err != domainplugin.ErrTunnelNotFound {
 		t.Fatalf("Bind() = %v, want ErrTunnelNotFound", err)
 	}
 }
@@ -148,11 +149,54 @@ func TestTunnelDynamicService_BindSplicesAndClearsEntries(t *testing.T) {
 	svc.channels["tn-1"] = remote
 	svc.mu.Unlock()
 
-	if err := svc.Bind("lc-1", "tn-1"); err != nil {
+	if err := svc.Bind("lc-1", "tn-1", nil); err != nil {
 		t.Fatalf("Bind: %v", err)
 	}
 	if svc.HasLocal("lc-1") || svc.HasChannel("tn-1") {
 		t.Fatal("entries should be removed after bind")
+	}
+}
+
+func TestTunnelDynamicService_BindInvokesOnSpliceDoneWhenConnectionEnds(t *testing.T) {
+	local, peer := net.Pipe()
+	tunnelLocal, tunnelRemote := net.Pipe()
+	t.Cleanup(func() {
+		local.Close()
+		peer.Close()
+		tunnelLocal.Close()
+		tunnelRemote.Close()
+	})
+
+	var doneCount atomic.Int32
+	svc := NewTunnelDynamicService(stubTunnelDialer{
+		direct: func(addr string) (net.Conn, error) {
+			return tunnelRemote, nil
+		},
+	}, nil)
+
+	const localConnID = "lc-splice-done"
+	if err := svc.RegisterLocal(context.Background(), "plugin-a", "rule-1", "socks5", localConnID, local); err != nil {
+		t.Fatalf("RegisterLocal: %v", err)
+	}
+	if err := svc.Dial(context.Background(), "tn-1", "example.com", 80); err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	if err := svc.Bind(localConnID, "tn-1", func() { doneCount.Add(1) }); err != nil {
+		t.Fatalf("Bind: %v", err)
+	}
+
+	_ = peer.Close()
+	_ = tunnelLocal.Close()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for doneCount.Load() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("onSpliceDone not called after connection close")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := doneCount.Load(); got != 1 {
+		t.Fatalf("onSpliceDone called %d times, want 1", got)
 	}
 }
 
@@ -172,10 +216,10 @@ func TestTunnelDynamicService_DoubleBindFails(t *testing.T) {
 	svc.channels["tn-1"] = remote
 	svc.mu.Unlock()
 
-	if err := svc.Bind("lc-1", "tn-1"); err != nil {
+	if err := svc.Bind("lc-1", "tn-1", nil); err != nil {
 		t.Fatalf("first Bind: %v", err)
 	}
-	if err := svc.Bind("lc-1", "tn-1"); err != domainplugin.ErrTunnelNotFound {
+	if err := svc.Bind("lc-1", "tn-1", nil); err != domainplugin.ErrTunnelNotFound {
 		t.Fatalf("second Bind() = %v, want ErrTunnelNotFound", err)
 	}
 }
@@ -291,7 +335,7 @@ func TestTunnelDynamicService_RegisterLocalPreBindTimeoutCancelledByBind(t *test
 	if err := svc.Dial(context.Background(), "tn-1", "example.com", 80); err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
-	if err := svc.Bind(localConnID, "tn-1"); err != nil {
+	if err := svc.Bind(localConnID, "tn-1", nil); err != nil {
 		t.Fatalf("Bind: %v", err)
 	}
 

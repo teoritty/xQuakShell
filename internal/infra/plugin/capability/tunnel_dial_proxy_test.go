@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -88,7 +89,7 @@ func TestTunnelDialProxy_CommitsHandleOnDial(t *testing.T) {
 	}
 }
 
-func TestTunnelLocalProxy_ReleaseTunnelOnBind(t *testing.T) {
+func TestTunnelLocalProxy_BindDoesNotReleaseChannelSlot(t *testing.T) {
 	inbound := &countingTunnelInbound{}
 	proxy := NewTunnelDialProxy("p1", &domainplugin.TunnelCaps{MaxConcurrentChannels: 1}, inbound)
 	local := NewTunnelLocalProxy("p1", inbound, proxy)
@@ -101,8 +102,77 @@ func TestTunnelLocalProxy_ReleaseTunnelOnBind(t *testing.T) {
 	if _, err := local.Bind(ctx, json.RawMessage(`{"localConnId":"l","tunnelId":"t1"}`)); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
+	if _, err := proxy.Dial(ctx, json.RawMessage(`{}`)); !errors.Is(err, domainplugin.ErrRateLimited) {
+		t.Fatalf("dial after bind = %v, want ErrRateLimited", err)
+	}
+	if got := reservedTunnelSlots(proxy); got != 1 {
+		t.Fatalf("expected 1 reserved slot after bind, got %d", got)
+	}
+}
+
+type sequentialTunnelInbound struct {
+	countingTunnelInbound
+	mu   sync.Mutex
+	next int
+}
+
+func (s *sequentialTunnelInbound) TunnelDial(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	s.mu.Lock()
+	s.next++
+	id := fmt.Sprintf("t%d", s.next)
+	s.mu.Unlock()
+	s.dials.Add(1)
+	return json.Marshal(map[string]string{"tunnelId": id})
+}
+
+func (s *sequentialTunnelInbound) TunnelClose(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return nil, domainplugin.ErrTunnelNotFound
+}
+
+func TestTunnelDialProxy_BypassBlockedAfterBindAll(t *testing.T) {
+	const max = 2
+	inbound := &sequentialTunnelInbound{}
+	proxy := NewTunnelDialProxy("p1", &domainplugin.TunnelCaps{MaxConcurrentChannels: max}, inbound)
+	local := NewTunnelLocalProxy("p1", inbound, proxy)
+	ctx := context.Background()
+
+	for i := 1; i <= max; i++ {
+		if _, err := proxy.Dial(ctx, json.RawMessage(`{}`)); err != nil {
+			t.Fatalf("dial %d: %v", i, err)
+		}
+		localID := fmt.Sprintf("l%d", i)
+		local.RegisterLocal(localID)
+		tunnelID := fmt.Sprintf("t%d", i)
+		if _, err := local.Bind(ctx, json.RawMessage(fmt.Sprintf(`{"localConnId":%q,"tunnelId":%q}`, localID, tunnelID))); err != nil {
+			t.Fatalf("bind %d: %v", i, err)
+		}
+	}
+	if _, err := proxy.Dial(ctx, json.RawMessage(`{}`)); !errors.Is(err, domainplugin.ErrRateLimited) {
+		t.Fatalf("dial after binding all channels = %v, want ErrRateLimited", err)
+	}
+	if got := reservedTunnelSlots(proxy); got != max {
+		t.Fatalf("expected %d reserved slots, got %d", max, got)
+	}
+}
+
+func TestTunnelDialProxy_CloseAfterBindDoesNotReleaseSlot(t *testing.T) {
+	inbound := &sequentialTunnelInbound{}
+	proxy := NewTunnelDialProxy("p1", &domainplugin.TunnelCaps{MaxConcurrentChannels: 1}, inbound)
+	local := NewTunnelLocalProxy("p1", inbound, proxy)
+	ctx := context.Background()
+
 	if _, err := proxy.Dial(ctx, json.RawMessage(`{}`)); err != nil {
-		t.Fatalf("dial after bind should succeed after tunnel release: %v", err)
+		t.Fatalf("dial: %v", err)
+	}
+	local.RegisterLocal("l1")
+	if _, err := local.Bind(ctx, json.RawMessage(`{"localConnId":"l1","tunnelId":"t1"}`)); err != nil {
+		t.Fatalf("bind: %v", err)
+	}
+	if _, err := proxy.Close(ctx, json.RawMessage(`{"tunnelId":"t1"}`)); !errors.Is(err, domainplugin.ErrTunnelNotFound) {
+		t.Fatalf("close after bind = %v, want ErrTunnelNotFound", err)
+	}
+	if got := reservedTunnelSlots(proxy); got != 1 {
+		t.Fatalf("expected slot to remain after failed close, got %d reserved", got)
 	}
 }
 
