@@ -40,6 +40,8 @@ type pluginRuntime struct {
 	supervisor          *usecase.PluginSupervisor
 	githubRepoService   *usecase.GitHubRepositoryService
 	githubPluginService *usecase.GitHubPluginService
+	connRepo            domain.ConnectionRepository
+	host                *infraplugin.ProcessHost
 	assets              http.Handler
 	cancel              context.CancelFunc
 }
@@ -228,6 +230,8 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		supervisor:          supervisor,
 		githubRepoService:   githubRepoService,
 		githubPluginService: githubPluginService,
+		connRepo:            deps.ConnRepo,
+		host:                host,
 		assets:              compositeAssets,
 		cancel:              cancel,
 	}
@@ -248,6 +252,14 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 	api.Sessions().SetDynamicForward(r.dynamicForward)
 	if r.dynamicForward != nil && r.vaultSettings != nil {
 		r.dynamicForward.SetTunnelGrantReader(r.vaultSettings)
+	}
+	if r.dynamicForward != nil && r.host != nil {
+		r.dynamicForward.SetDialSlotReleaser(r.host.ReleaseTunnelDialSlot)
+	}
+	if r.manager != nil && r.vaultSettings != nil && r.connRepo != nil {
+		validator := usecase.NewForwardRuleValidator(r.connRepo, r.manager.Registry(), r.vaultSettings)
+		api.SetForwardRuleValidator(validator)
+		api.Sessions().SetForwardRuleValidator(validator)
 	}
 	api.SetEmbedBridge(r.embedBridge)
 }

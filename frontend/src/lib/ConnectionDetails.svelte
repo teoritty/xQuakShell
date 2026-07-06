@@ -291,6 +291,7 @@
         jumpHops={draft.jumpHops}
         identities={$identities}
         pluginFields={draft.pluginFields}
+        connectionId={draft.editingId}
         {fieldErrors}
         on:dirty={markDirty}
         on:userschange={(e) => setDraftUsers(e.detail)}

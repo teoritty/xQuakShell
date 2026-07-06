@@ -70,7 +70,7 @@ func TestCrossPluginTunnelLocalWriteIDOR(t *testing.T) {
 	t.Cleanup(func() { local.Close(); peer.Close() })
 
 	const localConnID = "lc-idor-test"
-	if err := coord.RegisterPreBindLocalForTest(context.Background(), sessionID, "plugin-a", "rule-tunnel-a", localConnID, local); err != nil {
+	if err := coord.RegisterPreBindLocalForTest(context.Background(), sessionID, "plugin-a", "rule-tunnel-a", "socks5", localConnID, local); err != nil {
 		t.Fatal(err)
 	}
 
@@ -92,7 +92,7 @@ func TestCrossPluginTunnelBindIDOR(t *testing.T) {
 	t.Cleanup(func() { local.Close(); peer.Close() })
 
 	const localConnID = "lc-bind-idor"
-	if err := coord.RegisterPreBindLocalForTest(context.Background(), sessionID, "plugin-a", "rule-tunnel-a", localConnID, local); err != nil {
+	if err := coord.RegisterPreBindLocalForTest(context.Background(), sessionID, "plugin-a", "rule-tunnel-a", "socks5", localConnID, local); err != nil {
 		t.Fatal(err)
 	}
 	coord.RegisterTunnelOwnerForTest(sessionID, "plugin-a", "tn-bind-idor")

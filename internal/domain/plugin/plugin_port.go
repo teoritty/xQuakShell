@@ -44,7 +44,7 @@ type SessionRPCAuthorizer interface {
 
 // AuthAttemptAuthorizer validates in-flight SSH auth attempts before auth.* RPC (usecase implements).
 type AuthAttemptAuthorizer interface {
-	Authorize(pluginID, attemptID, authMethodID string) error
+	Authorize(pluginID, attemptID, authMethodID, connectionID string) error
 }
 
 // ProcessHost manages out-of-process plugin lifecycles (infra implements this port).

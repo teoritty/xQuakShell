@@ -2,9 +2,12 @@ package wails
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 
 	"ssh-client/internal/domain"
+	"ssh-client/internal/usecase"
 )
 
 // ListForwardRules returns forward rules for a connection.
@@ -18,8 +21,22 @@ func (a *AppAPI) ListForwardRules(connectionID string) ([]domain.ForwardRule, er
 
 // SaveForwardRule creates or updates a forward rule on a connection.
 func (a *AppAPI) SaveForwardRule(connectionID string, rule domain.ForwardRule) error {
-	if err := rule.Validate(); err != nil {
-		return err
+	if a.forwardRules != nil {
+		if err := a.forwardRules.ValidateRule(rule); err != nil {
+			return err
+		}
+	}
+	if rule.ID == "" {
+		buf := make([]byte, 16)
+		if _, err := rand.Read(buf); err != nil {
+			return fmt.Errorf("generate forward rule id: %w", err)
+		}
+		rule.ID = hex.EncodeToString(buf)
+	}
+	if a.forwardRules != nil {
+		if err := a.forwardRules.ValidateRuleIDUnique(context.Background(), rule.ID, connectionID); err != nil {
+			return err
+		}
 	}
 	rule.BindAddress = domain.EffectiveBindAddress(rule.BindAddress)
 	conn, err := a.vaultSvc.GetConnection(context.Background(), connectionID)
@@ -36,6 +53,9 @@ func (a *AppAPI) SaveForwardRule(connectionID string, rule domain.ForwardRule) e
 	}
 	if !replaced {
 		conn.ForwardRules = append(conn.ForwardRules, rule)
+	}
+	if err := usecase.ValidateConnectionRules(conn.ForwardRules); err != nil {
+		return err
 	}
 	_, err = a.vaultSvc.SaveConnection(context.Background(), conn, conn.PluginFields)
 	return err

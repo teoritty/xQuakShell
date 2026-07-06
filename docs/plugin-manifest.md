@@ -111,6 +111,8 @@ Runtime IPC methods and session lifecycle are documented in [plugin-api.md](./pl
 
 Connection `forwardRules` with `"kind": "dynamic"` reference `pluginId` + `providerId` from these contributions.
 
+Each forward rule `id` must be globally unique across all connections in the vault (auto-generated on create). Duplicate IDs are rejected at save time.
+
 Rules:
 
 - FS patterns must start with `${pluginData}` and resolve under the plugin install directory.

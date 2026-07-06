@@ -201,6 +201,15 @@ func (r *PluginRegistry) EmbedEntryForProtocol(pluginID, protocol string) (strin
 	return plugin.Manifest.EmbedEntryForProtocol(protocol), nil
 }
 
+// HasAuthProvider reports whether the plugin declares auth.provider capability.
+func (r *PluginRegistry) HasAuthProvider(pluginID string) (bool, error) {
+	plugin, err := r.Get(pluginID)
+	if err != nil {
+		return false, err
+	}
+	return plugin.Manifest.Capabilities.Auth != nil && plugin.Manifest.Capabilities.Auth.Provider, nil
+}
+
 // AuthMethodKind returns the manifest-declared kind for a contributed auth method.
 func (r *PluginRegistry) AuthMethodKind(pluginID, authMethodID string) (string, error) {
 	plugin, err := r.Get(pluginID)
@@ -213,4 +222,27 @@ func (r *PluginRegistry) AuthMethodKind(pluginID, authMethodID string) (string, 
 		}
 	}
 	return "", fmt.Errorf("%w: auth method %s", domainplugin.ErrPluginNotFound, authMethodID)
+}
+
+// HasTunnelProvider reports whether the plugin declares tunnel.provider capability.
+func (r *PluginRegistry) HasTunnelProvider(pluginID string) (bool, error) {
+	plugin, err := r.Get(pluginID)
+	if err != nil {
+		return false, err
+	}
+	return plugin.Manifest.Capabilities.Tunnel != nil && plugin.Manifest.Capabilities.Tunnel.Provider, nil
+}
+
+// TunnelProviderExists reports whether providerID is contributed by the plugin.
+func (r *PluginRegistry) TunnelProviderExists(pluginID, providerID string) (bool, error) {
+	plugin, err := r.Get(pluginID)
+	if err != nil {
+		return false, err
+	}
+	for _, tp := range plugin.Manifest.Contributions.TunnelProviders {
+		if tp.ID == providerID {
+			return true, nil
+		}
+	}
+	return false, nil
 }

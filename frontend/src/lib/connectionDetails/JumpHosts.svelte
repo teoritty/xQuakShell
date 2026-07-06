@@ -2,7 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import { Plus, ChevronUp, ChevronDown } from 'lucide-svelte';
   import AuthEntryCard from '../AuthEntryCard.svelte';
-  import type { JumpHop, SSHIdentityMeta } from '../../stores/appState';
+  import type { JumpHop, PluginAuthConfig, SSHIdentityMeta } from '../../stores/appState';
   import type { AuthMethod } from './types';
   import { createDraftHopUiId } from './hopIds';
   import './connectionDetailsShared.css';
@@ -16,6 +16,7 @@
     keyimport: string;
     keyremove: { hopId: string; keyId: string };
     passwordchange: { hopId: string; value: string };
+    pluginauthchange: { hopId: string; value: PluginAuthConfig };
   }>();
 
   function addHop() {
@@ -36,7 +37,22 @@
   function updateHopField(hopId: string, field: keyof JumpHop, value: unknown) {
     dispatch(
       'hopschange',
-      jumpHops.map((h) => (h.id === hopId ? { ...h, [field]: value } : h)),
+      jumpHops.map((h) => {
+        if (h.id !== hopId) return h;
+        const next = { ...h, [field]: value } as JumpHop;
+        if (field === 'authMethod' && value === 'plugin' && !next.pluginAuth) {
+          next.pluginAuth = { pluginId: '', authMethodId: '', fields: {} };
+        }
+        return next;
+      }),
+    );
+    dispatch('dirty');
+  }
+
+  function updateHopPluginAuth(hopId: string, value: PluginAuthConfig) {
+    dispatch(
+      'hopschange',
+      jumpHops.map((h) => (h.id === hopId ? { ...h, pluginAuth: value } : h)),
     );
     dispatch('dirty');
   }
@@ -64,8 +80,10 @@
       authMethod={hop.authMethod}
       keyAuth={hop.keyAuth}
       passAuth={hop.passAuth}
+      pluginAuth={hop.pluginAuth}
       {identities}
       on:authmethodchange={(e) => updateHopField(hop.id, 'authMethod', e.detail)}
+      on:pluginauthchange={(e) => updateHopPluginAuth(hop.id, e.detail)}
       on:passwordchange={(e) => dispatch('passwordchange', { hopId: hop.id, value: e.detail })}
       on:keyimport={() => dispatch('keyimport', hop.id)}
       on:keyremove={(e) => dispatch('keyremove', { hopId: hop.id, keyId: e.detail })}

@@ -1,20 +1,66 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import { KeyRound, Plus, X, Trash2 } from 'lucide-svelte';
-  import type { KeyAuthConfig, PassAuthConfig, SSHIdentityMeta } from '../stores/appState';
+  import type { KeyAuthConfig, PassAuthConfig, PluginAuthConfig } from '../stores/appState';
+  import type { PluginAuthMethodContribution } from '../stores/api';
+  import { getPluginContributions } from '../stores/api';
+  import PluginConnectionFields from './connectionDetails/PluginConnectionFields.svelte';
 
-  export let authMethod: 'key' | 'password';
+  export let authMethod: 'key' | 'password' | 'plugin';
   export let keyAuth: KeyAuthConfig | undefined = undefined;
   export let passAuth: PassAuthConfig | undefined = undefined;
-  export let identities: SSHIdentityMeta[] = [];
+  export let pluginAuth: PluginAuthConfig | undefined = undefined;
+  export let identities: { id: string; comment: string; keyType: string }[] = [];
 
   const dispatch = createEventDispatcher<{
     authmethodchange: string;
     passwordchange: string;
     keyimport: void;
     keyremove: string;
+    pluginauthchange: PluginAuthConfig;
     remove: void;
   }>();
+
+  let authMethods: PluginAuthMethodContribution[] = [];
+
+  onMount(async () => {
+    const contrib = await getPluginContributions();
+    authMethods = contrib.authMethods || [];
+  });
+
+  $: pluginIds = [...new Set(authMethods.map((m) => m.pluginId))];
+  $: methodsForPlugin = authMethods.filter((m) => m.pluginId === (pluginAuth?.pluginId || ''));
+  $: selectedMethod = authMethods.find(
+    (m) => m.pluginId === pluginAuth?.pluginId && m.id === pluginAuth?.authMethodId,
+  );
+
+  function onPluginChange(pluginId: string) {
+    const next: PluginAuthConfig = { pluginId, authMethodId: '', fields: {} };
+    dispatch('pluginauthchange', next);
+  }
+
+  function onAuthMethodChange(authMethodId: string) {
+    const method = authMethods.find((m) => m.pluginId === pluginAuth?.pluginId && m.id === authMethodId);
+    const fields: Record<string, string> = {};
+    for (const group of method?.fields || []) {
+      for (const field of group.fields || []) {
+        if (field.default !== undefined && field.default !== null) {
+          fields[field.id] = String(field.default);
+        }
+      }
+    }
+    dispatch('pluginauthchange', {
+      pluginId: pluginAuth?.pluginId || '',
+      authMethodId,
+      fields,
+    });
+  }
+
+  function onFieldChange(fieldId: string, value: unknown) {
+    if (!pluginAuth) return;
+    const fields = { ...(pluginAuth.fields || {}), [fieldId]: String(value ?? '') };
+    dispatch('pluginauthchange', { ...pluginAuth, fields });
+  }
 </script>
 
 <div class="auth-entry-card">
@@ -29,6 +75,7 @@
     >
       <option value="key">Key</option>
       <option value="password">Password</option>
+      <option value="plugin">Plugin</option>
     </select>
     <div class="auth-entry-meta">
       <slot name="meta" />
@@ -63,6 +110,39 @@
         <Plus size={11} /> Import Key
       </button>
     </div>
+  {:else if authMethod === 'plugin'}
+    <div class="plugin-auth-block">
+      <select
+        value={pluginAuth?.pluginId || ''}
+        on:change={(e) => onPluginChange(e.currentTarget.value)}
+        class="plugin-select"
+      >
+        <option value="">Select plugin…</option>
+        {#each pluginIds as pid}
+          <option value={pid}>{pid}</option>
+        {/each}
+      </select>
+      <select
+        value={pluginAuth?.authMethodId || ''}
+        on:change={(e) => onAuthMethodChange(e.currentTarget.value)}
+        class="plugin-select"
+        disabled={!pluginAuth?.pluginId}
+      >
+        <option value="">Auth method…</option>
+        {#each methodsForPlugin as method}
+          <option value={method.id}>{method.label || method.id}</option>
+        {/each}
+      </select>
+      <p class="consent-hint">Plugin auth requires install-time auth provider consent in plugin settings.</p>
+      {#if selectedMethod?.fields?.length}
+        <PluginConnectionFields
+          groups={selectedMethod.fields}
+          values={pluginAuth?.fields || {}}
+          errors={{}}
+          on:fieldchange={(e) => onFieldChange(e.detail.fieldId, e.detail.value)}
+        />
+      {/if}
+    </div>
   {/if}
 </div>
 
@@ -95,7 +175,7 @@
   }
 
   .auth-select {
-    width: 80px;
+    width: 88px;
     font-size: 11px;
     flex-shrink: 0;
   }
@@ -152,6 +232,22 @@
   .pass-input {
     flex: 1;
     font-size: 11px;
+  }
+
+  .plugin-auth-block {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .plugin-select {
+    font-size: 11px;
+  }
+
+  .consent-hint {
+    font-size: 9px;
+    color: var(--text-secondary);
+    margin: 0;
   }
 
   .tiny-btn {

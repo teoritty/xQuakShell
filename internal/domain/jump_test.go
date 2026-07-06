@@ -59,6 +59,33 @@ func TestJumpHop_Validate_AcceptsPasswordAuth(t *testing.T) {
 	}
 }
 
+func TestJumpHop_Validate_AcceptsPluginAuth(t *testing.T) {
+	h := JumpHop{
+		Host:     "bastion",
+		Port:     22,
+		Username: "jump",
+		Auth:     AuthMethodPlugin,
+		PluginAuth: &PluginAuthConfig{
+			PluginID: "plugin-a", AuthMethodID: "otp",
+		},
+	}
+	if err := h.Validate(); err != nil {
+		t.Fatalf("expected valid hop: %v", err)
+	}
+}
+
+func TestJumpHop_Validate_RejectsMissingPluginAuth(t *testing.T) {
+	h := JumpHop{
+		Host:     "bastion",
+		Port:     22,
+		Username: "jump",
+		Auth:     AuthMethodPlugin,
+	}
+	if err := h.Validate(); err == nil {
+		t.Fatal("expected plugin auth error")
+	}
+}
+
 func TestJumpChainConfig_ValidateUniqueHopIDs_RejectsDuplicates(t *testing.T) {
 	chain := JumpChainConfig{
 		Hops: []JumpHop{

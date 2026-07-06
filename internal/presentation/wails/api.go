@@ -37,6 +37,7 @@ type AppAPI struct {
 	pluginMultiSessionGrant       func(pluginID string) error
 	pluginArbitraryNetworkGrant   func(pluginID string) error
 	embedBridge         *usecase.PluginEmbedBridge
+	forwardRules        *usecase.ForwardRuleValidator
 	logWindow           *logwindow.Manager
 }
 
@@ -207,6 +208,11 @@ func (a *AppAPI) SetPluginMultiSessionGrant(fn func(pluginID string) error) {
 // SetPluginArbitraryNetworkGrant sets the callback used after install to record arbitrary network consent.
 func (a *AppAPI) SetPluginArbitraryNetworkGrant(fn func(pluginID string) error) {
 	a.pluginArbitraryNetworkGrant = fn
+}
+
+// SetForwardRuleValidator wires forward rule validation for save and connect paths.
+func (a *AppAPI) SetForwardRuleValidator(v *usecase.ForwardRuleValidator) {
+	a.forwardRules = v
 }
 
 // SetEmbedBridge wires embed viewport/activity forwarding.

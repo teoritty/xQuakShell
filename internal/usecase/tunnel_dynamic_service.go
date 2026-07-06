@@ -114,7 +114,7 @@ func (s *TunnelDynamicService) HasChannel(tunnelID string) bool {
 }
 
 // RegisterLocal stores a pre-bind local connection and starts frame forwarding to the plugin.
-func (s *TunnelDynamicService) RegisterLocal(ctx context.Context, pluginID, ruleID, localConnID string, conn net.Conn) error {
+func (s *TunnelDynamicService) RegisterLocal(ctx context.Context, pluginID, ruleID, providerID, localConnID string, conn net.Conn) error {
 	entry := &localEntry{
 		conn: conn,
 		stop: make(chan struct{}),
@@ -128,6 +128,16 @@ func (s *TunnelDynamicService) RegisterLocal(ctx context.Context, pluginID, rule
 	}
 	s.local[localConnID] = entry
 	s.mu.Unlock()
+
+	if s.notify != nil {
+		params, _ := json.Marshal(map[string]string{
+			"ruleId": ruleID, "providerId": providerID, "localConnId": localConnID,
+		})
+		if err := s.notify(ctx, pluginID, "", "tunnel.localAccept", params); err != nil {
+			s.closeLocal(localConnID)
+			return err
+		}
+	}
 
 	safego.Go(func() {
 		defer close(entry.done)
@@ -161,14 +171,6 @@ func (s *TunnelDynamicService) RegisterLocal(ctx context.Context, pluginID, rule
 			}
 		}
 	})
-
-	if s.notify != nil {
-		params, _ := json.Marshal(map[string]string{"ruleId": ruleID, "localConnId": localConnID})
-		if err := s.notify(ctx, pluginID, "", "tunnel.localAccept", params); err != nil {
-			s.closeLocal(localConnID)
-			return err
-		}
-	}
 	return nil
 }
 

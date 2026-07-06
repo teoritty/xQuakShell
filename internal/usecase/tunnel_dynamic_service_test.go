@@ -27,7 +27,7 @@ func TestTunnelDynamicService_BindUnblocksWithoutClientData(t *testing.T) {
 	}, nil)
 
 	const localConnID = "lc-blocked-read"
-	if err := svc.RegisterLocal(context.Background(), "plugin-a", "rule-1", localConnID, local); err != nil {
+	if err := svc.RegisterLocal(context.Background(), "plugin-a", "rule-1", "socks5", localConnID, local); err != nil {
 		t.Fatalf("RegisterLocal: %v", err)
 	}
 	if err := svc.Dial(context.Background(), "tn-1", "example.com", 80); err != nil {
@@ -85,7 +85,7 @@ func TestTunnelDynamicService_BindDoesNotNotifyLocalCloseOnStop(t *testing.T) {
 	}, notify)
 
 	const localConnID = "lc-no-close-notify"
-	if err := svc.RegisterLocal(context.Background(), "plugin-a", "rule-1", localConnID, local); err != nil {
+	if err := svc.RegisterLocal(context.Background(), "plugin-a", "rule-1", "socks5", localConnID, local); err != nil {
 		t.Fatalf("RegisterLocal: %v", err)
 	}
 	if err := svc.Dial(context.Background(), "tn-1", "example.com", 80); err != nil {
@@ -184,13 +184,54 @@ func TestTunnelDynamicService_RegisterLocalRateLimit(t *testing.T) {
 		c1, c2 := net.Pipe()
 		_ = c2.Close()
 		id := "lc-" + strconv.Itoa(i)
-		if err := svc.RegisterLocal(context.Background(), "p", "r", id, c1); err != nil {
+		if err := svc.RegisterLocal(context.Background(), "p", "r", "socks5", id, c1); err != nil {
 			t.Fatalf("register %d: %v", i, err)
 		}
 	}
 	extra, _ := net.Pipe()
-	err := svc.RegisterLocal(context.Background(), "p", "r", "overflow", extra)
+	err := svc.RegisterLocal(context.Background(), "p", "r", "socks5", "overflow", extra)
 	if err != domainplugin.ErrRateLimited {
 		t.Fatalf("RegisterLocal overflow = %v, want ErrRateLimited", err)
+	}
+}
+
+func TestTunnelDynamicService_LocalAcceptBeforeReaderFrames(t *testing.T) {
+	local, peer := net.Pipe()
+	t.Cleanup(func() { local.Close(); peer.Close() })
+
+	acceptCh := make(chan struct{})
+	var frameBeforeAccept bool
+	notify := func(_ context.Context, _, _, method string, _ []byte) error {
+		if method == "tunnel.localAccept" {
+			close(acceptCh)
+			return nil
+		}
+		if method == "tunnel.localFrame" {
+			select {
+			case <-acceptCh:
+			default:
+				frameBeforeAccept = true
+			}
+		}
+		return nil
+	}
+
+	svc := NewTunnelDynamicService(nil, notify)
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		_, _ = peer.Write([]byte("early"))
+	}()
+
+	if err := svc.RegisterLocal(context.Background(), "p", "r", "socks5", "lc-early", local); err != nil {
+		t.Fatalf("RegisterLocal: %v", err)
+	}
+	select {
+	case <-acceptCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("tunnel.localAccept not sent")
+	}
+	time.Sleep(50 * time.Millisecond)
+	if frameBeforeAccept {
+		t.Fatal("tunnel.localFrame observed before tunnel.localAccept")
 	}
 }

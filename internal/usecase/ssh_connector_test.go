@@ -405,6 +405,13 @@ func (s stubAuthLookup) AuthMethodKind(_, _ string) (string, error) {
 	return s.kind, nil
 }
 
+func (s stubAuthLookup) HasAuthProvider(_ string) (bool, error) {
+	if s.err != nil {
+		return false, s.err
+	}
+	return true, nil
+}
+
 type stubAuthGrant struct {
 	granted bool
 }

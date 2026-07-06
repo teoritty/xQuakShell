@@ -18,6 +18,7 @@ type PluginAuthStarter interface {
 // PluginAuthMethodLookup resolves auth method kinds from plugin manifests.
 type PluginAuthMethodLookup interface {
 	AuthMethodKind(pluginID, authMethodID string) (string, error)
+	HasAuthProvider(pluginID string) (bool, error)
 }
 
 // SSHConnector performs SSH handshake with optional plugin-provided authentication.
@@ -249,7 +250,19 @@ func (c *SSHConnector) resolvePluginAuth(ctx context.Context, connectionID strin
 	if c.authProvider == nil || c.authMethodBuilder == nil || c.authAttempts == nil {
 		return nil, "", fmt.Errorf("plugin auth is not configured in this build")
 	}
-	if c.authGrant != nil && !c.authGrant.IsAuthProviderGranted(cfg.PluginID) {
+	if c.authGrant == nil {
+		return nil, "", fmt.Errorf("auth provider grant reader not configured")
+	}
+	if c.authLookup != nil {
+		has, err := c.authLookup.HasAuthProvider(cfg.PluginID)
+		if err != nil {
+			return nil, "", err
+		}
+		if !has {
+			return nil, "", fmt.Errorf("plugin %q is not an auth provider", cfg.PluginID)
+		}
+	}
+	if !c.authGrant.IsAuthProviderGranted(cfg.PluginID) {
 		return nil, "", fmt.Errorf("auth provider access not granted for plugin %q", cfg.PluginID)
 	}
 	if c.authStarter != nil {

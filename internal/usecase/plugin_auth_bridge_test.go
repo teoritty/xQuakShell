@@ -19,7 +19,7 @@ func TestPluginAuthAttemptRegistry_AuthorizeRejectsForeignAuthMethodID(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Authorize("plugin-a", a.ID, "other"); err != domainplugin.ErrAuthAttemptNotBound {
+	if err := r.Authorize("plugin-a", a.ID, "other", ""); err != domainplugin.ErrAuthAttemptNotBound {
 		t.Fatalf("Authorize() = %v, want ErrAuthAttemptNotBound", err)
 	}
 }
@@ -169,6 +169,29 @@ func TestPluginManager_OutboundAuthAuditSanitizesParams(t *testing.T) {
 
 type recordingAuthCaller struct {
 	lastParams json.RawMessage
+}
+
+type fakePluginCaller struct {
+	mu       sync.Mutex
+	methods  []string
+	timeouts []time.Duration
+}
+
+func (f *fakePluginCaller) CallWithTimeout(_ context.Context, _, method string, _ json.RawMessage, timeout time.Duration) (json.RawMessage, error) {
+	f.mu.Lock()
+	f.methods = append(f.methods, method)
+	f.timeouts = append(f.timeouts, timeout)
+	f.mu.Unlock()
+	switch method {
+	case "auth.prepare":
+		return json.Marshal(map[string]string{"publicKeyBlobBase64": "AQID"})
+	case "auth.answerChallenge":
+		return json.Marshal(map[string][]string{"answers": {"ok"}})
+	case "auth.sign":
+		return json.Marshal(map[string]string{"signatureBase64": "AQID", "signatureFormat": "ssh-ed25519"})
+	default:
+		return json.RawMessage(`{}`), nil
+	}
 }
 
 func (r *recordingAuthCaller) CallWithTimeout(_ context.Context, _, _ string, params json.RawMessage, _ time.Duration) (json.RawMessage, error) {

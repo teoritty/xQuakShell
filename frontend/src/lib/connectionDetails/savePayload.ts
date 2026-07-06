@@ -7,6 +7,7 @@ export function filterDraftUsers(users: ConnectionUser[]): ConnectionUser[] {
     (u) =>
       u.username.trim() !== '' ||
       (u.authMethod === 'password' && u.passAuth?.passwordId) ||
+      (u.authMethod === 'plugin' && u.pluginAuth?.pluginId && u.pluginAuth?.authMethodId) ||
       (u.keyAuth?.identityIds && u.keyAuth.identityIds.length > 0),
   );
   if (filtered.length === 0 && users.length > 0) {

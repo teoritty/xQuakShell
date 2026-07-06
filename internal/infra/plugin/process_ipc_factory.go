@@ -8,10 +8,10 @@ import (
 	"ssh-client/internal/infra/plugin/ipc"
 )
 
-func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sessionID string, stdout io.Reader, stdin io.Writer) (*ipc.Conn, *capability.NetProxy, error) {
+func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sessionID string, stdout io.Reader, stdin io.Writer) (*ipc.Conn, *capability.NetProxy, func(), error) {
 	fs, err := capability.NewFSProxy(plugin.Manifest.Capabilities.FS, dataDir)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	netProxy := capability.NewNetProxy(plugin.Manifest.ID, plugin.Manifest.Capabilities.Network)
 	tunnelDial := capability.NewTunnelDialProxy(plugin.Manifest.ID, plugin.Manifest.Capabilities.Tunnel, h.cfg.Tunnel)
@@ -35,5 +35,5 @@ func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sess
 		OnActivity:  h.cfg.OnPluginActivity,
 	})
 	conn := ipc.NewConn(stdout, stdin, nil, server.RequestHandler())
-	return conn, netProxy, nil
+	return conn, netProxy, tunnelDial.ReleaseSlot, nil
 }

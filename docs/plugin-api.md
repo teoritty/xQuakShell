@@ -537,9 +537,11 @@ Private keys never cross the process boundary — only sign requests and public 
 
 Requires `capabilities.tunnel.provider`. Plugin routes local SOCKS5 (or similar) clients; after `tunnel.bind`, user traffic is spliced natively without IPC.
 
+Local and dynamic (`-L`/`-D`) forward rules must bind to loopback (`127.0.0.1` or `::1`); non-loopback bind addresses are rejected at save time.
+
 | Method | Direction | Purpose |
 |--------|-----------|---------|
-| `tunnel.localAccept` | host → plugin | New local client on dynamic rule |
+| `tunnel.localAccept` | host → plugin | New local client on dynamic rule (`ruleId`, `providerId`, `localConnId`) |
 | `tunnel.localFrame` | host → plugin | Pre-bind bytes from local client |
 | `tunnel.localClose` | both | Close local side |
 | `tunnel.dial` | plugin → host | Open SSH `direct-tcpip` channel |

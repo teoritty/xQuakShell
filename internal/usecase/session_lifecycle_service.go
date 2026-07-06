@@ -24,6 +24,7 @@ type SessionLifecycleService struct {
 	plugins         *PluginSessionBridge
 	embed           *EmbedTunnelService
 	dynamicForward  *DynamicForwardCoordinator
+	forwardRules    *ForwardRuleValidator
 	forwardLimiter  func() domain.ConcurrencyLimiter
 	passphraseCache domain.PassphraseCache
 	onStateChange   StateChangeFunc
@@ -38,6 +39,7 @@ type SessionLifecycleConfig struct {
 	Plugins         *PluginSessionBridge
 	PassphraseCache domain.PassphraseCache
 	DynamicForward  *DynamicForwardCoordinator
+	ForwardRules    *ForwardRuleValidator
 	ForwardConnLimiterFactory func() domain.ConcurrencyLimiter
 	OnStateChange   StateChangeFunc
 	HostKeyRequest  HostKeyRequestFunc
@@ -52,6 +54,7 @@ func NewSessionLifecycleService(cfg SessionLifecycleConfig) *SessionLifecycleSer
 		plugins:         cfg.Plugins,
 		passphraseCache: cfg.PassphraseCache,
 		dynamicForward:  cfg.DynamicForward,
+		forwardRules:    cfg.ForwardRules,
 		forwardLimiter:  cfg.ForwardConnLimiterFactory,
 		onStateChange:   cfg.OnStateChange,
 		hostKeyRequest:  cfg.HostKeyRequest,
@@ -234,7 +237,35 @@ func (s *SessionLifecycleService) GetHostKeyInfo(sessionID string) (*domain.Host
 	return entry.hostKeyInfo, nil
 }
 
+// SetForwardRuleValidator wires forward rule validation at connect time.
+func (s *SessionLifecycleService) SetForwardRuleValidator(v *ForwardRuleValidator) {
+	if s != nil {
+		s.forwardRules = v
+	}
+}
+
 func (s *SessionLifecycleService) connectSession(entry *sessionEntry, conn *domain.Connection) {
+	for _, rule := range conn.ForwardRules {
+		if !rule.Enabled {
+			continue
+		}
+		if s.forwardRules != nil {
+			if err := s.forwardRules.ValidateRuleForConnect(rule); err != nil {
+				msg := fmt.Sprintf(`Forward rule "%s" invalid: %v`, rule.ID, err)
+				slog.Warn("forward rule connect validation failed", "ruleId", rule.ID, "err", err)
+				s.updateState(entry, domain.SessionError, msg)
+				return
+			}
+			continue
+		}
+		if err := rule.Validate(); err != nil {
+			msg := fmt.Sprintf(`Forward rule "%s" invalid: %v`, rule.ID, err)
+			slog.Warn("forward rule connect validation failed", "ruleId", rule.ID, "err", err)
+			s.updateState(entry, domain.SessionError, msg)
+			return
+		}
+	}
+
 	result := s.sshConnector.Connect(entry.ctx, conn)
 	if result.HostKeyInfo != nil {
 		s.applyHostKeyRequired(entry, *result.HostKeyInfo, result.Err)

@@ -28,11 +28,25 @@ type MergedStatusBarItem struct {
 	Item     domainplugin.StatusBarContribution
 }
 
+// MergedAuthMethod is a plugin-contributed SSH auth method.
+type MergedAuthMethod struct {
+	PluginID string
+	Method   domainplugin.AuthMethodContribution
+}
+
+// MergedTunnelProvider is a plugin-contributed dynamic forward provider.
+type MergedTunnelProvider struct {
+	PluginID string
+	Provider domainplugin.TunnelProviderContribution
+}
+
 // MergedContributions is the full merged plugin UI contribution tree.
 type MergedContributions struct {
-	Commands  []MergedCommand
-	Views     []MergedView
-	StatusBar []MergedStatusBarItem
+	Commands        []MergedCommand
+	Views           []MergedView
+	StatusBar       []MergedStatusBarItem
+	AuthMethods     []MergedAuthMethod
+	TunnelProviders []MergedTunnelProvider
 }
 
 // MergeContributions collects all UI contributions from the registry.
@@ -47,15 +61,19 @@ func MergeContributionsFiltered(r *PluginRegistry, enabled func(pluginID string)
 	}
 	if enabled == nil {
 		return MergedContributions{
-			Commands:  r.Commands(),
-			Views:     r.Views(),
-			StatusBar: r.StatusBarItems(),
+			Commands:        r.Commands(),
+			Views:           r.Views(),
+			StatusBar:       r.StatusBarItems(),
+			AuthMethods:     r.AuthMethods(),
+			TunnelProviders: r.TunnelProviders(),
 		}
 	}
 	return MergedContributions{
-		Commands:  r.CommandsFiltered(enabled),
-		Views:     r.ViewsFiltered(enabled),
-		StatusBar: r.StatusBarItemsFiltered(enabled),
+		Commands:        r.CommandsFiltered(enabled),
+		Views:           r.ViewsFiltered(enabled),
+		StatusBar:       r.StatusBarItemsFiltered(enabled),
+		AuthMethods:     r.AuthMethodsFiltered(enabled),
+		TunnelProviders: r.TunnelProvidersFiltered(enabled),
 	}
 }
 
@@ -111,4 +129,48 @@ func (r *PluginRegistry) ViewEntry(pluginID, panelID string) (MergedView, error)
 		}
 	}
 	return MergedView{}, domainplugin.ErrPluginNotFound
+}
+
+// AuthMethods returns merged auth method contributions from all plugins.
+func (r *PluginRegistry) AuthMethods() []MergedAuthMethod {
+	return r.AuthMethodsFiltered(nil)
+}
+
+// AuthMethodsFiltered returns auth methods from enabled plugins.
+func (r *PluginRegistry) AuthMethodsFiltered(enabled func(string) bool) []MergedAuthMethod {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var out []MergedAuthMethod
+	for _, p := range r.plugins {
+		if enabled != nil && !enabled(p.Manifest.ID) {
+			continue
+		}
+		for _, am := range p.Manifest.Contributions.AuthMethods {
+			out = append(out, MergedAuthMethod{PluginID: p.Manifest.ID, Method: am})
+		}
+	}
+	return out
+}
+
+// TunnelProviders returns merged tunnel provider contributions from all plugins.
+func (r *PluginRegistry) TunnelProviders() []MergedTunnelProvider {
+	return r.TunnelProvidersFiltered(nil)
+}
+
+// TunnelProvidersFiltered returns tunnel providers from enabled plugins.
+func (r *PluginRegistry) TunnelProvidersFiltered(enabled func(string) bool) []MergedTunnelProvider {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var out []MergedTunnelProvider
+	for _, p := range r.plugins {
+		if enabled != nil && !enabled(p.Manifest.ID) {
+			continue
+		}
+		for _, tp := range p.Manifest.Contributions.TunnelProviders {
+			out = append(out, MergedTunnelProvider{PluginID: p.Manifest.ID, Provider: tp})
+		}
+	}
+	return out
 }

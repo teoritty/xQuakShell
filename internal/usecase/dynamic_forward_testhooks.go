@@ -13,11 +13,18 @@ func (c *DynamicForwardCoordinator) StartDynamicForwardSessionForTest(ctx contex
 	if c == nil {
 		return
 	}
+	if c.tunnelGrant == nil {
+		c.tunnelGrant = testTunnelGrantAlways{}
+	}
 	c.StartSession(ctx, sessionID, dialer, rules)
 }
 
+type testTunnelGrantAlways struct{}
+
+func (testTunnelGrantAlways) IsTunnelProviderGranted(string) bool { return true }
+
 // RegisterPreBindLocalForTest registers a pre-bind local connection and owner index for tests.
-func (c *DynamicForwardCoordinator) RegisterPreBindLocalForTest(ctx context.Context, sessionID, pluginID, ruleID, localConnID string, conn net.Conn) error {
+func (c *DynamicForwardCoordinator) RegisterPreBindLocalForTest(ctx context.Context, sessionID, pluginID, ruleID, providerID, localConnID string, conn net.Conn) error {
 	if c == nil {
 		return domainplugin.ErrTunnelNotFound
 	}
@@ -27,7 +34,7 @@ func (c *DynamicForwardCoordinator) RegisterPreBindLocalForTest(ctx context.Cont
 	if sf == nil || sf.service == nil {
 		return domainplugin.ErrTunnelNotFound
 	}
-	if err := sf.service.RegisterLocal(ctx, pluginID, ruleID, localConnID, conn); err != nil {
+	if err := sf.service.RegisterLocal(ctx, pluginID, ruleID, providerID, localConnID, conn); err != nil {
 		return err
 	}
 	c.mu.Lock()

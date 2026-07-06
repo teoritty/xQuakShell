@@ -54,11 +54,14 @@ func (r *PluginAuthAttemptRegistry) Begin(pluginID, connectionID, authMethodID s
 }
 
 // Authorize returns ErrAuthAttemptNotBound when the attempt is missing or not owned by the caller.
-func (r *PluginAuthAttemptRegistry) Authorize(pluginID, attemptID, authMethodID string) error {
+func (r *PluginAuthAttemptRegistry) Authorize(pluginID, attemptID, authMethodID, connectionID string) error {
 	r.mu.Lock()
 	a, ok := r.attempts[attemptID]
 	r.mu.Unlock()
 	if !ok || a.PluginID != pluginID || a.AuthMethodID != authMethodID {
+		return domainplugin.ErrAuthAttemptNotBound
+	}
+	if connectionID != "" && a.ConnectionID != connectionID {
 		return domainplugin.ErrAuthAttemptNotBound
 	}
 	return nil

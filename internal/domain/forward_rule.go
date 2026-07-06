@@ -45,5 +45,10 @@ func (r ForwardRule) Validate() error {
 	default:
 		return fmt.Errorf("%w: unknown kind %q", ErrInvalidForwardRule, r.Kind)
 	}
+	if r.Kind == ForwardRuleLocal || r.Kind == ForwardRuleDynamic {
+		if !IsLoopbackBind(r.BindAddress) {
+			return fmt.Errorf("%w: %s forward bind address must be loopback", ErrInvalidForwardRule, r.Kind)
+		}
+	}
 	return nil
 }

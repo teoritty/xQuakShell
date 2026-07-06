@@ -49,12 +49,13 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	}
 	mp.job = job
 
-	conn, netProxy, err := h.newConn(plugin, dataDir, sessionID, spawned.stdout, spawned.stdin)
+	conn, netProxy, releaseSlot, err := h.newConn(plugin, dataDir, sessionID, spawned.stdout, spawned.stdin)
 	if err != nil {
 		return err
 	}
 	mp.conn = conn
 	mp.netProxy = netProxy
+	mp.releaseDialSlot = releaseSlot
 
 	portableReadOnly := h.cfg.Portable != nil && h.cfg.Portable.DataRootReadOnly()
 	if err := initializePluginProcess(ctx, conn, plugin, dataDir, portableReadOnly); err != nil {

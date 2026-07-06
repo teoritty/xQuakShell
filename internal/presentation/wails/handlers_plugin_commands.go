@@ -37,20 +37,40 @@ type PluginStatusBarDTO struct {
 	Priority int    `json:"priority,omitempty"`
 }
 
+// PluginAuthMethodDTO describes a contributed SSH auth method.
+type PluginAuthMethodDTO struct {
+	PluginID string            `json:"pluginId"`
+	ID       string            `json:"id"`
+	Label    string            `json:"label"`
+	Kind     string            `json:"kind"`
+	Fields   []FieldGroupDTO   `json:"fields,omitempty"`
+}
+
+// PluginTunnelProviderDTO describes a contributed dynamic-forward provider.
+type PluginTunnelProviderDTO struct {
+	PluginID string `json:"pluginId"`
+	ID       string `json:"id"`
+	Label    string `json:"label"`
+}
+
 // PluginContributionsDTO merges plugin UI contributions.
 type PluginContributionsDTO struct {
-	Commands  []PluginCommandDTO   `json:"commands"`
-	Views     []PluginViewDTO      `json:"views"`
-	StatusBar []PluginStatusBarDTO `json:"statusBar"`
+	Commands        []PluginCommandDTO        `json:"commands"`
+	Views           []PluginViewDTO           `json:"views"`
+	StatusBar       []PluginStatusBarDTO      `json:"statusBar"`
+	AuthMethods     []PluginAuthMethodDTO     `json:"authMethods"`
+	TunnelProviders []PluginTunnelProviderDTO `json:"tunnelProviders"`
 }
 
 // GetPluginContributions returns merged plugin contributions for the UI.
 func (a *AppAPI) GetPluginContributions() PluginContributionsDTO {
 	if a.plugins == nil {
 		return PluginContributionsDTO{
-			Commands:  []PluginCommandDTO{},
-			Views:     []PluginViewDTO{},
-			StatusBar: []PluginStatusBarDTO{},
+			Commands:        []PluginCommandDTO{},
+			Views:           []PluginViewDTO{},
+			StatusBar:       []PluginStatusBarDTO{},
+			AuthMethods:     []PluginAuthMethodDTO{},
+			TunnelProviders: []PluginTunnelProviderDTO{},
 		}
 	}
 	merged := usecase.MergeContributionsFiltered(a.plugins.Registry(), a.plugins.IsPluginEnabled)
@@ -70,10 +90,22 @@ func (a *AppAPI) GetPluginContributions() PluginContributionsDTO {
 		statusBar = append(statusBar, statusBarToDTO(item))
 	}
 
+	authMethods := make([]PluginAuthMethodDTO, 0, len(merged.AuthMethods))
+	for _, am := range merged.AuthMethods {
+		authMethods = append(authMethods, authMethodToDTO(am))
+	}
+
+	tunnelProviders := make([]PluginTunnelProviderDTO, 0, len(merged.TunnelProviders))
+	for _, tp := range merged.TunnelProviders {
+		tunnelProviders = append(tunnelProviders, tunnelProviderToDTO(tp))
+	}
+
 	return PluginContributionsDTO{
-		Commands:  commands,
-		Views:     views,
-		StatusBar: statusBar,
+		Commands:        commands,
+		Views:           views,
+		StatusBar:       statusBar,
+		AuthMethods:     authMethods,
+		TunnelProviders: tunnelProviders,
 	}
 }
 
@@ -125,5 +157,27 @@ func statusBarToDTO(item usecase.MergedStatusBarItem) PluginStatusBarDTO {
 		Text:     item.Item.Text,
 		Tooltip:  item.Item.Tooltip,
 		Priority: item.Item.Priority,
+	}
+}
+
+func authMethodToDTO(am usecase.MergedAuthMethod) PluginAuthMethodDTO {
+	fields := make([]FieldGroupDTO, 0, len(am.Method.Fields))
+	for _, g := range am.Method.Fields {
+		fields = append(fields, mapFieldGroup(g))
+	}
+	return PluginAuthMethodDTO{
+		PluginID: am.PluginID,
+		ID:       am.Method.ID,
+		Label:    am.Method.Label,
+		Kind:     am.Method.Kind,
+		Fields:   fields,
+	}
+}
+
+func tunnelProviderToDTO(tp usecase.MergedTunnelProvider) PluginTunnelProviderDTO {
+	return PluginTunnelProviderDTO{
+		PluginID: tp.PluginID,
+		ID:       tp.Provider.ID,
+		Label:    tp.Provider.Label,
 	}
 }

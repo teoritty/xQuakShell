@@ -14,14 +14,22 @@ type FolderDTO struct {
 	Order    int    `json:"order"`
 }
 
+// PluginAuthConfigDTO holds plugin auth references for the UI.
+type PluginAuthConfigDTO struct {
+	PluginID     string            `json:"pluginId"`
+	AuthMethodID string            `json:"authMethodId"`
+	Fields       map[string]string `json:"fields,omitempty"`
+}
+
 // ConnectionUserDTO is the UI-facing representation of a connection user.
 type ConnectionUserDTO struct {
-	ID       string             `json:"id"`
-	Username string             `json:"username"`
-	Auth     string             `json:"authMethod"`
-	KeyAuth  *KeyAuthConfigDTO  `json:"keyAuth,omitempty"`
-	PassAuth *PassAuthConfigDTO `json:"passAuth,omitempty"`
-	Label    string             `json:"label,omitempty"`
+	ID         string               `json:"id"`
+	Username   string               `json:"username"`
+	Auth       string               `json:"authMethod"`
+	KeyAuth    *KeyAuthConfigDTO    `json:"keyAuth,omitempty"`
+	PassAuth   *PassAuthConfigDTO   `json:"passAuth,omitempty"`
+	PluginAuth *PluginAuthConfigDTO `json:"pluginAuth,omitempty"`
+	Label      string               `json:"label,omitempty"`
 }
 
 // KeyAuthConfigDTO holds key auth references for the UI.
@@ -36,13 +44,27 @@ type PassAuthConfigDTO struct {
 
 // JumpHopDTO is the UI-facing representation of a single jump hop.
 type JumpHopDTO struct {
-	ID       string             `json:"id"`
-	Host     string             `json:"host"`
-	Port     int                `json:"port"`
-	Username string             `json:"username"`
-	Auth     string             `json:"authMethod"`
-	KeyAuth  *KeyAuthConfigDTO  `json:"keyAuth,omitempty"`
-	PassAuth *PassAuthConfigDTO `json:"passAuth,omitempty"`
+	ID         string               `json:"id"`
+	Host       string               `json:"host"`
+	Port       int                  `json:"port"`
+	Username   string               `json:"username"`
+	Auth       string               `json:"authMethod"`
+	KeyAuth    *KeyAuthConfigDTO    `json:"keyAuth,omitempty"`
+	PassAuth   *PassAuthConfigDTO   `json:"passAuth,omitempty"`
+	PluginAuth *PluginAuthConfigDTO `json:"pluginAuth,omitempty"`
+}
+
+// ForwardRuleDTO is the UI-facing representation of a port-forward rule.
+type ForwardRuleDTO struct {
+	ID          string `json:"id"`
+	Kind        string `json:"kind"`
+	BindAddress string `json:"bindAddress"`
+	BindPort    int    `json:"bindPort"`
+	TargetHost  string `json:"targetHost,omitempty"`
+	TargetPort  int    `json:"targetPort,omitempty"`
+	PluginID    string `json:"pluginId,omitempty"`
+	ProviderID  string `json:"providerId,omitempty"`
+	Enabled     bool   `json:"enabled"`
 }
 
 // ConnectionDTO is the UI-facing representation of a connection.
@@ -59,6 +81,7 @@ type ConnectionDTO struct {
 	Tags          []string            `json:"tags,omitempty"`
 	JumpChain     []JumpHopDTO        `json:"jumpChain,omitempty"`
 	PluginFields  map[string]string   `json:"pluginFields,omitempty"`
+	ForwardRules  []ForwardRuleDTO    `json:"forwardRules,omitempty"`
 }
 
 // IdentityDTO is the UI-facing representation of an SSH identity.
@@ -112,6 +135,9 @@ func ConnectionToDTO(c domain.Connection) ConnectionDTO {
 	for _, h := range c.JumpChain.Hops {
 		dto.JumpChain = append(dto.JumpChain, jumpHopToDTO(h))
 	}
+	for _, r := range c.ForwardRules {
+		dto.ForwardRules = append(dto.ForwardRules, forwardRuleToDTO(r))
+	}
 	dto.PluginFields = pluginFieldsToDTO(c.PluginFields)
 	return dto
 }
@@ -129,7 +155,35 @@ func connectionUserToDTO(u domain.ConnectionUser) ConnectionUserDTO {
 	if u.PassAuth != nil {
 		d.PassAuth = passAuthToDTO(u.PassAuth)
 	}
+	if u.PluginAuth != nil {
+		d.PluginAuth = pluginAuthToDTO(u.PluginAuth)
+	}
 	return d
+}
+
+func pluginAuthToDTO(in *domain.PluginAuthConfig) *PluginAuthConfigDTO {
+	if in == nil {
+		return nil
+	}
+	return &PluginAuthConfigDTO{
+		PluginID:     in.PluginID,
+		AuthMethodID: in.AuthMethodID,
+		Fields:       cloneStringMap(in.Fields),
+	}
+}
+
+func forwardRuleToDTO(r domain.ForwardRule) ForwardRuleDTO {
+	return ForwardRuleDTO{
+		ID:          r.ID,
+		Kind:        string(r.Kind),
+		BindAddress: r.BindAddress,
+		BindPort:    r.BindPort,
+		TargetHost:  r.TargetHost,
+		TargetPort:  r.TargetPort,
+		PluginID:    r.PluginID,
+		ProviderID:  r.ProviderID,
+		Enabled:     r.Enabled,
+	}
 }
 
 func jumpHopToDTO(h domain.JumpHop) JumpHopDTO {
@@ -145,6 +199,9 @@ func jumpHopToDTO(h domain.JumpHop) JumpHopDTO {
 	}
 	if h.PassAuth != nil {
 		d.PassAuth = passAuthToDTO(h.PassAuth)
+	}
+	if h.PluginAuth != nil {
+		d.PluginAuth = pluginAuthToDTO(h.PluginAuth)
 	}
 	return d
 }
@@ -175,6 +232,31 @@ func passAuthFromDTO(in *PassAuthConfigDTO) *domain.PasswordAuthConfig {
 		return nil
 	}
 	return &domain.PasswordAuthConfig{PasswordID: in.PasswordID}
+}
+
+func pluginAuthFromDTO(in *PluginAuthConfigDTO) *domain.PluginAuthConfig {
+	if in == nil {
+		return nil
+	}
+	return &domain.PluginAuthConfig{
+		PluginID:     in.PluginID,
+		AuthMethodID: in.AuthMethodID,
+		Fields:       cloneStringMap(in.Fields),
+	}
+}
+
+func forwardRuleFromDTO(d ForwardRuleDTO) domain.ForwardRule {
+	return domain.ForwardRule{
+		ID:          d.ID,
+		Kind:        domain.ForwardRuleKind(d.Kind),
+		BindAddress: d.BindAddress,
+		BindPort:    d.BindPort,
+		TargetHost:  d.TargetHost,
+		TargetPort:  d.TargetPort,
+		PluginID:    d.PluginID,
+		ProviderID:  d.ProviderID,
+		Enabled:     d.Enabled,
+	}
 }
 
 func cloneStringSlice(in []string) []string {
@@ -247,6 +329,9 @@ func DTOToConnection(d ConnectionDTO) domain.Connection {
 	for _, h := range d.JumpChain {
 		c.JumpChain.Hops = append(c.JumpChain.Hops, dtoToJumpHop(h))
 	}
+	for _, r := range d.ForwardRules {
+		c.ForwardRules = append(c.ForwardRules, forwardRuleFromDTO(r))
+	}
 	if len(d.PluginFields) > 0 {
 		c.PluginFields = cloneStringMap(d.PluginFields)
 	}
@@ -262,6 +347,7 @@ func dtoToConnectionUser(d ConnectionUserDTO) domain.ConnectionUser {
 	}
 	u.KeyAuth = keyAuthFromDTO(d.KeyAuth)
 	u.PassAuth = passAuthFromDTO(d.PassAuth)
+	u.PluginAuth = pluginAuthFromDTO(d.PluginAuth)
 	return u
 }
 
@@ -275,6 +361,7 @@ func dtoToJumpHop(d JumpHopDTO) domain.JumpHop {
 	}
 	h.KeyAuth = keyAuthFromDTO(d.KeyAuth)
 	h.PassAuth = passAuthFromDTO(d.PassAuth)
+	h.PluginAuth = pluginAuthFromDTO(d.PluginAuth)
 	return h
 }
 

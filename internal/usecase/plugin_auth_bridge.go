@@ -45,7 +45,7 @@ type authPrepareResult struct {
 }
 
 func (b *PluginAuthBridge) Prepare(ctx context.Context, attemptID string, method domain.PluginAuthMethod) ([]byte, error) {
-	if err := b.authorizeAttempt(method.PluginID, attemptID, method.AuthMethodID); err != nil {
+	if err := b.authorizeAttempt(method, attemptID); err != nil {
 		return nil, err
 	}
 	params, _ := json.Marshal(authPrepareParams{
@@ -79,7 +79,7 @@ type authChallengeResult struct {
 }
 
 func (b *PluginAuthBridge) AnswerChallenge(ctx context.Context, attemptID string, method domain.PluginAuthMethod, ch domain.PluginAuthChallenge) ([]string, error) {
-	if err := b.authorizeAttempt(method.PluginID, attemptID, method.AuthMethodID); err != nil {
+	if err := b.authorizeAttempt(method, attemptID); err != nil {
 		return nil, err
 	}
 	qs := make([]authChallengeQuestionWire, len(ch.Questions))
@@ -116,7 +116,7 @@ type authSignResultWire struct {
 }
 
 func (b *PluginAuthBridge) Sign(ctx context.Context, attemptID string, method domain.PluginAuthMethod, req domain.PluginAuthSignRequest) (domain.PluginAuthSignResult, error) {
-	if err := b.authorizeAttempt(method.PluginID, attemptID, method.AuthMethodID); err != nil {
+	if err := b.authorizeAttempt(method, attemptID); err != nil {
 		return domain.PluginAuthSignResult{}, err
 	}
 	params, _ := json.Marshal(authSignParams{
@@ -139,11 +139,11 @@ func (b *PluginAuthBridge) Sign(ctx context.Context, attemptID string, method do
 	return domain.PluginAuthSignResult{Signature: sig, SignatureFormat: res.SignatureFormat}, nil
 }
 
-func (b *PluginAuthBridge) authorizeAttempt(pluginID, attemptID, authMethodID string) error {
+func (b *PluginAuthBridge) authorizeAttempt(method domain.PluginAuthMethod, attemptID string) error {
 	if b.authorizer == nil {
 		return fmt.Errorf("auth attempt authorizer unavailable")
 	}
-	return b.authorizer.Authorize(pluginID, attemptID, authMethodID)
+	return b.authorizer.Authorize(method.PluginID, attemptID, method.AuthMethodID, method.ConnectionID)
 }
 
 var _ domain.PluginAuthProvider = (*PluginAuthBridge)(nil)

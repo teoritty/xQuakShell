@@ -5,10 +5,12 @@
   import type { ConnectionUser, JumpHop, SSHIdentityMeta } from '../../stores/appState';
   import ConnectionUsers from './ConnectionUsers.svelte';
   import JumpHosts from './JumpHosts.svelte';
+  import ForwardRules from './ForwardRules.svelte';
   import PluginConnectionFields from './PluginConnectionFields.svelte';
 
   export let mode: ConnectionFormMode = 'none';
   export let protocolDef: ConnectionProtocol | null = null;
+  export let connectionId = '';
   export let users: ConnectionUser[] = [];
   export let defaultUserId = '';
   export let jumpHops: JumpHop[] = [];
@@ -50,6 +52,8 @@
     on:keyremove={(e) => dispatch('keyremove', e.detail)}
     on:passwordchange={(e) => dispatch('passwordchange', e.detail)}
   />
+
+  <ForwardRules {connectionId} />
 {:else if mode === 'plugin' && protocolDef?.fields}
   <PluginConnectionFields
     groups={protocolDef.fields}

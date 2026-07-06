@@ -1489,6 +1489,22 @@ export interface PluginContributions {
   commands: PluginCommand[];
   views: PluginView[];
   statusBar: PluginStatusBarItem[];
+  authMethods: PluginAuthMethodContribution[];
+  tunnelProviders: PluginTunnelProviderContribution[];
+}
+
+export interface PluginAuthMethodContribution {
+  pluginId: string;
+  id: string;
+  label: string;
+  kind: string;
+  fields?: FieldGroup[];
+}
+
+export interface PluginTunnelProviderContribution {
+  pluginId: string;
+  id: string;
+  label: string;
 }
 
 export interface PluginView {
@@ -1513,13 +1529,13 @@ export interface PluginStatusBarItem {
 export async function getPluginContributions(): Promise<PluginContributions> {
   const app = getApp();
   if (!app?.GetPluginContributions) {
-    return { commands: [], views: [], statusBar: [] };
+    return { commands: [], views: [], statusBar: [], authMethods: [], tunnelProviders: [] };
   }
   try {
     return await app.GetPluginContributions();
   } catch (e) {
     handleError(e, 'Load plugin contributions');
-    return { commands: [], views: [], statusBar: [] };
+    return { commands: [], views: [], statusBar: [], authMethods: [], tunnelProviders: [] };
   }
 }
 
@@ -1568,4 +1584,37 @@ export async function relayPluginViewMessage(
 export function releasePluginViewPanel(token: string): void {
   const app = getApp();
   app?.ReleasePluginViewPanel?.(token);
+}
+
+export async function listForwardRules(connectionId: string): Promise<import('./appState').ForwardRule[]> {
+  const app = getApp();
+  if (!app?.ListForwardRules) return [];
+  try {
+    return (await app.ListForwardRules(connectionId)) || [];
+  } catch (e) {
+    handleError(e, 'List forward rules');
+    return [];
+  }
+}
+
+export async function saveForwardRule(connectionId: string, rule: import('./appState').ForwardRule): Promise<void> {
+  const app = getApp();
+  if (!app?.SaveForwardRule) throw new Error('Forward rules API unavailable');
+  await app.SaveForwardRule(connectionId, rule);
+}
+
+export async function deleteForwardRule(connectionId: string, ruleId: string): Promise<void> {
+  const app = getApp();
+  if (!app?.DeleteForwardRule) throw new Error('Forward rules API unavailable');
+  await app.DeleteForwardRule(connectionId, ruleId);
+}
+
+export async function setForwardRuleEnabled(
+  connectionId: string,
+  ruleId: string,
+  enabled: boolean,
+): Promise<void> {
+  const app = getApp();
+  if (!app?.SetForwardRuleEnabled) throw new Error('Forward rules API unavailable');
+  await app.SetForwardRuleEnabled(connectionId, ruleId, enabled);
 }
