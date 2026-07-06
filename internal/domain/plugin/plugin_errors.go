@@ -54,6 +54,18 @@ var (
 	// ErrSessionScopeRequired indicates host IPC requires a session-scoped process key (per-session isolation).
 	ErrSessionScopeRequired = errors.New("plugin session scope required")
 
+	// ErrAuthProviderBusy indicates too many concurrent auth attempts for one plugin.
+	ErrAuthProviderBusy = errors.New("auth provider busy")
+
+	// ErrAuthAttemptNotBound indicates the auth attempt is unknown or not owned by the plugin.
+	ErrAuthAttemptNotBound = errors.New("auth attempt not bound")
+
+	// ErrAuthChallengeTimeout indicates a keyboard-interactive auth round exceeded the host timeout.
+	ErrAuthChallengeTimeout = errors.New("auth challenge timeout")
+
+	// ErrTunnelNotFound indicates a tunnel or local connection handle is unknown.
+	ErrTunnelNotFound = errors.New("tunnel not found")
+
 	// ErrInvalidRepositoryURL indicates a malformed or unsupported GitHub repository URL.
 	ErrInvalidRepositoryURL = errors.New("invalid GitHub repository URL")
 

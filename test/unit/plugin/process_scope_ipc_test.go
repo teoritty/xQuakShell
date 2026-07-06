@@ -6,6 +6,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/usecase"
@@ -32,6 +33,10 @@ func (h *scopedNotifyHost) Stop(context.Context, string, string) error { return 
 
 func (h *scopedNotifyHost) Call(context.Context, string, string, string, json.RawMessage) (json.RawMessage, error) {
 	return nil, domainplugin.ErrNotImplemented
+}
+
+func (h *scopedNotifyHost) CallWithTimeout(ctx context.Context, pluginID, sessionID, method string, params json.RawMessage, _ time.Duration) (json.RawMessage, error) {
+	return h.Call(ctx, pluginID, sessionID, method, params)
 }
 
 func (h *scopedNotifyHost) Notify(_ context.Context, pluginID, sessionID, method string, _ json.RawMessage) error {
@@ -259,6 +264,10 @@ func (h *multiInstanceHost) Stop(context.Context, string, string) error {
 
 func (h *multiInstanceHost) Call(context.Context, string, string, string, json.RawMessage) (json.RawMessage, error) {
 	return nil, nil
+}
+
+func (h *multiInstanceHost) CallWithTimeout(ctx context.Context, pluginID, sessionID, method string, params json.RawMessage, _ time.Duration) (json.RawMessage, error) {
+	return h.Call(ctx, pluginID, sessionID, method, params)
 }
 
 func (h *multiInstanceHost) Notify(context.Context, string, string, string, json.RawMessage) error {

@@ -17,8 +17,9 @@ type InstallPreview struct {
 	Signed                    bool
 	SignatureVerified         bool
 	ChecksumPresent           bool
-	RequiresSecretAccess      bool
-	MultiSessionWarning       bool
+	RequiresSecretAccess       bool
+	RequiresAuthProviderAccess bool
+	MultiSessionWarning        bool
 	ArbitraryNetworkWarning   bool
 	UnsignedWarning           bool
 	UntrustedSignatureWarning bool
@@ -139,8 +140,9 @@ func installPreviewFrom(p domainplugin.InstalledPlugin, trust domainplugin.Insta
 		Signed:                    trust.Signed,
 		SignatureVerified:         trust.SignatureVerified,
 		ChecksumPresent:           trust.ChecksumPresent,
-		RequiresSecretAccess:      p.Manifest.RequiresSecretAccess(),
-		MultiSessionWarning:       p.Manifest.RequiresMultiSessionWarning() || trust.MultiSessionWarning,
+		RequiresSecretAccess:       p.Manifest.RequiresSecretAccess(),
+		RequiresAuthProviderAccess: p.Manifest.RequiresAuthProviderAccess(),
+		MultiSessionWarning:        p.Manifest.RequiresMultiSessionWarning() || trust.MultiSessionWarning,
 		ArbitraryNetworkWarning:   p.Manifest.RequiresArbitraryNetworkWarning() || trust.ArbitraryNetworkWarning,
 		UnsignedWarning:           unsigned,
 		UntrustedSignatureWarning: trust.UntrustedSignatureWarning,

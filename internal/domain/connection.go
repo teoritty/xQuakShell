@@ -33,6 +33,7 @@ type Connection struct {
 	DefaultUserID string           `json:"defaultUserId,omitempty"`
 	Tags          []string         `json:"tags,omitempty"`
 	JumpChain     JumpChainConfig  `json:"jumpChain,omitempty"`
+	ForwardRules  []ForwardRule    `json:"forwardRules,omitempty"`
 
 	// PluginFields stores non-secret values and secret references for plugin protocols.
 	PluginFields map[string]string `json:"pluginFields,omitempty"`

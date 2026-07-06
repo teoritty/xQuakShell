@@ -50,6 +50,12 @@ func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 		JumpTransportBuilder:    cfg.JumpTransportBuilder,
 		PrivateKeySignerFactory: cfg.PrivateKeySignerFactory,
 		PassphraseReq:           cfg.PassphraseReq,
+		AuthProvider:            cfg.AuthProvider,
+		AuthMethodBuilder:       cfg.AuthMethodBuilder,
+		AuthAttempts:            cfg.AuthAttempts,
+		AuthLookup:              cfg.AuthLookup,
+		AuthStarter:             cfg.AuthStarter,
+		AuthGrantReader:         cfg.AuthGrantReader,
 	})
 	plugins := cfg.PluginBridge
 	if plugins == nil {
@@ -61,6 +67,7 @@ func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 		SSHConnector:    sshConnector,
 		Plugins:         plugins,
 		PassphraseCache: cfg.PassphraseCache,
+		DynamicForward:  cfg.DynamicForward,
 		OnStateChange:   cfg.OnStateChange,
 		HostKeyRequest:  cfg.HostKeyRequest,
 	})

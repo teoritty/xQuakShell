@@ -16,6 +16,7 @@ func (s *GitHubPluginService) InstallPluginFromGitHub(
 	repoURL string,
 	releaseTag string,
 	grantSecretAccess bool,
+	grantAuthProviderAccess bool,
 	grantMultiSessionAccess bool,
 	grantArbitraryNetworkAccess bool,
 ) error {
@@ -53,11 +54,11 @@ func (s *GitHubPluginService) InstallPluginFromGitHub(
 	if err != nil {
 		return err
 	}
-	if err := enforceInstallConsents(preview, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess); err != nil {
+	if err := enforceInstallConsents(preview, grantSecretAccess, grantAuthProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess); err != nil {
 		return err
 	}
 
-	return s.commitInstall(ctx, normalizedURL, stageDir, policy, preview, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
+	return s.commitInstall(ctx, normalizedURL, stageDir, policy, preview, grantSecretAccess, grantAuthProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
 }
 
 func (s *GitHubPluginService) ensureRepositoryRegistered(ctx context.Context, normalizedURL string) error {
@@ -113,10 +114,13 @@ func (s *GitHubPluginService) downloadAndStage(
 
 func enforceInstallConsents(
 	preview InstallPreview,
-	grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess bool,
+	grantSecretAccess, grantAuthProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess bool,
 ) error {
 	if preview.RequiresSecretAccess && !grantSecretAccess {
 		return fmt.Errorf("secret access consent required for this plugin")
+	}
+	if preview.RequiresAuthProviderAccess && !grantAuthProviderAccess {
+		return fmt.Errorf("auth provider consent required for this plugin")
 	}
 	if preview.MultiSessionWarning && !grantMultiSessionAccess {
 		return fmt.Errorf("multi-session consent required for this plugin")
@@ -133,7 +137,7 @@ func (s *GitHubPluginService) commitInstall(
 	stageDir string,
 	policy domainplugin.InstallTrustPolicy,
 	preview InstallPreview,
-	grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess bool,
+	grantSecretAccess, grantAuthProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess bool,
 ) error {
 	installed, err := s.pluginManager.Install(stageDir, policy, grantMultiSessionAccess, grantArbitraryNetworkAccess)
 	if err != nil {
@@ -142,6 +146,11 @@ func (s *GitHubPluginService) commitInstall(
 
 	if preview.RequiresSecretAccess && grantSecretAccess && s.pluginManager.pluginSettings != nil {
 		if err := s.pluginManager.pluginSettings.GrantSecretAccess(ctx, installed.Manifest.ID); err != nil {
+			return err
+		}
+	}
+	if preview.RequiresAuthProviderAccess && grantAuthProviderAccess && s.pluginManager.pluginSettings != nil {
+		if err := s.pluginManager.pluginSettings.GrantAuthProviderAccess(ctx, installed.Manifest.ID); err != nil {
 			return err
 		}
 	}

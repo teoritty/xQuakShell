@@ -131,6 +131,7 @@ type PluginSettings struct {
 	TrustedPublisherKeys      []string        `json:"trustedPublisherKeys,omitempty"`
 	RequireSignedPlugins      bool            `json:"requireSignedPlugins,omitempty"`
 	SecretAccessGranted            map[string]bool `json:"secretAccessGranted,omitempty"`
+	AuthProviderAccessGranted      map[string]bool `json:"authProviderAccessGranted,omitempty"`
 	MultiSessionAccessGranted      map[string]bool `json:"multiSessionAccessGranted,omitempty"`
 	ArbitraryNetworkAccessGranted  map[string]bool `json:"arbitraryNetworkAccessGranted,omitempty"`
 	LocalEmbedServerAccessGranted  map[string]bool `json:"localEmbedServerAccessGranted,omitempty"`

@@ -66,6 +66,35 @@ func (s *PluginVaultSettings) GrantMultiSessionAccess(ctx context.Context, plugi
 	})
 }
 
+// GrantAuthProviderAccess records install-time consent for auth.provider plugins.
+func (s *PluginVaultSettings) GrantAuthProviderAccess(ctx context.Context, pluginID string) error {
+	if s == nil || s.vault == nil {
+		return nil
+	}
+	return s.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		if data.Settings == nil {
+			data.Settings = &domain.AppSettings{}
+		}
+		if data.Settings.Plugins.AuthProviderAccessGranted == nil {
+			data.Settings.Plugins.AuthProviderAccessGranted = make(map[string]bool)
+		}
+		data.Settings.Plugins.AuthProviderAccessGranted[pluginID] = true
+		return nil
+	})
+}
+
+// IsAuthProviderGranted reports whether install-time auth provider consent was recorded.
+func (s *PluginVaultSettings) IsAuthProviderGranted(pluginID string) bool {
+	if s == nil || s.vault == nil {
+		return false
+	}
+	data, err := s.vault.GetData()
+	if err != nil || data.Settings == nil {
+		return false
+	}
+	return data.Settings.Plugins.AuthProviderAccessGranted[pluginID]
+}
+
 // GrantArbitraryNetworkAccess records install-time consent for allowArbitraryOutbound plugins.
 func (s *PluginVaultSettings) GrantArbitraryNetworkAccess(ctx context.Context, pluginID string) error {
 	if s == nil || s.vault == nil {

@@ -33,6 +33,21 @@ func (w *PluginAuditWriter) StartFunc() PluginStartAuditFunc {
 	}
 }
 
+// OutboundAuthFunc returns an audit callback for host→plugin auth.* RPC calls.
+func (w *PluginAuditWriter) OutboundAuthFunc() OutboundAuthAuditFunc {
+	return func(pluginID, method, sanitizedParams string) {
+		w.append(formatPluginOutboundAuthAuditLine(pluginID, method, sanitizedParams))
+	}
+}
+
+func formatPluginOutboundAuthAuditLine(pluginID, method, sanitizedParams string) string {
+	line := "[plugin] action=" + method + " pluginId=" + pluginID + " direction=outbound result=allowed"
+	if sanitizedParams != "" && sanitizedParams != "null" {
+		line += " detail=" + domainplugin.RedactAuditDetail(sanitizedParams)
+	}
+	return line
+}
+
 func (w *PluginAuditWriter) append(input string) {
 	if w == nil || w.repo == nil || input == "" {
 		return

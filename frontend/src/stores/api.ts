@@ -1074,6 +1074,7 @@ export interface PluginInstallPreview {
   signatureVerified: boolean;
   checksumPresent: boolean;
   requiresSecretAccess: boolean;
+  requiresAuthProviderAccess?: boolean;
   multiSessionWarning?: boolean;
   arbitraryNetworkWarning?: boolean;
   unsignedWarning: boolean;
@@ -1284,6 +1285,7 @@ export async function previewPluginInstall(sourceDir: string): Promise<PluginIns
 export async function installPlugin(
   sourceDir: string,
   grantSecretAccess = false,
+  grantAuthProviderAccess = false,
   grantMultiSessionAccess = false,
   grantArbitraryNetworkAccess = false,
 ): Promise<PluginInfo> {
@@ -1292,7 +1294,7 @@ export async function installPlugin(
     throw new Error('Plugin install is unavailable');
   }
   try {
-    const result = await app.InstallPlugin(sourceDir, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
+    const result = await app.InstallPlugin(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
     invalidateProtocolsCache();
     await refreshConnectionProtocols();
     return result;
@@ -1366,6 +1368,7 @@ export interface GitHubPluginPreview {
   publishedDate: string;
   readme: string;
   requiresSecretAccess: boolean;
+  requiresAuthProviderAccess?: boolean;
   multiSessionWarning?: boolean;
   arbitraryNetworkWarning: boolean;
   unsignedPlugin: boolean;
@@ -1443,13 +1446,14 @@ export async function installGitHubPlugin(
   repoURL: string,
   releaseTag = '',
   grantSecretAccess = false,
+  grantAuthProviderAccess = false,
   grantMultiSessionAccess = false,
   grantArbitraryNetworkAccess = false,
 ): Promise<void> {
   const app = getApp();
   if (!app?.InstallGitHubPlugin) throw new Error('GitHub plugin install unavailable');
   try {
-    await app.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
+    await app.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
   } catch (e) {
     handleError(e, 'Install GitHub plugin');
     throw e;

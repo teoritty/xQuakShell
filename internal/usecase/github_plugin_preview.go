@@ -25,8 +25,9 @@ type GitHubPluginPreviewDTO struct {
 	Prerelease           bool     `json:"prerelease"`
 	PublishedDate        string   `json:"publishedDate"`
 	README               string   `json:"readme"`
-	RequiresSecretAccess    bool     `json:"requiresSecretAccess"`
-	MultiSessionWarning     bool     `json:"multiSessionWarning"`
+	RequiresSecretAccess       bool     `json:"requiresSecretAccess"`
+	RequiresAuthProviderAccess bool     `json:"requiresAuthProviderAccess"`
+	MultiSessionWarning        bool     `json:"multiSessionWarning"`
 	ArbitraryNetworkWarning bool     `json:"arbitraryNetworkWarning"`
 	UnsignedPlugin          bool     `json:"unsignedPlugin"`
 	UntrustedSource      bool     `json:"untrustedSource"`
@@ -55,6 +56,9 @@ func BuildPreviewDTO(metadata *domainplugin.GitHubPluginMetadata, repoTrusted, u
 	if metadata.RequiresSecretAccess() {
 		warnings = append(warnings, "This plugin can access secrets")
 	}
+	if metadata.Manifest.RequiresAuthProviderAccess() {
+		warnings = append(warnings, "This plugin can participate in SSH authentication")
+	}
 	arbitraryNetworkWarning := metadata.Manifest.RequiresArbitraryNetworkAccess()
 	if arbitraryNetworkWarning {
 		warnings = append(warnings, "This plugin can connect to any host on the network")
@@ -81,8 +85,9 @@ func BuildPreviewDTO(metadata *domainplugin.GitHubPluginMetadata, repoTrusted, u
 		Prerelease:           metadata.Prerelease,
 		PublishedDate:        metadata.PublishedAt,
 		README:               metadata.README,
-		RequiresSecretAccess:    metadata.RequiresSecretAccess(),
-		MultiSessionWarning:     metadata.Manifest.RequiresMultiSessionWarning(),
+		RequiresSecretAccess:       metadata.RequiresSecretAccess(),
+		RequiresAuthProviderAccess: metadata.Manifest.RequiresAuthProviderAccess(),
+		MultiSessionWarning:        metadata.Manifest.RequiresMultiSessionWarning(),
 		ArbitraryNetworkWarning: arbitraryNetworkWarning,
 		UnsignedPlugin:          unsignedPlugin,
 		UntrustedSource:      untrustedSource,

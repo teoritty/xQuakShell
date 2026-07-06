@@ -7,14 +7,20 @@ import (
 	"log/slog"
 
 	"ssh-client/internal/domain"
+	domainplugin "ssh-client/internal/domain/plugin"
 )
 
-// WHY THIS TYPE IS SEPARATE FROM SessionManager (see ADR-009):
-// Building an SSH connection (auth resolution, jump-chain, host-key
-// verification) is a self-contained algorithm that has nothing to do with
-// how a session is tracked or how plugin/embed sessions are bridged.
-// Keeping it here means it can be unit-tested with a fake Connection and
-// zero knowledge of sessionEntry, mutexes, or the plugin subsystem.
+// PluginAuthStarter ensures auth-provider plugins are running before handshake RPC.
+type PluginAuthStarter interface {
+	Activate(ctx context.Context, pluginID, reason string) error
+}
+
+// PluginAuthMethodLookup resolves auth method kinds from plugin manifests.
+type PluginAuthMethodLookup interface {
+	AuthMethodKind(pluginID, authMethodID string) (string, error)
+}
+
+// SSHConnector performs SSH handshake with optional plugin-provided authentication.
 type SSHConnector struct {
 	vaultRepo       domain.VaultRepository
 	identRepo       domain.IdentityRepository
@@ -26,6 +32,12 @@ type SSHConnector struct {
 	jumpTransport   domain.JumpTransportBuilder
 	keySigner       domain.PrivateKeySignerFactory
 	passphraseReq   PassphraseRequestFunc
+	authProvider    domain.PluginAuthProvider
+	authMethodBuilder domain.PluginAuthMethodBuilder
+	authAttempts    *PluginAuthAttemptRegistry
+	authLookup      PluginAuthMethodLookup
+	authStarter     PluginAuthStarter
+	authGrant       PluginAuthGrantReader
 }
 
 // SSHConnectorConfig holds dependencies for SSHConnector.
@@ -40,38 +52,50 @@ type SSHConnectorConfig struct {
 	JumpTransportBuilder    domain.JumpTransportBuilder
 	PrivateKeySignerFactory domain.PrivateKeySignerFactory
 	PassphraseReq           PassphraseRequestFunc
+	AuthProvider            domain.PluginAuthProvider
+	AuthMethodBuilder       domain.PluginAuthMethodBuilder
+	AuthAttempts            *PluginAuthAttemptRegistry
+	AuthLookup              PluginAuthMethodLookup
+	AuthStarter             PluginAuthStarter
+	AuthGrantReader         PluginAuthGrantReader
 }
 
 // NewSSHConnector creates an SSH connector with the given dependencies.
 func NewSSHConnector(cfg SSHConnectorConfig) *SSHConnector {
 	return &SSHConnector{
-		vaultRepo:       cfg.VaultRepo,
-		identRepo:       cfg.IdentRepo,
-		passwordRepo:    cfg.PasswordRepo,
-		knownHosts:      cfg.KnownHosts,
-		sshFactory:      cfg.SSHFactory,
-		passphraseCache: cfg.PassphraseCache,
-		hostKeyCB:       cfg.HostKeyCallbackBuilder,
-		jumpTransport:   cfg.JumpTransportBuilder,
-		keySigner:       cfg.PrivateKeySignerFactory,
-		passphraseReq:   cfg.PassphraseReq,
+		vaultRepo:         cfg.VaultRepo,
+		identRepo:         cfg.IdentRepo,
+		passwordRepo:      cfg.PasswordRepo,
+		knownHosts:        cfg.KnownHosts,
+		sshFactory:        cfg.SSHFactory,
+		passphraseCache:   cfg.PassphraseCache,
+		hostKeyCB:         cfg.HostKeyCallbackBuilder,
+		jumpTransport:     cfg.JumpTransportBuilder,
+		keySigner:         cfg.PrivateKeySignerFactory,
+		passphraseReq:     cfg.PassphraseReq,
+		authProvider:      cfg.AuthProvider,
+		authMethodBuilder: cfg.AuthMethodBuilder,
+		authAttempts:      cfg.AuthAttempts,
+		authLookup:        cfg.AuthLookup,
+		authStarter:       cfg.AuthStarter,
+		authGrant:         cfg.AuthGrantReader,
 	}
 }
 
 // ConnectResult holds the outcome of an SSH handshake attempt.
 type ConnectResult struct {
 	Client      domain.SSHClient
-	HostKeyInfo *domain.HostKeyInfo // non-nil only when auth requires user decision
+	HostKeyInfo *domain.HostKeyInfo
 	JumpCleanup func()
 	Err         error
 }
 
-// Connect performs the full handshake synchronously. The caller
-// (SessionLifecycleService) is responsible for updating session state and
-// starting the keepalive goroutine — this method has no side effects beyond
-// the network connection itself.
+// Connect performs the full handshake synchronously.
 func (c *SSHConnector) Connect(ctx context.Context, conn *domain.Connection) ConnectResult {
-	signers, password, err := c.resolveAuth(ctx, conn)
+	signers, password, extraAuth, attemptID, err := c.resolveAuth(ctx, conn)
+	if attemptID != "" && c.authAttempts != nil {
+		defer c.authAttempts.End(attemptID)
+	}
 	if err != nil {
 		slog.Error("session auth failed", "host", conn.Host, "err", err)
 		return ConnectResult{Err: fmt.Errorf("authentication failed: %w", err)}
@@ -85,19 +109,20 @@ func (c *SSHConnector) Connect(ctx context.Context, conn *domain.Connection) Con
 	}
 
 	sshCfg := domain.SSHClientConfig{
-		Host:            conn.Host,
-		Port:            conn.Port,
-		User:            conn.EffectiveUsername(),
-		Signers:         signers,
-		Password:        password,
-		HostKeyCallback: hostKeyCallback,
-		TimeoutSeconds:  timeoutSec,
+		Host:             conn.Host,
+		Port:             conn.Port,
+		User:             conn.EffectiveUsername(),
+		Signers:          signers,
+		Password:         password,
+		ExtraAuthMethods: extraAuth,
+		HostKeyCallback:  hostKeyCallback,
+		TimeoutSeconds:   timeoutSec,
 	}
 
 	var jumpCleanup func()
 	if !conn.JumpChain.IsEmpty() {
-		hopResolver := func(hop domain.JumpHop) ([]domain.Signer, string, error) {
-			return c.resolveHopAuthWithCtx(ctx, hop)
+		hopResolver := func(hop domain.JumpHop) ([]domain.Signer, string, []domain.AuthMethod, func(), error) {
+			return c.resolveHopAuthWithCtx(ctx, conn.ID, hop)
 		}
 		transport, chainCleanup, chainErr := c.jumpTransport.BuildChain(
 			ctx,
@@ -151,57 +176,130 @@ func hostKeyInfoFromError(conn *domain.Connection, err error) (*domain.HostKeyIn
 	return &hkInfo, true
 }
 
-// resolveHopAuthWithCtx resolves auth credentials for a single jump hop using the provided context.
-func (c *SSHConnector) resolveHopAuthWithCtx(ctx context.Context, hop domain.JumpHop) ([]domain.Signer, string, error) {
+func (c *SSHConnector) resolveHopAuthWithCtx(ctx context.Context, connectionID string, hop domain.JumpHop) ([]domain.Signer, string, []domain.AuthMethod, func(), error) {
 	switch hop.Auth {
 	case domain.AuthMethodKey:
 		if hop.KeyAuth == nil || len(hop.KeyAuth.IdentityIDs) == 0 {
-			return nil, "", fmt.Errorf("hop key auth requires at least one identity")
+			return nil, "", nil, nil, fmt.Errorf("hop key auth requires at least one identity")
 		}
 		signers, err := c.loadSigners(ctx, hop.KeyAuth.IdentityIDs)
-		return signers, "", err
+		return signers, "", nil, nil, err
 	case domain.AuthMethodPassword:
 		if hop.PassAuth == nil || hop.PassAuth.PasswordID == "" {
-			return nil, "", fmt.Errorf("hop password auth but no password ID")
+			return nil, "", nil, nil, fmt.Errorf("hop password auth but no password ID")
 		}
 		pw, err := c.passwordRepo.Get(ctx, hop.PassAuth.PasswordID)
 		if err != nil {
-			return nil, "", err
+			return nil, "", nil, nil, err
 		}
-		return nil, string(pw), nil
+		return nil, string(pw), nil, nil, nil
+	case domain.AuthMethodPlugin:
+		extra, id, err := c.resolvePluginAuth(ctx, connectionID, hop.PluginAuth)
+		if err != nil {
+			return nil, "", nil, nil, err
+		}
+		var release func()
+		if id != "" && c.authAttempts != nil {
+			attemptID := id
+			release = func() { c.authAttempts.End(attemptID) }
+		}
+		return nil, "", extra, release, nil
 	default:
-		return nil, "", fmt.Errorf("hop unknown auth method %q", hop.Auth)
+		return nil, "", nil, nil, fmt.Errorf("hop unknown auth method %q", hop.Auth)
 	}
 }
 
-// resolveAuth determines SSH auth (signers and/or password) from the connection's default user.
-func (c *SSHConnector) resolveAuth(ctx context.Context, conn *domain.Connection) ([]domain.Signer, string, error) {
+func (c *SSHConnector) resolveAuth(ctx context.Context, conn *domain.Connection) ([]domain.Signer, string, []domain.AuthMethod, string, error) {
 	defaultUser := conn.DefaultUser()
 	if defaultUser == nil {
-		return nil, "", fmt.Errorf("default user not configured")
+		return nil, "", nil, "", fmt.Errorf("default user not configured")
 	}
 
 	switch defaultUser.Auth {
 	case domain.AuthMethodKey:
 		if defaultUser.KeyAuth == nil || len(defaultUser.KeyAuth.IdentityIDs) == 0 {
-			return nil, "", fmt.Errorf("key auth requires at least one identity")
+			return nil, "", nil, "", fmt.Errorf("key auth requires at least one identity")
 		}
 		signers, err := c.loadSigners(ctx, defaultUser.KeyAuth.IdentityIDs)
-		return signers, "", err
+		return signers, "", nil, "", err
 
 	case domain.AuthMethodPassword:
 		if defaultUser.PassAuth == nil || defaultUser.PassAuth.PasswordID == "" {
-			return nil, "", fmt.Errorf("password auth configured but no password ID set")
+			return nil, "", nil, "", fmt.Errorf("password auth configured but no password ID set")
 		}
 		passwordBytes, err := c.passwordRepo.Get(ctx, defaultUser.PassAuth.PasswordID)
 		if err != nil {
-			return nil, "", fmt.Errorf("load password: %w", err)
+			return nil, "", nil, "", fmt.Errorf("load password: %w", err)
 		}
-		return nil, string(passwordBytes), nil
+		return nil, string(passwordBytes), nil, "", nil
+
+	case domain.AuthMethodPlugin:
+		extra, attemptID, err := c.resolvePluginAuth(ctx, conn.ID, defaultUser.PluginAuth)
+		return nil, "", extra, attemptID, err
 
 	default:
-		return nil, "", fmt.Errorf("unknown auth method %q", defaultUser.Auth)
+		return nil, "", nil, "", fmt.Errorf("unknown auth method %q", defaultUser.Auth)
 	}
+}
+
+func (c *SSHConnector) resolvePluginAuth(ctx context.Context, connectionID string, cfg *domain.PluginAuthConfig) ([]domain.AuthMethod, string, error) {
+	if cfg == nil || cfg.PluginID == "" || cfg.AuthMethodID == "" {
+		return nil, "", fmt.Errorf("plugin auth configured but no plugin auth config set")
+	}
+	if c.authProvider == nil || c.authMethodBuilder == nil || c.authAttempts == nil {
+		return nil, "", fmt.Errorf("plugin auth is not configured in this build")
+	}
+	if c.authGrant != nil && !c.authGrant.IsAuthProviderGranted(cfg.PluginID) {
+		return nil, "", fmt.Errorf("auth provider access not granted for plugin %q", cfg.PluginID)
+	}
+	if c.authStarter != nil {
+		reason := "onAuthRequest:" + cfg.AuthMethodID
+		if err := c.authStarter.Activate(ctx, cfg.PluginID, reason); err != nil {
+			return nil, "", fmt.Errorf("start auth plugin: %w", err)
+		}
+	}
+	attempt, err := c.authAttempts.Begin(cfg.PluginID, connectionID, cfg.AuthMethodID)
+	if err != nil {
+		return nil, "", fmt.Errorf("begin auth attempt: %w", err)
+	}
+	kind, err := c.authMethodKind(cfg.PluginID, cfg.AuthMethodID)
+	if err != nil {
+		return nil, attempt.ID, err
+	}
+	method := domain.PluginAuthMethod{
+		PluginID:     attempt.PluginID,
+		AuthMethodID: attempt.AuthMethodID,
+		Kind:         kind,
+		ConnectionID: connectionID,
+		Fields:       cfg.Fields,
+	}
+	var authMethod domain.AuthMethod
+	switch method.Kind {
+	case domain.AuthProviderKindKeyboardInteractive:
+		authMethod = c.authMethodBuilder.BuildKeyboardInteractive(ctx, c.authProvider, attempt.ID, method)
+	case domain.AuthProviderKindPublicKey:
+		authMethod, err = c.authMethodBuilder.BuildPublicKey(ctx, c.authProvider, attempt.ID, method)
+		if err != nil {
+			return nil, attempt.ID, err
+		}
+	default:
+		return nil, attempt.ID, fmt.Errorf("unsupported plugin auth kind %q", method.Kind)
+	}
+	return []domain.AuthMethod{authMethod}, attempt.ID, nil
+}
+
+func (c *SSHConnector) authMethodKind(pluginID, authMethodID string) (string, error) {
+	if c.authLookup == nil {
+		return "", fmt.Errorf("auth method lookup unavailable")
+	}
+	kind, err := c.authLookup.AuthMethodKind(pluginID, authMethodID)
+	if err != nil {
+		return "", err
+	}
+	if kind != domain.AuthProviderKindKeyboardInteractive && kind != domain.AuthProviderKindPublicKey {
+		return "", fmt.Errorf("%w: unknown auth kind %q", domainplugin.ErrInvalidManifest, kind)
+	}
+	return kind, nil
 }
 
 // loadSigners reads private keys by their IDs and parses them into SSH signers.

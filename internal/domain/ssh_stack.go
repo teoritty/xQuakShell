@@ -51,8 +51,16 @@ type HostKeyCallbackBuilder interface {
 	Build(repo KnownHostsRepository) ssh.HostKeyCallback
 }
 
-// JumpHopAuthResolver resolves SSH signers and password for a single jump hop.
-type JumpHopAuthResolver func(hop JumpHop) ([]ssh.Signer, string, error)
+// PluginAuthMethodBuilder constructs a domain.AuthMethod backed by a
+// PluginAuthProvider, without usecase needing to import golang.org/x/crypto/ssh.
+type PluginAuthMethodBuilder interface {
+	BuildKeyboardInteractive(ctx context.Context, provider PluginAuthProvider, attemptID string, method PluginAuthMethod) AuthMethod
+	BuildPublicKey(ctx context.Context, provider PluginAuthProvider, attemptID string, method PluginAuthMethod) (AuthMethod, error)
+}
+
+// JumpHopAuthResolver resolves SSH signers, password, and plugin auth for a single jump hop.
+// release, when non-nil, must be called after the hop SSH handshake completes.
+type JumpHopAuthResolver func(hop JumpHop) ([]ssh.Signer, string, []AuthMethod, func(), error)
 
 // JumpTransportBuilder builds a net.Conn to the target over a jump hop chain (bastion TCP forwarding).
 type JumpTransportBuilder interface {

@@ -24,6 +24,7 @@ type sessionEntry struct {
 	pluginTerminalReady bool
 	sessionSurface      string
 	embedDescriptor     *domain.SessionEmbedDescriptor
+	forwardRunner       *ForwardRuleRunner
 	readyOnce           sync.Once
 	readyCh             chan struct{}
 }

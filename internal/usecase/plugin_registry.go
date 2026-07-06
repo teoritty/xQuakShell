@@ -200,3 +200,17 @@ func (r *PluginRegistry) EmbedEntryForProtocol(pluginID, protocol string) (strin
 	}
 	return plugin.Manifest.EmbedEntryForProtocol(protocol), nil
 }
+
+// AuthMethodKind returns the manifest-declared kind for a contributed auth method.
+func (r *PluginRegistry) AuthMethodKind(pluginID, authMethodID string) (string, error) {
+	plugin, err := r.Get(pluginID)
+	if err != nil {
+		return "", err
+	}
+	for _, am := range plugin.Manifest.Contributions.AuthMethods {
+		if am.ID == authMethodID {
+			return am.Kind, nil
+		}
+	}
+	return "", fmt.Errorf("%w: auth method %s", domainplugin.ErrPluginNotFound, authMethodID)
+}

@@ -66,7 +66,7 @@ func BuildTransportChain(
 	var transport net.Conn
 
 	for i, hop := range hops {
-		signers, password, err := resolveHopAuth(hop)
+		signers, password, extraAuth, releaseAuth, err := resolveHopAuth(hop)
 		if err != nil {
 			cleanup()
 			return nil, nil, fmt.Errorf("hop %d auth: %w", i, err)
@@ -77,17 +77,21 @@ func BuildTransportChain(
 			hopTimeout = 15
 		}
 		cfg := domain.SSHClientConfig{
-			Host:            hop.Host,
-			Port:            hop.Port,
-			User:            hop.Username,
-			Signers:         signers,
-			Password:        password,
-			HostKeyCallback: hostKeyCallback,
-			TimeoutSeconds:  hopTimeout,
-			Transport:       transport,
+			Host:             hop.Host,
+			Port:             hop.Port,
+			User:             hop.Username,
+			Signers:          signers,
+			Password:         password,
+			ExtraAuthMethods: extraAuth,
+			HostKeyCallback:  hostKeyCallback,
+			TimeoutSeconds:   hopTimeout,
+			Transport:        transport,
 		}
 
 		client, err := sshFactory.Create(ctx, cfg)
+		if releaseAuth != nil {
+			releaseAuth()
+		}
 		if err != nil {
 			cleanup()
 			return nil, nil, fmt.Errorf("hop %d (%s:%d) connect: %w", i, hop.Host, hop.Port, err)

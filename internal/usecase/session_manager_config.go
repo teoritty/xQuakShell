@@ -27,4 +27,11 @@ type SessionManagerConfig struct {
 	PassphraseReq              PassphraseRequestFunc
 	HostKeyRequest             HostKeyRequestFunc
 	PluginTerminalWriteTimeout time.Duration
+	AuthProvider               domain.PluginAuthProvider
+	AuthMethodBuilder          domain.PluginAuthMethodBuilder
+	AuthAttempts               *PluginAuthAttemptRegistry
+	AuthLookup                 PluginAuthMethodLookup
+	AuthStarter                PluginAuthStarter
+	AuthGrantReader            PluginAuthGrantReader
+	DynamicForward             *DynamicForwardCoordinator
 }

@@ -90,8 +90,18 @@ func NewApp() *App {
 	})
 
 	var pluginSessionAudit domainplugin.SessionAuditor
+	var sshAuth *usecase.SSHAuthWiring
 	if pluginRuntime.manager != nil {
 		pluginSessionAudit = auditlog.NewPluginSessionAuditLog(512)
+		attempts := usecase.NewPluginAuthAttemptRegistry()
+		sshAuth = &usecase.SSHAuthWiring{
+			Attempts:    attempts,
+			Provider:    usecase.NewPluginAuthBridge(pluginRuntime.manager, attempts),
+			Builder:     infrassh.NewPluginAuthMethodBuilder(),
+			Lookup:   pluginRuntime.manager.Registry(),
+			Starter:  pluginRuntime.manager,
+			GrantReader: pluginRuntime.vaultSettings,
+		}
 	}
 
 	api := presentation.NewAppAPI(
@@ -107,6 +117,7 @@ func NewApp() *App {
 		conlimit.New(domain.DefaultPingSettings().EffectiveMaxConcurrent()),
 		conlimit.New(domain.DefaultTransferSettings().MaxConcurrent),
 		infrapinger.NewTCPPinger(3*time.Second),
+		sshAuth,
 	)
 	if pluginRuntime.manager != nil && api.Sessions().PluginBridge() != nil {
 		bridge := api.Sessions().PluginBridge()
@@ -139,6 +150,13 @@ func (a *App) grantPluginSecretAccess(pluginID string) error {
 	return a.plugins.grantSecretAccess(context.Background(), pluginID)
 }
 
+func (a *App) grantPluginAuthProviderAccess(pluginID string) error {
+	if a.plugins == nil {
+		return nil
+	}
+	return a.plugins.grantAuthProviderAccess(context.Background(), pluginID)
+}
+
 func (a *App) grantPluginArbitraryNetworkAccess(pluginID string) error {
 	if a.plugins == nil {
 		return nil
@@ -157,6 +175,7 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.api.SetContext(ctx)
 	a.api.SetPluginVaultGrant(a.grantPluginSecretAccess)
+	a.api.SetPluginAuthGrant(a.grantPluginAuthProviderAccess)
 	a.api.SetPluginMultiSessionGrant(a.grantPluginMultiSessionAccess)
 	a.api.SetPluginArbitraryNetworkGrant(a.grantPluginArbitraryNetworkAccess)
 	if a.plugins != nil && a.plugins.manager != nil {
@@ -480,8 +499,8 @@ func (a *App) ValidateTrustedPublisherKey(keyB64 string) error {
 	return a.api.ValidateTrustedPublisherKey(keyB64)
 }
 
-func (a *App) InstallPlugin(sourceDir string, grantSecretAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) (presentation.PluginDTO, error) {
-	return a.api.InstallPlugin(sourceDir, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
+func (a *App) InstallPlugin(sourceDir string, grantSecretAccess bool, grantAuthProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) (presentation.PluginDTO, error) {
+	return a.api.InstallPlugin(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
 }
 
 func (a *App) GetPluginConnectionProtocols() []presentation.ConnectionProtocolDTO {
@@ -532,10 +551,26 @@ func (a *App) PreviewGitHubPluginInstall(repoURL, releaseTag string) (presentati
 	return a.api.PreviewGitHubPluginInstall(repoURL, releaseTag)
 }
 
-func (a *App) InstallGitHubPlugin(repoURL, releaseTag string, grantSecretAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) error {
-	return a.api.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
+func (a *App) InstallGitHubPlugin(repoURL, releaseTag string, grantSecretAccess bool, grantAuthProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) error {
+	return a.api.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
 }
 
 func (a *App) UninstallGitHubPlugin(pluginID string, removeData bool) error {
 	return a.api.UninstallGitHubPlugin(pluginID, removeData)
+}
+
+func (a *App) ListForwardRules(connectionID string) ([]domain.ForwardRule, error) {
+	return a.api.ListForwardRules(connectionID)
+}
+
+func (a *App) SaveForwardRule(connectionID string, rule domain.ForwardRule) error {
+	return a.api.SaveForwardRule(connectionID, rule)
+}
+
+func (a *App) DeleteForwardRule(connectionID, ruleID string) error {
+	return a.api.DeleteForwardRule(connectionID, ruleID)
+}
+
+func (a *App) SetForwardRuleEnabled(connectionID, ruleID string, enabled bool) error {
+	return a.api.SetForwardRuleEnabled(connectionID, ruleID, enabled)
 }

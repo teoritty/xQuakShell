@@ -8,6 +8,13 @@ import (
 // OnEmbedReadyFunc is called when an embed descriptor is registered for a session.
 type OnEmbedReadyFunc = EmbedReadyFunc
 
+// SetDynamicForward wires dynamic port-forward coordination into session lifecycle.
+func (m *SessionManager) SetDynamicForward(c *DynamicForwardCoordinator) {
+	if m != nil && m.lifecycle != nil {
+		m.lifecycle.dynamicForward = c
+	}
+}
+
 // SetEmbedTunnelService wires the embed tunnel registry into the session manager.
 func (m *SessionManager) SetEmbedTunnelService(svc *EmbedTunnelService) {
 	m.embed = svc

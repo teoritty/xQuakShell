@@ -30,6 +30,7 @@ type pluginRuntime struct {
 	inbound             *usecase.PluginSessionInbound
 	embedInbound        *usecase.PluginEmbedInbound
 	embedTunnels        *usecase.EmbedTunnelService
+	dynamicForward      *usecase.DynamicForwardCoordinator
 	embedBridge         *usecase.PluginEmbedBridge
 	viewInbound         *usecase.PluginViewInbound
 	viewRelay           *usecase.PluginViewRelay
@@ -84,6 +85,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 
 	var manager *usecase.PluginManager
 	var supervisor *usecase.PluginSupervisor
+	dynamicForward := usecase.NewDynamicForwardCoordinator(nil, nil)
 	eventBus := usecase.NewPluginEventBus(registry, func(ctx context.Context, pluginID, sessionID, method string, params json.RawMessage) error {
 		if manager == nil {
 			return nil
@@ -98,6 +100,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, embedInbound, sessionAuthorizer),
 		Events:            eventBus,
 		Views:             viewInbound,
+		Tunnel:            dynamicForward,
 		SessionAuthorizer: sessionAuthorizer,
 		Audit:             pluginAudit.RPCRecorder(),
 		OnCrash: func(pluginID, sessionID string) {
@@ -127,6 +130,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		PluginSettings: deps.VaultSettings,
 		StartAudit:     pluginAudit.StartFunc(),
 	})
+	manager.SetOutboundAuthAudit(pluginAudit.OutboundAuthFunc())
 	manager.SetEventBus(eventBus)
 	manager.SetPluginSettings(deps.VaultSettings)
 	manager.SetConnectionChecker(deps.ConnRepo)
@@ -203,11 +207,19 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		}
 		return manager.NotifyForSession(ctx, pluginID, sessionID, method, json.RawMessage(params))
 	})
+	dynamicForward.SetNotifier(func(ctx context.Context, pluginID, sessionID, method string, params []byte) error {
+		if manager == nil {
+			return nil
+		}
+		return manager.Notify(ctx, pluginID, method, json.RawMessage(params))
+	})
+	dynamicForward.SetStarter(manager)
 
 	return &pluginRuntime{
 		inbound:             inbound,
 		embedInbound:        embedInbound,
 		embedTunnels:        embedTunnels,
+		dynamicForward:      dynamicForward,
 		viewInbound:         viewInbound,
 		viewRelay:           viewRelay,
 		vaultInbound:        vaultInbound,
@@ -233,6 +245,7 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 		r.embedTunnels.SetEmbedReadyHandler(api.OnEmbedReady)
 	}
 	api.Sessions().SetEmbedTunnelService(r.embedTunnels)
+	api.Sessions().SetDynamicForward(r.dynamicForward)
 	api.SetEmbedBridge(r.embedBridge)
 }
 
@@ -261,6 +274,13 @@ func (r *pluginRuntime) grantSecretAccess(ctx context.Context, pluginID string) 
 		return nil
 	}
 	return r.vaultSettings.GrantSecretAccess(ctx, pluginID)
+}
+
+func (r *pluginRuntime) grantAuthProviderAccess(ctx context.Context, pluginID string) error {
+	if r == nil || r.vaultSettings == nil {
+		return nil
+	}
+	return r.vaultSettings.GrantAuthProviderAccess(ctx, pluginID)
 }
 
 func (r *pluginRuntime) grantArbitraryNetworkAccess(ctx context.Context, pluginID string) error {

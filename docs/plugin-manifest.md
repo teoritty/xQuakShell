@@ -62,10 +62,54 @@ Runtime IPC methods and session lifecycle are documented in [plugin-api.md](./pl
     "events": {
       "subscribe": ["core.session.*"],
       "publish": ["plugin.com.example.myplugin.*"]
+    },
+    "auth": {
+      "provider": true,
+      "methods": ["keyboard-interactive", "publickey"]
+    },
+    "tunnel": {
+      "provider": true,
+      "maxConcurrentChannels": 64
     }
   }
 }
 ```
+
+**`auth` capability**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | bool | `true` when the plugin implements SSH auth RPC (`auth.prepare`, `auth.answerChallenge`, `auth.sign`). Install requires explicit user consent (`authProviderAccessGranted`). |
+| `methods` | string[] | Allowed auth kinds: `keyboard-interactive`, `publickey`. Each must have a matching `contributions.authMethods[]` entry. |
+
+**`tunnel` capability**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | bool | `true` when the plugin handles dynamic forward rules via `tunnel.*` RPC. |
+| `maxConcurrentChannels` | int | Per-plugin limit for concurrent `tunnel.dial` channels (0 = host default). |
+
+**Auth method contributions**
+
+```json
+"authMethods": [
+  {
+    "id": "otp",
+    "label": "One-time password",
+    "kind": "keyboard-interactive"
+  }
+]
+```
+
+**Tunnel provider contributions**
+
+```json
+"tunnelProviders": [
+  { "id": "socks5", "label": "SOCKS5 proxy" }
+]
+```
+
+Connection `forwardRules` with `"kind": "dynamic"` reference `pluginId` + `providerId` from these contributions.
 
 Rules:
 

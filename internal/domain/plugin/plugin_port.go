@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"time"
 )
 
 // ProcessState describes a plugin OS process lifecycle.
@@ -41,12 +42,18 @@ type SessionRPCAuthorizer interface {
 	AuthorizeSessionRPC(pluginID, processSessionID string, isolation IsolationMode, allowMultiSession bool, targetSessionID string) error
 }
 
+// AuthAttemptAuthorizer validates in-flight SSH auth attempts before auth.* RPC (usecase implements).
+type AuthAttemptAuthorizer interface {
+	Authorize(pluginID, attemptID, authMethodID string) error
+}
+
 // ProcessHost manages out-of-process plugin lifecycles (infra implements this port).
 type ProcessHost interface {
 	Start(ctx context.Context, plugin InstalledPlugin, sessionID string) error
 	Stop(ctx context.Context, pluginID, sessionID string) error
 	StopAll(ctx context.Context)
 	Call(ctx context.Context, pluginID, sessionID, method string, params json.RawMessage) (json.RawMessage, error)
+	CallWithTimeout(ctx context.Context, pluginID, sessionID, method string, params json.RawMessage, timeout time.Duration) (json.RawMessage, error)
 	Notify(ctx context.Context, pluginID, sessionID, method string, params json.RawMessage) error
 	State(pluginID, sessionID string) ProcessState
 	RunningInstances() []ProcessInstance

@@ -66,6 +66,12 @@ func (m *Manifest) ValidateCapabilities() error {
 	if err := m.validateViewEntries(); err != nil {
 		return err
 	}
+	if err := m.validateAuthCaps(); err != nil {
+		return err
+	}
+	if err := m.validateTunnelCaps(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -104,6 +110,63 @@ func (m *Manifest) validateSessionCaps() error {
 	}
 	if s.Terminal && m.EffectiveIsolation() != IsolationPerSession {
 		return fmt.Errorf("%w: terminal requires isolation per-session", ErrInvalidManifest)
+	}
+	return nil
+}
+
+func allowedAuthMethodKind(kind string) bool {
+	switch kind {
+	case "keyboard-interactive", "publickey":
+		return true
+	default:
+		return false
+	}
+}
+
+func (m *Manifest) validateAuthCaps() error {
+	if m.Capabilities.Auth == nil {
+		return nil
+	}
+	a := m.Capabilities.Auth
+	for _, method := range a.Methods {
+		if !allowedAuthMethodKind(strings.TrimSpace(method)) {
+			return fmt.Errorf("%w: invalid auth method %q", ErrInvalidManifest, method)
+		}
+	}
+	if a.Provider && len(m.Contributions.AuthMethods) == 0 {
+		return fmt.Errorf("%w: auth.provider requires contributions.authMethods", ErrInvalidManifest)
+	}
+	allowed := make(map[string]struct{}, len(a.Methods))
+	for _, method := range a.Methods {
+		allowed[strings.TrimSpace(method)] = struct{}{}
+	}
+	for _, am := range m.Contributions.AuthMethods {
+		id := strings.TrimSpace(am.ID)
+		if id == "" {
+			return ErrInvalidManifest
+		}
+		kind := strings.TrimSpace(am.Kind)
+		if !allowedAuthMethodKind(kind) {
+			return fmt.Errorf("%w: invalid auth method kind %q", ErrInvalidManifest, kind)
+		}
+		if _, ok := allowed[kind]; !ok {
+			return fmt.Errorf("%w: auth method %q not listed in capabilities.auth.methods", ErrInvalidManifest, kind)
+		}
+	}
+	return nil
+}
+
+func (m *Manifest) validateTunnelCaps() error {
+	if m.Capabilities.Tunnel == nil {
+		return nil
+	}
+	if m.Capabilities.Tunnel.Provider && len(m.Contributions.TunnelProviders) == 0 {
+		return fmt.Errorf("%w: tunnel.provider requires contributions.tunnelProviders", ErrInvalidManifest)
+	}
+	for _, tp := range m.Contributions.TunnelProviders {
+		if strings.TrimSpace(tp.ID) == "" {
+			return ErrInvalidManifest
+		}
 	}
 	return nil
 }
@@ -335,6 +398,12 @@ func (m *Manifest) PermissionSummary() []string {
 	}
 	if m.RequiresSecretAccess() {
 		lines = append(lines, "Access connection secrets: "+strings.Join(m.Capabilities.Vault.GetSecret, ", "))
+	}
+	if m.RequiresAuthProviderAccess() {
+		lines = append(lines, "Provide SSH authentication methods for connections that use this plugin")
+	}
+	if m.Capabilities.Tunnel != nil && m.Capabilities.Tunnel.Provider {
+		lines = append(lines, "Route dynamic port-forward connections (tunnel provider)")
 	}
 	if m.RequiresMultiSessionWarning() {
 		lines = append(lines, "Shared process may access multiple sessions (allowMultiSession)")

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +27,8 @@ type HostServer struct {
 	sessions   domainplugin.SessionRPCHandler
 	events     *capability.EventsProxy
 	views      *capability.ViewProxy
+	tunnelDial *capability.TunnelDialProxy
+	tunnelLocal *capability.TunnelLocalProxy
 	audit      PluginAuditFunc
 	onActivity PluginActivityFunc
 
@@ -47,6 +50,8 @@ type HostServerConfig struct {
 	Sessions domainplugin.SessionRPCHandler
 	Events   *capability.EventsProxy
 	Views    *capability.ViewProxy
+	TunnelDial *capability.TunnelDialProxy
+	TunnelLocal *capability.TunnelLocalProxy
 	Audit    PluginAuditFunc
 	OnActivity PluginActivityFunc
 }
@@ -62,6 +67,8 @@ func NewHostServer(cfg HostServerConfig) *HostServer {
 		sessions:   cfg.Sessions,
 		events:     cfg.Events,
 		views:      cfg.Views,
+		tunnelDial: cfg.TunnelDial,
+		tunnelLocal: cfg.TunnelLocal,
 		audit:      cfg.Audit,
 		onActivity: cfg.OnActivity,
 	}
@@ -139,6 +146,31 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 			return nil, &RPCError{Code: -32603, Message: "view handler unavailable"}
 		}
 		result, err = s.views.Handle(ctx, s.pluginID, method, params)
+	case "tunnel.dial":
+		if s.tunnelDial == nil {
+			return nil, proxyUnavailableError(method)
+		}
+		result, err = s.tunnelDial.Dial(ctx, params)
+	case "tunnel.close":
+		if s.tunnelDial == nil {
+			return nil, proxyUnavailableError(method)
+		}
+		result, err = s.tunnelDial.Close(ctx, params)
+	case "tunnel.localWrite":
+		if s.tunnelLocal == nil {
+			return nil, proxyUnavailableError(method)
+		}
+		result, err = s.tunnelLocal.LocalWrite(ctx, params)
+	case "tunnel.localClose":
+		if s.tunnelLocal == nil {
+			return nil, proxyUnavailableError(method)
+		}
+		result, err = s.tunnelLocal.LocalClose(ctx, params)
+	case "tunnel.bind":
+		if s.tunnelLocal == nil {
+			return nil, proxyUnavailableError(method)
+		}
+		result, err = s.tunnelLocal.Bind(ctx, params)
 	default:
 		s.auditDenied(method, "method not found")
 		return nil, &RPCError{Code: -32601, Message: "method not found"}
@@ -152,9 +184,21 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 			s.auditDenied(method, err.Error())
 			return nil, capabilityDeniedError(method)
 		}
-		if errors.Is(err, domainplugin.ErrSessionNotBound) {
+		if errors.Is(err, domainplugin.ErrSessionNotBound) || errors.Is(err, domainplugin.ErrAuthAttemptNotBound) {
 			s.auditDenied(method, err.Error())
+			if strings.HasPrefix(method, "auth.") {
+				return nil, &RPCError{Code: -32006, Message: "auth attempt not found"}
+			}
 			return nil, capabilityDeniedError(method)
+		}
+		if errors.Is(err, domainplugin.ErrAuthChallengeTimeout) {
+			return nil, &RPCError{Code: -32007, Message: "auth challenge timeout"}
+		}
+		if errors.Is(err, domainplugin.ErrAuthProviderBusy) {
+			return nil, &RPCError{Code: -32005, Message: "auth provider busy"}
+		}
+		if errors.Is(err, domainplugin.ErrTunnelNotFound) {
+			return nil, &RPCError{Code: -32002, Message: "resource not found"}
 		}
 		if errors.Is(err, domainplugin.ErrRateLimited) {
 			return nil, rateLimitedError(method)

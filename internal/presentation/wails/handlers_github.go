@@ -110,13 +110,13 @@ func (a *AppAPI) PreviewGitHubPluginInstall(repoURL, releaseTag string) (GitHubP
 }
 
 // InstallGitHubPlugin installs a plugin from GitHub.
-func (a *AppAPI) InstallGitHubPlugin(repoURL, releaseTag string, grantSecretAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) error {
+func (a *AppAPI) InstallGitHubPlugin(repoURL, releaseTag string, grantSecretAccess bool, grantAuthProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) error {
 	if a.githubPluginService == nil {
 		return fmt.Errorf("GitHub plugin service not available")
 	}
 
 	ctx := context.Background()
-	if err := a.githubPluginService.InstallPluginFromGitHub(ctx, repoURL, releaseTag, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess); err != nil {
+	if err := a.githubPluginService.InstallPluginFromGitHub(ctx, repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess); err != nil {
 		return err
 	}
 	a.EmitPluginContributionsChanged()

@@ -140,6 +140,8 @@ func parseStartReason(reason string) (StartReason, string) {
 		return StartReasonCommand, strings.TrimPrefix(reason, "onCommand:")
 	case strings.HasPrefix(reason, "onProtocol:"):
 		return StartReasonProtocol, strings.TrimPrefix(reason, "onProtocol:")
+	case strings.HasPrefix(reason, "onAuthRequest:"):
+		return StartReasonAuth, strings.TrimPrefix(reason, "onAuthRequest:")
 	default:
 		return StartReasonManual, reason
 	}

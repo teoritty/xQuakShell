@@ -174,6 +174,7 @@ func clonePluginSettings(in PluginSettings) PluginSettings {
 	out := in
 	out.TrustedPublisherKeys = cloneStrings(in.TrustedPublisherKeys)
 	out.SecretAccessGranted = cloneBoolMap(in.SecretAccessGranted)
+	out.AuthProviderAccessGranted = cloneBoolMap(in.AuthProviderAccessGranted)
 	out.MultiSessionAccessGranted = cloneBoolMap(in.MultiSessionAccessGranted)
 	out.ArbitraryNetworkAccessGranted = cloneBoolMap(in.ArbitraryNetworkAccessGranted)
 	out.Disabled = cloneBoolMap(in.Disabled)

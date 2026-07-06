@@ -32,6 +32,7 @@ type AppAPI struct {
 	githubRepoService   *usecase.GitHubRepositoryService
 	githubPluginService *usecase.GitHubPluginService
 	pluginVaultGrant              func(pluginID string) error
+	pluginAuthGrant               func(pluginID string) error
 	pluginMultiSessionGrant       func(pluginID string) error
 	pluginArbitraryNetworkGrant   func(pluginID string) error
 	embedBridge         *usecase.PluginEmbedBridge
@@ -66,6 +67,7 @@ func NewAppAPI(
 	pingLimiter domain.ConcurrencyLimiter,
 	transferLimiter domain.ConcurrencyLimiter,
 	pinger domain.Pinger,
+	sshAuth *usecase.SSHAuthWiring,
 ) *AppAPI {
 	pingMgr := usecase.NewPingManager(connRepo, domain.DefaultPingSettings(), pingLimiter, pinger)
 	var pluginFieldsSvc *usecase.PluginFieldsService
@@ -94,7 +96,7 @@ func NewAppAPI(
 		settingsSvc:  usecase.NewSettingsService(vaultRepo, lockoutMgr, pingMgr),
 	}
 
-	api.sessions = usecase.NewSessionManager(usecase.SessionManagerConfig{
+	smCfg := usecase.SessionManagerConfig{
 		ConnRepo:                connRepo,
 		VaultRepo:               vaultRepo,
 		IdentRepo:               identRepo,
@@ -113,11 +115,20 @@ func NewAppAPI(
 			Fields:  pluginFieldsSvc,
 			Audit:   pluginSessionAudit,
 		}),
-		OnStateChange:           api.onSessionStateChange,
-		OnStreamReady:           api.onStreamReady,
-		PassphraseReq:           api.onPassphraseRequest,
-		HostKeyRequest:          api.onHostKeyRequest,
-	})
+		OnStateChange:  api.onSessionStateChange,
+		OnStreamReady:  api.onStreamReady,
+		PassphraseReq:  api.onPassphraseRequest,
+		HostKeyRequest: api.onHostKeyRequest,
+	}
+	if sshAuth != nil && sshAuth.Enabled() {
+		smCfg.AuthProvider = sshAuth.Provider
+		smCfg.AuthMethodBuilder = sshAuth.Builder
+		smCfg.AuthAttempts = sshAuth.Attempts
+		smCfg.AuthLookup = sshAuth.Lookup
+		smCfg.AuthStarter = sshAuth.Starter
+		smCfg.AuthGrantReader = sshAuth.GrantReader
+	}
+	api.sessions = usecase.NewSessionManager(smCfg)
 	if pluginInbound != nil && api.sessions.PluginBridge() != nil {
 		pluginInbound.SetHandler(api.sessions.PluginBridge())
 	}
@@ -173,6 +184,11 @@ func (a *AppAPI) Sessions() *usecase.SessionManager {
 // SetPluginVaultGrant sets the callback used after install to record secret consent.
 func (a *AppAPI) SetPluginVaultGrant(fn func(pluginID string) error) {
 	a.pluginVaultGrant = fn
+}
+
+// SetPluginAuthGrant sets the callback used after install to record auth provider consent.
+func (a *AppAPI) SetPluginAuthGrant(fn func(pluginID string) error) {
+	a.pluginAuthGrant = fn
 }
 
 // SetPluginMultiSessionGrant sets the callback used after install to record multi-session consent.

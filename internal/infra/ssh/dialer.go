@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
 	gossh "golang.org/x/crypto/ssh"
 
 	"ssh-client/internal/domain"
+	"ssh-client/internal/pkg/safego"
 )
 
 const defaultTimeoutSeconds = 15
@@ -40,6 +42,37 @@ func (w *sshClientWrapper) KeepAlive() error {
 	return err
 }
 
+func (w *sshClientWrapper) OpenDirectTCP(ctx context.Context, addr string) (net.Conn, error) {
+	type result struct {
+		conn net.Conn
+		err  error
+	}
+	ch := make(chan result, 1)
+	safego.GoNamed("ssh.openDirectTCP", func() {
+		c, err := w.client.Dial("tcp", addr)
+		ch <- result{c, err}
+	})
+	select {
+	case r := <-ch:
+		return r.conn, r.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (w *sshClientWrapper) ListenTCP(ctx context.Context, remoteAddr string) (net.Listener, error) {
+	host, portStr, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid remote forward address %q: %w", remoteAddr, err)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid remote forward port %q: %w", portStr, err)
+	}
+	_ = ctx
+	return w.client.Listen("tcp", net.JoinHostPort(host, strconv.Itoa(port)))
+}
+
 // Dialer implements domain.SSHClientFactory using golang.org/x/crypto/ssh.
 type Dialer struct{}
 
@@ -66,6 +99,8 @@ func (d *Dialer) Create(ctx context.Context, cfg domain.SSHClientConfig) (domain
 	if cfg.Password != "" {
 		authMethods = append(authMethods, gossh.Password(cfg.Password))
 	}
+	// Plugin-provided methods follow built-in publickey/password so servers prefer cheaper methods first.
+	authMethods = append(authMethods, cfg.ExtraAuthMethods...)
 
 	sshConfig := &gossh.ClientConfig{
 		User:            cfg.User,

@@ -23,4 +23,9 @@ const (
 	MaxPluginProcessOpenFiles = 64
 	// MaxPluginProcessThreads is the cross-platform thread cap for plugin processes.
 	MaxPluginProcessThreads = 64
+
+	// DefaultMaxTunnelChannels is the default concurrent SSH channels per plugin for tunnel.dial.
+	DefaultMaxTunnelChannels = 16
+	// PreBindTunnelTimeout is how long a local client may wait before bind/close.
+	PreBindTunnelTimeout = 10 * time.Second
 )

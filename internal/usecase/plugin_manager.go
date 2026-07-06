@@ -3,8 +3,10 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,6 +18,9 @@ import (
 type PluginCrashHandler interface {
 	HandlePluginProcessCrashed(pluginID, sessionID string)
 }
+
+// OutboundAuthAuditFunc records host→plugin auth.* RPC calls with sanitized params.
+type OutboundAuthAuditFunc func(pluginID, method, sanitizedParams string)
 
 // PluginManager orchestrates plugin discovery and process lifecycle (ADR-003).
 type PluginManager struct {
@@ -31,8 +36,9 @@ type PluginManager struct {
 	crashHandler   PluginCrashHandler
 	settingsReader PluginSettingsReader
 	pluginSettings *PluginVaultSettings
-	startAudit     PluginStartAuditFunc
-	stateChange    func(pluginID, state, sessionID string)
+	startAudit        PluginStartAuditFunc
+	outboundAuthAudit OutboundAuthAuditFunc
+	stateChange       func(pluginID, state, sessionID string)
 	connChecker    PluginConnectionChecker
 
 	mu              sync.Mutex
@@ -151,6 +157,28 @@ func (m *PluginManager) Call(ctx context.Context, pluginID, method string, param
 	return m.host.Call(ctx, pluginID, scope, method, params)
 }
 
+// CallWithTimeout sends a JSON-RPC request with an explicit timeout override.
+func (m *PluginManager) CallWithTimeout(ctx context.Context, pluginID, method string, params json.RawMessage, timeout time.Duration) (json.RawMessage, error) {
+	scope, err := m.resolveCommandScope(pluginID)
+	if err != nil {
+		return nil, err
+	}
+	if strings.HasPrefix(method, "auth.") && m.outboundAuthAudit != nil {
+		m.outboundAuthAudit(pluginID, method, string(domainplugin.SanitizeAuthRPCParams(method, params)))
+	}
+	raw, err := m.host.CallWithTimeout(ctx, pluginID, scope, method, params, timeout)
+	if err != nil {
+		if method == "auth.answerChallenge" && (errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)) {
+			return nil, domainplugin.ErrAuthChallengeTimeout
+		}
+		return nil, err
+	}
+	if strings.HasPrefix(method, "auth.") && m.outboundAuthAudit != nil {
+		m.outboundAuthAudit(pluginID, method+"#result", string(domainplugin.SanitizeAuthRPCResult(method, raw)))
+	}
+	return raw, nil
+}
+
 // Notify sends a JSON-RPC notification to a running plugin process (per-plugin scope or single session instance).
 func (m *PluginManager) Notify(ctx context.Context, pluginID, method string, params json.RawMessage) error {
 	scope, err := m.resolveCommandScope(pluginID)
@@ -237,6 +265,11 @@ func (m *PluginManager) SetPluginSettings(s *PluginVaultSettings) {
 // SetStartAudit binds audit logging for plugin start authorization.
 func (m *PluginManager) SetStartAudit(fn PluginStartAuditFunc) {
 	m.startAudit = fn
+}
+
+// SetOutboundAuthAudit binds audit logging for host→plugin auth.* RPC (sanitized params only).
+func (m *PluginManager) SetOutboundAuthAudit(fn OutboundAuthAuditFunc) {
+	m.outboundAuthAudit = fn
 }
 
 // SetStateChangeHandler emits plugin lifecycle state changes to presentation.
