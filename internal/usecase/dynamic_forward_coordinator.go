@@ -48,7 +48,6 @@ type DynamicForwardCoordinator struct {
 	localOwners     map[string]tunnelHandleOwner
 	tunnelOwners    map[string]tunnelHandleOwner
 	channelTimers   map[string]*time.Timer
-	preBindDone     map[string]chan struct{}
 	dialSlotRelease TunnelDialSlotReleaser
 	notify          PluginTunnelNotifier
 	starter         PluginTunnelStarter
@@ -62,7 +61,6 @@ func NewDynamicForwardCoordinator(notify PluginTunnelNotifier, starter PluginTun
 		localOwners:   make(map[string]tunnelHandleOwner),
 		tunnelOwners:  make(map[string]tunnelHandleOwner),
 		channelTimers: make(map[string]*time.Timer),
-		preBindDone:   make(map[string]chan struct{}),
 		notify:        notify,
 		starter:       starter,
 	}
@@ -169,39 +167,13 @@ func (c *DynamicForwardCoordinator) handleLocalAccept(ctx context.Context, sf *s
 		return
 	}
 
-	bound := make(chan struct{})
 	c.mu.Lock()
 	c.localOwners[localConnID] = tunnelHandleOwner{sessionID: sf.sessionID, pluginID: rule.PluginID}
-	c.preBindDone[localConnID] = bound
-	c.mu.Unlock()
-
-	safego.Go(func() {
-		timer := time.NewTimer(domainplugin.PreBindTunnelTimeout)
-		defer timer.Stop()
-		select {
-		case <-ctx.Done():
-			c.cleanupPreBindLocal(sf, localConnID)
-		case <-timer.C:
-			c.cleanupPreBindLocal(sf, localConnID)
-		case <-bound:
-		}
-	})
-}
-
-func (c *DynamicForwardCoordinator) cleanupPreBindLocal(sf *sessionDynamicForward, localConnID string) {
-	_ = sf.service.CloseLocal(localConnID)
-	c.mu.Lock()
-	delete(c.localOwners, localConnID)
-	delete(c.preBindDone, localConnID)
 	c.mu.Unlock()
 }
 
 func (c *DynamicForwardCoordinator) markLocalBound(localConnID string) {
 	c.mu.Lock()
-	if done, ok := c.preBindDone[localConnID]; ok {
-		close(done)
-		delete(c.preBindDone, localConnID)
-	}
 	delete(c.localOwners, localConnID)
 	c.mu.Unlock()
 }
@@ -236,10 +208,6 @@ func (c *DynamicForwardCoordinator) clearSessionOwners(sessionID string) {
 	for id, owner := range c.localOwners {
 		if owner.sessionID == sessionID {
 			delete(c.localOwners, id)
-			if done, ok := c.preBindDone[id]; ok {
-				close(done)
-				delete(c.preBindDone, id)
-			}
 		}
 	}
 	for id, owner := range c.tunnelOwners {
@@ -247,6 +215,9 @@ func (c *DynamicForwardCoordinator) clearSessionOwners(sessionID string) {
 			if timer, ok := c.channelTimers[id]; ok {
 				timer.Stop()
 				delete(c.channelTimers, id)
+			}
+			if c.dialSlotRelease != nil {
+				c.dialSlotRelease(owner.pluginID, sessionID)
 			}
 			delete(c.tunnelOwners, id)
 		}
@@ -268,6 +239,9 @@ func (c *DynamicForwardCoordinator) StopSession(sessionID string) {
 	sf.cancel()
 	for _, ln := range sf.listeners {
 		ln.Close()
+	}
+	if sf.service != nil {
+		sf.service.CloseAllPreBind()
 	}
 }
 

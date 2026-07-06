@@ -17,18 +17,27 @@ import (
 const maxPreBindTunnelEntries = 256
 
 type localEntry struct {
-	conn net.Conn
-	stop chan struct{}
-	done chan struct{}
+	conn         net.Conn
+	stop         chan struct{}
+	done         chan struct{}
+	preBindTimer *time.Timer
+}
+
+func (e *localEntry) disarmPreBindTimer() {
+	if e.preBindTimer != nil {
+		e.preBindTimer.Stop()
+		e.preBindTimer = nil
+	}
 }
 
 // TunnelDynamicService manages pre-bind local/tunnel channel registries for dynamic forwards.
 type TunnelDynamicService struct {
-	mu       sync.Mutex
-	local    map[string]*localEntry
-	channels map[string]net.Conn
-	dialer   domain.TunnelChannelDialer
-	notify   PluginTunnelNotifier
+	mu             sync.Mutex
+	local          map[string]*localEntry
+	channels       map[string]net.Conn
+	dialer         domain.TunnelChannelDialer
+	notify         PluginTunnelNotifier
+	preBindTimeout time.Duration // zero → domainplugin.PreBindTunnelTimeout
 }
 
 // NewTunnelDynamicService creates a dynamic tunnel coordinator.
@@ -39,6 +48,40 @@ func NewTunnelDynamicService(dialer domain.TunnelChannelDialer, notify PluginTun
 		dialer:   dialer,
 		notify:   notify,
 	}
+}
+
+func (s *TunnelDynamicService) preBindTimeoutOrDefault() time.Duration {
+	if s.preBindTimeout > 0 {
+		return s.preBindTimeout
+	}
+	return domainplugin.PreBindTunnelTimeout
+}
+
+func (s *TunnelDynamicService) armPreBindTimer(localConnID string) {
+	s.mu.Lock()
+	entry, ok := s.local[localConnID]
+	if !ok {
+		s.mu.Unlock()
+		return
+	}
+	entry.preBindTimer = time.AfterFunc(s.preBindTimeoutOrDefault(), func() {
+		s.evictPreBindLocal(localConnID)
+	})
+	s.mu.Unlock()
+}
+
+func (s *TunnelDynamicService) evictPreBindLocal(localConnID string) {
+	s.mu.Lock()
+	entry, ok := s.local[localConnID]
+	if !ok {
+		s.mu.Unlock()
+		return
+	}
+	entry.disarmPreBindTimer()
+	delete(s.local, localConnID)
+	s.mu.Unlock()
+	s.stopReading(entry)
+	_ = entry.conn.Close()
 }
 
 // Dial opens an SSH direct-tcpip channel and stores it under tunnelID.
@@ -64,6 +107,7 @@ func (s *TunnelDynamicService) Bind(localConnID, tunnelID string) error {
 	entry, okL := s.local[localConnID]
 	remote, okR := s.channels[tunnelID]
 	if okL {
+		entry.disarmPreBindTimer()
 		delete(s.local, localConnID)
 	}
 	if okR {
@@ -95,6 +139,25 @@ func (s *TunnelDynamicService) CloseChannel(tunnelID string) error {
 		return domainplugin.ErrTunnelNotFound
 	}
 	return conn.Close()
+}
+
+// CloseAllPreBind closes every pre-bind local connection and unbound tunnel channel.
+func (s *TunnelDynamicService) CloseAllPreBind() {
+	s.mu.Lock()
+	locals := s.local
+	channels := s.channels
+	s.local = make(map[string]*localEntry)
+	s.channels = make(map[string]net.Conn)
+	s.mu.Unlock()
+
+	for _, entry := range locals {
+		entry.disarmPreBindTimer()
+		s.stopReading(entry)
+		_ = entry.conn.Close()
+	}
+	for _, conn := range channels {
+		_ = conn.Close()
+	}
 }
 
 // HasLocal reports whether a pre-bind local connection is registered.
@@ -139,6 +202,8 @@ func (s *TunnelDynamicService) RegisterLocal(ctx context.Context, pluginID, rule
 		}
 	}
 
+	s.armPreBindTimer(localConnID)
+
 	safego.Go(func() {
 		defer close(entry.done)
 		buf := make([]byte, 32*1024)
@@ -178,6 +243,7 @@ func (s *TunnelDynamicService) closeLocal(localConnID string) {
 	s.mu.Lock()
 	entry, ok := s.local[localConnID]
 	if ok {
+		entry.disarmPreBindTimer()
 		delete(s.local, localConnID)
 	}
 	s.mu.Unlock()
@@ -185,6 +251,7 @@ func (s *TunnelDynamicService) closeLocal(localConnID string) {
 		return
 	}
 	s.stopReading(entry)
+	_ = entry.conn.Close()
 }
 
 // WriteLocal writes plugin protocol bytes to a pre-bind local connection.

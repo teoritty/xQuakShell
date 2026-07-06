@@ -30,6 +30,7 @@ func TestTunnelDynamicService_BindUnblocksWithoutClientData(t *testing.T) {
 	if err := svc.RegisterLocal(context.Background(), "plugin-a", "rule-1", "socks5", localConnID, local); err != nil {
 		t.Fatalf("RegisterLocal: %v", err)
 	}
+	t.Cleanup(func() { _ = svc.CloseLocal(localConnID) })
 	if err := svc.Dial(context.Background(), "tn-1", "example.com", 80); err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
@@ -88,6 +89,7 @@ func TestTunnelDynamicService_BindDoesNotNotifyLocalCloseOnStop(t *testing.T) {
 	if err := svc.RegisterLocal(context.Background(), "plugin-a", "rule-1", "socks5", localConnID, local); err != nil {
 		t.Fatalf("RegisterLocal: %v", err)
 	}
+	t.Cleanup(func() { _ = svc.CloseLocal(localConnID) })
 	if err := svc.Dial(context.Background(), "tn-1", "example.com", 80); err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
@@ -180,6 +182,8 @@ func TestTunnelDynamicService_DoubleBindFails(t *testing.T) {
 
 func TestTunnelDynamicService_RegisterLocalRateLimit(t *testing.T) {
 	svc := NewTunnelDynamicService(nil, nil)
+	svc.SetPreBindTimeoutForTest(24 * time.Hour)
+	t.Cleanup(func() { svc.CloseAllPreBind() })
 	for i := 0; i < maxPreBindTunnelEntries; i++ {
 		c1, c2 := net.Pipe()
 		_ = c2.Close()
@@ -225,6 +229,7 @@ func TestTunnelDynamicService_LocalAcceptBeforeReaderFrames(t *testing.T) {
 	if err := svc.RegisterLocal(context.Background(), "p", "r", "socks5", "lc-early", local); err != nil {
 		t.Fatalf("RegisterLocal: %v", err)
 	}
+	t.Cleanup(func() { _ = svc.CloseLocal("lc-early") })
 	select {
 	case <-acceptCh:
 	case <-time.After(2 * time.Second):
@@ -234,4 +239,130 @@ func TestTunnelDynamicService_LocalAcceptBeforeReaderFrames(t *testing.T) {
 	if frameBeforeAccept {
 		t.Fatal("tunnel.localFrame observed before tunnel.localAccept")
 	}
+}
+
+func TestTunnelDynamicService_RegisterLocalPreBindTimeoutEvictsEntry(t *testing.T) {
+	local, peer := net.Pipe()
+	t.Cleanup(func() { local.Close(); peer.Close() })
+
+	svc := NewTunnelDynamicService(nil, nil)
+	svc.SetPreBindTimeoutForTest(50 * time.Millisecond)
+
+	const localConnID = "lc-timeout"
+	if err := svc.RegisterLocal(context.Background(), "p", "r", "socks5", localConnID, local); err != nil {
+		t.Fatalf("RegisterLocal: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for svc.HasLocal(localConnID) {
+		if time.Now().After(deadline) {
+			t.Fatal("entry still present after pre-bind timeout")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	buf := make([]byte, 1)
+	if _, err := peer.Read(buf); err == nil {
+		t.Fatal("expected peer read error after timeout close")
+	}
+}
+
+func TestTunnelDynamicService_RegisterLocalPreBindTimeoutCancelledByBind(t *testing.T) {
+	local, peer := net.Pipe()
+	tunnelLocal, tunnelRemote := net.Pipe()
+	t.Cleanup(func() {
+		local.Close()
+		peer.Close()
+		tunnelLocal.Close()
+		tunnelRemote.Close()
+	})
+
+	svc := NewTunnelDynamicService(stubTunnelDialer{
+		direct: func(addr string) (net.Conn, error) {
+			return tunnelRemote, nil
+		},
+	}, nil)
+	svc.SetPreBindTimeoutForTest(2 * time.Second)
+
+	const localConnID = "lc-bind-cancel"
+	if err := svc.RegisterLocal(context.Background(), "p", "r", "socks5", localConnID, local); err != nil {
+		t.Fatalf("RegisterLocal: %v", err)
+	}
+	if err := svc.Dial(context.Background(), "tn-1", "example.com", 80); err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	if err := svc.Bind(localConnID, "tn-1"); err != nil {
+		t.Fatalf("Bind: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	if svc.HasLocal(localConnID) {
+		t.Fatal("entry should stay removed after bind")
+	}
+
+	if _, err := peer.Write([]byte("hi")); err != nil {
+		t.Fatalf("peer write: %v", err)
+	}
+	buf := make([]byte, 2)
+	if _, err := tunnelLocal.Read(buf); err != nil {
+		t.Fatalf("tunnel read: %v", err)
+	}
+	if string(buf) != "hi" {
+		t.Fatalf("tunnel read = %q, want hi", string(buf))
+	}
+}
+
+func TestTunnelDynamicService_RegisterLocalPreBindTimeoutCancelledByCloseLocal(t *testing.T) {
+	local, peer := net.Pipe()
+	t.Cleanup(func() { local.Close(); peer.Close() })
+
+	svc := NewTunnelDynamicService(nil, nil)
+	svc.SetPreBindTimeoutForTest(2 * time.Second)
+
+	const localConnID = "lc-close-cancel"
+	if err := svc.RegisterLocal(context.Background(), "p", "r", "socks5", localConnID, local); err != nil {
+		t.Fatalf("RegisterLocal: %v", err)
+	}
+	if err := svc.CloseLocal(localConnID); err != nil {
+		t.Fatalf("CloseLocal: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	if svc.HasLocal(localConnID) {
+		t.Fatal("entry should stay removed after CloseLocal")
+	}
+
+	buf := make([]byte, 1)
+	if _, err := peer.Read(buf); err == nil {
+		t.Fatal("expected peer read error after CloseLocal")
+	}
+}
+
+func TestTunnelDynamicService_RegisterLocalPreBindTimeoutFreesRateLimitSlot(t *testing.T) {
+	svc := NewTunnelDynamicService(nil, nil)
+	svc.SetPreBindTimeoutForTest(50 * time.Millisecond)
+
+	for i := 0; i < maxPreBindTunnelEntries; i++ {
+		c1, c2 := net.Pipe()
+		_ = c2.Close()
+		id := "lc-slot-" + strconv.Itoa(i)
+		if err := svc.RegisterLocal(context.Background(), "p", "r", "socks5", id, c1); err != nil {
+			t.Fatalf("register %d: %v", i, err)
+		}
+	}
+
+	deadline := time.Now().Add(3 * time.Second)
+	for svc.HasLocal("lc-slot-0") {
+		if time.Now().After(deadline) {
+			t.Fatal("entries not evicted after pre-bind timeout")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	extra, extraPeer := net.Pipe()
+	t.Cleanup(func() { extra.Close(); extraPeer.Close() })
+	if err := svc.RegisterLocal(context.Background(), "p", "r", "socks5", "lc-after-timeout", extra); err != nil {
+		t.Fatalf("RegisterLocal after slot free: %v", err)
+	}
+	t.Cleanup(func() { _ = svc.CloseLocal("lc-after-timeout") })
 }

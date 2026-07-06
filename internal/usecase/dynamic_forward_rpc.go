@@ -104,10 +104,6 @@ func (c *DynamicForwardCoordinator) TunnelLocalClose(_ context.Context, pluginID
 	}
 	c.mu.Lock()
 	delete(c.localOwners, req.LocalConnID)
-	if done, ok := c.preBindDone[req.LocalConnID]; ok {
-		close(done)
-		delete(c.preBindDone, req.LocalConnID)
-	}
 	c.mu.Unlock()
 	return json.Marshal(map[string]bool{"ok": true})
 }
