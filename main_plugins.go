@@ -260,7 +260,6 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 		validator := usecase.NewForwardRuleValidator(r.connRepo, r.manager.Registry(), r.vaultSettings)
 		api.SetForwardRuleValidator(validator)
 		api.Sessions().SetForwardRuleValidator(validator)
-		api.SetForwardRuleVaultService(usecase.NewForwardRuleVaultService(r.connRepo, validator))
 	}
 	api.SetEmbedBridge(r.embedBridge)
 }

@@ -447,19 +447,3 @@ func (a *App) InstallGitHubPlugin(repoURL, releaseTag string, grantSecretAccess 
 func (a *App) UninstallGitHubPlugin(pluginID string, removeData bool) error {
 	return a.api.UninstallGitHubPlugin(pluginID, removeData)
 }
-
-func (a *App) ListForwardRules(connectionID string) ([]presentation.ForwardRuleDTO, error) {
-	return a.api.ListForwardRules(connectionID)
-}
-
-func (a *App) SaveForwardRule(connectionID string, rule presentation.ForwardRuleDTO) error {
-	return a.api.SaveForwardRule(connectionID, rule)
-}
-
-func (a *App) DeleteForwardRule(connectionID, ruleID string) error {
-	return a.api.DeleteForwardRule(connectionID, ruleID)
-}
-
-func (a *App) SetForwardRuleEnabled(connectionID, ruleID string, enabled bool) error {
-	return a.api.SetForwardRuleEnabled(connectionID, ruleID, enabled)
-}

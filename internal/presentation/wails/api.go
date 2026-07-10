@@ -38,7 +38,6 @@ type AppAPI struct {
 	pluginArbitraryNetworkGrant   func(pluginID string) error
 	embedBridge         *usecase.PluginEmbedBridge
 	forwardRules        *usecase.ForwardRuleValidator
-	forwardRuleVault    *usecase.ForwardRuleVaultService
 	logWindow           *logwindow.Manager
 }
 
@@ -217,11 +216,6 @@ func (a *AppAPI) SetForwardRuleValidator(v *usecase.ForwardRuleValidator) {
 	if a.vaultSvc != nil {
 		a.vaultSvc.SetForwardRuleValidator(v)
 	}
-}
-
-// SetForwardRuleVaultService wires forward rule vault CRUD.
-func (a *AppAPI) SetForwardRuleVaultService(svc *usecase.ForwardRuleVaultService) {
-	a.forwardRuleVault = svc
 }
 
 // SetEmbedBridge wires embed viewport/activity forwarding.

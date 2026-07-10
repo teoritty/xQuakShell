@@ -14,14 +14,6 @@ import {
   DEFAULT_UI_SCALE_PERCENT,
   normalizeUiScalePercent,
 } from '../lib/uiScale';
-import {
-  DeleteForwardRule as wailsDeleteForwardRule,
-  ListForwardRules as wailsListForwardRules,
-  SaveForwardRule as wailsSaveForwardRule,
-  SetForwardRuleEnabled as wailsSetForwardRuleEnabled,
-} from '../../wailsjs/go/main/App';
-import { wails } from '../../wailsjs/go/models';
-import type { ForwardRule } from './appState';
 
 export interface SessionHotkeysSettings {
   create: string;
@@ -1592,58 +1584,4 @@ export async function relayPluginViewMessage(
 export function releasePluginViewPanel(token: string): void {
   const app = getApp();
   app?.ReleasePluginViewPanel?.(token);
-}
-
-function forwardRuleToDTO(rule: ForwardRule): wails.ForwardRuleDTO {
-  return new wails.ForwardRuleDTO({
-    id: rule.id,
-    kind: rule.kind,
-    bindAddress: rule.bindAddress,
-    bindPort: rule.bindPort,
-    targetHost: rule.targetHost,
-    targetPort: rule.targetPort,
-    pluginId: rule.pluginId,
-    providerId: rule.providerId,
-    enabled: rule.enabled,
-  });
-}
-
-function forwardRuleFromDTO(dto: wails.ForwardRuleDTO): ForwardRule {
-  return {
-    id: dto.id,
-    kind: dto.kind as ForwardRule['kind'],
-    bindAddress: dto.bindAddress,
-    bindPort: dto.bindPort,
-    targetHost: dto.targetHost,
-    targetPort: dto.targetPort,
-    pluginId: dto.pluginId,
-    providerId: dto.providerId,
-    enabled: dto.enabled,
-  };
-}
-
-export async function listForwardRules(connectionId: string): Promise<ForwardRule[]> {
-  try {
-    const rules = await wailsListForwardRules(connectionId);
-    return (rules || []).map(forwardRuleFromDTO);
-  } catch (e) {
-    handleError(e, 'List forward rules');
-    return [];
-  }
-}
-
-export async function saveForwardRule(connectionId: string, rule: ForwardRule): Promise<void> {
-  await wailsSaveForwardRule(connectionId, forwardRuleToDTO(rule));
-}
-
-export async function deleteForwardRule(connectionId: string, ruleId: string): Promise<void> {
-  await wailsDeleteForwardRule(connectionId, ruleId);
-}
-
-export async function setForwardRuleEnabled(
-  connectionId: string,
-  ruleId: string,
-  enabled: boolean,
-): Promise<void> {
-  await wailsSetForwardRuleEnabled(connectionId, ruleId, enabled);
 }
