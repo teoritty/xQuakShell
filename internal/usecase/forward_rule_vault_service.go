@@ -2,9 +2,6 @@ package usecase
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"fmt"
 
 	"ssh-client/internal/domain"
 )
@@ -34,24 +31,11 @@ func (s *ForwardRuleVaultService) List(ctx context.Context, connectionID string)
 
 // Save creates or updates a forward rule on a connection.
 func (s *ForwardRuleVaultService) Save(ctx context.Context, connectionID string, rule domain.ForwardRule) (domain.ForwardRule, error) {
-	if s.validator != nil {
-		if err := s.validator.ValidateRule(rule); err != nil {
-			return domain.ForwardRule{}, err
-		}
+	prepared, err := prepareForwardRuleForSave(ctx, s.validator, connectionID, rule)
+	if err != nil {
+		return domain.ForwardRule{}, err
 	}
-	if rule.ID == "" {
-		buf := make([]byte, 16)
-		if _, err := rand.Read(buf); err != nil {
-			return domain.ForwardRule{}, fmt.Errorf("generate forward rule id: %w", err)
-		}
-		rule.ID = hex.EncodeToString(buf)
-	}
-	if s.validator != nil {
-		if err := s.validator.ValidateRuleIDUnique(ctx, rule.ID, connectionID); err != nil {
-			return domain.ForwardRule{}, err
-		}
-	}
-	rule.BindAddress = domain.EffectiveBindAddress(rule.BindAddress)
+	rule = prepared
 
 	conn, err := s.connRepo.GetByID(ctx, connectionID)
 	if err != nil {

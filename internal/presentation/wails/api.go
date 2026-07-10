@@ -214,6 +214,9 @@ func (a *AppAPI) SetPluginArbitraryNetworkGrant(fn func(pluginID string) error) 
 // SetForwardRuleValidator wires forward rule validation for save and connect paths.
 func (a *AppAPI) SetForwardRuleValidator(v *usecase.ForwardRuleValidator) {
 	a.forwardRules = v
+	if a.vaultSvc != nil {
+		a.vaultSvc.SetForwardRuleValidator(v)
+	}
 }
 
 // SetForwardRuleVaultService wires forward rule vault CRUD.
