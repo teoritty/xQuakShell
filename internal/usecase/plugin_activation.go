@@ -15,6 +15,7 @@ const (
 	ActivationCommand  ActivationKind = "command"
 	ActivationManual   ActivationKind = "manual"
 	ActivationView     ActivationKind = "view"
+	ActivationAuth     ActivationKind = "auth"
 )
 
 // ActivationTrigger describes an activation event to match against manifest rules.
@@ -48,6 +49,10 @@ func MatchesActivation(events []string, trigger ActivationTrigger) bool {
 				return true
 			}
 			if strings.HasPrefix(e, "onView:") && strings.TrimPrefix(e, "onView:") == trigger.Value {
+				return true
+			}
+		case ActivationAuth:
+			if e == "onAuthRequest:"+trigger.Value {
 				return true
 			}
 		}

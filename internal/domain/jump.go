@@ -11,6 +11,7 @@ type JumpHop struct {
 	Auth     AuthMethodType `json:"authMethod"`
 	KeyAuth  *KeyAuthConfig      `json:"keyAuth,omitempty"`
 	PassAuth *PasswordAuthConfig `json:"passAuth,omitempty"`
+	PluginAuth *PluginAuthConfig `json:"pluginAuth,omitempty"`
 }
 
 // Validate checks that the hop has valid host, port, username, and auth configuration.
@@ -33,6 +34,10 @@ func (h *JumpHop) Validate() error {
 	case AuthMethodPassword:
 		if h.PassAuth == nil || h.PassAuth.PasswordID == "" {
 			return fmt.Errorf("jump hop password auth requires a password ID: %w", ErrInvalidConnectionConfig)
+		}
+	case AuthMethodPlugin:
+		if h.PluginAuth == nil || h.PluginAuth.PluginID == "" || h.PluginAuth.AuthMethodID == "" {
+			return fmt.Errorf("jump hop plugin auth requires pluginId and authMethodId: %w", ErrInvalidConnectionConfig)
 		}
 	default:
 		return fmt.Errorf("jump hop unknown auth method %q: %w", h.Auth, ErrInvalidConnectionConfig)

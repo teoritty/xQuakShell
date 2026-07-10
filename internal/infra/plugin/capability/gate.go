@@ -47,6 +47,8 @@ func (g *Gate) Allow(method string) bool {
 		return g.manifest.Capabilities.Events != nil && len(g.manifest.Capabilities.Events.Subscribe) > 0
 	case "view.postMessage":
 		return g.manifest.HasViews()
+	case "tunnel.dial", "tunnel.close", "tunnel.localWrite", "tunnel.localClose", "tunnel.bind":
+		return g.manifest.Capabilities.Tunnel != nil && g.manifest.Capabilities.Tunnel.Provider
 	default:
 		return false
 	}

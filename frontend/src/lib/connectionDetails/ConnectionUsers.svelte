@@ -2,7 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import { UserPlus } from 'lucide-svelte';
   import AuthEntryCard from '../AuthEntryCard.svelte';
-  import type { ConnectionUser, SSHIdentityMeta } from '../../stores/appState';
+  import type { ConnectionUser, PluginAuthConfig, SSHIdentityMeta } from '../../stores/appState';
   import type { AuthMethod } from './types';
   import './connectionDetailsShared.css';
 
@@ -17,6 +17,7 @@
     keyimport: string;
     keyremove: { userId: string; keyId: string };
     passwordchange: { userId: string; value: string };
+    pluginauthchange: { userId: string; value: PluginAuthConfig };
   }>();
 
   function addUser() {
@@ -42,9 +43,22 @@
   function updateAuthMethod(userId: string, value: string) {
     dispatch(
       'userschange',
-      users.map((u) =>
-        u.id === userId ? { ...u, authMethod: value as AuthMethod } : u,
-      ),
+      users.map((u) => {
+        if (u.id !== userId) return u;
+        const next = { ...u, authMethod: value as AuthMethod };
+        if (value === 'plugin' && !next.pluginAuth) {
+          next.pluginAuth = { pluginId: '', authMethodId: '', fields: {} };
+        }
+        return next;
+      }),
+    );
+    dispatch('dirty');
+  }
+
+  function updatePluginAuth(userId: string, value: PluginAuthConfig) {
+    dispatch(
+      'userschange',
+      users.map((u) => (u.id === userId ? { ...u, pluginAuth: value } : u)),
     );
     dispatch('dirty');
   }
@@ -65,8 +79,10 @@
       authMethod={u.authMethod}
       keyAuth={u.keyAuth}
       passAuth={u.passAuth}
+      pluginAuth={u.pluginAuth}
       {identities}
       on:authmethodchange={(e) => updateAuthMethod(u.id, e.detail)}
+      on:pluginauthchange={(e) => updatePluginAuth(u.id, e.detail)}
       on:passwordchange={(e) => dispatch('passwordchange', { userId: u.id, value: e.detail })}
       on:keyimport={() => dispatch('keyimport', u.id)}
       on:keyremove={(e) => dispatch('keyremove', { userId: u.id, keyId: e.detail })}

@@ -11,9 +11,21 @@ func (s *VaultService) GetAllConnections(ctx context.Context) ([]domain.Connecti
 	return s.connRepo.GetAllConnections(ctx)
 }
 
+// GetConnection returns one connection by ID.
+func (s *VaultService) GetConnection(ctx context.Context, id string) (*domain.Connection, error) {
+	return s.connRepo.GetByID(ctx, id)
+}
+
 // SaveConnection creates or updates a connection, persists plugin fields, reloads the saved
 // record, and triggers an immediate ping when host and port are available.
 func (s *VaultService) SaveConnection(ctx context.Context, conn *domain.Connection, incomingPluginFields map[string]string) (*domain.Connection, error) {
+	if conn != nil {
+		prepared, err := prepareConnectionForwardRules(ctx, s.forwardRuleValidator, conn.ID, conn.ForwardRules)
+		if err != nil {
+			return nil, err
+		}
+		conn.ForwardRules = prepared
+	}
 	if err := s.connRepo.Save(ctx, conn); err != nil {
 		return nil, err
 	}

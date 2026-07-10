@@ -50,6 +50,8 @@ type CapabilitySet struct {
 	Events  *EventCaps   `json:"events,omitempty"`
 	Vault   *VaultCaps   `json:"vault,omitempty"`
 	Session *SessionCaps `json:"session,omitempty"`
+	Auth    *AuthCaps    `json:"auth,omitempty"`
+	Tunnel  *TunnelCaps  `json:"tunnel,omitempty"`
 }
 
 // NetworkCaps controls outbound connectivity.
@@ -88,6 +90,18 @@ type SessionCaps struct {
 	MaxTunnelBandwidthKbps int      `json:"maxTunnelBandwidthKbps,omitempty"`
 }
 
+// AuthCaps declares that a plugin can act as an SSH auth provider.
+type AuthCaps struct {
+	Provider bool     `json:"provider,omitempty"`
+	Methods  []string `json:"methods,omitempty"`
+}
+
+// TunnelCaps declares that a plugin can decide routing for dynamic forward rules.
+type TunnelCaps struct {
+	Provider              bool `json:"provider,omitempty"`
+	MaxConcurrentChannels int  `json:"maxConcurrentChannels,omitempty"`
+}
+
 // Contributions holds declarative UI extension points.
 type Contributions struct {
 	Commands            []CommandContribution            `json:"commands,omitempty"`
@@ -95,6 +109,8 @@ type Contributions struct {
 	ConnectionProtocols []ConnectionProtocolContribution `json:"connectionProtocols,omitempty"`
 	Views               []ViewContribution               `json:"views,omitempty"`
 	StatusBar           []StatusBarContribution          `json:"statusBar,omitempty"`
+	AuthMethods         []AuthMethodContribution         `json:"authMethods,omitempty"`
+	TunnelProviders     []TunnelProviderContribution     `json:"tunnelProviders,omitempty"`
 }
 
 // CommandContribution registers a command palette entry.
@@ -120,6 +136,20 @@ type ConnectionProtocolContribution struct {
 	Icon        string       `json:"icon,omitempty"`
 	EmbedEntry  string       `json:"embedEntry,omitempty"`
 	Fields      []FieldGroup `json:"fields,omitempty"`
+}
+
+// AuthMethodContribution registers one auth method the plugin offers.
+type AuthMethodContribution struct {
+	ID     string       `json:"id"`
+	Label  string       `json:"label"`
+	Kind   string       `json:"kind"`
+	Fields []FieldGroup `json:"fields,omitempty"`
+}
+
+// TunnelProviderContribution registers one dynamic-forward routing strategy.
+type TunnelProviderContribution struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
 }
 
 const defaultEmbedEntry = "ui/embed.html"
@@ -179,6 +209,16 @@ func (m *Manifest) EffectiveIsolation() IsolationMode {
 // RequiresSecretAccess reports whether the plugin declared vault.getSecret (ADR-002).
 func (m *Manifest) RequiresSecretAccess() bool {
 	return m.Capabilities.Vault != nil && len(m.Capabilities.Vault.GetSecret) > 0
+}
+
+// RequiresAuthProviderAccess reports whether the plugin declared auth.provider.
+func (m *Manifest) RequiresAuthProviderAccess() bool {
+	return m.Capabilities.Auth != nil && m.Capabilities.Auth.Provider
+}
+
+// RequiresTunnelProviderAccess reports whether the plugin declared tunnel.provider.
+func (m *Manifest) RequiresTunnelProviderAccess() bool {
+	return m.Capabilities.Tunnel != nil && m.Capabilities.Tunnel.Provider
 }
 
 // Validate checks required manifest fields.

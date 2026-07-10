@@ -517,3 +517,34 @@ The core validates the binary matches the host OS at install time.
 | -32002 | Resource not found | Unknown `net.*` handle ID |
 | -32003 | Rate limited | `log.write` (>50/s), `events.publish` (>100/s), terminal backpressure |
 | -32004 | Not implemented | Handler returned not-implemented |
+| -32005 | Auth provider busy | Too many concurrent `auth.*` attempts for one plugin |
+| -32006 | Auth attempt not found | `ErrSessionNotBound` on `auth.*` RPC (invalid or foreign `attemptId`) |
+| -32007 | Auth challenge timeout | Keyboard-interactive / OTP round exceeded host timeout |
+
+### Auth provider (host → plugin)
+
+Requires `capabilities.auth.provider` and install consent for auth provider access. Activation: `onAuthRequest:<authMethodId>`.
+
+| Method | Params | Result |
+|--------|--------|--------|
+| `auth.prepare` | `{ attemptId, authMethodId, connectionId, fields? }` | `{ publicKeyBlobBase64 }` |
+| `auth.answerChallenge` | `{ attemptId, authMethodId, name, instruction, questions[] }` | `{ answers[] }` |
+| `auth.sign` | `{ attemptId, authMethodId, dataBase64, algorithms[] }` | `{ signatureBase64, signatureFormat }` |
+
+Private keys never cross the process boundary — only sign requests and public key blobs.
+
+### Tunnel provider (dynamic forward)
+
+Requires `capabilities.tunnel.provider`. Plugin routes local SOCKS5 (or similar) clients; after `tunnel.bind`, user traffic is spliced natively without IPC.
+
+Local and dynamic (`-L`/`-D`) forward rules must bind to loopback (`127.0.0.1` or `::1`); non-loopback bind addresses are rejected at save time.
+
+| Method | Direction | Purpose |
+|--------|-----------|---------|
+| `tunnel.localAccept` | host → plugin | New local client on dynamic rule (`ruleId`, `providerId`, `localConnId`) |
+| `tunnel.localFrame` | host → plugin | Pre-bind bytes from local client |
+| `tunnel.localClose` | both | Close local side |
+| `tunnel.dial` | plugin → host | Open SSH `direct-tcpip` channel |
+| `tunnel.localWrite` | plugin → host | Pre-bind bytes to local client |
+| `tunnel.bind` | plugin → host | Hand off to native splice (irreversible) |
+| `tunnel.close` | plugin → host | Close unbound SSH channel |

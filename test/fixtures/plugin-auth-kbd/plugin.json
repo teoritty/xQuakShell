@@ -1,0 +1,27 @@
+{
+  "id": "com.xquakshell.example-auth-kbd",
+  "name": "Example Auth (keyboard-interactive)",
+  "version": "0.1.0",
+  "engine": {
+    "type": "go-binary",
+    "entry": "plugin-auth-kbd"
+  },
+  "activationEvents": [
+    "onAuthRequest:otp"
+  ],
+  "capabilities": {
+    "auth": {
+      "provider": true,
+      "methods": ["keyboard-interactive"]
+    }
+  },
+  "contributions": {
+    "authMethods": [
+      {
+        "id": "otp",
+        "label": "Example OTP",
+        "kind": "keyboard-interactive"
+      }
+    ]
+  }
+}

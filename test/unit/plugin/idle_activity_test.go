@@ -131,6 +131,10 @@ func (h *recordingPluginHost) Call(context.Context, string, string, string, json
 	return nil, domainplugin.ErrNotImplemented
 }
 
+func (h *recordingPluginHost) CallWithTimeout(ctx context.Context, pluginID, sessionID, method string, params json.RawMessage, _ time.Duration) (json.RawMessage, error) {
+	return h.Call(ctx, pluginID, sessionID, method, params)
+}
+
 func (h *recordingPluginHost) Notify(context.Context, string, string, string, json.RawMessage) error {
 	return nil
 }

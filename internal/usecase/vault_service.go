@@ -9,12 +9,13 @@ import (
 // VaultService orchestrates CRUD for vault-stored folders, connections, passwords, and identities.
 // Single orchestration entry for vault CRUD from presentation; do not call repositories from handlers.
 type VaultService struct {
-	connRepo       domain.ConnectionRepository
-	passwordRepo   domain.PasswordRepository
-	identRepo      domain.IdentityRepository
-	pluginFields   *PluginFieldsService
-	pingMgr        *PingManager
-	protocolLookup domain.ConnectionProtocolLookup
+	connRepo            domain.ConnectionRepository
+	passwordRepo        domain.PasswordRepository
+	identRepo           domain.IdentityRepository
+	pluginFields        *PluginFieldsService
+	pingMgr             *PingManager
+	protocolLookup      domain.ConnectionProtocolLookup
+	forwardRuleValidator *ForwardRuleValidator
 }
 
 // VaultServiceConfig holds dependencies for VaultService.
@@ -71,6 +72,14 @@ func (s *VaultService) ImportPassword(ctx context.Context, password []byte, labe
 // DeletePassword removes a password from the vault.
 func (s *VaultService) DeletePassword(ctx context.Context, id string) error {
 	return s.passwordRepo.Delete(ctx, id)
+}
+
+// SetForwardRuleValidator wires forward rule validation for connection saves.
+func (s *VaultService) SetForwardRuleValidator(v *ForwardRuleValidator) {
+	if s == nil {
+		return
+	}
+	s.forwardRuleValidator = v
 }
 
 // GetAllIdentities returns metadata for all SSH identities.

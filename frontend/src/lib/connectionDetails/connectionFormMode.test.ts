@@ -58,6 +58,7 @@ const draft: ConnectionDetailsDraft = {
   users: [],
   defaultUserId: '',
   jumpHops: [],
+  forwardRules: [],
   pluginFields: {},
 };
 

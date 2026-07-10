@@ -120,6 +120,34 @@ export namespace wails {
 	        this.logSecretsEnabled = source["logSecretsEnabled"];
 	    }
 	}
+	export class ForwardRuleDTO {
+	    id: string;
+	    kind: string;
+	    bindAddress: string;
+	    bindPort: number;
+	    targetHost?: string;
+	    targetPort?: number;
+	    pluginId?: string;
+	    providerId?: string;
+	    enabled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ForwardRuleDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kind = source["kind"];
+	        this.bindAddress = source["bindAddress"];
+	        this.bindPort = source["bindPort"];
+	        this.targetHost = source["targetHost"];
+	        this.targetPort = source["targetPort"];
+	        this.pluginId = source["pluginId"];
+	        this.providerId = source["providerId"];
+	        this.enabled = source["enabled"];
+	    }
+	}
 	export class JumpHopDTO {
 	    id: string;
 	    host: string;
@@ -128,6 +156,7 @@ export namespace wails {
 	    authMethod: string;
 	    keyAuth?: KeyAuthConfigDTO;
 	    passAuth?: PassAuthConfigDTO;
+	    pluginAuth?: PluginAuthConfigDTO;
 	
 	    static createFrom(source: any = {}) {
 	        return new JumpHopDTO(source);
@@ -142,6 +171,7 @@ export namespace wails {
 	        this.authMethod = source["authMethod"];
 	        this.keyAuth = this.convertValues(source["keyAuth"], KeyAuthConfigDTO);
 	        this.passAuth = this.convertValues(source["passAuth"], PassAuthConfigDTO);
+	        this.pluginAuth = this.convertValues(source["pluginAuth"], PluginAuthConfigDTO);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -161,6 +191,22 @@ export namespace wails {
 		    }
 		    return a;
 		}
+	}
+	export class PluginAuthConfigDTO {
+	    pluginId: string;
+	    authMethodId: string;
+	    fields?: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginAuthConfigDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pluginId = source["pluginId"];
+	        this.authMethodId = source["authMethodId"];
+	        this.fields = source["fields"];
+	    }
 	}
 	export class PassAuthConfigDTO {
 	    passwordId: string;
@@ -192,6 +238,7 @@ export namespace wails {
 	    authMethod: string;
 	    keyAuth?: KeyAuthConfigDTO;
 	    passAuth?: PassAuthConfigDTO;
+	    pluginAuth?: PluginAuthConfigDTO;
 	    label?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -205,6 +252,7 @@ export namespace wails {
 	        this.authMethod = source["authMethod"];
 	        this.keyAuth = this.convertValues(source["keyAuth"], KeyAuthConfigDTO);
 	        this.passAuth = this.convertValues(source["passAuth"], PassAuthConfigDTO);
+	        this.pluginAuth = this.convertValues(source["pluginAuth"], PluginAuthConfigDTO);
 	        this.label = source["label"];
 	    }
 	
@@ -239,6 +287,7 @@ export namespace wails {
 	    tags?: string[];
 	    jumpChain?: JumpHopDTO[];
 	    pluginFields?: Record<string, string>;
+	    forwardRules?: ForwardRuleDTO[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ConnectionDTO(source);
@@ -258,6 +307,7 @@ export namespace wails {
 	        this.tags = source["tags"];
 	        this.jumpChain = this.convertValues(source["jumpChain"], JumpHopDTO);
 	        this.pluginFields = source["pluginFields"];
+	        this.forwardRules = this.convertValues(source["forwardRules"], ForwardRuleDTO);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -483,6 +533,7 @@ export namespace wails {
 	        this.order = source["order"];
 	    }
 	}
+	
 	export class GitHubReleaseSummaryDTO {
 	    tag: string;
 	    name: string;
@@ -655,6 +706,8 @@ export namespace wails {
 	    publishedDate: string;
 	    readme: string;
 	    requiresSecretAccess: boolean;
+	    requiresAuthProviderAccess: boolean;
+	    requiresTunnelProviderAccess: boolean;
 	    multiSessionWarning: boolean;
 	    arbitraryNetworkWarning: boolean;
 	    unsignedPlugin: boolean;
@@ -685,6 +738,8 @@ export namespace wails {
 	        this.publishedDate = source["publishedDate"];
 	        this.readme = source["readme"];
 	        this.requiresSecretAccess = source["requiresSecretAccess"];
+	        this.requiresAuthProviderAccess = source["requiresAuthProviderAccess"];
+	        this.requiresTunnelProviderAccess = source["requiresTunnelProviderAccess"];
 	        this.multiSessionWarning = source["multiSessionWarning"];
 	        this.arbitraryNetworkWarning = source["arbitraryNetworkWarning"];
 	        this.unsignedPlugin = source["unsignedPlugin"];
@@ -795,6 +850,45 @@ export namespace wails {
 	    }
 	}
 	
+	
+	export class PluginAuthMethodDTO {
+	    pluginId: string;
+	    id: string;
+	    label: string;
+	    kind: string;
+	    fields?: FieldGroupDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginAuthMethodDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pluginId = source["pluginId"];
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.kind = source["kind"];
+	        this.fields = this.convertValues(source["fields"], FieldGroupDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class PluginCommandDTO {
 	    pluginId: string;
 	    id: string;
@@ -813,6 +907,22 @@ export namespace wails {
 	        this.fullId = source["fullId"];
 	        this.title = source["title"];
 	        this.category = source["category"];
+	    }
+	}
+	export class PluginTunnelProviderDTO {
+	    pluginId: string;
+	    id: string;
+	    label: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginTunnelProviderDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pluginId = source["pluginId"];
+	        this.id = source["id"];
+	        this.label = source["label"];
 	    }
 	}
 	export class PluginStatusBarDTO {
@@ -865,6 +975,8 @@ export namespace wails {
 	    commands: PluginCommandDTO[];
 	    views: PluginViewDTO[];
 	    statusBar: PluginStatusBarDTO[];
+	    authMethods: PluginAuthMethodDTO[];
+	    tunnelProviders: PluginTunnelProviderDTO[];
 	
 	    static createFrom(source: any = {}) {
 	        return new PluginContributionsDTO(source);
@@ -875,6 +987,8 @@ export namespace wails {
 	        this.commands = this.convertValues(source["commands"], PluginCommandDTO);
 	        this.views = this.convertValues(source["views"], PluginViewDTO);
 	        this.statusBar = this.convertValues(source["statusBar"], PluginStatusBarDTO);
+	        this.authMethods = this.convertValues(source["authMethods"], PluginAuthMethodDTO);
+	        this.tunnelProviders = this.convertValues(source["tunnelProviders"], PluginTunnelProviderDTO);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -932,6 +1046,8 @@ export namespace wails {
 	    signatureVerified: boolean;
 	    checksumPresent: boolean;
 	    requiresSecretAccess: boolean;
+	    requiresAuthProviderAccess: boolean;
+	    requiresTunnelProviderAccess: boolean;
 	    multiSessionWarning: boolean;
 	    arbitraryNetworkWarning: boolean;
 	    unsignedWarning: boolean;
@@ -952,6 +1068,8 @@ export namespace wails {
 	        this.signatureVerified = source["signatureVerified"];
 	        this.checksumPresent = source["checksumPresent"];
 	        this.requiresSecretAccess = source["requiresSecretAccess"];
+	        this.requiresAuthProviderAccess = source["requiresAuthProviderAccess"];
+	        this.requiresTunnelProviderAccess = source["requiresTunnelProviderAccess"];
 	        this.multiSessionWarning = source["multiSessionWarning"];
 	        this.arbitraryNetworkWarning = source["arbitraryNetworkWarning"];
 	        this.unsignedWarning = source["unsignedWarning"];
@@ -1001,6 +1119,7 @@ export namespace wails {
 	        this.requireSignedPlugins = source["requireSignedPlugins"];
 	    }
 	}
+	
 	
 	
 	export class PuTTYSessionDTO {

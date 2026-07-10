@@ -42,7 +42,9 @@ var (
 	// ErrIncompatibleCore indicates the host core version is below manifest minCoreVersion.
 	ErrIncompatibleCore = errors.New("plugin incompatible with host core version")
 
-	// ErrSessionNotBound indicates the plugin process is not authorized for the target session.
+	// ErrSessionNotBound indicates the calling plugin is not authorized for the target
+	// scoped resource: session RPC (sessionId) or in-flight SSH auth (attemptId).
+	// AuthAttemptAuthorizer.Authorize MUST return this sentinel on IDOR (TZ 1.4).
 	ErrSessionNotBound = errors.New("plugin session not bound")
 
 	// ErrVaultAuditFailed indicates a vault access audit record could not be persisted.
@@ -53,6 +55,18 @@ var (
 
 	// ErrSessionScopeRequired indicates host IPC requires a session-scoped process key (per-session isolation).
 	ErrSessionScopeRequired = errors.New("plugin session scope required")
+
+	// ErrAuthProviderBusy indicates too many concurrent auth attempts for one plugin.
+	ErrAuthProviderBusy = errors.New("auth provider busy")
+
+	// ErrAuthChallengeTimeout indicates a keyboard-interactive auth round exceeded the host timeout.
+	ErrAuthChallengeTimeout = errors.New("auth challenge timeout")
+
+	// ErrTunnelNotFound indicates a tunnel or local connection handle is unknown.
+	ErrTunnelNotFound = errors.New("tunnel not found")
+
+	// ErrTunnelAlreadyExists indicates a tunnelId is already registered in the pre-bind registry.
+	ErrTunnelAlreadyExists = errors.New("tunnel already exists")
 
 	// ErrInvalidRepositoryURL indicates a malformed or unsupported GitHub repository URL.
 	ErrInvalidRepositoryURL = errors.New("invalid GitHub repository URL")

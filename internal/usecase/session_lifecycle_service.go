@@ -23,6 +23,9 @@ type SessionLifecycleService struct {
 	io              *SessionIOService
 	plugins         *PluginSessionBridge
 	embed           *EmbedTunnelService
+	dynamicForward  *DynamicForwardCoordinator
+	forwardRules    *ForwardRuleValidator
+	forwardLimiter  func() domain.ConcurrencyLimiter
 	passphraseCache domain.PassphraseCache
 	onStateChange   StateChangeFunc
 	hostKeyRequest  HostKeyRequestFunc
@@ -35,6 +38,9 @@ type SessionLifecycleConfig struct {
 	SSHConnector    *SSHConnector
 	Plugins         *PluginSessionBridge
 	PassphraseCache domain.PassphraseCache
+	DynamicForward  *DynamicForwardCoordinator
+	ForwardRules    *ForwardRuleValidator
+	ForwardConnLimiterFactory func() domain.ConcurrencyLimiter
 	OnStateChange   StateChangeFunc
 	HostKeyRequest  HostKeyRequestFunc
 }
@@ -47,6 +53,9 @@ func NewSessionLifecycleService(cfg SessionLifecycleConfig) *SessionLifecycleSer
 		sshConnector:    cfg.SSHConnector,
 		plugins:         cfg.Plugins,
 		passphraseCache: cfg.PassphraseCache,
+		dynamicForward:  cfg.DynamicForward,
+		forwardRules:    cfg.ForwardRules,
+		forwardLimiter:  cfg.ForwardConnLimiterFactory,
 		onStateChange:   cfg.OnStateChange,
 		hostKeyRequest:  cfg.HostKeyRequest,
 	}
@@ -125,6 +134,12 @@ func (s *SessionLifecycleService) CloseSession(sessionID string) error {
 		if err := entry.remoteFS.Close(); err != nil {
 			slog.Warn("close remote fs failed", "sessionID", sessionID, "err", err)
 		}
+	}
+	if s.dynamicForward != nil {
+		s.dynamicForward.StopSession(sessionID)
+	}
+	if entry.forwardRunner != nil {
+		entry.forwardRunner.StopAll()
 	}
 	if entry.sshClient != nil {
 		if err := entry.sshClient.Close(); err != nil {
@@ -222,7 +237,35 @@ func (s *SessionLifecycleService) GetHostKeyInfo(sessionID string) (*domain.Host
 	return entry.hostKeyInfo, nil
 }
 
+// SetForwardRuleValidator wires forward rule validation at connect time.
+func (s *SessionLifecycleService) SetForwardRuleValidator(v *ForwardRuleValidator) {
+	if s != nil {
+		s.forwardRules = v
+	}
+}
+
 func (s *SessionLifecycleService) connectSession(entry *sessionEntry, conn *domain.Connection) {
+	for _, rule := range conn.ForwardRules {
+		if !rule.Enabled {
+			continue
+		}
+		if s.forwardRules != nil {
+			if err := s.forwardRules.ValidateRuleForConnect(rule); err != nil {
+				msg := fmt.Sprintf(`Forward rule "%s" invalid: %v`, rule.ID, err)
+				slog.Warn("forward rule connect validation failed", "ruleId", rule.ID, "err", err)
+				s.updateState(entry, domain.SessionError, msg)
+				return
+			}
+			continue
+		}
+		if err := rule.Validate(); err != nil {
+			msg := fmt.Sprintf(`Forward rule "%s" invalid: %v`, rule.ID, err)
+			slog.Warn("forward rule connect validation failed", "ruleId", rule.ID, "err", err)
+			s.updateState(entry, domain.SessionError, msg)
+			return
+		}
+	}
+
 	result := s.sshConnector.Connect(entry.ctx, conn)
 	if result.HostKeyInfo != nil {
 		s.applyHostKeyRequired(entry, *result.HostKeyInfo, result.Err)
@@ -236,7 +279,34 @@ func (s *SessionLifecycleService) connectSession(entry *sessionEntry, conn *doma
 
 	s.registry.Mutate(entry.info.SessionID, func(e *sessionEntry) {
 		e.sshClient = result.Client
+		var limiter domain.ConcurrencyLimiter
+		if s.forwardLimiter != nil {
+			limiter = s.forwardLimiter()
+		}
+		e.forwardRunner = NewForwardRuleRunner(result.Client, limiter)
 	})
+	for _, rule := range conn.ForwardRules {
+		if !rule.Enabled {
+			continue
+		}
+		if rule.Kind == domain.ForwardRuleDynamic {
+			continue
+		}
+		if err := rule.Validate(); err != nil {
+			slog.Warn("skip invalid forward rule", "ruleId", rule.ID, "err", err)
+			continue
+		}
+		entry, _ := s.registry.Get(entry.info.SessionID)
+		if entry == nil || entry.forwardRunner == nil {
+			break
+		}
+		if err := entry.forwardRunner.Start(entry.ctx, rule); err != nil {
+			slog.Warn("forward rule start failed", "ruleId", rule.ID, "err", err)
+		}
+	}
+	if s.dynamicForward != nil {
+		s.dynamicForward.StartSession(entry.ctx, entry.info.SessionID, result.Client, conn.ForwardRules)
+	}
 	if result.JumpCleanup != nil {
 		safego.GoNamed("session.jumpCleanup", func() {
 			<-entry.ctx.Done()

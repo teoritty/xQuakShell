@@ -32,9 +32,12 @@ type AppAPI struct {
 	githubRepoService   *usecase.GitHubRepositoryService
 	githubPluginService *usecase.GitHubPluginService
 	pluginVaultGrant              func(pluginID string) error
+	pluginAuthGrant               func(pluginID string) error
+	pluginTunnelGrant             func(pluginID string) error
 	pluginMultiSessionGrant       func(pluginID string) error
 	pluginArbitraryNetworkGrant   func(pluginID string) error
 	embedBridge         *usecase.PluginEmbedBridge
+	forwardRules        *usecase.ForwardRuleValidator
 	logWindow           *logwindow.Manager
 }
 
@@ -65,7 +68,9 @@ func NewAppAPI(
 	pluginSessionAudit domainplugin.SessionAuditor,
 	pingLimiter domain.ConcurrencyLimiter,
 	transferLimiter domain.ConcurrencyLimiter,
+	forwardConnLimiterFactory func() domain.ConcurrencyLimiter,
 	pinger domain.Pinger,
+	sshAuth *usecase.SSHAuthWiring,
 ) *AppAPI {
 	pingMgr := usecase.NewPingManager(connRepo, domain.DefaultPingSettings(), pingLimiter, pinger)
 	var pluginFieldsSvc *usecase.PluginFieldsService
@@ -94,7 +99,7 @@ func NewAppAPI(
 		settingsSvc:  usecase.NewSettingsService(vaultRepo, lockoutMgr, pingMgr),
 	}
 
-	api.sessions = usecase.NewSessionManager(usecase.SessionManagerConfig{
+	smCfg := usecase.SessionManagerConfig{
 		ConnRepo:                connRepo,
 		VaultRepo:               vaultRepo,
 		IdentRepo:               identRepo,
@@ -113,11 +118,21 @@ func NewAppAPI(
 			Fields:  pluginFieldsSvc,
 			Audit:   pluginSessionAudit,
 		}),
-		OnStateChange:           api.onSessionStateChange,
-		OnStreamReady:           api.onStreamReady,
-		PassphraseReq:           api.onPassphraseRequest,
-		HostKeyRequest:          api.onHostKeyRequest,
-	})
+		OnStateChange:  api.onSessionStateChange,
+		OnStreamReady:  api.onStreamReady,
+		PassphraseReq:  api.onPassphraseRequest,
+		HostKeyRequest: api.onHostKeyRequest,
+		ForwardConnLimiterFactory: forwardConnLimiterFactory,
+	}
+	if sshAuth != nil && sshAuth.Enabled() {
+		smCfg.AuthProvider = sshAuth.Provider
+		smCfg.AuthMethodBuilder = sshAuth.Builder
+		smCfg.AuthAttempts = sshAuth.Attempts
+		smCfg.AuthLookup = sshAuth.Lookup
+		smCfg.AuthStarter = sshAuth.Starter
+		smCfg.AuthGrantReader = sshAuth.GrantReader
+	}
+	api.sessions = usecase.NewSessionManager(smCfg)
 	if pluginInbound != nil && api.sessions.PluginBridge() != nil {
 		pluginInbound.SetHandler(api.sessions.PluginBridge())
 	}
@@ -175,6 +190,16 @@ func (a *AppAPI) SetPluginVaultGrant(fn func(pluginID string) error) {
 	a.pluginVaultGrant = fn
 }
 
+// SetPluginAuthGrant sets the callback used after install to record auth provider consent.
+func (a *AppAPI) SetPluginAuthGrant(fn func(pluginID string) error) {
+	a.pluginAuthGrant = fn
+}
+
+// SetPluginTunnelGrant sets the callback used after install to record tunnel provider consent.
+func (a *AppAPI) SetPluginTunnelGrant(fn func(pluginID string) error) {
+	a.pluginTunnelGrant = fn
+}
+
 // SetPluginMultiSessionGrant sets the callback used after install to record multi-session consent.
 func (a *AppAPI) SetPluginMultiSessionGrant(fn func(pluginID string) error) {
 	a.pluginMultiSessionGrant = fn
@@ -183,6 +208,14 @@ func (a *AppAPI) SetPluginMultiSessionGrant(fn func(pluginID string) error) {
 // SetPluginArbitraryNetworkGrant sets the callback used after install to record arbitrary network consent.
 func (a *AppAPI) SetPluginArbitraryNetworkGrant(fn func(pluginID string) error) {
 	a.pluginArbitraryNetworkGrant = fn
+}
+
+// SetForwardRuleValidator wires forward rule validation for save and connect paths.
+func (a *AppAPI) SetForwardRuleValidator(v *usecase.ForwardRuleValidator) {
+	a.forwardRules = v
+	if a.vaultSvc != nil {
+		a.vaultSvc.SetForwardRuleValidator(v)
+	}
 }
 
 // SetEmbedBridge wires embed viewport/activity forwarding.

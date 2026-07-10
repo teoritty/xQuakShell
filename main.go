@@ -22,7 +22,7 @@ func main() {
 		return
 	}
 
-	app := NewApp()
+	app := composeApp()
 
 	windowsOpts := &windows.Options{
 		WebviewIsTransparent:              true,

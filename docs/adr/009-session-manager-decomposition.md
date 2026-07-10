@@ -12,7 +12,7 @@ Accepted
 
 ## Decision
 
-Decompose `SessionManager` into single-responsibility components with a thin facade preserved for `internal/presentation/wails` and `app.go`:
+Decompose `SessionManager` into single-responsibility components with a thin facade preserved for `internal/presentation/wails` and `app.go` (Wails facade):
 
 | Component | Responsibility |
 |-----------|----------------|

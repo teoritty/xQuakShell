@@ -1,0 +1,26 @@
+{
+  "id": "com.xquakshell.example-socks5-tunnel",
+  "name": "Example SOCKS5 Tunnel Provider",
+  "version": "0.1.0",
+  "engine": {
+    "type": "go-binary",
+    "entry": "plugin-socks5-tunnel"
+  },
+  "activationEvents": [
+    "onStartup"
+  ],
+  "capabilities": {
+    "tunnel": {
+      "provider": true,
+      "maxConcurrentChannels": 32
+    }
+  },
+  "contributions": {
+    "tunnelProviders": [
+      {
+        "id": "socks5",
+        "label": "SOCKS5"
+      }
+    ]
+  }
+}

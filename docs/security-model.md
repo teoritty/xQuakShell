@@ -1,10 +1,6 @@
 # Plugin Security Model
 
-
-
 This document summarizes how xQuakShell constrains out-of-process plugins.
-
-
 
 ## Session protocols
 
@@ -16,72 +12,37 @@ This document summarizes how xQuakShell constrains out-of-process plugins.
 
 - Secret field values are resolved by the host at connect time; plugins must not call `vault.getSecret` for manifest-declared connection fields.
 
-
-
 ## Connection field secrets
-
-
-
 Declarative connection fields replace most ad-hoc secret access for session plugins:
 
-
-
 | Concern | Behavior |
-
 |---------|----------|
-
 | Declaration | `secret: true` on field def; `password` type requires `secret: true` |
-
 | Storage | Plaintext secret bytes in `VaultData.pluginSecrets`; connection holds opaque ref `secret:<connId>.<fieldId>` |
-
 | Encryption at rest | Whole vault file encrypted (age + scrypt); same boundary as SSH passwords |
-
 | UI | Secret values never round-trip to the frontend after save |
-
 | Connect | Host resolves secrets once per `session.connect` / reconnect; values passed in RPC `fields` map |
-
 | Audit | `session.connect` logged with field **count** only (ring buffer + existing vault audit patterns); no secret values |
-
 | Validation | Host validates field values on save (required, pattern, options, size, checkbox encoding) |
-
 | Empty secret | Submitting empty string for a secret field removes the stored secret |
-
 | Uninstall | Plugin uninstall blocked while any connection uses one of its protocol ids |
-
-
 
 Plugins should treat `fields` as session-scoped credentials: do not persist them under `${pluginData}` unless the user explicitly opts in via a non-secret field.
 
-
-
 ## Capability gate
-
-
 
 Every plugin→core RPC passes through a manifest-driven gate. Methods such as `fs.read`, `vault.getConnection`, `vault.getSecret`, `events.publish`, and `net.dial` require matching entries in `plugin.json` `capabilities`.
 
-
-
 Denied calls return `ErrCapabilityDenied` and are audit-logged without secret material. Policy denials (unknown method, disallowed capability, blocked resolved IP) use `-32001`. Transport and dial failures after policy checks use `-32603` without leaking host/port details in plugin-visible messages.
-
-
 
 ## Ownership (IDOR)
 
-
-
 Authorization for vault and session data is enforced in the **usecase** layer:
 
-
-
 | Resource | Rule |
-
 |----------|------|
-
 | `vault.getConnection` / `vault.getSecret` | Allowed only when `SessionManager` has an active session where `pluginId` and `connectionId` match |
-
 | `view.postMessage` (inbound) | Allowed only for `panelId` values contributed by the same plugin |
-
 | `session.updateState` / `session.writeTerminal` | **Usecase:** `PluginSessionRPCHandler` + `PluginSessionAuthorizer` enforce scope and bound sessions; **Usecase:** `SessionManager` verifies `pluginId` owns the session |
 
 ### Terminal isolation policy
@@ -107,8 +68,6 @@ Authorization for vault and session data is enforced in the **usecase** layer:
 
 ## Secrets (ADR-002)
 
-
-
 - Manifest declares allowed fields in `capabilities.vault.getSecret` (no wildcards).
 
 - User must grant access at install time when the plugin requires secrets.
@@ -121,154 +80,80 @@ Authorization for vault and session data is enforced in the **usecase** layer:
 - Plugins should use structured `log.write` with a `fields` map. Sensitive field keys (`password`, `secret`, `token`, `key`, …) are stripped at the IPC boundary.
 - Free-text `message` values still pass through heuristic redaction as a fallback.
 
-
-
 ## Process isolation (ADR-003)
 
-
-
 - Default: **one process per plugin ID** (`per-plugin`).
-
 - Optional: **one process per session** (`per-session` in manifest).
-
 - Per-session processes receive a **session-scoped `dataDir`**; the FS capability proxy uses the same directory as `initialize.dataDir` (no cross-session file access).
-
 - Windows: child processes are assigned to a Job Object with kill-on-close (startup fails if job object unavailable).
-
 - Linux: `PR_SET_PDEATHSIG`, dedicated process group (`Setpgid`), and tracked PIDs killed on host shutdown.
-
 - Crash recovery: supervisor restarts with exponential backoff (max 3 attempts), sends `activate`, then re-sends `session.connect` while sessions remain active.
-
 - `engine.args` is rejected in v1 to prevent manifest injection.
 
-
-
 ## Graceful shutdown
-
-
-
 1. Core sends `deactivate` as a **notification** (plugins: `RegisterNotification` / `OnDeactivate`).
-
 2. Core sends `shutdown` as an **RPC request** with a short timeout (plugins: `Register` / `OnShutdown`, return `{"ok":true}`).
-
 3. Core closes plugin stdin; if the process has not exited within the grace period, it is force-killed.
-
-
-
+4. 
 ## Activation policy
-
-
-
 Plugins start only via declared `activationEvents`:
 
-
-
 | Event | Meaning |
-
 |-------|---------|
-
 | `onStartup` | Start when the host starts |
-
 | `onProtocol:<id>` | Start when a connection uses that protocol |
-
 | `onCommand:<id>` | Start when a contributed command runs |
-
 | `onManual` | Start via **Settings → Start plugin** (`StartPluginManual`) |
-
 | `onView:<panelId>` or `onView:*` | Start when a contributed WebView panel is opened |
-
-
 
 `PingPlugin` does not auto-start. Disabled plugins are stored in vault settings (`plugins.disabled`) and cannot start until re-enabled.
 
-
-
 ## WebView sandbox
-
-
 
 Plugin UI loads in a sandboxed iframe (`allow-scripts` only). CSP on asset responses allows `script-src 'self'`.
 
-
-
 Host↔iframe `postMessage` uses an explicit target origin:
 
-
-
 - The host appends `?hostOrigin=<host origin>` to the iframe URL.
-
 - The host sends messages to `*` because the sandboxed iframe has an opaque origin; delivery is scoped to `iframe.contentWindow`.
-
 - Plugin scripts reply to the `hostOrigin` query parameter and ignore messages from other origins.
-
-
 
 ## Event bus
 
-
-
 - Publish: namespace `plugin.<ownId>.*` enforced at manifest validation **and** runtime; `core.*` publish is rejected.
-
 - Subscribe: allowlist — `core.session.*` or explicit `core.session.opened|closed|stateChanged`; broad `core.*` rejected at manifest validation.
-
 - Session events delivered only to plugins with active sessions.
-
 - Rate limit: 100 events/second per plugin.
-
 - Inbound plugin RPC resets the idle-suspend activity timer.
 
-
-
 ## Network outbound (SSRF)
-
 Full `net.*` RPC reference and limits: [plugin-api.md — Network API](./plugin-api.md#network-api).
 
 - **Allowlist mode (default):** manifest `outbound` patterns are validated (`tcp:host:port` only; no wildcards). Host resolves the target before dial; loopback, RFC1918, link-local, and metadata IPs are blocked unless the manifest explicitly allowlists that IP literal. Dial uses the resolved IP address to prevent DNS rebinding between policy check and connect.
 - **Arbitrary outbound mode:** when `allowArbitraryOutbound: true`, plugins may dial any resolvable public host on TCP ports 1–65535 after install-time user consent (persisted in vault settings). Private/LAN/loopback addresses remain blocked unless `allowPrivateNetworks: true`. Combined allowlist + arbitrary: a dial succeeds if either mode permits the target.
 - Install consent for arbitrary network access is audit-logged alongside other elevated permissions.
 
-
-
 ## Terminal backpressure
-
-
 
 Plugin terminal output is written to a bounded channel. If the UI consumer does not read within **2 seconds**, the host returns `ErrTerminalBackpressure` instead of silently dropping bytes.
 
-
-
 ## IPC limits
 
-
-
 - Maximum NDJSON frame size: **256 KiB**
-
 - Maximum single `fs.read` / `fs.write` chunk: **256 KiB**
-
 - Maximum sandboxed file size (via chunked I/O): **16 MiB**
-
 - FS paths must use `${pluginData}` prefix; resolved roots must stay under plugin install directory.
-
 - Symlinks rejected on FS access.
-
-
-
+- 
 ## Install security
 
-
-
 - Zip-slip protected bundle extract (`pathsafe.UnderRoot`).
-
 - Bundled and user-installed plugins validate `SHA256SUMS` when present; hash mismatches hard-reject the plugin. Signed plugins require `SHA256SUMS` — the manifest signature binds to the checksum file digest so tampering a binary and recalculating checksums alone cannot pass verification.
-
 - Protocol ID conflicts rejected at discovery.
-
-
 
 ## Portable data layout (ADR-006)
 
 All writable plugin and vault storage lives under `<exeDir>/data/`.
-
 **ADR-006 exception:** read-only bundled plugins may ship in `<exeDir>/plugins/` next to the executable (no writes required). This is a deliberate fallback for portable/USB distributions that ship reference plugins without pre-populating `data/plugins/`.
 
 Plugin discovery scans, in order:
@@ -277,8 +162,6 @@ Plugin discovery scans, in order:
 2. `<exeDir>/plugins` (bundled read-only fallback)
 
 User-installed plugins **override** bundled plugins with the same manifest `id`.
-
-
 
 ## Host trust boundary (ADR-007)
 

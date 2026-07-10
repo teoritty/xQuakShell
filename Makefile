@@ -7,12 +7,15 @@
 #   make portable       - build + download WebView2 for Windows portable
 #   make install        - install frontend deps
 
-.PHONY: build dev clean rebuild portable install check check-imports check-fs-boundaries check-goroutines check-file-size check-session-manager-boundaries
+.PHONY: build dev clean rebuild portable install check check-imports check-composition-root check-fs-boundaries check-goroutines check-file-size check-session-manager-boundaries
 
-check: check-imports check-fs-boundaries check-goroutines check-file-size check-session-manager-boundaries
+check: check-imports check-composition-root check-fs-boundaries check-goroutines check-file-size check-session-manager-boundaries
 
 check-imports:
 	powershell -File scripts/check-imports.ps1
+
+check-composition-root:
+	powershell -File scripts/check-composition-root.ps1
 
 check-fs-boundaries:
 	powershell -File scripts/check-fs-boundaries.ps1

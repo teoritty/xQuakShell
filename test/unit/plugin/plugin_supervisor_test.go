@@ -21,6 +21,9 @@ func (disabledPluginHost) Stop(context.Context, string, string) error { return n
 func (disabledPluginHost) Call(context.Context, string, string, string, json.RawMessage) (json.RawMessage, error) {
 	return nil, nil
 }
+func (disabledPluginHost) CallWithTimeout(ctx context.Context, pluginID, sessionID, method string, params json.RawMessage, _ time.Duration) (json.RawMessage, error) {
+	return disabledPluginHost{}.Call(ctx, pluginID, sessionID, method, params)
+}
 func (disabledPluginHost) Notify(context.Context, string, string, string, json.RawMessage) error {
 	return nil
 }

@@ -28,6 +28,7 @@ type HostConfig struct {
 	SessionRPC        domainplugin.SessionRPCHandlerFactory
 	Events            domainplugin.EventInboundPort
 	Views             domainplugin.ViewInboundPort
+	Tunnel            domainplugin.TunnelInboundPort
 	SessionAuthorizer domainplugin.SessionRPCAuthorizer
 	Audit             ipc.PluginAuditFunc
 	OnCrash           ProcessCrashHandler

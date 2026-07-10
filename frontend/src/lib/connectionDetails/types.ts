@@ -1,8 +1,8 @@
-import type { ConnectionUser, JumpHop } from '../../stores/appState';
+import type { ConnectionUser, ForwardRule, JumpHop } from '../../stores/appState';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved';
 
-export type AuthMethod = 'key' | 'password';
+export type AuthMethod = 'key' | 'password' | 'plugin';
 
 /** Local editable state for the connection details panel. */
 export interface ConnectionDetailsDraft {
@@ -15,5 +15,6 @@ export interface ConnectionDetailsDraft {
   users: ConnectionUser[];
   defaultUserId: string;
   jumpHops: JumpHop[];
+  forwardRules: ForwardRule[];
   pluginFields: Record<string, unknown>;
 }

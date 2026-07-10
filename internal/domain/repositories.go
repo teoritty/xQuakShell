@@ -57,8 +57,21 @@ type Signer = ssh.Signer
 // PublicKey is a type alias for ssh.PublicKey.
 type PublicKey = ssh.PublicKey
 
+// AuthMethod is a type alias for ssh.AuthMethod, allowing usecase to hold
+// this type without importing golang.org/x/crypto/ssh directly.
+type AuthMethod = ssh.AuthMethod
+
+// TunnelChannelDialer opens channels multiplexed over an already-established
+// SSH connection (direct-tcpip / tcpip-forward), used for port forwarding
+// without a second TCP connection or re-authentication.
+type TunnelChannelDialer interface {
+	OpenDirectTCP(ctx context.Context, addr string) (net.Conn, error)
+	ListenTCP(ctx context.Context, remoteAddr string) (net.Listener, error)
+}
+
 // SSHClient wraps an active SSH connection with session creation capability.
 type SSHClient interface {
+	TunnelChannelDialer
 	NewSession() (*ssh.Session, error)
 	Client() *ssh.Client
 	Close() error
@@ -70,9 +83,10 @@ type SSHClientConfig struct {
 	Host            string
 	Port            int
 	User            string
-	Signers         []ssh.Signer
-	Password        string
-	HostKeyCallback ssh.HostKeyCallback
+	Signers          []ssh.Signer
+	Password         string
+	ExtraAuthMethods []AuthMethod // plugin-provided auth (keyboard-interactive, remote signer)
+	HostKeyCallback  ssh.HostKeyCallback
 	TimeoutSeconds  int
 	Transport       net.Conn
 }

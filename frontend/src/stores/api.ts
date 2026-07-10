@@ -1074,6 +1074,8 @@ export interface PluginInstallPreview {
   signatureVerified: boolean;
   checksumPresent: boolean;
   requiresSecretAccess: boolean;
+  requiresAuthProviderAccess?: boolean;
+  requiresTunnelProviderAccess?: boolean;
   multiSessionWarning?: boolean;
   arbitraryNetworkWarning?: boolean;
   unsignedWarning: boolean;
@@ -1284,6 +1286,8 @@ export async function previewPluginInstall(sourceDir: string): Promise<PluginIns
 export async function installPlugin(
   sourceDir: string,
   grantSecretAccess = false,
+  grantAuthProviderAccess = false,
+  grantTunnelProviderAccess = false,
   grantMultiSessionAccess = false,
   grantArbitraryNetworkAccess = false,
 ): Promise<PluginInfo> {
@@ -1292,7 +1296,7 @@ export async function installPlugin(
     throw new Error('Plugin install is unavailable');
   }
   try {
-    const result = await app.InstallPlugin(sourceDir, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
+    const result = await app.InstallPlugin(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
     invalidateProtocolsCache();
     await refreshConnectionProtocols();
     return result;
@@ -1366,6 +1370,8 @@ export interface GitHubPluginPreview {
   publishedDate: string;
   readme: string;
   requiresSecretAccess: boolean;
+  requiresAuthProviderAccess?: boolean;
+  requiresTunnelProviderAccess?: boolean;
   multiSessionWarning?: boolean;
   arbitraryNetworkWarning: boolean;
   unsignedPlugin: boolean;
@@ -1443,13 +1449,15 @@ export async function installGitHubPlugin(
   repoURL: string,
   releaseTag = '',
   grantSecretAccess = false,
+  grantAuthProviderAccess = false,
+  grantTunnelProviderAccess = false,
   grantMultiSessionAccess = false,
   grantArbitraryNetworkAccess = false,
 ): Promise<void> {
   const app = getApp();
   if (!app?.InstallGitHubPlugin) throw new Error('GitHub plugin install unavailable');
   try {
-    await app.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
+    await app.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
   } catch (e) {
     handleError(e, 'Install GitHub plugin');
     throw e;
@@ -1481,6 +1489,22 @@ export interface PluginContributions {
   commands: PluginCommand[];
   views: PluginView[];
   statusBar: PluginStatusBarItem[];
+  authMethods: PluginAuthMethodContribution[];
+  tunnelProviders: PluginTunnelProviderContribution[];
+}
+
+export interface PluginAuthMethodContribution {
+  pluginId: string;
+  id: string;
+  label: string;
+  kind: string;
+  fields?: FieldGroup[];
+}
+
+export interface PluginTunnelProviderContribution {
+  pluginId: string;
+  id: string;
+  label: string;
 }
 
 export interface PluginView {
@@ -1505,13 +1529,13 @@ export interface PluginStatusBarItem {
 export async function getPluginContributions(): Promise<PluginContributions> {
   const app = getApp();
   if (!app?.GetPluginContributions) {
-    return { commands: [], views: [], statusBar: [] };
+    return { commands: [], views: [], statusBar: [], authMethods: [], tunnelProviders: [] };
   }
   try {
     return await app.GetPluginContributions();
   } catch (e) {
     handleError(e, 'Load plugin contributions');
-    return { commands: [], views: [], statusBar: [] };
+    return { commands: [], views: [], statusBar: [], authMethods: [], tunnelProviders: [] };
   }
 }
 

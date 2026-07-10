@@ -21,12 +21,31 @@ export interface PassAuthConfig {
   passwordId: string;
 }
 
+export interface PluginAuthConfig {
+  pluginId: string;
+  authMethodId: string;
+  fields?: Record<string, string>;
+}
+
+export interface ForwardRule {
+  id: string;
+  kind: 'local' | 'remote' | 'dynamic';
+  bindAddress: string;
+  bindPort: number;
+  targetHost?: string;
+  targetPort?: number;
+  pluginId?: string;
+  providerId?: string;
+  enabled: boolean;
+}
+
 export interface ConnectionUser {
   id: string;
   username: string;
-  authMethod: 'key' | 'password';
+  authMethod: 'key' | 'password' | 'plugin';
   keyAuth?: KeyAuthConfig;
   passAuth?: PassAuthConfig;
+  pluginAuth?: PluginAuthConfig;
   label?: string;
 }
 
@@ -35,9 +54,10 @@ export interface JumpHop {
   host: string;
   port: number;
   username: string;
-  authMethod: 'key' | 'password';
+  authMethod: 'key' | 'password' | 'plugin';
   keyAuth?: KeyAuthConfig;
   passAuth?: PassAuthConfig;
+  pluginAuth?: PluginAuthConfig;
 }
 
 export interface Connection {
@@ -51,6 +71,7 @@ export interface Connection {
   defaultUserId?: string;
   tags?: string[];
   jumpChain?: JumpHop[];
+  forwardRules?: ForwardRule[];
   protocol?: string;
   pluginFields?: Record<string, string>;
 }

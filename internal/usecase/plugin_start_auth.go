@@ -16,6 +16,7 @@ const (
 	StartReasonCommand  StartReason = "command"
 	StartReasonManual   StartReason = "manual"
 	StartReasonView     StartReason = "view"
+	StartReasonAuth     StartReason = "auth"
 )
 
 // PluginStartAuditFunc records plugin start authorization attempts.
@@ -55,6 +56,11 @@ func (m *PluginManager) AuthorizeStart(pluginID string, reason StartReason, deta
 	case StartReasonView:
 		allowed = plugin.Manifest.HasViews() && MatchesActivation(plugin.Manifest.ActivationEvents, ActivationTrigger{
 			Kind:  ActivationView,
+			Value: detail,
+		})
+	case StartReasonAuth:
+		allowed = MatchesActivation(plugin.Manifest.ActivationEvents, ActivationTrigger{
+			Kind:  ActivationAuth,
 			Value: detail,
 		})
 	default:

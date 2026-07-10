@@ -11,17 +11,19 @@ import (
 )
 
 type managedProcess struct {
-	key         string
-	plugin      domainplugin.InstalledPlugin
-	sessionID   string
-	cmd         *exec.Cmd
-	reaper      *processReaper
-	stderr      io.WriteCloser
-	conn        *ipc.Conn
-	netProxy    *capability.NetProxy
-	state       domainplugin.ProcessState
-	job         pluginJob
-	cleanupOnce sync.Once
+	key             string
+	plugin          domainplugin.InstalledPlugin
+	sessionID       string
+	cmd             *exec.Cmd
+	reaper          *processReaper
+	stderr          io.WriteCloser
+	conn            *ipc.Conn
+	netProxy        *capability.NetProxy
+	tunnelDial      *capability.TunnelDialProxy
+	tunnelLocal     *capability.TunnelLocalProxy
+	state           domainplugin.ProcessState
+	job             pluginJob
+	cleanupOnce     sync.Once
 }
 
 func (mp *managedProcess) closeResources(killProcess bool) {
@@ -31,6 +33,12 @@ func (mp *managedProcess) closeResources(killProcess bool) {
 		}
 		if mp.netProxy != nil {
 			mp.netProxy.CloseAll()
+		}
+		if mp.tunnelDial != nil {
+			mp.tunnelDial.CloseAll()
+		}
+		if mp.tunnelLocal != nil {
+			mp.tunnelLocal.CloseAll()
 		}
 		if mp.conn != nil {
 			mp.conn.Close()
