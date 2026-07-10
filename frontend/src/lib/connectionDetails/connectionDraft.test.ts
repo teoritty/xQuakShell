@@ -27,6 +27,26 @@ const sshDraft: ConnectionDetailsDraft = {
     { id: 'hop-persist-123', host: 'bastion2', port: 2222, username: 'jump2', authMethod: 'key' },
     { id: '', host: '', port: 22, username: '', authMethod: 'key' },
   ],
+  forwardRules: [
+    {
+      id: 'draft-rule-abc',
+      kind: 'local',
+      bindAddress: '127.0.0.1',
+      bindPort: 8080,
+      targetHost: 'db.internal',
+      targetPort: 5432,
+      enabled: true,
+    },
+    {
+      id: 'draft-rule-empty',
+      kind: 'local',
+      bindAddress: '127.0.0.1',
+      bindPort: 0,
+      targetHost: '',
+      targetPort: 0,
+      enabled: true,
+    },
+  ],
   pluginFields: {},
 };
 
@@ -68,6 +88,8 @@ assert(adoptedMixed[2].id === 'be-3', 'second filled hop gets second saved id');
 
 const sshPayload = buildConnectionSavePayload(sshDraft, { folderId: 'f1', order: 1 });
 assert(Array.isArray(sshPayload.jumpChain) && (sshPayload.jumpChain as unknown[]).length === 2, 'ssh keeps hops');
+assert(Array.isArray(sshPayload.forwardRules) && (sshPayload.forwardRules as unknown[]).length === 1, 'incomplete forward rules are filtered');
+assert((sshPayload.forwardRules as { id: string }[])[0].id === '', 'UI-only forward rule id stripped');
 assert((sshPayload.users as unknown[]).length === 1, 'ssh keeps users');
 
 const pluginPayload = buildConnectionSavePayload(

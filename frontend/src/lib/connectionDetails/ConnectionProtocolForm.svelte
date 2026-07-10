@@ -2,7 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import type { ConnectionProtocol } from '../../stores/api';
   import type { ConnectionFormMode } from './connectionFormMode';
-  import type { ConnectionUser, JumpHop, SSHIdentityMeta } from '../../stores/appState';
+  import type { ConnectionUser, ForwardRule, JumpHop, SSHIdentityMeta } from '../../stores/appState';
   import ConnectionUsers from './ConnectionUsers.svelte';
   import JumpHosts from './JumpHosts.svelte';
   import ForwardRules from './ForwardRules.svelte';
@@ -14,6 +14,7 @@
   export let users: ConnectionUser[] = [];
   export let defaultUserId = '';
   export let jumpHops: JumpHop[] = [];
+  export let forwardRules: ForwardRule[] = [];
   export let identities: SSHIdentityMeta[] = [];
   export let pluginFields: Record<string, unknown> = {};
   export let fieldErrors: Record<string, string> = {};
@@ -23,6 +24,7 @@
     userschange: ConnectionUser[];
     defaultuserchange: string;
     hopschange: JumpHop[];
+    forwardruleschange: ForwardRule[];
     keyimport: string;
     keyremove: { userId?: string; hopId?: string; keyId: string };
     passwordchange: { userId?: string; hopId?: string; value: string };

@@ -1,4 +1,4 @@
-import type { ConnectionUser, JumpHop } from '../../stores/appState';
+import type { ConnectionUser, ForwardRule, JumpHop } from '../../stores/appState';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved';
 
@@ -15,5 +15,6 @@ export interface ConnectionDetailsDraft {
   users: ConnectionUser[];
   defaultUserId: string;
   jumpHops: JumpHop[];
+  forwardRules: ForwardRule[];
   pluginFields: Record<string, unknown>;
 }

@@ -25,6 +25,7 @@
   import type { ConnectionProtocol } from '../stores/api';
   import { buildConnectionSavePayload } from './connectionDetails/savePayload';
   import { adoptPersistedHopIds } from './connectionDetails/hopIds';
+  import { adoptPersistedRuleIds } from './connectionDetails/forwardRuleIds';
   import {
     addIdentityToHop,
     addIdentityToUser,
@@ -42,7 +43,7 @@
   } from './connectionDetails/autosave';
   import { pickAndImportIdentity, importPasswordIfChanged } from './connectionDetails/authSecrets';
   import type { ConnectionDetailsDraft, SaveStatus } from './connectionDetails/types';
-  import type { Connection, ConnectionUser, JumpHop } from '../stores/appState';
+  import type { Connection, ConnectionUser, ForwardRule, JumpHop } from '../stores/appState';
 
   let draft: ConnectionDetailsDraft = {
     editingId: '',
@@ -54,6 +55,7 @@
     users: [],
     defaultUserId: '',
     jumpHops: [],
+    forwardRules: [],
     pluginFields: {},
   };
   let fieldErrors: Record<string, string> = {};
@@ -110,7 +112,11 @@
     // Intentionally avoid rebuilding the full draft from `saved`: backend save
     // responses contain only persisted rows, while the editor may still contain
     // local in-progress rows that must remain visible to the user.
-    draft = { ...draft, jumpHops: adoptPersistedHopIds(draft.jumpHops, saved.jumpChain ?? []) };
+    draft = {
+      ...draft,
+      jumpHops: adoptPersistedHopIds(draft.jumpHops, saved.jumpChain ?? []),
+      forwardRules: adoptPersistedRuleIds(draft.forwardRules, saved.forwardRules ?? []),
+    };
   }
 
   function markDirty() {
@@ -255,6 +261,10 @@
   function setDraftHops(hops: JumpHop[]) {
     draft.jumpHops = hops;
   }
+
+  function setDraftForwardRules(rules: ForwardRule[]) {
+    draft.forwardRules = rules;
+  }
 </script>
 
 {#if $detailsConnection}
@@ -289,6 +299,7 @@
         users={draft.users}
         defaultUserId={draft.defaultUserId}
         jumpHops={draft.jumpHops}
+        forwardRules={draft.forwardRules}
         identities={$identities}
         pluginFields={draft.pluginFields}
         connectionId={draft.editingId}
@@ -297,6 +308,7 @@
         on:userschange={(e) => setDraftUsers(e.detail)}
         on:defaultuserchange={(e) => { draft.defaultUserId = e.detail; }}
         on:hopschange={(e) => setDraftHops(e.detail)}
+        on:forwardruleschange={(e) => setDraftForwardRules(e.detail)}
         on:keyimport={(e) => onKeyImport(e.detail)}
         on:keyremove={(e) => onKeyRemove(e.detail)}
         on:passwordchange={(e) => onPasswordChange(e.detail)}

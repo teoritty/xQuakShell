@@ -1,6 +1,7 @@
 import type { ConnectionUser } from '../../stores/appState';
 import type { ConnectionDetailsDraft } from './types';
 import { filterDraftHops, stripDraftHopIdsForSave } from './hopIds';
+import { filterDraftRules, stripDraftRuleIdsForSave } from './forwardRuleIds';
 
 export function filterDraftUsers(users: ConnectionUser[]): ConnectionUser[] {
   let filtered = users.filter(
@@ -41,6 +42,7 @@ export function buildConnectionSavePayload(
     users: filterDraftUsers(draft.users),
     defaultUserId: draft.defaultUserId,
     jumpChain: stripDraftHopIdsForSave(filterDraftHops(draft.jumpHops)),
+    forwardRules: stripDraftRuleIdsForSave(filterDraftRules(draft.forwardRules)),
     pluginFields: serializePluginFields(draft.pluginFields),
     order: context.order,
   };

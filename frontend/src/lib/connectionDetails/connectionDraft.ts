@@ -2,6 +2,7 @@ import type { Connection } from '../../stores/appState';
 import type { ConnectionDetailsDraft } from './types';
 import type { ConnectionProtocol } from '../../stores/api';
 import { ensureHopUiId } from './hopIds';
+import { ensureRuleUiId } from './forwardRuleIds';
 
 export function createDraftFromConnection(
   connection: Connection | null | undefined,
@@ -17,6 +18,7 @@ export function createDraftFromConnection(
     users: (connection?.users || []).map((u) => ({ ...u })),
     defaultUserId: connection?.defaultUserId || '',
     jumpHops: (connection?.jumpChain || []).map((h, i) => ensureHopUiId({ ...h }, i)),
+    forwardRules: (connection?.forwardRules || []).map((r) => ensureRuleUiId({ ...r })),
     pluginFields: { ...(connection?.pluginFields || {}) },
   };
 }
