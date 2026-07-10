@@ -10,7 +10,6 @@
 
   export let mode: ConnectionFormMode = 'none';
   export let protocolDef: ConnectionProtocol | null = null;
-  export let connectionId = '';
   export let users: ConnectionUser[] = [];
   export let defaultUserId = '';
   export let jumpHops: JumpHop[] = [];
@@ -55,7 +54,12 @@
     on:passwordchange={(e) => dispatch('passwordchange', e.detail)}
   />
 
-  <ForwardRules {connectionId} />
+  <ForwardRules
+    rules={forwardRules}
+    {fieldErrors}
+    on:dirty={() => dispatch('dirty')}
+    on:ruleschange={(e) => dispatch('forwardruleschange', e.detail)}
+  />
 {:else if mode === 'plugin' && protocolDef?.fields}
   <PluginConnectionFields
     groups={protocolDef.fields}
