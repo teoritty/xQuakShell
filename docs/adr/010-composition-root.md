@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The technical specification (section 1.9) requires that **usecase** and **infra** are wired together only in the composition root (`main.go` and `main_*.go`). Historically, `app.go` contained `NewApp()` with full dependency injection — including `SSHAuthWiring` (bridging `usecase.PluginAuthBridge` with `infra/ssh.PluginAuthMethodBuilder`). This blurred the boundary between the Wails binding facade and the composition root, and conflicted with internal docs that listed `app.go` as a wiring location.
+The technical specification requires that **usecase** and **infra** are wired together only in the composition root (`main.go` and `main_*.go`). Historically, `app.go` contained `NewApp()` with full dependency injection — including `SSHAuthWiring` (bridging `usecase.PluginAuthBridge` with `infra/ssh.PluginAuthMethodBuilder`). This blurred the boundary between the Wails binding facade and the composition root, and conflicted with internal docs that listed `app.go` as a wiring location.
 
 ## Decision
 
