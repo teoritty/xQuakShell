@@ -29,7 +29,7 @@ const (
 // Unknown purposes return 0 (no channel of that purpose can validly exist).
 func InitialCredit(purpose string) int {
 	switch purpose {
-	case PurposeExec, PurposeTCPRelay:
+	case PurposeExec, PurposeTCPRelay, PurposeUDPRelay:
 		return 4
 	case PurposeEmbedStream:
 		return 8

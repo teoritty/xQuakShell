@@ -11,6 +11,7 @@ func TestInitialCreditPerPurpose(t *testing.T) {
 	cases := map[string]int{
 		domainplugin.PurposeExec:        4,
 		domainplugin.PurposeTCPRelay:    4,
+		domainplugin.PurposeUDPRelay:    4,
 		domainplugin.PurposeEmbedStream: 8,
 	}
 	for purpose, want := range cases {

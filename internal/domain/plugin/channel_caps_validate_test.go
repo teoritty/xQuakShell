@@ -47,6 +47,14 @@ func TestValidateChannelCapsRejectsUnknownPurpose(t *testing.T) {
 	}
 }
 
+func TestValidateChannelCapsAcceptsUDPRelayPurpose(t *testing.T) {
+	m := baseChannelManifest()
+	m.Capabilities.Channel.Purposes = append(m.Capabilities.Channel.Purposes, domainplugin.PurposeUDPRelay)
+	if err := m.ValidateCapabilities(); err != nil {
+		t.Fatalf("expected udp-relay purpose to be valid, got %v", err)
+	}
+}
+
 func TestValidateChannelCapsExecCommandsRequireExecPurpose(t *testing.T) {
 	m := baseChannelManifest()
 	m.Capabilities.Channel.Purposes = []string{domainplugin.PurposeEmbedStream}

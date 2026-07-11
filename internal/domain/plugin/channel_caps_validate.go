@@ -7,7 +7,7 @@ import (
 
 func isKnownChannelPurpose(purpose string) bool {
 	switch purpose {
-	case PurposeExec, PurposeEmbedStream, PurposeTCPRelay:
+	case PurposeExec, PurposeEmbedStream, PurposeTCPRelay, PurposeUDPRelay:
 		return true
 	default:
 		return false

@@ -5,6 +5,7 @@ const (
 	PurposeExec        = "exec"
 	PurposeEmbedStream = "embed-stream"
 	PurposeTCPRelay    = "tcp-relay"
+	PurposeUDPRelay    = "udp-relay"
 )
 
 // ChannelCaps declares the channel bus capability (ADR-011).
