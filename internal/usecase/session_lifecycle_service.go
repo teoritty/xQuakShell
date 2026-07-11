@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"ssh-client/internal/domain"
+	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/pkg/safego"
 )
 
@@ -23,6 +24,7 @@ type SessionLifecycleService struct {
 	io              *SessionIOService
 	plugins         *PluginSessionBridge
 	embed           *EmbedTunnelService
+	channelBus      domainplugin.ChannelSessionCloser
 	dynamicForward  *DynamicForwardCoordinator
 	forwardRules    *ForwardRuleValidator
 	forwardLimiter  func() domain.ConcurrencyLimiter
@@ -69,6 +71,12 @@ func (s *SessionLifecycleService) SetIO(io *SessionIOService) {
 // SetEmbed wires the embed tunnel service for session teardown.
 func (s *SessionLifecycleService) SetEmbed(embed *EmbedTunnelService) {
 	s.embed = embed
+}
+
+// SetChannelBus wires the channel bus for session-close cascade (ADR-011 §Session lifecycle
+// coupling), mirroring SetEmbed's shape.
+func (s *SessionLifecycleService) SetChannelBus(bus domainplugin.ChannelSessionCloser) {
+	s.channelBus = bus
 }
 
 // OpenSession creates a new session for the given connection ID.
@@ -140,6 +148,12 @@ func (s *SessionLifecycleService) CloseSession(sessionID string) error {
 	}
 	if entry.forwardRunner != nil {
 		entry.forwardRunner.StopAll()
+	}
+	if s.channelBus != nil {
+		// Must run before sshClient.Close(): exec-purpose channels ride this session's ssh
+		// client, so closing the client first would sever them uncleanly instead of letting
+		// each backend tear down its own remote end via CloseRemote.
+		s.channelBus.CloseSession(sessionID)
 	}
 	if entry.sshClient != nil {
 		if err := entry.sshClient.Close(); err != nil {

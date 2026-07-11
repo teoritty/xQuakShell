@@ -12,6 +12,7 @@ import (
 	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/infra/auditlog"
 	infracache "ssh-client/internal/infra/cache"
+	"ssh-client/internal/infra/plugin/capability"
 	infragithub "ssh-client/internal/infra/github"
 	infrapluginembed "ssh-client/internal/infra/embed"
 	infraplugin "ssh-client/internal/infra/plugin"
@@ -32,6 +33,7 @@ type pluginRuntime struct {
 	embedTunnels        *usecase.EmbedTunnelService
 	dynamicForward      *usecase.DynamicForwardCoordinator
 	embedBridge         *usecase.PluginEmbedBridge
+	channelBus          *capability.ChannelBus
 	viewInbound         *usecase.PluginViewInbound
 	viewRelay           *usecase.PluginViewRelay
 	vaultInbound        *usecase.PluginVaultInbound
@@ -217,10 +219,13 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	})
 	dynamicForward.SetStarter(manager)
 
+	channelBus := capability.NewChannelBus()
+
 	return &pluginRuntime{
 		inbound:             inbound,
 		embedInbound:        embedInbound,
 		embedTunnels:        embedTunnels,
+		channelBus:          channelBus,
 		dynamicForward:      dynamicForward,
 		viewInbound:         viewInbound,
 		viewRelay:           viewRelay,
@@ -249,6 +254,7 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 		r.embedTunnels.SetEmbedReadyHandler(api.OnEmbedReady)
 	}
 	api.Sessions().SetEmbedTunnelService(r.embedTunnels)
+	api.Sessions().SetChannelBus(r.channelBus)
 	api.Sessions().SetDynamicForward(r.dynamicForward)
 	if r.dynamicForward != nil && r.vaultSettings != nil {
 		r.dynamicForward.SetTunnelGrantReader(r.vaultSettings)

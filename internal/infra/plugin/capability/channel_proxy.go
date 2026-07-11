@@ -32,8 +32,16 @@ type ChannelProxy struct {
 
 	mu           sync.Mutex
 	nextID       uint32
-	channels     map[uint32]domainplugin.ChannelPurposeBackend
+	channels     map[uint32]*channelEntry
 	pendingOpens int
+}
+
+// channelEntry pairs an open channel's backend with the parentSessionId it was opened for, so
+// CloseSession can select exactly the channels bound to a closing session without a second
+// tracking map (ADR-011 §Session lifecycle coupling).
+type channelEntry struct {
+	backend         domainplugin.ChannelPurposeBackend
+	parentSessionID string
 }
 
 // NewChannelProxy creates a channel capability proxy for one plugin process.
@@ -59,7 +67,7 @@ func NewChannelProxy(
 		max:      max,
 		resolve:  resolve,
 		audit:    audit,
-		channels: make(map[uint32]domainplugin.ChannelPurposeBackend),
+		channels: make(map[uint32]*channelEntry),
 	}
 }
 
@@ -148,7 +156,7 @@ func (p *ChannelProxy) Open(ctx context.Context, params json.RawMessage) (json.R
 
 	p.mu.Lock()
 	p.pendingOpens--
-	p.channels[id] = backend
+	p.channels[id] = &channelEntry{backend: backend, parentSessionID: req.ParentSessionID}
 	committed = true
 	p.mu.Unlock()
 
@@ -167,12 +175,12 @@ func (p *ChannelProxy) Close(_ context.Context, params json.RawMessage) (json.Ra
 		return nil, fmt.Errorf("invalid channel.close params: %w", err)
 	}
 
-	backend, err := p.requireChannel(req.ChannelID)
+	entry, err := p.requireChannel(req.ChannelID)
 	if err != nil {
 		return nil, err
 	}
 
-	closeErr := backend.CloseRemote()
+	closeErr := entry.backend.CloseRemote()
 
 	p.mu.Lock()
 	delete(p.channels, req.ChannelID)
@@ -192,24 +200,55 @@ func (p *ChannelProxy) CloseAll() {
 	}
 	p.mu.Lock()
 	owned := p.channels
-	p.channels = make(map[uint32]domainplugin.ChannelPurposeBackend)
+	p.channels = make(map[uint32]*channelEntry)
 	p.pendingOpens = 0
 	p.mu.Unlock()
 
-	for id, backend := range owned {
-		closeErr := backend.CloseRemote()
+	for id, entry := range owned {
+		closeErr := entry.backend.CloseRemote()
 		p.auditClose(id, closeErr == nil, errString(closeErr))
 	}
 }
 
-func (p *ChannelProxy) requireChannel(channelID uint32) (domainplugin.ChannelPurposeBackend, error) {
+// CloseSession closes and drops every channel this proxy owns that is bound to sessionID,
+// leaving channels of other sessions on the same plugin process untouched. This is the
+// one-directional session->channels cascade (ADR-011 §Session lifecycle coupling); closing a
+// single channel must never reach back up to affect the parent session or its siblings, and
+// this method itself never touches session state — only its own channels map.
+func (p *ChannelProxy) CloseSession(sessionID string) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	var owned []struct {
+		id    uint32
+		entry *channelEntry
+	}
+	for id, entry := range p.channels {
+		if entry.parentSessionID == sessionID {
+			owned = append(owned, struct {
+				id    uint32
+				entry *channelEntry
+			}{id, entry})
+			delete(p.channels, id)
+		}
+	}
+	p.mu.Unlock()
+
+	for _, o := range owned {
+		closeErr := o.entry.backend.CloseRemote()
+		p.auditClose(o.id, closeErr == nil, errString(closeErr))
+	}
+}
+
+func (p *ChannelProxy) requireChannel(channelID uint32) (*channelEntry, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	backend, ok := p.channels[channelID]
+	entry, ok := p.channels[channelID]
 	if !ok {
 		return nil, domainplugin.ErrHandleNotFound
 	}
-	return backend, nil
+	return entry, nil
 }
 
 func (p *ChannelProxy) auditOpen(channelID uint32, req channelOpenParams, success bool, errMsg string) {

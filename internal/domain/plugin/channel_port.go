@@ -12,6 +12,15 @@ type ChannelInboundPort interface {
 	Close(ctx context.Context, pluginID string, params json.RawMessage) (json.RawMessage, error)
 }
 
+// ChannelSessionCloser closes every channel bound to a parentSessionId. Implemented by the
+// composition-root channel bus (internal/infra/plugin/capability) and invoked synchronously by
+// SessionLifecycleService.CloseSession before the session's ssh client is closed, so exec
+// channels (which ride that client) never outlive the session that owns them (ADR-011 §Session
+// lifecycle coupling).
+type ChannelSessionCloser interface {
+	CloseSession(sessionID string)
+}
+
 // ChannelHandle is a domain-level reference to a host-owned channel bus channel, passed to a
 // ChannelPurposeBackend so it can wire the far end without depending on the ipc frame layer.
 type ChannelHandle struct {
