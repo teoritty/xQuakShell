@@ -77,6 +77,9 @@ Plugins run out-of-process and communicate via **JSON-RPC 2.0 over NDJSON** on s
 | Host → plugin `shutdown` timeout | 2 s |
 | Grace period after stdin close | 3 s |
 | Plugin → core recommended client timeout | 5 s |
+| Plugin → host `channel.open` timeout | 10 s |
+| `channel.close` grace period | 0 s (immediate, no flush window) |
+| Max binary channel frame (`kind=0x02`) | 1 MiB |
 
 **Shutdown sequence (host → plugin):**
 
@@ -105,7 +108,7 @@ For **embed session surfaces** (VNC/RDP-style canvas clients), see [Session embe
 7. Host starts streaming output to the UI (`TerminalOutput` Wails event). The terminal panel is shown only when session state is `ready`.
 8. Keyboard input: UI → `session.writeInput` notification → plugin.
 9. Window resize: UI → `session.resize` notification → plugin.
-10. Tab close: host sends `session.disconnect` notification, then stops the per-session process.
+10. Tab close: host sends `session.disconnect` notification, **synchronously closes every channel bus channel bound to the session** (see [Channel bus](#channel-bus) below — this runs before the SSH client itself closes, since `exec`-purpose channels ride that client), then stops the per-session process.
 
 On crash, the supervisor restarts the process (up to **3** attempts, exponential backoff from 200 ms), sends `activate` with reason `crash-recovery`, re-binds the session, and **re-sends `session.connect`** with freshly resolved `fields`. The UI shows `connecting` with message “Recovering from plugin crash”. If recovery fails, state becomes `error` (“Plugin process crashed (recovery failed)”).
 
@@ -290,6 +293,82 @@ Requires `capabilities.session.embed`, `capabilities.network`, and static assets
 
 See [ADR-008](./adr/008-session-embed-surfaces.md).
 
+## Channel bus
+
+The channel bus is a **binary duplex peer** to the JSON-RPC control plane, for raw byte streams the JSON-RPC transport isn't a good fit for — remote exec output, relayed TCP/UDP traffic, embed-surface framebuffers. It rides the same stdin/stdout pipe pair as JSON-RPC, multiplexed by a frame header. See [ADR-011](./adr/011-binary-channel-bus.md) for the full design rationale.
+
+### Frame layer
+
+Every message on the wire — JSON-RPC included — is now length-prefixed with a fixed **9-byte header**:
+
+```
+[4 bytes: length][1 byte: kind][4 bytes: channelId][payload]
+```
+
+- `length` is the payload length only (excludes the 9 header bytes).
+- `length` and `channelId` are **big-endian**.
+- `channelId` is a `uint32`; the host is the sole allocator, from a monotonic counter that is never reused for the lifetime of a plugin process connection.
+- `channelId = 0` is reserved for the JSON-RPC control plane — existing JSON-RPC traffic is otherwise unchanged, just framed instead of newline-delimited.
+
+`kind` values:
+
+| Kind | Meaning | Payload |
+|------|---------|---------|
+| `0x01` | JSON-RPC | the JSON-RPC message, length-framed instead of newline-framed (256 KiB cap, unchanged) |
+| `0x02` | Binary channel data | raw bytes, no JSON, no base64 (1 MiB cap) |
+| `0x03` | Credit/window update | fixed 8-byte payload: `[4B channelId][4B credit]`, no subtype byte |
+
+`0x04`–`0x0F` are reserved and forbidden in v1 — any arrival, any invalid `kind`, an oversized `length`, or a `channelId` referencing a channel that isn't open is a protocol violation: the host closes stdio and terminates the plugin process immediately, then runs the existing crash-recovery path (supervisor restart, up to 3 attempts). There is no binary error frame — application-level errors (e.g. an exec command exiting non-zero) travel on `channel.close {reason, message}` over JSON-RPC.
+
+### `channel.open` / `channel.close`
+
+Opening and closing a channel is negotiated over JSON-RPC; only data flows as binary frames.
+
+| Method | Direction | Params | Response |
+|--------|-----------|--------|----------|
+| `channel.open` | plugin → host | `{"purpose":"...","parentSessionId":"...","hint":"..."}` | `{"channelId":<uint32>}` |
+| `channel.close` | either side | `{"channelId":<uint32>,"reason":"...","message":"..."}` | notification (no response) |
+
+- `channel.open` is a synchronous RPC with a **10 s timeout** (like `initialize`, not the standard 5 s RPC timeout — spawning an exec process or dialing a relay is comparably slow setup work).
+- `channel.close` has a **0 s grace period** — immediate, no flush window. After sending or receiving `channel.close`, both sides must treat the channel as closed and drop any further frames for that `channelId` as no-ops, not errors. Close is idempotent regardless of which side initiates it or how many times it arrives.
+- `purpose` is validated against the plugin's manifest-declared `channel.purposes` (see [plugin-manifest.md](./plugin-manifest.md#capabilities)) by the same capability `Gate` that denies undeclared RPC methods — an undeclared purpose is denied with `-32001` and audit-logged.
+- `parentSessionId` is checked against the same session-ownership rule as `vault.getSecret` and the tunnel proxies; a channel can only be opened for a session the plugin currently owns an active binding for.
+
+### Purpose
+
+`purpose` is a closed, host-validated enum. The plugin never gets a raw socket or raw credentials — it asks for a channel whose other end the host itself constructs and owns:
+
+| `purpose` | What the host does |
+|-----------|---------------------|
+| `exec` | Runs a command over the already-authenticated parent session's SSH connection (an exec channel on the existing `ssh.Client`), streaming stdin/stdout/stderr onto the binary channel. The command must match one of the plugin's manifest-declared `execCommands` argv templates — never a free-form string. |
+| `embed-stream` | Wires the channel to the session's video/embed surface (VNC/RDP framebuffer path) for a `capabilities.session.embed` plugin. |
+| `tcp-relay` | Dials a target through the existing `TunnelDialProxy` allowlist/dial policy — for cases that are genuinely a fresh TCP dial, not exec. |
+| `udp-relay` | Dials a target UDP endpoint directly from the host (`net.DialUDP`), validated against a `udp:`-prefixed allowlist entry (same dial-policy core as `tcp-relay`). SSH has no native UDP forwarding, so this is a direct host→target dial, not tunnelled through the parent SSH chain (matches topologies like mosh: SSH launches `mosh-server`, then UDP flows host↔server directly). Still bound to `parentSessionId` for ownership/lifecycle even though the dial is direct. One UDP datagram maps to exactly one `kind=0x02` frame. |
+
+### Flow control (credit)
+
+Credit-based flow control per channel, at **frame granularity**, carried entirely as binary `kind=0x03` frames — never JSON-RPC (routing credit through channel 0 would head-of-line-block the control plane).
+
+- On `channel.open`, the receiver grants an initial credit: **4 frames** for `exec` / `tcp-relay` / `udp-relay`, **8 frames** for `embed-stream`.
+- The sender may have at most `credit` frames in flight, unacknowledged, regardless of how large or small each frame's payload is (each frame still must stay under the 1 MiB `maxFrameSize` ceiling — credit and frame size are independent limits).
+- The receiver sends a `kind=0x03` credit-update frame as it drains frames, replenishing the sender's count.
+- The host enforces credit limits server-side regardless of what the plugin claims locally; a plugin sending past its granted credit is a protocol violation (fail-fast).
+
+**Exhaustion policy is per-purpose:**
+
+- `exec` / `tcp-relay` / `udp-relay` — the backend **pauses reading from its upstream source** (the SSH exec stdout pipe, the relayed TCP connection, or the UDP socket) once credit hits 0. This is real backpressure, not an unbounded in-process buffer; for `udp-relay`, pausing the socket read lets the OS receive buffer bound and drop excess datagrams, the correct behavior for a lossy transport.
+- `embed-stream` — instead of blocking the producer, the host-side buffer **drops the oldest unsent frame** (latest-frame-wins), consistent with the existing embed backpressure model.
+
+**Throughput cap (`maxThroughputKbps`) is enforced, not just declared** — a token-bucket limiter on the write path bounds sustained bytes/sec, independent of and in addition to the frame-count credit window. `0` (manifest field absent) uses the host default, the same numeric default as `maxTunnelBandwidthKbps` (32 MiB/s).
+
+### Session lifecycle coupling
+
+A channel's `parentSessionId` binding is one-directional: the parent session owns the channel's lifetime, never the reverse. When the parent session closes — user closes the tab, SSH connection drops, `session.disconnect`, plugin crash-recovery — the host **synchronously closes every channel bound to that session before tearing down the session object**, and specifically **before the SSH client itself closes** (`exec`-purpose channels ride that client). This is an explicit step in the [session close sequence](#sequence) above, alongside the existing `session.disconnect` notification.
+
+Independently of session close, if the **plugin process** itself exits or crashes, every channel owned by that process is closed and its remote end torn down unconditionally — regardless of whether the parent session is still alive — so a `docker exec` can never outlive its channel across a plugin restart.
+
+Closing one channel has no effect on the parent session or its sibling channels.
+
 ## Plugin IPC reference
 
 Complete method list as implemented in the core today.
@@ -371,6 +450,8 @@ All methods below require a matching manifest capability unless marked “always
 | `events.subscribe` | `events.subscribe` allowlist | `channel` | `{"ok":true}` |
 | `events.publish` | `events.publish` namespace | `channel`, `payload` | `{"ok":true}` — max **100/s** |
 | `view.postMessage` | contributed `views` | `panelId`, `message` | `{"ok":true}` |
+| `channel.open` | `channel` | `purpose`, `parentSessionId`, `hint` | `channelId` — see [Channel bus](#channel-bus) |
+| `channel.close` | `channel` | `channelId`, `reason?`, `message?` | notification, no response |
 
 FS paths must use the `${pluginData}` prefix (see [plugin-manifest.md](./plugin-manifest.md#capabilities)). Symlinks are rejected.
 
