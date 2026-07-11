@@ -3,6 +3,7 @@ package ipc
 import (
 	"bufio"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/pkg/safego"
 )
 
@@ -27,6 +29,7 @@ type Conn struct {
 	nextID     atomic.Int64
 	onNotify   func(method string, params json.RawMessage)
 	onRequest  RequestHandler
+	mux        *channelMux
 	closeCh    chan struct{}
 	closeOnce  sync.Once
 	wg         sync.WaitGroup
@@ -52,6 +55,7 @@ func NewConn(readFrom io.Reader, writeTo io.Writer, onNotify func(string, json.R
 		pending:     make(map[int64]chan messageResult),
 		onNotify:  onNotify,
 		onRequest: onRequest,
+		mux:       newChannelMux(),
 		closeCh:   make(chan struct{}),
 	}
 	c.wg.Add(1)
@@ -97,6 +101,21 @@ func (c *Conn) Notify(method string, params json.RawMessage) error {
 	return c.enc.WriteMessage(NewNotification(method, params))
 }
 
+// WriteBinary emits a kind=0x02 binary channel data frame on the same serialized writer
+// as JSON-RPC, so the two never interleave mid-frame on the wire.
+func (c *Conn) WriteBinary(channelID uint32, payload []byte) error {
+	return c.enc.fw.Write(domainplugin.FrameKindBinary, channelID, payload)
+}
+
+// WriteCredit emits a kind=0x03 credit/window-update frame. Payload layout is fixed per
+// ADR-011: 4B channelId + 4B credit, 8 bytes total, no subtype byte.
+func (c *Conn) WriteCredit(channelID uint32, credit uint32) error {
+	payload := make([]byte, 8)
+	binary.BigEndian.PutUint32(payload[0:4], channelID)
+	binary.BigEndian.PutUint32(payload[4:8], credit)
+	return c.enc.fw.Write(domainplugin.FrameKindCredit, channelID, payload)
+}
+
 // CloseWrite closes the plugin stdin side so the child can exit on EOF.
 func (c *Conn) CloseWrite() {
 	if c.writeCloser != nil {
@@ -116,23 +135,28 @@ func (c *Conn) readLoop() {
 	defer c.wg.Done()
 
 	for {
-		msg, err := ReadMessage(c.reader)
+		hdr, payload, err := ReadFrame(c.reader)
 		if err != nil {
-			if IsParseError(err) {
-				_ = c.enc.WriteMessage(NewParseErrorResponse())
-			}
+			c.failReadLoop(err, false)
+			return
+		}
+
+		if hdr.Kind != domainplugin.FrameKindJSONRPC {
 			select {
 			case <-c.closeCh:
 				return
 			default:
 			}
-			c.mu.Lock()
-			c.readErr = err
-			for id, ch := range c.pending {
-				ch <- messageResult{err: err}
-				delete(c.pending, id)
+			if dispatchErr := c.mux.Dispatch(hdr, payload); dispatchErr != nil {
+				c.failReadLoop(dispatchErr, false)
+				return
 			}
-			c.mu.Unlock()
+			continue
+		}
+
+		msg, err := decodeRPCMessage(payload)
+		if err != nil {
+			c.failReadLoop(err, IsParseError(err))
 			return
 		}
 
@@ -171,6 +195,27 @@ func (c *Conn) readLoop() {
 			c.onNotify(msg.Method, msg.Params)
 		}
 	}
+}
+
+// failReadLoop handles a terminal read-loop error (frame I/O failure, JSON-RPC parse
+// error, or a channel-mux protocol violation) uniformly: any of them ends the connection,
+// per ADR-011 §2a fail-fast.
+func (c *Conn) failReadLoop(err error, isParseError bool) {
+	if isParseError {
+		_ = c.enc.WriteMessage(NewParseErrorResponse())
+	}
+	select {
+	case <-c.closeCh:
+		return
+	default:
+	}
+	c.mu.Lock()
+	c.readErr = err
+	for id, ch := range c.pending {
+		ch <- messageResult{err: err}
+		delete(c.pending, id)
+	}
+	c.mu.Unlock()
 }
 
 func (c *Conn) handleIncomingRequest(id int64, method string, params json.RawMessage) {

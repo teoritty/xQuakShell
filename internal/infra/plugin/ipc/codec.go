@@ -86,7 +86,13 @@ func ReadMessage(r io.Reader) (Message, error) {
 	if hdr.Kind != domainplugin.FrameKindJSONRPC {
 		return Message{}, newProtocolViolation("unexpected frame kind 0x%02x on control-plane read", hdr.Kind)
 	}
+	return decodeRPCMessage(payload)
+}
 
+// decodeRPCMessage unmarshals the payload of a kind=0x01 frame. Split out of ReadMessage
+// so Conn.readLoop can decode a kind=0x01 frame it already read off the shared stream
+// without re-reading a frame header.
+func decodeRPCMessage(payload []byte) (Message, error) {
 	var msg Message
 	if err := json.Unmarshal(payload, &msg); err != nil {
 		return Message{}, fmt.Errorf("%w: %w", ErrParseError, err)
