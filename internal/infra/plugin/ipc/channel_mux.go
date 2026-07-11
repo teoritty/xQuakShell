@@ -49,6 +49,8 @@ func (m *channelMux) Dispatch(hdr FrameHeader, payload []byte) error {
 	if !ok {
 		return newProtocolViolation("frame kind 0x%02x for unknown channel id %d", hdr.Kind, hdr.ChannelID)
 	}
-	ch.deliver(hdr.Kind, payload)
+	if err := ch.deliver(hdr.Kind, payload); err != nil {
+		return newProtocolViolation("channel %d: %v", hdr.ChannelID, err)
+	}
 	return nil
 }
