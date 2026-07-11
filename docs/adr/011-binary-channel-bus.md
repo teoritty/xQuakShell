@@ -59,15 +59,17 @@ Decision: **any framing anomaly is fatal for the whole plugin connection, not ju
 
 Blocking the underlying OS pipe on a full buffer is not viable here, because the pipe is shared by every multiplexed channel *and* the JSON-RPC control plane — a slow consumer on one channel would head-of-line-block control-plane traffic (e.g., a keepalive) for everything else on that plugin connection.
 
-Decision: **credit-based flow control per channel**, carried in `kind=0x03` control frames — the same mechanism HTTP/2 uses for exactly this problem (multiplexed streams over one connection), not a novel design:
+Decision: **credit-based flow control per channel, at frame granularity, carried entirely as binary `kind=0x03` control frames — never JSON-RPC.** Routing credit updates through JSON-RPC on channel 0 would reintroduce exactly the head-of-line-blocking this section exists to avoid, so `windowUpdate` is a fixed-layout binary frame (`channel id` + a 4-byte credit count), not a JSON message.
 
-- On `channel.opened`, the receiver grants an initial window (e.g. 64 KiB).
-- The sender may not have more than `window` bytes of unacknowledged data in flight on that channel; it must hold data locally once the window is exhausted.
-- The receiver sends `channel.windowUpdate {channelId, bytes}` as it drains data, replenishing the sender's credit.
-- **Per-`purpose` semantics differ on window exhaustion:**
+Credit is measured in **frames, not bytes** — this deliberately decouples flow control from `maxFrameSize` (the 1 MiB-class cap on a single frame's payload, defined in framing/§1) so the two limits can never conflict with each other:
+
+- On `channel.opened`, the receiver grants an initial credit (e.g. 4 frames).
+- The sender may have at most `credit` frames in flight, unacknowledged, on that channel — regardless of how large or small each individual frame's payload is, as long as each stays under `maxFrameSize`.
+- The receiver sends a `kind=0x03` credit-update frame as it drains/processes frames, replenishing the sender's count.
+- **Per-`purpose` semantics differ on credit exhaustion:**
   - `exec`: sender blocks/buffers locally — no data loss, correctness preserved (matches normal process stdout backpressure semantics).
-  - `embed-stream`: instead of blocking the producer, the **host-side buffer drops the oldest unsent frame** when the window is exhausted — consistent with the latest-frame-wins policy already described for video. The plugin is not required to implement drop logic itself; it just stops being able to push once the host stops granting credit, and the host discards what it's already holding.
-- The host enforces window limits server-side regardless of what the plugin claims locally (defense in depth); a plugin that sends past its granted window is a protocol violation and follows the fail-fast path in 2a.
+  - `embed-stream`: instead of blocking the producer, the **host-side buffer drops the oldest unsent frame** when credit is exhausted — consistent with the latest-frame-wins policy already described for video. The plugin is not required to implement drop logic itself; it just stops being able to push once the host stops granting credit, and the host discards what it's already holding.
+- The host enforces credit limits server-side regardless of what the plugin claims locally (defense in depth); a plugin that sends past its granted credit is a protocol violation and follows the fail-fast path in 2a.
 
 ### 3. What sits on the other end of a channel — host-mediated, never plugin-dialed
 
@@ -149,9 +151,9 @@ A channel's `parentSessionId` binding is one-directional: **the parent session o
 - Channel state is a small explicit machine — `opening → open → closing → closed` — with `close` idempotent on both sides: whichever side didn't initiate the close still needs to handle receiving `channel.close` for a channel it already considers closed as a no-op, not an error.
 - **After sending `channel.close`, the host ignores all further frames for that `channelId`; the plugin must consider the channel closed and stop sending on it.** This applies equally whether the close was initiated by normal completion (command exited) or by an external event (user closed the tab, cascading from session close) — the plugin does not get a grace window to flush additional data after receiving `channel.close`.
 
-## Protocol version negotiation
+## Protocol framing bootstrap
 
-Rather than negotiating compatibility per-frame (which would put version-branching logic on the hot path), version compatibility is resolved once, during the existing `initialize` handshake. The plugin manifest declares `channelProtocolVersion`; the host checks it against its supported range at load time and either accepts the plugin or refuses to load it with an explicit, user-visible reason ("plugin requires channel protocol v2, host supports v1") — rather than a plugin being killed mid-session for using an unrecognized `kind`, which would look like a random crash to the user. The `kind` byte range `0x01–0x0F` is reserved for core-defined frame types so future additions can be made additively without breaking already-loaded plugins; whether a given plugin *may* rely on a newer `kind` is still decided once, up front, at load time.
+There is no prior shipped version of this transport and no installed base of plugins speaking raw NDJSON to preserve — the project has no users yet and this API is still under active development. Given that, the framing bootstrap has a clean answer instead of a negotiated one: **framing is mandatory from the first byte, for every plugin, unconditionally.** There is no raw-NDJSON fallback mode and therefore no chicken-and-egg problem to solve — `initialize` is simply the first JSON-RPC message sent on `channelId = 0` inside an already-framed stream, like every other control-plane message. The `kind` byte range `0x01–0x0F` stays reserved for core-defined frame types so the format can grow additively later, but no per-plugin version negotiation is needed for v1 because there is nothing yet to be compatible or incompatible with.
 
 ## Implementation note: multiple `exec` channels over one SSH connection
 
