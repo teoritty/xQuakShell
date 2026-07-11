@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -146,16 +148,14 @@ func TestFSProxyChunkedRead(t *testing.T) {
 
 func TestReadMessageRejectsOversizeFrame(t *testing.T) {
 	var buf bytes.Buffer
-	oversized := make([]byte, domainplugin.MaxFrameBytes+10)
-	for i := range oversized {
-		oversized[i] = 'a'
-	}
-	buf.Write(oversized)
-	buf.WriteByte('\n')
+	var hdr [9]byte
+	binary.BigEndian.PutUint32(hdr[0:4], uint32(domainplugin.MaxFrameBytes+10))
+	hdr[4] = 0x01
+	buf.Write(hdr[:])
 
 	_, err := ipc.ReadMessage(bufio.NewReader(&buf))
-	if err != ipc.ErrFrameTooLarge {
-		t.Fatalf("expected ErrFrameTooLarge, got %v", err)
+	if !errors.Is(err, ipc.ErrProtocolViolation) {
+		t.Fatalf("expected ErrProtocolViolation, got %v", err)
 	}
 }
 

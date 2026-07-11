@@ -3,8 +3,8 @@ package pluginhost
 
 import (
 	"bufio"
-	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,9 +16,11 @@ import (
 )
 
 const (
-	jsonRPCVersion   = "2.0"
-	defaultCallTimeout = 5 * time.Second
-	maxFrameBytes    = 256 << 10
+	jsonRPCVersion      = "2.0"
+	defaultCallTimeout  = 5 * time.Second
+	maxFrameBytes       = 256 << 10
+	frameHeaderLen      = 9
+	frameKindJSONRPC    = 0x01
 )
 
 // Message is a JSON-RPC 2.0 frame.
@@ -240,34 +242,43 @@ func (jw *jsonWriter) WriteMessage(msg Message) error {
 	if len(data) > maxFrameBytes {
 		return fmt.Errorf("rpc frame exceeds %d bytes", maxFrameBytes)
 	}
-	if _, err := jw.w.Write(data); err != nil {
+
+	var hdr [frameHeaderLen]byte
+	binary.BigEndian.PutUint32(hdr[0:4], uint32(len(data)))
+	hdr[4] = frameKindJSONRPC
+	binary.BigEndian.PutUint32(hdr[5:9], 0)
+
+	if _, err := jw.w.Write(hdr[:]); err != nil {
 		return err
 	}
-	_, err = jw.w.Write([]byte{'\n'})
+	_, err = jw.w.Write(data)
 	return err
 }
 
 func readMessage(r *bufio.Reader) (Message, error) {
-	var line []byte
-	for {
-		fragment, err := r.ReadSlice('\n')
-		line = append(line, fragment...)
-		if len(line) > maxFrameBytes {
-			return Message{}, fmt.Errorf("rpc frame exceeds %d bytes", maxFrameBytes)
-		}
-		if err == nil {
-			break
-		}
-		if err != bufio.ErrBufferFull {
-			return Message{}, err
-		}
+	var hdr [frameHeaderLen]byte
+	if _, err := io.ReadFull(r, hdr[:]); err != nil {
+		return Message{}, err
 	}
-	line = bytes.TrimSpace(line)
-	if len(line) == 0 {
+	length := binary.BigEndian.Uint32(hdr[0:4])
+	kind := hdr[4]
+
+	if kind != frameKindJSONRPC {
+		return Message{}, fmt.Errorf("unexpected frame kind 0x%02x", kind)
+	}
+	if length > maxFrameBytes {
+		return Message{}, fmt.Errorf("rpc frame exceeds %d bytes", maxFrameBytes)
+	}
+
+	payload := make([]byte, length)
+	if _, err := io.ReadFull(r, payload); err != nil {
+		return Message{}, err
+	}
+	if len(payload) == 0 {
 		return Message{}, fmt.Errorf("empty rpc frame")
 	}
 	var msg Message
-	if err := json.Unmarshal(line, &msg); err != nil {
+	if err := json.Unmarshal(payload, &msg); err != nil {
 		return Message{}, fmt.Errorf("%w: %w", errParseError, err)
 	}
 	return msg, nil

@@ -1,13 +1,10 @@
 package ipc
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"sync"
 
 	domainplugin "ssh-client/internal/domain/plugin"
 )
@@ -51,15 +48,14 @@ func (e *RPCError) Error() string {
 	return fmt.Sprintf("rpc error %d: %s", e.Code, e.Message)
 }
 
-// Codec reads and writes NDJSON frames.
+// Codec reads and writes length-prefixed frames carrying JSON-RPC on kind=0x01.
 type Codec struct {
-	w  io.Writer
-	mu sync.Mutex
+	fw *FrameWriter
 }
 
-// NewCodec creates a codec that writes newline-delimited JSON to w.
+// NewCodec creates a codec that frame-writes JSON-RPC messages to w.
 func NewCodec(w io.Writer) *Codec {
-	return &Codec{w: w}
+	return &Codec{fw: NewFrameWriter(w)}
 }
 
 // WriteMessage serializes one JSON-RPC frame.
@@ -75,41 +71,24 @@ func (c *Codec) WriteMessage(msg Message) error {
 		return ErrFrameTooLarge
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if _, err := c.w.Write(data); err != nil {
+	if err := c.fw.Write(domainplugin.FrameKindJSONRPC, 0, data); err != nil {
 		return fmt.Errorf("write rpc frame: %w", err)
-	}
-	if _, err := c.w.Write([]byte{'\n'}); err != nil {
-		return fmt.Errorf("write rpc newline: %w", err)
 	}
 	return nil
 }
 
-// ReadMessage reads one JSON-RPC frame from r.
-func ReadMessage(r *bufio.Reader) (Message, error) {
-	var line []byte
-	for {
-		fragment, err := r.ReadSlice('\n')
-		line = append(line, fragment...)
-		if len(line) > domainplugin.MaxFrameBytes {
-			return Message{}, ErrFrameTooLarge
-		}
-		if err == nil {
-			break
-		}
-		if err != bufio.ErrBufferFull {
-			return Message{}, fmt.Errorf("read rpc frame: %w", err)
-		}
+// ReadMessage reads one JSON-RPC (kind=0x01) frame from r.
+func ReadMessage(r io.Reader) (Message, error) {
+	hdr, payload, err := ReadFrame(r)
+	if err != nil {
+		return Message{}, err
 	}
-	line = bytes.TrimSpace(line)
-	if len(line) == 0 {
-		return Message{}, fmt.Errorf("empty rpc frame")
+	if hdr.Kind != domainplugin.FrameKindJSONRPC {
+		return Message{}, newProtocolViolation("unexpected frame kind 0x%02x on control-plane read", hdr.Kind)
 	}
 
 	var msg Message
-	if err := json.Unmarshal(line, &msg); err != nil {
+	if err := json.Unmarshal(payload, &msg); err != nil {
 		return Message{}, fmt.Errorf("%w: %w", ErrParseError, err)
 	}
 	if msg.JSONRPC != "" && msg.JSONRPC != jsonRPCVersion {
