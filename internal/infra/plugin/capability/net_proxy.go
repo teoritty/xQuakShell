@@ -356,19 +356,8 @@ func newNetHandleID() (string, error) {
 	return hex.EncodeToString(b[:]), nil
 }
 
-// shouldAllowResolvedIP decides whether resolved ip may be dialed.
-// Implements "either mode permits" (FR-6):
-// - arbitrary mode: public IPs allowed; private/loopback only if allowPrivateNetworks
-// - allowlist mode: delegates to domain AllowResolvedDialIP unchanged
-// - If arbitrary didn't allow, falls through to allowlist check
+// shouldAllowResolvedIP delegates to the shared dial-policy function in net_proxy_match.go
+// (reused verbatim by ChannelRelayBackend) with this proxy's configured modes.
 func (p *NetProxy) shouldAllowResolvedIP(patternHost string, ip net.IP) bool {
-	if p.allowArbitrary {
-		if !domainplugin.IsRestrictedDialIP(ip) {
-			return true
-		}
-		if p.allowPrivateNetworks {
-			return true
-		}
-	}
-	return domainplugin.AllowResolvedDialIP(patternHost, ip)
+	return shouldAllowResolvedIP(p.allowArbitrary, p.allowPrivateNetworks, patternHost, ip)
 }

@@ -21,14 +21,33 @@ type ChannelSessionCloser interface {
 	CloseSession(sessionID string)
 }
 
+// ChannelDataPath is the minimal read/write/flow-control surface a purpose backend's Wire
+// method uses to move bytes across an already-open channel. It is implemented by the host's
+// real per-channel ipc.channel (via a thin composition-root adapter) and by fakes in tests,
+// kept as a domain-level interface so purpose backends never import the ipc frame layer.
+type ChannelDataPath interface {
+	// Send emits one outbound kind=0x02 frame, blocking per the channel's ADR-011 §2b
+	// exhaustion policy for the channel's purpose.
+	Send(ctx context.Context, payload []byte) error
+	// Recv blocks until an inbound frame (plugin -> host) is available or the channel is
+	// closed; ok is false only once the channel is closed with nothing left queued.
+	Recv() ([]byte, bool)
+	// WaitForCapacity blocks until outbound credit is available or ctx is done — the
+	// pause-upstream-read signal a backend's own upstream read loop must gate on before
+	// pulling more data from its source (ADR-011 §2b).
+	WaitForCapacity(ctx context.Context) error
+}
+
 // ChannelHandle is a domain-level reference to a host-owned channel bus channel, passed to a
 // ChannelPurposeBackend so it can wire the far end without depending on the ipc frame layer.
+// Data is nil until the composition root wires the channel's real data path to it.
 type ChannelHandle struct {
 	ChannelID       uint32
 	PluginID        string
 	Purpose         string
 	ParentSessionID string
 	Hint            string
+	Data            ChannelDataPath
 }
 
 // ChannelPurposeBackend is the contract each purpose (exec/tcp-relay/embed-stream, implemented
