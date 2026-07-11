@@ -20,6 +20,7 @@ type PluginSessionScope struct {
 type PluginSessionRPCHandler struct {
 	sessions domainplugin.SessionInboundPort
 	embed    *PluginEmbedInbound
+	channels domainplugin.ChannelInboundPort
 	scope    PluginSessionScope
 	auth     domainplugin.SessionRPCAuthorizer
 }
@@ -28,12 +29,14 @@ type PluginSessionRPCHandler struct {
 func NewPluginSessionRPCHandler(
 	sessions domainplugin.SessionInboundPort,
 	embed *PluginEmbedInbound,
+	channels domainplugin.ChannelInboundPort,
 	auth domainplugin.SessionRPCAuthorizer,
 	scope PluginSessionScope,
 ) *PluginSessionRPCHandler {
 	return &PluginSessionRPCHandler{
 		sessions: sessions,
 		embed:    embed,
+		channels: channels,
 		scope:    scope,
 		auth:     auth,
 	}
@@ -161,10 +164,31 @@ func (h *PluginSessionRPCHandler) Handle(ctx context.Context, pluginID, method s
 		if err := h.embed.ReportLocalEmbed(ctx, pluginID, req.SessionID, params); err != nil {
 			return nil, err
 		}
+	case "channel.open":
+		if h.channels == nil {
+			return nil, domainplugin.ErrCapabilityDenied
+		}
+		var req channelOpenAuthParams
+		if err := json.Unmarshal(params, &req); err != nil {
+			return nil, err
+		}
+		if err := h.authorize(req.ParentSessionID); err != nil {
+			return nil, err
+		}
+		return h.channels.Open(ctx, pluginID, params)
+	case "channel.close":
+		if h.channels == nil {
+			return nil, domainplugin.ErrCapabilityDenied
+		}
+		return h.channels.Close(ctx, pluginID, params)
 	default:
 		return nil, domainplugin.ErrCapabilityDenied
 	}
 	return json.Marshal(map[string]bool{"ok": true})
+}
+
+type channelOpenAuthParams struct {
+	ParentSessionID string `json:"parentSessionId"`
 }
 
 func (h *PluginSessionRPCHandler) authorize(targetSessionID string) error {
@@ -190,6 +214,7 @@ var _ domainplugin.SessionRPCHandler = (*PluginSessionRPCHandler)(nil)
 func NewPluginSessionRPCHandlerFactory(
 	inbound domainplugin.SessionInboundPort,
 	embed *PluginEmbedInbound,
+	channels domainplugin.ChannelInboundPort,
 	auth domainplugin.SessionRPCAuthorizer,
 ) domainplugin.SessionRPCHandlerFactory {
 	return func(plugin domainplugin.InstalledPlugin, processSessionID string) domainplugin.SessionRPCHandler {
@@ -197,7 +222,7 @@ func NewPluginSessionRPCHandlerFactory(
 		if plugin.Manifest.Capabilities.Session != nil {
 			allowMulti = plugin.Manifest.Capabilities.Session.AllowMultiSession
 		}
-		return NewPluginSessionRPCHandler(inbound, embed, auth, PluginSessionScope{
+		return NewPluginSessionRPCHandler(inbound, embed, channels, auth, PluginSessionScope{
 			PluginID:          plugin.Manifest.ID,
 			ProcessSessionID:  processSessionID,
 			Isolation:         plugin.Manifest.EffectiveIsolation(),

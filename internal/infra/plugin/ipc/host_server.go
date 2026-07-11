@@ -171,6 +171,20 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 			return nil, proxyUnavailableError(method)
 		}
 		result, err = s.tunnelLocal.Bind(ctx, params)
+	case "channel.open":
+		if s.sessions == nil {
+			return nil, &RPCError{Code: -32603, Message: "session handler unavailable"}
+		}
+		// channel.open dials a real backend (exec spawn / relay dial), so it gets the same
+		// 10s allowance as initialize instead of the default inbound RPC timeout.
+		openCtx, cancel := context.WithTimeout(ctx, domainplugin.ChannelOpenTimeout)
+		result, err = s.sessions.Handle(openCtx, s.pluginID, method, params)
+		cancel()
+	case "channel.close":
+		if s.sessions == nil {
+			return nil, &RPCError{Code: -32603, Message: "session handler unavailable"}
+		}
+		result, err = s.sessions.Handle(ctx, s.pluginID, method, params)
 	default:
 		s.auditDenied(method, "method not found")
 		return nil, &RPCError{Code: -32601, Message: "method not found"}

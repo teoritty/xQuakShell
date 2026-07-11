@@ -40,7 +40,7 @@ func testProcessHost(t *testing.T, auth domainplugin.SessionRPCAuthorizer, inbou
 	return infraplugin.NewProcessHost(infraplugin.HostConfig{
 		DataRoot:          t.TempDir(),
 		SessionAuthorizer: auth,
-		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, usecase.NewPluginEmbedInbound(), auth),
+		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, usecase.NewPluginEmbedInbound(), nil, auth),
 	})
 }
 
@@ -117,7 +117,7 @@ func TestBundledPluginLoadsWithChecksums(t *testing.T) {
 func TestSamePluginCrossSessionUpdateStateDeniedPerSession(t *testing.T) {
 	auth := testSessionAuthorizer(t, nil, nil)
 	inbound := usecase.NewPluginSessionInbound()
-	proxy := usecase.NewPluginSessionRPCHandler(inbound, usecase.NewPluginEmbedInbound(), auth, usecase.PluginSessionScope{
+	proxy := usecase.NewPluginSessionRPCHandler(inbound, usecase.NewPluginEmbedInbound(), nil, auth, usecase.PluginSessionScope{
 		PluginID:         "plugin-a",
 		ProcessSessionID: "sess-1",
 		Isolation:        domainplugin.IsolationPerSession,
@@ -167,7 +167,7 @@ func TestSamePluginCrossSessionAllowedWithBindingPerPlugin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	proxy := usecase.NewPluginSessionRPCHandler(inbound, usecase.NewPluginEmbedInbound(), auth, usecase.PluginSessionScope{
+	proxy := usecase.NewPluginSessionRPCHandler(inbound, usecase.NewPluginEmbedInbound(), nil, auth, usecase.PluginSessionScope{
 		PluginID:          "plugin-a",
 		Isolation:         domainplugin.IsolationPerPlugin,
 		AllowMultiSession: true,
@@ -185,7 +185,7 @@ func TestSamePluginCrossSessionAllowedWithBindingPerPlugin(t *testing.T) {
 func TestSessionRPCDeniedWhenNotBound(t *testing.T) {
 	auth := testSessionAuthorizer(t, nil, nil)
 	inbound := usecase.NewPluginSessionInbound()
-	proxy := usecase.NewPluginSessionRPCHandler(inbound, usecase.NewPluginEmbedInbound(), auth, usecase.PluginSessionScope{
+	proxy := usecase.NewPluginSessionRPCHandler(inbound, usecase.NewPluginEmbedInbound(), nil, auth, usecase.PluginSessionScope{
 		PluginID:  "plugin-a",
 		Isolation: domainplugin.IsolationPerPlugin,
 	})
@@ -214,7 +214,7 @@ func TestProcessHostBindSessionDelegatesToUsecaseAuthorizer(t *testing.T) {
 		t.Fatal(err)
 	}
 	inbound.SetHandler(manager)
-	proxy := usecase.NewPluginSessionRPCHandler(inbound, usecase.NewPluginEmbedInbound(), auth, usecase.PluginSessionScope{
+	proxy := usecase.NewPluginSessionRPCHandler(inbound, usecase.NewPluginEmbedInbound(), nil, auth, usecase.PluginSessionScope{
 		PluginID:   "plugin-a",
 		Isolation:  domainplugin.IsolationPerPlugin,
 	})

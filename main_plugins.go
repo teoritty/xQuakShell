@@ -99,7 +99,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		DataRoot:          dataRoot,
 		Portable:          portableRuntime,
 		Vault:             vaultInbound,
-		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, embedInbound, sessionAuthorizer),
+		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, embedInbound, nil, sessionAuthorizer),
 		Events:            eventBus,
 		Views:             viewInbound,
 		Tunnel:            dynamicForward,
