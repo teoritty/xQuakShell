@@ -126,6 +126,16 @@ Host↔iframe `postMessage` uses an explicit target origin:
 - Rate limit: 100 events/second per plugin.
 - Inbound plugin RPC resets the idle-suspend activity timer.
 
+## Channel bus (ADR-011)
+
+Full wire format, `channel.open`/`channel.close`, credit model, and purpose semantics: [plugin-api.md — Channel bus](./plugin-api.md#channel-bus).
+
+- **`exec` requires explicit install-time user consent**, exactly like `auth.provider` and `allowArbitraryOutbound` — running arbitrary commands over the user's already-authenticated session is high-impact and must never be silently grantable. The install preview shows a dedicated consent line ("Run commands over your authenticated session (exec channel)") whenever the manifest declares `exec` in `capabilities.channel.purposes`. `embed-stream` and `tcp-relay`/`udp-relay` require no new consent beyond the existing ADR-008 embed consent and the existing `allowArbitraryOutbound`/`allowPrivateNetworks` network model, respectively.
+- **`exec` commands are argv-array allowlists, never shell strings** — see [plugin-manifest.md — `exec` command allowlist](./plugin-manifest.md#capabilities) for the template/regex schema. The host always invokes via an argv array, eliminating command injection as a class of bug rather than relying on escaping.
+- **IDOR ownership carries over unchanged:** a channel's `parentSessionId` is checked against the same session-binding/ownership rule that already protects `vault.getSecret` and the tunnel proxies (see [Ownership (IDOR)](#ownership-idor) above) — a plugin may open or hold a channel for a session only while it owns an active binding for it.
+- **`tcp-relay`/`udp-relay` audit the canonicalized, post-validation target, never the raw plugin-supplied `hint`** — the same principle already applied to dial-policy audit entries under [Network outbound (SSRF)](#network-outbound-ssrf) below: logging the raw value would let two different encodings of the same address (DNS name vs. IP literal vs. non-canonical IP form) look like different events, or let a bypass attempt look benign in the log.
+- **`hint` validation reuses the existing dial policy verbatim** — `tcp-relay` and `udp-relay` are checked through the same allowlist/IP-restriction functions `net.dial` already uses (`tcp:host:port` and `udp:host:port` respectively), not a parallel validator.
+
 ## Network outbound (SSRF)
 Full `net.*` RPC reference and limits: [plugin-api.md — Network API](./plugin-api.md#network-api).
 

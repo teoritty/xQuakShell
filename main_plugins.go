@@ -12,6 +12,7 @@ import (
 	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/infra/auditlog"
 	infracache "ssh-client/internal/infra/cache"
+	"ssh-client/internal/infra/plugin/capability"
 	infragithub "ssh-client/internal/infra/github"
 	infrapluginembed "ssh-client/internal/infra/embed"
 	infraplugin "ssh-client/internal/infra/plugin"
@@ -32,6 +33,7 @@ type pluginRuntime struct {
 	embedTunnels        *usecase.EmbedTunnelService
 	dynamicForward      *usecase.DynamicForwardCoordinator
 	embedBridge         *usecase.PluginEmbedBridge
+	channelBus          *capability.ChannelBus
 	viewInbound         *usecase.PluginViewInbound
 	viewRelay           *usecase.PluginViewRelay
 	vaultInbound        *usecase.PluginVaultInbound
@@ -95,6 +97,8 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		return manager.NotifyProcess(ctx, pluginID, sessionID, method, params)
 	})
 
+	channelBus := capability.NewChannelBus()
+
 	hostCfg := infraplugin.HostConfig{
 		DataRoot:          dataRoot,
 		Portable:          portableRuntime,
@@ -105,6 +109,14 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		Tunnel:            dynamicForward,
 		SessionAuthorizer: sessionAuthorizer,
 		Audit:             pluginAudit.RPCRecorder(),
+		// Real purpose backends (exec/tcp-relay/embed-stream) land in ADR-011 Stages 6-8; until
+		// then every channel.open is rejected after purpose/session validation, same as any other
+		// declared-but-unimplemented capability.
+		ChannelResolver: func(string) (domainplugin.ChannelPurposeBackend, error) {
+			return nil, domainplugin.ErrNotImplemented
+		},
+		ChannelAudit: pluginAudit.ChannelFunc(),
+		ChannelBus:   channelBus,
 		OnCrash: func(pluginID, sessionID string) {
 			if manager != nil {
 				manager.OnProcessCrashed(pluginID, sessionID)
@@ -221,6 +233,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		inbound:             inbound,
 		embedInbound:        embedInbound,
 		embedTunnels:        embedTunnels,
+		channelBus:          channelBus,
 		dynamicForward:      dynamicForward,
 		viewInbound:         viewInbound,
 		viewRelay:           viewRelay,
@@ -249,6 +262,7 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 		r.embedTunnels.SetEmbedReadyHandler(api.OnEmbedReady)
 	}
 	api.Sessions().SetEmbedTunnelService(r.embedTunnels)
+	api.Sessions().SetChannelBus(r.channelBus)
 	api.Sessions().SetDynamicForward(r.dynamicForward)
 	if r.dynamicForward != nil && r.vaultSettings != nil {
 		r.dynamicForward.SetTunnelGrantReader(r.vaultSettings)

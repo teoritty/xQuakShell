@@ -15,6 +15,106 @@ import (
 	domainplugin "ssh-client/internal/domain/plugin"
 )
 
+// dialPolicyFixture is one dial-policy decision case, shared verbatim between NetProxy's own
+// tests and any other caller of the dial-policy chain (ChannelRelayBackend's tcp-relay
+// backend, ADR-011 Stage 6) so the two never assert diverging behavior for the same inputs.
+type dialPolicyFixture struct {
+	name           string
+	patterns       []string
+	allowArbitrary bool
+	allowPrivate   bool
+	host           string
+	resolvedIP     net.IP
+	port           int
+	wantDenied     bool
+}
+
+// dialPolicyFixtures is the single source of truth for dial-policy accept/deny cases. Every
+// caller of the shared matchingPatternHost/shouldAllowResolvedIP chain (NetProxy.Dial,
+// ChannelRelayBackend.Authorize) is expected to be exercised against this same table.
+func dialPolicyFixtures() []dialPolicyFixture {
+	return []dialPolicyFixture{
+		{
+			name:       "dns_rebinding_to_loopback_denied",
+			patterns:   []string{"tcp:evil.example:443"},
+			host:       "evil.example",
+			resolvedIP: net.ParseIP("127.0.0.1"),
+			port:       443,
+			wantDenied: true,
+		},
+		{
+			name:       "explicit_loopback_pattern_allowed",
+			patterns:   []string{"tcp:127.0.0.1:9"},
+			host:       "127.0.0.1",
+			resolvedIP: net.ParseIP("127.0.0.1"),
+			port:       9,
+			wantDenied: false,
+		},
+		{
+			name:           "arbitrary_public_host_allowed",
+			allowArbitrary: true,
+			host:           "example.com",
+			resolvedIP:     net.ParseIP("93.184.216.34"),
+			port:           80,
+			wantDenied:     false,
+		},
+		{
+			name:           "arbitrary_blocks_private_without_flag",
+			allowArbitrary: true,
+			host:           "internal.local",
+			resolvedIP:     net.ParseIP("10.0.0.1"),
+			port:           23,
+			wantDenied:     true,
+		},
+		{
+			name:           "arbitrary_allows_private_with_flag",
+			allowArbitrary: true,
+			allowPrivate:   true,
+			host:           "10.0.0.1",
+			resolvedIP:     net.ParseIP("10.0.0.1"),
+			port:           23,
+			wantDenied:     false,
+		},
+		{
+			name:           "combined_allowlist_permits_private_in_list",
+			patterns:       []string{"tcp:192.168.1.1:23"},
+			allowArbitrary: true,
+			host:           "192.168.1.1",
+			resolvedIP:     net.ParseIP("192.168.1.1"),
+			port:           23,
+			wantDenied:     false,
+		},
+		{
+			name:           "combined_blocks_private_not_in_list",
+			patterns:       []string{"tcp:192.168.1.1:23"},
+			allowArbitrary: true,
+			host:           "10.0.0.5",
+			resolvedIP:     net.ParseIP("10.0.0.5"),
+			port:           23,
+			wantDenied:     true,
+		},
+	}
+}
+
+func TestNetProxyDialPolicyFixtures(t *testing.T) {
+	for _, f := range dialPolicyFixtures() {
+		t.Run(f.name, func(t *testing.T) {
+			proxy := NewNetProxy("com.test", &domainplugin.NetworkCaps{
+				Outbound:               f.patterns,
+				AllowArbitraryOutbound: f.allowArbitrary,
+				AllowPrivateNetworks:   f.allowPrivate,
+			})
+			proxy.resolver = mapResolver{f.host: {f.resolvedIP}}
+
+			_, err := proxy.Dial(json.RawMessage(fmt.Sprintf(`{"host":%q,"port":%d}`, f.host, f.port)))
+			denied := errors.Is(err, domainplugin.ErrCapabilityDenied)
+			if denied != f.wantDenied {
+				t.Fatalf("%s: denied=%v (err=%v), want denied=%v", f.name, denied, err, f.wantDenied)
+			}
+		})
+	}
+}
+
 type mapResolver map[string][]net.IP
 
 func (m mapResolver) LookupIPAddr(_ context.Context, host string) ([]net.IPAddr, error) {

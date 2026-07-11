@@ -2,6 +2,7 @@ package plugin_test
 
 import (
 	"bytes"
+	"encoding/binary"
 	"strings"
 	"testing"
 
@@ -10,7 +11,14 @@ import (
 
 func TestConnParseErrorReturns32700(t *testing.T) {
 	var hostOut bytes.Buffer
-	conn := ipc.NewConn(strings.NewReader("{broken\n"), &hostOut, nil, nil)
+
+	broken := []byte("{broken")
+	var hdr [9]byte
+	binary.BigEndian.PutUint32(hdr[0:4], uint32(len(broken)))
+	hdr[4] = 0x01
+	frame := append(hdr[:], broken...)
+
+	conn := ipc.NewConn(bytes.NewReader(frame), &hostOut, nil, nil)
 	conn.Close()
 
 	if !strings.Contains(hostOut.String(), "-32700") {

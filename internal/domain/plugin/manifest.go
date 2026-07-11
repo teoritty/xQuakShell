@@ -52,6 +52,7 @@ type CapabilitySet struct {
 	Session *SessionCaps `json:"session,omitempty"`
 	Auth    *AuthCaps    `json:"auth,omitempty"`
 	Tunnel  *TunnelCaps  `json:"tunnel,omitempty"`
+	Channel *ChannelCaps `json:"channel,omitempty"`
 }
 
 // NetworkCaps controls outbound connectivity.

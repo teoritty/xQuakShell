@@ -49,6 +49,8 @@ func (g *Gate) Allow(method string) bool {
 		return g.manifest.HasViews()
 	case "tunnel.dial", "tunnel.close", "tunnel.localWrite", "tunnel.localClose", "tunnel.bind":
 		return g.manifest.Capabilities.Tunnel != nil && g.manifest.Capabilities.Tunnel.Provider
+	case "channel.open", "channel.close":
+		return g.manifest.Capabilities.Channel != nil && len(g.manifest.Capabilities.Channel.Purposes) > 0
 	default:
 		return false
 	}

@@ -26,8 +26,10 @@ Multiplex both JSON-RPC and binary channel traffic over the same stdin/stdout pi
 [4 bytes: length][1 byte: kind][4 bytes: channel id][payload]
 kind = 0x01 JSON-RPC (existing NDJSON message, unchanged)
 kind = 0x02 Binary channel data
-kind = 0x03 Channel control (open/close/error/backpressure signal)
+kind = 0x03 Credit update (backpressure signal only — see Flow control; not used for open/close/error, which stay on the JSON-RPC control plane)
 ```
+
+`length` counts the payload only (the 5-byte `kind` + `channel id` header is not included). Both `length` and `channel id` are big-endian (network byte order). `channel id` is a `uint32`; the host is the sole allocator (assigned in the `channel.opened` response, never proposed by the plugin) and ids are never reused for the lifetime of a given plugin process connection, even after a channel closes — this rules out a whole class of stale-frame-misrouted-to-a-reused-id bugs. `kind` values `0x04`–`0x0F` are reserved and unused in v1: any frame with a `kind` in that range is a protocol violation and follows the fail-fast path in §2a.
 
 - `channel id = 0` is reserved for the existing JSON-RPC control plane, so **existing plugins and the existing IPC contract are untouched** — this is additive, not a breaking transport change.
 - Binary channel frames carry no JSON envelope, no base64 — raw bytes, length-prefixed only.
@@ -67,9 +69,10 @@ Credit is measured in **frames, not bytes** — this deliberately decouples flow
 - The sender may have at most `credit` frames in flight, unacknowledged, on that channel — regardless of how large or small each individual frame's payload is, as long as each stays under `maxFrameSize`.
 - The receiver sends a `kind=0x03` credit-update frame as it drains/processes frames, replenishing the sender's count.
 - **Per-`purpose` semantics differ on credit exhaustion:**
-  - `exec`: sender blocks/buffers locally — no data loss, correctness preserved (matches normal process stdout backpressure semantics).
+  - `exec` / `tcp-relay` / `udp-relay`: the backend stops **reading from the underlying source** (the SSH exec stdout, the relayed TCP connection, or the UDP socket) when credit is exhausted — this is real backpressure that propagates upstream (e.g., to the remote process via its own stdout buffer filling), not unbounded local buffering inside the backend. A backend that keeps draining its source into an ever-growing in-memory queue while "blocked" reintroduces the exact unbounded-queue failure mode credit-based flow control exists to remove, and is not a correct implementation of this section. For `udp-relay` specifically, suspending the socket read lets the OS receive buffer bound and **drop** excess datagrams — the correct, still-bounded behavior for an inherently lossy transport, as opposed to the upstream-propagating backpressure of the stream purposes.
   - `embed-stream`: instead of blocking the producer, the **host-side buffer drops the oldest unsent frame** when credit is exhausted — consistent with the latest-frame-wins policy already described for video. The plugin is not required to implement drop logic itself; it just stops being able to push once the host stops granting credit, and the host discards what it's already holding.
 - The host enforces credit limits server-side regardless of what the plugin claims locally (defense in depth); a plugin that sends past its granted credit is a protocol violation and follows the fail-fast path in 2a.
+- **Throughput cap (`maxThroughputKbps`) is enforced, not merely declared.** A manifest field with no corresponding runtime check would be worse than no field at all. Enforcement is a token-bucket limiter applied on the same write path as credit accounting, independent of (and in addition to) the frame-count credit — credit bounds how much can be in flight unacknowledged, the token bucket bounds sustained throughput over time.
 
 ### 3. What sits on the other end of a channel — host-mediated, never plugin-dialed
 
@@ -80,6 +83,7 @@ This is the core security property: **the plugin never gets a raw socket or raw 
 | `exec` | Runs a command over the **already-authenticated parent session's** SSH connection (an exec channel on the existing `ssh.Client`), pipes stdin/stdout/stderr onto the binary channel. No new auth, no new dial. |
 | `embed-stream` | Wires the channel to the session's video/embed surface (VNC/RDP framebuffer path) for a `capabilities.session.embed` plugin. |
 | `tcp-relay` | Falls back to the *existing* `TunnelDialProxy` dial policy (host:port allowlist, no wildcards) — for cases that genuinely are a fresh TCP dial, not exec. |
+| `udp-relay` | Same dial policy as `tcp-relay`, reused verbatim with a `udp:` allowlist token, but a **direct** host→target UDP dial (`net.DialUDP`) — SSH has no native UDP forwarding, so this is the "genuinely a fresh dial" case only, never tunnelled through the parent SSH chain. Matches real topologies like **mosh** (SSH launches `mosh-server`, then UDP flows host↔server directly). Bound to `parentSessionId` for ownership/lifecycle even though the dial is direct. |
 
 This reuses and extends the pattern already established by `TunnelDialProxy`/`TunnelLocalProxy`/`FSProxy`: the plugin describes *what it wants to happen*, the host — which holds the real credentials and the real session — is the only thing that ever touches them.
 
@@ -177,9 +181,46 @@ Beyond the IDOR-style ownership test already required, the new primitive needs, 
 | Lifecycle | Parent session close cascades to close of all bound channels, synchronously, before session teardown completes |
 | `tcp-relay` | `hint` values that would be rejected by the existing `TunnelDialProxy` allowlist are rejected identically here (shared test fixtures with the existing dial-policy tests, not a separate suite) |
 
+## v1 resolved parameters
+
+The following were left as illustrative (`e.g.`) values in earlier drafts and are now fixed, non-configurable-by-plugin constants for v1 (deliberately not manifest-tunable — adding per-plugin knobs here would be exactly the kind of API-surface creep the "API, not SDK" principle rules out):
+
+| Parameter | Value |
+|---|---|
+| Initial credit, `exec` / `tcp-relay` / `udp-relay` | 4 frames |
+| Initial credit, `embed-stream` | 8 frames |
+| `maxFrameSize` (kind=0x02) | 1 MiB, single global constant across all purposes |
+| `maxConcurrent` default (manifest field absent or `0`) | 4 |
+| `maxThroughputKbps` default (`0`) | host default, same numeric default as `maxTunnelBandwidthKbps` (32 MiB/s) — not "unlimited" |
+| `channel.open` (plugin→host) RPC timeout | 10 s (matches `initialize`, not the standard 5 s RPC timeout — spawning an exec process or dialing a relay is comparably slow setup work) |
+| `channel.close` grace period | 0 — immediate, no flush window, per §Session lifecycle coupling |
+| kind=0x03 payload layout | `channel id` (4 bytes) + `credit count` (4 bytes), 8 bytes total, no subtype byte |
+
+## `exec` command authorization — allowlisted argv templates, not free-form strings
+
+`exec` is the highest-risk `purpose` — it runs a command over the user's already-authenticated session. It is **not** gated by consent alone; the set of runnable commands is closed and declared in the manifest as **argv-array templates**, never shell strings:
+
+```json
+"capabilities": {
+  "channel": {
+    "purposes": ["exec"],
+    "execCommands": [
+      { "argv": ["docker", "system", "dial-stdio"] },
+      { "argv": ["docker", "exec", "-it", "{containerId}", "sh"],
+        "params": { "containerId": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$" } }
+    ]
+  }
+}
+```
+
+- Every element of `argv` is either a literal string or a named `{placeholder}`; every placeholder used in a template must have a corresponding regex in `params`, checked by the host before the process is spawned.
+- The host always executes via an argv array (e.g. Go's `exec.Command(argv[0], argv[1:]...)`), **never** by constructing and running a shell string — this eliminates command injection as a class of bug rather than relying on escaping.
+- A `channel.open` request for `exec` whose requested command doesn't match any declared template (or whose placeholder value fails its regex) is rejected at the capability gate, same as an undeclared RPC method — denied with the existing `-32001` shape and audit-logged.
+- This closes what would otherwise be a genuine gap directly introduced by the new `channel` capability (not a pre-existing atomicity issue out of scope per §Atomicity) — `exec` never means "run anything the plugin asks for," only "run one of the specific, parameterized commands its manifest declared and the user consented to."
+
 ## On "full abstraction vs. purpose-limited"
 
-Explicitly **not** a fully generic "open any pipe to anything" abstraction. `purpose` stays a closed, host-validated enum (`exec` / `embed-stream` / `tcp-relay`), each backed by host-side logic the plugin cannot influence beyond its declared parameters. A fully generic raw-socket abstraction would collapse the entire capability/consent model back to "trust the plugin" — which is exactly the failure mode `docs/security-model.md` is presumably built to avoid. New purposes can be added later (e.g. `udp-relay` for something), but each one is a deliberate, reviewed addition, not something plugins can synthesize themselves.
+Explicitly **not** a fully generic "open any pipe to anything" abstraction. `purpose` stays a closed, host-validated enum (`exec` / `embed-stream` / `tcp-relay` / `udp-relay`), each backed by host-side logic the plugin cannot influence beyond its declared parameters. A fully generic raw-socket abstraction would collapse the entire capability/consent model back to "trust the plugin" — which is exactly the failure mode `docs/security-model.md` is presumably built to avoid. New purposes can be added later — `udp-relay` was added exactly this way, as a deliberate, reviewed core purpose sharing the existing dial policy — but each one is such an addition, never something plugins can synthesize themselves, and never a generic "any protocol" destination the plugin picks freely.
 
 ## Atomicity
 

@@ -72,6 +72,9 @@ func (m *Manifest) ValidateCapabilities() error {
 	if err := m.validateTunnelCaps(); err != nil {
 		return err
 	}
+	if err := m.validateChannelCaps(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -370,6 +373,20 @@ func allowedSecretField(field string) bool {
 	}
 }
 
+// requiresChannelExecConsent reports whether the plugin declared the exec channel purpose,
+// which requires install-time consent like auth.provider and allowArbitraryOutbound.
+func (m *Manifest) requiresChannelExecConsent() bool {
+	if m.Capabilities.Channel == nil {
+		return false
+	}
+	for _, p := range m.Capabilities.Channel.Purposes {
+		if strings.TrimSpace(p) == PurposeExec {
+			return true
+		}
+	}
+	return false
+}
+
 // PermissionSummary returns human-readable install-time permission lines.
 func (m *Manifest) PermissionSummary() []string {
 	var lines []string
@@ -413,6 +430,9 @@ func (m *Manifest) PermissionSummary() []string {
 	}
 	if m.RequiresLocalEmbedServerWarning() {
 		lines = append(lines, "Run local HTTP server for session UI (loopback only)")
+	}
+	if m.requiresChannelExecConsent() {
+		lines = append(lines, "Run commands over your authenticated session (exec channel)")
 	}
 	if len(lines) == 0 {
 		lines = append(lines, "No elevated permissions requested")

@@ -3,6 +3,8 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+
+	domainplugin "ssh-client/internal/domain/plugin"
 )
 
 // OnEmbedReadyFunc is called when an embed descriptor is registered for a session.
@@ -31,6 +33,13 @@ func (m *SessionManager) SetEmbedTunnelService(svc *EmbedTunnelService) {
 		lookup = m.plugins.plugins.Registry()
 	}
 	svc.WireSessionContext(m.registry, lookup)
+}
+
+// SetChannelBus wires the channel bus into session lifecycle for close cascade.
+func (m *SessionManager) SetChannelBus(bus domainplugin.ChannelSessionCloser) {
+	if m != nil && m.lifecycle != nil {
+		m.lifecycle.SetChannelBus(bus)
+	}
 }
 
 // SetOnEmbedReady sets the callback invoked when embed UI becomes available.

@@ -70,6 +70,16 @@ Runtime IPC methods and session lifecycle are documented in [plugin-api.md](./pl
     "tunnel": {
       "provider": true,
       "maxConcurrentChannels": 64
+    },
+    "channel": {
+      "purposes": ["exec", "tcp-relay", "udp-relay", "embed-stream"],
+      "maxConcurrent": 4,
+      "maxThroughputKbps": 0,
+      "execCommands": [
+        { "argv": ["docker", "system", "dial-stdio"] },
+        { "argv": ["docker", "exec", "-it", "{containerId}", "sh"],
+          "params": { "containerId": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$" } }
+      ]
     }
   }
 }
@@ -88,6 +98,58 @@ Runtime IPC methods and session lifecycle are documented in [plugin-api.md](./pl
 |-------|------|-------------|
 | `provider` | bool | `true` when the plugin handles dynamic forward rules via `tunnel.*` RPC. |
 | `maxConcurrentChannels` | int | Per-plugin limit for concurrent `tunnel.dial` channels (0 = host default). |
+
+**`channel` capability**
+
+Declares access to the binary channel bus — a raw duplex byte stream, multiplexed alongside JSON-RPC, whose far end the host constructs and owns. Full wire format, `channel.open`/`channel.close`, credit model, and purpose semantics: [plugin-api.md — Channel bus](./plugin-api.md#channel-bus).
+
+| Field | Type | Description |
+|-------|------|--------------|
+| `purposes` | string[] | Closed enum: `exec`, `embed-stream`, `tcp-relay`, `udp-relay`. A plugin can only open channels for purposes it declares here. |
+| `maxConcurrent` | int | Per-plugin limit for concurrent open channels (0/absent = host default **4**). Channels are heavier than tunnels — `exec` spawns a real remote process — so this default is deliberately lower than `tunnel.maxConcurrentChannels`. |
+| `maxThroughputKbps` | int | Per-channel byte/sec token-bucket cap (0/absent = host default, same numeric default as `session.maxTunnelBandwidthKbps`, 32 MiB/s). Enforced independently of the frame-count credit window. |
+| `execCommands` | array | Allowlisted argv templates for the `exec` purpose (see below). Required if `exec` is declared with any narrower-than-arbitrary command set; entries here require `exec` to also be listed in `purposes`. |
+
+**`exec` command allowlist (`execCommands`)**
+
+`exec` is the highest-risk purpose — it runs a command over the user's already-authenticated session — so the runnable commands are a closed, declared set of **argv-array templates**, never shell strings:
+
+```json
+"channel": {
+  "purposes": ["exec"],
+  "execCommands": [
+    { "argv": ["docker", "system", "dial-stdio"] },
+    { "argv": ["docker", "exec", "-it", "{containerId}", "sh"],
+      "params": { "containerId": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$" } }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|--------------|
+| `argv` | string[] | Command and arguments. Each element is either a literal or a named `{placeholder}`. The host always invokes via an argv array (never a shell string), eliminating command injection as a class of bug. |
+| `params` | object | Regex (ReDoS-safe subset, same checker as connection-field `pattern`) for every `{placeholder}` used in `argv`. Required for each placeholder — a placeholder with no matching `params` entry fails manifest validation. |
+
+A `channel.open` request for `exec` whose requested command doesn't match any declared template, or whose placeholder value fails its regex, is rejected at the capability gate (`-32001`, audit-logged) before any process is spawned.
+
+**`udp-relay` and the network allowlist**
+
+`tcp-relay` and `udp-relay` validate their `hint` target against the same `capabilities.network.outbound` allowlist used by `net.dial` (see [Rules](#rules) below), just with a proto-prefixed pattern form:
+
+```json
+"capabilities": {
+  "network": {
+    "outbound": ["tcp:db.internal:5432", "udp:relay.internal:51820"]
+  },
+  "channel": {
+    "purposes": ["tcp-relay", "udp-relay"]
+  }
+}
+```
+
+- `tcp:host:port` — the existing form, used by both `net.dial` and `tcp-relay` channels.
+- `udp:host:port` — same grammar (explicit host, no wildcards), used by `udp-relay` channels. `udp-relay` dials the target UDP endpoint directly from the host (`net.DialUDP`); it does not tunnel through the parent SSH connection.
+- Both forms share the same IP-restriction core: loopback/RFC1918/link-local targets are blocked unless `allowPrivateNetworks: true`, resolved via the same DNS-rebinding-safe dial-then-validate path.
 
 **Auth method contributions**
 
@@ -126,6 +188,7 @@ Rules:
 - **`localEmbedServer: true`** requires `embed: true`. Opt-in loopback HTTP server in the plugin (Mode B); install shows a separate consent line. Default path is Mode A (core embed broker).
 - **`remoteFs: true`** requires `terminal: true` or `embed: true` (adjunct file panel only).
 - **`maxTunnelBandwidthKbps`:** optional per-session tunnel rate cap (0 = host default 32 MiB/s).
+- **`channel.purposes`:** each must be one of the closed enum `exec` / `embed-stream` / `tcp-relay` / `udp-relay`; unknown purposes are rejected at manifest load. `channel.execCommands` requires `exec` to also be declared in `purposes`; every `{placeholder}` in an `argv` template requires a matching, safely-compilable regex in that template's `params`. **`exec` requires install-time user consent**, same as `auth.provider` / `allowArbitraryOutbound` — see [security-model.md](./security-model.md#capability-gate).
 - **`allowMultiSession`:** when `false` (default) and `isolation: per-plugin`, only one bound session per plugin process is allowed; a second bind is rejected.
 - **`remoteFs` (display):** when `true`, the session UI shows the remote file panel (SFTP-style). Terminal-only plugins (e.g. telnet) should leave this `false`.
 - View `entry` paths must live under `ui/` (default `ui/index.html`). Embed `embedEntry` paths follow the same rule.

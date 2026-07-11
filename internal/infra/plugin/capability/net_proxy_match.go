@@ -1,11 +1,30 @@
 package capability
 
 import (
+	"net"
 	"strconv"
 	"strings"
 
 	domainplugin "ssh-client/internal/domain/plugin"
 )
+
+// shouldAllowResolvedIP decides whether a resolved ip may be dialed. Shared verbatim by
+// every dial-policy caller (NetProxy, ChannelRelayBackend) so the authorization logic never
+// drifts between callers (ADR-011 §Security). Implements "either mode permits":
+//   - arbitrary mode: public IPs allowed; private/loopback only if allowPrivateNetworks
+//   - allowlist mode: delegates to domain AllowResolvedDialIP unchanged
+//   - if arbitrary mode doesn't allow, falls through to the allowlist check
+func shouldAllowResolvedIP(allowArbitrary, allowPrivateNetworks bool, patternHost string, ip net.IP) bool {
+	if allowArbitrary {
+		if !domainplugin.IsRestrictedDialIP(ip) {
+			return true
+		}
+		if allowPrivateNetworks {
+			return true
+		}
+	}
+	return domainplugin.AllowResolvedDialIP(patternHost, ip)
+}
 
 func matchNetworkPattern(pattern, host string, port int) bool {
 	parsed, err := domainplugin.ParseNetworkPattern(pattern)
