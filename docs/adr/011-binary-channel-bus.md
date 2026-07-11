@@ -69,7 +69,7 @@ Credit is measured in **frames, not bytes** — this deliberately decouples flow
 - The sender may have at most `credit` frames in flight, unacknowledged, on that channel — regardless of how large or small each individual frame's payload is, as long as each stays under `maxFrameSize`.
 - The receiver sends a `kind=0x03` credit-update frame as it drains/processes frames, replenishing the sender's count.
 - **Per-`purpose` semantics differ on credit exhaustion:**
-  - `exec` / `tcp-relay`: the backend stops **reading from the underlying source** (the SSH exec stdout, or the relayed TCP connection) when credit is exhausted — this is real backpressure that propagates upstream (e.g., to the remote process via its own stdout buffer filling), not unbounded local buffering inside the backend. A backend that keeps draining its source into an ever-growing in-memory queue while "blocked" reintroduces the exact unbounded-queue failure mode credit-based flow control exists to remove, and is not a correct implementation of this section.
+  - `exec` / `tcp-relay` / `udp-relay`: the backend stops **reading from the underlying source** (the SSH exec stdout, the relayed TCP connection, or the UDP socket) when credit is exhausted — this is real backpressure that propagates upstream (e.g., to the remote process via its own stdout buffer filling), not unbounded local buffering inside the backend. A backend that keeps draining its source into an ever-growing in-memory queue while "blocked" reintroduces the exact unbounded-queue failure mode credit-based flow control exists to remove, and is not a correct implementation of this section. For `udp-relay` specifically, suspending the socket read lets the OS receive buffer bound and **drop** excess datagrams — the correct, still-bounded behavior for an inherently lossy transport, as opposed to the upstream-propagating backpressure of the stream purposes.
   - `embed-stream`: instead of blocking the producer, the **host-side buffer drops the oldest unsent frame** when credit is exhausted — consistent with the latest-frame-wins policy already described for video. The plugin is not required to implement drop logic itself; it just stops being able to push once the host stops granting credit, and the host discards what it's already holding.
 - The host enforces credit limits server-side regardless of what the plugin claims locally (defense in depth); a plugin that sends past its granted credit is a protocol violation and follows the fail-fast path in 2a.
 - **Throughput cap (`maxThroughputKbps`) is enforced, not merely declared.** A manifest field with no corresponding runtime check would be worse than no field at all. Enforcement is a token-bucket limiter applied on the same write path as credit accounting, independent of (and in addition to) the frame-count credit — credit bounds how much can be in flight unacknowledged, the token bucket bounds sustained throughput over time.
@@ -83,6 +83,7 @@ This is the core security property: **the plugin never gets a raw socket or raw 
 | `exec` | Runs a command over the **already-authenticated parent session's** SSH connection (an exec channel on the existing `ssh.Client`), pipes stdin/stdout/stderr onto the binary channel. No new auth, no new dial. |
 | `embed-stream` | Wires the channel to the session's video/embed surface (VNC/RDP framebuffer path) for a `capabilities.session.embed` plugin. |
 | `tcp-relay` | Falls back to the *existing* `TunnelDialProxy` dial policy (host:port allowlist, no wildcards) — for cases that genuinely are a fresh TCP dial, not exec. |
+| `udp-relay` | Same dial policy as `tcp-relay`, reused verbatim with a `udp:` allowlist token, but a **direct** host→target UDP dial (`net.DialUDP`) — SSH has no native UDP forwarding, so this is the "genuinely a fresh dial" case only, never tunnelled through the parent SSH chain. Matches real topologies like **mosh** (SSH launches `mosh-server`, then UDP flows host↔server directly). Bound to `parentSessionId` for ownership/lifecycle even though the dial is direct. |
 
 This reuses and extends the pattern already established by `TunnelDialProxy`/`TunnelLocalProxy`/`FSProxy`: the plugin describes *what it wants to happen*, the host — which holds the real credentials and the real session — is the only thing that ever touches them.
 
@@ -186,7 +187,7 @@ The following were left as illustrative (`e.g.`) values in earlier drafts and ar
 
 | Parameter | Value |
 |---|---|
-| Initial credit, `exec` / `tcp-relay` | 4 frames |
+| Initial credit, `exec` / `tcp-relay` / `udp-relay` | 4 frames |
 | Initial credit, `embed-stream` | 8 frames |
 | `maxFrameSize` (kind=0x02) | 1 MiB, single global constant across all purposes |
 | `maxConcurrent` default (manifest field absent or `0`) | 4 |
@@ -219,7 +220,7 @@ The following were left as illustrative (`e.g.`) values in earlier drafts and ar
 
 ## On "full abstraction vs. purpose-limited"
 
-Explicitly **not** a fully generic "open any pipe to anything" abstraction. `purpose` stays a closed, host-validated enum (`exec` / `embed-stream` / `tcp-relay`), each backed by host-side logic the plugin cannot influence beyond its declared parameters. A fully generic raw-socket abstraction would collapse the entire capability/consent model back to "trust the plugin" — which is exactly the failure mode `docs/security-model.md` is presumably built to avoid. New purposes can be added later (e.g. `udp-relay` for something), but each one is a deliberate, reviewed addition, not something plugins can synthesize themselves.
+Explicitly **not** a fully generic "open any pipe to anything" abstraction. `purpose` stays a closed, host-validated enum (`exec` / `embed-stream` / `tcp-relay` / `udp-relay`), each backed by host-side logic the plugin cannot influence beyond its declared parameters. A fully generic raw-socket abstraction would collapse the entire capability/consent model back to "trust the plugin" — which is exactly the failure mode `docs/security-model.md` is presumably built to avoid. New purposes can be added later — `udp-relay` was added exactly this way, as a deliberate, reviewed core purpose sharing the existing dial policy — but each one is such an addition, never something plugins can synthesize themselves, and never a generic "any protocol" destination the plugin picks freely.
 
 ## Atomicity
 
