@@ -6,6 +6,7 @@ import (
 
 	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/domain"
+	"ssh-client/internal/infra/plugin/capability"
 	"ssh-client/internal/infra/plugin/ipc"
 )
 
@@ -33,6 +34,14 @@ type HostConfig struct {
 	Audit             ipc.PluginAuditFunc
 	OnCrash           ProcessCrashHandler
 	OnPluginActivity  func(pluginID string)
+
+	// ChannelResolver resolves the backend for a channel.open purpose (exec/tcp-relay/embed-stream
+	// land in later stages). ChannelAudit records channel.open/channel.close events. ChannelBus
+	// registers each process's ChannelProxy so SessionLifecycleService's CloseSession cascade
+	// (ADR-011 Stage 4) can reach it; process exit/crash teardown (Stage 4b) does not depend on it.
+	ChannelResolver capability.ChannelBackendResolver
+	ChannelAudit    domainplugin.ChannelAuditRecorder
+	ChannelBus      *capability.ChannelBus
 }
 
 // ProcessHost implements domainplugin.ProcessHost using OS child processes.

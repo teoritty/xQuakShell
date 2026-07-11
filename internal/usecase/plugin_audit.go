@@ -86,6 +86,28 @@ func formatPluginStartAuditLine(pluginID, reason, detail string, denied bool) st
 	return line
 }
 
+// ChannelFunc returns a channel.open/channel.close audit callback.
+func (w *PluginAuditWriter) ChannelFunc() domainplugin.ChannelAuditRecorder {
+	return func(entry domainplugin.ChannelAuditEntry) {
+		w.append(formatPluginChannelAuditLine(entry))
+	}
+}
+
+func formatPluginChannelAuditLine(entry domainplugin.ChannelAuditEntry) string {
+	flag := "allowed"
+	if !entry.Success {
+		flag = "denied"
+	}
+	line := "[plugin] action=" + entry.Action + " pluginId=" + entry.PluginID + " sessionId=" + entry.ParentSessionID + " purpose=" + entry.Purpose + " result=" + flag
+	if entry.Target != "" {
+		line += " target=" + domainplugin.RedactAuditDetail(entry.Target)
+	}
+	if entry.Error != "" {
+		line += " detail=" + domainplugin.RedactAuditDetail(entry.Error)
+	}
+	return line
+}
+
 // SessionBindFunc returns a session bind/unbind audit callback.
 func (w *PluginAuditWriter) SessionBindFunc() SessionBindAuditFunc {
 	return func(pluginID, sessionID, action string, allowed bool, detail string) {

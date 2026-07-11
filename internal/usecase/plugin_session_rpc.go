@@ -211,13 +211,14 @@ func (h *PluginSessionRPCHandler) authorize(targetSessionID string) error {
 var _ domainplugin.SessionRPCHandler = (*PluginSessionRPCHandler)(nil)
 
 // NewPluginSessionRPCHandlerFactory returns a factory wired to inbound session RPC and authorizer.
+// channels is supplied per-call by the caller (internal/infra/plugin/process_ipc_factory.go),
+// since each plugin process gets its own ChannelProxy (ADR-011 Stage 4b) rather than a shared one.
 func NewPluginSessionRPCHandlerFactory(
 	inbound domainplugin.SessionInboundPort,
 	embed *PluginEmbedInbound,
-	channels domainplugin.ChannelInboundPort,
 	auth domainplugin.SessionRPCAuthorizer,
 ) domainplugin.SessionRPCHandlerFactory {
-	return func(plugin domainplugin.InstalledPlugin, processSessionID string) domainplugin.SessionRPCHandler {
+	return func(plugin domainplugin.InstalledPlugin, processSessionID string, channels domainplugin.ChannelInboundPort) domainplugin.SessionRPCHandler {
 		allowMulti := false
 		if plugin.Manifest.Capabilities.Session != nil {
 			allowMulti = plugin.Manifest.Capabilities.Session.AllowMultiSession

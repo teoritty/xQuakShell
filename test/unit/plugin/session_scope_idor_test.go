@@ -40,7 +40,7 @@ func testProcessHost(t *testing.T, auth domainplugin.SessionRPCAuthorizer, inbou
 	return infraplugin.NewProcessHost(infraplugin.HostConfig{
 		DataRoot:          t.TempDir(),
 		SessionAuthorizer: auth,
-		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, usecase.NewPluginEmbedInbound(), nil, auth),
+		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, usecase.NewPluginEmbedInbound(), auth),
 	})
 }
 

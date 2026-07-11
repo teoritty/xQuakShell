@@ -97,16 +97,26 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		return manager.NotifyProcess(ctx, pluginID, sessionID, method, params)
 	})
 
+	channelBus := capability.NewChannelBus()
+
 	hostCfg := infraplugin.HostConfig{
 		DataRoot:          dataRoot,
 		Portable:          portableRuntime,
 		Vault:             vaultInbound,
-		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, embedInbound, nil, sessionAuthorizer),
+		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, embedInbound, sessionAuthorizer),
 		Events:            eventBus,
 		Views:             viewInbound,
 		Tunnel:            dynamicForward,
 		SessionAuthorizer: sessionAuthorizer,
 		Audit:             pluginAudit.RPCRecorder(),
+		// Real purpose backends (exec/tcp-relay/embed-stream) land in ADR-011 Stages 6-8; until
+		// then every channel.open is rejected after purpose/session validation, same as any other
+		// declared-but-unimplemented capability.
+		ChannelResolver: func(string) (domainplugin.ChannelPurposeBackend, error) {
+			return nil, domainplugin.ErrNotImplemented
+		},
+		ChannelAudit: pluginAudit.ChannelFunc(),
+		ChannelBus:   channelBus,
 		OnCrash: func(pluginID, sessionID string) {
 			if manager != nil {
 				manager.OnProcessCrashed(pluginID, sessionID)
@@ -218,8 +228,6 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		return manager.Notify(ctx, pluginID, method, json.RawMessage(params))
 	})
 	dynamicForward.SetStarter(manager)
-
-	channelBus := capability.NewChannelBus()
 
 	return &pluginRuntime{
 		inbound:             inbound,

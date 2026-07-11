@@ -10,6 +10,9 @@ func (h *ProcessHost) waitProcess(key string, mp *managedProcess) {
 	<-mp.reaper.Done()
 	exitErr := mp.reaper.ExitErr()
 	mp.closeResources(false)
+	if h.cfg.ChannelBus != nil {
+		h.cfg.ChannelBus.Unregister(key)
+	}
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -44,6 +47,9 @@ func (h *ProcessHost) releaseStartReservation(key string, mp *managedProcess) {
 // finalizeProcess releases IPC and job resources without calling Wait (reaper owns Wait).
 func (h *ProcessHost) finalizeProcess(key string, mp *managedProcess) {
 	mp.closeResources(true)
+	if h.cfg.ChannelBus != nil {
+		h.cfg.ChannelBus.Unregister(key)
+	}
 
 	h.mu.Lock()
 	if current, ok := h.processes[key]; ok && current == mp {

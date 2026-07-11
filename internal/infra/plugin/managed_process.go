@@ -21,6 +21,7 @@ type managedProcess struct {
 	netProxy        *capability.NetProxy
 	tunnelDial      *capability.TunnelDialProxy
 	tunnelLocal     *capability.TunnelLocalProxy
+	channels        *capability.ChannelProxy
 	state           domainplugin.ProcessState
 	job             pluginJob
 	cleanupOnce     sync.Once
@@ -39,6 +40,12 @@ func (mp *managedProcess) closeResources(killProcess bool) {
 		}
 		if mp.tunnelLocal != nil {
 			mp.tunnelLocal.CloseAll()
+		}
+		if mp.channels != nil {
+			// Process exit/crash unconditionally tears down every channel this process owned,
+			// independently of any session-level handling (ADR-011 Stage 4b) — a plugin crash
+			// must never leave a remote docker exec / relay conn running with no owner.
+			mp.channels.CloseAll()
 		}
 		if mp.conn != nil {
 			mp.conn.Close()
