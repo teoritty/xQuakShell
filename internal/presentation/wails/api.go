@@ -20,6 +20,7 @@ type AppAPI struct {
 	settingsSvc         *usecase.SettingsService
 	auditSvc            *usecase.AuditService
 	transferSvc         *usecase.TransferService
+	remoteOpSvc         *usecase.RemoteOpService
 	hostKeys            *usecase.HostKeyService
 	remoteFS            *usecase.RemoteFSService
 	localFS             *usecase.LocalFSService
@@ -145,6 +146,7 @@ func NewAppAPI(
 
 	api.auditSvc = usecase.NewAuditService(auditLogRepo, api.settingsSvc, api.sessions, connRepo, trackerFactory, sanitizerFactory)
 	api.transferSvc = usecase.NewTransferService(api.sessions, api.settingsSvc, hostFS, transferLimiter)
+	api.remoteOpSvc = usecase.NewRemoteOpService(api.sessions)
 	api.hostKeys = usecase.NewHostKeyService(knownHosts, api.sessions)
 	api.remoteFS = usecase.NewRemoteFSService(api.sessions)
 	api.localFS = usecase.NewLocalFSService(usecase.LocalFSServiceConfig{

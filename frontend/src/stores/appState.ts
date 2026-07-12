@@ -106,9 +106,16 @@ export interface RemoteNode {
   group?: string;
 }
 
+// TECH DEBT: this store/type is named "Transfer" but now represents any
+// long-running operation (upload/download plus delete/chmod/chown — see `kind`).
+// Kept for pragmatic reuse of the existing event→store→panel pipeline; a future
+// refactor should rename to a generic "Operation" vocabulary.
+export type OperationKind = 'upload' | 'download' | 'delete' | 'chmod' | 'chown';
+
 export interface TransferItem {
   id: string;
   sessionId?: string;
+  kind: OperationKind;
   direction: 'upload' | 'download';
   localPath: string;
   remotePath: string;

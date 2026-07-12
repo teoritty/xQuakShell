@@ -21,7 +21,6 @@ const (
 	EventPluginStateChanged         = "PluginStateChanged"
 	EventSessionEmbedReady          = "SessionEmbedReady"
 	EventDebugLogWindowChanged      = "DebugLogWindowChanged"
-	EventOsFileDrop                 = "OsFileDrop"
 )
 
 // TerminalOutputPayload carries terminal output data for a specific session.
@@ -30,18 +29,14 @@ type TerminalOutputPayload struct {
 	Output    string `json:"output"`
 }
 
-// OsFileDropPayload carries paths dropped onto the app window from the OS
-// file explorer, along with the window-relative coordinates of the drop.
-type OsFileDropPayload struct {
-	Paths []string `json:"paths"`
-	X     int      `json:"x"`
-	Y     int      `json:"y"`
-}
-
-// TransferProgressPayload carries file transfer progress data.
+// TransferProgressPayload carries progress for a long-running operation.
+// TECH DEBT: named "Transfer" for pragmatic reuse of the existing event/store/
+// panel; it now also carries delete/chmod/chown operations (see Kind). A future
+// refactor should rename this vocabulary to a generic "Operation".
 type TransferProgressPayload struct {
 	ID         string `json:"id"`
 	SessionID  string `json:"sessionId"`
+	Kind       string `json:"kind"`
 	Direction  string `json:"direction"`
 	LocalPath  string `json:"localPath"`
 	RemotePath string `json:"remotePath"`

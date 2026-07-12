@@ -1,7 +1,40 @@
 <script lang="ts">
-  import { transfers, type TransferItem } from '../stores/appState';
+  import { transfers, type TransferItem, type OperationKind } from '../stores/appState';
   import { uploadFile, downloadFile, cancelTransfer, selectLocalFile, selectLocalDirectory } from '../stores/api';
-  import { Upload, Download, ChevronDown, ChevronRight, X, RefreshCw } from 'lucide-svelte';
+  import { Upload, Download, ChevronDown, ChevronRight, X, RefreshCw, Trash2, Lock, User } from 'lucide-svelte';
+  import type { ComponentType } from 'svelte';
+
+  const KIND_ICON: Record<OperationKind, ComponentType> = {
+    upload: Upload,
+    download: Download,
+    delete: Trash2,
+    chmod: Lock,
+    chown: User,
+  };
+
+  const KIND_LABEL: Record<OperationKind, string> = {
+    upload: 'Upload',
+    download: 'Download',
+    delete: 'Delete',
+    chmod: 'chmod',
+    chown: 'chown',
+  };
+
+  function kindIcon(kind: OperationKind): ComponentType {
+    return KIND_ICON[kind] ?? Upload;
+  }
+
+  // A remote operation (delete/chmod/chown) is still scanning when it is active
+  // and no total is known yet; show a live scan counter instead of a percentage.
+  function isScanning(item: TransferItem): boolean {
+    return item.state === 'active' && item.total <= 0
+      && (item.kind === 'delete' || item.kind === 'chmod' || item.kind === 'chown');
+  }
+
+  function progressText(item: TransferItem): string {
+    if (isScanning(item)) return item.done > 0 ? `Scanning ${item.done}…` : 'Scanning…';
+    return isIndeterminate(item) ? '…' : progressPercent(item) + '%';
+  }
 
   export let sessionId: string;
 
@@ -25,8 +58,8 @@
         notifiedIds = notifiedIds;
         try {
           if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('Transfer completed', {
-              body: `${t.direction === 'upload' ? 'Upload' : 'Download'}: ${t.remotePath}`,
+            new Notification('Operation completed', {
+              body: `${KIND_LABEL[t.kind] ?? 'Operation'}: ${t.remotePath}`,
             });
           } else if ('Notification' in window && Notification.permission !== 'denied') {
             Notification.requestPermission().then(p => {
@@ -87,14 +120,20 @@
     }
   }
 
-  function stateLabel(state: string): string {
-    switch (state) {
+  function stateLabel(item: TransferItem): string {
+    switch (item.state) {
       case 'pending': return 'Pending';
-      case 'active': return 'Transferring';
+      case 'active':
+        switch (item.kind) {
+          case 'delete': return 'Deleting';
+          case 'chmod':
+          case 'chown': return 'Applying';
+          default: return 'Transferring';
+        }
       case 'completed': return 'Done';
       case 'failed': return 'Failed';
       case 'cancelled': return 'Cancelled';
-      default: return state;
+      default: return item.state;
     }
   }
 </script>
@@ -113,8 +152,8 @@
       </span>
       <span>Transfers ({activeTransfers.length})</span>
       <div class="actions" on:click|stopPropagation on:keydown|stopPropagation>
-        <button on:click={startUpload} title="Upload file"><Upload size={11} /> Upload</button>
-        <button on:click={startDownload} title="Download file"><Download size={11} /> Download</button>
+        <!-- <button on:click={startUpload} title="Upload file"><Upload size={11} /> Upload</button>
+        <button on:click={startDownload} title="Download file"><Download size={11} /> Download</button> -->
       </div>
     </div>
 
@@ -123,22 +162,22 @@
         {#each activeTransfers as item (item.id)}
           <div class="transfer-item" class:completed={item.state === 'completed'} class:failed={item.state === 'failed'} class:cancelled={item.state === 'cancelled'}>
             <div class="transfer-info">
-              <span class="transfer-direction">
-                {#if item.direction === 'upload'}<Upload size={11} />{:else}<Download size={11} />{/if}
+              <span class="transfer-direction" title={KIND_LABEL[item.kind] ?? ''}>
+                <svelte:component this={kindIcon(item.kind)} size={11} />
               </span>
               <span class="transfer-path">{item.remotePath}</span>
-              <span class="transfer-state">{stateLabel(item.state)}</span>
+              <span class="transfer-state">{stateLabel(item)}</span>
               {#if item.state === 'active' || item.state === 'pending'}
                 <button class="cancel-btn" on:click={() => cancelTransfer(item.id)} title="Cancel"><X size={10} /></button>
-              {:else if (item.state === 'failed' || item.state === 'cancelled') && item.sessionId}
+              {:else if (item.state === 'failed' || item.state === 'cancelled') && item.sessionId && (item.kind === 'upload' || item.kind === 'download')}
                 <button class="retry-btn" on:click={() => retryTransfer(item)} title="Retry"><RefreshCw size={10} /></button>
               {/if}
             </div>
             {#if item.state === 'active'}
-              <div class="progress-bar" class:indeterminate={isIndeterminate(item)}>
-                <div class="progress-fill" style="width: {isIndeterminate(item) ? 100 : progressPercent(item)}%"></div>
+              <div class="progress-bar" class:indeterminate={isIndeterminate(item) || isScanning(item)}>
+                <div class="progress-fill" style="width: {(isIndeterminate(item) || isScanning(item)) ? 100 : progressPercent(item)}%"></div>
               </div>
-              <div class="progress-text">{isIndeterminate(item) ? '…' : progressPercent(item) + '%'}</div>
+              <div class="progress-text">{progressText(item)}</div>
             {/if}
           </div>
         {/each}

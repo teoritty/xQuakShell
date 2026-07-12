@@ -73,8 +73,17 @@ type RemoteFS interface {
 	// Remove deletes a remote file or empty directory.
 	Remove(ctx context.Context, path string) error
 
-	// RemoveAll recursively deletes a remote path (file or directory with contents).
-	RemoveAll(ctx context.Context, path string) error
+	// RemoveAll recursively deletes a remote path (file or directory with
+	// contents). onEach, if non-nil, is invoked once per removed entry so callers
+	// can report progress; it must not block.
+	RemoveAll(ctx context.Context, path string, onEach func()) error
+
+	// CountTree returns how many entries a recursive operation with the given
+	// applyTo filter would act on (root plus matching descendants). It is
+	// read-only and is used to pre-compute a progress total. onEach, if non-nil,
+	// is invoked once per counted entry so callers can show a live scan counter;
+	// it must not block.
+	CountTree(ctx context.Context, path string, applyTo ApplyTarget, onEach func()) (int64, error)
 
 	// Rename moves/renames a remote path.
 	Rename(ctx context.Context, oldPath, newPath string) error
@@ -86,12 +95,14 @@ type RemoteFS interface {
 	Chown(ctx context.Context, path string, uid, gid int) error
 
 	// ChmodRecursive applies mode to path and, if it's a directory, to its
-	// descendants filtered by applyTo. The root itself is always changed.
-	ChmodRecursive(ctx context.Context, path string, mode os.FileMode, applyTo ApplyTarget) error
+	// descendants filtered by applyTo. onEach, if non-nil, is invoked once per
+	// changed entry for progress reporting; it must not block.
+	ChmodRecursive(ctx context.Context, path string, mode os.FileMode, applyTo ApplyTarget, onEach func()) error
 
 	// ChownRecursive applies uid/gid to path and, if it's a directory, to its
-	// descendants filtered by applyTo. The root itself is always changed.
-	ChownRecursive(ctx context.Context, path string, uid, gid int, applyTo ApplyTarget) error
+	// descendants filtered by applyTo. onEach, if non-nil, is invoked once per
+	// changed entry for progress reporting; it must not block.
+	ChownRecursive(ctx context.Context, path string, uid, gid int, applyTo ApplyTarget, onEach func()) error
 
 	// Close releases the underlying SFTP connection.
 	Close() error

@@ -3,7 +3,8 @@
   import type { RemoteNode } from '../stores/appState';
   import { listPath, removePath, mkdirPath, createFilePath, renamePath, downloadFile, getTempDir, openFileWithSystem, startFileWatch, getSettings } from '../stores/api';
   import { editingFiles, transferCompleted } from '../stores/appState';
-  import { subscribeOsFileDrop, resolveOsDropTarget, joinPath, baseName } from './osFileDrop';
+  import { registerOsDropZone, resolveOsDropTarget, joinPath, baseName, isFileDrag } from './osFileDrop';
+  import { isInvalidMove } from './pathMove';
   import FileTreeNode from './FileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
@@ -68,7 +69,7 @@
       rt.EventsOn('SFTPReady', handler);
       eventOff = () => rt.EventsOff('SFTPReady');
     }
-    osDropOff = subscribeOsFileDrop(handleOsFileDrop);
+    if (rootEl) osDropOff = registerOsDropZone({ el: rootEl, onDrop: handleOsFileDrop });
   });
 
   onDestroy(() => {
@@ -76,7 +77,7 @@
     if (osDropOff) osDropOff();
   });
 
-  function handleOsFileDrop({ paths, x, y }: { paths: string[]; x: number; y: number }) {
+  function handleOsFileDrop(paths: string[], x: number, y: number) {
     if (!rootEl || !onDropUpload) return;
     const targetDir = resolveOsDropTarget(rootEl, x, y, currentPath);
     if (targetDir === null) return;
@@ -188,6 +189,22 @@
     refreshPreservingState([remoteParent, currentPath]);
   }
 
+  // Remote operations (delete/chmod/chown) finished (or partially applied) —
+  // refresh the affected directory so the tree reflects the new state.
+  $: if (ready && $transferCompleted && $transferCompleted.sessionId === sessionId
+      && (($transferCompleted.kind === 'delete') || ($transferCompleted.kind === 'chmod') || ($transferCompleted.kind === 'chown'))) {
+    const t = $transferCompleted;
+    transferCompleted.set(null);
+    const affectedParent = t.remotePath.replace(/\/[^/]+$/, '') || '/';
+    // For delete the path itself is gone, so listing it would fail ("file does
+    // not exist"); only its parent and the current dir need refreshing. For
+    // chmod/chown the path still exists and its own listing must be refreshed.
+    const paths = t.kind === 'delete'
+      ? [affectedParent, currentPath]
+      : [affectedParent, t.remotePath, currentPath];
+    refreshPreservingState(paths);
+  }
+
   function formatSize(size: number): string {
     if (size < 1024) return `${size} B`;
     if (size < 1048576) return `${(size / 1024).toFixed(1)} KB`;
@@ -246,6 +263,9 @@
   }
 
   function handleDragOverPath(e: DragEvent, path: string) {
+    // External OS file drags are handled by the window-level osFileDrop router
+    // (via Wails). Do not stopPropagation here or the drop never reaches it.
+    if (isFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
@@ -257,6 +277,8 @@
   }
 
   async function handleDrop(e: DragEvent, targetDir: string) {
+    // External OS file drops bubble up to the osFileDrop router; leave them alone.
+    if (isFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     dragOverPath = null;
@@ -279,7 +301,7 @@
       for (const rp of remotes) {
         const base = rp.split('/').filter(Boolean).pop() || 'item';
         const destPath = targetDir === '/' ? `/${base}` : `${targetDir}/${base}`;
-        if (rp !== destPath) {
+        if (!isInvalidMove(rp, targetDir)) {
           try {
             await renamePath(sessionId, rp, destPath);
             const srcParent = rp.replace(/\/[^/]+$/, '') || '/';
@@ -375,19 +397,18 @@
     const { path, pathsToDelete } = deleteConfirm;
     deleteConfirm = { ...deleteConfirm, show: false };
     const toDelete = (pathsToDelete && pathsToDelete.length > 0) ? pathsToDelete : (path ? [path] : []);
-    const affectedPaths = new Set<string>([currentPath]);
+    // Each delete runs as a background operation with progress in the Transfers
+    // panel; the tree refreshes itself from the operation's terminal event
+    // (see the $transferCompleted reactive block above). We only schedule here.
     for (const p of toDelete) {
       try {
         await removePath(sessionId, p);
-        const parent = p.replace(/\/[^/]+$/, '') || '/';
-        if (parent) affectedPaths.add(parent);
       } catch (e: any) {
         error = e?.message || String(e);
       }
     }
     selectedPaths = new Set();
     lastSelectedPath = null;
-    await refreshPreservingState([...affectedPaths]);
   }
 
   function cancelDelete() {
@@ -546,6 +567,7 @@
       await renamePath(sessionId, oldPath, newPath);
     } catch (e: any) {
       error = e?.message || String(e);
+      editingNewPath = null;
       return;
     }
     editingNewPath = null;
@@ -762,5 +784,21 @@
     overflow-y: auto;
     flex: 1;
     padding: 4px 0;
+  }
+
+  /* Drag-over highlight applied by osFileDrop's router while an OS file is
+     dragged over this pane (see registerOsDropZone). */
+  .file-tree:global(.os-drop-active) {
+    outline: 2px dashed var(--accent);
+    outline-offset: -3px;
+    background: rgba(100, 150, 255, 0.08);
+  }
+
+  /* Folder row highlighted when an OS file is dragged directly over it (drop
+     targets that folder rather than the current directory). */
+  :global(.node-row.os-drop-active) {
+    background: rgba(100, 150, 255, 0.22);
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
   }
 </style>

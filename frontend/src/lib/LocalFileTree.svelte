@@ -2,7 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import { listLocalPath, getUserHomeDir, removeLocalPath, mkdirLocalPath, createLocalFile, renameLocalPath, copyLocalPath, openFileWithSystem, type LocalNode } from '../stores/api';
   import { transferCompleted } from '../stores/appState';
-  import { subscribeOsFileDrop, resolveOsDropTarget } from './osFileDrop';
+  import { registerOsDropZone, resolveOsDropTarget, isFileDrag } from './osFileDrop';
+  import { isInvalidMove } from './pathMove';
   import LocalFileTreeNode from './LocalFileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
@@ -121,14 +122,14 @@
     currentPath = homeDir;
     await loadDir(currentPath);
     expanded.add(currentPath);
-    osDropOff = subscribeOsFileDrop(handleOsFileDrop);
+    if (rootEl) osDropOff = registerOsDropZone({ el: rootEl, onDrop: handleOsFileDrop });
   });
 
   onDestroy(() => {
     if (osDropOff) osDropOff();
   });
 
-  async function handleOsFileDrop({ paths, x, y }: { paths: string[]; x: number; y: number }) {
+  async function handleOsFileDrop(paths: string[], x: number, y: number) {
     if (!rootEl) return;
     const targetDir = resolveOsDropTarget(rootEl, x, y, currentPath);
     if (targetDir === null) return;
@@ -360,6 +361,9 @@
   }
 
   function handleDragOverPath(e: DragEvent, path: string) {
+    // External OS file drags are handled by the window-level osFileDrop router
+    // (via Wails). Do not stopPropagation here or the drop never reaches it.
+    if (isFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
@@ -371,6 +375,8 @@
   }
 
   async function handleDrop(e: DragEvent, targetDir: string) {
+    // External OS file drops bubble up to the osFileDrop router; leave them alone.
+    if (isFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     dragOverPath = null;
@@ -394,7 +400,7 @@
       for (const lp of locals) {
         const base = lp.split(/[\\/]/).pop() || 'item';
         const destPath = targetDir.endsWith(sep) ? targetDir + base : targetDir + sep + base;
-        if (lp !== destPath) {
+        if (!isInvalidMove(lp, targetDir)) {
           try {
             await renameLocalPath(lp, destPath);
             const srcSep = lp.includes('\\') ? '\\' : '/';
@@ -549,6 +555,7 @@
       await renameLocalPath(oldPath, newFullPath);
     } catch (e: any) {
       error = e?.message || String(e);
+      editingNewPath = null;
       return;
     }
     editingNewPath = null;
@@ -738,6 +745,22 @@
     overflow-y: auto;
     flex: 1;
     padding: 4px 0;
+  }
+
+  /* Drag-over highlight applied by osFileDrop's router while an OS file is
+     dragged over this pane (see registerOsDropZone). */
+  .file-tree:global(.os-drop-active) {
+    outline: 2px dashed var(--accent);
+    outline-offset: -3px;
+    background: rgba(100, 150, 255, 0.08);
+  }
+
+  /* Folder row highlighted when an OS file is dragged directly over it (drop
+     targets that folder rather than the current directory). */
+  :global(.node-row.os-drop-active) {
+    background: rgba(100, 150, 255, 0.22);
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
   }
 
 </style>

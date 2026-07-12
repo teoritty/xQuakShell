@@ -369,14 +369,19 @@ func (fs *RemoteFS) Remove(ctx context.Context, remotePath string) error {
 }
 
 // RemoveAll recursively deletes a remote path (file or directory with contents).
-func (fs *RemoteFS) RemoveAll(ctx context.Context, remotePath string) error {
+// onEach, if non-nil, is called once per removed entry for progress reporting.
+func (fs *RemoteFS) RemoveAll(ctx context.Context, remotePath string, onEach func()) error {
 	remotePath = sanitizeRemotePath(remotePath)
 	stat, err := fs.client.Stat(remotePath)
 	if err != nil {
 		return fmt.Errorf("sftp removeall stat %s: %w", remotePath, err)
 	}
 	if !stat.IsDir() {
-		return fs.client.Remove(remotePath)
+		if err := fs.client.Remove(remotePath); err != nil {
+			return err
+		}
+		tick(onEach)
+		return nil
 	}
 	entries, err := fs.client.ReadDir(remotePath)
 	if err != nil {
@@ -390,16 +395,44 @@ func (fs *RemoteFS) RemoveAll(ctx context.Context, remotePath string) error {
 		}
 		childPath := path.Join(remotePath, entry.Name())
 		if entry.IsDir() {
-			if err := fs.RemoveAll(ctx, childPath); err != nil {
+			if err := fs.RemoveAll(ctx, childPath, onEach); err != nil {
 				return err
 			}
 		} else {
 			if err := fs.client.Remove(childPath); err != nil {
 				return fmt.Errorf("sftp removeall file %s: %w", childPath, err)
 			}
+			tick(onEach)
 		}
 	}
-	return fs.client.Remove(remotePath)
+	if err := fs.client.Remove(remotePath); err != nil {
+		return err
+	}
+	tick(onEach)
+	return nil
+}
+
+// CountTree counts the entries a recursive operation with the given applyTo
+// filter would act on: it walks like walkApply (skipping symlinked directories'
+// contents to avoid loops) and counts each node the operation's filter matches.
+// Read-only; used to pre-compute a progress total.
+func (fs *RemoteFS) CountTree(ctx context.Context, rootPath string, applyTo domain.ApplyTarget, onEach func()) (int64, error) {
+	var n int64
+	err := fs.walkApply(ctx, rootPath, true, func(_ string, isDir bool) error {
+		if applyTo.Matches(isDir) {
+			n++
+			tick(onEach)
+		}
+		return nil
+	})
+	return n, err
+}
+
+// tick invokes fn if it is non-nil.
+func tick(fn func()) {
+	if fn != nil {
+		fn()
+	}
 }
 
 // Rename moves/renames a remote path.
@@ -439,23 +472,31 @@ func (fs *RemoteFS) Chown(ctx context.Context, remotePath string, uid, gid int) 
 // past per-item errors (best-effort) and returns an aggregate error
 // listing every path that failed, so one locked file doesn't block
 // changing permissions on the rest of a large tree.
-func (fs *RemoteFS) ChmodRecursive(ctx context.Context, rootPath string, mode os.FileMode, applyTo domain.ApplyTarget) error {
+func (fs *RemoteFS) ChmodRecursive(ctx context.Context, rootPath string, mode os.FileMode, applyTo domain.ApplyTarget, onEach func()) error {
 	return fs.walkApply(ctx, rootPath, true, func(p string, isDir bool) error {
 		if !applyTo.Matches(isDir) {
 			return nil
 		}
-		return fs.Chmod(ctx, p, mode)
+		if err := fs.Chmod(ctx, p, mode); err != nil {
+			return err
+		}
+		tick(onEach)
+		return nil
 	})
 }
 
 // ChownRecursive applies uid/gid to rootPath and, if it's a directory, to its
 // descendants filtered by applyTo. Same root/best-effort semantics as ChmodRecursive.
-func (fs *RemoteFS) ChownRecursive(ctx context.Context, rootPath string, uid, gid int, applyTo domain.ApplyTarget) error {
+func (fs *RemoteFS) ChownRecursive(ctx context.Context, rootPath string, uid, gid int, applyTo domain.ApplyTarget, onEach func()) error {
 	return fs.walkApply(ctx, rootPath, true, func(p string, isDir bool) error {
 		if !applyTo.Matches(isDir) {
 			return nil
 		}
-		return fs.Chown(ctx, p, uid, gid)
+		if err := fs.Chown(ctx, p, uid, gid); err != nil {
+			return err
+		}
+		tick(onEach)
+		return nil
 	})
 }
 

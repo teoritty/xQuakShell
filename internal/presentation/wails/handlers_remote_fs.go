@@ -23,11 +23,13 @@ func (a *AppAPI) ListPath(sessionID, dirPath string) ([]RemoteNodeDTO, error) {
 }
 
 // RemovePath deletes a remote file or directory (recursively for directories).
+// It runs in the background and streams progress through the transfer/operation
+// event; the call returns as soon as the job is scheduled.
 func (a *AppAPI) RemovePath(sessionID, remotePath string) error {
-	if a.remoteFS == nil {
-		return fmt.Errorf("remote file service unavailable")
+	if a.remoteOpSvc == nil {
+		return fmt.Errorf("remote operation service unavailable")
 	}
-	return a.remoteFS.RemovePath(sessionID, remotePath)
+	return a.remoteOpSvc.Delete(sessionID, remotePath, a.emitTransferProgress)
 }
 
 // MkdirPath creates a remote directory (and parents if needed).
@@ -83,21 +85,21 @@ func (a *AppAPI) Chown(sessionID, remotePath string, uid, gid int) error {
 }
 
 // ChmodRecursive applies mode recursively under remotePath, filtered by
-// applyTo ("files", "dirs", or "both").
+// applyTo ("files", "dirs", or "both"). Runs in the background with progress.
 func (a *AppAPI) ChmodRecursive(sessionID, remotePath string, mode uint32, applyTo string) error {
-	if a.remoteFS == nil {
-		return fmt.Errorf("remote file service unavailable")
+	if a.remoteOpSvc == nil {
+		return fmt.Errorf("remote operation service unavailable")
 	}
-	return a.remoteFS.ChmodPathRecursive(sessionID, remotePath, os.FileMode(mode), applyTargetFromString(applyTo))
+	return a.remoteOpSvc.ChmodRecursive(sessionID, remotePath, os.FileMode(mode), applyTargetFromString(applyTo), a.emitTransferProgress)
 }
 
 // ChownRecursive applies uid/gid recursively under remotePath, filtered by
-// applyTo ("files", "dirs", or "both").
+// applyTo ("files", "dirs", or "both"). Runs in the background with progress.
 func (a *AppAPI) ChownRecursive(sessionID, remotePath string, uid, gid int, applyTo string) error {
-	if a.remoteFS == nil {
-		return fmt.Errorf("remote file service unavailable")
+	if a.remoteOpSvc == nil {
+		return fmt.Errorf("remote operation service unavailable")
 	}
-	return a.remoteFS.ChownPathRecursive(sessionID, remotePath, uid, gid, applyTargetFromString(applyTo))
+	return a.remoteOpSvc.ChownRecursive(sessionID, remotePath, uid, gid, applyTargetFromString(applyTo), a.emitTransferProgress)
 }
 
 // --- Known Hosts ---

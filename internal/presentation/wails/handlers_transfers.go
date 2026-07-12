@@ -13,6 +13,7 @@ func (a *AppAPI) emitTransferProgress(p usecase.TransferProgress) {
 	wailsrt.EventsEmit(a.ctx, EventTransferProgress, TransferProgressPayload{
 		ID:         p.ID,
 		SessionID:  p.SessionID,
+		Kind:       p.Kind,
 		Direction:  p.Direction,
 		LocalPath:  p.LocalPath,
 		RemotePath: p.RemotePath,
@@ -46,9 +47,14 @@ func (a *AppAPI) Download(sessionID, remotePath, localDir string) error {
 	return a.transferSvc.Download(parentCtx, sessionID, remotePath, localDir, a.emitTransferProgress)
 }
 
-// CancelTransfer cancels an active transfer by ID.
-func (a *AppAPI) CancelTransfer(transferID string) {
-	if a.transferSvc != nil {
-		a.transferSvc.Cancel(transferID)
+// CancelTransfer cancels an active transfer or remote operation by ID. The ID
+// space is shared across both services, so it tries the transfer service first
+// and falls back to the remote-operation service.
+func (a *AppAPI) CancelTransfer(operationID string) {
+	if a.transferSvc != nil && a.transferSvc.Cancel(operationID) {
+		return
+	}
+	if a.remoteOpSvc != nil {
+		a.remoteOpSvc.Cancel(operationID)
 	}
 }

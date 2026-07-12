@@ -4,16 +4,21 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"sync"
 
 	"ssh-client/internal/domain"
 	"ssh-client/internal/pkg/safego"
 )
 
-// TransferProgress describes transfer state for UI callbacks.
+// TransferProgress describes the state of a long-running operation for UI
+// callbacks. Despite the name it now covers not only byte transfers
+// (upload/download) but also remote filesystem operations (delete, recursive
+// chmod/chown) — see Kind. TECH DEBT: the "Transfer" naming (this type, the
+// Wails event, and the frontend store) is kept for pragmatic reuse; a future
+// refactor should rename these to a generic "Operation" vocabulary.
 type TransferProgress struct {
 	ID         string
 	SessionID  string
+	Kind       string // "upload" | "download" | "delete" | "chmod" | "chown"
 	Direction  string
 	LocalPath  string
 	RemotePath string
@@ -27,12 +32,11 @@ type TransferProgressFunc func(TransferProgress)
 
 // TransferService orchestrates SFTP uploads and downloads with concurrency limits.
 type TransferService struct {
-	sessions  *SessionManager
-	settings  *SettingsService
-	hostFS    domain.HostFileSystem
-	limiter   domain.ConcurrencyLimiter
-	cancelsMu sync.Mutex
-	cancels   map[string]context.CancelFunc
+	sessions *SessionManager
+	settings *SettingsService
+	hostFS   domain.HostFileSystem
+	limiter  domain.ConcurrencyLimiter
+	cancels  *cancelRegistry
 }
 
 // NewTransferService creates a transfer orchestrator.
@@ -45,7 +49,7 @@ func NewTransferService(sessions *SessionManager, settings *SettingsService, hos
 		settings: settings,
 		hostFS:   hostFS,
 		limiter:  limiter,
-		cancels:  make(map[string]context.CancelFunc),
+		cancels:  newCancelRegistry(),
 	}
 }
 
@@ -92,15 +96,9 @@ func (s *TransferService) Download(ctx context.Context, sessionID, remotePath, l
 	return s.downloadFile(ctx, sessionID, remotePath, resolvedDir, onProgress)
 }
 
-// Cancel aborts an active transfer by ID.
-func (s *TransferService) Cancel(transferID string) {
-	s.cancelsMu.Lock()
-	cancel, ok := s.cancels[transferID]
-	delete(s.cancels, transferID)
-	s.cancelsMu.Unlock()
-	if ok && cancel != nil {
-		cancel()
-	}
+// Cancel aborts an active transfer by ID. Returns true if a transfer was found.
+func (s *TransferService) Cancel(transferID string) bool {
+	return s.cancels.Cancel(transferID)
 }
 
 func (s *TransferService) maxConcurrent() int {
@@ -120,18 +118,6 @@ func (s *TransferService) acquireSlot(ctx context.Context) error {
 
 func (s *TransferService) releaseSlot() {
 	s.limiter.Release()
-}
-
-func (s *TransferService) registerCancel(transferID string, cancel context.CancelFunc) {
-	s.cancelsMu.Lock()
-	s.cancels[transferID] = cancel
-	s.cancelsMu.Unlock()
-}
-
-func (s *TransferService) unregisterCancel(transferID string) {
-	s.cancelsMu.Lock()
-	delete(s.cancels, transferID)
-	s.cancelsMu.Unlock()
 }
 
 func (s *TransferService) uploadFile(parentCtx context.Context, sessionID, localPath, remotePath string, onProgress TransferProgressFunc) error {
@@ -158,13 +144,13 @@ func (s *TransferService) uploadFile(parentCtx context.Context, sessionID, local
 	// uploadRecursive, downloadRecursive, and downloadFile below.
 	defer cancel()
 	transferID := fmt.Sprintf("upload-%s-%s", sessionID, filepath.Base(localPath))
-	s.registerCancel(transferID, cancel)
-	defer s.unregisterCancel(transferID)
+	s.cancels.Register(transferID, cancel)
+	defer s.cancels.Unregister(transferID)
 
 	progress := func(done, total int64) {
 		if onProgress != nil {
 			onProgress(TransferProgress{
-				ID: transferID, SessionID: sessionID, Direction: "upload",
+				ID: transferID, SessionID: sessionID, Kind: "upload", Direction: "upload",
 				LocalPath: localPath, RemotePath: remotePath,
 				Done: done, Total: total, State: "active",
 			})
@@ -188,7 +174,7 @@ func (s *TransferService) uploadFile(parentCtx context.Context, sessionID, local
 	}
 	if onProgress != nil {
 		onProgress(TransferProgress{
-			ID: transferID, SessionID: sessionID, Direction: "upload",
+			ID: transferID, SessionID: sessionID, Kind: "upload", Direction: "upload",
 			LocalPath: localPath, RemotePath: remotePath,
 			Done: 0, Total: 0, State: state,
 		})
@@ -210,13 +196,13 @@ func (s *TransferService) uploadRecursive(parentCtx context.Context, sessionID, 
 	// matters; same context-leak pattern fixed here.
 	defer cancel()
 	transferID := fmt.Sprintf("upload-%s-%s", sessionID, filepath.Base(localDir))
-	s.registerCancel(transferID, cancel)
-	defer s.unregisterCancel(transferID)
+	s.cancels.Register(transferID, cancel)
+	defer s.cancels.Unregister(transferID)
 
 	progress := func(done, total int64) {
 		if onProgress != nil {
 			onProgress(TransferProgress{
-				ID: transferID, SessionID: sessionID, Direction: "upload",
+				ID: transferID, SessionID: sessionID, Kind: "upload", Direction: "upload",
 				LocalPath: localDir, RemotePath: remoteDir,
 				Done: done, Total: total, State: "active",
 			})
@@ -238,7 +224,7 @@ func (s *TransferService) uploadRecursive(parentCtx context.Context, sessionID, 
 	}
 	if onProgress != nil {
 		onProgress(TransferProgress{
-			ID: transferID, SessionID: sessionID, Direction: "upload",
+			ID: transferID, SessionID: sessionID, Kind: "upload", Direction: "upload",
 			LocalPath: localDir, RemotePath: remoteDir,
 			Done: 0, Total: 0, State: state,
 		})
@@ -260,13 +246,13 @@ func (s *TransferService) downloadRecursive(parentCtx context.Context, sessionID
 	// matters; same context-leak pattern fixed here.
 	defer cancel()
 	transferID := fmt.Sprintf("download-%s-%s", sessionID, filepath.Base(remoteDir))
-	s.registerCancel(transferID, cancel)
-	defer s.unregisterCancel(transferID)
+	s.cancels.Register(transferID, cancel)
+	defer s.cancels.Unregister(transferID)
 
 	progress := func(done, total int64) {
 		if onProgress != nil {
 			onProgress(TransferProgress{
-				ID: transferID, SessionID: sessionID, Direction: "download",
+				ID: transferID, SessionID: sessionID, Kind: "download", Direction: "download",
 				LocalPath: localDir, RemotePath: remoteDir,
 				Done: done, Total: total, State: "active",
 			})
@@ -288,7 +274,7 @@ func (s *TransferService) downloadRecursive(parentCtx context.Context, sessionID
 	}
 	if onProgress != nil {
 		onProgress(TransferProgress{
-			ID: transferID, SessionID: sessionID, Direction: "download",
+			ID: transferID, SessionID: sessionID, Kind: "download", Direction: "download",
 			LocalPath: localDir, RemotePath: remoteDir,
 			Done: 0, Total: 0, State: state,
 		})
@@ -316,13 +302,13 @@ func (s *TransferService) downloadFile(parentCtx context.Context, sessionID, rem
 	// matters; same context-leak pattern fixed here.
 	defer cancel()
 	transferID := fmt.Sprintf("download-%s-%s", sessionID, filepath.Base(remotePath))
-	s.registerCancel(transferID, cancel)
-	defer s.unregisterCancel(transferID)
+	s.cancels.Register(transferID, cancel)
+	defer s.cancels.Unregister(transferID)
 
 	progress := func(done, total int64) {
 		if onProgress != nil {
 			onProgress(TransferProgress{
-				ID: transferID, SessionID: sessionID, Direction: "download",
+				ID: transferID, SessionID: sessionID, Kind: "download", Direction: "download",
 				LocalPath: localPath, RemotePath: remotePath,
 				Done: done, Total: total, State: "active",
 			})
@@ -345,7 +331,7 @@ func (s *TransferService) downloadFile(parentCtx context.Context, sessionID, rem
 	}
 	if onProgress != nil {
 		onProgress(TransferProgress{
-			ID: transferID, SessionID: sessionID, Direction: "download",
+			ID: transferID, SessionID: sessionID, Kind: "download", Direction: "download",
 			LocalPath: localPath, RemotePath: remotePath,
 			Done: 0, Total: 0, State: state,
 		})

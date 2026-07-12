@@ -1052,20 +1052,23 @@ export function subscribeToEvents(): void {
   });
 
   rt.EventsOn('TransferProgress', (data: TransferItem) => {
+    // Byte transfers refresh trees only when they succeed; remote operations
+    // (delete/chmod/chown) mutate the tree even on failure/cancel (partial
+    // effect), so signal a refresh on any terminal state for those.
+    const isOp = data.kind === 'delete' || data.kind === 'chmod' || data.kind === 'chown';
+    const isTerminal = data.state === 'completed' || data.state === 'failed' || data.state === 'cancelled';
+    const shouldRefresh = data.state === 'completed' || (isOp && isTerminal);
     transfers.update(list => {
       const idx = list.findIndex(t => t.id === data.id);
       if (idx >= 0) {
         list[idx] = { ...list[idx], ...data };
-        if (data.state === 'completed') {
-          transferCompleted.set({ ...data });
-        }
-        return [...list];
+      } else {
+        list = [...list, data];
       }
-      const next = [...list, data];
-      if (data.state === 'completed') {
+      if (shouldRefresh) {
         transferCompleted.set({ ...data });
       }
-      return next;
+      return [...list];
     });
   });
 

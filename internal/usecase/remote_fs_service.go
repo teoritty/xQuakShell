@@ -66,19 +66,6 @@ func (s *RemoteFSService) ListPath(sessionID, dirPath string) ([]domain.RemoteNo
 	return nodes, nil
 }
 
-// RemovePath deletes a remote file or directory recursively.
-func (s *RemoteFSService) RemovePath(sessionID, remotePath string) error {
-	fs, err := s.sessions.GetRemoteFS(sessionID)
-	if err != nil {
-		return err
-	}
-	ctx, err := s.sessions.GetSessionContext(sessionID)
-	if err != nil {
-		return err
-	}
-	return fs.RemoveAll(ctx, remotePath)
-}
-
 // MkdirPath creates a remote directory under parentPath.
 func (s *RemoteFSService) MkdirPath(sessionID, parentPath, name string) error {
 	fs, err := s.sessions.GetRemoteFS(sessionID)
@@ -142,34 +129,6 @@ func (s *RemoteFSService) ChownPath(sessionID, remotePath string, uid, gid int) 
 		return err
 	}
 	return fs.Chown(ctx, remotePath, uid, gid)
-}
-
-// ChmodPathRecursive applies mode to remotePath and, if it's a directory, to
-// its descendants filtered by applyTo.
-func (s *RemoteFSService) ChmodPathRecursive(sessionID, remotePath string, mode os.FileMode, applyTo domain.ApplyTarget) error {
-	fs, err := s.sessions.GetRemoteFS(sessionID)
-	if err != nil {
-		return err
-	}
-	ctx, err := s.sessions.GetSessionContext(sessionID)
-	if err != nil {
-		return err
-	}
-	return fs.ChmodRecursive(ctx, remotePath, mode, applyTo)
-}
-
-// ChownPathRecursive applies uid/gid to remotePath and, if it's a directory,
-// to its descendants filtered by applyTo.
-func (s *RemoteFSService) ChownPathRecursive(sessionID, remotePath string, uid, gid int, applyTo domain.ApplyTarget) error {
-	fs, err := s.sessions.GetRemoteFS(sessionID)
-	if err != nil {
-		return err
-	}
-	ctx, err := s.sessions.GetSessionContext(sessionID)
-	if err != nil {
-		return err
-	}
-	return fs.ChownRecursive(ctx, remotePath, uid, gid, applyTo)
 }
 
 func isNumericID(s string) bool {

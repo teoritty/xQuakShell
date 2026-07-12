@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { RemoteNode } from '../stores/appState';
-  import { tick } from 'svelte';
+  import { focusSelect } from './focusSelect';
   import { Folder as FolderIcon, FolderOpen, File, Loader2, ChevronRight, ChevronDown } from 'lucide-svelte';
 
   export let node: RemoteNode;
@@ -26,16 +26,34 @@
   export let onRenameCancel: (() => void) | undefined = undefined;
 
   let editValue = '';
-  let editInputEl: HTMLInputElement | null = null;
-  $: if (editingNewPath === node.path) {
+  let editingPath: string | null = null;
+  let committed = false;
+  $: editing = editingNewPath === node.path;
+  // Seed the input once, when this node enters edit mode. `editingPath` is a
+  // plain (non-reactive-guard) variable read and written in the same block, so
+  // unlike a split `wasEditing` guard it isn't reordered by the compiler — and
+  // because `editValue` is not a dependency here, re-renders (e.g. the parent
+  // reassigning `tree`) never wipe what the user has typed.
+  $: if (editing && editingPath !== node.path) {
     editValue = node.name;
-    focusEditInput();
+    editingPath = node.path;
+    committed = false;
+  } else if (!editing && editingPath === node.path) {
+    editingPath = null;
   }
 
-  async function focusEditInput() {
-    await tick();
-    editInputEl?.focus();
-    editInputEl?.select();
+  // Both Enter and blur commit; Escape cancels. `committed` guards against the
+  // blur that fires when confirming unmounts the input, which would otherwise
+  // re-submit a rename for a path that no longer exists.
+  function commitEdit() {
+    if (committed || !onRenameConfirm) return;
+    committed = true;
+    onRenameConfirm(node.path, editValue);
+  }
+  function cancelEdit() {
+    if (committed) return;
+    committed = true;
+    onRenameCancel?.();
   }
 </script>
 
@@ -52,7 +70,7 @@
     on:keydown={(e) => {
       if (e.key === 'Enter') node.isDir ? onNavigate(node.path) : onSelect(node.path);
     }}
-    draggable={true}
+    draggable={!editing}
     on:dragstart={(e) => onDragStartFile(e, node)}
     on:dragover={node.isDir && onDragOverPath ? (e) => onDragOverPath(e, node.path) : undefined}
     on:drop={node.isDir ? (e) => onDrop(e, node.path) : undefined}
@@ -72,18 +90,19 @@
         <File size={13} />
       {/if}
     </span>
-    {#if editingNewPath === node.path && onRenameConfirm}
+    {#if editing && onRenameConfirm}
       <input
-        bind:this={editInputEl}
+        use:focusSelect
         class="inline-edit-input"
         type="text"
         bind:value={editValue}
-        on:blur={() => onRenameConfirm(node.path, editValue)}
-        on:keydown={(e) => {
-          if (e.key === 'Enter') onRenameConfirm(node.path, editValue);
-          if (e.key === 'Escape') onRenameCancel?.();
+        on:blur={commitEdit}
+        on:keydown|stopPropagation={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
+          else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
         }}
         on:click|stopPropagation
+        on:dragstart|preventDefault|stopPropagation
       />
     {:else}
       <span class="node-name">{node.name}</span>
@@ -188,6 +207,8 @@
     border: 1px solid var(--accent);
     border-radius: 2px;
     outline: none;
+    user-select: text;
+    -webkit-user-drag: none;
   }
 
   .node-size {
