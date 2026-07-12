@@ -14,6 +14,22 @@ export function CancelTransfer(arg1) {
   return window['go']['main']['App']['CancelTransfer'](arg1);
 }
 
+export function Chmod(arg1, arg2, arg3) {
+  return window['go']['main']['App']['Chmod'](arg1, arg2, arg3);
+}
+
+export function ChmodRecursive(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['ChmodRecursive'](arg1, arg2, arg3, arg4);
+}
+
+export function Chown(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['Chown'](arg1, arg2, arg3, arg4);
+}
+
+export function ChownRecursive(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['ChownRecursive'](arg1, arg2, arg3, arg4, arg5);
+}
+
 export function ClearAuditLog() {
   return window['go']['main']['App']['ClearAuditLog']();
 }

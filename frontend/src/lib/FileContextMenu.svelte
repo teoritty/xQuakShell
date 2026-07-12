@@ -1,12 +1,13 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { FolderPlus, Trash2, FilePlus, Pencil } from 'lucide-svelte';
+  import { FolderPlus, Trash2, FilePlus, Pencil, Shield } from 'lucide-svelte';
 
   export let x = 0;
   export let y = 0;
   export let show = false;
   export let isDir = false;
   export let isEmptyArea = false;
+  export let allowPermissionsMenu = false;
 
   const dispatch = createEventDispatcher<{
     delete: void;
@@ -14,6 +15,7 @@
     newFile: void;
     edit: void;
     rename: void;
+    permissions: void;
   }>();
 
   function handleDelete() {
@@ -34,6 +36,10 @@
 
   function handleEdit() {
     dispatch('edit');
+  }
+
+  function handlePermissions() {
+    dispatch('permissions');
   }
 </script>
 
@@ -57,6 +63,12 @@
         <button class="menu-item" on:click={handleEdit} role="menuitem">
           <Pencil size={12} />
           <span>Edit</span>
+        </button>
+      {/if}
+      {#if allowPermissionsMenu}
+        <button class="menu-item" on:click={handlePermissions} role="menuitem">
+          <Shield size={12} />
+          <span>Permissions…</span>
         </button>
       {/if}
     {/if}

@@ -9,6 +9,14 @@ export function AddKnownHost(arg1:string,arg2:string):Promise<void>;
 
 export function CancelTransfer(arg1:string):Promise<void>;
 
+export function Chmod(arg1:string,arg2:string,arg3:number):Promise<void>;
+
+export function ChmodRecursive(arg1:string,arg2:string,arg3:number,arg4:string):Promise<void>;
+
+export function Chown(arg1:string,arg2:string,arg3:number,arg4:number):Promise<void>;
+
+export function ChownRecursive(arg1:string,arg2:string,arg3:number,arg4:number,arg5:string):Promise<void>;
+
 export function ClearAuditLog():Promise<void>;
 
 export function CloseSession(arg1:string):Promise<void>;

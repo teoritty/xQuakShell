@@ -3,6 +3,9 @@ package wails
 import (
 	"context"
 	"fmt"
+	"os"
+
+	"ssh-client/internal/domain"
 )
 
 // --- SFTP remote operations ---
@@ -49,6 +52,52 @@ func (a *AppAPI) RenamePath(sessionID, oldPath, newPath string) error {
 		return fmt.Errorf("remote file service unavailable")
 	}
 	return a.remoteFS.RenamePath(sessionID, oldPath, newPath)
+}
+
+// applyTargetFromString maps the "files"|"dirs"|"both" wire value to domain.ApplyTarget.
+func applyTargetFromString(applyTo string) domain.ApplyTarget {
+	switch applyTo {
+	case "files":
+		return domain.ApplyFilesOnly
+	case "dirs":
+		return domain.ApplyDirsOnly
+	default:
+		return domain.ApplyBoth
+	}
+}
+
+// Chmod sets permission bits on a remote path.
+func (a *AppAPI) Chmod(sessionID, remotePath string, mode uint32) error {
+	if a.remoteFS == nil {
+		return fmt.Errorf("remote file service unavailable")
+	}
+	return a.remoteFS.ChmodPath(sessionID, remotePath, os.FileMode(mode))
+}
+
+// Chown sets the owner uid/gid on a remote path.
+func (a *AppAPI) Chown(sessionID, remotePath string, uid, gid int) error {
+	if a.remoteFS == nil {
+		return fmt.Errorf("remote file service unavailable")
+	}
+	return a.remoteFS.ChownPath(sessionID, remotePath, uid, gid)
+}
+
+// ChmodRecursive applies mode recursively under remotePath, filtered by
+// applyTo ("files", "dirs", or "both").
+func (a *AppAPI) ChmodRecursive(sessionID, remotePath string, mode uint32, applyTo string) error {
+	if a.remoteFS == nil {
+		return fmt.Errorf("remote file service unavailable")
+	}
+	return a.remoteFS.ChmodPathRecursive(sessionID, remotePath, os.FileMode(mode), applyTargetFromString(applyTo))
+}
+
+// ChownRecursive applies uid/gid recursively under remotePath, filtered by
+// applyTo ("files", "dirs", or "both").
+func (a *AppAPI) ChownRecursive(sessionID, remotePath string, uid, gid int, applyTo string) error {
+	if a.remoteFS == nil {
+		return fmt.Errorf("remote file service unavailable")
+	}
+	return a.remoteFS.ChownPathRecursive(sessionID, remotePath, uid, gid, applyTargetFromString(applyTo))
 }
 
 // --- Known Hosts ---

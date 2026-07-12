@@ -263,6 +263,22 @@ func (a *App) RenamePath(sessionID, oldPath, newPath string) error {
 	return a.api.RenamePath(sessionID, oldPath, newPath)
 }
 
+func (a *App) Chmod(sessionID, remotePath string, mode uint32) error {
+	return a.api.Chmod(sessionID, remotePath, mode)
+}
+
+func (a *App) Chown(sessionID, remotePath string, uid, gid int) error {
+	return a.api.Chown(sessionID, remotePath, uid, gid)
+}
+
+func (a *App) ChmodRecursive(sessionID, remotePath string, mode uint32, applyTo string) error {
+	return a.api.ChmodRecursive(sessionID, remotePath, mode, applyTo)
+}
+
+func (a *App) ChownRecursive(sessionID, remotePath string, uid, gid int, applyTo string) error {
+	return a.api.ChownRecursive(sessionID, remotePath, uid, gid, applyTo)
+}
+
 func (a *App) RemoveLocalPath(localPath string) error {
 	return a.api.RemoveLocalPath(localPath)
 }

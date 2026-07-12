@@ -7,6 +7,7 @@
   import FileTreeNode from './FileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
+  import PermissionsDialog from './PermissionsDialog.svelte';
   import OverflowToolbar from './OverflowToolbar.svelte';
   import { buildFilePanelToolbarItems, cycleSortState, type SortKey } from './filePanelToolbar';
   import { Loader2, ChevronUp } from 'lucide-svelte';
@@ -31,6 +32,7 @@
   let showHidden = false;
   let editingNewPath: string | null = null;
   let deleteConfirm = { show: false, path: '', name: '', isDir: false, childCount: 0, pathsToDelete: [] as string[] };
+  let permDialog = { show: false, path: '', isDir: false, mode: '' };
   let error = '';
   let ready = false;
   let eventOff: (() => void) | null = null;
@@ -510,6 +512,16 @@
     tree = tree;
   }
 
+  function handleCtxPermissions() {
+    if (ctxMenu.isEmptyArea || !ctxMenu.path) {
+      closeContextMenu();
+      return;
+    }
+    const node = findNode(ctxMenu.path);
+    permDialog = { show: true, path: ctxMenu.path, isDir: ctxMenu.isDir, mode: node?.mode || '' };
+    closeContextMenu();
+  }
+
   function handleCtxRename() {
     if (ctxMenu.isEmptyArea || !ctxMenu.path) {
       closeContextMenu();
@@ -637,11 +649,22 @@
     show={ctxMenu.show}
     isDir={ctxMenu.isDir}
     isEmptyArea={ctxMenu.isEmptyArea}
+    allowPermissionsMenu={true}
     on:delete={handleCtxDelete}
     on:newFolder={handleCtxNewFolder}
     on:newFile={handleCtxNewFile}
     on:rename={handleCtxRename}
     on:edit={handleCtxEdit}
+    on:permissions={handleCtxPermissions}
+  />
+
+  <PermissionsDialog
+    show={permDialog.show}
+    {sessionId}
+    path={permDialog.path}
+    isDir={permDialog.isDir}
+    currentMode={permDialog.mode}
+    on:close={() => { permDialog = { ...permDialog, show: false }; refresh(); }}
   />
 
   <ConfirmDialog

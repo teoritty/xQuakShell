@@ -551,6 +551,48 @@ export async function renamePath(sessionId: string, oldPath: string, newPath: st
   }
 }
 
+export type ApplyTarget = 'files' | 'dirs' | 'both';
+
+export async function chmodPath(sessionId: string, path: string, mode: number): Promise<void> {
+  const app = getApp();
+  if (!app) return;
+  try {
+    await app.Chmod(sessionId, path, mode);
+  } catch (e) {
+    handleError(e, 'Change permissions');
+  }
+}
+
+export async function chownPath(sessionId: string, path: string, uid: number, gid: number): Promise<void> {
+  const app = getApp();
+  if (!app) return;
+  try {
+    await app.Chown(sessionId, path, uid, gid);
+  } catch (e) {
+    handleError(e, 'Change owner');
+  }
+}
+
+export async function chmodPathRecursive(sessionId: string, path: string, mode: number, applyTo: ApplyTarget): Promise<void> {
+  const app = getApp();
+  if (!app) return;
+  try {
+    await app.ChmodRecursive(sessionId, path, mode, applyTo);
+  } catch (e) {
+    handleError(e, 'Change permissions');
+  }
+}
+
+export async function chownPathRecursive(sessionId: string, path: string, uid: number, gid: number, applyTo: ApplyTarget): Promise<void> {
+  const app = getApp();
+  if (!app) return;
+  try {
+    await app.ChownRecursive(sessionId, path, uid, gid, applyTo);
+  } catch (e) {
+    handleError(e, 'Change owner');
+  }
+}
+
 export async function removeLocalPath(localPath: string): Promise<void> {
   const app = getApp();
   if (!app) return;

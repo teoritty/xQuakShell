@@ -2,8 +2,31 @@ package domain
 
 import (
 	"context"
+	"os"
 	"time"
 )
+
+// ApplyTarget filters which descendants a recursive chmod/chown applies to.
+// It never affects the root path itself, which is always changed.
+type ApplyTarget int
+
+const (
+	ApplyBoth ApplyTarget = iota
+	ApplyFilesOnly
+	ApplyDirsOnly
+)
+
+// Matches reports whether an entry with the given isDir should be changed.
+func (a ApplyTarget) Matches(isDir bool) bool {
+	switch a {
+	case ApplyFilesOnly:
+		return !isDir
+	case ApplyDirsOnly:
+		return isDir
+	default:
+		return true
+	}
+}
 
 // RemoteNode represents a single entry (file or directory) in the remote filesystem.
 type RemoteNode struct {
@@ -55,6 +78,20 @@ type RemoteFS interface {
 
 	// Rename moves/renames a remote path.
 	Rename(ctx context.Context, oldPath, newPath string) error
+
+	// Chmod sets permission bits on a remote path.
+	Chmod(ctx context.Context, path string, mode os.FileMode) error
+
+	// Chown sets the owner uid/gid on a remote path.
+	Chown(ctx context.Context, path string, uid, gid int) error
+
+	// ChmodRecursive applies mode to path and, if it's a directory, to its
+	// descendants filtered by applyTo. The root itself is always changed.
+	ChmodRecursive(ctx context.Context, path string, mode os.FileMode, applyTo ApplyTarget) error
+
+	// ChownRecursive applies uid/gid to path and, if it's a directory, to its
+	// descendants filtered by applyTo. The root itself is always changed.
+	ChownRecursive(ctx context.Context, path string, uid, gid int, applyTo ApplyTarget) error
 
 	// Close releases the underlying SFTP connection.
 	Close() error

@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"os"
 	"path"
 	"sync"
 	"unicode"
@@ -115,6 +116,60 @@ func (s *RemoteFSService) RenamePath(sessionID, oldPath, newPath string) error {
 		return err
 	}
 	return fs.Rename(ctx, oldPath, newPath)
+}
+
+// ChmodPath sets permission bits on a remote path.
+func (s *RemoteFSService) ChmodPath(sessionID, remotePath string, mode os.FileMode) error {
+	fs, err := s.sessions.GetRemoteFS(sessionID)
+	if err != nil {
+		return err
+	}
+	ctx, err := s.sessions.GetSessionContext(sessionID)
+	if err != nil {
+		return err
+	}
+	return fs.Chmod(ctx, remotePath, mode)
+}
+
+// ChownPath sets the owner uid/gid on a remote path.
+func (s *RemoteFSService) ChownPath(sessionID, remotePath string, uid, gid int) error {
+	fs, err := s.sessions.GetRemoteFS(sessionID)
+	if err != nil {
+		return err
+	}
+	ctx, err := s.sessions.GetSessionContext(sessionID)
+	if err != nil {
+		return err
+	}
+	return fs.Chown(ctx, remotePath, uid, gid)
+}
+
+// ChmodPathRecursive applies mode to remotePath and, if it's a directory, to
+// its descendants filtered by applyTo.
+func (s *RemoteFSService) ChmodPathRecursive(sessionID, remotePath string, mode os.FileMode, applyTo domain.ApplyTarget) error {
+	fs, err := s.sessions.GetRemoteFS(sessionID)
+	if err != nil {
+		return err
+	}
+	ctx, err := s.sessions.GetSessionContext(sessionID)
+	if err != nil {
+		return err
+	}
+	return fs.ChmodRecursive(ctx, remotePath, mode, applyTo)
+}
+
+// ChownPathRecursive applies uid/gid to remotePath and, if it's a directory,
+// to its descendants filtered by applyTo.
+func (s *RemoteFSService) ChownPathRecursive(sessionID, remotePath string, uid, gid int, applyTo domain.ApplyTarget) error {
+	fs, err := s.sessions.GetRemoteFS(sessionID)
+	if err != nil {
+		return err
+	}
+	ctx, err := s.sessions.GetSessionContext(sessionID)
+	if err != nil {
+		return err
+	}
+	return fs.ChownRecursive(ctx, remotePath, uid, gid, applyTo)
 }
 
 func isNumericID(s string) bool {

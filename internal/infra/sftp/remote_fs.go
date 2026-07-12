@@ -2,6 +2,7 @@ package sftp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -406,6 +407,95 @@ func (fs *RemoteFS) Rename(ctx context.Context, oldPath, newPath string) error {
 	oldPath = sanitizeRemotePath(oldPath)
 	newPath = sanitizeRemotePath(newPath)
 	return fs.client.Rename(oldPath, newPath)
+}
+
+// Chmod sets permission bits on a remote path.
+//
+// Note: SFTP has no lchmod equivalent — if remotePath is a symlink, this
+// changes the permissions of its target, not the link itself.
+func (fs *RemoteFS) Chmod(ctx context.Context, remotePath string, mode os.FileMode) error {
+	remotePath = sanitizeRemotePath(remotePath)
+	if err := fs.client.Chmod(remotePath, mode); err != nil {
+		return fmt.Errorf("sftp chmod %s: %w", remotePath, err)
+	}
+	return nil
+}
+
+// Chown sets the owner uid/gid on a remote path.
+//
+// Note: SFTP has no lchown equivalent — if remotePath is a symlink, this
+// changes the owner of its target, not the link itself.
+func (fs *RemoteFS) Chown(ctx context.Context, remotePath string, uid, gid int) error {
+	remotePath = sanitizeRemotePath(remotePath)
+	if err := fs.client.Chown(remotePath, uid, gid); err != nil {
+		return fmt.Errorf("sftp chown %s: %w", remotePath, err)
+	}
+	return nil
+}
+
+// ChmodRecursive applies mode to rootPath and, if it's a directory, to its
+// descendants filtered by applyTo. The root itself is always changed
+// regardless of applyTo (the filter only governs descendants). Continues
+// past per-item errors (best-effort) and returns an aggregate error
+// listing every path that failed, so one locked file doesn't block
+// changing permissions on the rest of a large tree.
+func (fs *RemoteFS) ChmodRecursive(ctx context.Context, rootPath string, mode os.FileMode, applyTo domain.ApplyTarget) error {
+	return fs.walkApply(ctx, rootPath, true, func(p string, isDir bool) error {
+		if !applyTo.Matches(isDir) {
+			return nil
+		}
+		return fs.Chmod(ctx, p, mode)
+	})
+}
+
+// ChownRecursive applies uid/gid to rootPath and, if it's a directory, to its
+// descendants filtered by applyTo. Same root/best-effort semantics as ChmodRecursive.
+func (fs *RemoteFS) ChownRecursive(ctx context.Context, rootPath string, uid, gid int, applyTo domain.ApplyTarget) error {
+	return fs.walkApply(ctx, rootPath, true, func(p string, isDir bool) error {
+		if !applyTo.Matches(isDir) {
+			return nil
+		}
+		return fs.Chown(ctx, p, uid, gid)
+	})
+}
+
+// walkApply applies fn to rootPath (always) and, if rootPath is a directory,
+// recursively to every descendant, skipping symlinked directories to avoid
+// loops. It collects per-item errors into a joined error rather than
+// aborting on the first failure.
+func (fs *RemoteFS) walkApply(ctx context.Context, rootPath string, isRoot bool, fn func(p string, isDir bool) error) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	rootPath = sanitizeRemotePath(rootPath)
+	stat, err := fs.client.Lstat(rootPath)
+	if err != nil {
+		return fmt.Errorf("sftp stat %s: %w", rootPath, err)
+	}
+	var errs []error
+	isDir := stat.IsDir()
+	isSymlink := stat.Mode()&os.ModeSymlink != 0
+	if isRoot || !isSymlink {
+		if err := fn(rootPath, isDir); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if isDir && (isRoot || !isSymlink) {
+		entries, err := fs.client.ReadDir(rootPath)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("sftp readdir %s: %w", rootPath, err))
+		} else {
+			for _, entry := range entries {
+				childPath := path.Join(rootPath, entry.Name())
+				if err := fs.walkApply(ctx, childPath, false, fn); err != nil {
+					errs = append(errs, err)
+				}
+			}
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // Close releases the underlying SFTP connection.
