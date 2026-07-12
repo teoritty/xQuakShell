@@ -96,6 +96,14 @@ func (s *LocalFSService) CreateFile(localPath string) error {
 	return s.hostFS.CreateFile(localPath)
 }
 
+// Copy copies a local file or directory tree into destDir, keeping its base name.
+func (s *LocalFSService) Copy(srcPath, destDir string) error {
+	if s.hostFS == nil {
+		return fmt.Errorf("local file service unavailable")
+	}
+	return s.hostFS.Copy(srcPath, destDir)
+}
+
 // OpenWithSystem opens a local file with the system default app or editor.
 func (s *LocalFSService) OpenWithSystem(localPath, editorPath string) error {
 	if s.hostFS == nil {

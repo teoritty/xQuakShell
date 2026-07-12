@@ -43,8 +43,11 @@ func main() {
 			Handler: app.pluginAssetHandler(),
 		},
 		BackgroundColour: &options.RGBA{R: 30, G: 30, B: 30, A: 255},
-		OnStartup:        app.startup,
-		OnShutdown:       app.shutdown,
+		DragAndDrop: &options.DragAndDrop{
+			EnableFileDrop: true,
+		},
+		OnStartup:  app.startup,
+		OnShutdown: app.shutdown,
 		Bind: []interface{}{
 			app,
 		},

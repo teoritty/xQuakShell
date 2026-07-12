@@ -22,6 +22,10 @@ export function CloseSession(arg1) {
   return window['go']['main']['App']['CloseSession'](arg1);
 }
 
+export function CopyLocalPath(arg1, arg2) {
+  return window['go']['main']['App']['CopyLocalPath'](arg1, arg2);
+}
+
 export function CreateFilePath(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateFilePath'](arg1, arg2, arg3);
 }

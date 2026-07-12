@@ -2,6 +2,7 @@ package host
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -154,6 +155,85 @@ func (fs *HostFS) CreateFile(localPath string) error {
 		return err
 	}
 	return f.Close()
+}
+
+// Copy copies srcPath (file or directory tree) into destDir, keeping srcPath's
+// base name. Used for copying files dropped from the OS file explorer into
+// the local file browser. Symlinks are recreated as links, not followed —
+// this avoids infinite recursion on symlinked directories.
+func (fs *HostFS) Copy(srcPath, destDir string) error {
+	src, err := fs.ResolvePath(srcPath)
+	if err != nil {
+		return err
+	}
+	dest, err := fs.ResolvePath(destDir)
+	if err != nil {
+		return err
+	}
+	info, err := os.Lstat(src)
+	if err != nil {
+		return err
+	}
+	target := filepath.Join(dest, filepath.Base(src))
+	if info.IsDir() {
+		return copyDirRecursive(src, target)
+	}
+	return copyEntry(src, target, info)
+}
+
+func copyDirRecursive(srcDir, destDir string) error {
+	entries, err := os.ReadDir(srcDir)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return err
+	}
+	for _, e := range entries {
+		srcPath := filepath.Join(srcDir, e.Name())
+		destPath := filepath.Join(destDir, e.Name())
+		info, err := os.Lstat(srcPath)
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			if err := copyDirRecursive(srcPath, destPath); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := copyEntry(srcPath, destPath, info); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// copyEntry copies a single file or symlink. Symlinks are recreated pointing
+// at the same target rather than having their contents followed and copied.
+func copyEntry(srcPath, destPath string, info os.FileInfo) error {
+	if info.Mode()&os.ModeSymlink != 0 {
+		linkTarget, err := os.Readlink(srcPath)
+		if err != nil {
+			return err
+		}
+		_ = os.Remove(destPath)
+		return os.Symlink(linkTarget, destPath)
+	}
+	in, err := os.Open(srcPath)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(destPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode().Perm())
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Close()
 }
 
 var _ domain.HostFileSystem = (*HostFS)(nil)

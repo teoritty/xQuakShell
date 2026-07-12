@@ -531,6 +531,16 @@ export async function createFilePath(sessionId: string, parentPath: string, name
   }
 }
 
+export async function copyLocalPath(srcPath: string, destDir: string): Promise<void> {
+  const app = getApp();
+  if (!app) return;
+  try {
+    await app.CopyLocalPath(srcPath, destDir);
+  } catch (e) {
+    handleError(e, 'Copy local path');
+  }
+}
+
 export async function renamePath(sessionId: string, oldPath: string, newPath: string): Promise<void> {
   const app = getApp();
   if (!app) return;

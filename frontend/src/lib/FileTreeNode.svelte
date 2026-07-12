@@ -42,6 +42,8 @@
 <div class="tree-node" class:dir={node.isDir}>
   <div
     class="node-row"
+    data-path={node.path}
+    data-is-dir={node.isDir}
     class:selected={selectedPaths.has(node.path)}
     class:drop-target={node.isDir && dropTargetPath === node.path}
     on:click={(e) => onSelect(node.path, e)}

@@ -51,4 +51,7 @@ type HostFileSystem interface {
 	Mkdir(dirPath string) error
 	Rename(oldPath, newPath string) error
 	CreateFile(localPath string) error
+	// Copy copies srcPath (file or directory, recursively) into destDir,
+	// keeping srcPath's base name. Symlinks are copied as links, not followed.
+	Copy(srcPath, destDir string) error
 }

@@ -11,7 +11,7 @@ import (
 //	| Method                                                                 | Port         | Zone              |
 //	|------------------------------------------------------------------------|--------------|-------------------|
 //	| ListLocalPath, RemoveLocalPath, MkdirLocalPath, RenameLocalPath,     | localFS      | Host user FS      |
-//	| CreateLocalFile, OpenFileWithSystem, StartFileWatch,                   |              | (ADR-007)         |
+//	| CreateLocalFile, CopyLocalPath, OpenFileWithSystem, StartFileWatch,    |              | (ADR-007)         |
 //	| SelectLocalFile, SelectLocalDirectory                                  |              |                   |
 //	| GetUserHomeDir                                                         | localFS      | Host user FS      |
 //	| GetPortableDataRoot                                                    | portableData | Portable app data |
@@ -72,6 +72,15 @@ func (a *AppAPI) CreateLocalFile(localPath string) error {
 		return fmt.Errorf("local file service unavailable")
 	}
 	return a.localFS.CreateFile(localPath)
+}
+
+// CopyLocalPath copies a local file or directory (recursively) into destDir,
+// keeping its base name. Used for OS drag-and-drop into the local file browser.
+func (a *AppAPI) CopyLocalPath(srcPath, destDir string) error {
+	if a.localFS == nil {
+		return fmt.Errorf("local file service unavailable")
+	}
+	return a.localFS.Copy(srcPath, destDir)
 }
 
 // GetPortableDataRoot returns the portable data root (<exe>/data) for settings and plugin layout.

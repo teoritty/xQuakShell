@@ -13,6 +13,8 @@ export function ClearAuditLog():Promise<void>;
 
 export function CloseSession(arg1:string):Promise<void>;
 
+export function CopyLocalPath(arg1:string,arg2:string):Promise<void>;
+
 export function CreateFilePath(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function CreateLocalFile(arg1:string):Promise<void>;

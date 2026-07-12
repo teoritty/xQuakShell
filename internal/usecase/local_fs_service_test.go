@@ -34,10 +34,11 @@ func (m *mockHostFS) List(dirPath string, includeHidden bool, isHidden func(stri
 	}
 	return nil, nil
 }
-func (m *mockHostFS) Remove(string) error   { return nil }
-func (m *mockHostFS) Mkdir(string) error    { return nil }
+func (m *mockHostFS) Remove(string) error      { return nil }
+func (m *mockHostFS) Mkdir(string) error       { return nil }
 func (m *mockHostFS) Rename(_, _ string) error { return nil }
-func (m *mockHostFS) CreateFile(string) error { return nil }
+func (m *mockHostFS) CreateFile(string) error  { return nil }
+func (m *mockHostFS) Copy(_, _ string) error   { return nil }
 
 type mockLauncher struct {
 	openDefault func(path string) error

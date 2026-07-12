@@ -3,6 +3,7 @@
   import type { RemoteNode } from '../stores/appState';
   import { listPath, removePath, mkdirPath, createFilePath, renamePath, downloadFile, getTempDir, openFileWithSystem, startFileWatch, getSettings } from '../stores/api';
   import { editingFiles, transferCompleted } from '../stores/appState';
+  import { subscribeOsFileDrop, resolveOsDropTarget, joinPath, baseName } from './osFileDrop';
   import FileTreeNode from './FileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
@@ -33,6 +34,8 @@
   let error = '';
   let ready = false;
   let eventOff: (() => void) | null = null;
+  let osDropOff: (() => void) | null = null;
+  let rootEl: HTMLDivElement | null = null;
   let dragOverPath: string | null = null;
   type SortDir = 'asc' | 'desc';
   let sortEnabled = false;
@@ -63,11 +66,23 @@
       rt.EventsOn('SFTPReady', handler);
       eventOff = () => rt.EventsOff('SFTPReady');
     }
+    osDropOff = subscribeOsFileDrop(handleOsFileDrop);
   });
 
   onDestroy(() => {
     if (eventOff) eventOff();
+    if (osDropOff) osDropOff();
   });
+
+  function handleOsFileDrop({ paths, x, y }: { paths: string[]; x: number; y: number }) {
+    if (!rootEl || !onDropUpload) return;
+    const targetDir = resolveOsDropTarget(rootEl, x, y, currentPath);
+    if (targetDir === null) return;
+    for (const p of paths) {
+      const remoteDest = joinPath(targetDir, baseName(p));
+      onDropUpload(p, remoteDest);
+    }
+  }
 
   async function loadDir(path: string) {
     if (loading.has(path)) return;
@@ -549,7 +564,7 @@
 </script>
 
 <svelte:window on:click={closeContextMenu} />
-<div class="file-tree">
+<div class="file-tree" bind:this={rootEl}>
   <div class="panel-header">
     <span>Remote Files</span>
     <OverflowToolbar items={toolbarItems} />

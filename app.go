@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"ssh-client/internal/pkg/safego"
 	presentation "ssh-client/internal/presentation/wails"
 )
@@ -73,6 +75,11 @@ func (a *App) startup(ctx context.Context) {
 		})
 		a.plugins.manager.SetStateChangeHandler(a.api.EmitPluginStateChanged)
 	}
+	wailsrt.OnFileDrop(ctx, func(x, y int, paths []string) {
+		wailsrt.EventsEmit(ctx, presentation.EventOsFileDrop, presentation.OsFileDropPayload{
+			Paths: paths, X: x, Y: y,
+		})
+	})
 }
 
 func (a *App) shutdown(_ context.Context) {
@@ -270,6 +277,10 @@ func (a *App) RenameLocalPath(oldPath, newPath string) error {
 
 func (a *App) CreateLocalFile(localPath string) error {
 	return a.api.CreateLocalFile(localPath)
+}
+
+func (a *App) CopyLocalPath(srcPath, destDir string) error {
+	return a.api.CopyLocalPath(srcPath, destDir)
 }
 
 func (a *App) Upload(sessionID, localPath, remotePath string) error {

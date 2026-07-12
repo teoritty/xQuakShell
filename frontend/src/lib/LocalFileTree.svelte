@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { listLocalPath, getUserHomeDir, removeLocalPath, mkdirLocalPath, createLocalFile, renameLocalPath, openFileWithSystem, type LocalNode } from '../stores/api';
+  import { onMount, onDestroy } from 'svelte';
+  import { listLocalPath, getUserHomeDir, removeLocalPath, mkdirLocalPath, createLocalFile, renameLocalPath, copyLocalPath, openFileWithSystem, type LocalNode } from '../stores/api';
   import { transferCompleted } from '../stores/appState';
+  import { subscribeOsFileDrop, resolveOsDropTarget } from './osFileDrop';
   import LocalFileTreeNode from './LocalFileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
@@ -30,6 +31,8 @@
   let editingNewPath: string | null = null;
   let deleteConfirm = { show: false, path: '', name: '', isDir: false, childCount: 0, pathsToDelete: [] as string[] };
   let dragOverPath: string | null = null;
+  let osDropOff: (() => void) | null = null;
+  let rootEl: HTMLDivElement | null = null;
   type SortDir = 'asc' | 'desc';
   let sortEnabled = false;
   let sortKey: SortKey | null = null;
@@ -118,7 +121,22 @@
     currentPath = homeDir;
     await loadDir(currentPath);
     expanded.add(currentPath);
+    osDropOff = subscribeOsFileDrop(handleOsFileDrop);
   });
+
+  onDestroy(() => {
+    if (osDropOff) osDropOff();
+  });
+
+  async function handleOsFileDrop({ paths, x, y }: { paths: string[]; x: number; y: number }) {
+    if (!rootEl) return;
+    const targetDir = resolveOsDropTarget(rootEl, x, y, currentPath);
+    if (targetDir === null) return;
+    for (const p of paths) {
+      await copyLocalPath(p, targetDir);
+    }
+    await refreshPreservingState([targetDir, currentPath]);
+  }
 
   async function loadDir(path: string) {
     if (loading.has(path)) return;
@@ -560,7 +578,7 @@
 </script>
 
 <svelte:window on:click={closeContextMenu} />
-<div class="file-tree">
+<div class="file-tree" bind:this={rootEl}>
   <div class="panel-header">
     <span>Local Files</span>
     <OverflowToolbar items={toolbarItems} />
