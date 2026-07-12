@@ -13,10 +13,15 @@
     newFolder: void;
     newFile: void;
     edit: void;
+    rename: void;
   }>();
 
   function handleDelete() {
     dispatch('delete');
+  }
+
+  function handleRename() {
+    dispatch('rename');
   }
 
   function handleNewFolder() {
@@ -40,6 +45,10 @@
     on:click|stopPropagation
   >
     {#if !isEmptyArea}
+      <button class="menu-item" on:click={handleRename} role="menuitem">
+        <Pencil size={12} />
+        <span>Rename</span>
+      </button>
       <button class="menu-item danger" on:click={handleDelete} role="menuitem">
         <Trash2 size={12} />
         <span>Delete</span>

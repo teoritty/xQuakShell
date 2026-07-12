@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { RemoteNode } from '../stores/appState';
+  import { tick } from 'svelte';
   import { Folder as FolderIcon, FolderOpen, File, Loader2, ChevronRight, ChevronDown } from 'lucide-svelte';
 
   export let node: RemoteNode;
@@ -25,8 +26,16 @@
   export let onRenameCancel: (() => void) | undefined = undefined;
 
   let editValue = '';
+  let editInputEl: HTMLInputElement | null = null;
   $: if (editingNewPath === node.path) {
     editValue = node.name;
+    focusEditInput();
+  }
+
+  async function focusEditInput() {
+    await tick();
+    editInputEl?.focus();
+    editInputEl?.select();
   }
 </script>
 
@@ -63,10 +72,10 @@
     </span>
     {#if editingNewPath === node.path && onRenameConfirm}
       <input
+        bind:this={editInputEl}
         class="inline-edit-input"
         type="text"
         bind:value={editValue}
-        autofocus
         on:blur={() => onRenameConfirm(node.path, editValue)}
         on:keydown={(e) => {
           if (e.key === 'Enter') onRenameConfirm(node.path, editValue);

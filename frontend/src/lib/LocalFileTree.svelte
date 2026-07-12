@@ -505,6 +505,15 @@
     tree = tree;
   }
 
+  function handleCtxRename() {
+    if (ctxMenu.isEmptyArea || !ctxMenu.path) {
+      closeContextMenu();
+      return;
+    }
+    editingNewPath = ctxMenu.path;
+    closeContextMenu();
+  }
+
   async function handleRenameConfirm(oldPath: string, newName: string) {
     if (!newName.trim()) {
       editingNewPath = null;
@@ -621,6 +630,7 @@
     on:delete={handleCtxDelete}
     on:newFolder={handleCtxNewFolder}
     on:newFile={handleCtxNewFile}
+    on:rename={handleCtxRename}
     on:edit={handleCtxEdit}
   />
 
