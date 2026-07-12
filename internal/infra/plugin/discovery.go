@@ -141,10 +141,10 @@ func loadPluginDir(dir string) (domainplugin.InstalledPlugin, error) {
 
 func verifyPluginIntegrity(dir string, manifest domainplugin.Manifest) error {
 	if manifest.Signature != "" {
-		return bundle.RequireChecksums(dir)
+		return bundle.RequireChecksums(dir, InstallMetaFile, UserInstalledMarker)
 	}
 	if bundle.HasChecksums(dir) {
-		return bundle.ValidateChecksums(dir)
+		return bundle.ValidateChecksums(dir, InstallMetaFile, UserInstalledMarker)
 	}
 	return nil
 }

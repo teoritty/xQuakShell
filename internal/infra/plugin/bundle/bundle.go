@@ -169,8 +169,11 @@ func WriteChecksums(dir string) error {
 	return os.WriteFile(sumPath, []byte(content), 0o600)
 }
 
-// ValidateChecksums verifies SHA256SUMS exists and matches bundle contents.
-func ValidateChecksums(dir string) error {
+// ValidateChecksums verifies SHA256SUMS exists and that the directory tree matches it
+// exactly: every listed file is present with the correct hash, and no unlisted files exist.
+// reserved names are host-generated files (written after packaging, e.g. install metadata)
+// that are allowed to be present without appearing in SHA256SUMS.
+func ValidateChecksums(dir string, reserved ...string) error {
 	sumPath := filepath.Join(dir, ChecksumsFile)
 	data, err := os.ReadFile(sumPath)
 	if err != nil {
@@ -181,21 +184,44 @@ func ValidateChecksums(dir string) error {
 	}
 
 	expected := parseChecksums(string(data))
-	for name, want := range expected {
-		path := filepath.Join(dir, filepath.FromSlash(name))
-		got, err := hashFile(path)
-		if err != nil {
-			return fmt.Errorf("checksum target %s: %w", name, err)
+
+	ignore := make(map[string]struct{}, len(reserved))
+	for _, name := range reserved {
+		ignore[filepath.ToSlash(name)] = struct{}{}
+	}
+
+	// hashTree walks the real directory contents (excluding SHA256SUMS itself) so we can
+	// enforce set-equality in both directions, not just listed -> disk.
+	actual, err := hashTree(dir)
+	if err != nil {
+		return err
+	}
+
+	seen := make(map[string]struct{}, len(actual))
+	for _, f := range actual {
+		want, ok := expected[f.name]
+		if !ok {
+			if _, skip := ignore[f.name]; skip {
+				continue
+			}
+			return fmt.Errorf("unlisted file in bundle: %s", f.name)
 		}
-		if got != want {
-			return fmt.Errorf("checksum mismatch for %s", name)
+		if f.hash != want {
+			return fmt.Errorf("checksum mismatch for %s", f.name)
+		}
+		seen[f.name] = struct{}{}
+	}
+	for name := range expected {
+		if _, ok := seen[name]; !ok {
+			return fmt.Errorf("checksum target %s: %w", name, os.ErrNotExist)
 		}
 	}
 	return nil
 }
 
 // RequireChecksums verifies SHA256SUMS exists and matches bundle contents.
-func RequireChecksums(dir string) error {
+// reserved names are forwarded to ValidateChecksums (see its doc).
+func RequireChecksums(dir string, reserved ...string) error {
 	sumPath := filepath.Join(dir, ChecksumsFile)
 	if _, err := os.Stat(sumPath); err != nil {
 		if os.IsNotExist(err) {
@@ -203,7 +229,7 @@ func RequireChecksums(dir string) error {
 		}
 		return err
 	}
-	return ValidateChecksums(dir)
+	return ValidateChecksums(dir, reserved...)
 }
 
 func hashTree(root string) ([]fileHash, error) {
