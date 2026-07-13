@@ -1,56 +1,80 @@
 <!-- frontend/src/lib/tiles/TileGroup.svelte -->
 <script lang="ts">
-  import type { TileGroup, Zone } from './types';
+  import type { TileGroup, Zone, Edge } from './types';
   import { sessions, activeSessionId } from '../../stores/appState';
   import SessionView from '../SessionView.svelte';
   import TileTabBar from './TileTabBar.svelte';
   import TileDropOverlay from './TileDropOverlay.svelte';
-  import { tileLayout, splitOutTile, moveTabToTile } from '../../stores/tileLayout';
-  import { allowedEdges } from './operations';
+  import {
+    tileLayout,
+    activeTileDrag,
+    splitOutTile,
+    moveTabToTile,
+    reorientTile,
+  } from '../../stores/tileLayout';
+  import { splitEdges, reorientEdges, isLoneTab } from './operations';
   import { zoneAt } from './dropZones';
   import { isTileTabDrag, readDragPayload } from './dragPayload';
 
   export let tile: TileGroup;
 
+  type DropIntent = 'move' | 'split' | 'reorient';
+
   let root: HTMLElement;
   let zone: Zone | null = null;
+  let intent: DropIntent | null = null;
 
   $: tileSessions = tile.tabs
     .map((id) => $sessions.find((s) => s.sessionId === id))
     .filter((s): s is NonNullable<typeof s> => !!s);
 
-  function computeZone(e: DragEvent): Zone {
+  // Resolves what a drop at (x,y) would do, given the tile being dragged. A lone
+  // connection re-orients on an edge; a tab from a multi-tab tile splits out a new
+  // tile on an edge; a centre drop moves the connection into this tile as a tab.
+  function resolve(e: DragEvent): { zone: Zone; intent: DropIntent | null } {
+    const drag = $activeTileDrag;
+    if (!drag) return { zone: 'center', intent: null };
+    const lone = isLoneTab($tileLayout, drag.sessionId);
+    const edges: Edge[] = lone ? reorientEdges($tileLayout) : splitEdges($tileLayout, tile.id);
     const r = root.getBoundingClientRect();
-    const allowed = allowedEdges($tileLayout, tile.id);
-    return zoneAt(
-      { left: r.left, top: r.top, width: r.width, height: r.height },
-      e.clientX,
-      e.clientY,
-      allowed,
-    );
+    const z = zoneAt({ left: r.left, top: r.top, width: r.width, height: r.height }, e.clientX, e.clientY, edges);
+    if (z === 'center') {
+      // Centre only does something when moving into a DIFFERENT tile.
+      return { zone: z, intent: drag.sourceTileId !== tile.id ? 'move' : null };
+    }
+    return { zone: z, intent: lone ? 'reorient' : 'split' };
   }
 
   function onDragOver(e: DragEvent) {
     if (!isTileTabDrag(e.dataTransfer)) return; // let OS file drops pass through
     e.preventDefault();
-    zone = computeZone(e);
+    const res = resolve(e);
+    zone = res.intent ? res.zone : null;
+    intent = res.intent;
   }
 
   function onDragLeave(e: DragEvent) {
-    if (!e.relatedTarget || !root.contains(e.relatedTarget as Node)) zone = null;
+    if (!e.relatedTarget || !root.contains(e.relatedTarget as Node)) {
+      zone = null;
+      intent = null;
+    }
   }
 
   function onDrop(e: DragEvent) {
     if (!isTileTabDrag(e.dataTransfer)) return;
     e.preventDefault();
     const payload = readDragPayload(e.dataTransfer!);
-    const target = zone;
+    const z = zone;
+    const act = intent;
     zone = null;
-    if (!payload || !target) return;
-    if (target === 'center') {
+    intent = null;
+    if (!payload || !act) return;
+    if (act === 'move') {
       moveTabToTile(payload.sessionId, tile.id);
-    } else {
-      splitOutTile(payload.sessionId, tile.id, target);
+    } else if (act === 'reorient' && z && z !== 'center') {
+      reorientTile(payload.sessionId, z);
+    } else if (act === 'split' && z && z !== 'center') {
+      splitOutTile(payload.sessionId, tile.id, z);
     }
   }
 
@@ -75,7 +99,7 @@
       <SessionView {session} active={tile.activeTabId === session.sessionId} />
     {/each}
   </div>
-  <TileDropOverlay {zone} />
+  <TileDropOverlay {zone} {intent} />
 </div>
 
 <style>

@@ -4,6 +4,7 @@
   import { closeSession } from '../../stores/api';
   import type { TileGroup } from './types';
   import { writeDragPayload } from './dragPayload';
+  import { activeTileDrag } from '../../stores/tileLayout';
   import { Loader2, CheckCircle2, XCircle, Circle, X } from 'lucide-svelte';
 
   export let tile: TileGroup;
@@ -25,6 +26,11 @@
   function onDragStart(e: DragEvent, sessionId: string) {
     if (!e.dataTransfer) return;
     writeDragPayload(e.dataTransfer, { sessionId, sourceTileId: tile.id });
+    activeTileDrag.set({ sessionId, sourceTileId: tile.id });
+  }
+
+  function onDragEnd() {
+    activeTileDrag.set(null);
   }
 </script>
 
@@ -35,6 +41,7 @@
       class:active={tile.activeTabId === session.sessionId}
       draggable="true"
       on:dragstart={(e) => onDragStart(e, session.sessionId)}
+      on:dragend={onDragEnd}
       on:click={() => activate(session.sessionId)}
       on:keydown={(e) => e.key === 'Enter' && activate(session.sessionId)}
       role="tab"

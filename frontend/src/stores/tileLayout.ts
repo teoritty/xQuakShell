@@ -8,9 +8,16 @@ import { sessions, activeSessionId } from './appState';
 import type { TileLayout, Edge } from '../lib/tiles/types';
 import { emptyLayout } from '../lib/tiles/types';
 import { reconcile } from '../lib/tiles/reconcile';
-import { splitOut, moveTab } from '../lib/tiles/operations';
+import { splitOut, moveTab, reorient } from '../lib/tiles/operations';
 
 export const tileLayout = writable<TileLayout>(emptyLayout());
+
+/**
+ * The tile tab currently being dragged, or null. Set on dragstart and cleared on
+ * dragend. Drop targets read it during `dragover` (where the DataTransfer payload
+ * is not yet readable) to decide whether the gesture splits, re-orients or moves.
+ */
+export const activeTileDrag = writable<{ sessionId: string; sourceTileId: string } | null>(null);
 
 function sync(): void {
   const ids = get(sessions).map((s) => s.sessionId);
@@ -29,6 +36,10 @@ export function splitOutTile(sessionId: string, targetTileId: string, edge: Edge
 
 export function moveTabToTile(sessionId: string, targetTileId: string): void {
   tileLayout.update((l) => moveTab(l, sessionId, targetTileId));
+}
+
+export function reorientTile(sessionId: string, edge: Edge): void {
+  tileLayout.update((l) => reorient(l, sessionId, edge));
 }
 
 export function setDivider(divider: 'main' | 'cross', ratio: number): void {
