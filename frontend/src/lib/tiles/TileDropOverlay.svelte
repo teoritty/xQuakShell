@@ -3,21 +3,19 @@
   import type { Zone } from './types';
 
   export let zone: Zone | null;
-  export let intent: 'move' | 'split' | 'reorient' | 'swap' | null = null;
+  export let intent: 'split' | 'reorient' | 'swap' | null = null;
 
   // Only a `split` shows the half-tile slice where the new tile will appear.
-  // move / reorient / swap fill the whole tile (no confusing "quarter" preview):
+  // reorient / swap fill the whole tile (no confusing "quarter" preview):
   // reorient shows a large arrow pointing the way the layout will flip, swap
-  // shows a swap glyph, move shows a plus.
+  // shows a swap glyph. (Merge is drawn on the tab bar by TileGroup, not here.)
   $: half = intent === 'split' && zone && zone !== 'center';
   $: glyph =
     intent === 'reorient' && zone && zone !== 'center'
       ? ({ left: '←', right: '→', top: '↑', bottom: '↓' } as const)[zone]
       : intent === 'swap'
         ? '⇄'
-        : intent === 'move'
-          ? '+'
-          : '';
+        : '';
 </script>
 
 {#if zone && intent}

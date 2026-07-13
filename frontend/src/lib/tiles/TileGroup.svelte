@@ -16,10 +16,11 @@
   import { splitEdges, reorientEdges, isLoneTab } from './operations';
   import { zoneAt } from './dropZones';
   import { isTileTabDrag, readDragPayload } from './dragPayload';
+  import { Combine } from 'lucide-svelte';
 
   export let tile: TileGroup;
 
-  type DropIntent = 'move' | 'split' | 'reorient' | 'swap';
+  type DropIntent = 'merge' | 'split' | 'reorient' | 'swap';
 
   let root: HTMLElement;
   let tabBarEl: HTMLElement;
@@ -39,11 +40,13 @@
   }
 
   // Resolves what a drop at (x,y) would do, given the tile being dragged.
-  //  - over another tile's TAB BAR      -> merge: add the connection as a tab
-  //  - lone connection, body edge       -> reorient the layout
-  //  - lone connection, body centre     -> swap this tile with the dragged tile
-  //  - tab from a multi-tab tile, edge   -> split out a new tile
-  //  - tab from a multi-tab tile, centre -> move the connection in as a tab
+  // Merging is ALWAYS the tab bar, for every configuration; the body is only ever
+  // spatial (swap / reorient / split):
+  //  - over another tile's TAB BAR       -> merge: add the connection as a tab
+  //  - lone connection, body edge        -> reorient the layout
+  //  - lone connection, body centre      -> swap this tile with the dragged tile
+  //  - tab from a multi-tab tile, edge    -> split out a new tile
+  //  - tab from a multi-tab tile, body    -> nothing (merge lives on the tab bar)
   function resolve(e: DragEvent): { zone: Zone; intent: DropIntent | null; mergeBar: boolean } {
     const drag = $activeTileDrag;
     if (!drag) return { zone: 'center', intent: null, mergeBar: false };
@@ -51,7 +54,7 @@
 
     // Dropping onto another tile's tab bar merges the connection into it as a tab.
     if (differentTile && inRect(tabBarEl, e.clientX, e.clientY)) {
-      return { zone: 'center', intent: 'move', mergeBar: true };
+      return { zone: 'center', intent: 'merge', mergeBar: true };
     }
 
     const lone = isLoneTab($tileLayout, drag.sessionId);
@@ -59,9 +62,10 @@
     const r = root.getBoundingClientRect();
     const z = zoneAt({ left: r.left, top: r.top, width: r.width, height: r.height }, e.clientX, e.clientY, edges);
     if (z === 'center') {
-      // Body centre only does something when dropping onto a DIFFERENT tile.
-      if (!differentTile) return { zone: z, intent: null, mergeBar: false };
-      return { zone: z, intent: lone ? 'swap' : 'move', mergeBar: false };
+      // Body centre swaps two whole tiles — only meaningful for a lone connection
+      // on a different tile. A tab from a multi-tab tile does nothing here.
+      if (!differentTile || !lone) return { zone: z, intent: null, mergeBar: false };
+      return { zone: z, intent: 'swap', mergeBar: false };
     }
     return { zone: z, intent: lone ? 'reorient' : 'split', mergeBar: false };
   }
@@ -93,7 +97,7 @@
     intent = null;
     mergeBar = false;
     if (!payload || !act) return;
-    if (act === 'move') {
+    if (act === 'merge') {
       moveTabToTile(payload.sessionId, tile.id);
     } else if (act === 'swap') {
       swapTilesById(payload.sessionId, tile.id);
@@ -121,13 +125,22 @@
 >
   <div class="tile-chrome" class:merge-target={mergeBar} bind:this={tabBarEl}>
     <TileTabBar {tile} />
+    {#if mergeBar}
+      <div class="merge-hint" aria-hidden="true">
+        <Combine size={15} />
+        <span>Combine into this tile</span>
+      </div>
+    {/if}
   </div>
   <div class="tile-body">
     {#each tileSessions as session (session.sessionId)}
       <SessionView {session} active={tile.activeTabId === session.sessionId} />
     {/each}
   </div>
-  <TileDropOverlay zone={mergeBar ? null : zone} intent={mergeBar ? null : intent} />
+  <TileDropOverlay
+    zone={intent === 'merge' ? null : zone}
+    intent={intent === 'merge' ? null : intent}
+  />
 </div>
 
 <style>
@@ -146,12 +159,28 @@
     flex-shrink: 0;
     position: relative;
   }
-  /* Highlight the tab bar when a drag hovers it: dropping here adds the
-     connection to this tile as a tab. */
+  /* Highlight the whole tab bar when a drag hovers it: dropping here combines the
+     connection into this tile as a tab. */
   .tile-chrome.merge-target {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
-    background: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  .merge-hint {
+    position: absolute;
+    inset: 0;
+    z-index: 11;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    pointer-events: none;
+    background: color-mix(in srgb, var(--accent) 82%, transparent);
+    color: var(--text-bright, #fff);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    overflow: hidden;
   }
   .tile-body {
     display: flex;
