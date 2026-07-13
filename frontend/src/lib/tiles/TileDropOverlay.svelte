@@ -3,16 +3,21 @@
   import type { Zone } from './types';
 
   export let zone: Zone | null;
-  export let intent: 'move' | 'split' | 'reorient' | null = null;
+  export let intent: 'move' | 'split' | 'reorient' | 'swap' | null = null;
 
   // Only a `split` shows the half-tile slice where the new tile will appear.
-  // `move` and `reorient` fill the whole tile (no confusing "quarter" preview);
-  // reorient adds an arrow pointing the way the layout will flip.
+  // move / reorient / swap fill the whole tile (no confusing "quarter" preview):
+  // reorient shows a large arrow pointing the way the layout will flip, swap
+  // shows a swap glyph, move shows a plus.
   $: half = intent === 'split' && zone && zone !== 'center';
-  $: arrow =
+  $: glyph =
     intent === 'reorient' && zone && zone !== 'center'
       ? ({ left: '←', right: '→', top: '↑', bottom: '↓' } as const)[zone]
-      : '';
+      : intent === 'swap'
+        ? '⇄'
+        : intent === 'move'
+          ? '+'
+          : '';
 </script>
 
 {#if zone && intent}
@@ -20,7 +25,7 @@
     <div class="drop-overlay {zone}" aria-hidden="true"></div>
   {:else}
     <div class="drop-overlay full {intent}" aria-hidden="true">
-      {#if arrow}<span class="arrow">{arrow}</span>{/if}
+      {#if glyph}<span class="glyph">{glyph}</span>{/if}
     </div>
   {/if}
 {/if}
@@ -40,15 +45,18 @@
     align-items: center;
     justify-content: center;
   }
-  .full.reorient {
+  .full.reorient,
+  .full.swap {
     background: color-mix(in srgb, var(--accent) 18%, transparent);
     border: 2px dashed var(--accent);
   }
-  .arrow {
-    font-size: 40px;
+  .glyph {
+    font-size: clamp(56px, 9vw, 150px);
+    font-weight: 700;
     line-height: 1;
     color: var(--accent);
-    opacity: 0.9;
+    opacity: 0.95;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
   }
   .left { left: 0; top: 0; width: 50%; height: 100%; }
   .right { right: 0; top: 0; width: 50%; height: 100%; }

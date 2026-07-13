@@ -11,6 +11,7 @@
     splitOutTile,
     moveTabToTile,
     reorientTile,
+    swapTilesById,
   } from '../../stores/tileLayout';
   import { splitEdges, reorientEdges, isLoneTab } from './operations';
   import { zoneAt } from './dropZones';
@@ -18,7 +19,7 @@
 
   export let tile: TileGroup;
 
-  type DropIntent = 'move' | 'split' | 'reorient';
+  type DropIntent = 'move' | 'split' | 'reorient' | 'swap';
 
   let root: HTMLElement;
   let zone: Zone | null = null;
@@ -28,9 +29,11 @@
     .map((id) => $sessions.find((s) => s.sessionId === id))
     .filter((s): s is NonNullable<typeof s> => !!s);
 
-  // Resolves what a drop at (x,y) would do, given the tile being dragged. A lone
-  // connection re-orients on an edge; a tab from a multi-tab tile splits out a new
-  // tile on an edge; a centre drop moves the connection into this tile as a tab.
+  // Resolves what a drop at (x,y) would do, given the tile being dragged.
+  //  - lone connection, edge      -> reorient the layout
+  //  - lone connection, centre    -> swap this tile with the dragged tile
+  //  - tab from a multi-tab tile, edge   -> split out a new tile
+  //  - tab from a multi-tab tile, centre -> move the connection in as a tab
   function resolve(e: DragEvent): { zone: Zone; intent: DropIntent | null } {
     const drag = $activeTileDrag;
     if (!drag) return { zone: 'center', intent: null };
@@ -39,8 +42,9 @@
     const r = root.getBoundingClientRect();
     const z = zoneAt({ left: r.left, top: r.top, width: r.width, height: r.height }, e.clientX, e.clientY, edges);
     if (z === 'center') {
-      // Centre only does something when moving into a DIFFERENT tile.
-      return { zone: z, intent: drag.sourceTileId !== tile.id ? 'move' : null };
+      // Centre only does something when dropping onto a DIFFERENT tile.
+      if (drag.sourceTileId === tile.id) return { zone: z, intent: null };
+      return { zone: z, intent: lone ? 'swap' : 'move' };
     }
     return { zone: z, intent: lone ? 'reorient' : 'split' };
   }
@@ -71,6 +75,8 @@
     if (!payload || !act) return;
     if (act === 'move') {
       moveTabToTile(payload.sessionId, tile.id);
+    } else if (act === 'swap') {
+      swapTilesById(payload.sessionId, tile.id);
     } else if (act === 'reorient' && z && z !== 'center') {
       reorientTile(payload.sessionId, z);
     } else if (act === 'split' && z && z !== 'center') {

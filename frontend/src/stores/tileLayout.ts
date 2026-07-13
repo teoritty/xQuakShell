@@ -8,7 +8,7 @@ import { sessions, activeSessionId } from './appState';
 import type { TileLayout, Edge } from '../lib/tiles/types';
 import { emptyLayout } from '../lib/tiles/types';
 import { reconcile } from '../lib/tiles/reconcile';
-import { splitOut, moveTab, reorient } from '../lib/tiles/operations';
+import { splitOut, moveTab, reorient, swapTiles } from '../lib/tiles/operations';
 
 export const tileLayout = writable<TileLayout>(emptyLayout());
 
@@ -40,6 +40,10 @@ export function moveTabToTile(sessionId: string, targetTileId: string): void {
 
 export function reorientTile(sessionId: string, edge: Edge): void {
   tileLayout.update((l) => reorient(l, sessionId, edge));
+}
+
+export function swapTilesById(sessionId: string, targetTileId: string): void {
+  tileLayout.update((l) => swapTiles(l, sessionId, targetTileId));
 }
 
 export function setDivider(divider: 'main' | 'cross', ratio: number): void {

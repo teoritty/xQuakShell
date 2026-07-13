@@ -4,6 +4,7 @@ import {
   splitOut,
   moveTab,
   reorient,
+  swapTiles,
   splitEdges,
   reorientEdges,
   isLoneTab,
@@ -83,6 +84,20 @@ assert(swapped.orientation === 'h' && swapped.tiles[0].id === 'B' && swapped.til
 const t3 = layout([tile('A', ['s1']), tile('B', ['s2']), tile('C', ['s3'])], 'h');
 assert(reorient(t3, 's1', 'top').orientation === 'v', 'n3 reorient flips h -> v');
 assert(reorient(t3, 's1', 'left') === t3, 'n3 same-axis reorient is no-op');
+
+// --- swapTiles: exchange positions, count unchanged, ids reused ---
+const three = layout([tile('A', ['s1']), tile('B', ['s2']), tile('C', ['s3'])], 'h');
+const sw = swapTiles(three, 's1', 'C'); // swap A (slot0) with C (slot2)
+assert(sw.tiles.length === 3, 'swap keeps tile count');
+assert(sw.tiles[0].id === 'C' && sw.tiles[2].id === 'A', 'swap exchanges slot positions');
+assert(sw.tiles[1].id === 'B', 'swap leaves the untouched tile in place');
+assert(sw.orientation === three.orientation, 'swap keeps orientation');
+// 4-tile swap
+const four = layout([tile('A', ['s1']), tile('B', ['s2']), tile('C', ['s3']), tile('D', ['s4'])], 'h');
+const sw4 = swapTiles(four, 's2', 'D'); // B (slot1) <-> D (slot3)
+assert(sw4.tiles[1].id === 'D' && sw4.tiles[3].id === 'B', '4-tile swap exchanges positions');
+// no-op onto own tile
+assert(swapTiles(three, 's1', 'A') === three, 'swap onto own tile is a no-op');
 
 // --- moveTab: centre drop ---
 const moved = moveTab(l4, 's1', l4.tiles[1].id);

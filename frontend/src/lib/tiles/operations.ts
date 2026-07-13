@@ -123,6 +123,23 @@ export function reorient(layout: TileLayout, sessionId: string, edge: Edge): Til
   return withTiles(layout, layout.tiles, targetAxis);
 }
 
+/**
+ * Exchanges the positions of the dragged connection's tile and `targetTileId`.
+ * The tile count is unchanged and the same tile objects are reused (only their
+ * slot order swaps), so nothing remounts. This is the "поменять местами" gesture
+ * and works for any layout of 2, 3 or 4 tiles.
+ */
+export function swapTiles(layout: TileLayout, sessionId: string, targetTileId: string): TileLayout {
+  const source = tileOf(layout, sessionId);
+  if (!source || source.id === targetTileId) return layout;
+  const si = layout.tiles.findIndex((t) => t.id === source.id);
+  const ti = layout.tiles.findIndex((t) => t.id === targetTileId);
+  if (si < 0 || ti < 0) return layout;
+  const tiles = [...layout.tiles];
+  [tiles[si], tiles[ti]] = [tiles[ti], tiles[si]];
+  return withTiles(layout, tiles);
+}
+
 /** Moves a tab into another existing tile (center drop). Collapses an emptied source. */
 export function moveTab(layout: TileLayout, sessionId: string, targetTileId: string): TileLayout {
   const source = tileOf(layout, sessionId);
