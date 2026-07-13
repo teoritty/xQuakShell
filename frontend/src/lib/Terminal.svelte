@@ -7,11 +7,14 @@
   import { sendTerminalInput, terminalResize, getSettings, takePendingTerminalOutput, registerTerminalOutputConsumer, clearPendingTerminalOutput } from '../stores/api';
   import { getUiScaleFactor } from './uiScale';
   import { dataHasEnter, extractCommandLine } from './terminalCommandLine';
+  import { getPooledTerminal, setPooledTerminal } from './terminalPool';
 
   export let sessionId: string;
   export let active: boolean = false;
 
   let containerEl: HTMLDivElement;
+  /** The element xterm is opened on; lives in the pool and moves between mounts. */
+  let host: HTMLDivElement | null = null;
   let term: Terminal | null = null;
   let fitAddon: FitAddon | null = null;
   let resizeObserver: ResizeObserver | null = null;
@@ -173,51 +176,70 @@
   }
 
   onMount(async () => {
-    const settings = await getSettings();
-    baseTerminalFontSize = settings?.terminalFontSize ?? 14;
-    const fontSize = scaledTerminalFontSize();
-    const fontFamily = settings?.terminalFontFamily || 'Cascadia Code, Consolas, Courier New, monospace';
-    const fontColor = settings?.terminalFontColor || '#cccccc';
-    const theme = { ...defaultTheme, foreground: fontColor };
+    // Reuse a live terminal from the pool when this component is remounting for a
+    // session that already has one (e.g. the tab was moved to another tile). This
+    // preserves the full scrollback, cursor and PTY wiring across layout changes.
+    const pooled = getPooledTerminal(mountSessionId);
+    if (pooled) {
+      term = pooled.term;
+      fitAddon = pooled.fitAddon;
+      host = pooled.host;
+      baseTerminalFontSize = pooled.baseFontSize;
+      containerEl.appendChild(host);
+      initDone = true;
+    } else {
+      const settings = await getSettings();
+      baseTerminalFontSize = settings?.terminalFontSize ?? 14;
+      const fontSize = scaledTerminalFontSize();
+      const fontFamily = settings?.terminalFontFamily || 'Cascadia Code, Consolas, Courier New, monospace';
+      const fontColor = settings?.terminalFontColor || '#cccccc';
+      const theme = { ...defaultTheme, foreground: fontColor };
 
-    term = new Terminal({
-      cursorBlink: true,
-      fontSize,
-      fontFamily,
-      theme,
-      scrollback: 5000,
-      convertEol: false,
-      allowProposedApi: true,
-    });
+      term = new Terminal({
+        cursorBlink: true,
+        fontSize,
+        fontFamily,
+        theme,
+        scrollback: 5000,
+        convertEol: false,
+        allowProposedApi: true,
+      });
 
-    fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
+      fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
 
-    // Load the real font before open() so xterm measures correct glyph metrics.
-    try {
-      await (document as any).fonts?.load?.(`${fontSize}px "Cascadia Code"`);
-    } catch {}
-    try {
-      await (document as any).fonts?.ready;
-    } catch {}
+      // Load the real font before open() so xterm measures correct glyph metrics.
+      try {
+        await (document as any).fonts?.load?.(`${fontSize}px "Cascadia Code"`);
+      } catch {}
+      try {
+        await (document as any).fonts?.ready;
+      } catch {}
 
-    term.open(containerEl);
-    await tick();
+      // xterm is opened once on its own host element; the host (with all its DOM,
+      // including scrollback) is what moves between containers across remounts.
+      host = document.createElement('div');
+      host.className = 'terminal-host';
+      containerEl.appendChild(host);
+      term.open(host);
+      await tick();
 
-    // NOTE: we intentionally do NOT use @xterm/addon-webgl. In WebView2 at
-    // devicePixelRatio > 1 the WebGL renderer paints its canvas at the wrong
-    // scale (terminal visually fills only a fraction of the container while the
-    // grid size is correct), and only a window resize forces it to recover.
-    // The default DOM renderer sizes correctly under HiDPI and also renders
-    // ligatures more reliably.
+      // NOTE: we intentionally do NOT use @xterm/addon-webgl. In WebView2 at
+      // devicePixelRatio > 1 the WebGL renderer paints its canvas at the wrong
+      // scale (terminal visually fills only a fraction of the container while the
+      // grid size is correct), and only a window resize forces it to recover.
+      // The default DOM renderer sizes correctly under HiDPI and also renders
+      // ligatures more reliably.
 
-    // Programming ligatures (fallback set in non-Node environments like WebView2).
-    try { term.loadAddon(new LigaturesAddon()); } catch {}
+      // Programming ligatures (fallback set in non-Node environments like WebView2).
+      try { term.loadAddon(new LigaturesAddon()); } catch {}
 
-    // Clickable URLs.
-    try { term.loadAddon(new WebLinksAddon()); } catch {}
+      // Clickable URLs.
+      try { term.loadAddon(new WebLinksAddon()); } catch {}
 
-    initDone = true;
+      setPooledTerminal(mountSessionId, { term, fitAddon, host, baseFontSize: baseTerminalFontSize });
+      initDone = true;
+    }
 
     dataDisposable = term.onData((data) => {
       const commandLine = dataHasEnter(data) ? pendingCommandLine : '';
@@ -308,7 +330,13 @@
     clearPendingTerminalOutput(mountSessionId);
     dataDisposable?.dispose();
     resizeDisposable?.dispose();
-    if (term) term.dispose();
+    // Detach the live terminal so it can be re-attached on the next mount (tile
+    // rearrangement). The terminal is disposed only when the session actually
+    // closes, via disposeTerminal() in the session lifecycle (stores/api).
+    // Guard on ownership: when a session moves between tiles the new component
+    // may re-attach the shared host before this one is destroyed, so only detach
+    // the host while it still sits in OUR container.
+    if (host && host.parentNode === containerEl) containerEl.removeChild(host);
   });
 
   $: if (active && term && initDone) {
@@ -329,6 +357,11 @@
     overflow: hidden;
     background: #1e1e1e;
     box-sizing: border-box;
+  }
+
+  .terminal-container :global(.terminal-host) {
+    width: 100%;
+    height: 100%;
   }
 
   .terminal-container :global(.xterm) {

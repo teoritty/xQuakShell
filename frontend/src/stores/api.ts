@@ -9,6 +9,7 @@ import {
   type HostKeyEvent, type PingResult
 } from './appState';
 import { get, writable } from 'svelte/store';
+import { disposeTerminal } from '../lib/terminalPool';
 import {
   applyUiScalePercent,
   DEFAULT_UI_SCALE_PERCENT,
@@ -959,7 +960,7 @@ export function disableAuditSecretLogging(): void {
 
 const MAX_PENDING_TERMINAL_BYTES = 256 << 10;
 const pendingTerminalOutput = new Map<string, Uint8Array[]>();
-const terminalOutputConsumers = new Set<string>();
+const terminalOutputConsumers = new Map<string, number>();
 
 // SFTPReady is a one-shot broadcast emitted once per session right after the
 // remote filesystem is up. A FileTree component mounts only after its session
@@ -1012,11 +1013,23 @@ export function clearPendingTerminalOutput(sessionId: string): void {
   pendingTerminalOutput.delete(sessionId);
 }
 
-/** Marks a session as having a live terminal subscriber (skip global buffering). */
+/**
+ * Marks a session as having a live terminal subscriber (skip global buffering).
+ * Ref-counted: during a tile rearrangement the new Terminal component can mount
+ * (and register) before the old one unmounts (and unregisters), so a plain flag
+ * would briefly drop to "no consumer" and cause api.ts to buffer output that the
+ * live terminal is already displaying — producing duplicated lines on the next
+ * mount. Counting keeps the session marked as consumed throughout the overlap.
+ */
 export function registerTerminalOutputConsumer(sessionId: string): () => void {
-  terminalOutputConsumers.add(sessionId);
+  terminalOutputConsumers.set(sessionId, (terminalOutputConsumers.get(sessionId) ?? 0) + 1);
+  let released = false;
   return () => {
-    terminalOutputConsumers.delete(sessionId);
+    if (released) return;
+    released = true;
+    const next = (terminalOutputConsumers.get(sessionId) ?? 0) - 1;
+    if (next <= 0) terminalOutputConsumers.delete(sessionId);
+    else terminalOutputConsumers.set(sessionId, next);
   };
 }
 
@@ -1041,6 +1054,7 @@ export function subscribeToEvents(): void {
         next.delete(data.sessionId);
         return next;
       });
+      disposeTerminal(data.sessionId);
     }
     sessions.update(list => {
       if (data.state === 'closed') {
@@ -1077,6 +1091,7 @@ export function subscribeToEvents(): void {
   rt.EventsOn('SessionClosed', (data: { sessionId: string }) => {
     clearPendingTerminalOutput(data.sessionId);
     terminalOutputConsumers.delete(data.sessionId);
+    disposeTerminal(data.sessionId);
     sftpReadyPaths.update(m => {
       if (!m.has(data.sessionId)) return m;
       const next = new Map(m);
