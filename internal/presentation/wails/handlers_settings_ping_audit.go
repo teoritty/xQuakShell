@@ -75,11 +75,12 @@ func (a *AppAPI) PingConnection(connID string) {
 // --- Audit Log ---
 
 // SearchAuditLog performs full-text search on audit entries.
-func (a *AppAPI) SearchAuditLog(query, sessionID, connectionID string, limit, offset int) ([]AuditEntryDTO, error) {
+func (a *AppAPI) SearchAuditLog(query, sessionID, connectionID, category string, limit, offset int) ([]AuditEntryDTO, error) {
 	if a.auditSvc == nil {
 		return nil, fmt.Errorf("audit log not available")
 	}
 	filter := domain.AuditSearchFilter{
+		Category:     category,
 		SessionID:    sessionID,
 		ConnectionID: connectionID,
 		Limit:        limit,
@@ -100,12 +101,13 @@ func (a *AppAPI) DeleteAuditEntry(id int64) error {
 	return a.auditSvc.DeleteByID(context.Background(), id)
 }
 
-// ClearAuditLog removes all audit log entries.
-func (a *AppAPI) ClearAuditLog() error {
+// ClearAuditLog removes audit log entries of the given category. An empty
+// category clears all entries.
+func (a *AppAPI) ClearAuditLog(category string) error {
 	if a.auditSvc == nil {
 		return fmt.Errorf("audit log not available")
 	}
-	return a.auditSvc.ClearAll(context.Background())
+	return a.auditSvc.ClearAll(context.Background(), category)
 }
 
 // AuditSessionStateDTO exposes session-only audit options to the UI.

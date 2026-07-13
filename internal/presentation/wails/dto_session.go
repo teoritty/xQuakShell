@@ -47,6 +47,7 @@ type RemoteNodeDTO struct {
 type AuditEntryDTO struct {
 	ID             int64  `json:"id"`
 	Timestamp      string `json:"timestamp"`
+	Category       string `json:"category"`
 	SessionID      string `json:"sessionId"`
 	ConnectionID   string `json:"connectionId"`
 	ConnectionName string `json:"connectionName"`
@@ -116,6 +117,7 @@ func AuditEntryToDTO(e domain.AuditEntry) AuditEntryDTO {
 	return AuditEntryDTO{
 		ID:             e.ID,
 		Timestamp:      e.Timestamp.Format(time.RFC3339),
+		Category:       e.Category,
 		SessionID:      e.SessionID,
 		ConnectionID:   e.ConnectionID,
 		ConnectionName: e.ConnectionName,

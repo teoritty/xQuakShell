@@ -148,16 +148,16 @@ func (a *App) ResolveHostKey(sessionID, action, host, authorizedKey string) erro
 	return a.api.ResolveHostKey(sessionID, action, host, authorizedKey)
 }
 
-func (a *App) SearchAuditLog(query, sessionID, connectionID string, limit, offset int) ([]presentation.AuditEntryDTO, error) {
-	return a.api.SearchAuditLog(query, sessionID, connectionID, limit, offset)
+func (a *App) SearchAuditLog(query, sessionID, connectionID, category string, limit, offset int) ([]presentation.AuditEntryDTO, error) {
+	return a.api.SearchAuditLog(query, sessionID, connectionID, category, limit, offset)
 }
 
 func (a *App) DeleteAuditEntry(id int64) error {
 	return a.api.DeleteAuditEntry(id)
 }
 
-func (a *App) ClearAuditLog() error {
-	return a.api.ClearAuditLog()
+func (a *App) ClearAuditLog(category string) error {
+	return a.api.ClearAuditLog(category)
 }
 
 func (a *App) GetAuditSessionState() presentation.AuditSessionStateDTO {

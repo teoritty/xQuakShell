@@ -26,7 +26,7 @@ func (r *memAuditRepo) Search(context.Context, string, domain.AuditSearchFilter)
 	return nil, nil
 }
 func (r *memAuditRepo) DeleteByID(context.Context, int64) error { return nil }
-func (r *memAuditRepo) ClearAll(context.Context) error          { return nil }
+func (r *memAuditRepo) ClearAll(context.Context, string) error    { return nil }
 func (r *memAuditRepo) Count(context.Context) (int64, error)      { return 0, nil }
 func (r *memAuditRepo) PurgeOlderThan(context.Context, time.Time) error { return nil }
 func (r *memAuditRepo) TrimToCount(context.Context, int) error    { return nil }

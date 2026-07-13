@@ -30,8 +30,8 @@ export function ChownRecursive(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['ChownRecursive'](arg1, arg2, arg3, arg4, arg5);
 }
 
-export function ClearAuditLog() {
-  return window['go']['main']['App']['ClearAuditLog']();
+export function ClearAuditLog(arg1) {
+  return window['go']['main']['App']['ClearAuditLog'](arg1);
 }
 
 export function CloseSession(arg1) {
@@ -326,8 +326,8 @@ export function SaveSettings(arg1) {
   return window['go']['main']['App']['SaveSettings'](arg1);
 }
 
-export function SearchAuditLog(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['main']['App']['SearchAuditLog'](arg1, arg2, arg3, arg4, arg5);
+export function SearchAuditLog(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['SearchAuditLog'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function SelectLocalDirectory() {

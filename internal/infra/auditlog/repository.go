@@ -39,6 +39,7 @@ func initSchema(db *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS audit_events (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		ts TEXT NOT NULL,
+		category TEXT NOT NULL DEFAULT 'command',
 		session_id TEXT NOT NULL,
 		connection_id TEXT NOT NULL,
 		connection_name TEXT NOT NULL DEFAULT '',
@@ -79,10 +80,14 @@ func (r *SQLiteRepo) Append(_ context.Context, entry domain.AuditEntry) error {
 	if entry.Redacted {
 		redacted = 1
 	}
+	category := entry.Category
+	if category == "" {
+		category = domain.AuditCategoryCommand
+	}
 	_, err := r.db.Exec(
-		`INSERT INTO audit_events (ts, session_id, connection_id, connection_name, host, username, input, redacted)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		ts, entry.SessionID, entry.ConnectionID, entry.ConnectionName, entry.Host, entry.Username, entry.Input, redacted,
+		`INSERT INTO audit_events (ts, category, session_id, connection_id, connection_name, host, username, input, redacted)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		ts, category, entry.SessionID, entry.ConnectionID, entry.ConnectionName, entry.Host, entry.Username, entry.Input, redacted,
 	)
 	if err != nil {
 		return fmt.Errorf("audit append: %w", err)
@@ -95,7 +100,7 @@ func (r *SQLiteRepo) Search(_ context.Context, query string, filter domain.Audit
 	var args []interface{}
 	var whereClauses []string
 
-	baseQuery := `SELECT e.id, e.ts, e.session_id, e.connection_id, e.connection_name, e.host, e.username, e.input, e.redacted
+	baseQuery := `SELECT e.id, e.ts, e.category, e.session_id, e.connection_id, e.connection_name, e.host, e.username, e.input, e.redacted
 		FROM audit_events e`
 
 	if query != "" {
@@ -104,6 +109,10 @@ func (r *SQLiteRepo) Search(_ context.Context, query string, filter domain.Audit
 		args = append(args, query)
 	}
 
+	if filter.Category != "" {
+		whereClauses = append(whereClauses, `e.category = ?`)
+		args = append(args, filter.Category)
+	}
 	if filter.SessionID != "" {
 		whereClauses = append(whereClauses, `e.session_id = ?`)
 		args = append(args, filter.SessionID)
@@ -153,7 +162,7 @@ func (r *SQLiteRepo) Search(_ context.Context, query string, filter domain.Audit
 		var e domain.AuditEntry
 		var tsStr string
 		var redacted int
-		if err := rows.Scan(&e.ID, &tsStr, &e.SessionID, &e.ConnectionID, &e.ConnectionName, &e.Host, &e.Username, &e.Input, &redacted); err != nil {
+		if err := rows.Scan(&e.ID, &tsStr, &e.Category, &e.SessionID, &e.ConnectionID, &e.ConnectionName, &e.Host, &e.Username, &e.Input, &redacted); err != nil {
 			return nil, fmt.Errorf("audit scan: %w", err)
 		}
 		ts, parseErr := time.Parse(time.RFC3339Nano, tsStr)
@@ -174,9 +183,14 @@ func (r *SQLiteRepo) DeleteByID(ctx context.Context, id int64) error {
 	return err
 }
 
-// ClearAll removes all audit entries.
-func (r *SQLiteRepo) ClearAll(ctx context.Context) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM audit_events`)
+// ClearAll removes audit entries. An empty category clears all entries;
+// a non-empty category clears only entries of that category.
+func (r *SQLiteRepo) ClearAll(ctx context.Context, category string) error {
+	if category == "" {
+		_, err := r.db.ExecContext(ctx, `DELETE FROM audit_events`)
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `DELETE FROM audit_events WHERE category = ?`, category)
 	return err
 }
 

@@ -56,6 +56,7 @@ export interface AppSettings {
 export interface AuditEntry {
   id: number;
   timestamp: string;
+  category: string;
   sessionId: string;
   connectionId: string;
   connectionName: string;
@@ -890,13 +891,14 @@ export async function searchAuditLog(
   query: string,
   sessionId: string,
   connectionId: string,
+  category = '',
   limit = 200,
   offset = 0
 ): Promise<AuditEntry[]> {
   const app = getApp();
   if (!app?.SearchAuditLog) return [];
   try {
-    return (await app.SearchAuditLog(query, sessionId, connectionId, limit, offset)) || [];
+    return (await app.SearchAuditLog(query, sessionId, connectionId, category, limit, offset)) || [];
   } catch (e) {
     handleError(e, 'Search audit log');
     return [];
@@ -913,11 +915,11 @@ export async function deleteAuditEntry(id: number): Promise<void> {
   }
 }
 
-export async function clearAuditLog(): Promise<void> {
+export async function clearAuditLog(category = ''): Promise<void> {
   const app = getApp();
   if (!app?.ClearAuditLog) return;
   try {
-    await app.ClearAuditLog();
+    await app.ClearAuditLog(category);
   } catch (e) {
     handleError(e, 'Clear audit log');
   }

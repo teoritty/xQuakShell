@@ -54,6 +54,7 @@ func (w *PluginAuditWriter) append(input string) {
 	}
 	entry := domain.AuditEntry{
 		Timestamp: time.Now(),
+		Category:  domain.AuditCategorySystem,
 		SessionID: "plugin",
 		Input:     input,
 	}

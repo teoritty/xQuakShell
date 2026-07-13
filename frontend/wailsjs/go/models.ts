@@ -83,6 +83,7 @@ export namespace wails {
 	export class AuditEntryDTO {
 	    id: number;
 	    timestamp: string;
+	    category: string;
 	    sessionId: string;
 	    connectionId: string;
 	    connectionName: string;
@@ -99,6 +100,7 @@ export namespace wails {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.timestamp = source["timestamp"];
+	        this.category = source["category"];
 	        this.sessionId = source["sessionId"];
 	        this.connectionId = source["connectionId"];
 	        this.connectionName = source["connectionName"];

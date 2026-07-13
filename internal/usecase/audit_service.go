@@ -208,6 +208,7 @@ func (s *AuditService) RecordCommand(ctx context.Context, sessionID, line string
 
 	entry := domain.AuditEntry{
 		Timestamp:      time.Now(),
+		Category:       domain.AuditCategoryCommand,
 		SessionID:      sessionID,
 		ConnectionID:   info.ConnectionID,
 		ConnectionName: connectionName,
@@ -239,12 +240,13 @@ func (s *AuditService) DeleteByID(ctx context.Context, id int64) error {
 	return s.repo.DeleteByID(ctx, id)
 }
 
-// ClearAll removes all audit log entries.
-func (s *AuditService) ClearAll(ctx context.Context) error {
+// ClearAll removes audit log entries. An empty category clears all entries;
+// a non-empty category clears only entries of that category.
+func (s *AuditService) ClearAll(ctx context.Context, category string) error {
 	if s.repo == nil {
 		return fmt.Errorf("audit log not available")
 	}
-	return s.repo.ClearAll(ctx)
+	return s.repo.ClearAll(ctx, category)
 }
 
 // Close releases audit log resources.

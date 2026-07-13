@@ -22,7 +22,7 @@ func (a *auditRepoStub) Search(context.Context, string, domain.AuditSearchFilter
 	return nil, nil
 }
 func (a *auditRepoStub) DeleteByID(context.Context, int64) error { return nil }
-func (a *auditRepoStub) ClearAll(context.Context) error          { return nil }
+func (a *auditRepoStub) ClearAll(context.Context, string) error  { return nil }
 func (a *auditRepoStub) Count(context.Context) (int64, error)    { return 0, nil }
 func (a *auditRepoStub) PurgeOlderThan(context.Context, time.Time) error {
 	return nil

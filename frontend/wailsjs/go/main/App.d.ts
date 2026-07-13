@@ -17,7 +17,7 @@ export function Chown(arg1:string,arg2:string,arg3:number,arg4:number):Promise<v
 
 export function ChownRecursive(arg1:string,arg2:string,arg3:number,arg4:number,arg5:string):Promise<void>;
 
-export function ClearAuditLog():Promise<void>;
+export function ClearAuditLog(arg1:string):Promise<void>;
 
 export function CloseSession(arg1:string):Promise<void>;
 
@@ -165,7 +165,7 @@ export function SavePluginSettings(arg1:wails.PluginSettingsDTO):Promise<void>;
 
 export function SaveSettings(arg1:wails.AppSettingsDTO):Promise<void>;
 
-export function SearchAuditLog(arg1:string,arg2:string,arg3:string,arg4:number,arg5:number):Promise<Array<wails.AuditEntryDTO>>;
+export function SearchAuditLog(arg1:string,arg2:string,arg3:string,arg4:string,arg5:number,arg6:number):Promise<Array<wails.AuditEntryDTO>>;
 
 export function SelectLocalDirectory():Promise<string>;
 
