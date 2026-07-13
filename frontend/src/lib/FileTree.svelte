@@ -7,6 +7,7 @@
   import { isInvalidMove } from './pathMove';
   import FileTreeNode from './FileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
+  import { openContextMenu, releaseContextMenu } from './contextMenuManager';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import PermissionsDialog from './PermissionsDialog.svelte';
   import OverflowToolbar from './OverflowToolbar.svelte';
@@ -341,9 +342,11 @@
     e.preventDefault();
     e.stopPropagation();
     ctxMenu = { show: true, x: e.clientX, y: e.clientY, path, isDir, isEmptyArea, size };
+    openContextMenu(closeContextMenu);
   }
 
   function closeContextMenu() {
+    releaseContextMenu(closeContextMenu);
     ctxMenu = { ...ctxMenu, show: false };
   }
 

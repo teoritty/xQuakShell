@@ -25,6 +25,7 @@
   import ConfirmDialog from './ConfirmDialog.svelte';
   import ImportPuTTYDialog from './ImportPuTTYDialog.svelte';
   import RemoteTreeContextMenu from './RemoteTreeContextMenu.svelte';
+  import { openContextMenu, releaseContextMenu } from './contextMenuManager';
   import { buildTree, countConnectionsInFolder, flattenTree } from './remoteTree/buildTree';
   import { buildSessionStatusMap } from './remoteTree/connectionDisplay';
   import {
@@ -186,9 +187,11 @@
       node.type === 'folder' ? 150 : 160
     );
     ctxMenu = { show: true, x: pos.left, y: pos.top, node };
+    openContextMenu(closeContextMenu);
   }
 
   function closeContextMenu() {
+    releaseContextMenu(closeContextMenu);
     ctxMenu = { ...ctxMenu, show: false };
   }
 

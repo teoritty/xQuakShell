@@ -6,6 +6,7 @@
   import { isInvalidMove } from './pathMove';
   import LocalFileTreeNode from './LocalFileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
+  import { openContextMenu, releaseContextMenu } from './contextMenuManager';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import OverflowToolbar from './OverflowToolbar.svelte';
   import { buildFilePanelToolbarItems, cycleSortState, type SortKey } from './filePanelToolbar';
@@ -438,9 +439,11 @@
     e.preventDefault();
     e.stopPropagation();
     ctxMenu = { show: true, x: e.clientX, y: e.clientY, path, isDir, isEmptyArea };
+    openContextMenu(closeContextMenu);
   }
 
   function closeContextMenu() {
+    releaseContextMenu(closeContextMenu);
     ctxMenu = { ...ctxMenu, show: false };
   }
 
