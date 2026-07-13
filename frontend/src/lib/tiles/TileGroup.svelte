@@ -142,7 +142,7 @@
         title={collapsed ? 'Show files' : 'Hide files'}
         on:click|stopPropagation={() => toggleTileFilePanel(tile.id)}
       >
-        {#if collapsed}<PanelRightOpen size={14} />{:else}<PanelRightClose size={14} />{/if}
+        {#if collapsed}<PanelRightOpen size={18} />{:else}<PanelRightClose size={18} />{/if}
       </button>
     {/if}
     {#if mergeBar}
@@ -199,7 +199,7 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    width: 30px;
+    width: 34px;
     border: none;
     border-bottom: 1px solid var(--border-color);
     background: var(--bg-tertiary);
