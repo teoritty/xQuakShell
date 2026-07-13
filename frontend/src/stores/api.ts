@@ -961,6 +961,16 @@ const MAX_PENDING_TERMINAL_BYTES = 256 << 10;
 const pendingTerminalOutput = new Map<string, Uint8Array[]>();
 const terminalOutputConsumers = new Set<string>();
 
+// SFTPReady is a one-shot broadcast emitted once per session right after the
+// remote filesystem is up. A FileTree component mounts only after its session
+// reaches 'ready', so on fast (warm) connections the event can fire before the
+// component subscribes — and a component that remounts (e.g. a tab dragged
+// between tiles) would miss it too. We latch the readiness here at app-init,
+// where a single always-on listener can never miss it, and expose it as a store
+// so any (re)mounting FileTree can recover the session's ready state + initial
+// path. Value = the session's initial remote path.
+export const sftpReadyPaths = writable<Map<string, string>>(new Map());
+
 function decodeTerminalOutput(output: string): Uint8Array {
   try {
     return Uint8Array.from(atob(output), (c) => c.charCodeAt(0));
@@ -1014,7 +1024,24 @@ export function subscribeToEvents(): void {
   const rt = getWailsRuntime();
   if (!rt) return;
 
+  rt.EventsOn('SFTPReady', (data: { sessionId: string; initialPath?: string }) => {
+    if (!data?.sessionId) return;
+    sftpReadyPaths.update(m => {
+      const next = new Map(m);
+      next.set(data.sessionId, data.initialPath || '/');
+      return next;
+    });
+  });
+
   rt.EventsOn('SessionStateChanged', (data: Session) => {
+    if (data.state === 'closed') {
+      sftpReadyPaths.update(m => {
+        if (!m.has(data.sessionId)) return m;
+        const next = new Map(m);
+        next.delete(data.sessionId);
+        return next;
+      });
+    }
     sessions.update(list => {
       if (data.state === 'closed') {
         return list.filter(s => s.sessionId !== data.sessionId);
@@ -1050,6 +1077,12 @@ export function subscribeToEvents(): void {
   rt.EventsOn('SessionClosed', (data: { sessionId: string }) => {
     clearPendingTerminalOutput(data.sessionId);
     terminalOutputConsumers.delete(data.sessionId);
+    sftpReadyPaths.update(m => {
+      if (!m.has(data.sessionId)) return m;
+      const next = new Map(m);
+      next.delete(data.sessionId);
+      return next;
+    });
     sessions.update(list => list.filter(s => s.sessionId !== data.sessionId));
   });
 

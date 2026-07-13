@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import type { RemoteNode } from '../stores/appState';
-  import { listPath, removePath, mkdirPath, createFilePath, renamePath, downloadFile, getTempDir, openFileWithSystem, startFileWatch, getSettings } from '../stores/api';
+  import { listPath, removePath, mkdirPath, createFilePath, renamePath, downloadFile, getTempDir, openFileWithSystem, startFileWatch, getSettings, sftpReadyPaths } from '../stores/api';
   import { editingFiles, transferCompleted } from '../stores/appState';
   import { registerOsDropZone, resolveOsDropTarget, joinPath, baseName, isFileDrag } from './osFileDrop';
   import { isInvalidMove } from './pathMove';
@@ -37,7 +37,6 @@
   let permDialog = { show: false, path: '', isDir: false, mode: '' };
   let error = '';
   let ready = false;
-  let eventOff: (() => void) | null = null;
   let osDropOff: (() => void) | null = null;
   let rootEl: HTMLDivElement | null = null;
   let dragOverPath: string | null = null;
@@ -56,25 +55,21 @@
         showDate = !!o.date;
       }
     } catch (_) {}
-    const rt = (window as any).runtime;
-    if (rt) {
-      const handler = (data: { sessionId: string; initialPath?: string }) => {
-        if (data.sessionId === sessionId) {
-          ready = true;
-          if (data.initialPath) {
-            currentPath = data.initialPath;
-          }
-          refresh();
-        }
-      };
-      rt.EventsOn('SFTPReady', handler);
-      eventOff = () => rt.EventsOff('SFTPReady');
-    }
     if (rootEl) osDropOff = registerOsDropZone({ el: rootEl, onDrop: handleOsFileDrop });
   });
 
+  // Recover SFTP readiness from the app-level latch. This is robust to the
+  // one-shot SFTPReady event firing before this component mounted (fast warm
+  // connections) or to a remount when the tab is dragged between tiles: the
+  // store already holds the ready state and initial path for the session.
+  $: if (!ready && $sftpReadyPaths.has(sessionId)) {
+    ready = true;
+    const initialPath = $sftpReadyPaths.get(sessionId);
+    if (initialPath) currentPath = initialPath;
+    refresh();
+  }
+
   onDestroy(() => {
-    if (eventOff) eventOff();
     if (osDropOff) osDropOff();
   });
 
