@@ -3,6 +3,7 @@
   import { uploadFile, downloadFile, cancelTransfer, selectLocalFile, selectLocalDirectory } from '../stores/api';
   import { Upload, Download, ChevronDown, ChevronRight, X, RefreshCw, Trash2, Lock, User } from 'lucide-svelte';
   import type { ComponentType } from 'svelte';
+  import { onMount } from 'svelte';
   import { createRateTracker } from './transferRate';
   import { formatBytesPerSec } from './formatBytes';
 
@@ -49,22 +50,37 @@
   // Byte-rate estimation lives in the presentation layer (see transferRate.ts).
   // Only byte transfers (upload/download) have a meaningful rate; remote ops
   // (delete/chmod/chown) and scanning do not.
+  //
+  // Sampling is driven by a fixed tick rather than the progress-event stream:
+  // events arrive many times per second, which made the displayed speed
+  // flicker unreadably. Refreshing twice per second keeps the number legible
+  // while the EMA in the tracker smooths short bursts.
+  const SPEED_REFRESH_MS = 500;
   const rateTracker = createRateTracker();
   let speeds: Record<string, string> = {};
+  let sampledIds = new Set<string>();
 
-  $: updateSpeeds(activeTransfers);
+  onMount(() => {
+    const iv = setInterval(refreshSpeeds, SPEED_REFRESH_MS);
+    return () => clearInterval(iv);
+  });
 
-  function updateSpeeds(list: TransferItem[]) {
+  function refreshSpeeds() {
+    const now = Date.now();
     const next: Record<string, string> = {};
-    for (const t of list) {
-      const isByteTransfer = t.kind === 'upload' || t.kind === 'download';
-      if (isByteTransfer && t.state === 'active') {
-        const text = formatBytesPerSec(rateTracker.sample(t.id, t.done, Date.now()));
+    const active = new Set<string>();
+    for (const t of activeTransfers) {
+      if ((t.kind === 'upload' || t.kind === 'download') && t.state === 'active') {
+        active.add(t.id);
+        const text = formatBytesPerSec(rateTracker.sample(t.id, t.done, now));
         if (text) next[t.id] = text;
-      } else {
-        rateTracker.clear(t.id);
       }
     }
+    // Release tracker state for transfers that are no longer active.
+    for (const id of sampledIds) {
+      if (!active.has(id)) rateTracker.clear(id);
+    }
+    sampledIds = active;
     speeds = next;
   }
 
