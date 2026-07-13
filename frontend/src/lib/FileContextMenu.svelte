@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, tick } from 'svelte';
   import { FolderPlus, Trash2, FilePlus, Pencil, Shield } from 'lucide-svelte';
 
   export let x = 0;
@@ -8,6 +8,25 @@
   export let isDir = false;
   export let isEmptyArea = false;
   export let allowPermissionsMenu = false;
+
+  const MARGIN = 4;
+  let menuEl: HTMLDivElement | undefined;
+  let posX = x;
+  let posY = y;
+
+  // Keep the menu fully inside the viewport: once it has rendered we know its
+  // size, so clamp the requested (x, y) against the window bounds.
+  $: if (show) clampToViewport(x, y);
+
+  async function clampToViewport(px: number, py: number) {
+    posX = px;
+    posY = py;
+    await tick();
+    if (!menuEl) return;
+    const { width, height } = menuEl.getBoundingClientRect();
+    posX = Math.max(MARGIN, Math.min(px, window.innerWidth - width - MARGIN));
+    posY = Math.max(MARGIN, Math.min(py, window.innerHeight - height - MARGIN));
+  }
 
   const dispatch = createEventDispatcher<{
     delete: void;
@@ -45,8 +64,9 @@
 
 {#if show}
   <div
+    bind:this={menuEl}
     class="context-menu"
-    style="left: {x}px; top: {y}px"
+    style="left: {posX}px; top: {posY}px"
     role="menu"
     on:click|stopPropagation
   >
