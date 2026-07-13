@@ -12,6 +12,10 @@ export const pluginContributions = writable<PluginContributions>({
 
   statusBar: [],
 
+  authMethods: [],
+
+  tunnelProviders: [],
+
 });
 
 

@@ -1137,7 +1137,6 @@ export interface PluginInstallPreview {
   arbitraryNetworkWarning?: boolean;
   unsignedWarning: boolean;
   untrustedSignatureWarning: boolean;
-  untrustedSignatureWarning: boolean;
   permissions: string[];
 }
 
