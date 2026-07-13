@@ -1,10 +1,17 @@
 import type { Session } from '../../stores/appState';
 import type { ConnectionStatus } from './types';
 
+// hasPingResult reports whether a ping result exists yet for the connection.
+// When false the host has not been pinged yet (a ping is pending/in progress),
+// which the UI renders as a spinner instead of a dot.
+export function hasPingResult(pingMap: Map<string, { reachable?: boolean; latencyMs?: number }>, connId: string): boolean {
+  return pingMap.has(connId);
+}
+
 export function pingColor(pingMap: Map<string, { reachable?: boolean; latencyMs?: number }>, connId: string): string {
   const r = pingMap.get(connId);
   if (!r) return 'transparent';
-  if (!r.reachable) return 'var(--danger, #f44747)';
+  if (!r.reachable) return 'var(--text-secondary, #9e9e9e)'; // unreachable → grey
   if ((r.latencyMs ?? 0) < 100) return '#4caf50';
   if ((r.latencyMs ?? 0) < 300) return '#ffb300';
   if ((r.latencyMs ?? 0) < 1000) return '#ff6f00';

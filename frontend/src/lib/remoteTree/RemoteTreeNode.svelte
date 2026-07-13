@@ -14,7 +14,7 @@
     X,
     XCircle,
   } from 'lucide-svelte';
-  import { pingColor, pingTooltip, tagColor } from './connectionDisplay';
+  import { pingColor, pingTooltip, tagColor, hasPingResult } from './connectionDisplay';
   import { range } from './buildTree';
   import { isNodeEditing } from './dndGuards';
   import type { ConnectionStatus, DropZone, TreeNode } from './types';
@@ -108,7 +108,11 @@
       </div>
     {/if}
   {:else}
-    <span class="ping-dot" style="background: {pingColor(pingResults, node.id)}" title={pingTooltip(pingResults, node.id)}></span>
+    {#if hasPingResult(pingResults, node.id)}
+      <span class="ping-dot" style="background: {pingColor(pingResults, node.id)}" title={pingTooltip(pingResults, node.id)}></span>
+    {:else}
+      <span class="ping-spinner" title="Pinging…"><Loader2 size={10} /></span>
+    {/if}
     <span class="conn-icon"><Monitor size={14} /></span>
     {#if sessionStatusByConnId.get(node.id)}
       {@const status = sessionStatusByConnId.get(node.id) ?? 'disconnected'}

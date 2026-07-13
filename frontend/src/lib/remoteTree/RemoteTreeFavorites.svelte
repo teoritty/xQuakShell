@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { CheckCircle2, Circle, Loader2, Monitor, XCircle } from 'lucide-svelte';
-  import { pingColor, pingTooltip } from './connectionDisplay';
+  import { pingColor, pingTooltip, hasPingResult } from './connectionDisplay';
   import type { Connection } from '../../stores/appState';
   import type { ConnectionStatus } from './types';
   import './remoteTreeShared.css';
@@ -34,7 +34,11 @@
           })}
         on:keydown={(e) => e.key === 'Enter' && dispatch('open', { connection: conn })}
       >
-        <span class="ping-dot" style="background: {pingColor(pingResults, conn.id)}" title={pingTooltip(pingResults, conn.id)}></span>
+        {#if hasPingResult(pingResults, conn.id)}
+          <span class="ping-dot" style="background: {pingColor(pingResults, conn.id)}" title={pingTooltip(pingResults, conn.id)}></span>
+        {:else}
+          <span class="ping-spinner" title="Pinging…"><Loader2 size={10} /></span>
+        {/if}
         <span class="conn-icon"><Monitor size={14} /></span>
         {#if sessionStatusByConnId.get(conn.id)}
           {@const status = sessionStatusByConnId.get(conn.id) ?? 'disconnected'}
