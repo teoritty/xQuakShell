@@ -16,7 +16,10 @@
   import { splitEdges, reorientEdges, isLoneTab } from './operations';
   import { zoneAt } from './dropZones';
   import { isTileTabDrag, readDragPayload } from './dragPayload';
-  import { Combine } from 'lucide-svelte';
+  import { connectionProtocols } from '../../stores/api';
+  import { hasFilePanel } from '../filePanelCapability';
+  import { collapsedTileFilePanels, toggleTileFilePanel } from '../../stores/tileFilePanel';
+  import { Combine, PanelRightClose, PanelRightOpen } from 'lucide-svelte';
 
   export let tile: TileGroup;
 
@@ -32,6 +35,12 @@
   $: tileSessions = tile.tabs
     .map((id) => $sessions.find((s) => s.sessionId === id))
     .filter((s): s is NonNullable<typeof s> => !!s);
+
+  // Per-tile file-panel collapse state and the button that toggles it. The button
+  // shows only when the tile's active connection actually has a file browser.
+  $: collapsed = $collapsedTileFilePanels.has(tile.id);
+  $: activeSession = $sessions.find((s) => s.sessionId === tile.activeTabId);
+  $: showFilesToggle = !!activeSession && hasFilePanel(activeSession, $connectionProtocols);
 
   function inRect(el: HTMLElement | undefined, x: number, y: number): boolean {
     if (!el) return false;
@@ -124,7 +133,18 @@
   on:mousedown={focusTile}
 >
   <div class="tile-chrome" class:merge-target={mergeBar} bind:this={tabBarEl}>
-    <TileTabBar {tile} />
+    <div class="tile-tabs">
+      <TileTabBar {tile} />
+    </div>
+    {#if showFilesToggle}
+      <button
+        class="tile-action"
+        title={collapsed ? 'Show files' : 'Hide files'}
+        on:click|stopPropagation={() => toggleTileFilePanel(tile.id)}
+      >
+        {#if collapsed}<PanelRightOpen size={14} />{:else}<PanelRightClose size={14} />{/if}
+      </button>
+    {/if}
     {#if mergeBar}
       <div class="merge-hint" aria-hidden="true">
         <Combine size={15} />
@@ -134,7 +154,11 @@
   </div>
   <div class="tile-body">
     {#each tileSessions as session (session.sessionId)}
-      <SessionView {session} active={tile.activeTabId === session.sessionId} />
+      <SessionView
+        {session}
+        active={tile.activeTabId === session.sessionId}
+        filesCollapsed={collapsed}
+      />
     {/each}
   </div>
   <TileDropOverlay
@@ -155,9 +179,37 @@
   }
   .tile-chrome {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: stretch;
     flex-shrink: 0;
     position: relative;
+  }
+  .tile-tabs {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .tile-tabs :global(.tile-tab-bar) {
+    flex: 1;
+    min-width: 0;
+  }
+  /* Per-tile file-panel toggle; matches the tab bar so the top bar reads as one strip. */
+  .tile-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 30px;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+  }
+  .tile-action:hover {
+    color: var(--accent);
+    background: var(--bg-hover);
   }
   /* Highlight the whole tab bar when a drag hovers it: dropping here combines the
      connection into this tile as a tab. */
