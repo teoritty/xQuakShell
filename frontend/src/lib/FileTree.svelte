@@ -3,7 +3,7 @@
   import type { RemoteNode } from '../stores/appState';
   import { listPath, removePath, mkdirPath, createFilePath, renamePath, downloadFile, getTempDir, openFileWithSystem, startFileWatch, getSettings, sftpReadyPaths } from '../stores/api';
   import { editingFiles, transferCompleted } from '../stores/appState';
-  import { registerOsDropZone, resolveOsDropTarget, joinPath, baseName, isFileDrag } from './osFileDrop';
+  import { registerOsDropZone, resolveOsDropTarget, joinPath, baseName, isFileDrag, isInternalFileDrag } from './osFileDrop';
   import { isInvalidMove } from './pathMove';
   import FileTreeNode from './FileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
@@ -262,6 +262,9 @@
     // External OS file drags are handled by the window-level osFileDrop router
     // (via Wails). Do not stopPropagation here or the drop never reaches it.
     if (isFileDrag(e)) return;
+    // Only claim genuine file-pane drags; other internal drags (e.g. a tile tab
+    // dragged over this panel) must bubble to the tile layout for split/move.
+    if (!isInternalFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
@@ -275,6 +278,8 @@
   async function handleDrop(e: DragEvent, targetDir: string) {
     // External OS file drops bubble up to the osFileDrop router; leave them alone.
     if (isFileDrag(e)) return;
+    // Ignore non-file internal drags (e.g. tile-tab drags) so they reach the tile.
+    if (!isInternalFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     dragOverPath = null;

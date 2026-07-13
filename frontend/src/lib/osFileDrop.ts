@@ -71,6 +71,29 @@ export function isFileDrag(e: DragEvent): boolean {
 }
 
 /**
+ * DataTransfer MIME types set by the remote/local file-tree panes on dragstart.
+ * These identify an internal file move/upload/download drag.
+ */
+const FILE_PANE_DRAG_TYPES = [
+  'text/remote-path',
+  'text/selected-paths',
+  'text/local-path',
+  'text/local-selected-paths',
+] as const;
+
+/**
+ * True when the drag originates from a file-tree pane (a remote/local file being
+ * moved, uploaded or downloaded). Panes use this to claim only their own drags:
+ * any other internal drag (e.g. a tile tab dragged between tiles) must be left to
+ * bubble so the surrounding layout can handle it.
+ */
+export function isInternalFileDrag(e: DragEvent): boolean {
+  if (!e.dataTransfer) return false;
+  const types = Array.from(e.dataTransfer.types);
+  return FILE_PANE_DRAG_TYPES.some((t) => types.includes(t));
+}
+
+/**
  * Resolves the element to highlight for a pointer at (x, y): the folder row under
  * the cursor when there is one (FileZilla-style per-folder target), otherwise the
  * pane itself (drop lands in the pane's current directory). Returns null outside
