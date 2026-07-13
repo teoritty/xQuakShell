@@ -98,6 +98,11 @@ const sw4 = swapTiles(four, 's2', 'D'); // B (slot1) <-> D (slot3)
 assert(sw4.tiles[1].id === 'D' && sw4.tiles[3].id === 'B', '4-tile swap exchanges positions');
 // no-op onto own tile
 assert(swapTiles(three, 's1', 'A') === three, 'swap onto own tile is a no-op');
+// swap from a MULTI-tab source tile: the whole tile (all its tabs) swaps position
+const mixed = layout([tile('A', ['s1', 's2']), tile('B', ['s3']), tile('C', ['s4'])], 'h');
+const swMixed = swapTiles(mixed, 's1', 'C'); // drag s1 (in 2-tab tile A) -> swap A with C
+assert(swMixed.tiles[0].id === 'C' && swMixed.tiles[2].id === 'A', 'multi-tab source swaps whole tile');
+assert(swMixed.tiles[2].tabs.join() === 's1,s2', 'swapped multi-tab tile keeps its tabs');
 
 // --- moveTab: centre drop ---
 const moved = moveTab(l4, 's1', l4.tiles[1].id);

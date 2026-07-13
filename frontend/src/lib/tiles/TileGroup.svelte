@@ -43,10 +43,10 @@
   // Merging is ALWAYS the tab bar, for every configuration; the body is only ever
   // spatial (swap / reorient / split):
   //  - over another tile's TAB BAR       -> merge: add the connection as a tab
-  //  - lone connection, body edge        -> reorient the layout
-  //  - lone connection, body centre      -> swap this tile with the dragged tile
-  //  - tab from a multi-tab tile, edge    -> split out a new tile
-  //  - tab from a multi-tab tile, body    -> nothing (merge lives on the tab bar)
+  //  - body centre, different tile        -> swap the two WHOLE tiles' positions
+  //    (works from any tile — the dragged connection's whole tile is swapped)
+  //  - lone connection, body edge         -> reorient the layout
+  //  - tab from a multi-tab tile, body edge -> split out a new tile
   function resolve(e: DragEvent): { zone: Zone; intent: DropIntent | null; mergeBar: boolean } {
     const drag = $activeTileDrag;
     if (!drag) return { zone: 'center', intent: null, mergeBar: false };
@@ -62,9 +62,9 @@
     const r = root.getBoundingClientRect();
     const z = zoneAt({ left: r.left, top: r.top, width: r.width, height: r.height }, e.clientX, e.clientY, edges);
     if (z === 'center') {
-      // Body centre swaps two whole tiles — only meaningful for a lone connection
-      // on a different tile. A tab from a multi-tab tile does nothing here.
-      if (!differentTile || !lone) return { zone: z, intent: null, mergeBar: false };
+      // Body centre swaps the dragged connection's whole tile with this tile. Any
+      // tile can be swapped with any other, regardless of how many tabs it holds.
+      if (!differentTile) return { zone: z, intent: null, mergeBar: false };
       return { zone: z, intent: 'swap', mergeBar: false };
     }
     return { zone: z, intent: lone ? 'reorient' : 'split', mergeBar: false };
