@@ -42,6 +42,10 @@
   export let sessionId: string;
 
   let collapsed = true;
+  // When true the panel is fully hidden (dismissed via the close button), as
+  // opposed to `collapsed` which only folds the list away. A new batch of
+  // transfers clears it so the panel comes back.
+  let dismissed = false;
   let prevCount = 0;
   let notifiedIds = new Set<string>();
 
@@ -87,6 +91,7 @@
   $: {
     if (activeTransfers.length > prevCount && prevCount === 0) {
       collapsed = false;
+      dismissed = false; // a fresh batch re-opens a previously closed panel
     }
     prevCount = activeTransfers.length;
   }
@@ -178,7 +183,7 @@
   }
 </script>
 
-{#if hasActive}
+{#if hasActive && !dismissed}
   <div class="transfer-panel">
     <div
       class="panel-header clickable"
@@ -194,6 +199,7 @@
       <div class="actions" on:click|stopPropagation on:keydown|stopPropagation>
         <!-- <button on:click={startUpload} title="Upload file"><Upload size={11} /> Upload</button>
         <button on:click={startDownload} title="Download file"><Download size={11} /> Download</button> -->
+        <button class="cancel-btn" on:click={() => dismissed = true} title="Close"><X size={13} /></button>
       </div>
     </div>
 
