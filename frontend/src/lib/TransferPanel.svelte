@@ -3,6 +3,8 @@
   import { uploadFile, downloadFile, cancelTransfer, selectLocalFile, selectLocalDirectory } from '../stores/api';
   import { Upload, Download, ChevronDown, ChevronRight, X, RefreshCw, Trash2, Lock, User } from 'lucide-svelte';
   import type { ComponentType } from 'svelte';
+  import { createRateTracker } from './transferRate';
+  import { formatBytesPerSec } from './formatBytes';
 
   const KIND_ICON: Record<OperationKind, ComponentType> = {
     upload: Upload,
@@ -43,6 +45,28 @@
   let notifiedIds = new Set<string>();
 
   $: activeTransfers = $transfers.filter(t => t.sessionId === sessionId || !t.sessionId);
+
+  // Byte-rate estimation lives in the presentation layer (see transferRate.ts).
+  // Only byte transfers (upload/download) have a meaningful rate; remote ops
+  // (delete/chmod/chown) and scanning do not.
+  const rateTracker = createRateTracker();
+  let speeds: Record<string, string> = {};
+
+  $: updateSpeeds(activeTransfers);
+
+  function updateSpeeds(list: TransferItem[]) {
+    const next: Record<string, string> = {};
+    for (const t of list) {
+      const isByteTransfer = t.kind === 'upload' || t.kind === 'download';
+      if (isByteTransfer && t.state === 'active') {
+        const text = formatBytesPerSec(rateTracker.sample(t.id, t.done, Date.now()));
+        if (text) next[t.id] = text;
+      } else {
+        rateTracker.clear(t.id);
+      }
+    }
+    speeds = next;
+  }
 
   $: {
     if (activeTransfers.length > prevCount && prevCount === 0) {
@@ -177,7 +201,10 @@
               <div class="progress-bar" class:indeterminate={isIndeterminate(item) || isScanning(item)}>
                 <div class="progress-fill" style="width: {(isIndeterminate(item) || isScanning(item)) ? 100 : progressPercent(item)}%"></div>
               </div>
-              <div class="progress-text">{progressText(item)}</div>
+              <div class="progress-text">
+                {#if speeds[item.id]}<span class="progress-speed">{speeds[item.id]}</span>{/if}
+                <span>{progressText(item)}</span>
+              </div>
             {/if}
           </div>
         {/each}
@@ -323,7 +350,16 @@
   .progress-text {
     font-size: 10px;
     color: var(--text-secondary);
-    text-align: right;
+    display: flex;
+    justify-content: flex-end;
+    align-items: baseline;
     margin-top: 1px;
+  }
+
+  /* Speed sits to the left of the percent; margin-right:auto keeps the
+     percent pinned right whether or not a speed is shown. */
+  .progress-speed {
+    margin-right: auto;
+    font-variant-numeric: tabular-nums;
   }
 </style>
