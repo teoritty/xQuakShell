@@ -89,9 +89,13 @@
   }
 
   $: {
-    if (activeTransfers.length > prevCount && prevCount === 0) {
-      collapsed = false;
-      dismissed = false; // a fresh batch re-opens a previously closed panel
+    // Completed transfers stay in the list, so the count never returns to 0
+    // within a session. Detect a *new* operation by the list growing, and
+    // use that both to re-show a dismissed panel and to auto-open on the
+    // first batch.
+    if (activeTransfers.length > prevCount) {
+      dismissed = false;
+      if (prevCount === 0) collapsed = false;
     }
     prevCount = activeTransfers.length;
   }
