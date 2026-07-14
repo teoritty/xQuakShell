@@ -35,8 +35,16 @@ import {
   type PuTTYSessionPreview,
 } from '../api/credentials';
 import { addKnownHost, removeKnownHost } from '../api/knownHosts';
+import { fetchSettings, putSettings, type AppSettings } from '../api/settings';
+import {
+  searchAuditLog,
+  deleteAuditEntry,
+  clearAuditLog,
+  getAuditSessionState,
+  enableAuditSecretLogging,
+  disableAuditSecretLogging,
+} from '../api/audit';
 import { disposeTerminal } from '../lib/terminalPool';
-import { normalizeHotkey } from '../hotkeys/hotkeys';
 import {
   appendPendingTerminalOutput,
   clearPendingTerminalOutput,
@@ -55,70 +63,15 @@ export {
 import {
   applyUiScalePercent,
   DEFAULT_UI_SCALE_PERCENT,
-  normalizeUiScalePercent,
 } from '../lib/uiScale';
 
-export interface SessionHotkeysSettings {
-  create: string;
-  next: string;
-  prev: string;
-  close: string;
-}
-
-export interface AppSettings {
-  lockoutEnabled: boolean;
-  lockoutIdleMinutes: number;
-  lockOnMinimize: boolean;
-  terminalFontFamily: string;
-  terminalFontSize: number;
-  terminalFontColor: string;
-  theme: string;
-  uiScalePercent: number;
-  pingEnabled: boolean;
-  pingMode: string;
-  pingIntervalSeconds: number;
-  pingIntervalMin: number;
-  maxConcurrentPings: number;
-  externalEditorPath: string;
-  transferSpeedLimitKbps: number;
-  connectionTimeoutSeconds: number;
-  maxConcurrentTransfers: number;
-  sessionHotkeyCreate: string;
-  sessionHotkeyNext: string;
-  sessionHotkeyPrev: string;
-  sessionHotkeyClose: string;
-  auditLogEnabled: boolean;
-  auditRetentionMode: string;
-  auditRetentionDays: number;
-  auditRetentionCount: number;
-  auditShowUsername: boolean;
-  auditShowConnection: boolean;
-  debugLogWindowEnabled: boolean;
-}
-
-export interface AuditEntry {
-  id: number;
-  timestamp: string;
-  category: string;
-  sessionId: string;
-  connectionId: string;
-  connectionName: string;
-  host: string;
-  username: string;
-  input: string;
-  redacted: boolean;
-}
-
-export interface AuditSessionState {
-  logSecretsEnabled: boolean;
-}
-
-export const DEFAULT_SESSION_HOTKEYS: SessionHotkeysSettings = {
-  create: 'Ctrl+Shift+N',
-  next: 'Ctrl+Tab',
-  prev: 'Ctrl+Shift+Tab',
-  close: 'Ctrl+Shift+Q',
-};
+export {
+  type SessionHotkeysSettings,
+  type AppSettings,
+  type AuditEntry,
+  type AuditSessionState,
+  DEFAULT_SESSION_HOTKEYS,
+} from '../api/settings';
 
 function getApp(): any {
   return getGateway();
@@ -523,42 +476,11 @@ export {
 export { normalizeHotkey, parseHotkeyEvent } from '../hotkeys/hotkeys';
 
 export async function getSettings(): Promise<AppSettings | null> {
-  const app = getApp();
-  if (!app) return null;
-  try {
-    const s: AppSettings = await app.GetSettings();
-    s.sessionHotkeyCreate = normalizeHotkey(s.sessionHotkeyCreate || DEFAULT_SESSION_HOTKEYS.create);
-    s.sessionHotkeyNext = normalizeHotkey(s.sessionHotkeyNext || DEFAULT_SESSION_HOTKEYS.next);
-    s.sessionHotkeyPrev = normalizeHotkey(s.sessionHotkeyPrev || DEFAULT_SESSION_HOTKEYS.prev);
-    s.sessionHotkeyClose = normalizeHotkey(s.sessionHotkeyClose || DEFAULT_SESSION_HOTKEYS.close);
-    s.uiScalePercent = normalizeUiScalePercent(s.uiScalePercent);
-    return s;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.toLowerCase().includes('vault is locked')) {
-      // Expected during startup before unlock; avoid noisy modal.
-      return null;
-    }
-    handleError(e, 'Get settings');
-    return null;
-  }
+  return fetchSettings();
 }
 
 export async function saveSettings(settings: Partial<AppSettings>): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    const payload = {
-      ...settings,
-      sessionHotkeyCreate: normalizeHotkey(settings.sessionHotkeyCreate || DEFAULT_SESSION_HOTKEYS.create),
-      sessionHotkeyNext: normalizeHotkey(settings.sessionHotkeyNext || DEFAULT_SESSION_HOTKEYS.next),
-      sessionHotkeyPrev: normalizeHotkey(settings.sessionHotkeyPrev || DEFAULT_SESSION_HOTKEYS.prev),
-      sessionHotkeyClose: normalizeHotkey(settings.sessionHotkeyClose || DEFAULT_SESSION_HOTKEYS.close),
-    };
-    await app.SaveSettings(payload);
-  } catch (e) {
-    handleError(e, 'Save settings');
-  }
+  return putSettings(settings);
 }
 
 export async function applyAppearanceSettings(): Promise<void> {
@@ -567,75 +489,14 @@ export async function applyAppearanceSettings(): Promise<void> {
   applyUiScalePercent(s.uiScalePercent ?? DEFAULT_UI_SCALE_PERCENT);
 }
 
-export async function searchAuditLog(
-  query: string,
-  sessionId: string,
-  connectionId: string,
-  category = '',
-  limit = 200,
-  offset = 0
-): Promise<AuditEntry[]> {
-  const app = getApp();
-  if (!app?.SearchAuditLog) return [];
-  try {
-    return (await app.SearchAuditLog(query, sessionId, connectionId, category, limit, offset)) || [];
-  } catch (e) {
-    handleError(e, 'Search audit log');
-    return [];
-  }
-}
-
-export async function deleteAuditEntry(id: number): Promise<void> {
-  const app = getApp();
-  if (!app?.DeleteAuditEntry) return;
-  try {
-    await app.DeleteAuditEntry(id);
-  } catch (e) {
-    handleError(e, 'Delete audit entry');
-  }
-}
-
-export async function clearAuditLog(category = ''): Promise<void> {
-  const app = getApp();
-  if (!app?.ClearAuditLog) return;
-  try {
-    await app.ClearAuditLog(category);
-  } catch (e) {
-    handleError(e, 'Clear audit log');
-  }
-}
-
-export async function getAuditSessionState(): Promise<AuditSessionState | null> {
-  const app = getApp();
-  if (!app?.GetAuditSessionState) return null;
-  try {
-    return await app.GetAuditSessionState();
-  } catch (e) {
-    return null;
-  }
-}
-
-export async function enableAuditSecretLogging(confirmed: boolean): Promise<boolean> {
-  const app = getApp();
-  if (!app?.EnableAuditSecretLogging) return false;
-  try {
-    await app.EnableAuditSecretLogging(confirmed);
-    return true;
-  } catch (e) {
-    handleError(e, 'Enable audit secret logging');
-    return false;
-  }
-}
-
-export function disableAuditSecretLogging(): void {
-  const app = getApp();
-  if (!app?.DisableAuditSecretLogging) return;
-  try {
-    app.DisableAuditSecretLogging();
-  } catch (e) {
-    handleError(e, 'Disable audit secret logging');
-  }
-}
+export {
+  searchAuditLog,
+  deleteAuditEntry,
+  clearAuditLog,
+  getAuditSessionState,
+  enableAuditSecretLogging,
+  disableAuditSecretLogging,
+};
 
 // SFTPReady is a one-shot broadcast emitted once per session right after the
 // remote filesystem is up. A FileTree component mounts only after its session
