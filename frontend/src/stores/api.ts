@@ -474,143 +474,38 @@ export async function terminalResize(sessionId: string, cols: number, rows: numb
   }
 }
 
-export async function listPath(sessionId: string, path: string): Promise<RemoteNode[]> {
-  const app = getApp();
-  if (!app) return [];
-  try {
-    return await app.ListPath(sessionId, path);
-  } catch (e) {
-    handleError(e, 'List remote path');
-    return [];
-  }
-}
-
-function isCancelError(e: unknown): boolean {
-  const msg = e instanceof Error ? e.message : String(e);
-  return msg.toLowerCase().includes('cancel');
-}
-
-export async function uploadFile(sessionId: string, localPath: string, remotePath: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.Upload(sessionId, localPath, remotePath);
-  } catch (e) {
-    if (!isCancelError(e)) handleError(e, 'Upload file');
-  }
-}
-
-export async function downloadFile(sessionId: string, remotePath: string, localPath: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.Download(sessionId, remotePath, localPath);
-  } catch (e) {
-    if (!isCancelError(e)) handleError(e, 'Download file');
-  }
-}
-
-export function cancelTransfer(transferId: string): void {
-  const app = getApp();
-  if (!app) return;
-  try {
-    app.CancelTransfer(transferId);
-  } catch (e) {
-    handleError(e, 'Cancel transfer');
-  }
-}
-
-export async function removePath(sessionId: string, path: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.RemovePath(sessionId, path);
-  } catch (e) {
-    handleError(e, 'Remove remote path');
-  }
-}
-
-export async function mkdirPath(sessionId: string, parentPath: string, name: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.MkdirPath(sessionId, parentPath, name);
-  } catch (e) {
-    handleError(e, 'Create remote directory');
-  }
-}
-
-export async function createFilePath(sessionId: string, parentPath: string, name: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.CreateFilePath(sessionId, parentPath, name);
-  } catch (e) {
-    handleError(e, 'Create remote file');
-  }
-}
-
-export async function copyLocalPath(srcPath: string, destDir: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.CopyLocalPath(srcPath, destDir);
-  } catch (e) {
-    handleError(e, 'Copy local path');
-  }
-}
-
-export async function renamePath(sessionId: string, oldPath: string, newPath: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.RenamePath(sessionId, oldPath, newPath);
-  } catch (e) {
-    handleError(e, 'Rename remote path');
-  }
-}
-
-export type ApplyTarget = 'files' | 'dirs' | 'both';
-
-export async function chmodPath(sessionId: string, path: string, mode: number): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.Chmod(sessionId, path, mode);
-  } catch (e) {
-    handleError(e, 'Change permissions');
-  }
-}
-
-export async function chownPath(sessionId: string, path: string, uid: number, gid: number): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.Chown(sessionId, path, uid, gid);
-  } catch (e) {
-    handleError(e, 'Change owner');
-  }
-}
-
-export async function chmodPathRecursive(sessionId: string, path: string, mode: number, applyTo: ApplyTarget): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.ChmodRecursive(sessionId, path, mode, applyTo);
-  } catch (e) {
-    handleError(e, 'Change permissions');
-  }
-}
-
-export async function chownPathRecursive(sessionId: string, path: string, uid: number, gid: number, applyTo: ApplyTarget): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.ChownRecursive(sessionId, path, uid, gid, applyTo);
-  } catch (e) {
-    handleError(e, 'Change owner');
-  }
-}
+import {
+  listPath,
+  uploadFile,
+  downloadFile,
+  cancelTransfer,
+  removePath,
+  mkdirPath,
+  createFilePath,
+  copyLocalPath,
+  renamePath,
+  chmodPath,
+  chownPath,
+  chmodPathRecursive,
+  chownPathRecursive,
+  type ApplyTarget,
+} from '../api/remoteFs';
+export {
+  listPath,
+  uploadFile,
+  downloadFile,
+  cancelTransfer,
+  removePath,
+  mkdirPath,
+  createFilePath,
+  copyLocalPath,
+  renamePath,
+  chmodPath,
+  chownPath,
+  chmodPathRecursive,
+  chownPathRecursive,
+  type ApplyTarget,
+};
 
 export async function removeLocalPath(localPath: string): Promise<void> {
   const app = getApp();
