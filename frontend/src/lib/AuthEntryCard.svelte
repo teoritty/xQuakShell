@@ -2,8 +2,8 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { KeyRound, Plus, X, Trash2 } from 'lucide-svelte';
   import type { KeyAuthConfig, PassAuthConfig, PluginAuthConfig } from '../stores/appState';
-  import type { PluginAuthMethodContribution } from '../stores/api';
-  import { getPluginContributions } from '../stores/api';
+  import type { PluginAuthMethodContribution } from '../api/pluginRuntime';
+  import { getPluginContributions } from '../api/pluginRuntime';
   import PluginConnectionFields from './connectionDetails/PluginConnectionFields.svelte';
 
   export let authMethod: 'key' | 'password' | 'plugin';

@@ -12,13 +12,10 @@ import { getGateway } from '../backend/context';
 import { unlockVaultRpc, lockVaultRpc } from '../api/vault';
 import { getPlatform } from '../api/sessions';
 import { folders, connections, sessions, identities, vaultUnlocked, platform, showError } from '../stores/appState';
-import {
-  refreshFolders,
-  refreshAllConnections,
-  refreshIdentities,
-  refreshConnectionProtocols,
-  applyAppearanceSettings,
-} from '../stores/api';
+import { refreshFolders } from './folderActions';
+import { refreshAllConnections, refreshIdentities } from './connectionActions';
+import { refreshConnectionProtocols } from './protocolActions';
+import { applyAppearanceSettings } from './settingsActions';
 
 function handleError(e: unknown, context?: string) {
   const msg = e instanceof Error ? e.message : String(e);
