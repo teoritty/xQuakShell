@@ -15,7 +15,7 @@
     "test:backend": "tsx src/backend/context.test.ts && tsx src/backend/callBackend.test.ts",
     "test:hotkeys": "tsx src/hotkeys/hotkeys.test.ts",
     "test:terminal": "tsx src/terminal/outputBuffer.test.ts",
-    "test:characterization": "tsx src/characterization/seam.char.test.ts && tsx src/characterization/sessions.char.test.ts && tsx src/characterization/library.char.test.ts && tsx src/characterization/plugins.char.test.ts",
+    "test:characterization": "tsx src/characterization/seam.char.test.ts && tsx src/characterization/sessions.char.test.ts && tsx src/characterization/library.char.test.ts && tsx src/characterization/plugins.char.test.ts && tsx src/characterization/runtime.char.test.ts",
     "test": "npm run test:dnd && npm run test:connection-details && npm run test:tiles && npm run test:transfers && npm run test:backend && npm run test:hotkeys && npm run test:terminal && npm run test:characterization"
   },
   "devDependencies": {
