@@ -12,7 +12,7 @@
     "test:connection-details": "tsx src/lib/connectionDetails/connectionDraft.test.ts && tsx src/lib/connectionDetails/forwardRuleIds.test.ts && tsx src/lib/connectionDetails/connectionFormMode.test.ts && tsx src/lib/pluginDisplay.test.ts && tsx src/lib/repoFetchSingleFlight.test.ts",
     "test:tiles": "tsx src/lib/tiles/invariants.test.ts && tsx src/lib/tiles/geometry.test.ts && tsx src/lib/tiles/operations.test.ts && tsx src/lib/tiles/reconcile.test.ts && tsx src/lib/tiles/dropZones.test.ts && tsx src/lib/tiles/dragPayload.test.ts",
     "test:transfers": "tsx src/lib/formatBytes.test.ts && tsx src/lib/transferRate.test.ts",
-    "test:backend": "tsx src/backend/context.test.ts",
+    "test:backend": "tsx src/backend/context.test.ts && tsx src/backend/callBackend.test.ts",
     "test": "npm run test:dnd && npm run test:connection-details && npm run test:tiles && npm run test:transfers && npm run test:backend"
   },
   "devDependencies": {
