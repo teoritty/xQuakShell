@@ -45,7 +45,6 @@ import {
   disableAuditSecretLogging,
 } from '../api/audit';
 import { disposeTerminal } from '../lib/terminalPool';
-import { unlockVaultRpc, lockVaultRpc } from '../api/vault';
 import {
   resolveHostKeyRpc,
   getPlatform,
@@ -56,6 +55,7 @@ export {
   reportEmbedActivity,
   getPlatform,
 } from '../api/sessions';
+export { unlockVault, lockVault } from '../actions/vaultActions';
 export { sendTerminalInput, terminalResize } from '../api/terminal';
 import {
   appendPendingTerminalOutput,
@@ -98,35 +98,6 @@ function handleError(e: unknown, context?: string) {
   const message = context ? `${context}: ${msg}` : msg;
   const details = e instanceof Error && e.stack ? e.stack : '';
   showError(message, details);
-}
-
-export async function unlockVault(masterPassword: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  await unlockVaultRpc(masterPassword);
-  vaultUnlocked.set(true);
-  const p = await getPlatform();
-  platform.set(p);
-  await refreshFolders();
-  await refreshAllConnections();
-  await refreshIdentities();
-  await refreshConnectionProtocols();
-  await applyAppearanceSettings();
-}
-
-export async function lockVault(): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await lockVaultRpc();
-  } catch (e) {
-    handleError(e, 'Lock vault');
-  }
-  vaultUnlocked.set(false);
-  folders.set([]);
-  connections.set([]);
-  sessions.set([]);
-  identities.set([]);
 }
 
 export async function refreshFolders(): Promise<void> {
