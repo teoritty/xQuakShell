@@ -25,8 +25,12 @@ export async function deleteFolderById(id: string): Promise<void> {
   return callBackendVoid('Delete folder', (app) => app.DeleteFolder(id), { rethrow: true });
 }
 
-export async function moveFolderTo(folderId: string, targetParentId: string): Promise<void> {
-  return callBackendVoid('Move folder', (app) => app.MoveFolder(folderId, targetParentId), { rethrow: true });
+// `context` defaults to 'Move folder' for single-folder callers. The bulk
+// caller (moveFolders in stores/api.ts) passes 'Move folders' so a failure
+// mid-loop reports with the original plural context instead of the atomic
+// wrapper's singular one.
+export async function moveFolderTo(folderId: string, targetParentId: string, context = 'Move folder'): Promise<void> {
+  return callBackendVoid(context, (app) => app.MoveFolder(folderId, targetParentId), { rethrow: true });
 }
 
 export async function reorderFoldersIn(folderIds: string[], parentId: string): Promise<void> {

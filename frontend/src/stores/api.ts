@@ -271,7 +271,7 @@ export async function moveFolders(folderIds: string[], targetParentId: string): 
   if (!app || folderIds.length === 0) return;
   try {
     for (const folderId of folderIds) {
-      await moveFolderTo(folderId, targetParentId);
+      await moveFolderTo(folderId, targetParentId, 'Move folders');
     }
     await refreshFolders();
   } catch {

@@ -68,6 +68,30 @@ async function run() {
   await moveFolderTo('f1', 'f2'); // should not throw
   await reorderFoldersIn(['f1'], 'p1'); // should not throw
 
+  // moveFolderTo's error context is overridable so bulk callers (moveFolders
+  // in stores/api.ts) can report failures under the original "Move folders"
+  // (plural) context instead of the default singular one.
+  fake = createFakeGateway();
+  setGateway(fake);
+  lastError.set(null);
+  fake.program('MoveFolder', () => { throw new Error('boom'); });
+  try {
+    await moveFolderTo('f1', 'f2');
+    assert(false, 'moveFolderTo should rethrow on failure');
+  } catch {
+    // expected
+  }
+  assert(get(lastError)?.message === 'Move folder: boom', 'moveFolderTo defaults to singular context');
+
+  lastError.set(null);
+  try {
+    await moveFolderTo('f1', 'f2', 'Move folders');
+    assert(false, 'moveFolderTo should rethrow on failure');
+  } catch {
+    // expected
+  }
+  assert(get(lastError)?.message === 'Move folders: boom', 'moveFolderTo honors overridden bulk context');
+
   console.log('folders.test.ts: all assertions passed');
 }
 
