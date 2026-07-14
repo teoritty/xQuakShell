@@ -5,6 +5,8 @@ import {
   subscribeToEvents,
   sftpReadyPaths,
   getSettings,
+  saveSettings,
+  applyAppearanceSettings,
   uploadFile,
   connectionProtocolCatalogKey,
   registerTerminalOutputConsumer,
@@ -153,6 +155,78 @@ subscribeToEvents(); // api.ts:950-1073 registers all handlers below via rt.Even
   await uploadFile('s1', '/local', '/remote');
   // isCancelError does e.message.toLowerCase().includes('cancel') -- case-insensitive substring match.
   assert(get(lastError) === null, 'uploadFile does not populate lastError when the error message contains "cancel" (any case)'); // api.ts:488-499
+}
+
+// --- saveSettings -----------------------------------------------------------
+
+// api.ts:847-862 saveSettings: normalizes all four session hotkeys (falling
+// back to DEFAULT_SESSION_HOTKEYS when unset) into the payload sent to
+// SaveSettings, spreading the rest of `settings` through unchanged.
+{
+  reset();
+  const fake = createFakeGateway();
+  fake.program('SaveSettings', undefined);
+  setGateway(fake);
+
+  await saveSettings({ theme: 'dark' } as any); // hotkeys omitted -> defaults used
+  const call = fake.calls.find(c => c.method === 'SaveSettings');
+  const payload = call?.args[0] as any;
+  assert(payload.theme === 'dark', 'saveSettings passes through other settings fields unchanged'); // api.ts:851-852
+  assert(
+    typeof payload.sessionHotkeyCreate === 'string' && payload.sessionHotkeyCreate.length > 0,
+    'saveSettings fills in a normalized sessionHotkeyCreate when none was supplied',
+  ); // api.ts:853
+}
+
+// saveSettings: RPC failure is swallowed via handleError (no rethrow).
+{
+  reset();
+  const fake = createFakeGateway();
+  fake.program('SaveSettings', () => { throw new Error('save failed'); });
+  setGateway(fake);
+
+  let threw: unknown = null;
+  try {
+    await saveSettings({});
+  } catch (e) {
+    threw = e;
+  }
+  assert(threw === null, 'saveSettings does not rethrow on RPC failure'); // api.ts:859-861
+  assert(get(lastError)?.message === 'Save settings: save failed', 'saveSettings reports RPC failure via handleError'); // api.ts:860
+}
+
+// --- applyAppearanceSettings --------------------------------------------------
+
+// api.ts:864-868 applyAppearanceSettings: fetches settings via getSettings and,
+// when null (e.g. app absent), short-circuits without touching uiScale/document.
+{
+  reset();
+  setGateway(null);
+  let threw: unknown = null;
+  try {
+    await applyAppearanceSettings();
+  } catch (e) {
+    threw = e;
+  }
+  assert(threw === null, 'applyAppearanceSettings is a no-op (does not throw) when getSettings returns null'); // api.ts:865-866
+}
+
+// applyAppearanceSettings: with a settings object present, it proceeds past
+// the `if (!s) return;` guard and calls applyUiScalePercent, which touches
+// `document` — unavailable in this Node test environment, so it throws
+// (unlike the null-settings path above, there is no try/catch around this call).
+{
+  reset();
+  const fake = createFakeGateway();
+  fake.program('GetSettings', { uiScalePercent: 120 });
+  setGateway(fake);
+  let threw: unknown = null;
+  try {
+    await applyAppearanceSettings();
+  } catch (e) {
+    threw = e;
+  }
+  assert(threw instanceof Error, 'applyAppearanceSettings with a non-null settings object proceeds to applyUiScalePercent (which needs `document`)'); // api.ts:867
 }
 
 // --- connectionProtocolCatalogKey ------------------------------------------

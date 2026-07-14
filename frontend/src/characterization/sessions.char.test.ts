@@ -7,8 +7,9 @@ import {
   createSessionFromSelection,
   focusNextSessionTab,
   focusPrevSessionTab,
+  resolveHostKey,
 } from '../stores/api';
-import { sessions, activeSessionId, connections, selectedConnectionId, lastError } from '../stores/appState';
+import { sessions, activeSessionId, connections, selectedConnectionId, lastError, pendingHostKey } from '../stores/appState';
 import { get } from 'svelte/store';
 
 function assert(c: boolean, m: string) {
@@ -243,6 +244,41 @@ function reset() {
   activeSessionId.set('');
   focusNextSessionTab();
   assert(get(activeSessionId) === '', 'focusNextSessionTab with no sessions leaves activeSessionId unchanged'); // api.ts:409
+}
+
+// --- resolveHostKey -------------------------------------------------------
+
+// api.ts:446-455 resolveHostKey: on success, calls ResolveHostKey with all
+// four positional args and clears pendingHostKey.
+{
+  reset();
+  pendingHostKey.set({ sessionId: 's1', host: 'h', fingerprint: 'fp' } as any);
+  const fake = createFakeGateway();
+  fake.program('ResolveHostKey', undefined);
+  setGateway(fake);
+
+  await resolveHostKey('s1', 'trust', 'h', 'key-b64');
+  const call = fake.calls.find(c => c.method === 'ResolveHostKey');
+  assert(
+    call?.args[0] === 's1' && call.args[1] === 'trust' && call.args[2] === 'h' && call.args[3] === 'key-b64',
+    'resolveHostKey forwards sessionId, action, host, authorizedKey positionally',
+  ); // api.ts:450
+  assert(get(pendingHostKey) === null, 'resolveHostKey clears pendingHostKey on success'); // api.ts:451
+}
+
+// resolveHostKey: RPC failure sets lastError via handleError and leaves
+// pendingHostKey untouched (the clear only happens on the success path).
+{
+  reset();
+  pendingHostKey.set({ sessionId: 's1', host: 'h', fingerprint: 'fp' } as any);
+  const fake = createFakeGateway();
+  fake.program('ResolveHostKey', () => { throw new Error('resolve failed'); });
+  setGateway(fake);
+
+  await resolveHostKey('s1', 'trust', 'h', 'key-b64');
+  const err = get(lastError);
+  assert(err !== null && err.message === 'Resolve host key: resolve failed', 'resolveHostKey reports RPC failure via handleError'); // api.ts:452-453
+  assert(get(pendingHostKey) !== null, 'resolveHostKey does not clear pendingHostKey when the RPC fails'); // api.ts:451 (only runs before the throwing call)
 }
 
 console.log('sessions.char.test passed');

@@ -9,6 +9,7 @@ import {
   saveConnection,
   deleteFolder,
   createNewConnectionInFolder,
+  createNewFolderInFolder,
   moveFolders,
 } from '../stores/api';
 import {
@@ -219,6 +220,39 @@ function reset() {
   assert(payload.users![0].authMethod === 'key', 'the generated user defaults to key auth'); // api.ts:220
   assert(get(selectedConnectionId) === 'created-1', 'createNewConnectionInFolder sets selectedConnectionId to the new connection id'); // api.ts:224
   assert(get(detailsConnectionId) === 'created-1', 'createNewConnectionInFolder sets detailsConnectionId to the new connection id'); // api.ts:225
+}
+
+// --- createNewFolderInFolder ----------------------------------------------
+
+// api.ts:230-238 createNewFolderInFolder: calls saveFolder with a fixed
+// 'New folder' name under the given parentId, then sets selectedFolderId to
+// the id SaveFolder returned (not to parentId).
+{
+  reset();
+  const fake = createFakeGateway();
+  fake.program('SaveFolder', (payload: unknown) => {
+    const p = payload as Folder;
+    return { ...p, id: 'newfolder-1' };
+  });
+  fake.program('GetFolders', []);
+  setGateway(fake);
+
+  await createNewFolderInFolder('parent-1');
+  const call = fake.calls.find(c => c.method === 'SaveFolder');
+  const payload = call?.args[0] as Folder;
+  assert(payload.name === 'New folder', 'createNewFolderInFolder always names the new folder "New folder"'); // api.ts:232
+  assert(payload.parentId === 'parent-1', 'createNewFolderInFolder nests the new folder under the given parentId'); // api.ts:233
+  assert(get(selectedFolderId) === 'newfolder-1', 'createNewFolderInFolder sets selectedFolderId to the id returned by SaveFolder'); // api.ts:235-236
+}
+
+// createNewFolderInFolder: when saveFolder resolves to null (app absent),
+// selectedFolderId is left untouched.
+{
+  reset();
+  selectedFolderId.set('previous');
+  setGateway(null);
+  await createNewFolderInFolder('parent-1');
+  assert(get(selectedFolderId) === 'previous', 'createNewFolderInFolder leaves selectedFolderId unchanged when saveFolder returns null'); // api.ts:235
 }
 
 // --- moveFolders ---------------------------------------------------------

@@ -25,6 +25,9 @@ import {
   listPlugins,
   pingPlugin,
   setPluginEnabled,
+  selectPluginSourceDir,
+  selectPluginBundleFile,
+  generatePluginPublisherKeyPair,
   type ConnectionProtocol,
 } from '../stores/api';
 import { lastError } from '../stores/appState';
@@ -552,6 +555,78 @@ const PROTO_B: ConnectionProtocol[] = [{ id: 'ssh', label: 'SSH', fields: [] } a
   assert(threw === null, 'setPluginEnabled does not rethrow on RPC failure'); // api.ts:1230-1234
   const call = fake.calls.find(c => c.method === 'SetPluginEnabled');
   assert(call?.args[0] === 'p1' && call.args[1] === true, 'setPluginEnabled forwards pluginId and enabled positionally'); // api.ts:1231
+}
+
+// --- selectPluginSourceDir / selectPluginBundleFile / generatePluginPublisherKeyPair ---
+
+// api.ts:1237-1246 selectPluginSourceDir: returns '' when the method is
+// absent (does not throw), and returns the RPC's string result otherwise.
+{
+  reset();
+  setGateway(null);
+  const dir = await selectPluginSourceDir();
+  assert(dir === '', 'selectPluginSourceDir returns "" when SelectPluginSourceDir is absent'); // api.ts:1239
+}
+{
+  reset();
+  const fake = createFakeGateway();
+  fake.program('SelectPluginSourceDir', '/picked/dir');
+  setGateway(fake);
+  const dir = await selectPluginSourceDir();
+  assert(dir === '/picked/dir', 'selectPluginSourceDir returns the path chosen by SelectPluginSourceDir'); // api.ts:1241
+}
+// selectPluginSourceDir: RPC failure falls back to '' via handleError (no rethrow).
+{
+  reset();
+  const fake = createFakeGateway();
+  fake.program('SelectPluginSourceDir', () => { throw new Error('dialog failed'); });
+  setGateway(fake);
+  const dir = await selectPluginSourceDir();
+  assert(dir === '', 'selectPluginSourceDir falls back to "" on RPC failure'); // api.ts:1243-1244
+  assert(get(lastError)?.message === 'Select plugin folder: dialog failed', 'selectPluginSourceDir reports RPC failure via handleError'); // api.ts:1243
+}
+
+// api.ts:1248-1257 selectPluginBundleFile: same shape as selectPluginSourceDir.
+{
+  reset();
+  setGateway(null);
+  const file = await selectPluginBundleFile();
+  assert(file === '', 'selectPluginBundleFile returns "" when SelectPluginBundleFile is absent'); // api.ts:1250
+}
+{
+  reset();
+  const fake = createFakeGateway();
+  fake.program('SelectPluginBundleFile', '/picked/bundle.zip');
+  setGateway(fake);
+  const file = await selectPluginBundleFile();
+  assert(file === '/picked/bundle.zip', 'selectPluginBundleFile returns the path chosen by SelectPluginBundleFile'); // api.ts:1252
+}
+
+// api.ts:1283-1294 generatePluginPublisherKeyPair: returns the default empty
+// keypair shape when the method is absent, and RPC failure also falls back
+// to the same default via handleError (no rethrow).
+{
+  reset();
+  setGateway(null);
+  const keys = await generatePluginPublisherKeyPair();
+  assert(keys.publicKey === '' && keys.privateKey === '', 'generatePluginPublisherKeyPair returns { publicKey: "", privateKey: "" } when absent'); // api.ts:1286
+}
+{
+  reset();
+  const fake = createFakeGateway();
+  fake.program('GeneratePluginPublisherKeyPair', { publicKey: 'pub', privateKey: 'priv' });
+  setGateway(fake);
+  const keys = await generatePluginPublisherKeyPair();
+  assert(keys.publicKey === 'pub' && keys.privateKey === 'priv', 'generatePluginPublisherKeyPair returns the RPC result on success'); // api.ts:1289
+}
+{
+  reset();
+  const fake = createFakeGateway();
+  fake.program('GeneratePluginPublisherKeyPair', () => { throw new Error('keygen failed'); });
+  setGateway(fake);
+  const keys = await generatePluginPublisherKeyPair();
+  assert(keys.publicKey === '' && keys.privateKey === '', 'generatePluginPublisherKeyPair falls back to the default keypair on RPC failure'); // api.ts:1291-1292
+  assert(get(lastError)?.message === 'Generate publisher keys: keygen failed', 'generatePluginPublisherKeyPair reports RPC failure via handleError'); // api.ts:1291
 }
 
 console.log('plugins.char.test passed');
