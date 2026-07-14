@@ -2,13 +2,13 @@ import {
   folders, connections, sessions, identities,
   vaultUnlocked, activeSessionId, transfers, transferCompleted, pendingHostKey,
   pingResults, platform,
-  showError, editingFiles,
+  editingFiles,
   type Session, type SessionEmbed,
   type RemoteNode, type TransferItem, type SSHIdentityMeta,
   type HostKeyEvent, type PingResult
 } from './appState';
-import { get, writable } from 'svelte/store';
-import { getGateway, getRuntime } from '../backend/context';
+import { writable } from 'svelte/store';
+import { getRuntime } from '../backend/context';
 import {
   importPassword,
   deletePassword,
@@ -19,7 +19,7 @@ import {
   type PuTTYSessionPreview,
 } from '../api/credentials';
 import { addKnownHost, removeKnownHost } from '../api/knownHosts';
-import { fetchSettings, putSettings, type AppSettings } from '../api/settings';
+import { type AppSettings } from '../api/settings';
 import {
   searchAuditLog,
   deleteAuditEntry,
@@ -56,11 +56,6 @@ export {
   clearPendingTerminalOutput,
   registerTerminalOutputConsumer,
 } from '../terminal/outputBuffer';
-import {
-  applyUiScalePercent,
-  DEFAULT_UI_SCALE_PERCENT,
-} from '../lib/uiScale';
-
 export {
   type SessionHotkeysSettings,
   type AppSettings,
@@ -69,19 +64,8 @@ export {
   DEFAULT_SESSION_HOTKEYS,
 } from '../api/settings';
 
-function getApp(): any {
-  return getGateway();
-}
-
 function getWailsRuntime(): any {
   return getRuntime();
-}
-
-function handleError(e: unknown, context?: string) {
-  const msg = e instanceof Error ? e.message : String(e);
-  const message = context ? `${context}: ${msg}` : msg;
-  const details = e instanceof Error && e.stack ? e.stack : '';
-  showError(message, details);
 }
 
 export {
@@ -182,19 +166,11 @@ export {
 
 export { normalizeHotkey, parseHotkeyEvent } from '../hotkeys/hotkeys';
 
-export async function getSettings(): Promise<AppSettings | null> {
-  return fetchSettings();
-}
-
-export async function saveSettings(settings: Partial<AppSettings>): Promise<void> {
-  return putSettings(settings);
-}
-
-export async function applyAppearanceSettings(): Promise<void> {
-  const s = await getSettings();
-  if (!s) return;
-  applyUiScalePercent(s.uiScalePercent ?? DEFAULT_UI_SCALE_PERCENT);
-}
+export {
+  getSettings,
+  saveSettings,
+  applyAppearanceSettings,
+} from '../actions/settingsActions';
 
 export {
   searchAuditLog,
@@ -356,8 +332,6 @@ export {
   previewPluginInstall,
   installPluginRpc,
 } from '../api/plugins';
-import type { PluginInfo } from '../api/plugins';
-import { installPluginRpc } from '../api/plugins';
 import {
   type GitHubRepository,
   type GitHubReleaseSummary,
@@ -370,8 +344,6 @@ import {
   setGitHubRepositoryTrust,
   fetchGitHubPlugins,
   previewGitHubPluginInstall,
-  installGitHubPluginRpc,
-  uninstallGitHubPluginRpc,
 } from '../api/githubPlugins';
 export type {
   GitHubRepository,
@@ -389,149 +361,19 @@ export {
   previewGitHubPluginInstall,
 } from '../api/githubPlugins';
 
-export interface FieldDef {
-  id: string;
-  label: string;
-  type: 'text' | 'password' | 'number' | 'select' | 'checkbox' | 'textarea';
-  required: boolean;
-  default?: unknown;
-  placeholder?: string;
-  description?: string;
-  width?: 'full' | 'half' | 'third';
-  order: number;
-  validation?: {
-    minLength?: number;
-    maxLength?: number;
-    min?: number;
-    max?: number;
-    pattern?: string;
-    maxSizeBytes?: number;
-  };
-  options?: { value: string; label: string }[];
-  dependsOn?: string;
-  secret: boolean;
-}
-
-export interface FieldGroup {
-  id: string;
-  label: string;
-  order: number;
-  fields: FieldDef[];
-}
-
-export interface ConnectionProtocol {
-  id: string;
-  label: string;
-  defaultPort?: number;
-  icon?: string;
-  surface?: 'terminal' | 'embed';
-  remoteFs?: boolean;
-  fields?: FieldGroup[];
-}
-
-const DEFAULT_SSH_PROTOCOL: ConnectionProtocol = {
-  id: 'ssh',
-  label: 'SSH',
-  defaultPort: 22,
-  icon: 'terminal',
-  remoteFs: true,
-};
-
-/** Live protocol catalog for connection editor and session chrome. */
-export const connectionProtocols = writable<ConnectionProtocol[]>([DEFAULT_SSH_PROTOCOL]);
-
-let protocolsCache: ConnectionProtocol[] | null = null;
-
-function protocolCatalogKey(list: ConnectionProtocol[]): string {
-  return list.map((p) => `${p.id}:${p.fields?.length ?? 0}`).join('|');
-}
-
-/** Returns a stable signature of the protocol catalog (ids + field counts). */
-export function connectionProtocolCatalogKey(list: ConnectionProtocol[]): string {
-  return protocolCatalogKey(list);
-}
-
-/** Reloads plugin connection protocols from the backend and updates {@link connectionProtocols}. */
-export async function refreshConnectionProtocols(): Promise<ConnectionProtocol[]> {
-  const app = getApp();
-  if (!app?.GetPluginConnectionProtocols) {
-    // Wails may not be bound yet — keep the current store value and do not cache.
-    return get(connectionProtocols);
-  }
-  try {
-    const list = await app.GetPluginConnectionProtocols();
-    protocolsCache = list;
-    connectionProtocols.set(list);
-    return list;
-  } catch (e) {
-    handleError(e, 'Load connection protocols');
-    return get(connectionProtocols);
-  }
-}
-
-export async function getPluginConnectionProtocols(): Promise<ConnectionProtocol[]> {
-  if (protocolsCache) {
-    return protocolsCache;
-  }
-  return refreshConnectionProtocols();
-}
-
-export function invalidateProtocolsCache(): void {
-  protocolsCache = null;
-}
-
-/**
- * Composed public install: performs the atomic install RPC (installPluginRpc,
- * in api/plugins.ts) then refreshes the protocol cache — matching the
- * original combined installPlugin behavior. This shim is interim; Task 3.4
- * relocates the composition into actions/protocolActions.ts.
- */
-export async function installPlugin(
-  sourceDir: string,
-  grantSecretAccess = false,
-  grantAuthProviderAccess = false,
-  grantTunnelProviderAccess = false,
-  grantMultiSessionAccess = false,
-  grantArbitraryNetworkAccess = false,
-): Promise<PluginInfo> {
-  const result = await installPluginRpc(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
-  invalidateProtocolsCache();
-  await refreshConnectionProtocols();
-  return result;
-}
-
-/**
- * Composed public install: performs only the atomic install RPC
- * (installGitHubPluginRpc, in api/githubPlugins.ts). It does NOT refresh
- * the protocol cache — matching the original installGitHubPlugin behavior,
- * which never refreshed it either. This differs from uninstallGitHubPlugin
- * below, which does refresh the protocol cache. This shim is interim;
- * Task 3.4 relocates the composition into actions/protocolActions.ts.
- */
-export async function installGitHubPlugin(
-  repoURL: string,
-  releaseTag = '',
-  grantSecretAccess = false,
-  grantAuthProviderAccess = false,
-  grantTunnelProviderAccess = false,
-  grantMultiSessionAccess = false,
-  grantArbitraryNetworkAccess = false,
-): Promise<void> {
-  await installGitHubPluginRpc(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
-}
-
-/**
- * Composed public uninstall: performs the atomic uninstall RPC
- * (uninstallGitHubPluginRpc, in api/githubPlugins.ts) then refreshes the
- * protocol cache — matching the original combined uninstallGitHubPlugin
- * behavior. This shim is interim; Task 3.4 relocates the composition into
- * actions/protocolActions.ts.
- */
-export async function uninstallGitHubPlugin(pluginID: string, removeData = false): Promise<void> {
-  await uninstallGitHubPluginRpc(pluginID, removeData);
-  invalidateProtocolsCache();
-  await refreshConnectionProtocols();
-}
+export {
+  type FieldDef,
+  type FieldGroup,
+  type ConnectionProtocol,
+  connectionProtocols,
+  connectionProtocolCatalogKey,
+  refreshConnectionProtocols,
+  getPluginConnectionProtocols,
+  invalidateProtocolsCache,
+  installPlugin,
+  installGitHubPlugin,
+  uninstallGitHubPlugin,
+} from '../actions/protocolActions';
 
 export {
   getPluginContributions,
