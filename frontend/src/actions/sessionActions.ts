@@ -9,6 +9,7 @@
 import { get } from 'svelte/store';
 import { sessions, connections, activeSessionId, selectedConnectionId, showError } from '../stores/appState';
 import { openSessionRpc, closeSessionRpc } from '../api/sessions';
+import { getGateway } from '../backend/context';
 
 function handleError(e: unknown, context?: string) {
   const msg = e instanceof Error ? e.message : String(e);
@@ -18,6 +19,9 @@ function handleError(e: unknown, context?: string) {
 }
 
 export async function openSession(connectionId: string): Promise<string | null> {
+  // Mirrors the original stores/api.ts guard: on a missing gateway, do
+  // nothing observable (no store mutation, no error toast) and return null.
+  if (!getGateway()) return null;
   try {
     const sessionId: string = await openSessionRpc(connectionId);
     const conn = get(connections).find((c) => c.id === connectionId);
@@ -45,6 +49,9 @@ export async function openSession(connectionId: string): Promise<string | null> 
 }
 
 export async function closeSession(sessionId: string): Promise<void> {
+  // Mirrors the original stores/api.ts guard: on a missing gateway, do
+  // nothing observable (no store mutation, no error toast) and return.
+  if (!getGateway()) return;
   // Optimistic UI: remove tab immediately so tree/tab status updates without waiting for the event round-trip.
   sessions.update((list) => list.filter((s) => s.sessionId !== sessionId));
   try {

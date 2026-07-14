@@ -87,6 +87,19 @@ async function run() {
     assert(err !== null && err.message === 'Open session: boom', 'openSession reports failure via handleError');
   }
 
+  // openSession: missing gateway is a silent no-op (no store mutation, no lastError).
+  {
+    reset();
+    connections.set([{ id: 'c1', folderId: '', name: 'MyConn', host: 'h', port: 22, order: 0 }] as any);
+    setGateway(null);
+
+    const id = await openSession('c1');
+    assert(id === null, 'openSession returns null when gateway is missing');
+    assert(get(sessions).length === 0, 'openSession does not touch sessions when gateway is missing');
+    assert(get(activeSessionId) === '', 'openSession does not touch activeSessionId when gateway is missing');
+    assert(get(lastError) === null, 'openSession does not set lastError when gateway is missing');
+  }
+
   // --- closeSession --------------------------------------------------------
 
   // closeSession removes the tab from `sessions` before awaiting the RPC.
@@ -135,6 +148,20 @@ async function run() {
     await closeSession('s1');
     const err = get(lastError);
     assert(err !== null && err.message === 'Close session: boom', 'closeSession sets lastError for non-"not found" errors');
+  }
+
+  // closeSession: missing gateway is a silent no-op (tab stays, no lastError).
+  {
+    reset();
+    sessions.set([
+      { sessionId: 's1', connectionId: 'c1', connectionName: 'A', state: 'ready', errorMessage: '' } as any,
+    ]);
+    setGateway(null);
+
+    await closeSession('s1');
+    const list = get(sessions);
+    assert(list.length === 1 && list[0].sessionId === 's1', 'closeSession does not remove the tab when gateway is missing');
+    assert(get(lastError) === null, 'closeSession does not set lastError when gateway is missing');
   }
 
   // --- closeActiveSession ---------------------------------------------------
