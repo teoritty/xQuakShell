@@ -1056,111 +1056,18 @@ export async function uninstallGitHubPlugin(pluginID: string, removeData = false
   }
 }
 
-export interface PluginCommand {
-  pluginId: string;
-  id: string;
-  fullId: string;
-  title: string;
-  category?: string;
-}
-
-export interface PluginContributions {
-  commands: PluginCommand[];
-  views: PluginView[];
-  statusBar: PluginStatusBarItem[];
-  authMethods: PluginAuthMethodContribution[];
-  tunnelProviders: PluginTunnelProviderContribution[];
-}
-
-export interface PluginAuthMethodContribution {
-  pluginId: string;
-  id: string;
-  label: string;
-  kind: string;
-  fields?: FieldGroup[];
-}
-
-export interface PluginTunnelProviderContribution {
-  pluginId: string;
-  id: string;
-  label: string;
-}
-
-export interface PluginView {
-  pluginId: string;
-  id: string;
-  fullId: string;
-  location: string;
-  title: string;
-  type?: string;
-  entry?: string;
-  assetUrl: string;
-}
-
-export interface PluginStatusBarItem {
-  pluginId: string;
-  id: string;
-  text: string;
-  tooltip?: string;
-  priority?: number;
-}
-
-export async function getPluginContributions(): Promise<PluginContributions> {
-  const app = getApp();
-  if (!app?.GetPluginContributions) {
-    return { commands: [], views: [], statusBar: [], authMethods: [], tunnelProviders: [] };
-  }
-  try {
-    return await app.GetPluginContributions();
-  } catch (e) {
-    handleError(e, 'Load plugin contributions');
-    return { commands: [], views: [], statusBar: [], authMethods: [], tunnelProviders: [] };
-  }
-}
-
-export async function executePluginCommand(
-  pluginId: string,
-  commandId: string,
-  args?: Record<string, unknown>
-): Promise<Record<string, string>> {
-  const app = getApp();
-  if (!app?.ExecutePluginCommand) {
-    throw new Error('Plugin commands are unavailable');
-  }
-  const rawArgs = args ? JSON.stringify(args) : null;
-  const result = await app.ExecutePluginCommand(pluginId, commandId, rawArgs);
-  if (!result) return {};
-  if (typeof result === 'string') {
-    try {
-      return JSON.parse(result);
-    } catch {
-      return { message: result };
-    }
-  }
-  return result as Record<string, string>;
-}
-
-export async function preparePluginViewPanel(pluginId: string, panelId: string): Promise<string> {
-  const app = getApp();
-  if (!app?.PreparePluginViewPanel) {
-    throw new Error('Plugin view relay is unavailable');
-  }
-  return await app.PreparePluginViewPanel(pluginId, panelId);
-}
-
-export async function relayPluginViewMessage(
-  token: string,
-  message: Record<string, unknown>
-): Promise<void> {
-  const app = getApp();
-  if (!app?.RelayPluginViewMessage) {
-    throw new Error('Plugin view relay is unavailable');
-  }
-  const raw = JSON.stringify(message ?? {});
-  await app.RelayPluginViewMessage(token, raw);
-}
-
-export function releasePluginViewPanel(token: string): void {
-  const app = getApp();
-  app?.ReleasePluginViewPanel?.(token);
-}
+export {
+  getPluginContributions,
+  executePluginCommand,
+  preparePluginViewPanel,
+  relayPluginViewMessage,
+  releasePluginViewPanel,
+} from '../api/pluginRuntime';
+export type {
+  PluginCommand,
+  PluginContributions,
+  PluginAuthMethodContribution,
+  PluginTunnelProviderContribution,
+  PluginView,
+  PluginStatusBarItem,
+} from '../api/pluginRuntime';
