@@ -651,6 +651,36 @@ export {
 } from '../api/plugins';
 import type { PluginInfo } from '../api/plugins';
 import { installPluginRpc } from '../api/plugins';
+import {
+  type GitHubRepository,
+  type GitHubReleaseSummary,
+  type GitHubPluginMetadata,
+  type GitHubPluginList,
+  type GitHubPluginPreview,
+  listGitHubRepositories,
+  addGitHubRepository,
+  removeGitHubRepository,
+  setGitHubRepositoryTrust,
+  fetchGitHubPlugins,
+  previewGitHubPluginInstall,
+  installGitHubPluginRpc,
+  uninstallGitHubPluginRpc,
+} from '../api/githubPlugins';
+export type {
+  GitHubRepository,
+  GitHubReleaseSummary,
+  GitHubPluginMetadata,
+  GitHubPluginList,
+  GitHubPluginPreview,
+} from '../api/githubPlugins';
+export {
+  listGitHubRepositories,
+  addGitHubRepository,
+  removeGitHubRepository,
+  setGitHubRepositoryTrust,
+  fetchGitHubPlugins,
+  previewGitHubPluginInstall,
+} from '../api/githubPlugins';
 
 export interface FieldDef {
   id: string;
@@ -763,145 +793,13 @@ export async function installPlugin(
   return result;
 }
 
-export interface GitHubRepository {
-  url: string;
-  owner: string;
-  repo: string;
-  displayName: string;
-  addedAt: string;
-  lastFetchedAt?: string;
-  trusted: boolean;
-}
-
-export interface GitHubReleaseSummary {
-  tag: string;
-  name: string;
-  publishedAt: string;
-  prerelease: boolean;
-  platformSupported: boolean;
-  platforms: { os: string; arch: string; assetName: string }[];
-}
-
-export interface GitHubPluginMetadata {
-  repositoryUrl: string;
-  id: string;
-  name: string;
-  version: string;
-  description: string;
-  author: string;
-  license: string;
-  platforms: { os: string; arch: string; assetName: string }[];
-  availableReleases: GitHubReleaseSummary[];
-  latestRelease: string;
-  prerelease: boolean;
-  publishedAt: string;
-  readme: string;
-  minCoreVersion: string;
-  platformSupported: boolean;
-  installed: boolean;
-  installedVersion: string;
-  installedReleaseTag: string;
-}
-
-export interface GitHubPluginList {
-  repositoryUrl: string;
-  plugins: GitHubPluginMetadata[];
-}
-
-export interface GitHubPluginPreview {
-  repositoryUrl: string;
-  repositoryTrusted: boolean;
-  id: string;
-  name: string;
-  version: string;
-  description: string;
-  author: string;
-  license: string;
-  minCoreVersion: string;
-  currentPlatform: string;
-  platformSupported: boolean;
-  supportedPlatforms: string[];
-  latestRelease: string;
-  releaseTag: string;
-  prerelease: boolean;
-  publishedDate: string;
-  readme: string;
-  requiresSecretAccess: boolean;
-  requiresAuthProviderAccess?: boolean;
-  requiresTunnelProviderAccess?: boolean;
-  multiSessionWarning?: boolean;
-  arbitraryNetworkWarning: boolean;
-  unsignedPlugin: boolean;
-  untrustedSource: boolean;
-  warnings: string[];
-}
-
-export async function listGitHubRepositories(): Promise<GitHubRepository[]> {
-  const app = getApp();
-  if (!app?.ListGitHubRepositories) return [];
-  try {
-    return await app.ListGitHubRepositories();
-  } catch (e) {
-    handleError(e, 'List GitHub repositories');
-    return [];
-  }
-}
-
-export async function addGitHubRepository(url: string, trusted: boolean): Promise<void> {
-  const app = getApp();
-  if (!app?.AddGitHubRepository) throw new Error('GitHub repositories unavailable');
-  try {
-    await app.AddGitHubRepository({ url, trusted });
-  } catch (e) {
-    handleError(e, 'Add GitHub repository');
-    throw e;
-  }
-}
-
-export async function removeGitHubRepository(repoURL: string): Promise<void> {
-  const app = getApp();
-  if (!app?.RemoveGitHubRepository) throw new Error('GitHub repositories unavailable');
-  try {
-    await app.RemoveGitHubRepository(repoURL);
-  } catch (e) {
-    handleError(e, 'Remove GitHub repository');
-    throw e;
-  }
-}
-
-export async function setGitHubRepositoryTrust(repoURL: string, trusted: boolean): Promise<void> {
-  const app = getApp();
-  if (!app?.SetGitHubRepositoryTrust) throw new Error('GitHub repositories unavailable');
-  try {
-    await app.SetGitHubRepositoryTrust({ url: repoURL, trusted });
-  } catch (e) {
-    handleError(e, 'Update repository trust');
-    throw e;
-  }
-}
-
-export async function fetchGitHubPlugins(repoURL: string, forceRefresh = false): Promise<GitHubPluginList> {
-  const app = getApp();
-  if (!app?.FetchGitHubPlugins) throw new Error('GitHub plugin discovery unavailable');
-  try {
-    return await app.FetchGitHubPlugins({ url: repoURL, forceRefresh });
-  } catch (e) {
-    handleError(e, 'Fetch GitHub plugins');
-    throw e;
-  }
-}
-
-export async function previewGitHubPluginInstall(repoURL: string, releaseTag = ''): Promise<GitHubPluginPreview> {
-  const app = getApp();
-  if (!app?.PreviewGitHubPluginInstall) throw new Error('GitHub plugin install unavailable');
-  try {
-    return await app.PreviewGitHubPluginInstall(repoURL, releaseTag);
-  } catch (e) {
-    handleError(e, 'Preview GitHub plugin');
-    throw e;
-  }
-}
-
+/**
+ * Composed public install: performs the atomic install RPC
+ * (installGitHubPluginRpc, in api/githubPlugins.ts) then refreshes the
+ * protocol cache — matching the original combined installGitHubPlugin
+ * behavior. This shim is interim; Task 3.4 relocates the composition into
+ * actions/protocolActions.ts.
+ */
 export async function installGitHubPlugin(
   repoURL: string,
   releaseTag = '',
@@ -911,27 +809,20 @@ export async function installGitHubPlugin(
   grantMultiSessionAccess = false,
   grantArbitraryNetworkAccess = false,
 ): Promise<void> {
-  const app = getApp();
-  if (!app?.InstallGitHubPlugin) throw new Error('GitHub plugin install unavailable');
-  try {
-    await app.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
-  } catch (e) {
-    handleError(e, 'Install GitHub plugin');
-    throw e;
-  }
+  await installGitHubPluginRpc(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
 }
 
+/**
+ * Composed public uninstall: performs the atomic uninstall RPC
+ * (uninstallGitHubPluginRpc, in api/githubPlugins.ts) then refreshes the
+ * protocol cache — matching the original combined uninstallGitHubPlugin
+ * behavior. This shim is interim; Task 3.4 relocates the composition into
+ * actions/protocolActions.ts.
+ */
 export async function uninstallGitHubPlugin(pluginID: string, removeData = false): Promise<void> {
-  const app = getApp();
-  if (!app?.UninstallGitHubPlugin) throw new Error('GitHub plugin uninstall unavailable');
-  try {
-    await app.UninstallGitHubPlugin(pluginID, removeData);
-    invalidateProtocolsCache();
-    await refreshConnectionProtocols();
-  } catch (e) {
-    handleError(e, 'Uninstall plugin');
-    throw e;
-  }
+  await uninstallGitHubPluginRpc(pluginID, removeData);
+  invalidateProtocolsCache();
+  await refreshConnectionProtocols();
 }
 
 export {
