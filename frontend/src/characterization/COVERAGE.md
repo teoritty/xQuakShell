@@ -246,9 +246,12 @@ this audit; each was given a test in the domain-appropriate existing file
   swallowed via `handleError` (no rethrow).
 - `applyAppearanceSettings` (`api.ts:864`) — added to
   `frontend/src/characterization/runtime.char.test.ts`: asserts the
-  `if (!s) return` short-circuit on a null `getSettings()` result, and that a
-  non-null result proceeds to `applyUiScalePercent` (which throws in this
-  DOM-less Node test environment, itself part of the pinned behavior).
+  `if (!s) return` short-circuit on a null `getSettings()` result, and, with a
+  non-null result, asserts the real fallback/propagation logic — a minimal
+  `document`/`window` stub (only the entry points `applyUiScalePercent`
+  touches) lets the test confirm no throw, that `uiScalePercent` reaches
+  `--ui-scale` as `percent/100`, and that `resize`/`ui-scale-changed` events
+  are dispatched with the normalized percent.
 
 Additionally, three plugin-domain functions not marked `*` were still
 required (per the plugin/github/plugin-runtime blanket rule) and had no

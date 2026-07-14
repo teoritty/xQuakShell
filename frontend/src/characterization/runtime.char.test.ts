@@ -212,21 +212,56 @@ subscribeToEvents(); // api.ts:950-1073 registers all handlers below via rt.Even
 }
 
 // applyAppearanceSettings: with a settings object present, it proceeds past
-// the `if (!s) return;` guard and calls applyUiScalePercent, which touches
-// `document` — unavailable in this Node test environment, so it throws
-// (unlike the null-settings path above, there is no try/catch around this call).
+// the `if (!s) return;` guard and calls applyUiScalePercent(s.uiScalePercent
+// ?? DEFAULT_UI_SCALE_PERCENT). In a real browser `document`/`window` always
+// exist, so this path never throws; we stub the handful of DOM entry points
+// applyUiScalePercent actually touches (documentElement.style.{removeProperty,
+// setProperty}, document.querySelectorAll, window.dispatchEvent) so the test
+// can characterize the real fallback/propagation logic instead of pinning a
+// Node-only "document is undefined" crash. `MutationObserver` is left
+// undefined on purpose: applyUiScalePercent's `ensureIconObserver` already
+// guards on `typeof MutationObserver === 'undefined'` and no-ops, so this
+// matches real behavior in that (rare) environment without adding an
+// unrelated stub.
 {
   reset();
   const fake = createFakeGateway();
   fake.program('GetSettings', { uiScalePercent: 120 });
   setGateway(fake);
+
+  const previousDocument = (globalThis as any).document;
+  const previousWindow = (globalThis as any).window;
+  const styleProps = new Map<string, string>();
+  const dispatched: any[] = [];
+  (globalThis as any).document = {
+    documentElement: {
+      style: {
+        removeProperty: (k: string) => styleProps.delete(k),
+        setProperty: (k: string, v: string) => styleProps.set(k, v),
+      },
+    },
+    querySelectorAll: () => [] as unknown as NodeListOf<Element>,
+  };
+  (globalThis as any).window = {
+    dispatchEvent: (e: unknown) => {
+      dispatched.push(e);
+      return true;
+    },
+  };
+
   let threw: unknown = null;
   try {
     await applyAppearanceSettings();
   } catch (e) {
     threw = e;
+  } finally {
+    (globalThis as any).document = previousDocument;
+    (globalThis as any).window = previousWindow;
   }
-  assert(threw instanceof Error, 'applyAppearanceSettings with a non-null settings object proceeds to applyUiScalePercent (which needs `document`)'); // api.ts:867
+
+  assert(threw === null, 'applyAppearanceSettings with a non-null settings object does not throw when document/window are available'); // api.ts:864-868
+  assert(styleProps.get('--ui-scale') === '1.2', 'applyAppearanceSettings propagates uiScalePercent (120) into the --ui-scale CSS custom property (120/100)'); // api.ts:867, uiScale.ts:79-83
+  assert(dispatched.length === 2 && dispatched[1]?.detail?.percent === 120, 'applyAppearanceSettings drives applyUiScalePercent to dispatch a resize and a ui-scale-changed event carrying the normalized percent'); // uiScale.ts:87-92
 }
 
 // --- connectionProtocolCatalogKey ------------------------------------------
