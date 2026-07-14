@@ -16,8 +16,9 @@
     "test:hotkeys": "tsx src/hotkeys/hotkeys.test.ts",
     "test:terminal": "tsx src/terminal/outputBuffer.test.ts",
     "test:api-remotefs": "tsx src/api/remoteFs.test.ts",
+    "test:api-localfs": "tsx src/api/localFs.test.ts",
     "test:characterization": "tsx src/characterization/seam.char.test.ts && tsx src/characterization/sessions.char.test.ts && tsx src/characterization/library.char.test.ts && tsx src/characterization/plugins.char.test.ts && tsx src/characterization/runtime.char.test.ts",
-    "test": "npm run test:dnd && npm run test:connection-details && npm run test:tiles && npm run test:transfers && npm run test:backend && npm run test:hotkeys && npm run test:terminal && npm run test:api-remotefs && npm run test:characterization"
+    "test": "npm run test:dnd && npm run test:connection-details && npm run test:tiles && npm run test:transfers && npm run test:backend && npm run test:hotkeys && npm run test:terminal && npm run test:api-remotefs && npm run test:api-localfs && npm run test:characterization"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^1.0.1",

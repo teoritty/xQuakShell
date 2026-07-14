@@ -507,45 +507,21 @@ export {
   type ApplyTarget,
 };
 
-export async function removeLocalPath(localPath: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.RemoveLocalPath(localPath);
-  } catch (e) {
-    handleError(e, 'Remove local path');
-  }
-}
-
-export async function mkdirLocalPath(dirPath: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.MkdirLocalPath(dirPath);
-  } catch (e) {
-    handleError(e, 'Create local directory');
-  }
-}
-
-export async function renameLocalPath(oldPath: string, newPath: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.RenameLocalPath(oldPath, newPath);
-  } catch (e) {
-    handleError(e, 'Rename local path');
-  }
-}
-
-export async function createLocalFile(localPath: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.CreateLocalFile(localPath);
-  } catch (e) {
-    handleError(e, 'Create local file');
-  }
-}
+export {
+  removeLocalPath,
+  mkdirLocalPath,
+  renameLocalPath,
+  createLocalFile,
+  selectLocalFile,
+  selectLocalDirectory,
+  listLocalPath,
+  getPortableDataRoot,
+  getUserHomeDir,
+  getTempDir,
+  openFileWithSystem,
+  startFileWatch,
+  type LocalNode,
+} from '../api/localFs';
 
 export async function addKnownHost(host: string, keyBase64: string): Promise<void> {
   const app = getApp();
@@ -616,102 +592,6 @@ export async function importPuTTYRegAsConnections(regContent: string, folderId: 
   } catch (e) {
     handleError(e, 'Import PuTTY sessions');
     return [];
-  }
-}
-
-export async function selectLocalFile(): Promise<string> {
-  const app = getApp();
-  if (!app) return '';
-  try {
-    return await app.SelectLocalFile();
-  } catch (e) {
-    handleError(e, 'Select local file');
-    return '';
-  }
-}
-
-export async function selectLocalDirectory(): Promise<string> {
-  const app = getApp();
-  if (!app) return '';
-  try {
-    return await app.SelectLocalDirectory();
-  } catch (e) {
-    handleError(e, 'Select local directory');
-    return '';
-  }
-}
-
-export interface LocalNode {
-  name: string;
-  path: string;
-  isDir: boolean;
-  size: number;
-  modTime?: string;
-  mode?: string;
-  owner?: string;
-}
-
-export async function listLocalPath(dirPath: string, includeHidden = false): Promise<LocalNode[]> {
-  const app = getApp();
-  if (!app) return [];
-  try {
-    return await app.ListLocalPath(dirPath, includeHidden);
-  } catch (e) {
-    handleError(e, 'List local path');
-    return [];
-  }
-}
-
-export async function getPortableDataRoot(): Promise<string> {
-  const app = getApp();
-  if (!app) return '';
-  try {
-    if (typeof app.GetPortableDataRoot === 'function') {
-      return await app.GetPortableDataRoot();
-    }
-    return await app.GetUserHomeDir();
-  } catch {
-    return '';
-  }
-}
-
-export async function getUserHomeDir(): Promise<string> {
-  const app = getApp();
-  if (!app) return '';
-  try {
-    return await app.GetUserHomeDir();
-  } catch {
-    return '';
-  }
-}
-
-export async function getTempDir(): Promise<string> {
-  const app = getApp();
-  if (!app) return '';
-  try {
-    return await app.GetTempDir();
-  } catch (e) {
-    return '';
-  }
-}
-
-export async function openFileWithSystem(localPath: string, editorPath?: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.OpenFileWithSystem(localPath, editorPath ?? '');
-  } catch (e) {
-    handleError(e, 'Open file');
-  }
-}
-
-export function startFileWatch(localPath: string): void {
-  const app = getApp();
-  if (!app) return;
-  try {
-    app.StartFileWatch(localPath);
-  } catch (e) {
-    handleError(e, 'Start file watch');
   }
 }
 
