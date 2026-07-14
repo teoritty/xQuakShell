@@ -97,7 +97,7 @@ func loadSource(path string) (loadedSource, error) {
 			_ = os.RemoveAll(tempDir)
 			return loadedSource{}, fmt.Errorf("extract bundle: %w", err)
 		}
-		if err := bundle.RequireChecksums(tempDir); err != nil {
+		if err := bundle.RequireChecksums(tempDir, InstallMetaFile, UserInstalledMarker); err != nil {
 			_ = os.RemoveAll(tempDir)
 			return loadedSource{}, fmt.Errorf("validate checksums: %w", err)
 		}
@@ -114,7 +114,7 @@ func loadSource(path string) (loadedSource, error) {
 	if err != nil {
 		return loadedSource{}, err
 	}
-	if err := bundle.ValidateChecksums(path); err != nil {
+	if err := bundle.ValidateChecksums(path, InstallMetaFile, UserInstalledMarker); err != nil {
 		return loadedSource{}, err
 	}
 	return loadedSource{plugin: plugin}, nil
