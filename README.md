@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>Portable and secure SSH-first remote connection manager.</strong><br/>
+  <strong>Portable, secure remote-access platform — SSH out of the box, extensible via out-of-process plugins.</strong><br/>
 </p>
 
 <p align="center">
@@ -21,20 +21,21 @@
 
 ## Scope
 
-xQuakShell is an **SSH-first** remote connection manager: terminal, SFTP, jump hosts, and host key verification are built on SSH.
+xQuakShell is a remote-access platform. Out of the box it ships a complete **SSH** stack: terminal, SFTP, jump hosts, port forwarding, and strict host key verification. Everything else is added through plugins rather than baked into the core.
 
-**Current support:** only **SSH** is implemented in the shipped core. Other session protocols are not available yet.
+**Protocols are plugins, not a hardcoded list.** The shipped SSH connector is itself just one implementation of the `SessionConnector` interface. A `ConnectionProtocolContribution` schema lets a plugin register a new protocol — its own connection fields, auth flow, and session type — without touching core code. Today SSH is the only protocol installed; RDP/VNC/other protocols are things you can build, not things you have to wait for us to ship.
 
-**Extensibility:** the core is designed to be extended—custom session protocols via the `SessionConnector` plugin seam, and integrations through documented Go and Wails API entry points (vault, sessions, transfers). See [Architecture](./docs/architecture.md) and [Contributing](./CONTRIBUTING.md).
+**Plugins run out-of-process.** Each plugin is a separate sandboxed process, talking to the core over a framed IPC channel with backpressure. Access to filesystem, network, tunnels, and vault is mediated by an explicit capability layer — a plugin only gets what it's granted, so a bad or malicious plugin can't reach past its sandbox into the rest of the app. Plugins can be installed directly from GitHub. See [Architecture](./docs/architecture.md) and [Contributing](./CONTRIBUTING.md).
 
 ---
 
 ## Features
 
-- Encrypted vault (`vault.age`) for connections, keys, credentials, known hosts.
-- SSH-first core: integrated terminal + SFTP file manager (upload/download/rename/delete/create).
-- Multi-tab SSH session workflow with independent lifecycle.
-- Strict SSH host key verification, jump hosts.
+- Encrypted vault (`vault.age`) for connections, keys, credentials, known hosts — protected by a master password (age + scrypt).
+- SSH terminal + SFTP file manager (upload/download/rename/delete/create), multi-tab sessions with independent lifecycle.
+- Jump hosts and strict host key verification (no silent auto-accept).
+- Local/remote/dynamic port forwarding.
+- Out-of-process plugin system: sandboxed, capability-gated, extensible to new connection protocols — installable from GitHub.
 - Portable Windows build with bundled WebView2 runtime (`make portable`).
 
 ## Screenshots
