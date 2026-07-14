@@ -794,11 +794,12 @@ export async function installPlugin(
 }
 
 /**
- * Composed public install: performs the atomic install RPC
- * (installGitHubPluginRpc, in api/githubPlugins.ts) then refreshes the
- * protocol cache — matching the original combined installGitHubPlugin
- * behavior. This shim is interim; Task 3.4 relocates the composition into
- * actions/protocolActions.ts.
+ * Composed public install: performs only the atomic install RPC
+ * (installGitHubPluginRpc, in api/githubPlugins.ts). It does NOT refresh
+ * the protocol cache — matching the original installGitHubPlugin behavior,
+ * which never refreshed it either. This differs from uninstallGitHubPlugin
+ * below, which does refresh the protocol cache. This shim is interim;
+ * Task 3.4 relocates the composition into actions/protocolActions.ts.
  */
 export async function installGitHubPlugin(
   repoURL: string,
