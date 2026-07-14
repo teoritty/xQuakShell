@@ -10,6 +10,20 @@ import {
 } from './appState';
 import { get, writable } from 'svelte/store';
 import { getGateway, getRuntime } from '../backend/context';
+import {
+  fetchFolders,
+  putFolder,
+  deleteFolderById,
+  moveFolderTo,
+  reorderFoldersIn,
+} from '../api/folders';
+import {
+  fetchConnections,
+  putConnection,
+  deleteConnectionById,
+  moveConnectionsTo,
+  reorderConnectionsIn,
+} from '../api/connections';
 import { disposeTerminal } from '../lib/terminalPool';
 import { normalizeHotkey } from '../hotkeys/hotkeys';
 import {
@@ -142,23 +156,15 @@ export async function lockVault(): Promise<void> {
 export async function refreshFolders(): Promise<void> {
   const app = getApp();
   if (!app) return;
-  try {
-    const result: Folder[] = await app.GetFolders();
-    folders.set(result || []);
-  } catch (e) {
-    handleError(e, 'Refresh folders');
-  }
+  const result = await fetchFolders();
+  folders.set(result || []);
 }
 
 export async function refreshAllConnections(): Promise<void> {
   const app = getApp();
   if (!app) return;
-  try {
-    const result: Connection[] = await app.GetAllConnections();
-    connections.set(result || []);
-  } catch (e) {
-    handleError(e, 'Refresh connections');
-  }
+  const result = await fetchConnections();
+  connections.set(result || []);
 }
 
 export async function refreshIdentities(): Promise<void> {
@@ -173,41 +179,31 @@ export async function refreshIdentities(): Promise<void> {
 }
 
 export async function saveFolder(f: Partial<Folder>): Promise<Folder | null> {
-  const app = getApp();
-  if (!app) return null;
-  try {
-    const saved: Folder = await app.SaveFolder(f);
+  const saved = await putFolder(f);
+  if (saved) {
     await refreshFolders();
-    return saved;
-  } catch (e) {
-    handleError(e, 'Save folder');
-    return null;
   }
+  return saved;
 }
 
 export async function deleteFolder(id: string): Promise<void> {
   const app = getApp();
   if (!app) return;
   try {
-    await app.DeleteFolder(id);
+    await deleteFolderById(id);
     await refreshFolders();
     await refreshAllConnections();
-  } catch (e) {
-    handleError(e, 'Delete folder');
+  } catch {
+    // Error already reported by deleteFolderById via showError; skip refresh.
   }
 }
 
 export async function saveConnection(c: Partial<Connection>): Promise<Connection | null> {
-  const app = getApp();
-  if (!app) return null;
-  try {
-    const saved: Connection = await app.SaveConnection(c);
+  const saved = await putConnection(c);
+  if (saved) {
     await refreshAllConnections();
-    return saved;
-  } catch (e) {
-    handleError(e, 'Save connection');
-    return null;
   }
+  return saved;
 }
 
 export async function createNewConnectionInFolder(folderId: string): Promise<Connection | null> {
@@ -241,10 +237,10 @@ export async function deleteConnection(id: string): Promise<void> {
   const app = getApp();
   if (!app) return;
   try {
-    await app.DeleteConnection(id);
+    await deleteConnectionById(id);
     await refreshAllConnections();
-  } catch (e) {
-    handleError(e, 'Delete connection');
+  } catch {
+    // Error already reported by deleteConnectionById via showError; skip refresh.
   }
 }
 
@@ -252,10 +248,10 @@ export async function moveConnections(connectionIds: string[], targetFolderId: s
   const app = getApp();
   if (!app) return;
   try {
-    await app.MoveConnections(connectionIds, targetFolderId);
+    await moveConnectionsTo(connectionIds, targetFolderId);
     await refreshAllConnections();
-  } catch (e) {
-    handleError(e, 'Move connections');
+  } catch {
+    // Error already reported by moveConnectionsTo via showError; skip refresh.
   }
 }
 
@@ -263,10 +259,10 @@ export async function moveFolder(folderId: string, targetParentId: string): Prom
   const app = getApp();
   if (!app) return;
   try {
-    await app.MoveFolder(folderId, targetParentId);
+    await moveFolderTo(folderId, targetParentId);
     await refreshFolders();
-  } catch (e) {
-    handleError(e, 'Move folder');
+  } catch {
+    // Error already reported by moveFolderTo via showError; skip refresh.
   }
 }
 
@@ -275,11 +271,11 @@ export async function moveFolders(folderIds: string[], targetParentId: string): 
   if (!app || folderIds.length === 0) return;
   try {
     for (const folderId of folderIds) {
-      await app.MoveFolder(folderId, targetParentId);
+      await moveFolderTo(folderId, targetParentId);
     }
     await refreshFolders();
-  } catch (e) {
-    handleError(e, 'Move folders');
+  } catch {
+    // Error already reported by moveFolderTo via showError; skip refresh.
   }
 }
 
@@ -287,10 +283,10 @@ export async function reorderConnections(connectionIds: string[], folderId: stri
   const app = getApp();
   if (!app) return;
   try {
-    await app.ReorderConnections(connectionIds, folderId);
+    await reorderConnectionsIn(connectionIds, folderId);
     await refreshAllConnections();
-  } catch (e) {
-    handleError(e, 'Reorder connections');
+  } catch {
+    // Error already reported by reorderConnectionsIn via showError; skip refresh.
   }
 }
 
@@ -298,10 +294,10 @@ export async function reorderFolders(folderIds: string[], parentId: string): Pro
   const app = getApp();
   if (!app) return;
   try {
-    await app.ReorderFolders(folderIds, parentId);
+    await reorderFoldersIn(folderIds, parentId);
     await refreshFolders();
-  } catch (e) {
-    handleError(e, 'Reorder folders');
+  } catch {
+    // Error already reported by reorderFoldersIn via showError; skip refresh.
   }
 }
 
