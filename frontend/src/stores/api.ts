@@ -633,45 +633,24 @@ export function subscribeToEvents(): void {
   });
 }
 
-export interface PluginInfo {
-  id: string;
-  name: string;
-  version: string;
-  description: string;
-  source: string;
-  state: string;
-  requiresSecretAccess: boolean;
-  signed: boolean;
-  enabled: boolean;
-}
-
-export interface PluginInstallPreview {
-  id: string;
-  name: string;
-  version: string;
-  description: string;
-  signed: boolean;
-  signatureVerified: boolean;
-  checksumPresent: boolean;
-  requiresSecretAccess: boolean;
-  requiresAuthProviderAccess?: boolean;
-  requiresTunnelProviderAccess?: boolean;
-  multiSessionWarning?: boolean;
-  arbitraryNetworkWarning?: boolean;
-  unsignedWarning: boolean;
-  untrustedSignatureWarning: boolean;
-  permissions: string[];
-}
-
-export interface PluginSettings {
-  trustedPublisherKeys: string[];
-  requireSignedPlugins: boolean;
-}
-
-export interface PluginPublisherKeyPair {
-  publicKey: string;
-  privateKey: string;
-}
+export {
+  type PluginInfo,
+  type PluginInstallPreview,
+  type PluginSettings,
+  type PluginPublisherKeyPair,
+  listPlugins,
+  pingPlugin,
+  setPluginEnabled,
+  selectPluginSourceDir,
+  selectPluginBundleFile,
+  getPluginSettings,
+  savePluginSettings,
+  generatePluginPublisherKeyPair,
+  previewPluginInstall,
+  installPluginRpc,
+} from '../api/plugins';
+import type { PluginInfo } from '../api/plugins';
+import { installPluginRpc } from '../api/plugins';
 
 export interface FieldDef {
   id: string;
@@ -764,104 +743,12 @@ export function invalidateProtocolsCache(): void {
   protocolsCache = null;
 }
 
-export async function listPlugins(): Promise<PluginInfo[]> {
-  const app = getApp();
-  if (!app?.ListPlugins) return [];
-  try {
-    return await app.ListPlugins();
-  } catch (e) {
-    handleError(e, 'List plugins');
-    return [];
-  }
-}
-
-export async function pingPlugin(pluginId: string): Promise<void> {
-  const app = getApp();
-  if (!app?.PingPlugin) return;
-  try {
-    await app.PingPlugin(pluginId);
-  } catch (e) {
-    handleError(e, 'Ping plugin');
-  }
-}
-
-export async function setPluginEnabled(pluginId: string, enabled: boolean): Promise<void> {
-  const app = getApp();
-  if (!app?.SetPluginEnabled) return;
-  try {
-    await app.SetPluginEnabled(pluginId, enabled);
-  } catch (e) {
-    handleError(e, 'Set plugin enabled');
-  }
-}
-
-export async function selectPluginSourceDir(): Promise<string> {
-  const app = getApp();
-  if (!app?.SelectPluginSourceDir) return '';
-  try {
-    return await app.SelectPluginSourceDir();
-  } catch (e) {
-    handleError(e, 'Select plugin folder');
-    return '';
-  }
-}
-
-export async function selectPluginBundleFile(): Promise<string> {
-  const app = getApp();
-  if (!app?.SelectPluginBundleFile) return '';
-  try {
-    return await app.SelectPluginBundleFile();
-  } catch (e) {
-    handleError(e, 'Select plugin bundle');
-    return '';
-  }
-}
-
-export async function getPluginSettings(): Promise<PluginSettings> {
-  const app = getApp();
-  if (!app?.GetPluginSettings) {
-    return { trustedPublisherKeys: [], requireSignedPlugins: false };
-  }
-  try {
-    return await app.GetPluginSettings();
-  } catch (e) {
-    handleError(e, 'Load plugin settings');
-    return { trustedPublisherKeys: [], requireSignedPlugins: false };
-  }
-}
-
-export async function savePluginSettings(settings: PluginSettings): Promise<void> {
-  const app = getApp();
-  if (!app?.SavePluginSettings) return;
-  try {
-    await app.SavePluginSettings(settings);
-  } catch (e) {
-    handleError(e, 'Save plugin settings');
-    throw e;
-  }
-}
-
-export async function generatePluginPublisherKeyPair(): Promise<PluginPublisherKeyPair> {
-  const app = getApp();
-  if (!app?.GeneratePluginPublisherKeyPair) {
-    return { publicKey: '', privateKey: '' };
-  }
-  try {
-    return await app.GeneratePluginPublisherKeyPair();
-  } catch (e) {
-    handleError(e, 'Generate publisher keys');
-    return { publicKey: '', privateKey: '' };
-  }
-}
-
-export async function previewPluginInstall(sourceDir: string): Promise<PluginInstallPreview> {
-  const app = getApp();
-  if (!app?.PreviewPluginInstall) {
-    throw new Error('Plugin install is unavailable');
-  }
-  return await app.PreviewPluginInstall(sourceDir);
-}
-
+/**
+ * Composed public install: performs the atomic install RPC (installPluginRpc,
+ * in api/plugins.ts) then refreshes the protocol cache — matching the
+ * original combined installPlugin behavior. This shim is interim; Task 3.4
+ * relocates the composition into actions/protocolActions.ts.
+ */
 export async function installPlugin(
   sourceDir: string,
   grantSecretAccess = false,
@@ -870,19 +757,10 @@ export async function installPlugin(
   grantMultiSessionAccess = false,
   grantArbitraryNetworkAccess = false,
 ): Promise<PluginInfo> {
-  const app = getApp();
-  if (!app?.InstallPlugin) {
-    throw new Error('Plugin install is unavailable');
-  }
-  try {
-    const result = await app.InstallPlugin(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
-    invalidateProtocolsCache();
-    await refreshConnectionProtocols();
-    return result;
-  } catch (e) {
-    handleError(e, 'Install plugin');
-    throw e;
-  }
+  const result = await installPluginRpc(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
+  invalidateProtocolsCache();
+  await refreshConnectionProtocols();
+  return result;
 }
 
 export interface GitHubRepository {
