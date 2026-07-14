@@ -45,6 +45,20 @@ import {
   disableAuditSecretLogging,
 } from '../api/audit';
 import { disposeTerminal } from '../lib/terminalPool';
+import { unlockVaultRpc, lockVaultRpc } from '../api/vault';
+import {
+  openSessionRpc,
+  closeSessionRpc,
+  resolveHostKeyRpc,
+  getPlatform,
+} from '../api/sessions';
+
+export {
+  reportEmbedViewport,
+  reportEmbedActivity,
+  getPlatform,
+} from '../api/sessions';
+export { sendTerminalInput, terminalResize } from '../api/terminal';
 import {
   appendPendingTerminalOutput,
   clearPendingTerminalOutput,
@@ -91,7 +105,7 @@ function handleError(e: unknown, context?: string) {
 export async function unlockVault(masterPassword: string): Promise<void> {
   const app = getApp();
   if (!app) return;
-  await app.UnlockVault(masterPassword);
+  await unlockVaultRpc(masterPassword);
   vaultUnlocked.set(true);
   const p = await getPlatform();
   platform.set(p);
@@ -106,7 +120,7 @@ export async function lockVault(): Promise<void> {
   const app = getApp();
   if (!app) return;
   try {
-    await app.LockVault();
+    await lockVaultRpc();
   } catch (e) {
     handleError(e, 'Lock vault');
   }
@@ -267,7 +281,7 @@ export async function openSession(connectionId: string): Promise<string | null> 
   const app = getApp();
   if (!app) return null;
   try {
-    const sessionId: string = await app.OpenSession(connectionId);
+    const sessionId: string = await openSessionRpc(connectionId);
     const conn = get(connections).find(c => c.id === connectionId);
     // Optimistic UI: show tab immediately, then backend events refine state.
     sessions.update((list) => {
@@ -298,38 +312,13 @@ export async function closeSession(sessionId: string): Promise<void> {
   // Optimistic UI: remove tab immediately so tree/tab status updates without waiting for the event round-trip.
   sessions.update((list) => list.filter((s) => s.sessionId !== sessionId));
   try {
-    await app.CloseSession(sessionId);
+    await closeSessionRpc(sessionId);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.toLowerCase().includes('session not found')) {
       return;
     }
     handleError(e, 'Close session');
-  }
-}
-
-export async function reportEmbedViewport(
-  sessionId: string,
-  widthPx: number,
-  heightPx: number,
-  devicePixelRatio: number,
-): Promise<void> {
-  const app = getApp();
-  if (!app?.ReportEmbedViewport) return;
-  try {
-    await app.ReportEmbedViewport(sessionId, widthPx, heightPx, devicePixelRatio);
-  } catch (e) {
-    handleError(e, 'Report embed viewport');
-  }
-}
-
-export async function reportEmbedActivity(sessionId: string, active: boolean): Promise<void> {
-  const app = getApp();
-  if (!app?.ReportEmbedActivity) return;
-  try {
-    await app.ReportEmbedActivity(sessionId, active);
-  } catch (e) {
-    handleError(e, 'Report embed activity');
   }
 }
 
@@ -370,45 +359,8 @@ export async function closeActiveSession(): Promise<void> {
   }
 }
 
-export async function getPlatform(): Promise<string> {
-  const app = getApp();
-  if (!app) return 'unknown';
-  try {
-    return await app.GetPlatform();
-  } catch {
-    return 'unknown';
-  }
-}
-
 export async function resolveHostKey(sessionId: string, action: string, host: string, authorizedKey: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.ResolveHostKey(sessionId, action, host, authorizedKey);
-    pendingHostKey.set(null);
-  } catch (e) {
-    handleError(e, 'Resolve host key');
-  }
-}
-
-export async function sendTerminalInput(sessionId: string, data: string, commandLine = ''): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.SendTerminalInput(sessionId, data, commandLine);
-  } catch (e) {
-    console.debug('[terminal input]', sessionId, e);
-  }
-}
-
-export async function terminalResize(sessionId: string, cols: number, rows: number): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.TerminalResize(sessionId, cols, rows);
-  } catch (e) {
-    // resize errors are non-critical
-  }
+  return resolveHostKeyRpc(sessionId, action, host, authorizedKey);
 }
 
 import {
