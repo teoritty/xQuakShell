@@ -12,8 +12,6 @@
 
     previewPluginInstall,
 
-    installPlugin,
-
     pingPlugin,
     setPluginEnabled,
 
@@ -22,6 +20,16 @@
     savePluginSettings,
 
     generatePluginPublisherKeyPair,
+
+    type PluginInfo,
+
+    type PluginInstallPreview,
+
+    type PluginSettings,
+
+  } from '../api/plugins';
+
+  import {
 
     listGitHubRepositories,
 
@@ -35,16 +43,6 @@
 
     previewGitHubPluginInstall,
 
-    installGitHubPlugin,
-
-    uninstallGitHubPlugin,
-
-    type PluginInfo,
-
-    type PluginInstallPreview,
-
-    type PluginSettings,
-
     type GitHubRepository,
 
     type GitHubPluginMetadata,
@@ -53,7 +51,9 @@
 
     type GitHubReleaseSummary,
 
-  } from '../stores/api';
+  } from '../api/githubPlugins';
+
+  import { installPlugin, installGitHubPlugin, uninstallGitHubPlugin } from '../actions/protocolActions';
 
   import ConfirmDialog from './ConfirmDialog.svelte';
   import Modal from './Modal.svelte';

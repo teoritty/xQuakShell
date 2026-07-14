@@ -1,4 +1,4 @@
-import type { GitHubPluginMetadata } from '../stores/api';
+import type { GitHubPluginMetadata } from '../api/githubPlugins';
 
 export function defaultReleaseTagForPlugin(plugin: GitHubPluginMetadata): string {
   if (plugin.installed && plugin.installedReleaseTag) {

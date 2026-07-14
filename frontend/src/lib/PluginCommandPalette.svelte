@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { getPluginContributions, executePluginCommand, type PluginCommand } from '../stores/api';
+  import { getPluginContributions, executePluginCommand, type PluginCommand } from '../api/pluginRuntime';
   import { Search, X } from 'lucide-svelte';
 
   export let open = false;

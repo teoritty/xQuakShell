@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { listLocalPath, getUserHomeDir, removeLocalPath, mkdirLocalPath, createLocalFile, renameLocalPath, copyLocalPath, openFileWithSystem, type LocalNode } from '../stores/api';
+  import { listLocalPath, getUserHomeDir, removeLocalPath, mkdirLocalPath, createLocalFile, renameLocalPath, openFileWithSystem, type LocalNode } from '../api/localFs';
+  import { copyLocalPath } from '../api/remoteFs';
   import { transferCompleted } from '../stores/appState';
   import { registerOsDropZone, resolveOsDropTarget, isFileDrag, isInternalFileDrag } from './osFileDrop';
   import { isInvalidMove } from './pathMove';

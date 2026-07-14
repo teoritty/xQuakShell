@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { LocalNode } from '../stores/api';
+  import type { LocalNode } from '../api/localFs';
   import { focusSelect } from './focusSelect';
   import { Folder as FolderIcon, FolderOpen, File, Loader2, ChevronRight, ChevronDown } from 'lucide-svelte';
 
