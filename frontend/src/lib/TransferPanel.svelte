@@ -3,6 +3,9 @@
   import { uploadFile, downloadFile, cancelTransfer, selectLocalFile, selectLocalDirectory } from '../stores/api';
   import { Upload, Download, ChevronDown, ChevronRight, X, RefreshCw, Trash2, Lock, User } from 'lucide-svelte';
   import type { ComponentType } from 'svelte';
+  import { onMount } from 'svelte';
+  import { createRateTracker } from './transferRate';
+  import { formatBytesPerSec } from './formatBytes';
 
   const KIND_ICON: Record<OperationKind, ComponentType> = {
     upload: Upload,
@@ -39,14 +42,60 @@
   export let sessionId: string;
 
   let collapsed = true;
+  // When true the panel is fully hidden (dismissed via the close button), as
+  // opposed to `collapsed` which only folds the list away. A new batch of
+  // transfers clears it so the panel comes back.
+  let dismissed = false;
   let prevCount = 0;
   let notifiedIds = new Set<string>();
 
   $: activeTransfers = $transfers.filter(t => t.sessionId === sessionId || !t.sessionId);
 
+  // Byte-rate estimation lives in the presentation layer (see transferRate.ts).
+  // Only byte transfers (upload/download) have a meaningful rate; remote ops
+  // (delete/chmod/chown) and scanning do not.
+  //
+  // Sampling is driven by a fixed tick rather than the progress-event stream:
+  // events arrive many times per second, which made the displayed speed
+  // flicker unreadably. Refreshing twice per second keeps the number legible
+  // while the EMA in the tracker smooths short bursts.
+  const SPEED_REFRESH_MS = 500;
+  const rateTracker = createRateTracker();
+  let speeds: Record<string, string> = {};
+  let sampledIds = new Set<string>();
+
+  onMount(() => {
+    const iv = setInterval(refreshSpeeds, SPEED_REFRESH_MS);
+    return () => clearInterval(iv);
+  });
+
+  function refreshSpeeds() {
+    const now = Date.now();
+    const next: Record<string, string> = {};
+    const active = new Set<string>();
+    for (const t of activeTransfers) {
+      if ((t.kind === 'upload' || t.kind === 'download') && t.state === 'active') {
+        active.add(t.id);
+        const text = formatBytesPerSec(rateTracker.sample(t.id, t.done, now));
+        if (text) next[t.id] = text;
+      }
+    }
+    // Release tracker state for transfers that are no longer active.
+    for (const id of sampledIds) {
+      if (!active.has(id)) rateTracker.clear(id);
+    }
+    sampledIds = active;
+    speeds = next;
+  }
+
   $: {
-    if (activeTransfers.length > prevCount && prevCount === 0) {
-      collapsed = false;
+    // Completed transfers stay in the list, so the count never returns to 0
+    // within a session. Detect a *new* operation by the list growing, and
+    // use that both to re-show a dismissed panel and to auto-open on the
+    // first batch.
+    if (activeTransfers.length > prevCount) {
+      dismissed = false;
+      if (prevCount === 0) collapsed = false;
     }
     prevCount = activeTransfers.length;
   }
@@ -138,7 +187,7 @@
   }
 </script>
 
-{#if hasActive}
+{#if hasActive && !dismissed}
   <div class="transfer-panel">
     <div
       class="panel-header clickable"
@@ -154,6 +203,7 @@
       <div class="actions" on:click|stopPropagation on:keydown|stopPropagation>
         <!-- <button on:click={startUpload} title="Upload file"><Upload size={11} /> Upload</button>
         <button on:click={startDownload} title="Download file"><Download size={11} /> Download</button> -->
+        <button class="cancel-btn" on:click={() => dismissed = true} title="Close"><X size={13} /></button>
       </div>
     </div>
 
@@ -177,7 +227,10 @@
               <div class="progress-bar" class:indeterminate={isIndeterminate(item) || isScanning(item)}>
                 <div class="progress-fill" style="width: {(isIndeterminate(item) || isScanning(item)) ? 100 : progressPercent(item)}%"></div>
               </div>
-              <div class="progress-text">{progressText(item)}</div>
+              <div class="progress-text">
+                {#if speeds[item.id]}<span class="progress-speed">{speeds[item.id]}</span>{/if}
+                <span>{progressText(item)}</span>
+              </div>
             {/if}
           </div>
         {/each}
@@ -323,7 +376,16 @@
   .progress-text {
     font-size: 10px;
     color: var(--text-secondary);
-    text-align: right;
+    display: flex;
+    justify-content: flex-end;
+    align-items: baseline;
     margin-top: 1px;
+  }
+
+  /* Speed sits to the left of the percent; margin-right:auto keeps the
+     percent pinned right whether or not a speed is shown. */
+  .progress-speed {
+    margin-right: auto;
+    font-variant-numeric: tabular-nums;
   }
 </style>

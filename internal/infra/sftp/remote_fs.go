@@ -22,8 +22,6 @@ func sanitizeLocalPath(p string) string {
 	return filepath.Clean(p)
 }
 
-const transferChunkSize = 32 * 1024
-
 // RemoteFS implements domain.RemoteFS using an SFTP client.
 type RemoteFS struct {
 	client       *sftp.Client
@@ -113,38 +111,28 @@ func (fs *RemoteFS) Upload(ctx context.Context, localPath, remotePath string, pr
 	}
 	defer remoteFile.Close()
 
-	buf := make([]byte, transferChunkSize)
-	var done int64
-	src := io.Reader(localFile)
+	// Feed the upload through a progress-reporting, cancellable reader. The
+	// throttle (if any) sits underneath so the reported progress reflects the
+	// throttled delivery rate. progressReader exposes Size(), which is what
+	// lets ReadFrom pipeline concurrent writes.
+	var src io.Reader = localFile
 	if fs.rateLimitKbps > 0 {
 		src = newThrottledReader(ctx, localFile, fs.rateLimitKbps)
 	}
+	metered := &progressReader{r: src, ctx: ctx, total: totalSize, progress: progress}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
+	if _, err := remoteFile.ReadFrom(metered); err != nil {
+		// Concurrent writes can leave a file longer than the last contiguously
+		// written byte on error (holes), so the partial upload is never a
+		// valid file — remove it rather than leave corruption behind. Use a
+		// background context so cleanup still runs when ctx is the cause.
+		_ = remoteFile.Close()
+		_ = fs.client.Remove(remotePath)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
 		}
-
-		n, readErr := src.Read(buf)
-		if n > 0 {
-			if _, writeErr := remoteFile.Write(buf[:n]); writeErr != nil {
-				return fmt.Errorf("sftp upload write: %w", writeErr)
-			}
-			done += int64(n)
-			if progress != nil {
-				progress(done, totalSize)
-			}
-		}
-		if readErr == io.EOF {
-			break
-		}
-		if readErr != nil {
-			return fmt.Errorf("sftp upload read: %w", readErr)
-		}
+		return fmt.Errorf("sftp upload %s: %w", remotePath, err)
 	}
-
 	return nil
 }
 
@@ -171,38 +159,21 @@ func (fs *RemoteFS) Download(ctx context.Context, remotePath, localPath string, 
 	}
 	defer localFile.Close()
 
-	buf := make([]byte, transferChunkSize)
-	var done int64
-	src := io.Reader(remoteFile)
+	// WriteTo owns the (concurrent) read side and writes to our writer
+	// sequentially, in offset order, so the destination is the stream we
+	// wrap: progress + cancellation, with the throttle underneath.
+	var dst io.Writer = localFile
 	if fs.rateLimitKbps > 0 {
-		src = newThrottledReader(ctx, remoteFile, fs.rateLimitKbps)
+		dst = newThrottledWriter(ctx, localFile, fs.rateLimitKbps)
 	}
+	metered := &progressWriter{w: dst, ctx: ctx, total: totalSize, progress: progress}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
+	if _, err := remoteFile.WriteTo(metered); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
 		}
-
-		n, readErr := src.Read(buf)
-		if n > 0 {
-			if _, writeErr := localFile.Write(buf[:n]); writeErr != nil {
-				return fmt.Errorf("sftp download write: %w", writeErr)
-			}
-			done += int64(n)
-			if progress != nil {
-				progress(done, totalSize)
-			}
-		}
-		if readErr == io.EOF {
-			break
-		}
-		if readErr != nil {
-			return fmt.Errorf("sftp download read: %w", readErr)
-		}
+		return fmt.Errorf("sftp download %s: %w", remotePath, err)
 	}
-
 	return nil
 }
 

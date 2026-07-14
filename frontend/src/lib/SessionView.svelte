@@ -6,10 +6,13 @@
   import TransferPanel from './TransferPanel.svelte';
   import type { Session } from '../stores/appState';
   import { closeSession, openSession, uploadFile, downloadFile, connectionProtocols } from '../stores/api';
+  import { hasFilePanel } from './filePanelCapability';
   import { Loader2, XCircle, Circle } from 'lucide-svelte';
 
   export let session: Session;
   export let active: boolean = false;
+  /** When true, the tile has collapsed its file browser column. */
+  export let filesCollapsed: boolean = false;
 
   let splitRatio = 70;
   let isDragging = false;
@@ -17,8 +20,11 @@
   let fileDragging = false;
 
   $: protocols = $connectionProtocols;
-  $: currentProtocol = protocols.find((p) => p.id === (session.protocol || 'ssh')) ?? null;
-  $: showFilePanel = session.state === 'ready' && (session.protocol === 'ssh' || currentProtocol?.remoteFs === true);
+  // Session supports a remote file browser (capability).
+  $: showFilePanel = hasFilePanel(session, protocols);
+  // Whether the file column is actually shown right now (capability minus the
+  // per-tile collapse). The Transfers bar stays tied to the capability below.
+  $: filesVisible = showFilePanel && !filesCollapsed;
 
   function startHResize(e: MouseEvent) {
     isDragging = true;
@@ -99,19 +105,19 @@
       </div>
     </div>
   {:else if session.state === 'ready'}
-    <div class="session-content" class:no-select={isDragging || fileDragging} class:terminal-only={!showFilePanel}>
+    <div class="session-content" class:no-select={isDragging || fileDragging} class:terminal-only={!filesVisible}>
       {#if session.surface === 'embed' && session.embed}
-        <div class="embed-area" style="flex: {showFilePanel ? splitRatio : 100}">
+        <div class="embed-area" style="flex: {filesVisible ? splitRatio : 100}">
           <SessionEmbedPanel {session} {active} />
         </div>
       {:else}
-      <div class="terminal-area" style="flex: {showFilePanel ? splitRatio : 100}">
+      <div class="terminal-area" style="flex: {filesVisible ? splitRatio : 100}">
         {#key session.sessionId}
           <Terminal sessionId={session.sessionId} {active} />
         {/key}
       </div>
       {/if}
-      {#if showFilePanel}
+      {#if filesVisible}
       <div
         class="split-handle-h"
         on:mousedown={startHResize}

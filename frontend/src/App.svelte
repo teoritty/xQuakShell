@@ -1,8 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Sidebar from './lib/Sidebar.svelte';
-  import TabBar from './lib/TabBar.svelte';
-  import SessionView from './lib/SessionView.svelte';
+  import TileGrid from './lib/tiles/TileGrid.svelte';
   import VaultUnlock from './lib/VaultUnlock.svelte';
   import KnownHostsManager from './lib/KnownHostsManager.svelte';
   import HostKeyDialog from './lib/HostKeyDialog.svelte';
@@ -186,7 +185,7 @@
     <Sidebar />
     <div class="main-area">
       <div class="top-bar">
-        <TabBar />
+        <div class="top-bar-spacer"></div>
         <div class="top-bar-actions">
           <button class="ghost top-btn" on:click={() => showScripts = true} title="Scripts">
             <Terminal size={14} />
@@ -229,13 +228,9 @@
               <div class="hint"><span class="hint-key">Ctrl+Shift+P</span> Command palette</div>
             </div>
           </div>
+        {:else}
+          <TileGrid />
         {/if}
-        {#each $sessions as session (session.sessionId)}
-          <SessionView
-            {session}
-            active={session.sessionId === $activeSessionId}
-          />
-        {/each}
       </div>
     </div>
   </div>
@@ -325,6 +320,10 @@
     border-bottom: none;
   }
 
+  .top-bar-spacer {
+    flex: 1;
+    min-width: 0;
+  }
   .top-bar-actions {
     display: flex;
     align-items: center;

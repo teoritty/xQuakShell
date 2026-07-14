@@ -146,6 +146,17 @@
   flex-shrink: 0;
 }
 
+/* Shown in place of the dot while a host has not been pinged yet. Occupies the
+   same slot as .ping-dot so the row layout doesn't shift when it resolves. */
+.remote-tree .ping-spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  animation: remote-tree-spin 1s linear infinite;
+}
+
 .remote-tree .conn-status {
   display: inline-flex;
   flex-shrink: 0;
