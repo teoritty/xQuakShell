@@ -5,7 +5,9 @@
   import LocalFileTree from './LocalFileTree.svelte';
   import TransferPanel from './TransferPanel.svelte';
   import type { Session } from '../stores/appState';
-  import { closeSession, openSession, uploadFile, downloadFile, connectionProtocols } from '../stores/api';
+  import { closeSession, openSession } from '../actions/sessionActions';
+  import { uploadFile, downloadFile } from '../api/remoteFs';
+  import { connectionProtocols } from '../actions/protocolActions';
   import { hasFilePanel } from './filePanelCapability';
   import { Loader2, XCircle, Circle } from 'lucide-svelte';
 

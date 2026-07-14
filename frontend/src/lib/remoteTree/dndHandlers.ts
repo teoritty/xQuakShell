@@ -1,4 +1,5 @@
-import { moveConnections, moveFolder, moveFolders, reorderConnections, reorderFolders } from '../../stores/api';
+import { moveConnections, reorderConnections } from '../../actions/connectionActions';
+import { moveFolder, moveFolders, reorderFolders } from '../../actions/folderActions';
 import type { Connection, Folder } from '../../stores/appState';
 import {
   allowsReorder,

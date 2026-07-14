@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { preparePluginViewPanel, relayPluginViewMessage, releasePluginViewPanel } from '../stores/api';
+  import { preparePluginViewPanel, relayPluginViewMessage, releasePluginViewPanel } from '../api/pluginRuntime';
 
   export let pluginId: string;
   export let panelId: string;

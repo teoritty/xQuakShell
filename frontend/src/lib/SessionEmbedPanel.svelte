@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import type { Session } from '../stores/appState';
-  import { reportEmbedActivity, reportEmbedViewport } from '../stores/api';
+  import { reportEmbedActivity, reportEmbedViewport } from '../api/sessions';
 
   export let session: Session;
   export let active: boolean = false;
