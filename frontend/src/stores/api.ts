@@ -9,6 +9,7 @@ import {
   type HostKeyEvent, type PingResult
 } from './appState';
 import { get, writable } from 'svelte/store';
+import { getGateway, getRuntime } from '../backend/context';
 import { disposeTerminal } from '../lib/terminalPool';
 import {
   applyUiScalePercent,
@@ -78,12 +79,12 @@ export const DEFAULT_SESSION_HOTKEYS: SessionHotkeysSettings = {
   close: 'Ctrl+Shift+Q',
 };
 
-function getApp() {
-  return (window as any).go?.main?.App;
+function getApp(): any {
+  return getGateway();
 }
 
-function getWailsRuntime() {
-  return (window as any).runtime;
+function getWailsRuntime(): any {
+  return getRuntime();
 }
 
 function handleError(e: unknown, context?: string) {
