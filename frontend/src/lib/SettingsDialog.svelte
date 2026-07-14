@@ -3,16 +3,14 @@
   import Modal from './Modal.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import PluginSettingsPanel from './PluginSettingsPanel.svelte';
+  import { getSettings, saveSettings } from '../actions/settingsActions';
+  import { parseHotkeyEvent, normalizeHotkey } from '../hotkeys/hotkeys';
+  import { DEFAULT_SESSION_HOTKEYS } from '../api/settings';
   import {
-    getSettings,
-    saveSettings,
-    parseHotkeyEvent,
-    normalizeHotkey,
-    DEFAULT_SESSION_HOTKEYS,
     getAuditSessionState,
     enableAuditSecretLogging,
     disableAuditSecretLogging,
-  } from '../stores/api';
+  } from '../api/audit';
   import {
     SETTINGS_TAB_LABELS,
     tabHasSearchMatches,

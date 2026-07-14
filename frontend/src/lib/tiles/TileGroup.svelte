@@ -16,7 +16,7 @@
   import { splitEdges, reorientEdges, isLoneTab } from './operations';
   import { zoneAt } from './dropZones';
   import { isTileTabDrag, readDragPayload } from './dragPayload';
-  import { connectionProtocols } from '../../stores/api';
+  import { connectionProtocols } from '../../actions/protocolActions';
   import { hasFilePanel } from '../filePanelCapability';
   import { collapsedTileFilePanels, toggleTileFilePanel } from '../../stores/tileFilePanel';
   import { Combine, PanelRightClose, PanelRightOpen } from 'lucide-svelte';

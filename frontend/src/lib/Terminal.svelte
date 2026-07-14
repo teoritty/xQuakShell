@@ -4,7 +4,9 @@
   import { FitAddon } from '@xterm/addon-fit';
   import { LigaturesAddon } from '@xterm/addon-ligatures';
   import { WebLinksAddon } from '@xterm/addon-web-links';
-  import { sendTerminalInput, terminalResize, getSettings, takePendingTerminalOutput, registerTerminalOutputConsumer, clearPendingTerminalOutput } from '../stores/api';
+  import { sendTerminalInput, terminalResize } from '../api/terminal';
+  import { getSettings } from '../actions/settingsActions';
+  import { takePendingTerminalOutput, registerTerminalOutputConsumer, clearPendingTerminalOutput } from '../terminal/outputBuffer';
   import { getUiScaleFactor } from './uiScale';
   import { dataHasEnter, extractCommandLine } from './terminalCommandLine';
   import { getPooledTerminal, setPooledTerminal } from './terminalPool';
