@@ -2,7 +2,7 @@
   import { connections, selectedConnectionId } from '../stores/appState';
   import type { Connection } from '../stores/appState';
   const filteredConnections = connections;
-  import { openSession } from '../stores/api';
+  import { openSession } from '../actions/sessionActions';
   import { connectionDisplayUsername } from './connectionDisplay';
 
   function selectConnection(id: string) {
