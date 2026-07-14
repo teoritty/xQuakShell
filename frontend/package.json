@@ -14,8 +14,9 @@
     "test:transfers": "tsx src/lib/formatBytes.test.ts && tsx src/lib/transferRate.test.ts",
     "test:backend": "tsx src/backend/context.test.ts && tsx src/backend/callBackend.test.ts",
     "test:hotkeys": "tsx src/hotkeys/hotkeys.test.ts",
+    "test:terminal": "tsx src/terminal/outputBuffer.test.ts",
     "test:characterization": "tsx src/characterization/seam.char.test.ts",
-    "test": "npm run test:dnd && npm run test:connection-details && npm run test:tiles && npm run test:transfers && npm run test:backend && npm run test:hotkeys && npm run test:characterization"
+    "test": "npm run test:dnd && npm run test:connection-details && npm run test:tiles && npm run test:transfers && npm run test:backend && npm run test:hotkeys && npm run test:terminal && npm run test:characterization"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^1.0.1",
