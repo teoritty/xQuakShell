@@ -47,8 +47,6 @@ import {
 import { disposeTerminal } from '../lib/terminalPool';
 import { unlockVaultRpc, lockVaultRpc } from '../api/vault';
 import {
-  openSessionRpc,
-  closeSessionRpc,
   resolveHostKeyRpc,
   getPlatform,
 } from '../api/sessions';
@@ -277,87 +275,14 @@ export async function reorderFolders(folderIds: string[], parentId: string): Pro
 
 export { importPassword, deletePassword };
 
-export async function openSession(connectionId: string): Promise<string | null> {
-  const app = getApp();
-  if (!app) return null;
-  try {
-    const sessionId: string = await openSessionRpc(connectionId);
-    const conn = get(connections).find(c => c.id === connectionId);
-    // Optimistic UI: show tab immediately, then backend events refine state.
-    sessions.update((list) => {
-      if (list.some((s) => s.sessionId === sessionId)) return list;
-      return [
-        ...list,
-        {
-          sessionId,
-          connectionId,
-          connectionName: conn?.name ?? 'Session',
-          protocol: conn?.protocol ?? 'ssh',
-          state: 'connecting',
-          errorMessage: '',
-        },
-      ];
-    });
-    activeSessionId.set(sessionId);
-    return sessionId;
-  } catch (e) {
-    handleError(e, 'Open session');
-    return null;
-  }
-}
-
-export async function closeSession(sessionId: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  // Optimistic UI: remove tab immediately so tree/tab status updates without waiting for the event round-trip.
-  sessions.update((list) => list.filter((s) => s.sessionId !== sessionId));
-  try {
-    await closeSessionRpc(sessionId);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.toLowerCase().includes('session not found')) {
-      return;
-    }
-    handleError(e, 'Close session');
-  }
-}
-
-export async function createSessionFromSelection(): Promise<void> {
-  const selectedId = get(selectedConnectionId);
-  const allConnections = get(connections);
-  const connectionId = selectedId || allConnections[0]?.id;
-  if (!connectionId) return;
-  await openSession(connectionId);
-}
-
-function cycleSession(direction: 1 | -1): void {
-  const list = get(sessions);
-  if (list.length === 0) return;
-  const currentId = get(activeSessionId);
-  const currentIdx = Math.max(0, list.findIndex((s) => s.sessionId === currentId));
-  const nextIdx = (currentIdx + direction + list.length) % list.length;
-  activeSessionId.set(list[nextIdx].sessionId);
-}
-
-export function focusNextSessionTab(): void {
-  cycleSession(1);
-}
-
-export function focusPrevSessionTab(): void {
-  cycleSession(-1);
-}
-
-export async function closeActiveSession(): Promise<void> {
-  const currentId = get(activeSessionId);
-  if (!currentId) return;
-  await closeSession(currentId);
-  const list = get(sessions);
-  if (list.length > 0) {
-    activeSessionId.set(list[list.length - 1].sessionId);
-  } else {
-    activeSessionId.set('');
-  }
-}
+export {
+  openSession,
+  closeSession,
+  createSessionFromSelection,
+  focusNextSessionTab,
+  focusPrevSessionTab,
+  closeActiveSession,
+} from '../actions/sessionActions';
 
 export async function resolveHostKey(sessionId: string, action: string, host: string, authorizedKey: string): Promise<void> {
   return resolveHostKeyRpc(sessionId, action, host, authorizedKey);
