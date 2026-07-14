@@ -24,6 +24,17 @@ import {
   moveConnectionsTo,
   reorderConnectionsIn,
 } from '../api/connections';
+import {
+  importPassword,
+  deletePassword,
+  fetchIdentities,
+  importIdentity,
+  importPuTTYPPK,
+  importPuTTYRegPreview,
+  importPuTTYRegAsConnections,
+  type PuTTYSessionPreview,
+} from '../api/credentials';
+import { addKnownHost, removeKnownHost } from '../api/knownHosts';
 import { disposeTerminal } from '../lib/terminalPool';
 import { normalizeHotkey } from '../hotkeys/hotkeys';
 import {
@@ -170,12 +181,8 @@ export async function refreshAllConnections(): Promise<void> {
 export async function refreshIdentities(): Promise<void> {
   const app = getApp();
   if (!app) return;
-  try {
-    const result: SSHIdentityMeta[] = await app.GetIdentities();
-    identities.set(result || []);
-  } catch (e) {
-    handleError(e, 'Refresh identities');
-  }
+  const result = await fetchIdentities();
+  identities.set(result || []);
 }
 
 export async function saveFolder(f: Partial<Folder>): Promise<Folder | null> {
@@ -301,26 +308,7 @@ export async function reorderFolders(folderIds: string[], parentId: string): Pro
   }
 }
 
-export async function importPassword(password: string, label: string): Promise<string> {
-  const app = getApp();
-  if (!app) return '';
-  try {
-    return await app.ImportPassword(password, label);
-  } catch (e) {
-    handleError(e, 'Import password');
-    return '';
-  }
-}
-
-export async function deletePassword(id: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.DeletePassword(id);
-  } catch (e) {
-    handleError(e, 'Delete password');
-  }
-}
+export { importPassword, deletePassword };
 
 export async function openSession(connectionId: string): Promise<string | null> {
   const app = getApp();
@@ -519,77 +507,18 @@ export {
   type LocalNode,
 } from '../api/localFs';
 
-export async function addKnownHost(host: string, keyBase64: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.AddKnownHost(host, keyBase64);
-  } catch (e) {
-    handleError(e, 'Add known host');
-  }
-}
+export {
+  addKnownHost,
+  removeKnownHost,
+};
 
-export async function removeKnownHost(host: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await app.RemoveKnownHost(host);
-  } catch (e) {
-    handleError(e, 'Remove known host');
-  }
-}
-
-export async function importIdentity(pemBase64: string, comment: string): Promise<string> {
-  const app = getApp();
-  if (!app) return '';
-  try {
-    return await app.ImportIdentity(pemBase64, comment);
-  } catch (e) {
-    handleError(e, 'Import identity');
-    return '';
-  }
-}
-
-export interface PuTTYSessionPreview {
-  name: string;
-  hostName: string;
-  port: number;
-  userName: string;
-}
-
-export async function importPuTTYPPK(ppkBase64: string, passphrase: string): Promise<string> {
-  const app = getApp();
-  if (!app) return '';
-  try {
-    return await app.ImportPuTTYPPK(ppkBase64, passphrase);
-  } catch (e) {
-    handleError(e, 'Import PPK');
-    return '';
-  }
-}
-
-export async function importPuTTYRegPreview(regContent: string): Promise<PuTTYSessionPreview[]> {
-  const app = getApp();
-  if (!app) return [];
-  try {
-    return await app.ImportPuTTYReg(regContent) || [];
-  } catch (e) {
-    handleError(e, 'Parse PuTTY REG');
-    return [];
-  }
-}
-
-export async function importPuTTYRegAsConnections(regContent: string, folderId: string): Promise<Connection[]> {
-  const app = getApp();
-  if (!app) return [];
-  try {
-    const result = await app.ImportPuTTYRegAsConnections(regContent, folderId) || [];
-    return result as Connection[];
-  } catch (e) {
-    handleError(e, 'Import PuTTY sessions');
-    return [];
-  }
-}
+export {
+  importIdentity,
+  importPuTTYPPK,
+  importPuTTYRegPreview,
+  importPuTTYRegAsConnections,
+  type PuTTYSessionPreview,
+};
 
 export { normalizeHotkey, parseHotkeyEvent } from '../hotkeys/hotkeys';
 
