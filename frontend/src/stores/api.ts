@@ -1,33 +1,17 @@
 import {
   folders, connections, sessions, identities,
   vaultUnlocked, activeSessionId, transfers, transferCompleted, pendingHostKey,
-  selectedConnectionId, selectedFolderId, pingResults, platform,
-  detailsConnectionId,
+  pingResults, platform,
   showError, editingFiles,
-  type Folder, type Connection, type Session, type SessionEmbed,
+  type Session, type SessionEmbed,
   type RemoteNode, type TransferItem, type SSHIdentityMeta,
   type HostKeyEvent, type PingResult
 } from './appState';
 import { get, writable } from 'svelte/store';
 import { getGateway, getRuntime } from '../backend/context';
 import {
-  fetchFolders,
-  putFolder,
-  deleteFolderById,
-  moveFolderTo,
-  reorderFoldersIn,
-} from '../api/folders';
-import {
-  fetchConnections,
-  putConnection,
-  deleteConnectionById,
-  moveConnectionsTo,
-  reorderConnectionsIn,
-} from '../api/connections';
-import {
   importPassword,
   deletePassword,
-  fetchIdentities,
   importIdentity,
   importPuTTYPPK,
   importPuTTYRegPreview,
@@ -100,149 +84,24 @@ function handleError(e: unknown, context?: string) {
   showError(message, details);
 }
 
-export async function refreshFolders(): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  const result = await fetchFolders();
-  folders.set(result || []);
-}
-
-export async function refreshAllConnections(): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  const result = await fetchConnections();
-  connections.set(result || []);
-}
-
-export async function refreshIdentities(): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  const result = await fetchIdentities();
-  identities.set(result || []);
-}
-
-export async function saveFolder(f: Partial<Folder>): Promise<Folder | null> {
-  const saved = await putFolder(f);
-  if (saved) {
-    await refreshFolders();
-  }
-  return saved;
-}
-
-export async function deleteFolder(id: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await deleteFolderById(id);
-    await refreshFolders();
-    await refreshAllConnections();
-  } catch {
-    // Error already reported by deleteFolderById via showError; skip refresh.
-  }
-}
-
-export async function saveConnection(c: Partial<Connection>): Promise<Connection | null> {
-  const saved = await putConnection(c);
-  if (saved) {
-    await refreshAllConnections();
-  }
-  return saved;
-}
-
-export async function createNewConnectionInFolder(folderId: string): Promise<Connection | null> {
-  const uid = `u-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-  const saved = await saveConnection({
-    name: 'New connection',
-    host: '',
-    port: 22,
-    folderId,
-    users: [{ id: uid, username: '', authMethod: 'key' }],
-    defaultUserId: uid,
-  });
-  if (saved) {
-    selectedConnectionId.set(saved.id);
-    detailsConnectionId.set(saved.id);
-  }
-  return saved;
-}
-
-export async function createNewFolderInFolder(parentId: string): Promise<void> {
-  const saved = await saveFolder({
-    name: 'New folder',
-    parentId,
-  });
-  if (saved) {
-    selectedFolderId.set(saved.id);
-  }
-}
-
-export async function deleteConnection(id: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await deleteConnectionById(id);
-    await refreshAllConnections();
-  } catch {
-    // Error already reported by deleteConnectionById via showError; skip refresh.
-  }
-}
-
-export async function moveConnections(connectionIds: string[], targetFolderId: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await moveConnectionsTo(connectionIds, targetFolderId);
-    await refreshAllConnections();
-  } catch {
-    // Error already reported by moveConnectionsTo via showError; skip refresh.
-  }
-}
-
-export async function moveFolder(folderId: string, targetParentId: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await moveFolderTo(folderId, targetParentId);
-    await refreshFolders();
-  } catch {
-    // Error already reported by moveFolderTo via showError; skip refresh.
-  }
-}
-
-export async function moveFolders(folderIds: string[], targetParentId: string): Promise<void> {
-  const app = getApp();
-  if (!app || folderIds.length === 0) return;
-  try {
-    for (const folderId of folderIds) {
-      await moveFolderTo(folderId, targetParentId, 'Move folders');
-    }
-    await refreshFolders();
-  } catch {
-    // Error already reported by moveFolderTo via showError; skip refresh.
-  }
-}
-
-export async function reorderConnections(connectionIds: string[], folderId: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await reorderConnectionsIn(connectionIds, folderId);
-    await refreshAllConnections();
-  } catch {
-    // Error already reported by reorderConnectionsIn via showError; skip refresh.
-  }
-}
-
-export async function reorderFolders(folderIds: string[], parentId: string): Promise<void> {
-  const app = getApp();
-  if (!app) return;
-  try {
-    await reorderFoldersIn(folderIds, parentId);
-    await refreshFolders();
-  } catch {
-    // Error already reported by reorderFoldersIn via showError; skip refresh.
-  }
-}
+export {
+  refreshFolders,
+  saveFolder,
+  deleteFolder,
+  moveFolder,
+  moveFolders,
+  reorderFolders,
+  createNewFolderInFolder,
+} from '../actions/folderActions';
+export {
+  refreshAllConnections,
+  refreshIdentities,
+  saveConnection,
+  deleteConnection,
+  moveConnections,
+  reorderConnections,
+  createNewConnectionInFolder,
+} from '../actions/connectionActions';
 
 export { importPassword, deletePassword };
 
