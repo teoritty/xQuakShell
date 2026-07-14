@@ -67,6 +67,15 @@ async function run() {
 
   assert(get(lastError) === null, 'no error reported for successful calls');
 
+  // cancelTransfer is fire-and-forget: a rejection must never surface via
+  // showError/lastError, matching the original synchronous-looking (but
+  // actually unawaited) call in stores/api.ts.
+  lastError.set(null);
+  fake.program('CancelTransfer', () => { throw new Error('boom'); });
+  cancelTransfer('t2');
+  await new Promise((r) => setTimeout(r, 0));
+  assert(get(lastError) === null, 'cancelTransfer rejection is not surfaced');
+
   // cancel-message errors are swallowed silently for upload/download
   fake = createFakeGateway();
   setGateway(fake);

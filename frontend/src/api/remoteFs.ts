@@ -3,6 +3,7 @@
 // callBackendVoid for uniform error handling. No store access here beyond
 // what callBackend does internally (showError on failure).
 import { callBackend, callBackendVoid } from '../backend/callBackend';
+import { getGateway } from '../backend/context';
 import type { RemoteNode } from '../stores/appState';
 
 function isCancelError(msg: string): boolean {
@@ -26,7 +27,12 @@ export async function downloadFile(sessionId: string, remotePath: string, localP
 }
 
 export function cancelTransfer(transferId: string): void {
-  void callBackendVoid('Cancel transfer', (app) => app.CancelTransfer(transferId));
+  // Fire-and-forget: matches original stores/api.ts behavior where
+  // app.CancelTransfer was called without await, so rejections became
+  // unhandled promise rejections and never surfaced via showError/lastError.
+  const app = getGateway();
+  if (!app) return;
+  void app.CancelTransfer(transferId).catch(() => {});
 }
 
 export async function removePath(sessionId: string, path: string): Promise<void> {
