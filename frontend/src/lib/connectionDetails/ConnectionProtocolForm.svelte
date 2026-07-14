@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import type { ConnectionProtocol } from '../../stores/api';
+  import type { ConnectionProtocol } from '../../actions/protocolActions';
   import type { ConnectionFormMode } from './connectionFormMode';
   import type { ConnectionUser, ForwardRule, JumpHop, SSHIdentityMeta } from '../../stores/appState';
   import ConnectionUsers from './ConnectionUsers.svelte';

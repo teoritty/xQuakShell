@@ -1,4 +1,4 @@
-import type { ConnectionProtocol } from '../../stores/api';
+import type { ConnectionProtocol } from '../../actions/protocolActions';
 import type { ConnectionDetailsDraft } from './types';
 
 export type ConnectionFormMode = 'ssh' | 'plugin' | 'none';
