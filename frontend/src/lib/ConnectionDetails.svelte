@@ -184,7 +184,9 @@
     draft = { ...draft };
   }
 
-  function handleFieldChange() {
+  function handleFieldChange(e: CustomEvent<{ fieldId: string; value: unknown }>) {
+    const { fieldId, value } = e.detail;
+    draft.pluginFields = { ...draft.pluginFields, [fieldId]: value };
     markDirty();
   }
 
