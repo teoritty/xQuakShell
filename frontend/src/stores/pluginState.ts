@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 
-import { getPluginContributions, invalidateProtocolsCache, refreshConnectionProtocols, type PluginContributions } from './api';
+import { getPluginContributions, type PluginContributions } from '../api/pluginRuntime';
+import { invalidateProtocolsCache, refreshConnectionProtocols } from '../actions/protocolActions';
 
 
 

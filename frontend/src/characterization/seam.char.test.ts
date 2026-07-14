@@ -1,6 +1,6 @@
 import { setGateway } from '../backend/context';
 import { createFakeGateway } from '../backend/fakeGateway';
-import { refreshFolders } from '../stores/api';
+import { refreshFolders } from '../actions/folderActions';
 import { folders } from '../stores/appState';
 import { get } from 'svelte/store';
 

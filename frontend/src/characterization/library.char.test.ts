@@ -1,17 +1,18 @@
 import { setGateway } from '../backend/context';
 import { createFakeGateway } from '../backend/fakeGateway';
+import { unlockVault, lockVault } from '../actions/vaultActions';
 import {
-  unlockVault,
-  lockVault,
   refreshFolders,
-  refreshAllConnections,
   saveFolder,
-  saveConnection,
   deleteFolder,
-  createNewConnectionInFolder,
   createNewFolderInFolder,
   moveFolders,
-} from '../stores/api';
+} from '../actions/folderActions';
+import {
+  refreshAllConnections,
+  saveConnection,
+  createNewConnectionInFolder,
+} from '../actions/connectionActions';
 import {
   folders, connections, sessions, identities, vaultUnlocked,
   selectedConnectionId, detailsConnectionId, selectedFolderId, lastError,

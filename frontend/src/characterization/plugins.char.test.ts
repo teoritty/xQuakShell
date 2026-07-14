@@ -7,29 +7,35 @@ import {
   connectionProtocols,
   installPlugin,
   uninstallGitHubPlugin,
+  installGitHubPlugin,
+  type ConnectionProtocol,
+} from '../actions/protocolActions';
+import {
   getPluginSettings,
   savePluginSettings,
-  getPluginContributions,
-  executePluginCommand,
-  addGitHubRepository,
-  relayPluginViewMessage,
   previewPluginInstall,
-  listGitHubRepositories,
-  removeGitHubRepository,
-  setGitHubRepositoryTrust,
-  fetchGitHubPlugins,
-  previewGitHubPluginInstall,
-  installGitHubPlugin,
-  preparePluginViewPanel,
-  releasePluginViewPanel,
   listPlugins,
   pingPlugin,
   setPluginEnabled,
   selectPluginSourceDir,
   selectPluginBundleFile,
   generatePluginPublisherKeyPair,
-  type ConnectionProtocol,
-} from '../stores/api';
+} from '../api/plugins';
+import {
+  getPluginContributions,
+  executePluginCommand,
+  relayPluginViewMessage,
+  preparePluginViewPanel,
+  releasePluginViewPanel,
+} from '../api/pluginRuntime';
+import {
+  addGitHubRepository,
+  listGitHubRepositories,
+  removeGitHubRepository,
+  setGitHubRepositoryTrust,
+  fetchGitHubPlugins,
+  previewGitHubPluginInstall,
+} from '../api/githubPlugins';
 import { lastError } from '../stores/appState';
 import { get } from 'svelte/store';
 

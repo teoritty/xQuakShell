@@ -1,17 +1,18 @@
 import { setGateway, setRuntime } from '../backend/context';
 import { createFakeGateway } from '../backend/fakeGateway';
 import type { RuntimeGateway } from '../backend/gateway';
+import { subscribeToEvents, sftpReadyPaths } from '../events/subscribe';
 import {
-  subscribeToEvents,
-  sftpReadyPaths,
   getSettings,
   saveSettings,
   applyAppearanceSettings,
-  uploadFile,
-  connectionProtocolCatalogKey,
+} from '../actions/settingsActions';
+import { uploadFile } from '../api/remoteFs';
+import { connectionProtocolCatalogKey } from '../actions/protocolActions';
+import {
   registerTerminalOutputConsumer,
   takePendingTerminalOutput,
-} from '../stores/api';
+} from '../terminal/outputBuffer';
 import {
   sessions,
   transferCompleted,

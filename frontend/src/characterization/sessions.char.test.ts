@@ -7,8 +7,8 @@ import {
   createSessionFromSelection,
   focusNextSessionTab,
   focusPrevSessionTab,
-  resolveHostKey,
-} from '../stores/api';
+} from '../actions/sessionActions';
+import { resolveHostKeyRpc as resolveHostKey } from '../api/sessions';
 import { sessions, activeSessionId, connections, selectedConnectionId, lastError, pendingHostKey } from '../stores/appState';
 import { get } from 'svelte/store';
 
