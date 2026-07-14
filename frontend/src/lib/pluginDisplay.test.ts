@@ -1,4 +1,4 @@
-import type { GitHubPluginMetadata } from '../stores/api';
+import type { GitHubPluginMetadata } from '../api/githubPlugins';
 import {
   defaultReleaseTagForPlugin,
   formatInstalledVersion,
