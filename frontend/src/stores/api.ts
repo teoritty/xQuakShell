@@ -1,9 +1,4 @@
 import {
-  activeSessionId,
-  platform,
-  type RemoteNode, type SSHIdentityMeta,
-} from './appState';
-import {
   importPassword,
   deletePassword,
   importIdentity,
@@ -22,15 +17,11 @@ import {
   enableAuditSecretLogging,
   disableAuditSecretLogging,
 } from '../api/audit';
-import {
-  resolveHostKeyRpc,
-  getPlatform,
-} from '../api/sessions';
-
 export {
   reportEmbedViewport,
   reportEmbedActivity,
   getPlatform,
+  resolveHostKeyRpc as resolveHostKey,
 } from '../api/sessions';
 export { unlockVault, lockVault } from '../actions/vaultActions';
 export { sendTerminalInput, terminalResize } from '../api/terminal';
@@ -77,10 +68,6 @@ export {
   focusPrevSessionTab,
   closeActiveSession,
 } from '../actions/sessionActions';
-
-export async function resolveHostKey(sessionId: string, action: string, host: string, authorizedKey: string): Promise<void> {
-  return resolveHostKeyRpc(sessionId, action, host, authorizedKey);
-}
 
 import {
   listPath,
