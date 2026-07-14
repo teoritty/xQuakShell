@@ -29,46 +29,12 @@ import { getGateway } from '../backend/context';
 import { showError } from '../stores/appState';
 import { installPluginRpc, type PluginInfo } from '../api/plugins';
 import { installGitHubPluginRpc, uninstallGitHubPluginRpc } from '../api/githubPlugins';
+import type { ConnectionProtocol, FieldGroup, FieldDef } from '../api/protocolTypes';
 
-export interface FieldDef {
-  id: string;
-  label: string;
-  type: 'text' | 'password' | 'number' | 'select' | 'checkbox' | 'textarea';
-  required: boolean;
-  default?: unknown;
-  placeholder?: string;
-  description?: string;
-  width?: 'full' | 'half' | 'third';
-  order: number;
-  validation?: {
-    minLength?: number;
-    maxLength?: number;
-    min?: number;
-    max?: number;
-    pattern?: string;
-    maxSizeBytes?: number;
-  };
-  options?: { value: string; label: string }[];
-  dependsOn?: string;
-  secret: boolean;
-}
-
-export interface FieldGroup {
-  id: string;
-  label: string;
-  order: number;
-  fields: FieldDef[];
-}
-
-export interface ConnectionProtocol {
-  id: string;
-  label: string;
-  defaultPort?: number;
-  icon?: string;
-  surface?: 'terminal' | 'embed';
-  remoteFs?: boolean;
-  fields?: FieldGroup[];
-}
+// Re-exported for compatibility with existing importers that reference these
+// domain types via actions/protocolActions (the canonical definitions now
+// live in api/protocolTypes.ts).
+export type { ConnectionProtocol, FieldGroup, FieldDef };
 
 const DEFAULT_SSH_PROTOCOL: ConnectionProtocol = {
   id: 'ssh',

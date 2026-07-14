@@ -4,11 +4,10 @@
 // getGateway/showError rather than through callBackend (which only guards
 // on gateway presence, not per-method availability).
 //
-// installPluginRpc is deliberately atomic-only: unlike the original
-// installPlugin (which also invalidated/refreshed the protocol cache), this
-// function performs ONLY the InstallPlugin RPC. The protocol-refresh side
-// effect is recomposed at the barrel level (stores/api.ts) for now, and will
-// move to actions/protocolActions.ts in a later task.
+// installPluginRpc is deliberately atomic-only: it performs ONLY the
+// InstallPlugin RPC. The composed cache-invalidate-then-refresh side effect
+// lives in actions/protocolActions.ts (installPlugin), which wraps this
+// function.
 import { getGateway } from '../backend/context';
 import { showError } from '../stores/appState';
 
@@ -159,9 +158,8 @@ export async function previewPluginInstall(sourceDir: string): Promise<PluginIns
 
 /**
  * Atomic install RPC — performs ONLY the InstallPlugin call. Does NOT
- * invalidate/refresh the protocol cache; that composition lives at the
- * barrel level (stores/api.ts `installPlugin`) until Task 3.4 relocates it
- * to actions/protocolActions.ts.
+ * invalidate/refresh the protocol cache; that composition lives in
+ * actions/protocolActions.ts (`installPlugin`).
  */
 export async function installPluginRpc(
   sourceDir: string,

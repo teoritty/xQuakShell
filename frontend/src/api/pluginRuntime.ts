@@ -5,7 +5,7 @@
 // on gateway presence, not per-method availability).
 import { getGateway } from '../backend/context';
 import { showError } from '../stores/appState';
-import type { FieldGroup } from '../actions/protocolActions';
+import type { FieldGroup } from './protocolTypes';
 
 function handleError(e: unknown, context?: string) {
   const msg = e instanceof Error ? e.message : String(e);

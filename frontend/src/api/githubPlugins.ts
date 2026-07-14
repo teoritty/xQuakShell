@@ -2,12 +2,10 @@
 // bodies exactly.
 //
 // installGitHubPluginRpc / uninstallGitHubPluginRpc are deliberately
-// atomic-only: unlike the original installGitHubPlugin/uninstallGitHubPlugin
-// (which also invalidated/refreshed the protocol cache in the uninstall
-// case), these functions perform ONLY their respective RPC. The
-// protocol-refresh side effect is recomposed at the barrel level
-// (stores/api.ts) for now, and will move to actions/protocolActions.ts in a
-// later task.
+// atomic-only: they perform ONLY their respective RPC. The
+// cache-invalidate-then-refresh side effect (uninstall only) is composed in
+// actions/protocolActions.ts (installGitHubPlugin / uninstallGitHubPlugin),
+// which wrap these functions.
 import { getGateway } from '../backend/context';
 import { showError } from '../stores/appState';
 
@@ -159,9 +157,9 @@ export async function previewGitHubPluginInstall(repoURL: string, releaseTag = '
 
 /**
  * Atomic install RPC — performs ONLY the InstallGitHubPlugin call. Does NOT
- * invalidate/refresh the protocol cache; that composition lives at the
- * barrel level (stores/api.ts `installGitHubPlugin`) until Task 3.4
- * relocates it to actions/protocolActions.ts.
+ * invalidate/refresh the protocol cache; that composition lives in
+ * actions/protocolActions.ts (`installGitHubPlugin`), which never refreshed
+ * it either — matching the RPC's original behavior.
  */
 export async function installGitHubPluginRpc(
   repoURL: string,
@@ -184,9 +182,8 @@ export async function installGitHubPluginRpc(
 
 /**
  * Atomic uninstall RPC — performs ONLY the UninstallGitHubPlugin call. Does
- * NOT invalidate/refresh the protocol cache; that composition lives at the
- * barrel level (stores/api.ts `uninstallGitHubPlugin`) until Task 3.4
- * relocates it to actions/protocolActions.ts.
+ * NOT invalidate/refresh the protocol cache; that composition lives in
+ * actions/protocolActions.ts (`uninstallGitHubPlugin`).
  */
 export async function uninstallGitHubPluginRpc(pluginID: string, removeData = false): Promise<void> {
   const app = getGateway();
