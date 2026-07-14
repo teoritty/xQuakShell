@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { X, Shield } from 'lucide-svelte';
-  import { chmodPath, chmodPathRecursive, chownPath, chownPathRecursive, type ApplyTarget } from '../stores/api';
+  import { chmodPath, chmodPathRecursive, chownPath, chownPathRecursive, type ApplyTarget } from '../api/remoteFs';
 
   export let show = false;
   export let sessionId: string;

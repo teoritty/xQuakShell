@@ -3,7 +3,7 @@
   import Modal from './Modal.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import CodeMirrorEditor from './CodeMirrorEditor.svelte';
-  import { sendTerminalInput } from '../stores/api';
+  import { sendTerminalInput } from '../api/terminal';
   import { scalePx } from './uiScale';
   import { activeSessionId, sessions } from '../stores/appState';
   import { Terminal, Play, Plus, BookOpen, Pencil, Trash2 } from 'lucide-svelte';

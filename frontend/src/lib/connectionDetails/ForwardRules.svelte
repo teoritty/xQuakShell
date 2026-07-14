@@ -2,8 +2,8 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { Plus, Trash2 } from 'lucide-svelte';
   import type { ForwardRule } from '../../stores/appState';
-  import type { PluginTunnelProviderContribution } from '../../stores/api';
-  import { getPluginContributions } from '../../stores/api';
+  import type { PluginTunnelProviderContribution } from '../../api/pluginRuntime';
+  import { getPluginContributions } from '../../api/pluginRuntime';
   import { createDraftRuleUiId } from './forwardRuleIds';
   import './connectionDetailsShared.css';
 

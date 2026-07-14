@@ -14,14 +14,16 @@
     type Folder,
   } from '../stores/appState';
   import {
-    createNewConnectionInFolder,
     createNewFolderInFolder,
-    deleteConnection,
     deleteFolder,
-    openSession,
-    saveConnection,
     saveFolder,
-  } from '../stores/api';
+  } from '../actions/folderActions';
+  import {
+    createNewConnectionInFolder,
+    deleteConnection,
+    saveConnection,
+  } from '../actions/connectionActions';
+  import { openSession } from '../actions/sessionActions';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import ImportPuTTYDialog from './ImportPuTTYDialog.svelte';
   import RemoteTreeContextMenu from './RemoteTreeContextMenu.svelte';

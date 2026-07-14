@@ -1,4 +1,4 @@
-import { importIdentity, importPassword } from '../../stores/api';
+import { importIdentity, importPassword } from '../../api/credentials';
 
 const KEY_FILE_ACCEPT = '.pem,.key,.id_rsa,.id_ecdsa,.id_ed25519,*';
 export const MASKED_PASSWORD = '********';

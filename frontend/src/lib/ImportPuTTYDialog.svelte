@@ -1,6 +1,7 @@
 <script lang="ts">
   import Modal from './Modal.svelte';
-  import { importPuTTYPPK, importPuTTYRegPreview, importPuTTYRegAsConnections, refreshAllConnections, refreshIdentities, type PuTTYSessionPreview } from '../stores/api';
+  import { importPuTTYPPK, importPuTTYRegPreview, importPuTTYRegAsConnections, type PuTTYSessionPreview } from '../api/credentials';
+  import { refreshAllConnections, refreshIdentities } from '../actions/connectionActions';
   import { selectedFolderId } from '../stores/appState';
   import { KeyRound } from 'lucide-svelte';
 

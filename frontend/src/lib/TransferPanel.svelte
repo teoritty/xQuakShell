@@ -1,6 +1,7 @@
 <script lang="ts">
   import { transfers, type TransferItem, type OperationKind } from '../stores/appState';
-  import { uploadFile, downloadFile, cancelTransfer, selectLocalFile, selectLocalDirectory } from '../stores/api';
+  import { uploadFile, downloadFile, cancelTransfer } from '../api/remoteFs';
+  import { selectLocalFile, selectLocalDirectory } from '../api/localFs';
   import { Upload, Download, ChevronDown, ChevronRight, X, RefreshCw, Trash2, Lock, User } from 'lucide-svelte';
   import type { ComponentType } from 'svelte';
   import { onMount } from 'svelte';

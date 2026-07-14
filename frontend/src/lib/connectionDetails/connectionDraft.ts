@@ -1,6 +1,6 @@
 import type { Connection } from '../../stores/appState';
 import type { ConnectionDetailsDraft } from './types';
-import type { ConnectionProtocol } from '../../stores/api';
+import type { ConnectionProtocol } from '../../actions/protocolActions';
 import { ensureHopUiId } from './hopIds';
 import { ensureRuleUiId } from './forwardRuleIds';
 

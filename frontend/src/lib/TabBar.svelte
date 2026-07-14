@@ -1,6 +1,6 @@
 <script lang="ts">
   import { sessions, activeSessionId } from '../stores/appState';
-  import { closeSession } from '../stores/api';
+  import { closeSession } from '../actions/sessionActions';
   import { Loader2, CheckCircle2, XCircle, Circle, X } from 'lucide-svelte';
 
   function activateTab(sessionId: string) {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { FieldGroup, FieldDef } from '../../stores/api';
+  import type { FieldGroup, FieldDef } from '../../actions/protocolActions';
   import { createEventDispatcher } from 'svelte';
   import './connectionDetailsShared.css';
 

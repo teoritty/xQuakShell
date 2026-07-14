@@ -1,7 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import type { RemoteNode } from '../stores/appState';
-  import { listPath, removePath, mkdirPath, createFilePath, renamePath, downloadFile, getTempDir, openFileWithSystem, startFileWatch, getSettings, sftpReadyPaths } from '../stores/api';
+  import { listPath, removePath, mkdirPath, createFilePath, renamePath, downloadFile } from '../api/remoteFs';
+  import { getTempDir, openFileWithSystem, startFileWatch } from '../api/localFs';
+  import { getSettings } from '../actions/settingsActions';
+  import { sftpReadyPaths } from '../events/subscribe';
   import { editingFiles, transferCompleted } from '../stores/appState';
   import { registerOsDropZone, resolveOsDropTarget, joinPath, baseName, isFileDrag, isInternalFileDrag } from './osFileDrop';
   import { isInvalidMove } from './pathMove';

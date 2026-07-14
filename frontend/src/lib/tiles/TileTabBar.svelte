@@ -1,7 +1,7 @@
 <!-- frontend/src/lib/tiles/TileTabBar.svelte -->
 <script lang="ts">
   import { sessions, activeSessionId } from '../../stores/appState';
-  import { closeSession } from '../../stores/api';
+  import { closeSession } from '../../actions/sessionActions';
   import type { TileGroup } from './types';
   import { writeDragPayload } from './dragPayload';
   import { activeTileDrag } from '../../stores/tileLayout';

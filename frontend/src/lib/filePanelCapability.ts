@@ -4,7 +4,7 @@
 // whether to show the per-tile collapse button), so the rule lives in one place.
 
 import type { Session } from '../stores/appState';
-import type { ConnectionProtocol } from '../stores/api';
+import type { ConnectionProtocol } from '../actions/protocolActions';
 
 export function hasFilePanel(session: Session, protocols: ConnectionProtocol[]): boolean {
   if (session.state !== 'ready') return false;

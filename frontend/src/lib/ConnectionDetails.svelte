@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { detailsConnection, detailsConnectionId, identities } from '../stores/appState';
+  import { saveConnection } from '../actions/connectionActions';
   import {
-    saveConnection,
     connectionProtocols,
     connectionProtocolCatalogKey,
     refreshConnectionProtocols,
-  } from '../stores/api';
+  } from '../actions/protocolActions';
   import ConnectionDetailsHeader from './connectionDetails/ConnectionDetailsHeader.svelte';
   import ConnectionBaseFields from './connectionDetails/ConnectionBaseFields.svelte';
   import ConnectionTags from './connectionDetails/ConnectionTags.svelte';
@@ -22,7 +22,7 @@
     refreshFormModeFromDraft,
     type ConnectionFormMode,
   } from './connectionDetails/connectionFormMode';
-  import type { ConnectionProtocol } from '../stores/api';
+  import type { ConnectionProtocol } from '../actions/protocolActions';
   import { buildConnectionSavePayload } from './connectionDetails/savePayload';
   import { adoptPersistedHopIds } from './connectionDetails/hopIds';
   import { adoptPersistedRuleIds } from './connectionDetails/forwardRuleIds';

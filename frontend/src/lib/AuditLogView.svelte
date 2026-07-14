@@ -1,7 +1,10 @@
 <script lang="ts">
   import Modal from './Modal.svelte';
   import { activeSessionId } from '../stores/appState';
-  import { sendTerminalInput, getSettings, searchAuditLog, deleteAuditEntry, clearAuditLog, type AuditEntry } from '../stores/api';
+  import { sendTerminalInput } from '../api/terminal';
+  import { getSettings } from '../actions/settingsActions';
+  import { searchAuditLog, deleteAuditEntry, clearAuditLog } from '../api/audit';
+  import type { AuditEntry } from '../api/settings';
   import { Search, RotateCcw, Copy, Loader2, FileText, Trash2, Trash, XCircle } from 'lucide-svelte';
   import { createEventDispatcher } from 'svelte';
 
