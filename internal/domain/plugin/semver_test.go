@@ -8,9 +8,9 @@ import (
 
 func TestParseSemver(t *testing.T) {
 	ok := []struct {
-		in                  string
-		maj, min, pat       int
-		pre                 string
+		in            string
+		maj, min, pat int
+		pre           string
 	}{
 		{"1.0.0", 1, 0, 0, ""},
 		{"0.2.0", 0, 2, 0, ""},
@@ -45,13 +45,13 @@ func TestSatisfies(t *testing.T) {
 		have, want string
 		ok         bool
 	}{
-		{"1.0.0", "1.0.0", true},   // exact
-		{"1.3.0", "1.2.0", true},   // higher minor
-		{"1.2.5", "1.2.0", true},   // higher patch, same minor
-		{"1.2.0", "1.2.9", true},   // patch never gates
-		{"1.1.0", "1.2.0", false},  // host minor too low
-		{"2.0.0", "1.0.0", false},  // newer major does NOT satisfy (breaking)
-		{"1.0.0", "2.0.0", false},  // host too old on major
+		{"1.0.0", "1.0.0", true},     // exact
+		{"1.3.0", "1.2.0", true},     // higher minor
+		{"1.2.5", "1.2.0", true},     // higher patch, same minor
+		{"1.2.0", "1.2.9", true},     // patch never gates
+		{"1.1.0", "1.2.0", false},    // host minor too low
+		{"2.0.0", "1.0.0", false},    // newer major does NOT satisfy (breaking)
+		{"1.0.0", "2.0.0", false},    // host too old on major
 		{"1.1.0-rc1", "1.0.0", true}, // pre-release host satisfies release requirement
 	}
 	for _, tc := range tests {

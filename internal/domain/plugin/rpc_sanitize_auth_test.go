@@ -44,8 +44,8 @@ func TestSanitizeAuthRPCParamsLeavesNonAuthUntouched(t *testing.T) {
 
 func TestSanitizeAuthRPCResultRedactsSignature(t *testing.T) {
 	raw, _ := json.Marshal(map[string]string{
-		"signatureBase64":   "c2VjcmV0",
-		"signatureFormat":   "ssh-ed25519",
+		"signatureBase64":     "c2VjcmV0",
+		"signatureFormat":     "ssh-ed25519",
 		"publicKeyBlobBase64": "AQID",
 	})
 	out := SanitizeAuthRPCResult("auth.sign", raw)

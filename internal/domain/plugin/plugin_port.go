@@ -21,11 +21,11 @@ const (
 
 // InitializeParams is sent to a plugin on first start.
 type InitializeParams struct {
-	PluginID     string          `json:"pluginId"`
-	APIVersion   string          `json:"apiVersion"`
-	Capabilities CapabilitySet   `json:"capabilities"`
-	DataDir      string          `json:"dataDir"`
-	CoreVersion  string          `json:"coreVersion"`
+	PluginID     string        `json:"pluginId"`
+	APIVersion   string        `json:"apiVersion"`
+	Capabilities CapabilitySet `json:"capabilities"`
+	DataDir      string        `json:"dataDir"`
+	CoreVersion  string        `json:"coreVersion"`
 }
 
 // ProcessInstance identifies a running plugin OS process tracked by the host.

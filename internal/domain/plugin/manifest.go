@@ -23,17 +23,18 @@ const (
 
 // Manifest describes a plugin package (plugin.json).
 type Manifest struct {
-	ID               string        `json:"id"`
-	Name             string        `json:"name"`
-	Version          string        `json:"version"`
-	Description      string        `json:"description,omitempty"`
-	MinCoreVersion   string        `json:"minCoreVersion,omitempty"`
-	Engine           EngineConfig  `json:"engine"`
-	Capabilities     CapabilitySet `json:"capabilities,omitempty"`
-	Contributions    Contributions `json:"contributions,omitempty"`
-	ActivationEvents []string      `json:"activationEvents,omitempty"`
-	Isolation        IsolationMode `json:"isolation,omitempty"`
-	Signature        string        `json:"signature,omitempty"`
+	ID               string          `json:"id"`
+	Name             string          `json:"name"`
+	Version          string          `json:"version"`
+	Description      string          `json:"description,omitempty"`
+	MinCoreVersion   string          `json:"minCoreVersion,omitempty"`
+	Requires         *RequirementSet `json:"requires,omitempty"`
+	Engine           EngineConfig    `json:"engine"`
+	Capabilities     CapabilitySet   `json:"capabilities,omitempty"`
+	Contributions    Contributions   `json:"contributions,omitempty"`
+	ActivationEvents []string        `json:"activationEvents,omitempty"`
+	Isolation        IsolationMode   `json:"isolation,omitempty"`
+	Signature        string          `json:"signature,omitempty"`
 }
 
 // EngineConfig locates the plugin binary.
@@ -254,7 +255,22 @@ func (m *Manifest) Validate() error {
 	if err := m.CompatibleWithCore(HostCoreVersion); err != nil {
 		return err
 	}
-	return m.ValidateCapabilitiesAndFields()
+	if err := m.ValidateCapabilitiesAndFields(); err != nil {
+		return err
+	}
+	// Version contract (ADR-012): author grammar/cross-check, then resolve the effective
+	// requirement (legacy migration + implicit baselines) and check it against this host.
+	if err := m.ValidateRequirements(); err != nil {
+		return err
+	}
+	eff, _, err := EffectiveRequirements(m)
+	if err != nil {
+		return err
+	}
+	if report := eff.CheckAgainstHost(HostRegistry()); report != nil {
+		return report
+	}
+	return nil
 }
 
 // ValidateCapabilitiesAndFields runs capability and contribution field validation.

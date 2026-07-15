@@ -40,7 +40,16 @@ var (
 	ErrNetworkDialFailed = errors.New("plugin network dial failed")
 
 	// ErrIncompatibleCore indicates the host core version is below manifest minCoreVersion.
+	// LEGACY: only the deprecated minCoreVersion path uses it; new code uses ErrIncompatibleAPI.
 	ErrIncompatibleCore = errors.New("plugin incompatible with host core version")
+
+	// ErrIncompatibleAPI indicates the host cannot satisfy a plugin's declared pluginApi or
+	// capability version requirement (wrong major, or host minor too low). Maps to RPC -32009.
+	ErrIncompatibleAPI = errors.New("plugin incompatible with host API version")
+
+	// ErrMissingFeature indicates the host does not offer a capability feature flag the plugin
+	// requires. Maps to RPC -32010.
+	ErrMissingFeature = errors.New("plugin requires an unavailable feature")
 
 	// ErrSessionNotBound indicates the calling plugin is not authorized for the target
 	// scoped resource: session RPC (sessionId) or in-flight SSH auth (attemptId).
