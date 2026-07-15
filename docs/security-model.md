@@ -35,6 +35,12 @@ Every plugin→core RPC passes through a manifest-driven gate. Methods such as `
 
 Denied calls return `ErrCapabilityDenied` and are audit-logged without secret material. Policy denials (unknown method, disallowed capability, blocked resolved IP) use `-32001`. Transport and dial failures after policy checks use `-32603` without leaking host/port details in plugin-visible messages.
 
+The gate also applies a version check: a method mapped to an above-baseline capability feature is allowed only if the plugin negotiated a version that reaches it (ADR-012). The capability grant remains the authorization boundary; the version check is additive.
+
+## API version handshake (ADR-012)
+
+Plugin API compatibility is negotiated at `initialize`, not trusted from the static manifest. The host advertises its full API descriptor (envelope version + per-capability versions and feature flags) and re-checks the plugin's `requires` against the **live** registry, failing closed on any skew. The host is the sole authority: a plugin's echoed descriptor is never trusted for enforcement. A plugin built against the pre-1.0 API (`minCoreVersion < 1.0.0`) is rejected. Incompatibilities surface as `-32009` (version) / `-32010` (missing feature) and are logged.
+
 ## Ownership (IDOR)
 
 Authorization for vault and session data is enforced in the **usecase** layer:

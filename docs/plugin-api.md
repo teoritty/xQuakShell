@@ -391,11 +391,22 @@ Complete method list as implemented in the core today.
 {
   "pluginId": "com.example.plugin",
   "apiVersion": "1.0.0",
+  "api": {
+    "pluginApi": "1.0.0",
+    "capabilities": {
+      "vault": { "version": "1.0.0", "features": ["getConnection", "getSecret"] }
+    }
+  },
   "capabilities": { "...": "copy of manifest capabilities" },
   "dataDir": "<plugin or session data directory>",
-  "coreVersion": "0.2.0-dev"
+  "coreVersion": "1.0.0"
 }
 ```
+
+`apiVersion` is the frozen protocol envelope version (`pluginApi`); `api` is the host's full
+versioning descriptor — the envelope version plus every capability's version and feature flags
+(ADR-012). The host is the authority: it re-checks the plugin's `requires` against this descriptor
+and refuses initialization on any incompatibility. `coreVersion` is informational only.
 
 **Observed `activate` reason values:** `onProtocol:<id>`, `onCommand:<id>`, `onStartup`, `onManual`, `crash-recovery`.
 
@@ -601,6 +612,8 @@ The core validates the binary matches the host OS at install time.
 | -32005 | Auth provider busy | Too many concurrent `auth.*` attempts for one plugin |
 | -32006 | Auth attempt not found | `ErrSessionNotBound` on `auth.*` RPC (invalid or foreign `attemptId`) |
 | -32007 | Auth challenge timeout | Keyboard-interactive / OTP round exceeded host timeout |
+| -32009 | Incompatible plugin API | Envelope or capability version mismatch at initialize (ADR-012) |
+| -32010 | Missing feature | Required capability feature flag not offered by the host (ADR-012) |
 
 ### Auth provider (host → plugin)
 

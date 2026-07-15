@@ -10,13 +10,43 @@
 | `name` | string | yes | Display name |
 | `version` | string | yes | Semver string |
 | `description` | string | no | Short description |
-| `minCoreVersion` | string | no | Minimum xQuakShell version |
+| `minCoreVersion` | string | no | **Deprecated** — use `requires` instead (see below). A value `< 1.0.0` is rejected. |
+| `requires` | object | no | Plugin API / capability version requirements (ADR-012) |
 | `engine` | object | yes | How to launch the plugin |
 | `capabilities` | object | no | Permission declarations |
 | `contributions` | object | no | UI and protocol contributions |
 | `activationEvents` | string[] | no | Lazy activation triggers |
 | `isolation` | string | no | `per-plugin` (default) or `per-session` |
 | `signature` | string | no | Base64 Ed25519 signature (Phase 6) |
+
+## Requires (API versioning)
+
+The `requires` block declares the versioned API surface the plugin depends on (ADR-012). The
+plugin is checked against the host at install and again at `initialize`; the host is the authority.
+
+```json
+{
+  "requires": {
+    "pluginApi": "1.0.0",
+    "capabilities": {
+      "vault": { "min": "1.0.0", "features": ["getSecret"] }
+    }
+  }
+}
+```
+
+- `pluginApi` (required in the block): the frozen protocol envelope version. Compatible when the
+  host has the same major and a minor ≥ yours.
+- `capabilities.<name>.min` (required per entry): minimum capability version, same rule.
+- `capabilities.<name>.features` (optional): named feature flags you call; each must be offered by
+  the host or the plugin is rejected by name.
+- All versions are strict `MAJOR.MINOR.PATCH` with **no** pre-release suffix.
+- You may only require a capability you also declare in `capabilities{}`. A granted capability with
+  no explicit requirement gets an implicit baseline (`<major>.0.0`).
+
+Migration: `minCoreVersion` is deprecated. `>= 1.0.0` is auto-migrated to a `pluginApi` requirement
+(with a warning); `< 1.0.0` (built against the pre-1.0 API) is rejected — rebuild against
+`pluginApi 1.0` and declare `requires`.
 
 ## Engine
 

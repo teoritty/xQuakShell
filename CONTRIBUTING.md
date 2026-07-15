@@ -64,6 +64,10 @@ See **[docs/architecture.md](docs/architecture.md)** for a layer diagram, import
 
 Keep changes localized to the appropriate layer.
 
+### Plugin API changes
+
+The plugin API is versioned and frozen (**[docs/adr/012-plugin-api-versioning.md](docs/adr/012-plugin-api-versioning.md)**). Before changing any capability surface, read the ADR's runbook: adding a feature/method, bumping a capability minor, and deprecating/removing all have a defined process, and the golden-surface test (`TestFrozenAPISurface`) will fail on any accidental change until the golden is regenerated and reviewed.
+
 ### Tests
 
 - Cover **everything that is reasonable to automate**: domain logic, use-case orchestration, adapters without heavy I/O, and critical error paths.
