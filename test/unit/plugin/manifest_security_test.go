@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	domainplugin "ssh-client/internal/domain/plugin"
-	infraplugin "ssh-client/internal/infra/plugin"
 	"ssh-client/internal/infra/plugin/bundle"
+	infraplugin "ssh-client/internal/infra/plugin"
 )
 
 func TestValidateIDRejectsUnsafe(t *testing.T) {

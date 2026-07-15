@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"ssh-client/internal/domain"
+	"ssh-client/internal/usecase"
 	domainplugin "ssh-client/internal/domain/plugin"
 	infraplugin "ssh-client/internal/infra/plugin"
 	"ssh-client/internal/infra/plugin/bundle"
-	"ssh-client/internal/usecase"
 )
 
 type multiSessionSettings struct {
@@ -215,8 +215,8 @@ func TestProcessHostBindSessionDelegatesToUsecaseAuthorizer(t *testing.T) {
 	}
 	inbound.SetHandler(manager)
 	proxy := usecase.NewPluginSessionRPCHandler(inbound, usecase.NewPluginEmbedInbound(), nil, auth, usecase.PluginSessionScope{
-		PluginID:  "plugin-a",
-		Isolation: domainplugin.IsolationPerPlugin,
+		PluginID:   "plugin-a",
+		Isolation:  domainplugin.IsolationPerPlugin,
 	})
 	params, _ := json.Marshal(map[string]string{
 		"sessionId": "sess-1",
