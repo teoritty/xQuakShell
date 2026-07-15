@@ -10,7 +10,7 @@ import (
 	"ssh-client/internal/infra/plugin/ipc"
 )
 
-func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sessionID string, stdout io.Reader, stdin io.Writer) (*ipc.Conn, *capability.NetProxy, *capability.TunnelDialProxy, *capability.TunnelLocalProxy, *capability.ChannelProxy, error) {
+func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sessionID string, stdout io.Reader, stdin io.Writer, negotiated domainplugin.NegotiatedDescriptor) (*ipc.Conn, *capability.NetProxy, *capability.TunnelDialProxy, *capability.TunnelLocalProxy, *capability.ChannelProxy, error) {
 	fs, err := capability.NewFSProxy(plugin.Manifest.Capabilities.FS, dataDir)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
@@ -27,7 +27,7 @@ func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sess
 	}
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID:    plugin.Manifest.ID,
-		Gate:        capability.NewGate(plugin.Manifest),
+		Gate:        capability.NewGate(plugin.Manifest, negotiated),
 		FS:          fs,
 		Net:         netProxy,
 		Vault:       capability.NewVaultProxy(h.cfg.Vault),

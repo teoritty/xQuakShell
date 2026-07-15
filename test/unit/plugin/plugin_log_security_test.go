@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/capability"
 	"ssh-client/internal/infra/plugin/ipc"
 )
 
@@ -45,7 +44,7 @@ func TestSanitizeLogWriteParamsRedactsFreeTextSecrets(t *testing.T) {
 func TestHostServerStructuredLogWrite(t *testing.T) {
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID: "test",
-		Gate:     capability.NewGate(domainplugin.Manifest{}),
+		Gate:     newGate(t, domainplugin.Manifest{}),
 	})
 	params, _ := json.Marshal(domainplugin.LogWriteParams{
 		Level:   "info",

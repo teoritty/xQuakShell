@@ -1,14 +1,24 @@
 package plugin
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
-// DeprecationNotices reports every deprecated capability or feature the requirement set depends on,
-// as human-readable warnings. Deprecated items still work — they are removed only after the
+// DeprecationNotices reports every deprecated capability or feature the negotiated contract depends
+// on, as human-readable warnings. Deprecated items still work — they are removed only after the
 // deprecation window in a future major (ADR-012) — so these are advisories the host logs once per
-// plugin load to nudge authors to migrate, never a reason to reject.
-func (rs RequirementSet) DeprecationNotices(reg Registry) []string {
+// plugin load to nudge authors to migrate, never a reason to reject. It reads only the negotiated
+// descriptor, keeping the runtime single-source (see NegotiatedDescriptor).
+func (nd NegotiatedDescriptor) DeprecationNotices(reg Registry) []string {
 	var notices []string
-	for _, name := range rs.sortedCapabilityNames() {
+	names := make([]CapabilityID, 0, len(nd.Capabilities))
+	for name := range nd.Capabilities {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	for _, name := range names {
 		desc, ok := reg.Descriptor(name)
 		if !ok || len(desc.Deprecated) == 0 {
 			continue
@@ -17,8 +27,8 @@ func (rs RequirementSet) DeprecationNotices(reg Registry) []string {
 		if info, ok := desc.Deprecated[FeatureID("")]; ok {
 			notices = append(notices, formatDeprecation(name, "", info))
 		}
-		// Per-feature deprecation for features this plugin actually requires.
-		for _, f := range rs.Capabilities[name].Features {
+		// Per-feature deprecation for features this plugin actually negotiated.
+		for _, f := range nd.Capabilities[name].Features {
 			if info, ok := desc.Deprecated[f]; ok {
 				notices = append(notices, formatDeprecation(name, f, info))
 			}

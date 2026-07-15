@@ -13,7 +13,7 @@ import (
 func TestPluginIPC_PingAndVaultDeny(t *testing.T) {
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID: "com.test.echo",
-		Gate: capability.NewGate(domainplugin.Manifest{
+		Gate: newGate(t, domainplugin.Manifest{
 			Capabilities: domainplugin.CapabilitySet{
 				Vault: &domainplugin.VaultCaps{
 					ReadConnectionFields: []string{"host"},
@@ -70,7 +70,7 @@ func TestTunnelProxyHandleOwnership(t *testing.T) {
 	tunnelLocal := capability.NewTunnelLocalProxy("plugin-a", inbound, tunnelDial)
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID:    "plugin-a",
-		Gate:        capability.NewGate(tunnelManifest),
+		Gate:        newGate(t, tunnelManifest),
 		TunnelDial:  tunnelDial,
 		TunnelLocal: tunnelLocal,
 	})

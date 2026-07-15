@@ -17,7 +17,7 @@ import (
 )
 
 func TestGateDeniesFSWithoutCapability(t *testing.T) {
-	gate := capability.NewGate(domainplugin.Manifest{})
+	gate := newGate(t, domainplugin.Manifest{})
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID: "test",
 		Gate:     gate,

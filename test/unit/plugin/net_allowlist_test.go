@@ -13,7 +13,7 @@ import (
 func TestNetDialDeniedForDisallowedHost(t *testing.T) {
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID: "com.test.net",
-		Gate: capability.NewGate(domainplugin.Manifest{
+		Gate: newGate(t, domainplugin.Manifest{
 			Capabilities: domainplugin.CapabilitySet{
 				Network: &domainplugin.NetworkCaps{
 					Outbound: []string{"tcp:127.0.0.1:9"},
@@ -38,7 +38,7 @@ func TestNetDialDeniedForDisallowedHost(t *testing.T) {
 func TestNetDialAllowedHost(t *testing.T) {
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID: "com.test.net",
-		Gate: capability.NewGate(domainplugin.Manifest{
+		Gate: newGate(t, domainplugin.Manifest{
 			Capabilities: domainplugin.CapabilitySet{
 				Network: &domainplugin.NetworkCaps{
 					Outbound: []string{"tcp:127.0.0.1:9"},
@@ -74,7 +74,7 @@ func TestNetDialArbitraryMode(t *testing.T) {
 	caps := &domainplugin.NetworkCaps{AllowArbitraryOutbound: true}
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID: "com.test.arb",
-		Gate: capability.NewGate(domainplugin.Manifest{
+		Gate: newGate(t, domainplugin.Manifest{
 			Capabilities: domainplugin.CapabilitySet{Network: caps},
 		}),
 		Net: capability.NewNetProxy("com.test.arb", caps),

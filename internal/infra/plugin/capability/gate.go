@@ -15,7 +15,7 @@ import (
 // that negotiated an older version (edge #13).
 type Gate struct {
 	manifest        domainplugin.Manifest
-	negotiated      domainplugin.RequirementSet
+	negotiated      domainplugin.NegotiatedDescriptor
 	featureVersions map[string]methodFeature
 }
 
@@ -26,16 +26,11 @@ type methodFeature struct {
 	minVersion domainplugin.Semver
 }
 
-// NewGate creates a capability gate for a plugin manifest. The negotiated requirement set is
-// derived from the manifest itself (EffectiveRequirements is deterministic), so the gate enforces
-// exactly what the plugin declared. A manifest that reached the gate has already passed Validate;
-// on the unexpected error path we fall back to an empty set, which fails closed for any
-// above-baseline feature method.
-func NewGate(m domainplugin.Manifest) *Gate {
-	negotiated, _, err := domainplugin.EffectiveRequirements(&m)
-	if err != nil {
-		negotiated = domainplugin.RequirementSet{}
-	}
+// NewGate creates a capability gate for a plugin manifest and its negotiated runtime contract. The
+// manifest supplies the capability GRANTS (authorization); the negotiated descriptor supplies the
+// VERSIONS the plugin agreed to (feature reachability). The descriptor is computed once at
+// handshake and threaded in — the gate never re-derives it, so there is a single source of truth.
+func NewGate(m domainplugin.Manifest, negotiated domainplugin.NegotiatedDescriptor) *Gate {
 	return &Gate{manifest: m, negotiated: negotiated, featureVersions: defaultFeatureVersions()}
 }
 
@@ -53,12 +48,8 @@ func (g *Gate) versionAllows(method string) bool {
 	if !ok {
 		return true
 	}
-	req, ok := g.negotiated.Capabilities[mf.capability]
+	have, ok := g.negotiated.CapabilityVersion(mf.capability)
 	if !ok {
-		return false
-	}
-	have, err := domainplugin.ParseSemver(req.Min)
-	if err != nil {
 		return false
 	}
 	return domainplugin.Satisfies(have, mf.minVersion)

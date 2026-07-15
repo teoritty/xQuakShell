@@ -25,12 +25,12 @@ func (r *memAuditRepo) Append(_ context.Context, entry domain.AuditEntry) error 
 func (r *memAuditRepo) Search(context.Context, string, domain.AuditSearchFilter) ([]domain.AuditEntry, error) {
 	return nil, nil
 }
-func (r *memAuditRepo) DeleteByID(context.Context, int64) error { return nil }
-func (r *memAuditRepo) ClearAll(context.Context, string) error    { return nil }
-func (r *memAuditRepo) Count(context.Context) (int64, error)      { return 0, nil }
+func (r *memAuditRepo) DeleteByID(context.Context, int64) error         { return nil }
+func (r *memAuditRepo) ClearAll(context.Context, string) error          { return nil }
+func (r *memAuditRepo) Count(context.Context) (int64, error)            { return 0, nil }
 func (r *memAuditRepo) PurgeOlderThan(context.Context, time.Time) error { return nil }
-func (r *memAuditRepo) TrimToCount(context.Context, int) error    { return nil }
-func (r *memAuditRepo) Close() error                              { return nil }
+func (r *memAuditRepo) TrimToCount(context.Context, int) error          { return nil }
+func (r *memAuditRepo) Close() error                                    { return nil }
 
 func (r *memAuditRepo) lastInput() string {
 	r.mu.Lock()

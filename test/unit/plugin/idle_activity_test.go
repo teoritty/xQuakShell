@@ -8,7 +8,6 @@ import (
 	"time"
 
 	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/capability"
 	"ssh-client/internal/infra/plugin/ipc"
 	"ssh-client/internal/usecase"
 )
@@ -17,7 +16,7 @@ func TestHostServerRecordsPluginActivity(t *testing.T) {
 	var activityCount atomic.Int32
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID: "com.test.activity",
-		Gate:     capability.NewGate(domainplugin.Manifest{}),
+		Gate:     newGate(t, domainplugin.Manifest{}),
 		OnActivity: func(pluginID string) {
 			if pluginID == "com.test.activity" {
 				activityCount.Add(1)

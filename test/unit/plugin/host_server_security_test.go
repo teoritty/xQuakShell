@@ -13,7 +13,7 @@ import (
 func TestHostServerPing(t *testing.T) {
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID: "test",
-		Gate:     capability.NewGate(domainplugin.Manifest{}),
+		Gate:     newGate(t, domainplugin.Manifest{}),
 	})
 
 	raw, rpcErr := server.HandleRequest(context.Background(), "ping", nil)
@@ -32,7 +32,7 @@ func TestHostServerPing(t *testing.T) {
 func TestHostServerInvalidParamsOmitsDetail(t *testing.T) {
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID: "test",
-		Gate: capability.NewGate(domainplugin.Manifest{
+		Gate: newGate(t, domainplugin.Manifest{
 			Capabilities: domainplugin.CapabilitySet{
 				FS: &domainplugin.FSCaps{Read: []string{"${pluginData}"}},
 			},
@@ -56,7 +56,7 @@ func TestHostServerInvalidParamsOmitsDetail(t *testing.T) {
 func TestHostServerLogWriteRateLimited(t *testing.T) {
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID: "test",
-		Gate:     capability.NewGate(domainplugin.Manifest{}),
+		Gate:     newGate(t, domainplugin.Manifest{}),
 	})
 
 	params, _ := json.Marshal(map[string]string{"level": "info", "message": "hello"})
@@ -75,7 +75,7 @@ func TestHostServerLogWriteRateLimited(t *testing.T) {
 func TestHostServerNilFSProxyDoesNotPanic(t *testing.T) {
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID: "test",
-		Gate: capability.NewGate(domainplugin.Manifest{
+		Gate: newGate(t, domainplugin.Manifest{
 			Capabilities: domainplugin.CapabilitySet{
 				FS: &domainplugin.FSCaps{Read: []string{"${pluginData}"}},
 			},
@@ -91,7 +91,7 @@ func TestHostServerNilFSProxyDoesNotPanic(t *testing.T) {
 func TestHostServerNilNetProxyDoesNotPanic(t *testing.T) {
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID: "test",
-		Gate: capability.NewGate(domainplugin.Manifest{
+		Gate: newGate(t, domainplugin.Manifest{
 			Capabilities: domainplugin.CapabilitySet{
 				Network: &domainplugin.NetworkCaps{Outbound: []string{"tcp:127.0.0.1:8080"}},
 			},
@@ -136,7 +136,7 @@ func TestHostServerTunnelAlreadyExistsMapsConflict(t *testing.T) {
 	dialProxy := capability.NewTunnelDialProxy("test", &domainplugin.TunnelCaps{Provider: true}, tunnelAlreadyExistsInbound{})
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID: "test",
-		Gate: capability.NewGate(domainplugin.Manifest{
+		Gate: newGate(t, domainplugin.Manifest{
 			Capabilities: domainplugin.CapabilitySet{
 				Tunnel: &domainplugin.TunnelCaps{Provider: true},
 			},
@@ -153,7 +153,7 @@ func TestHostServerTunnelAlreadyExistsMapsConflict(t *testing.T) {
 func TestHostServerSessionNotBoundMapsCapabilityDenied(t *testing.T) {
 	server := ipc.NewHostServer(ipc.HostServerConfig{
 		PluginID: "test",
-		Gate: capability.NewGate(domainplugin.Manifest{
+		Gate: newGate(t, domainplugin.Manifest{
 			Capabilities: domainplugin.CapabilitySet{
 				Session: &domainplugin.SessionCaps{Terminal: true},
 			},

@@ -26,15 +26,14 @@ func TestDeprecationNotices(t *testing.T) {
 		},
 	})
 
-	rs := domainplugin.RequirementSet{
-		PluginAPI: "1.0.0",
-		Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{
-			domainplugin.CapVault:  {Min: "1.0.0", Features: []domainplugin.FeatureID{domainplugin.FeatVaultGetSecret}},
-			domainplugin.CapTunnel: {Min: "1.0.0", Features: []domainplugin.FeatureID{domainplugin.FeatTunnelDial}},
+	nd := domainplugin.NegotiatedDescriptor{
+		Capabilities: map[domainplugin.CapabilityID]domainplugin.NegotiatedCapability{
+			domainplugin.CapVault:  {Version: mustSemver(t, "1.0.0"), Features: []domainplugin.FeatureID{domainplugin.FeatVaultGetSecret}},
+			domainplugin.CapTunnel: {Version: mustSemver(t, "1.0.0"), Features: []domainplugin.FeatureID{domainplugin.FeatTunnelDial}},
 		},
 	}
 
-	notices := rs.DeprecationNotices(reg)
+	notices := nd.DeprecationNotices(reg)
 	joined := strings.Join(notices, "\n")
 	if !strings.Contains(joined, "vault.getSecret is deprecated") {
 		t.Fatalf("expected vault.getSecret deprecation notice, got: %v", notices)
@@ -47,11 +46,21 @@ func TestDeprecationNotices(t *testing.T) {
 	}
 
 	// A requirement using no deprecated items produces no notices.
-	clean := domainplugin.RequirementSet{
-		PluginAPI:    "1.0.0",
-		Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{domainplugin.CapVault: {Min: "1.0.0", Features: []domainplugin.FeatureID{domainplugin.FeatVaultGetConnection}}},
+	clean := domainplugin.NegotiatedDescriptor{
+		Capabilities: map[domainplugin.CapabilityID]domainplugin.NegotiatedCapability{
+			domainplugin.CapVault: {Version: mustSemver(t, "1.0.0"), Features: []domainplugin.FeatureID{domainplugin.FeatVaultGetConnection}},
+		},
 	}
 	if n := clean.DeprecationNotices(reg); len(n) != 0 {
 		t.Fatalf("expected no notices, got: %v", n)
 	}
+}
+
+func mustSemver(t *testing.T, v string) domainplugin.Semver {
+	t.Helper()
+	s, err := domainplugin.ParseSemver(v)
+	if err != nil {
+		t.Fatalf("ParseSemver(%q): %v", v, err)
+	}
+	return s
 }

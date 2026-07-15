@@ -7,7 +7,7 @@ import (
 )
 
 func TestGate_DeniesTunnelLocalWithoutProvider(t *testing.T) {
-	gate := NewGate(domainplugin.Manifest{ID: "p1"})
+	gate := newGate(t, domainplugin.Manifest{ID: "p1"})
 	for _, method := range []string{"tunnel.localWrite", "tunnel.localClose", "tunnel.bind", "tunnel.dial"} {
 		if gate.Allow(method) {
 			t.Fatalf("method %q should be denied without tunnel.provider", method)
@@ -16,7 +16,7 @@ func TestGate_DeniesTunnelLocalWithoutProvider(t *testing.T) {
 }
 
 func TestGate_AllowsTunnelWhenProviderDeclared(t *testing.T) {
-	gate := NewGate(domainplugin.Manifest{
+	gate := newGate(t, domainplugin.Manifest{
 		ID: "p1",
 		Capabilities: domainplugin.CapabilitySet{
 			Tunnel: &domainplugin.TunnelCaps{Provider: true},

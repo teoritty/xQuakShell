@@ -35,6 +35,17 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 		}
 	}()
 
+	// Resolve the plugin against the LIVE registry into the single runtime contract, BEFORE
+	// spawning a process. This is the authoritative handshake check (ADR-012): an incompatible
+	// plugin — including live-registry skew since install — fails here and never spawns. The same
+	// descriptor is threaded to the gate (feature-version enforcement) and the initializer, so
+	// there is exactly one negotiation for this process.
+	negotiated, negotiationWarnings, err := domainplugin.Negotiate(&plugin.Manifest, domainplugin.HostRegistry())
+	if err != nil {
+		return err
+	}
+	mp.negotiated = negotiated
+
 	spawned, err := spawnPluginProcess(ctx, h.cfg.DataRoot, plugin, sessionID)
 	if err != nil {
 		return err
@@ -49,7 +60,7 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	}
 	mp.job = job
 
-	conn, netProxy, tunnelDial, tunnelLocal, channelProxy, err := h.newConn(plugin, dataDir, sessionID, spawned.stdout, spawned.stdin)
+	conn, netProxy, tunnelDial, tunnelLocal, channelProxy, err := h.newConn(plugin, dataDir, sessionID, spawned.stdout, spawned.stdin, negotiated)
 	if err != nil {
 		return err
 	}
@@ -63,7 +74,7 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	}
 
 	portableReadOnly := h.cfg.Portable != nil && h.cfg.Portable.DataRootReadOnly()
-	if err := initializePluginProcess(ctx, conn, plugin, dataDir, portableReadOnly); err != nil {
+	if err := initializePluginProcess(ctx, conn, plugin, dataDir, portableReadOnly, negotiated, negotiationWarnings); err != nil {
 		return err
 	}
 

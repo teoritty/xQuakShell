@@ -28,7 +28,7 @@ func (disabledPluginHost) Notify(context.Context, string, string, string, json.R
 	return nil
 }
 func (h disabledPluginHost) State(string, string) domainplugin.ProcessState { return h.state }
-func (disabledPluginHost) StopAll(context.Context)                        {}
+func (disabledPluginHost) StopAll(context.Context)                          {}
 func (disabledPluginHost) RunningInstances() []domainplugin.ProcessInstance {
 	return nil
 }
