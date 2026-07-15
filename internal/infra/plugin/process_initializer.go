@@ -20,12 +20,22 @@ func initializePluginProcess(ctx context.Context, conn *ipc.Conn, plugin domainp
 	// connection. The manifest was already checked at install time, but the host build may have
 	// changed since (downgrade, dev build, stale snapshot) — the handshake is the source of truth,
 	// and we fail closed on any skew rather than start an incompatible plugin (ADR-012 edge #11).
-	eff, _, err := domainplugin.EffectiveRequirements(&plugin.Manifest)
+	eff, warnings, err := domainplugin.EffectiveRequirements(&plugin.Manifest)
 	if err != nil {
 		return fmt.Errorf("plugin initialize: %w", err)
 	}
-	if report := eff.CheckAgainstHost(domainplugin.HostRegistry()); report != nil {
+	registry := domainplugin.HostRegistry()
+	if report := eff.CheckAgainstHost(registry); report != nil {
 		return fmt.Errorf("plugin initialize: %w", report)
+	}
+
+	// Surface migration/advisory warnings and deprecation notices once per load so authors can
+	// migrate ahead of removal. Deprecated items still work (ADR-012); these never block startup.
+	for _, w := range warnings {
+		slog.Warn("plugin API advisory", "pluginId", plugin.Manifest.ID, "detail", w)
+	}
+	for _, n := range eff.DeprecationNotices(registry) {
+		slog.Warn("plugin uses deprecated API", "pluginId", plugin.Manifest.ID, "detail", n)
 	}
 
 	initParams := domainplugin.InitializeParams{
