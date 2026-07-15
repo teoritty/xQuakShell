@@ -90,6 +90,27 @@ export async function fetchSettings(): Promise<AppSettings | null> {
   );
 }
 
+// VersionInfo carries the three distinct versions shown in the About panel (ADR-012):
+// the application release, the plugin core version, and the frozen plugin API envelope.
+export interface VersionInfo {
+  appVersion: string;
+  coreVersion: string;
+  pluginApiVersion: string;
+}
+
+// fetchVersionInfo returns the app/core/pluginApi versions, or null if the backend is
+// unavailable (the About panel falls back to placeholders in that case).
+export async function fetchVersionInfo(): Promise<VersionInfo | null> {
+  return callBackend(
+    'Get version info',
+    null,
+    async (app) => {
+      if (!app.GetVersionInfo) return null;
+      return (await app.GetVersionInfo()) as VersionInfo;
+    },
+  );
+}
+
 export async function putSettings(settings: Partial<AppSettings>): Promise<void> {
   return callBackendVoid('Save settings', (app) => {
     const payload = {

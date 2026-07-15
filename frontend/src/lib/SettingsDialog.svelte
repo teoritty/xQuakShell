@@ -4,6 +4,7 @@
   import ConfirmDialog from './ConfirmDialog.svelte';
   import PluginSettingsPanel from './PluginSettingsPanel.svelte';
   import { getSettings, saveSettings } from '../actions/settingsActions';
+  import { fetchVersionInfo } from '../api/settings';
   import { parseHotkeyEvent, normalizeHotkey } from '../hotkeys/hotkeys';
   import { DEFAULT_SESSION_HOTKEYS } from '../api/settings';
   import {
@@ -202,6 +203,12 @@
     }
     const sessionState = await getAuditSessionState();
     auditLogSecrets = sessionState?.logSecretsEnabled ?? false;
+    const version = await fetchVersionInfo();
+    if (version) {
+      appVersion = version.appVersion;
+      coreVersion = version.coreVersion;
+      pluginApiVersion = version.pluginApiVersion;
+    }
     hotkeyConflict = '';
     loading = false;
   }
@@ -315,7 +322,9 @@
     show = false;
   }
 
-  const appVersion = '2.0.0';
+  let appVersion = '';
+  let coreVersion = '';
+  let pluginApiVersion = '';
 </script>
 
 {#if show}
@@ -359,7 +368,8 @@
             {/if}
             <div class="section">
               <h4>SSH Client</h4>
-              <p class="version-text">Version {appVersion}</p>
+              <p class="version-text">Version {appVersion || '—'}</p>
+              <p class="version-text">Core {coreVersion || '—'} · Plugin API {pluginApiVersion || '—'}</p>
               <div class="about-links">
                 <button class="secondary about-link" on:click={() => window.open('https://github.com/teoritty/xQuakShell/releases/', '_blank')}>
                   <ExternalLink size={13} />
