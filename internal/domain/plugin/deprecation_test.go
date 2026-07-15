@@ -9,7 +9,7 @@ import (
 
 func TestDeprecationNotices(t *testing.T) {
 	// A synthetic registry with a deprecated feature and a fully deprecated capability.
-	reg := domainplugin.Registry{
+	reg := domainplugin.NewRegistry(map[domainplugin.CapabilityID]domainplugin.CapabilityDescriptor{
 		domainplugin.CapVault: {
 			Version:  "1.1.0",
 			Features: []domainplugin.FeatureID{domainplugin.FeatVaultGetConnection, domainplugin.FeatVaultGetSecret},
@@ -24,7 +24,7 @@ func TestDeprecationNotices(t *testing.T) {
 				domainplugin.FeatureID(""): {Since: "1.0.0", RemoveIn: "2.0.0"},
 			},
 		},
-	}
+	})
 
 	rs := domainplugin.RequirementSet{
 		PluginAPI: "1.0.0",

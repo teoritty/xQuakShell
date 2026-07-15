@@ -6,16 +6,18 @@ import (
 	domainplugin "ssh-client/internal/domain/plugin"
 )
 
-func TestHostRegistryReturnsIndependentCopy(t *testing.T) {
-	a := domainplugin.HostRegistry()
-	d := a["vault"]
-	d.Features[0] = "MUTATED"
-	// Mutating the returned copy must not affect a fresh read.
-	b := domainplugin.HostRegistry()
-	if b.HasFeature("vault", "MUTATED") {
-		t.Fatal("HostRegistry leaked a mutable reference to the source of truth")
+func TestHostRegistryIsImmutable(t *testing.T) {
+	// Descriptor returns a copy; mutating it must not affect the shared registry.
+	d, ok := domainplugin.HostRegistry().Descriptor(domainplugin.CapVault)
+	if !ok {
+		t.Fatal("expected vault descriptor")
 	}
-	if !b.HasFeature("vault", "getSecret") {
+	d.Features[0] = "MUTATED"
+
+	if domainplugin.HostRegistry().HasFeature(domainplugin.CapVault, "MUTATED") {
+		t.Fatal("registry leaked a mutable reference to the source of truth")
+	}
+	if !domainplugin.HostRegistry().HasFeature(domainplugin.CapVault, domainplugin.FeatVaultGetSecret) {
 		t.Fatal("expected vault.getSecret feature")
 	}
 }

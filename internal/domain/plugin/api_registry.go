@@ -1,6 +1,9 @@
 package plugin
 
-import "slices"
+import (
+	"maps"
+	"slices"
+)
 
 // PluginAPIVersion is the frozen version of the plugin protocol ENVELOPE (ADR-012): the
 // wire framing, the JSON-RPC envelope, the initialize handshake shape, the lifecycle
@@ -92,15 +95,29 @@ type CapabilityDescriptor struct {
 	Deprecated map[FeatureID]DeprecationInfo `json:",omitempty"`
 }
 
-// Registry maps a capability id to its descriptor. It is the single source of truth for what the
-// host provides.
-type Registry map[CapabilityID]CapabilityDescriptor
+// Registry is the immutable source of truth for the capabilities a host provides. It is an
+// opaque value: its capability map is private and there are no mutators, so once built it cannot
+// be changed and can be shared freely without defensive copying. Build one with NewRegistry;
+// read it through the methods below.
+type Registry struct {
+	caps map[CapabilityID]CapabilityDescriptor
+}
 
-// hostRegistry is the authoritative host contract at this build. Every capability starts at
-// 1.0.0 for the release freeze with an explicit feature list mirroring the gate's method
-// map. Kept unexported; callers get an independent copy via HostRegistry so it cannot be
-// mutated in place.
-var hostRegistry = Registry{
+// NewRegistry builds an immutable Registry from a capability map, copying the input so later
+// mutation of the caller's map cannot affect the registry. Used to build the host contract and
+// synthetic registries in tests.
+func NewRegistry(caps map[CapabilityID]CapabilityDescriptor) Registry {
+	out := make(map[CapabilityID]CapabilityDescriptor, len(caps))
+	for id, d := range caps {
+		out[id] = copyDescriptor(d)
+	}
+	return Registry{caps: out}
+}
+
+// hostRegistry is the authoritative host contract at this build, built once and never mutated.
+// Every capability starts at 1.0.0 for the release freeze with an explicit feature list mirroring
+// the gate's method map.
+var hostRegistry = NewRegistry(map[CapabilityID]CapabilityDescriptor{
 	CapNetwork:    {Version: "1.0.0", Features: []FeatureID{FeatNetworkDial}},
 	CapFilesystem: {Version: "1.0.0", Features: []FeatureID{FeatFilesystemRead, FeatFilesystemWrite}},
 	CapEvents:     {Version: "1.0.0", Features: []FeatureID{FeatEventsPublish, FeatEventsSubscribe}},
@@ -109,39 +126,32 @@ var hostRegistry = Registry{
 	CapAuth:       {Version: "1.0.0", Features: []FeatureID{FeatAuthProvider}},
 	CapTunnel:     {Version: "1.0.0", Features: []FeatureID{FeatTunnelBind, FeatTunnelDial}},
 	CapChannel:    {Version: "1.0.0", Features: []FeatureID{FeatChannelOpen}},
-}
+})
 
-// HostRegistry returns an independent copy of the host's capability contract, safe for the
-// caller to read or retain without affecting the source of truth.
+// HostRegistry returns the shared immutable host contract. No copy is made — the type has no
+// mutators, so sharing is safe.
 func HostRegistry() Registry {
-	out := make(Registry, len(hostRegistry))
-	for id, d := range hostRegistry {
-		out[id] = copyDescriptor(d)
-	}
-	return out
+	return hostRegistry
 }
 
 func copyDescriptor(d CapabilityDescriptor) CapabilityDescriptor {
 	features := append([]FeatureID(nil), d.Features...)
 	var dep map[FeatureID]DeprecationInfo
 	if len(d.Deprecated) > 0 {
-		dep = make(map[FeatureID]DeprecationInfo, len(d.Deprecated))
-		for k, v := range d.Deprecated {
-			dep[k] = v
-		}
+		dep = maps.Clone(d.Deprecated)
 	}
 	return CapabilityDescriptor{Version: d.Version, Features: features, Deprecated: dep}
 }
 
 // Has reports whether the registry provides the given capability.
 func (r Registry) Has(capability CapabilityID) bool {
-	_, ok := r[capability]
+	_, ok := r.caps[capability]
 	return ok
 }
 
 // HasFeature reports whether the given capability offers the given feature flag.
 func (r Registry) HasFeature(capability CapabilityID, feature FeatureID) bool {
-	d, ok := r[capability]
+	d, ok := r.caps[capability]
 	if !ok {
 		return false
 	}
@@ -150,7 +160,7 @@ func (r Registry) HasFeature(capability CapabilityID, feature FeatureID) bool {
 
 // CapabilityVersion returns the parsed version of the given capability.
 func (r Registry) CapabilityVersion(capability CapabilityID) (Semver, bool) {
-	d, ok := r[capability]
+	d, ok := r.caps[capability]
 	if !ok {
 		return Semver{}, false
 	}
@@ -159,6 +169,26 @@ func (r Registry) CapabilityVersion(capability CapabilityID) (Semver, bool) {
 		return Semver{}, false
 	}
 	return v, true
+}
+
+// Names returns every capability id in the registry, sorted for deterministic iteration.
+func (r Registry) Names() []CapabilityID {
+	names := make([]CapabilityID, 0, len(r.caps))
+	for id := range r.caps {
+		names = append(names, id)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// Descriptor returns a copy of the descriptor for a capability, so the immutable registry cannot
+// be mutated through the returned value.
+func (r Registry) Descriptor(capability CapabilityID) (CapabilityDescriptor, bool) {
+	d, ok := r.caps[capability]
+	if !ok {
+		return CapabilityDescriptor{}, false
+	}
+	return copyDescriptor(d), true
 }
 
 // CapabilityInfo is the per-capability slice of the initialize descriptor sent to plugins.
@@ -177,8 +207,8 @@ type APIDescriptor struct {
 
 // HostDescriptor builds the APIDescriptor advertised at initialize from the host registry.
 func HostDescriptor() APIDescriptor {
-	caps := make(map[CapabilityID]CapabilityInfo, len(hostRegistry))
-	for id, d := range hostRegistry {
+	caps := make(map[CapabilityID]CapabilityInfo, len(hostRegistry.caps))
+	for id, d := range hostRegistry.caps {
 		caps[id] = CapabilityInfo{
 			Version:  d.Version,
 			Features: append([]FeatureID(nil), d.Features...),

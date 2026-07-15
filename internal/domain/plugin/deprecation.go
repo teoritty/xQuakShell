@@ -9,7 +9,7 @@ import "fmt"
 func (rs RequirementSet) DeprecationNotices(reg Registry) []string {
 	var notices []string
 	for _, name := range rs.sortedCapabilityNames() {
-		desc, ok := reg[name]
+		desc, ok := reg.Descriptor(name)
 		if !ok || len(desc.Deprecated) == 0 {
 			continue
 		}

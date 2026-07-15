@@ -28,7 +28,7 @@ func TestRegistryCapabilitiesAreGrantable(t *testing.T) {
 		"network": true, "filesystem": true, "events": true, "vault": true,
 		"session": true, "auth": true, "tunnel": true, "channel": true,
 	}
-	for name := range domainplugin.HostRegistry() {
+	for _, name := range domainplugin.HostRegistry().Names() {
 		if !grantable[name] {
 			t.Fatalf("registry capability %q has no CapabilitySet grant field", name)
 		}
