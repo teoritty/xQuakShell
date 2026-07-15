@@ -2,15 +2,14 @@ package plugin
 
 import (
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 )
 
-// HostCoreVersion is the semver reported to plugins at initialize and used for minCoreVersion checks.
-const HostCoreVersion = "0.2.0-dev"
-
-var coreVersionPrefix = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)`)
+// HostCoreVersion is the core (backend engine) version. Post-freeze it is purely
+// informational — reported to plugins at initialize and rendered in the About panel — and
+// only the deprecated minCoreVersion legacy path still gates on it. Plugins gate on the
+// pluginApi envelope + capability versions instead (ADR-012), never on this value.
+const HostCoreVersion = "1.0.0"
 
 // CompatibleWithCore reports whether the host satisfies manifest minCoreVersion.
 func (m *Manifest) CompatibleWithCore(coreVersion string) error {
@@ -30,45 +29,29 @@ func ValidateMinCoreVersion(v string) error {
 	if v == "" {
 		return nil
 	}
-	if _, _, _, ok := parseCoreVersion(v); !ok {
+	if _, err := ParseSemver(v); err != nil {
 		return fmt.Errorf("%w: invalid minCoreVersion %q", ErrInvalidManifest, v)
 	}
 	return nil
 }
 
-// CoreVersionAtLeast reports whether actual >= minimum (semver prefix compare).
+// CoreVersionAtLeast reports whether actual >= minimum by full major.minor.patch order.
+//
+// This is the LEGACY minCoreVersion comparison and, unlike Satisfies, it orders across
+// majors (a higher major is "at least" a lower one) because that is how minCoreVersion
+// historically behaved. New code uses Satisfies; this remains only for the deprecated
+// minCoreVersion shim. Pre-release suffixes are ignored.
 func CoreVersionAtLeast(actual, minimum string) bool {
-	am, ai, ap, aok := parseCoreVersion(actual)
-	mm, mi, mp, mok := parseCoreVersion(minimum)
-	if !aok || !mok {
+	a, aerr := ParseSemver(actual)
+	m, merr := ParseSemver(minimum)
+	if aerr != nil || merr != nil {
 		return false
 	}
-	if am != mm {
-		return am > mm
+	if a.Major != m.Major {
+		return a.Major > m.Major
 	}
-	if ai != mi {
-		return ai > mi
+	if a.Minor != m.Minor {
+		return a.Minor > m.Minor
 	}
-	return ap >= mp
-}
-
-func parseCoreVersion(v string) (major, minor, patch int, ok bool) {
-	v = strings.TrimSpace(v)
-	m := coreVersionPrefix.FindStringSubmatch(v)
-	if len(m) != 4 {
-		return 0, 0, 0, false
-	}
-	major, err := strconv.Atoi(m[1])
-	if err != nil {
-		return 0, 0, 0, false
-	}
-	minor, err = strconv.Atoi(m[2])
-	if err != nil {
-		return 0, 0, 0, false
-	}
-	patch, err = strconv.Atoi(m[3])
-	if err != nil {
-		return 0, 0, 0, false
-	}
-	return major, minor, patch, true
+	return a.Patch >= m.Patch
 }
