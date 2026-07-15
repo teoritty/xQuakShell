@@ -1,11 +1,43 @@
 package plugin_test
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
 	domainplugin "ssh-client/internal/domain/plugin"
 )
+
+// TestRequiresJSONRoundTrip proves the requires{} block deserialises from the on-the-wire
+// plugin.json shape and drives validation end-to-end.
+func TestRequiresJSONRoundTrip(t *testing.T) {
+	raw := `{
+      "id":"com.example.req","name":"Req","version":"1.0.0",
+      "engine":{"type":"go-binary","entry":"bin/plugin"},
+      "capabilities":{"vault":{"getSecret":["password"]}},
+      "requires":{"pluginApi":"1.0.0","capabilities":{"vault":{"min":"1.0.0","features":["getSecret"]}}}
+    }`
+	var m domainplugin.Manifest
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if m.Requires == nil || m.Requires.PluginAPI != "1.0.0" {
+		t.Fatalf("requires not parsed: %+v", m.Requires)
+	}
+	if err := m.Validate(); err != nil {
+		t.Fatalf("expected valid manifest, got %v", err)
+	}
+
+	// Same manifest but requiring a feature the host does not offer must fail Validate.
+	bad := m
+	bad.Requires = &domainplugin.RequirementSet{
+		PluginAPI:    "1.0.0",
+		Capabilities: map[string]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []string{"mindRead"}}},
+	}
+	if err := bad.Validate(); !errors.Is(err, domainplugin.ErrMissingFeature) {
+		t.Fatalf("expected ErrMissingFeature, got %v", err)
+	}
+}
 
 // vaultManifest builds a minimal valid manifest that grants the vault capability, optionally
 // with a requires{} block.
@@ -22,10 +54,10 @@ func vaultManifest(req *domainplugin.RequirementSet) domainplugin.Manifest {
 
 func TestValidateRequirementsGrammar(t *testing.T) {
 	bad := []*domainplugin.RequirementSet{
-		{PluginAPI: ""},                    // missing pluginApi
-		{PluginAPI: "1.0"},                 // not full semver
-		{PluginAPI: "1.0.0-rc1"},           // pre-release not allowed in a requirement
-		{PluginAPI: "1.0.0", Capabilities: map[string]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0-dev"}}}, // cap pre-release
+		{PluginAPI: ""},          // missing pluginApi
+		{PluginAPI: "1.0"},       // not full semver
+		{PluginAPI: "1.0.0-rc1"}, // pre-release not allowed in a requirement
+		{PluginAPI: "1.0.0", Capabilities: map[string]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0-dev"}}},                     // cap pre-release
 		{PluginAPI: "1.0.0", Capabilities: map[string]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []string{""}}}}, // empty feature
 	}
 	for i, req := range bad {

@@ -21,11 +21,18 @@ const (
 
 // InitializeParams is sent to a plugin on first start.
 type InitializeParams struct {
-	PluginID     string        `json:"pluginId"`
-	APIVersion   string        `json:"apiVersion"`
+	PluginID string `json:"pluginId"`
+	// APIVersion is the frozen protocol envelope version (PluginAPIVersion). Kept for plugins
+	// that read the scalar; API carries the full versioned surface.
+	APIVersion string `json:"apiVersion"`
+	// API is the host's advertised versioning descriptor (ADR-012): the envelope version plus
+	// every capability's version and feature flags. The host — never the plugin's echo — is the
+	// authority; the plugin negotiates against this.
+	API          APIDescriptor `json:"api"`
 	Capabilities CapabilitySet `json:"capabilities"`
 	DataDir      string        `json:"dataDir"`
-	CoreVersion  string        `json:"coreVersion"`
+	// CoreVersion is the informational/legacy core build version.
+	CoreVersion string `json:"coreVersion"`
 }
 
 // ProcessInstance identifies a running plugin OS process tracked by the host.

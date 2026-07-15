@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"unsafe"
 
-	domainplugin "ssh-client/internal/domain/plugin"
 	"golang.org/x/sys/windows"
+	domainplugin "ssh-client/internal/domain/plugin"
 )
 
 func createPluginJob() (pluginJob, error) {

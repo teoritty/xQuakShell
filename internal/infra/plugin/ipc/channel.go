@@ -40,12 +40,12 @@ type channel struct {
 	// Stage 5 flow control. Nil (credit == nil) means "no flow control configured" — the
 	// zero-arg newChannel used by Stage 2/3 callers and existing tests keeps working
 	// unrestricted; only channels built via newFlowChannel gate outbound sends.
-	purpose   string
-	credit    *channelCredit
-	throttle  *tokenBucket
-	policy    exhaustionPolicy
-	gate      *backendGate
-	staging   *stagingBuffer
+	purpose    string
+	credit     *channelCredit
+	throttle   *tokenBucket
+	policy     exhaustionPolicy
+	gate       *backendGate
+	staging    *stagingBuffer
 	writeFrame func(payload []byte) error
 }
 

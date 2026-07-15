@@ -4,14 +4,13 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/domain"
+	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/infra/plugin/capability"
 	"ssh-client/internal/infra/plugin/ipc"
 )
 
 const (
-	coreAPIVersion      = "1.0.0"
 	initTimeout         = 10 * time.Second
 	callTimeout         = 5 * time.Second
 	shutdownCallTimeout = 2 * time.Second

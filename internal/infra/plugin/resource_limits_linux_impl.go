@@ -5,8 +5,8 @@ package plugin
 import (
 	"fmt"
 
-	domainplugin "ssh-client/internal/domain/plugin"
 	"golang.org/x/sys/unix"
+	domainplugin "ssh-client/internal/domain/plugin"
 )
 
 func applyLinuxResourceLimits(pid int) error {
