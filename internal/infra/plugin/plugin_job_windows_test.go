@@ -6,8 +6,8 @@ import (
 	"testing"
 	"unsafe"
 
-	"golang.org/x/sys/windows"
 	domainplugin "ssh-client/internal/domain/plugin"
+	"golang.org/x/sys/windows"
 )
 
 func TestCreatePluginJobSetsMemoryLimits(t *testing.T) {

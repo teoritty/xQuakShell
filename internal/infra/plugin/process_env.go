@@ -25,21 +25,21 @@ var blockedPluginEnvPrefixes = []string{
 }
 
 var blockedPluginEnvKeys = map[string]struct{}{
-	"HOME":            {},
-	"USERPROFILE":     {},
-	"APPDATA":         {},
-	"LOCALAPPDATA":    {},
-	"TEMP":            {},
-	"TMP":             {},
-	"USER":            {},
-	"USERNAME":        {},
-	"LOGNAME":         {},
-	"COMPUTERNAME":    {},
-	"HOSTNAME":        {},
-	"XDG_CONFIG_HOME": {},
-	"XDG_DATA_HOME":   {},
-	"XDG_CACHE_HOME":  {},
-	"XDG_STATE_HOME":  {},
+	"HOME":             {},
+	"USERPROFILE":      {},
+	"APPDATA":          {},
+	"LOCALAPPDATA":     {},
+	"TEMP":             {},
+	"TMP":              {},
+	"USER":             {},
+	"USERNAME":         {},
+	"LOGNAME":          {},
+	"COMPUTERNAME":     {},
+	"HOSTNAME":         {},
+	"XDG_CONFIG_HOME":  {},
+	"XDG_DATA_HOME":    {},
+	"XDG_CACHE_HOME":   {},
+	"XDG_STATE_HOME":   {},
 }
 
 // PluginProcessEnv builds a sanitized environment for an out-of-process plugin.

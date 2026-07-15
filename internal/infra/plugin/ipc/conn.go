@@ -26,15 +26,15 @@ type Conn struct {
 	reader      *bufio.Reader
 	writeCloser io.Closer
 	pending     map[int64]chan messageResult
-	nextID      atomic.Int64
-	onNotify    func(method string, params json.RawMessage)
-	onRequest   RequestHandler
-	mux         *channelMux
-	closeCh     chan struct{}
-	closeOnce   sync.Once
-	wg          sync.WaitGroup
-	readErr     error
-	mu          sync.Mutex
+	nextID     atomic.Int64
+	onNotify   func(method string, params json.RawMessage)
+	onRequest  RequestHandler
+	mux        *channelMux
+	closeCh    chan struct{}
+	closeOnce  sync.Once
+	wg         sync.WaitGroup
+	readErr    error
+	mu         sync.Mutex
 }
 
 type messageResult struct {
@@ -53,10 +53,10 @@ func NewConn(readFrom io.Reader, writeTo io.Writer, onNotify func(string, json.R
 		reader:      bufio.NewReader(readFrom),
 		writeCloser: wc,
 		pending:     make(map[int64]chan messageResult),
-		onNotify:    onNotify,
-		onRequest:   onRequest,
-		mux:         newChannelMux(),
-		closeCh:     make(chan struct{}),
+		onNotify:  onNotify,
+		onRequest: onRequest,
+		mux:       newChannelMux(),
+		closeCh:   make(chan struct{}),
 	}
 	c.wg.Add(1)
 	safego.GoNamed("ipc.readLoop", c.readLoop)
