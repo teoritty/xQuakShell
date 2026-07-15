@@ -32,7 +32,7 @@ func TestRequiresJSONRoundTrip(t *testing.T) {
 	bad := m
 	bad.Requires = &domainplugin.RequirementSet{
 		PluginAPI:    "1.0.0",
-		Capabilities: map[string]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []string{"mindRead"}}},
+		Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []domainplugin.FeatureID{"mindRead"}}},
 	}
 	if err := bad.Validate(); !errors.Is(err, domainplugin.ErrMissingFeature) {
 		t.Fatalf("expected ErrMissingFeature, got %v", err)
@@ -57,8 +57,8 @@ func TestValidateRequirementsGrammar(t *testing.T) {
 		{PluginAPI: ""},          // missing pluginApi
 		{PluginAPI: "1.0"},       // not full semver
 		{PluginAPI: "1.0.0-rc1"}, // pre-release not allowed in a requirement
-		{PluginAPI: "1.0.0", Capabilities: map[string]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0-dev"}}},                     // cap pre-release
-		{PluginAPI: "1.0.0", Capabilities: map[string]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []string{""}}}}, // empty feature
+		{PluginAPI: "1.0.0", Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0-dev"}}},                                     // cap pre-release
+		{PluginAPI: "1.0.0", Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []domainplugin.FeatureID{""}}}}, // empty feature
 	}
 	for i, req := range bad {
 		m := vaultManifest(req)
@@ -69,7 +69,7 @@ func TestValidateRequirementsGrammar(t *testing.T) {
 
 	good := vaultManifest(&domainplugin.RequirementSet{
 		PluginAPI:    "1.0.0",
-		Capabilities: map[string]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []string{"getSecret"}}},
+		Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []domainplugin.FeatureID{"getSecret"}}},
 	})
 	if err := good.ValidateRequirements(); err != nil {
 		t.Fatalf("expected valid requirements, got %v", err)
@@ -80,7 +80,7 @@ func TestValidateRequirementsRejectsUngrantedCapability(t *testing.T) {
 	// Requires "network" but only grants vault (edge #2).
 	m := vaultManifest(&domainplugin.RequirementSet{
 		PluginAPI:    "1.0.0",
-		Capabilities: map[string]domainplugin.CapabilityRequirement{"network": {Min: "1.0.0"}},
+		Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{"network": {Min: "1.0.0"}},
 	})
 	if err := m.ValidateRequirements(); err == nil {
 		t.Fatal("expected rejection for requiring an ungranted capability")
@@ -98,7 +98,7 @@ func TestCheckAgainstHostMatrix(t *testing.T) {
 	}{
 		{
 			name:       "exact baseline",
-			req:        domainplugin.RequirementSet{PluginAPI: "1.0.0", Capabilities: map[string]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []string{"getSecret"}}}},
+			req:        domainplugin.RequirementSet{PluginAPI: "1.0.0", Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []domainplugin.FeatureID{"getSecret"}}}},
 			compatible: true,
 		},
 		{
@@ -109,19 +109,19 @@ func TestCheckAgainstHostMatrix(t *testing.T) {
 		},
 		{
 			name:       "higher minor than host rejected",
-			req:        domainplugin.RequirementSet{PluginAPI: "1.0.0", Capabilities: map[string]domainplugin.CapabilityRequirement{"vault": {Min: "1.3.0"}}},
+			req:        domainplugin.RequirementSet{PluginAPI: "1.0.0", Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{"vault": {Min: "1.3.0"}}},
 			compatible: false,
 			is:         domainplugin.ErrIncompatibleAPI,
 		},
 		{
 			name:       "unknown capability rejected",
-			req:        domainplugin.RequirementSet{PluginAPI: "1.0.0", Capabilities: map[string]domainplugin.CapabilityRequirement{"telepathy": {Min: "1.0.0"}}},
+			req:        domainplugin.RequirementSet{PluginAPI: "1.0.0", Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{"telepathy": {Min: "1.0.0"}}},
 			compatible: false,
 			is:         domainplugin.ErrIncompatibleAPI,
 		},
 		{
 			name:       "missing feature rejected",
-			req:        domainplugin.RequirementSet{PluginAPI: "1.0.0", Capabilities: map[string]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []string{"mindRead"}}}},
+			req:        domainplugin.RequirementSet{PluginAPI: "1.0.0", Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []domainplugin.FeatureID{"mindRead"}}}},
 			compatible: false,
 			is:         domainplugin.ErrMissingFeature,
 		},
@@ -200,7 +200,7 @@ func TestManifestValidateIntegratesRequirements(t *testing.T) {
 	// A fully valid manifest with satisfiable requires passes end-to-end.
 	m := vaultManifest(&domainplugin.RequirementSet{
 		PluginAPI:    "1.0.0",
-		Capabilities: map[string]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []string{"getSecret"}}},
+		Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []domainplugin.FeatureID{"getSecret"}}},
 	})
 	if err := m.Validate(); err != nil {
 		t.Fatalf("expected valid manifest, got %v", err)
@@ -209,7 +209,7 @@ func TestManifestValidateIntegratesRequirements(t *testing.T) {
 	// An unsatisfiable feature requirement fails Validate.
 	bad := vaultManifest(&domainplugin.RequirementSet{
 		PluginAPI:    "1.0.0",
-		Capabilities: map[string]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []string{"mindRead"}}},
+		Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []domainplugin.FeatureID{"mindRead"}}},
 	})
 	if err := bad.Validate(); !errors.Is(err, domainplugin.ErrMissingFeature) {
 		t.Fatalf("expected ErrMissingFeature from Validate, got %v", err)

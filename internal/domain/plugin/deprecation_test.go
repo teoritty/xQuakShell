@@ -10,27 +10,27 @@ import (
 func TestDeprecationNotices(t *testing.T) {
 	// A synthetic registry with a deprecated feature and a fully deprecated capability.
 	reg := domainplugin.Registry{
-		"vault": {
+		domainplugin.CapVault: {
 			Version:  "1.1.0",
-			Features: []string{"getConnection", "getSecret"},
-			Deprecated: map[string]domainplugin.DeprecationInfo{
-				"getSecret": {Since: "1.1.0", RemoveIn: "2.0.0", Replacement: "vault.getSecretScoped"},
+			Features: []domainplugin.FeatureID{domainplugin.FeatVaultGetConnection, domainplugin.FeatVaultGetSecret},
+			Deprecated: map[domainplugin.FeatureID]domainplugin.DeprecationInfo{
+				domainplugin.FeatVaultGetSecret: {Since: "1.1.0", RemoveIn: "2.0.0", Replacement: "vault.getSecretScoped"},
 			},
 		},
-		"tunnel": {
+		domainplugin.CapTunnel: {
 			Version:  "1.0.0",
-			Features: []string{"dial"},
-			Deprecated: map[string]domainplugin.DeprecationInfo{
-				"": {Since: "1.0.0", RemoveIn: "2.0.0"},
+			Features: []domainplugin.FeatureID{domainplugin.FeatTunnelDial},
+			Deprecated: map[domainplugin.FeatureID]domainplugin.DeprecationInfo{
+				domainplugin.FeatureID(""): {Since: "1.0.0", RemoveIn: "2.0.0"},
 			},
 		},
 	}
 
 	rs := domainplugin.RequirementSet{
 		PluginAPI: "1.0.0",
-		Capabilities: map[string]domainplugin.CapabilityRequirement{
-			"vault":  {Min: "1.0.0", Features: []string{"getSecret"}},
-			"tunnel": {Min: "1.0.0", Features: []string{"dial"}},
+		Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{
+			domainplugin.CapVault:  {Min: "1.0.0", Features: []domainplugin.FeatureID{domainplugin.FeatVaultGetSecret}},
+			domainplugin.CapTunnel: {Min: "1.0.0", Features: []domainplugin.FeatureID{domainplugin.FeatTunnelDial}},
 		},
 	}
 
@@ -49,7 +49,7 @@ func TestDeprecationNotices(t *testing.T) {
 	// A requirement using no deprecated items produces no notices.
 	clean := domainplugin.RequirementSet{
 		PluginAPI:    "1.0.0",
-		Capabilities: map[string]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []string{"getConnection"}}},
+		Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{domainplugin.CapVault: {Min: "1.0.0", Features: []domainplugin.FeatureID{domainplugin.FeatVaultGetConnection}}},
 	}
 	if n := clean.DeprecationNotices(reg); len(n) != 0 {
 		t.Fatalf("expected no notices, got: %v", n)

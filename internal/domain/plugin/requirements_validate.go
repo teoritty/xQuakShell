@@ -23,7 +23,7 @@ func (m *Manifest) ValidateRequirements() error {
 	}
 
 	for name, req := range m.Requires.Capabilities {
-		field := "requires.capabilities." + name
+		field := "requires.capabilities." + string(name)
 		if err := validateRequirementVersion(field+".min", req.Min); err != nil {
 			return err
 		}
@@ -31,7 +31,7 @@ func (m *Manifest) ValidateRequirements() error {
 			return fmt.Errorf("%w: %s requires capability %q that is not granted in capabilities{}", ErrInvalidManifest, field, name)
 		}
 		for _, f := range req.Features {
-			if strings.TrimSpace(f) == "" {
+			if strings.TrimSpace(string(f)) == "" {
 				return fmt.Errorf("%w: %s.features contains an empty feature name", ErrInvalidManifest, field)
 			}
 		}
@@ -89,24 +89,25 @@ func (rs RequirementSet) checkEnvelope(report *IncompatibilityReport) {
 	}
 }
 
-func (rs RequirementSet) checkCapability(name string, req CapabilityRequirement, reg Registry, report *IncompatibilityReport) {
+func (rs RequirementSet) checkCapability(name CapabilityID, req CapabilityRequirement, reg Registry, report *IncompatibilityReport) {
+	axis := string(name)
 	haveVer, ok := reg.CapabilityVersion(name)
 	if !ok {
 		// Unknown or unsupported capability (typo, or one added in a newer host). Edge #4.
-		report.add(name, IncompatUnsupported, fmt.Sprintf("capability %q is not provided by this host", name))
+		report.add(axis, IncompatUnsupported, fmt.Sprintf("capability %q is not provided by this host", name))
 		return
 	}
 	want, err := ParseSemver(req.Min)
 	if err != nil {
-		report.add(name, IncompatVersion, fmt.Sprintf("invalid required version %q", req.Min))
+		report.add(axis, IncompatVersion, fmt.Sprintf("invalid required version %q", req.Min))
 		return
 	}
 	if !Satisfies(haveVer, want) {
-		report.add(name, IncompatVersion, fmt.Sprintf("requires %s %s, host provides %s", name, want, haveVer))
+		report.add(axis, IncompatVersion, fmt.Sprintf("requires %s %s, host provides %s", name, want, haveVer))
 	}
 	for _, f := range req.Features {
 		if !reg.HasFeature(name, f) {
-			report.add(name, IncompatMissingFeature, fmt.Sprintf("requires feature %q not offered by %s", f, name))
+			report.add(axis, IncompatMissingFeature, fmt.Sprintf("requires feature %q not offered by %s", f, name))
 		}
 	}
 }

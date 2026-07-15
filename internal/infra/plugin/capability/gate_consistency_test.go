@@ -24,7 +24,7 @@ func TestFeatureVersionsReferenceRealFeatures(t *testing.T) {
 // advertises must be one a plugin can actually grant in its CapabilitySet. A registry entry with
 // no corresponding grant would be unreachable and impossible to negotiate correctly.
 func TestRegistryCapabilitiesAreGrantable(t *testing.T) {
-	grantable := map[string]bool{
+	grantable := map[domainplugin.CapabilityID]bool{
 		"network": true, "filesystem": true, "events": true, "vault": true,
 		"session": true, "auth": true, "tunnel": true, "channel": true,
 	}

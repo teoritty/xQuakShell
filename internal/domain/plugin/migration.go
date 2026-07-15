@@ -2,7 +2,8 @@ package plugin
 
 import (
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 )
 
 // EffectiveRequirements resolves a manifest into the concrete RequirementSet the host checks
@@ -33,11 +34,9 @@ func EffectiveRequirements(m *Manifest) (RequirementSet, []string, error) {
 		return RequirementSet{}, warnings, err
 	}
 
-	caps := map[string]CapabilityRequirement{}
+	caps := map[CapabilityID]CapabilityRequirement{}
 	if m.Requires != nil {
-		for name, req := range m.Requires.Capabilities {
-			caps[name] = req
-		}
+		maps.Copy(caps, m.Requires.Capabilities)
 	}
 	// Fill implicit baselines for granted-but-unrequired capabilities (edge #3).
 	for _, name := range m.Capabilities.GrantedCapabilityNames() {
@@ -94,11 +93,11 @@ func majorBaseline(version string) (string, error) {
 
 // sortedCapabilityNames returns the requirement's capability names in stable order (for
 // deterministic reporting/serialisation).
-func (rs RequirementSet) sortedCapabilityNames() []string {
-	names := make([]string, 0, len(rs.Capabilities))
+func (rs RequirementSet) sortedCapabilityNames() []CapabilityID {
+	names := make([]CapabilityID, 0, len(rs.Capabilities))
 	for name := range rs.Capabilities {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }

@@ -33,7 +33,7 @@ func TestGate_VersionEnforcementDeniesBelowNegotiated(t *testing.T) {
 		Capabilities: domainplugin.CapabilitySet{Vault: &domainplugin.VaultCaps{GetSecret: []string{"password"}}},
 		Requires: &domainplugin.RequirementSet{
 			PluginAPI:    "1.0.0",
-			Capabilities: map[string]domainplugin.CapabilityRequirement{"vault": {Min: "1.2.0"}},
+			Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{"vault": {Min: "1.2.0"}},
 		},
 	})
 	high.featureVersions["vault.getSecret"] = methodFeature{capability: "vault", minVersion: future}

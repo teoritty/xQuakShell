@@ -2,7 +2,7 @@ package plugin
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -13,9 +13,9 @@ import (
 type RequirementSet struct {
 	// PluginAPI is the required protocol envelope version (MAJOR.MINOR.PATCH, no suffix).
 	PluginAPI string `json:"pluginApi"`
-	// Capabilities maps a capability name to its version/feature requirement. Optional; a
+	// Capabilities maps a capability id to its version/feature requirement. Optional; a
 	// granted capability with no entry here gets an implicit baseline requirement.
-	Capabilities map[string]CapabilityRequirement `json:"capabilities,omitempty"`
+	Capabilities map[CapabilityID]CapabilityRequirement `json:"capabilities,omitempty"`
 }
 
 // CapabilityRequirement is a plugin's dependency on one capability: the minimum version it
@@ -24,7 +24,7 @@ type CapabilityRequirement struct {
 	// Min is the minimum acceptable capability version (MAJOR.MINOR.PATCH, no suffix).
 	Min string `json:"min"`
 	// Features are the named feature flags the plugin relies on within this capability.
-	Features []string `json:"features,omitempty"`
+	Features []FeatureID `json:"features,omitempty"`
 }
 
 // IncompatKind classifies why a requirement could not be satisfied by the host.
@@ -94,45 +94,40 @@ func (r *IncompatibilityReport) add(axis string, kind IncompatKind, detail strin
 	r.Items = append(r.Items, Incompatibility{Axis: axis, Kind: kind, Detail: detail})
 }
 
-// GrantedCapabilityNames returns the registry names of every capability the plugin declared
-// in its CapabilitySet (a non-nil grant), sorted for determinism. This is the set a plugin
-// is permitted to require versions/features of.
-func (c CapabilitySet) GrantedCapabilityNames() []string {
-	var names []string
+// GrantedCapabilityNames returns the ids of every capability the plugin declared in its
+// CapabilitySet (a non-nil grant), sorted for determinism. This is the set a plugin is permitted
+// to require versions/features of, and the single mapping from grant fields to capability ids.
+func (c CapabilitySet) GrantedCapabilityNames() []CapabilityID {
+	var names []CapabilityID
 	if c.Network != nil {
-		names = append(names, "network")
+		names = append(names, CapNetwork)
 	}
 	if c.FS != nil {
-		names = append(names, "filesystem")
+		names = append(names, CapFilesystem)
 	}
 	if c.Events != nil {
-		names = append(names, "events")
+		names = append(names, CapEvents)
 	}
 	if c.Vault != nil {
-		names = append(names, "vault")
+		names = append(names, CapVault)
 	}
 	if c.Session != nil {
-		names = append(names, "session")
+		names = append(names, CapSession)
 	}
 	if c.Auth != nil {
-		names = append(names, "auth")
+		names = append(names, CapAuth)
 	}
 	if c.Tunnel != nil {
-		names = append(names, "tunnel")
+		names = append(names, CapTunnel)
 	}
 	if c.Channel != nil {
-		names = append(names, "channel")
+		names = append(names, CapChannel)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }
 
-// grantsCapability reports whether the plugin declared the named capability.
-func (c CapabilitySet) grantsCapability(name string) bool {
-	for _, n := range c.GrantedCapabilityNames() {
-		if n == name {
-			return true
-		}
-	}
-	return false
+// grantsCapability reports whether the plugin declared the given capability.
+func (c CapabilitySet) grantsCapability(name CapabilityID) bool {
+	return slices.Contains(c.GrantedCapabilityNames(), name)
 }

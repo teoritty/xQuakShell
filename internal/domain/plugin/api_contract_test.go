@@ -76,7 +76,7 @@ func TestAPISurfaceAdditiveOnly(t *testing.T) {
 		if cv.Major != gv.Major {
 			continue // this capability had a major bump; removals are allowed there
 		}
-		have := map[string]bool{}
+		have := map[domainplugin.FeatureID]bool{}
 		for _, f := range curCap.Features {
 			have[f] = true
 		}

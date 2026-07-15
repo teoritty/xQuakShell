@@ -13,8 +13,8 @@ func (rs RequirementSet) DeprecationNotices(reg Registry) []string {
 		if !ok || len(desc.Deprecated) == 0 {
 			continue
 		}
-		// Whole-capability deprecation (keyed by "").
-		if info, ok := desc.Deprecated[""]; ok {
+		// Whole-capability deprecation (keyed by the empty feature id).
+		if info, ok := desc.Deprecated[FeatureID("")]; ok {
 			notices = append(notices, formatDeprecation(name, "", info))
 		}
 		// Per-feature deprecation for features this plugin actually requires.
@@ -27,10 +27,10 @@ func (rs RequirementSet) DeprecationNotices(reg Registry) []string {
 	return notices
 }
 
-func formatDeprecation(capability, feature string, info DeprecationInfo) string {
-	target := capability
+func formatDeprecation(capability CapabilityID, feature FeatureID, info DeprecationInfo) string {
+	target := string(capability)
 	if feature != "" {
-		target = capability + "." + feature
+		target = string(capability) + "." + string(feature)
 	}
 	msg := fmt.Sprintf("%s is deprecated since %s and will be removed in %s", target, info.Since, info.RemoveIn)
 	if info.Replacement != "" {

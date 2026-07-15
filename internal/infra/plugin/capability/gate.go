@@ -22,7 +22,7 @@ type Gate struct {
 // methodFeature records that an RPC method was introduced at minVersion of a capability. A method
 // with no entry is baseline and is governed by the capability grant alone.
 type methodFeature struct {
-	capability string
+	capability domainplugin.CapabilityID
 	minVersion domainplugin.Semver
 }
 
