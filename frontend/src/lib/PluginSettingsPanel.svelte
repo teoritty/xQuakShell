@@ -1310,6 +1310,16 @@
     <div class="dialog" role="dialog" on:click|stopPropagation on:keydown|stopPropagation>
       <h4>Install {githubInstallPreview.name}</h4>
       <pre class="install-preview">{githubInstallPreviewMessage}</pre>
+      {#if githubInstallPreview.compatible === false}
+        <div class="warning-box">
+          <strong>Incompatible with this version of xQuakShell</strong>
+          <ul>
+            {#each githubInstallPreview.compatibilityIssues ?? [] as issue}
+              <li>{issue}</li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
       {#if githubInstallPreview.warnings?.length}
         <div class="warning-box">
           <strong>Security Warning</strong>
@@ -1360,7 +1370,7 @@
       {/if}
       <div class="dialog-actions">
         <button type="button" class="btn-secondary" on:click={closeGitHubInstallConfirm}>Cancel</button>
-        <button type="button" class="btn-secondary" disabled={!githubInstallTrustConfirmed || githubInstallBusy || githubPreviewBusy || (githubInstallPreview.requiresSecretAccess && !githubGrantSecretAccess) || (githubInstallPreview.requiresAuthProviderAccess && !githubGrantAuthProviderAccess) || (githubInstallPreview.requiresTunnelProviderAccess && !githubGrantTunnelProviderAccess) || (githubInstallPreview.arbitraryNetworkWarning && !githubGrantArbitraryNetwork) || (githubInstallPreview.multiSessionWarning && !githubGrantMultiSession)} on:click={confirmGitHubInstall}>
+        <button type="button" class="btn-secondary" disabled={githubInstallPreview.compatible === false || !githubInstallTrustConfirmed || githubInstallBusy || githubPreviewBusy || (githubInstallPreview.requiresSecretAccess && !githubGrantSecretAccess) || (githubInstallPreview.requiresAuthProviderAccess && !githubGrantAuthProviderAccess) || (githubInstallPreview.requiresTunnelProviderAccess && !githubGrantTunnelProviderAccess) || (githubInstallPreview.arbitraryNetworkWarning && !githubGrantArbitraryNetwork) || (githubInstallPreview.multiSessionWarning && !githubGrantMultiSession)} on:click={confirmGitHubInstall}>
           {githubInstallBusy ? 'Installing…' : 'Install'}
         </button>
       </div>

@@ -63,24 +63,24 @@ type GitHubReleaseSummaryDTO struct {
 
 // GitHubPluginMetadataDTO represents plugin metadata for UI.
 type GitHubPluginMetadataDTO struct {
-	RepositoryURL     string                    `json:"repositoryUrl"`
-	ID                string                    `json:"id"`
-	Name              string                    `json:"name"`
-	Version           string                    `json:"version"`
-	Description       string                    `json:"description"`
-	Author            string                    `json:"author"`
-	License           string                    `json:"license"`
-	Platforms         []PlatformInfoDTO         `json:"platforms"`
-	AvailableReleases []GitHubReleaseSummaryDTO `json:"availableReleases"`
-	LatestRelease     string                    `json:"latestRelease"`
-	Prerelease        bool                      `json:"prerelease"`
-	PublishedAt       string                    `json:"publishedAt"`
-	README            string                    `json:"readme"`
-	MinCoreVersion    string                    `json:"minCoreVersion"`
-	PlatformSupported bool                      `json:"platformSupported"`
-	Installed         bool   `json:"installed"`
-	InstalledVersion  string `json:"installedVersion"`
-	InstalledReleaseTag string `json:"installedReleaseTag"`
+	RepositoryURL       string                    `json:"repositoryUrl"`
+	ID                  string                    `json:"id"`
+	Name                string                    `json:"name"`
+	Version             string                    `json:"version"`
+	Description         string                    `json:"description"`
+	Author              string                    `json:"author"`
+	License             string                    `json:"license"`
+	Platforms           []PlatformInfoDTO         `json:"platforms"`
+	AvailableReleases   []GitHubReleaseSummaryDTO `json:"availableReleases"`
+	LatestRelease       string                    `json:"latestRelease"`
+	Prerelease          bool                      `json:"prerelease"`
+	PublishedAt         string                    `json:"publishedAt"`
+	README              string                    `json:"readme"`
+	MinCoreVersion      string                    `json:"minCoreVersion"`
+	PlatformSupported   bool                      `json:"platformSupported"`
+	Installed           bool                      `json:"installed"`
+	InstalledVersion    string                    `json:"installedVersion"`
+	InstalledReleaseTag string                    `json:"installedReleaseTag"`
 }
 
 // PlatformInfoDTO represents platform support info.
@@ -92,31 +92,33 @@ type PlatformInfoDTO struct {
 
 // GitHubPluginPreviewResponseDTO is the install preview for GitHub plugins.
 type GitHubPluginPreviewResponseDTO struct {
-	RepositoryURL        string   `json:"repositoryUrl"`
-	RepositoryTrusted    bool     `json:"repositoryTrusted"`
-	ID                   string   `json:"id"`
-	Name                 string   `json:"name"`
-	Version              string   `json:"version"`
-	Description          string   `json:"description"`
-	Author               string   `json:"author"`
-	License              string   `json:"license"`
-	MinCoreVersion       string   `json:"minCoreVersion"`
-	CurrentPlatform      string   `json:"currentPlatform"`
-	PlatformSupported    bool     `json:"platformSupported"`
-	SupportedPlatforms   []string `json:"supportedPlatforms"`
-	LatestRelease        string   `json:"latestRelease"`
-	ReleaseTag           string   `json:"releaseTag"`
-	Prerelease           bool     `json:"prerelease"`
-	PublishedDate        string   `json:"publishedDate"`
-	README               string   `json:"readme"`
-	RequiresSecretAccess       bool     `json:"requiresSecretAccess"`
-	RequiresAuthProviderAccess bool     `json:"requiresAuthProviderAccess"`
+	RepositoryURL                string   `json:"repositoryUrl"`
+	RepositoryTrusted            bool     `json:"repositoryTrusted"`
+	ID                           string   `json:"id"`
+	Name                         string   `json:"name"`
+	Version                      string   `json:"version"`
+	Description                  string   `json:"description"`
+	Author                       string   `json:"author"`
+	License                      string   `json:"license"`
+	MinCoreVersion               string   `json:"minCoreVersion"`
+	CurrentPlatform              string   `json:"currentPlatform"`
+	PlatformSupported            bool     `json:"platformSupported"`
+	SupportedPlatforms           []string `json:"supportedPlatforms"`
+	LatestRelease                string   `json:"latestRelease"`
+	ReleaseTag                   string   `json:"releaseTag"`
+	Prerelease                   bool     `json:"prerelease"`
+	PublishedDate                string   `json:"publishedDate"`
+	README                       string   `json:"readme"`
+	RequiresSecretAccess         bool     `json:"requiresSecretAccess"`
+	RequiresAuthProviderAccess   bool     `json:"requiresAuthProviderAccess"`
 	RequiresTunnelProviderAccess bool     `json:"requiresTunnelProviderAccess"`
-	MultiSessionWarning        bool     `json:"multiSessionWarning"`
-	ArbitraryNetworkWarning bool     `json:"arbitraryNetworkWarning"`
-	UnsignedPlugin          bool     `json:"unsignedPlugin"`
-	UntrustedSource      bool     `json:"untrustedSource"`
-	Warnings             []string `json:"warnings"`
+	MultiSessionWarning          bool     `json:"multiSessionWarning"`
+	ArbitraryNetworkWarning      bool     `json:"arbitraryNetworkWarning"`
+	UnsignedPlugin               bool     `json:"unsignedPlugin"`
+	UntrustedSource              bool     `json:"untrustedSource"`
+	Compatible                   bool     `json:"compatible"`
+	CompatibilityIssues          []string `json:"compatibilityIssues"`
+	Warnings                     []string `json:"warnings"`
 }
 
 func githubPreviewToDTO(p usecase.GitHubPluginPreviewDTO) GitHubPluginPreviewResponseDTO {
@@ -128,38 +130,44 @@ func githubPreviewToDTO(p usecase.GitHubPluginPreviewDTO) GitHubPluginPreviewRes
 	if supported == nil {
 		supported = []string{}
 	}
+	compatIssues := p.CompatibilityIssues
+	if compatIssues == nil {
+		compatIssues = []string{}
+	}
 	return GitHubPluginPreviewResponseDTO{
-		RepositoryURL:        p.RepositoryURL,
-		RepositoryTrusted:    p.RepositoryTrusted,
-		ID:                   p.ID,
-		Name:                 p.Name,
-		Version:              p.Version,
-		Description:          p.Description,
-		Author:               p.Author,
-		License:              p.License,
-		MinCoreVersion:       p.MinCoreVersion,
-		CurrentPlatform:      p.CurrentPlatform,
-		PlatformSupported:    p.PlatformSupported,
-		SupportedPlatforms:   supported,
-		LatestRelease:        p.LatestRelease,
-		ReleaseTag:           p.ReleaseTag,
-		Prerelease:           p.Prerelease,
-		PublishedDate:        p.PublishedDate,
-		README:               p.README,
-		RequiresSecretAccess:       p.RequiresSecretAccess,
-		RequiresAuthProviderAccess: p.RequiresAuthProviderAccess,
+		RepositoryURL:                p.RepositoryURL,
+		RepositoryTrusted:            p.RepositoryTrusted,
+		ID:                           p.ID,
+		Name:                         p.Name,
+		Version:                      p.Version,
+		Description:                  p.Description,
+		Author:                       p.Author,
+		License:                      p.License,
+		MinCoreVersion:               p.MinCoreVersion,
+		CurrentPlatform:              p.CurrentPlatform,
+		PlatformSupported:            p.PlatformSupported,
+		SupportedPlatforms:           supported,
+		LatestRelease:                p.LatestRelease,
+		ReleaseTag:                   p.ReleaseTag,
+		Prerelease:                   p.Prerelease,
+		PublishedDate:                p.PublishedDate,
+		README:                       p.README,
+		RequiresSecretAccess:         p.RequiresSecretAccess,
+		RequiresAuthProviderAccess:   p.RequiresAuthProviderAccess,
 		RequiresTunnelProviderAccess: p.RequiresTunnelProviderAccess,
-		MultiSessionWarning:        p.MultiSessionWarning,
-		ArbitraryNetworkWarning: p.ArbitraryNetworkWarning,
-		UnsignedPlugin:          p.UnsignedPlugin,
-		UntrustedSource:      p.UntrustedSource,
-		Warnings:             warnings,
+		MultiSessionWarning:          p.MultiSessionWarning,
+		ArbitraryNetworkWarning:      p.ArbitraryNetworkWarning,
+		UnsignedPlugin:               p.UnsignedPlugin,
+		UntrustedSource:              p.UntrustedSource,
+		Compatible:                   p.Compatible,
+		CompatibilityIssues:          compatIssues,
+		Warnings:                     warnings,
 	}
 }
 
 type installedPluginState struct {
-	installed         bool
-	installedVersion  string
+	installed           bool
+	installedVersion    string
 	installedReleaseTag string
 }
 

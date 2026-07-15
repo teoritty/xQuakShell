@@ -714,8 +714,10 @@ export namespace wails {
 	    arbitraryNetworkWarning: boolean;
 	    unsignedPlugin: boolean;
 	    untrustedSource: boolean;
+	    compatible: boolean;
+	    compatibilityIssues: string[];
 	    warnings: string[];
-	
+
 	    static createFrom(source: any = {}) {
 	        return new GitHubPluginPreviewResponseDTO(source);
 	    }
@@ -746,6 +748,8 @@ export namespace wails {
 	        this.arbitraryNetworkWarning = source["arbitraryNetworkWarning"];
 	        this.unsignedPlugin = source["unsignedPlugin"];
 	        this.untrustedSource = source["untrustedSource"];
+	        this.compatible = source["compatible"];
+	        this.compatibilityIssues = source["compatibilityIssues"];
 	        this.warnings = source["warnings"];
 	    }
 	}

@@ -6,33 +6,38 @@ import (
 
 	domainplugin "ssh-client/internal/domain/plugin"
 )
+
 // GitHubPluginPreviewDTO contains information shown before installation.
 type GitHubPluginPreviewDTO struct {
-	RepositoryURL        string   `json:"repositoryUrl"`
-	RepositoryTrusted    bool     `json:"repositoryTrusted"`
-	ID                   string   `json:"id"`
-	Name                 string   `json:"name"`
-	Version              string   `json:"version"`
-	Description          string   `json:"description"`
-	Author               string   `json:"author"`
-	License              string   `json:"license"`
-	MinCoreVersion       string   `json:"minCoreVersion"`
-	CurrentPlatform      string   `json:"currentPlatform"`
-	PlatformSupported    bool     `json:"platformSupported"`
-	SupportedPlatforms   []string `json:"supportedPlatforms"`
-	LatestRelease        string   `json:"latestRelease"`
-	ReleaseTag           string   `json:"releaseTag"`
-	Prerelease           bool     `json:"prerelease"`
-	PublishedDate        string   `json:"publishedDate"`
-	README               string   `json:"readme"`
-	RequiresSecretAccess       bool     `json:"requiresSecretAccess"`
-	RequiresAuthProviderAccess bool     `json:"requiresAuthProviderAccess"`
+	RepositoryURL                string   `json:"repositoryUrl"`
+	RepositoryTrusted            bool     `json:"repositoryTrusted"`
+	ID                           string   `json:"id"`
+	Name                         string   `json:"name"`
+	Version                      string   `json:"version"`
+	Description                  string   `json:"description"`
+	Author                       string   `json:"author"`
+	License                      string   `json:"license"`
+	MinCoreVersion               string   `json:"minCoreVersion"`
+	CurrentPlatform              string   `json:"currentPlatform"`
+	PlatformSupported            bool     `json:"platformSupported"`
+	SupportedPlatforms           []string `json:"supportedPlatforms"`
+	LatestRelease                string   `json:"latestRelease"`
+	ReleaseTag                   string   `json:"releaseTag"`
+	Prerelease                   bool     `json:"prerelease"`
+	PublishedDate                string   `json:"publishedDate"`
+	README                       string   `json:"readme"`
+	RequiresSecretAccess         bool     `json:"requiresSecretAccess"`
+	RequiresAuthProviderAccess   bool     `json:"requiresAuthProviderAccess"`
 	RequiresTunnelProviderAccess bool     `json:"requiresTunnelProviderAccess"`
-	MultiSessionWarning        bool     `json:"multiSessionWarning"`
-	ArbitraryNetworkWarning bool     `json:"arbitraryNetworkWarning"`
-	UnsignedPlugin          bool     `json:"unsignedPlugin"`
-	UntrustedSource      bool     `json:"untrustedSource"`
-	Warnings             []string `json:"warnings"`
+	MultiSessionWarning          bool     `json:"multiSessionWarning"`
+	ArbitraryNetworkWarning      bool     `json:"arbitraryNetworkWarning"`
+	UnsignedPlugin               bool     `json:"unsignedPlugin"`
+	UntrustedSource              bool     `json:"untrustedSource"`
+	// Compatible reports whether this host can satisfy the plugin's declared API/capability
+	// requirements (ADR-012). When false, CompatibilityIssues lists exactly what is missing.
+	Compatible          bool     `json:"compatible"`
+	CompatibilityIssues []string `json:"compatibilityIssues"`
+	Warnings            []string `json:"warnings"`
 }
 
 // BuildPreviewDTO creates a preview DTO from metadata.
@@ -71,32 +76,56 @@ func BuildPreviewDTO(metadata *domainplugin.GitHubPluginMetadata, repoTrusted, u
 		}
 	}
 
+	// Resolve the plugin's API/capability requirements against this host so the install UI can
+	// warn (and the user can decide) before download (ADR-012). Any migration warnings are
+	// surfaced too; a hard incompatibility blocks with the exact missing items.
+	compatible := true
+	var compatibilityIssues []string
+	manifest := metadata.Manifest
+	if eff, warns, err := domainplugin.EffectiveRequirements(&manifest); err != nil {
+		compatible = false
+		compatibilityIssues = append(compatibilityIssues, err.Error())
+	} else {
+		warnings = append(warnings, warns...)
+		if report := eff.CheckAgainstHost(domainplugin.HostRegistry()); report != nil {
+			compatible = false
+			for _, it := range report.Items {
+				compatibilityIssues = append(compatibilityIssues, it.Detail)
+			}
+		}
+	}
+	if !compatible {
+		warnings = append(warnings, "This plugin is not compatible with your version of xQuakShell")
+	}
+
 	return GitHubPluginPreviewDTO{
-		RepositoryURL:        metadata.RepositoryURL,
-		RepositoryTrusted:    repoTrusted,
-		ID:                   metadata.ID,
-		Name:                 metadata.Name,
-		Version:              metadata.Version,
-		Description:          metadata.Description,
-		Author:               metadata.Author,
-		License:              metadata.License,
-		MinCoreVersion:       metadata.MinCoreVersion,
-		CurrentPlatform:      currentPlatform,
-		PlatformSupported:    metadata.SupportsCurrentPlatform(),
-		SupportedPlatforms:   supportedPlatforms,
-		LatestRelease:        metadata.LatestRelease,
-		ReleaseTag:           metadata.LatestRelease,
-		Prerelease:           metadata.Prerelease,
-		PublishedDate:        metadata.PublishedAt,
-		README:               metadata.README,
-		RequiresSecretAccess:       metadata.RequiresSecretAccess(),
-		RequiresAuthProviderAccess: metadata.Manifest.RequiresAuthProviderAccess(),
+		RepositoryURL:                metadata.RepositoryURL,
+		RepositoryTrusted:            repoTrusted,
+		ID:                           metadata.ID,
+		Name:                         metadata.Name,
+		Version:                      metadata.Version,
+		Description:                  metadata.Description,
+		Author:                       metadata.Author,
+		License:                      metadata.License,
+		MinCoreVersion:               metadata.MinCoreVersion,
+		CurrentPlatform:              currentPlatform,
+		PlatformSupported:            metadata.SupportsCurrentPlatform(),
+		SupportedPlatforms:           supportedPlatforms,
+		LatestRelease:                metadata.LatestRelease,
+		ReleaseTag:                   metadata.LatestRelease,
+		Prerelease:                   metadata.Prerelease,
+		PublishedDate:                metadata.PublishedAt,
+		README:                       metadata.README,
+		RequiresSecretAccess:         metadata.RequiresSecretAccess(),
+		RequiresAuthProviderAccess:   metadata.Manifest.RequiresAuthProviderAccess(),
 		RequiresTunnelProviderAccess: metadata.Manifest.RequiresTunnelProviderAccess(),
-		MultiSessionWarning:        metadata.Manifest.RequiresMultiSessionWarning(),
-		ArbitraryNetworkWarning: arbitraryNetworkWarning,
-		UnsignedPlugin:          unsignedPlugin,
-		UntrustedSource:      untrustedSource,
-		Warnings:             warnings,
+		MultiSessionWarning:          metadata.Manifest.RequiresMultiSessionWarning(),
+		ArbitraryNetworkWarning:      arbitraryNetworkWarning,
+		UnsignedPlugin:               unsignedPlugin,
+		UntrustedSource:              untrustedSource,
+		Compatible:                   compatible,
+		CompatibilityIssues:          compatibilityIssues,
+		Warnings:                     warnings,
 	}
 }
 

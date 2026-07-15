@@ -79,6 +79,10 @@ export interface GitHubPluginPreview {
   arbitraryNetworkWarning: boolean;
   unsignedPlugin: boolean;
   untrustedSource: boolean;
+  // Compatible is false when this host cannot satisfy the plugin's declared API/capability
+  // requirements (ADR-012); compatibilityIssues then lists exactly what is missing.
+  compatible: boolean;
+  compatibilityIssues: string[];
   warnings: string[];
 }
 
