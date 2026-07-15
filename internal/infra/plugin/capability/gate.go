@@ -5,17 +5,70 @@ import (
 )
 
 // Gate enforces manifest capabilities for plugin→core RPC methods.
+//
+// Two orthogonal checks apply (ADR-012). First, the capability GRANT: whether the plugin's
+// manifest permits the method at all — this is the authorization boundary and is unchanged.
+// Second, the negotiated VERSION: if a method belongs to a feature introduced above a
+// capability's baseline, the plugin must have negotiated a capability version that includes it.
+// At the 1.0 freeze every method is baseline, so the version check never denies; it is the
+// forward-looking mechanism that lets a future minor add methods without exposing them to plugins
+// that negotiated an older version (edge #13).
 type Gate struct {
-	manifest domainplugin.Manifest
+	manifest        domainplugin.Manifest
+	negotiated      domainplugin.RequirementSet
+	featureVersions map[string]methodFeature
 }
 
-// NewGate creates a capability gate for a plugin manifest.
+// methodFeature records that an RPC method was introduced at minVersion of a capability. A method
+// with no entry is baseline and is governed by the capability grant alone.
+type methodFeature struct {
+	capability string
+	minVersion domainplugin.Semver
+}
+
+// NewGate creates a capability gate for a plugin manifest. The negotiated requirement set is
+// derived from the manifest itself (EffectiveRequirements is deterministic), so the gate enforces
+// exactly what the plugin declared. A manifest that reached the gate has already passed Validate;
+// on the unexpected error path we fall back to an empty set, which fails closed for any
+// above-baseline feature method.
 func NewGate(m domainplugin.Manifest) *Gate {
-	return &Gate{manifest: m}
+	negotiated, _, err := domainplugin.EffectiveRequirements(&m)
+	if err != nil {
+		negotiated = domainplugin.RequirementSet{}
+	}
+	return &Gate{manifest: m, negotiated: negotiated, featureVersions: defaultFeatureVersions()}
+}
+
+// defaultFeatureVersions maps methods introduced above their capability's 1.0 baseline to the
+// version that introduced them. Empty at the 1.0 freeze: every current method is baseline. Add an
+// entry here (never remove one within a major) when a minor bump introduces a new method.
+func defaultFeatureVersions() map[string]methodFeature {
+	return map[string]methodFeature{}
+}
+
+// versionAllows reports whether the plugin's negotiated capability version covers a method that
+// was introduced above baseline. Baseline methods (no entry) always pass this check.
+func (g *Gate) versionAllows(method string) bool {
+	mf, ok := g.featureVersions[method]
+	if !ok {
+		return true
+	}
+	req, ok := g.negotiated.Capabilities[mf.capability]
+	if !ok {
+		return false
+	}
+	have, err := domainplugin.ParseSemver(req.Min)
+	if err != nil {
+		return false
+	}
+	return domainplugin.Satisfies(have, mf.minVersion)
 }
 
 // Allow reports whether the plugin may invoke method.
 func (g *Gate) Allow(method string) bool {
+	if !g.versionAllows(method) {
+		return false
+	}
 	switch method {
 	case "log.write", "ping":
 		return true
