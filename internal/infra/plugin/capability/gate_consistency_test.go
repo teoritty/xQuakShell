@@ -20,17 +20,37 @@ func TestFeatureVersionsReferenceRealFeatures(t *testing.T) {
 	}
 }
 
-// TestRegistryCapabilitiesAreGrantable guards the other direction: every capability the host
-// advertises must be one a plugin can actually grant in its CapabilitySet. A registry entry with
-// no corresponding grant would be unreachable and impossible to negotiate correctly.
+// TestRegistryCapabilitiesAreGrantable guards that the registry and the CapabilitySet grant fields
+// describe the same capability set. Both directions must hold: every capability the host advertises
+// must be grantable (else it is unreachable), and every grantable capability must be in the
+// registry (else it cannot be negotiated). The grantable set is derived from GrantedCapabilityNames
+// on a fully-granted CapabilitySet — the single mapping from grant fields to ids — so there is no
+// hardcoded list to drift.
 func TestRegistryCapabilitiesAreGrantable(t *testing.T) {
-	grantable := map[domainplugin.CapabilityID]bool{
-		"network": true, "filesystem": true, "events": true, "vault": true,
-		"session": true, "auth": true, "tunnel": true, "channel": true,
+	allGranted := domainplugin.CapabilitySet{
+		Network: &domainplugin.NetworkCaps{},
+		FS:      &domainplugin.FSCaps{},
+		Events:  &domainplugin.EventCaps{},
+		Vault:   &domainplugin.VaultCaps{},
+		Session: &domainplugin.SessionCaps{},
+		Auth:    &domainplugin.AuthCaps{},
+		Tunnel:  &domainplugin.TunnelCaps{},
+		Channel: &domainplugin.ChannelCaps{},
 	}
-	for _, name := range domainplugin.HostRegistry().Names() {
+	grantable := map[domainplugin.CapabilityID]bool{}
+	for _, id := range allGranted.GrantedCapabilityNames() {
+		grantable[id] = true
+	}
+
+	reg := domainplugin.HostRegistry()
+	for _, name := range reg.Names() {
 		if !grantable[name] {
 			t.Fatalf("registry capability %q has no CapabilitySet grant field", name)
+		}
+	}
+	for id := range grantable {
+		if !reg.Has(id) {
+			t.Fatalf("grantable capability %q is missing from the registry", id)
 		}
 	}
 }
