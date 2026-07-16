@@ -98,7 +98,12 @@ func (p *NetProxy) Dial(params json.RawMessage) (json.RawMessage, error) {
 	arbitraryAllowsHost := p.allowArbitrary
 
 	allowlistAllowsHost := false
-	patternHost := req.Host
+	// patternHost may only ever come from a manifest pattern — never from req.Host. It feeds
+	// AllowResolvedDialIP's carve-out for an IP the allowlist names explicitly, which is
+	// consent the user gave at install time. Seeding it with the caller's own host let a
+	// request authorize itself: an IP-literal host matched the carve-out against itself and
+	// reached loopback/private addresses with allowPrivateNetworks off.
+	patternHost := ""
 	if len(p.patterns) > 0 {
 		var ok bool
 		patternHost, ok = matchingPatternHost(p.patterns, req.Host, req.Port)

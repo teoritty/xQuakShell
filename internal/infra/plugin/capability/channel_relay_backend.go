@@ -67,11 +67,12 @@ func (b *ChannelRelayBackend) Authorize(purpose, _ string, hint string) error {
 		patterns = tcpOnlyPatterns(b.caps.Outbound)
 	}
 
-	// Matches NetProxy.Dial exactly: when patterns are configured but none match, patternHost
-	// becomes "" rather than staying host, so an unmatched IP-literal hint cannot pass
-	// AllowResolvedDialIP's "explicit pattern host == resolved IP" carve-out. Only an actual
-	// allowlist match (or the zero-patterns arbitrary-only case below) may set patternHost.
-	patternHost := host
+	// Matches NetProxy.Dial exactly: patternHost may only come from an actual allowlist match,
+	// never from the plugin's hint. It feeds AllowResolvedDialIP's carve-out for an IP the
+	// manifest names explicitly — consent the user gave at install time — so seeding it with
+	// the hint let the plugin authorize itself: an IP-literal hint matched the carve-out
+	// against itself and reached loopback/private addresses with allowPrivateNetworks off.
+	patternHost := ""
 	allowlistAllowsHost := false
 	if len(patterns) > 0 {
 		var ok bool

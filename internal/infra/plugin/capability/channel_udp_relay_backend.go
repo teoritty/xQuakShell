@@ -73,7 +73,10 @@ func (b *ChannelUDPRelayBackend) Authorize(purpose, _ string, hint string) error
 		patterns = udpOnlyPatterns(b.caps.Outbound)
 	}
 
-	patternHost := host
+	// Same rule as NetProxy.Dial and the tcp-relay backend: patternHost may only come from an
+	// allowlist match, never from the plugin's hint, or the hint authorizes itself past
+	// allowPrivateNetworks via AllowResolvedDialIP's explicit-IP carve-out.
+	patternHost := ""
 	allowlistAllowsHost := false
 	if len(patterns) > 0 {
 		var ok bool
