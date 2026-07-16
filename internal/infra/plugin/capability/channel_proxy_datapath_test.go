@@ -5,9 +5,91 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	domainplugin "ssh-client/internal/domain/plugin"
 )
+
+// ctxCapturingBackend records the context Wire was handed, so a test can outlive the call and
+// ask whether the pumps Wire started would still be alive.
+type ctxCapturingBackend struct {
+	wired chan context.Context
+}
+
+func newCtxCapturingBackend() *ctxCapturingBackend {
+	return &ctxCapturingBackend{wired: make(chan context.Context, 1)}
+}
+
+func (b *ctxCapturingBackend) Authorize(string, string, string) error { return nil }
+
+func (b *ctxCapturingBackend) Wire(ctx context.Context, _ *domainplugin.ChannelHandle) error {
+	b.wired <- ctx
+	return nil
+}
+
+func (b *ctxCapturingBackend) CloseRemote() error { return nil }
+
+// TestChannelProxy_WireContextOutlivesTheOpenRequest is the contract that makes the bus work at
+// all in production.
+//
+// Every backend's Wire starts long-lived pump goroutines that hold onto the ctx it was given
+// and gate every frame on it (WaitForCapacity, Send, Ack). The ctx arriving at Open belongs to
+// the channel.open JSON-RPC request, and the ipc layer cancels it the moment that request is
+// answered — so a Wire ctx borrowed from the request is dead before the first frame moves,
+// while Open still reports success. Wire's ctx is the *channel's* lifetime, not the request's.
+func TestChannelProxy_WireContextOutlivesTheOpenRequest(t *testing.T) {
+	backend := newCtxCapturingBackend()
+	caps := &domainplugin.ChannelCaps{Purposes: []string{"exec"}}
+	resolve := func(string) (domainplugin.ChannelPurposeBackend, error) { return backend, nil }
+	proxy := NewChannelProxy("p1", caps, resolve, nil)
+	proxy.AttachDataPathOpener(newFakeDataPathOpener())
+
+	rpcCtx, cancelRPC := context.WithCancel(context.Background())
+	if _, err := proxy.Open(rpcCtx, openParams("sess-1", "exec", "")); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	wireCtx := <-backend.wired
+
+	// The host answers channel.open and drops the request context, exactly as ipc.Conn does.
+	cancelRPC()
+
+	select {
+	case <-wireCtx.Done():
+		t.Fatal("Wire's context died with the channel.open request; every pump goroutine would " +
+			"exit before moving a byte, while the plugin holds a channelId that looks fine")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+// TestChannelProxy_WireContextIsCancelledOnChannelClose is the other half: the pumps must not
+// outlive the channel either, or closing a channel leaks every goroutine wired to it.
+func TestChannelProxy_WireContextIsCancelledOnChannelClose(t *testing.T) {
+	backend := newCtxCapturingBackend()
+	caps := &domainplugin.ChannelCaps{Purposes: []string{"exec"}}
+	resolve := func(string) (domainplugin.ChannelPurposeBackend, error) { return backend, nil }
+	proxy := NewChannelProxy("p1", caps, resolve, nil)
+	proxy.AttachDataPathOpener(newFakeDataPathOpener())
+
+	res, err := proxy.Open(context.Background(), openParams("sess-1", "exec", ""))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	wireCtx := <-backend.wired
+
+	var open channelOpenResult
+	if err := json.Unmarshal(res, &open); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := proxy.Close(context.Background(), mustMarshal(channelCloseParams{ChannelID: open.ChannelID})); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	select {
+	case <-wireCtx.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("Wire's context survived channel.close; the pump goroutines it gates leak")
+	}
+}
 
 // TestChannelProxy_OpenFailsWhenDataPathCannotOpen: returning a channelId the plugin cannot use
 // is the worst available contract — the plugin gets a success, sends its first frame, and dies.

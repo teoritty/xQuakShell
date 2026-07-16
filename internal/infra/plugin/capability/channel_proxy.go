@@ -56,17 +56,23 @@ type channelEntry struct {
 	backend domainplugin.ChannelPurposeBackend
 	// data is closed on every teardown path alongside the backend. Closing only the backend
 	// leaves its pump goroutines parked in Recv forever, holding the channel and its queue.
-	data            domainplugin.ChannelDataPath
+	data domainplugin.ChannelDataPath
+	// cancelWire ends the context handed to backend.Wire, which every pump goroutine that Wire
+	// started gates its frames on.
+	cancelWire      context.CancelFunc
 	parentSessionID string
 }
 
-// closeEntry tears down both halves of a channel: the host-owned far end and the bus-side data
-// path. Order matters — the backend stops touching the path first, then the path unblocks any
-// pump still parked on it.
+// closeEntry tears down all of a channel: the host-owned far end, the bus-side data path, and
+// the context its pumps run under. Order matters — the backend stops touching the path first,
+// then the path unblocks anything parked on it, then the context releases anything gated on it.
 func closeEntry(entry *channelEntry) error {
 	closeErr := entry.backend.CloseRemote()
 	if entry.data != nil {
 		_ = entry.data.Close()
+	}
+	if entry.cancelWire != nil {
+		entry.cancelWire()
 	}
 	return closeErr
 }
@@ -199,7 +205,21 @@ func (p *ChannelProxy) Open(ctx context.Context, params json.RawMessage) (json.R
 		return nil, err
 	}
 
-	if err := backend.Wire(ctx, handle); err != nil {
+	// Wire's context is the channel's lifetime, not this request's. It is deliberately not
+	// derived from ctx's cancellation: ctx belongs to the channel.open RPC and the ipc layer
+	// cancels it as soon as that call is answered, whereas the pump goroutines Wire starts gate
+	// every frame they move on the context they were handed. Passing ctx straight through would
+	// leave every channel reporting success and then moving nothing, its pumps having exited
+	// before the reply reached the plugin. Values (tracing, deadlines carried as values) are
+	// kept; only the cancellation is cut.
+	wireCtx, cancelWire := context.WithCancel(context.WithoutCancel(ctx))
+	defer func() {
+		if !wired {
+			cancelWire()
+		}
+	}()
+
+	if err := backend.Wire(wireCtx, handle); err != nil {
 		p.auditOpen(id, req, false, err.Error())
 		return nil, err
 	}
@@ -209,6 +229,7 @@ func (p *ChannelProxy) Open(ctx context.Context, params json.RawMessage) (json.R
 	p.channels[id] = &channelEntry{
 		backend:         backend,
 		data:            data,
+		cancelWire:      cancelWire,
 		parentSessionID: req.ParentSessionID,
 	}
 	committed = true
