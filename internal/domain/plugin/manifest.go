@@ -252,25 +252,24 @@ func (m *Manifest) Validate() error {
 	if err := ValidateMinCoreVersion(m.MinCoreVersion); err != nil {
 		return err
 	}
-	if err := m.CompatibleWithCore(HostCoreVersion); err != nil {
-		return err
-	}
 	if err := m.ValidateCapabilitiesAndFields(); err != nil {
 		return err
 	}
-	// Version contract (ADR-012): author grammar/cross-check, then resolve the effective
-	// requirement (legacy migration + implicit baselines) and check it against this host.
-	if err := m.ValidateRequirements(); err != nil {
-		return err
-	}
-	eff, _, err := EffectiveRequirements(m)
-	if err != nil {
-		return err
-	}
-	if report := eff.CheckAgainstHost(HostRegistry()); report != nil {
-		return report
-	}
-	return nil
+	// Structural version contract (ADR-012): the requires{} block must be well-formed and only
+	// reference granted capabilities. HOST compatibility (whether this build satisfies the plugin)
+	// is deliberately NOT checked here — Validate is used to parse and display manifests, including
+	// ones this host cannot run. Compatibility is gated separately via CheckHostCompatibility at
+	// discovery/install and via Negotiate at spawn.
+	return m.ValidateRequirements()
+}
+
+// CheckHostCompatibility reports whether this host can satisfy the plugin's declared API and
+// capability requirements (ADR-012). It is the gating check for discovery and install — distinct
+// from Validate, which only checks that the manifest is well-formed. Returns a structured
+// IncompatibilityReport / ErrIncompatibleAPI when the plugin cannot run on this build.
+func (m *Manifest) CheckHostCompatibility() error {
+	_, _, err := Negotiate(m, HostRegistry())
+	return err
 }
 
 // ValidateCapabilitiesAndFields runs capability and contribution field validation.

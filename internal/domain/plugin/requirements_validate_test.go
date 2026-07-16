@@ -28,14 +28,18 @@ func TestRequiresJSONRoundTrip(t *testing.T) {
 		t.Fatalf("expected valid manifest, got %v", err)
 	}
 
-	// Same manifest but requiring a feature the host does not offer must fail Validate.
+	// Same manifest but requiring a feature the host does not offer is still well-formed (passes
+	// Validate) and is rejected only by the host compatibility gate.
 	bad := m
 	bad.Requires = &domainplugin.RequirementSet{
 		PluginAPI:    "1.0.0",
 		Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []domainplugin.FeatureID{"mindRead"}}},
 	}
-	if err := bad.Validate(); !errors.Is(err, domainplugin.ErrMissingFeature) {
-		t.Fatalf("expected ErrMissingFeature, got %v", err)
+	if err := bad.Validate(); err != nil {
+		t.Fatalf("expected structural validation to pass, got %v", err)
+	}
+	if err := bad.CheckHostCompatibility(); !errors.Is(err, domainplugin.ErrMissingFeature) {
+		t.Fatalf("expected ErrMissingFeature from CheckHostCompatibility, got %v", err)
 	}
 }
 
@@ -197,7 +201,8 @@ func TestEffectiveRequirementsMigration(t *testing.T) {
 }
 
 func TestManifestValidateIntegratesRequirements(t *testing.T) {
-	// A fully valid manifest with satisfiable requires passes end-to-end.
+	// A fully valid manifest with satisfiable requires passes both structural validation and the
+	// host compatibility gate.
 	m := vaultManifest(&domainplugin.RequirementSet{
 		PluginAPI:    "1.0.0",
 		Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []domainplugin.FeatureID{"getSecret"}}},
@@ -205,13 +210,20 @@ func TestManifestValidateIntegratesRequirements(t *testing.T) {
 	if err := m.Validate(); err != nil {
 		t.Fatalf("expected valid manifest, got %v", err)
 	}
+	if err := m.CheckHostCompatibility(); err != nil {
+		t.Fatalf("expected compatible manifest, got %v", err)
+	}
 
-	// An unsatisfiable feature requirement fails Validate.
+	// An unsatisfiable feature requirement is well-formed (passes Validate) but is caught by the
+	// host compatibility gate — parsing/listing stays tolerant; gating is separate (ADR-012).
 	bad := vaultManifest(&domainplugin.RequirementSet{
 		PluginAPI:    "1.0.0",
 		Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{"vault": {Min: "1.0.0", Features: []domainplugin.FeatureID{"mindRead"}}},
 	})
-	if err := bad.Validate(); !errors.Is(err, domainplugin.ErrMissingFeature) {
-		t.Fatalf("expected ErrMissingFeature from Validate, got %v", err)
+	if err := bad.Validate(); err != nil {
+		t.Fatalf("expected bad manifest to pass structural validation, got %v", err)
+	}
+	if err := bad.CheckHostCompatibility(); !errors.Is(err, domainplugin.ErrMissingFeature) {
+		t.Fatalf("expected ErrMissingFeature from CheckHostCompatibility, got %v", err)
 	}
 }

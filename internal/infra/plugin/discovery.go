@@ -84,6 +84,12 @@ func loadPluginDir(dir string) (domainplugin.InstalledPlugin, error) {
 	if err := manifest.Validate(); err != nil {
 		return domainplugin.InstalledPlugin{}, err
 	}
+	// Gate on host compatibility here (not in Validate): a plugin this build cannot run is skipped
+	// from the active set with a structured reason, while remaining parseable/displayable elsewhere
+	// (e.g. the GitHub listing). Spawn re-checks via Negotiate as defense in depth (ADR-012).
+	if err := manifest.CheckHostCompatibility(); err != nil {
+		return domainplugin.InstalledPlugin{}, err
+	}
 	if err := bundle.ValidateCapabilitiesForInstall(&manifest, dir); err != nil {
 		return domainplugin.InstalledPlugin{}, err
 	}
