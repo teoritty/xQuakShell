@@ -44,7 +44,7 @@ Values are strict `MAJOR.MINOR.PATCH` with **no** pre-release suffix (a plugin m
 
 ### 4. Enforcement — install gate + runtime handshake
 
-- **Install/discovery gate** — `Manifest.Validate` resolves the effective requirement and checks it against the host registry, returning a structured `IncompatibilityReport`. The GitHub install preview surfaces the exact missing items and blocks Install.
+- **Install/discovery gate** — compatibility is checked separately from well-formedness. `Manifest.Validate` only verifies the manifest is structurally sound and references granted capabilities, so parsing and listing stay tolerant of plugins this build cannot run (e.g. the GitHub listing can still display them). `Manifest.CheckHostCompatibility` (backed by `Negotiate`) resolves the effective requirement, checks it against the host registry, and returns a structured `IncompatibilityReport`; discovery/install gate on it so incompatible plugins stay out of the active set, and the GitHub install preview surfaces the exact missing items and blocks Install.
 - **Runtime handshake** — at `initialize` the host re-checks the effective requirement against the **live** registry (catching skew the static manifest can't) and advertises its full `APIDescriptor`. The host is the sole authority; a plugin's echoed set is never trusted for enforcement. Fail closed on any skew.
 - **Capability gate** — beyond the capability grant (the authorization boundary, unchanged), a method mapped to an above-baseline feature is allowed only if the plugin negotiated a capability version that reaches it (`featureVersions` in `gate.go`).
 
