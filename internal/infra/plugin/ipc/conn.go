@@ -25,16 +25,17 @@ type Conn struct {
 	enc         *Codec
 	reader      *bufio.Reader
 	writeCloser io.Closer
+	readCloser  io.Closer
 	pending     map[int64]chan messageResult
-	nextID     atomic.Int64
-	onNotify   func(method string, params json.RawMessage)
-	onRequest  RequestHandler
-	mux        *channelMux
-	closeCh    chan struct{}
-	closeOnce  sync.Once
-	wg         sync.WaitGroup
-	readErr    error
-	mu         sync.Mutex
+	nextID      atomic.Int64
+	onNotify    func(method string, params json.RawMessage)
+	onRequest   RequestHandler
+	mux         *channelMux
+	closeCh     chan struct{}
+	closeOnce   sync.Once
+	wg          sync.WaitGroup
+	readErr     error
+	mu          sync.Mutex
 }
 
 type messageResult struct {
@@ -48,15 +49,22 @@ func NewConn(readFrom io.Reader, writeTo io.Writer, onNotify func(string, json.R
 	if c, ok := writeTo.(io.Closer); ok {
 		wc = c
 	}
+	// readFrom is the plugin's stdout pipe in production (an io.ReadCloser). Close needs it to
+	// unpark the read loop; see Conn.Close.
+	var rc io.Closer
+	if c, ok := readFrom.(io.Closer); ok {
+		rc = c
+	}
 	c := &Conn{
 		enc:         NewCodec(writeTo),
 		reader:      bufio.NewReader(readFrom),
 		writeCloser: wc,
+		readCloser:  rc,
 		pending:     make(map[int64]chan messageResult),
-		onNotify:  onNotify,
-		onRequest: onRequest,
-		mux:       newChannelMux(),
-		closeCh:   make(chan struct{}),
+		onNotify:    onNotify,
+		onRequest:   onRequest,
+		mux:         newChannelMux(),
+		closeCh:     make(chan struct{}),
 	}
 	c.wg.Add(1)
 	safego.GoNamed("ipc.readLoop", c.readLoop)
@@ -123,10 +131,23 @@ func (c *Conn) CloseWrite() {
 	}
 }
 
-// Close stops the read loop. Does not close underlying pipes.
+// Close stops the read loop and waits for it to exit.
+//
+// Closing closeCh alone is not enough to end the read loop: it parks in ReadFrame until the
+// plugin sends bytes or the pipe yields, and closeCh is only consulted between frames. A
+// plugin that is hung, wedged, or hostile simply never sends the frame that would let the
+// loop notice, so Close must also close the read side to unpark it. Without that, Close
+// blocks forever on wg.Wait — and since managedProcess.closeResources calls Close before it
+// kills the child, the kill that would have freed the pipe is unreachable.
+//
+// The read side is the child's stdout pipe; closing it early is safe alongside the reaper's
+// (*exec.Cmd).Wait, which closes its own descriptors and tolerates one already closed.
 func (c *Conn) Close() {
 	c.closeOnce.Do(func() {
 		close(c.closeCh)
+		if c.readCloser != nil {
+			_ = c.readCloser.Close()
+		}
 	})
 	c.wg.Wait()
 }
