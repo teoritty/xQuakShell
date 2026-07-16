@@ -55,7 +55,7 @@ func TestConnCall(t *testing.T) {
 		serveEchoPlugin(pluginReader, pluginWrite)
 	}()
 
-	conn := ipc.NewConn(coreReader, coreWrite, nil, nil)
+	conn := ipc.NewConn(coreReader, coreWrite, nil, nil, 0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()

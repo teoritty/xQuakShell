@@ -39,8 +39,17 @@ func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sess
 		Audit:       h.cfg.Audit,
 		OnActivity:  h.cfg.OnPluginActivity,
 	})
-	conn := ipc.NewConn(stdout, stdin, nil, server.RequestHandler())
+	conn := ipc.NewConn(stdout, stdin, nil, server.RequestHandler(), channelThroughputKbps(plugin.Manifest.Capabilities.Channel))
 	return conn, netProxy, tunnelDial, tunnelLocal, channelProxy, nil
+}
+
+// channelThroughputKbps resolves the manifest's declared per-channel bandwidth cap, falling back
+// to the host default when the manifest is silent.
+func channelThroughputKbps(caps *domainplugin.ChannelCaps) int {
+	if caps == nil || caps.MaxThroughputKbps <= 0 {
+		return domainplugin.DefaultChannelThroughputKbps
+	}
+	return caps.MaxThroughputKbps
 }
 
 // channelInboundAdapter adapts a single process's ChannelProxy (params-only Open/Close) to

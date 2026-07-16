@@ -20,7 +20,7 @@ func TestConnCloseReturnsWhileReadLoopIsParked(t *testing.T) {
 
 	// Nothing is ever written to pluginOutW: the read loop parks in ReadFrame on the first
 	// header byte, exactly like a wedged plugin's idle stdout.
-	conn := NewConn(pluginOutR, hostInW, nil, nil)
+	conn := NewConn(pluginOutR, hostInW, nil, nil, 0)
 
 	done := make(chan struct{})
 	go func() {
@@ -45,7 +45,7 @@ func TestConnCloseIsIdempotent(t *testing.T) {
 		_ = hostInW.Close()
 	})
 
-	conn := NewConn(pluginOutR, hostInW, nil, nil)
+	conn := NewConn(pluginOutR, hostInW, nil, nil, 0)
 
 	done := make(chan struct{})
 	go func() {

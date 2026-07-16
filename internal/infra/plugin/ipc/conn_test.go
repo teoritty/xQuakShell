@@ -42,7 +42,7 @@ func TestConnHandlesConcurrentPluginRequests(t *testing.T) {
 		}
 	}
 
-	conn := NewConn(pluginOutR, hostInW, nil, handler)
+	conn := NewConn(pluginOutR, hostInW, nil, handler, 0)
 
 	go func() {
 		r := bufio.NewReader(hostInR)

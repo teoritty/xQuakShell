@@ -71,17 +71,26 @@ func (b *tokenBucket) refill() {
 	b.last = now
 }
 
-// Allow reports whether n bytes may be sent right now, consuming tokens if so. It never
-// blocks: the caller (channel.go) decides how to wait between failed attempts, keeping this
-// file responsible for the rate math only (SRP).
-func (b *tokenBucket) Allow(n int) bool {
+// Reserve claims n bytes' worth of tokens and reports how long the caller must wait before
+// sending them stays within the rate; 0 means send now. It never blocks: the caller (channel.go)
+// performs the wait, keeping this file responsible for the rate math only (SRP).
+//
+// Tokens are allowed to go negative — the reservation is booked as debt, and the returned delay
+// is exactly how long that debt takes to refill. That is what lets the caller wait once, for a
+// computed duration, instead of polling: an Allow-style predicate can only answer "not yet",
+// which leaves the caller no option but to ask again on a timer. At VNC frame rates that poll
+// burned CPU and added its own jitter to every frame.
+//
+// Booking the debt under the same lock also keeps concurrent senders honest: each reservation
+// sees the queue ahead of it, so they serialize into the rate rather than all waking up to
+// discover the tokens are gone.
+func (b *tokenBucket) Reserve(n int) time.Duration {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.refill()
-	cost := float64(n)
-	if b.tokens < cost {
-		return false
+	b.tokens -= float64(n)
+	if b.tokens >= 0 {
+		return 0
 	}
-	b.tokens -= cost
-	return true
+	return time.Duration(-b.tokens / b.rate * float64(time.Second))
 }

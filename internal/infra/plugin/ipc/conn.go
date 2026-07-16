@@ -31,11 +31,14 @@ type Conn struct {
 	onNotify    func(method string, params json.RawMessage)
 	onRequest   RequestHandler
 	mux         *channelMux
-	closeCh     chan struct{}
-	closeOnce   sync.Once
-	wg          sync.WaitGroup
-	readErr     error
-	mu          sync.Mutex
+	// channelThroughputKbps is the manifest's channel.maxThroughputKbps for this plugin,
+	// applied to every channel this conn opens.
+	channelThroughputKbps int
+	closeCh               chan struct{}
+	closeOnce             sync.Once
+	wg                    sync.WaitGroup
+	readErr               error
+	mu                    sync.Mutex
 }
 
 type messageResult struct {
@@ -44,7 +47,12 @@ type messageResult struct {
 }
 
 // NewConn creates a connection. readFrom is plugin stdout; writeTo is plugin stdin.
-func NewConn(readFrom io.Reader, writeTo io.Writer, onNotify func(string, json.RawMessage), onRequest RequestHandler) *Conn {
+// channelThroughputKbps is the manifest's declared channel bandwidth cap, applied to every
+// channel opened on this conn; 0 selects the host default.
+func NewConn(readFrom io.Reader, writeTo io.Writer, onNotify func(string, json.RawMessage), onRequest RequestHandler, channelThroughputKbps int) *Conn {
+	if channelThroughputKbps <= 0 {
+		channelThroughputKbps = domainplugin.DefaultChannelThroughputKbps
+	}
 	var wc io.Closer
 	if c, ok := writeTo.(io.Closer); ok {
 		wc = c
@@ -56,16 +64,19 @@ func NewConn(readFrom io.Reader, writeTo io.Writer, onNotify func(string, json.R
 		rc = c
 	}
 	c := &Conn{
-		enc:         NewCodec(writeTo),
-		reader:      bufio.NewReader(readFrom),
-		writeCloser: wc,
-		readCloser:  rc,
-		pending:     make(map[int64]chan messageResult),
-		onNotify:    onNotify,
-		onRequest:   onRequest,
-		mux:         newChannelMux(),
-		closeCh:     make(chan struct{}),
+		enc:                   NewCodec(writeTo),
+		reader:                bufio.NewReader(readFrom),
+		writeCloser:           wc,
+		readCloser:            rc,
+		pending:               make(map[int64]chan messageResult),
+		onNotify:              onNotify,
+		onRequest:             onRequest,
+		closeCh:               make(chan struct{}),
+		channelThroughputKbps: channelThroughputKbps,
 	}
+	// The mux's channels emit through this conn's serialized writer, so channel data and
+	// JSON-RPC never interleave mid-frame.
+	c.mux = newChannelMux(c.WriteBinary)
 	c.wg.Add(1)
 	safego.GoNamed("ipc.readLoop", c.readLoop)
 	return c
@@ -148,6 +159,10 @@ func (c *Conn) Close() {
 		if c.readCloser != nil {
 			_ = c.readCloser.Close()
 		}
+		// No plugin is left to spare, so every channel goes at once rather than waiting out
+		// its grace period. This also unparks any backend pump still sitting in Recv, which
+		// would otherwise keep the process's goroutines alive past its connection.
+		c.mux.ReleaseAll()
 	})
 	c.wg.Wait()
 }
