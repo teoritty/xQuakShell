@@ -132,10 +132,23 @@ type fakeChannelDataPath struct {
 	inbound  chan []byte
 	closed   chan struct{}
 	closeErr sync.Once
+	acks     atomic.Int64
 
 	mu       sync.Mutex
 	sent     [][]byte
 	capacity chan struct{}
+}
+
+func (f *fakeChannelDataPath) Ack(_ context.Context) error {
+	f.acks.Add(1)
+	return nil
+}
+
+func (f *fakeChannelDataPath) ackCount() int64 { return f.acks.Load() }
+
+func (f *fakeChannelDataPath) Close() error {
+	f.closeErr.Do(func() { close(f.closed) })
+	return nil
 }
 
 func newFakeChannelDataPath() *fakeChannelDataPath {
@@ -150,6 +163,17 @@ func closedCapacityChan() chan struct{} {
 	c := make(chan struct{})
 	close(c)
 	return c
+}
+
+// mustChannelHandle builds a handle the way the composition root does. There is no literal
+// form: a handle without a data path is not constructible, which is the point.
+func mustChannelHandle(t *testing.T, id uint32, pluginID, purpose, parentSessionID, hint string, data domainplugin.ChannelDataPath) *domainplugin.ChannelHandle {
+	t.Helper()
+	h, err := domainplugin.NewChannelHandle(id, pluginID, purpose, parentSessionID, hint, data)
+	if err != nil {
+		t.Fatalf("new channel handle: %v", err)
+	}
+	return h
 }
 
 func (f *fakeChannelDataPath) blockCapacity() {
@@ -274,7 +298,7 @@ func TestChannelExecBackend_Authorize_RegexFails_NoSessionOpened(t *testing.T) {
 
 	// Defense in depth: even if a caller wired anyway despite the Authorize failure, Wire must
 	// refuse (no stored argv) and never reach the session opener.
-	handle := &domainplugin.ChannelHandle{ChannelID: 1, PluginID: "com.test", Purpose: domainplugin.PurposeExec, ParentSessionID: "sess-1"}
+	handle := mustChannelHandle(t, 1, "com.test", domainplugin.PurposeExec, "sess-1", "", newFakeChannelDataPath())
 	if err := backend.Wire(context.Background(), handle); !errors.Is(err, domainplugin.ErrCapabilityDenied) {
 		t.Fatalf("wire err = %v, want ErrCapabilityDenied", err)
 	}
@@ -314,7 +338,7 @@ func TestChannelExecBackend_ShellInjectionInert(t *testing.T) {
 		t.Fatalf("authorize: %v", err)
 	}
 
-	handle := &domainplugin.ChannelHandle{ChannelID: 1, PluginID: "com.test", Purpose: domainplugin.PurposeExec, ParentSessionID: "sess-1"}
+	handle := mustChannelHandle(t, 1, "com.test", domainplugin.PurposeExec, "sess-1", "", newFakeChannelDataPath())
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}
@@ -343,7 +367,7 @@ func TestChannelExecBackend_ShellInjectionInert_EmbeddedSingleQuote(t *testing.T
 	if err := backend.Authorize(domainplugin.PurposeExec, "sess-1", hint); err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
-	handle := &domainplugin.ChannelHandle{ChannelID: 1, PluginID: "com.test", Purpose: domainplugin.PurposeExec, ParentSessionID: "sess-1"}
+	handle := mustChannelHandle(t, 1, "com.test", domainplugin.PurposeExec, "sess-1", "", newFakeChannelDataPath())
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}
@@ -374,7 +398,7 @@ func TestChannelExecBackend_Wire_ExitSurfacesViaCloseNotifier(t *testing.T) {
 	if err := backend.Authorize(domainplugin.PurposeExec, "sess-1", hint); err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
-	handle := &domainplugin.ChannelHandle{ChannelID: 1, PluginID: "com.test", Purpose: domainplugin.PurposeExec, ParentSessionID: "sess-1"}
+	handle := mustChannelHandle(t, 1, "com.test", domainplugin.PurposeExec, "sess-1", "", newFakeChannelDataPath())
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}
@@ -424,7 +448,7 @@ func TestChannelExecBackend_Wire_ErrorSurfacesViaCloseNotifier(t *testing.T) {
 	if err := backend.Authorize(domainplugin.PurposeExec, "sess-1", hint); err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
-	handle := &domainplugin.ChannelHandle{ChannelID: 1, PluginID: "com.test", Purpose: domainplugin.PurposeExec, ParentSessionID: "sess-1"}
+	handle := mustChannelHandle(t, 1, "com.test", domainplugin.PurposeExec, "sess-1", "", newFakeChannelDataPath())
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}
@@ -470,7 +494,7 @@ func TestChannelExecBackend_CreditZeroSuspendsStdoutReads(t *testing.T) {
 
 	data := newFakeChannelDataPath()
 	data.blockCapacity()
-	handle := &domainplugin.ChannelHandle{ChannelID: 1, PluginID: "com.test", Purpose: domainplugin.PurposeExec, ParentSessionID: "sess-1", Data: data}
+	handle := mustChannelHandle(t, 1, "com.test", domainplugin.PurposeExec, "sess-1", "", data)
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}

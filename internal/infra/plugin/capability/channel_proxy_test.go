@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -31,12 +32,69 @@ func (f *fakeChannelBackend) CloseRemote() error {
 	return nil
 }
 
+// fakeDataPathOpener stands in for the ipc Conn: it hands out data paths and records what it
+// opened and closed, which is how the rollback-on-failure assertions observe leaks.
+type fakeDataPathOpener struct {
+	err error
+
+	mu     sync.Mutex
+	opened []uint32
+	paths  map[uint32]*fakeChannelDataPath
+}
+
+func newFakeDataPathOpener() *fakeDataPathOpener {
+	return &fakeDataPathOpener{paths: make(map[uint32]*fakeChannelDataPath)}
+}
+
+func (o *fakeDataPathOpener) OpenDataPath(id uint32, _ string) (domainplugin.ChannelDataPath, error) {
+	if o.err != nil {
+		return nil, o.err
+	}
+	p := newFakeChannelDataPath()
+	o.mu.Lock()
+	o.opened = append(o.opened, id)
+	o.paths[id] = p
+	o.mu.Unlock()
+	return p, nil
+}
+
+// openCount reports how many data paths were handed out.
+func (o *fakeDataPathOpener) openCount() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return len(o.opened)
+}
+
+// allClosed reports whether every path handed out has since been closed — the property that
+// separates a clean teardown from a leaked channel.
+func (o *fakeDataPathOpener) allClosed() bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for _, p := range o.paths {
+		select {
+		case <-p.closed:
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 func newTestChannelProxy(t *testing.T, caps *domainplugin.ChannelCaps, backend *fakeChannelBackend) *ChannelProxy {
+	t.Helper()
+	p, _ := newTestChannelProxyWithOpener(t, caps, backend)
+	return p
+}
+
+func newTestChannelProxyWithOpener(t *testing.T, caps *domainplugin.ChannelCaps, backend *fakeChannelBackend) (*ChannelProxy, *fakeDataPathOpener) {
 	t.Helper()
 	resolve := func(purpose string) (domainplugin.ChannelPurposeBackend, error) {
 		return backend, nil
 	}
-	return NewChannelProxy("p1", caps, resolve, nil)
+	proxy := NewChannelProxy("p1", caps, resolve, nil)
+	opener := newFakeDataPathOpener()
+	proxy.AttachDataPathOpener(opener)
+	return proxy, opener
 }
 
 func openParams(parentSessionID, purpose, hint string) json.RawMessage {
@@ -133,6 +191,7 @@ func TestChannelProxy_AuditsOpenAndClose(t *testing.T) {
 	audit := func(e domainplugin.ChannelAuditEntry) { entries = append(entries, e) }
 	resolve := func(purpose string) (domainplugin.ChannelPurposeBackend, error) { return backend, nil }
 	proxy := NewChannelProxy("p1", caps, resolve, audit)
+	proxy.AttachDataPathOpener(newFakeDataPathOpener())
 
 	res, err := proxy.Open(context.Background(), openParams("sess-1", "exec", "docker exec target"))
 	if err != nil {

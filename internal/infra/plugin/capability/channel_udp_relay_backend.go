@@ -154,9 +154,9 @@ func (b *ChannelUDPRelayBackend) Wire(ctx context.Context, ch *domainplugin.Chan
 			Timestamp:       time.Now(),
 			PluginID:        b.pluginID,
 			Action:          "channel.open",
-			ChannelID:       ch.ChannelID,
-			Purpose:         ch.Purpose,
-			ParentSessionID: ch.ParentSessionID,
+			ChannelID:       ch.ChannelID(),
+			Purpose:         ch.Purpose(),
+			ParentSessionID: ch.ParentSessionID(),
 			Target:          "udp:" + target,
 			Success:         true,
 		})
@@ -164,10 +164,7 @@ func (b *ChannelUDPRelayBackend) Wire(ctx context.Context, ch *domainplugin.Chan
 
 	b.armIdleTimer()
 
-	if ch.Data == nil {
-		return nil
-	}
-	data := ch.Data
+	data := ch.Data()
 
 	safego.GoNamed("plugin.channelUDPRelayInbound", func() {
 		for {
@@ -181,6 +178,11 @@ func (b *ChannelUDPRelayBackend) Wire(ctx context.Context, ch *domainplugin.Chan
 				return
 			}
 			b.resetIdleTimer()
+			// The datagram is on the socket: the plugin may send one more.
+			if err := data.Ack(ctx); err != nil {
+				_ = b.CloseRemote()
+				return
+			}
 		}
 	})
 

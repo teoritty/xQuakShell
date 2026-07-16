@@ -145,18 +145,15 @@ func (b *ChannelRelayBackend) Wire(ctx context.Context, ch *domainplugin.Channel
 			Timestamp:       time.Now(),
 			PluginID:        b.pluginID,
 			Action:          "channel.open",
-			ChannelID:       ch.ChannelID,
-			Purpose:         ch.Purpose,
-			ParentSessionID: ch.ParentSessionID,
+			ChannelID:       ch.ChannelID(),
+			Purpose:         ch.Purpose(),
+			ParentSessionID: ch.ParentSessionID(),
 			Target:          target,
 			Success:         true,
 		})
 	}
 
-	if ch.Data == nil {
-		return nil
-	}
-	data := ch.Data
+	data := ch.Data()
 
 	safego.GoNamed("plugin.channelRelayInbound", func() {
 		for {
@@ -166,6 +163,13 @@ func (b *ChannelRelayBackend) Wire(ctx context.Context, ch *domainplugin.Channel
 				return
 			}
 			if _, err := conn.Write(payload); err != nil {
+				_ = conn.Close()
+				return
+			}
+			// The bytes are on the relayed socket: the plugin may send one more frame. A slow
+			// or blocked peer therefore holds the plugin's window shut instead of letting it
+			// pile frames up in the host.
+			if err := data.Ack(ctx); err != nil {
 				_ = conn.Close()
 				return
 			}

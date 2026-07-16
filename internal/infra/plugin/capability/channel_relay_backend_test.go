@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ type fakeChannelDataPath struct {
 	inbound  chan []byte
 	closed   chan struct{}
 	closeErr sync.Once
+	acks     atomic.Int64
 
 	mu       sync.Mutex
 	sent     [][]byte
@@ -37,6 +39,17 @@ func closedCapacityChan() chan struct{} {
 	c := make(chan struct{})
 	close(c)
 	return c
+}
+
+// mustChannelHandle builds a handle the way the composition root does. There is no literal
+// form: a handle without a data path is not constructible, which is the point.
+func mustChannelHandle(t *testing.T, id uint32, pluginID, purpose, parentSessionID, hint string, data domainplugin.ChannelDataPath) *domainplugin.ChannelHandle {
+	t.Helper()
+	h, err := domainplugin.NewChannelHandle(id, pluginID, purpose, parentSessionID, hint, data)
+	if err != nil {
+		t.Fatalf("new channel handle: %v", err)
+	}
+	return h
 }
 
 func (f *fakeChannelDataPath) blockCapacity() {
@@ -81,6 +94,18 @@ func (f *fakeChannelDataPath) pushInbound(b []byte) {
 
 func (f *fakeChannelDataPath) closeDown() {
 	f.closeErr.Do(func() { close(f.closed) })
+}
+
+func (f *fakeChannelDataPath) Ack(_ context.Context) error {
+	f.acks.Add(1)
+	return nil
+}
+
+func (f *fakeChannelDataPath) ackCount() int64 { return f.acks.Load() }
+
+func (f *fakeChannelDataPath) Close() error {
+	f.closeDown()
+	return nil
 }
 
 func (f *fakeChannelDataPath) WaitForCapacity(ctx context.Context) error {
@@ -173,7 +198,7 @@ func TestChannelRelayBackend_AuditRecordsCanonicalTargetNotRawHint(t *testing.T)
 		t.Fatalf("authorize: %v", err)
 	}
 
-	handle := &domainplugin.ChannelHandle{ChannelID: 1, PluginID: "com.test", Purpose: domainplugin.PurposeTCPRelay, ParentSessionID: "sess-1", Hint: rawHint}
+	handle := mustChannelHandle(t, 1, "com.test", domainplugin.PurposeTCPRelay, "sess-1", rawHint, newFakeChannelDataPath())
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}
@@ -227,7 +252,7 @@ func TestChannelRelayBackend_WireDialsAndDataFlowsBothDirections(t *testing.T) {
 	}
 
 	data := newFakeChannelDataPath()
-	handle := &domainplugin.ChannelHandle{ChannelID: 2, PluginID: "com.test", Purpose: domainplugin.PurposeTCPRelay, ParentSessionID: "sess-1", Hint: hint, Data: data}
+	handle := mustChannelHandle(t, 2, "com.test", domainplugin.PurposeTCPRelay, "sess-1", hint, data)
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}
@@ -293,7 +318,7 @@ func TestChannelRelayBackend_CreditZeroSuspendsUpstreamReads(t *testing.T) {
 
 	data := newFakeChannelDataPath()
 	data.blockCapacity()
-	handle := &domainplugin.ChannelHandle{ChannelID: 3, PluginID: "com.test", Purpose: domainplugin.PurposeTCPRelay, ParentSessionID: "sess-1", Hint: hint, Data: data}
+	handle := mustChannelHandle(t, 3, "com.test", domainplugin.PurposeTCPRelay, "sess-1", hint, data)
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}

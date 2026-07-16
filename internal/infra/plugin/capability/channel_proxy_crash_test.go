@@ -24,6 +24,7 @@ func TestChannelProxy_CloseAllInvokesBackendCloseRemoteForEveryChannel(t *testin
 	}
 	caps := &domainplugin.ChannelCaps{Purposes: []string{"exec"}, MaxConcurrent: 4}
 	proxy := NewChannelProxy("p1", caps, resolve, nil)
+	proxy.AttachDataPathOpener(newFakeDataPathOpener())
 	ctx := context.Background()
 
 	if _, err := proxy.Open(ctx, openParams("sess-1", "exec", "")); err != nil {
@@ -59,6 +60,7 @@ func TestChannelProxy_CloseAllWorksWithoutEverCallingCloseSession(t *testing.T) 
 	resolve := func(purpose string) (domainplugin.ChannelPurposeBackend, error) { return backend, nil }
 	caps := &domainplugin.ChannelCaps{Purposes: []string{"exec"}, MaxConcurrent: 4}
 	proxy := NewChannelProxy("p1", caps, resolve, nil)
+	proxy.AttachDataPathOpener(newFakeDataPathOpener())
 	ctx := context.Background()
 
 	if _, err := proxy.Open(ctx, openParams("sess-1", "exec", "")); err != nil {
@@ -81,6 +83,7 @@ func TestChannelProxy_CloseSessionWorksWithoutEverCallingCloseAll(t *testing.T) 
 	resolve := func(purpose string) (domainplugin.ChannelPurposeBackend, error) { return backend, nil }
 	caps := &domainplugin.ChannelCaps{Purposes: []string{"exec"}, MaxConcurrent: 4}
 	proxy := NewChannelProxy("p1", caps, resolve, nil)
+	proxy.AttachDataPathOpener(newFakeDataPathOpener())
 	ctx := context.Background()
 
 	if _, err := proxy.Open(ctx, openParams("sess-1", "exec", "")); err != nil {

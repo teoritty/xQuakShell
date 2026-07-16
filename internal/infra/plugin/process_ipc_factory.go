@@ -40,6 +40,14 @@ func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sess
 		OnActivity:  h.cfg.OnPluginActivity,
 	})
 	conn := ipc.NewConn(stdout, stdin, nil, server.RequestHandler(), channelThroughputKbps(plugin.Manifest.Capabilities.Channel))
+
+	// The proxy needs the conn to open data paths, and the conn needs the request handler that
+	// routes channel.open back into the proxy — a cycle no constructor ordering resolves. It is
+	// broken here, in the composition root, and only here: this is the one place that knows both
+	// halves. Attaching after NewConn is safe because no channel can exist before the plugin's
+	// first channel.open, which cannot arrive before the handler above is serving.
+	channelProxy.AttachDataPathOpener(conn)
+
 	return conn, netProxy, tunnelDial, tunnelLocal, channelProxy, nil
 }
 

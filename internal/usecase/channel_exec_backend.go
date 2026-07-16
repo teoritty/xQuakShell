@@ -158,51 +158,55 @@ func (b *ChannelExecBackend) Wire(ctx context.Context, ch *domainplugin.ChannelH
 			Timestamp:       time.Now(),
 			PluginID:        b.pluginID,
 			Action:          "channel.open",
-			ChannelID:       ch.ChannelID,
-			Purpose:         ch.Purpose,
-			ParentSessionID: ch.ParentSessionID,
+			ChannelID:       ch.ChannelID(),
+			Purpose:         ch.Purpose(),
+			ParentSessionID: ch.ParentSessionID(),
 			Target:          strings.Join(argv, " "),
 			Success:         true,
 		})
 	}
 
-	if data := ch.Data; data != nil {
-		safego.GoNamed("plugin.channelExecInbound", func() {
-			for {
-				payload, ok := data.Recv()
-				if !ok {
-					_ = stdin.Close()
-					return
-				}
-				if _, err := stdin.Write(payload); err != nil {
-					_ = stdin.Close()
+	data := ch.Data()
+
+	safego.GoNamed("plugin.channelExecInbound", func() {
+		for {
+			payload, ok := data.Recv()
+			if !ok {
+				_ = stdin.Close()
+				return
+			}
+			if _, err := stdin.Write(payload); err != nil {
+				_ = stdin.Close()
+				return
+			}
+			// The frame is in the remote process's stdin: the plugin may send one more.
+			if err := data.Ack(ctx); err != nil {
+				_ = stdin.Close()
+				return
+			}
+		}
+	})
+
+	safego.GoNamed("plugin.channelExecOutbound", func() {
+		buf := make([]byte, 32*1024)
+		for {
+			if err := data.WaitForCapacity(ctx); err != nil {
+				return
+			}
+			n, err := stdout.Read(buf)
+			if n > 0 {
+				if sendErr := data.Send(ctx, append([]byte(nil), buf[:n]...)); sendErr != nil {
 					return
 				}
 			}
-		})
-
-		safego.GoNamed("plugin.channelExecOutbound", func() {
-			buf := make([]byte, 32*1024)
-			for {
-				if err := data.WaitForCapacity(ctx); err != nil {
-					return
-				}
-				n, err := stdout.Read(buf)
-				if n > 0 {
-					if sendErr := data.Send(ctx, append([]byte(nil), buf[:n]...)); sendErr != nil {
-						return
-					}
-				}
-				if err != nil {
-					return
-				}
+			if err != nil {
+				return
 			}
-		})
-	}
+		}
+	})
 
-	// The wait/close-notify goroutine always runs, independent of whether a binary data path is
-	// wired, so a channel opened purely to observe process exit (no ch.Data) still surfaces its
-	// completion via channel.close {reason, message}.
+	// The wait/close-notify goroutine runs alongside the stdio pumps so process completion
+	// surfaces via channel.close {reason, message} even while they are still draining.
 	safego.GoNamed("plugin.channelExecWait", func() {
 		stderrBuf := make([]byte, 0, stderrCaptureLimit)
 		limited := io.LimitReader(stderr, stderrCaptureLimit)

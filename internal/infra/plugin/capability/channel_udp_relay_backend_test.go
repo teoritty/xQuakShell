@@ -98,7 +98,7 @@ func TestChannelUDPRelayBackend_AuditRecordsCanonicalTargetNotRawHint(t *testing
 		t.Fatalf("authorize: %v", err)
 	}
 
-	handle := &domainplugin.ChannelHandle{ChannelID: 1, PluginID: "com.test", Purpose: domainplugin.PurposeUDPRelay, ParentSessionID: "sess-1", Hint: rawHint}
+	handle := mustChannelHandle(t, 1, "com.test", domainplugin.PurposeUDPRelay, "sess-1", rawHint, newFakeChannelDataPath())
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestChannelUDPRelayBackend_RoundTripOneFrameOneDatagram(t *testing.T) {
 	}
 
 	data := newFakeChannelDataPath()
-	handle := &domainplugin.ChannelHandle{ChannelID: 2, PluginID: "com.test", Purpose: domainplugin.PurposeUDPRelay, ParentSessionID: "sess-1", Hint: hint, Data: data}
+	handle := mustChannelHandle(t, 2, "com.test", domainplugin.PurposeUDPRelay, "sess-1", hint, data)
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}
@@ -201,7 +201,7 @@ func TestChannelUDPRelayBackend_CreditZeroSuspendsSocketReads(t *testing.T) {
 
 	data := newFakeChannelDataPath()
 	data.blockCapacity()
-	handle := &domainplugin.ChannelHandle{ChannelID: 3, PluginID: "com.test", Purpose: domainplugin.PurposeUDPRelay, ParentSessionID: "sess-1", Hint: hint, Data: data}
+	handle := mustChannelHandle(t, 3, "com.test", domainplugin.PurposeUDPRelay, "sess-1", hint, data)
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestChannelUDPRelayBackend_IdleReapClosesChannel(t *testing.T) {
 	}
 
 	data := newFakeChannelDataPath()
-	handle := &domainplugin.ChannelHandle{ChannelID: 4, PluginID: "com.test", Purpose: domainplugin.PurposeUDPRelay, ParentSessionID: "sess-1", Hint: hint, Data: data}
+	handle := mustChannelHandle(t, 4, "com.test", domainplugin.PurposeUDPRelay, "sess-1", hint, data)
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}

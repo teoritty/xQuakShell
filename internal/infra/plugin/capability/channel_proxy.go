@@ -31,17 +31,44 @@ type ChannelProxy struct {
 	audit    domainplugin.ChannelAuditRecorder
 
 	mu           sync.Mutex
+	opener       domainplugin.ChannelDataPathOpener
 	nextID       uint32
 	channels     map[uint32]*channelEntry
 	pendingOpens int
+}
+
+// AttachDataPathOpener supplies the bus this proxy opens channel data paths on. It exists
+// because the proxy and the ipc conn are mutually dependent (the conn's request handler routes
+// channel.open here), so the cycle has to be broken by assignment rather than construction.
+//
+// Composition-root only, exactly once, before the plugin process is served. It is not a general
+// setter: a second call is a wiring bug, not a reconfiguration.
+func (p *ChannelProxy) AttachDataPathOpener(opener domainplugin.ChannelDataPathOpener) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.opener = opener
 }
 
 // channelEntry pairs an open channel's backend with the parentSessionId it was opened for, so
 // CloseSession can select exactly the channels bound to a closing session without a second
 // tracking map (ADR-011 §Session lifecycle coupling).
 type channelEntry struct {
-	backend         domainplugin.ChannelPurposeBackend
+	backend domainplugin.ChannelPurposeBackend
+	// data is closed on every teardown path alongside the backend. Closing only the backend
+	// leaves its pump goroutines parked in Recv forever, holding the channel and its queue.
+	data            domainplugin.ChannelDataPath
 	parentSessionID string
+}
+
+// closeEntry tears down both halves of a channel: the host-owned far end and the bus-side data
+// path. Order matters — the backend stops touching the path first, then the path unblocks any
+// pump still parked on it.
+func closeEntry(entry *channelEntry) error {
+	closeErr := entry.backend.CloseRemote()
+	if entry.data != nil {
+		_ = entry.data.Close()
+	}
+	return closeErr
 }
 
 // NewChannelProxy creates a channel capability proxy for one plugin process.
@@ -138,17 +165,40 @@ func (p *ChannelProxy) Open(ctx context.Context, params json.RawMessage) (json.R
 	}
 
 	p.mu.Lock()
+	opener := p.opener
 	p.nextID++
 	id := p.nextID
 	p.mu.Unlock()
 
-	handle := &domainplugin.ChannelHandle{
-		ChannelID:       id,
-		PluginID:        p.pluginID,
-		Purpose:         req.Purpose,
-		ParentSessionID: req.ParentSessionID,
-		Hint:            req.Hint,
+	if opener == nil {
+		p.auditOpen(id, req, false, "channel data path opener not attached")
+		return nil, domainplugin.ErrCapabilityDenied
 	}
+
+	// The data path is opened before the backend is wired, so a channel is never handed to a
+	// backend without one. Reporting the failure here — rather than returning a channelId that
+	// cannot carry bytes — is the difference between the plugin learning of it in this call and
+	// learning of it when the host kills it over the first frame.
+	data, err := opener.OpenDataPath(id, req.Purpose)
+	if err != nil {
+		p.auditOpen(id, req, false, err.Error())
+		return nil, err
+	}
+	// Until the channel is committed, every exit path owns closing the data path: otherwise a
+	// rejected open leaves a registered channel on the bus forever.
+	wired := false
+	defer func() {
+		if !wired {
+			_ = data.Close()
+		}
+	}()
+
+	handle, err := domainplugin.NewChannelHandle(id, p.pluginID, req.Purpose, req.ParentSessionID, req.Hint, data)
+	if err != nil {
+		p.auditOpen(id, req, false, err.Error())
+		return nil, err
+	}
+
 	if err := backend.Wire(ctx, handle); err != nil {
 		p.auditOpen(id, req, false, err.Error())
 		return nil, err
@@ -156,8 +206,13 @@ func (p *ChannelProxy) Open(ctx context.Context, params json.RawMessage) (json.R
 
 	p.mu.Lock()
 	p.pendingOpens--
-	p.channels[id] = &channelEntry{backend: backend, parentSessionID: req.ParentSessionID}
+	p.channels[id] = &channelEntry{
+		backend:         backend,
+		data:            data,
+		parentSessionID: req.ParentSessionID,
+	}
 	committed = true
+	wired = true
 	p.mu.Unlock()
 
 	p.auditOpen(id, req, true, "")
@@ -180,7 +235,7 @@ func (p *ChannelProxy) Close(_ context.Context, params json.RawMessage) (json.Ra
 		return nil, err
 	}
 
-	closeErr := entry.backend.CloseRemote()
+	closeErr := closeEntry(entry)
 
 	p.mu.Lock()
 	delete(p.channels, req.ChannelID)
@@ -205,7 +260,7 @@ func (p *ChannelProxy) CloseAll() {
 	p.mu.Unlock()
 
 	for id, entry := range owned {
-		closeErr := entry.backend.CloseRemote()
+		closeErr := closeEntry(entry)
 		p.auditClose(id, closeErr == nil, errString(closeErr))
 	}
 }
@@ -236,7 +291,7 @@ func (p *ChannelProxy) CloseSession(sessionID string) {
 	p.mu.Unlock()
 
 	for _, o := range owned {
-		closeErr := o.entry.backend.CloseRemote()
+		closeErr := closeEntry(o.entry)
 		p.auditClose(o.id, closeErr == nil, errString(closeErr))
 	}
 }

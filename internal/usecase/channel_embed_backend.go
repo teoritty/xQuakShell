@@ -37,10 +37,9 @@ const embedDefaultTunnelID = "main"
 // ChannelEmbedBackend implements the embed-stream purpose (ADR-011 Stage 8): it authorizes
 // against manifest.Capabilities.Session.Embed plus the parentSessionId already being the
 // plugin's own registered embed session, then wires the channel straight through to that
-// session's embed surface in both directions with no JSON/base64 wrapping. The overflow policy
-// (drop-oldest) is entirely Stage 5's (ipc/channel.go's policyDropOldestUnsent, applied inside
-// ch.Data.Send) — this backend only ever calls Send/Recv, it never buffers or evicts frames
-// itself.
+// session's embed surface in both directions with no JSON/base64 wrapping. Overflow handling
+// is entirely Stage 5's, applied inside ch.Data().Send — this backend only ever calls
+// Send/Recv/Ack, it never buffers or evicts frames itself.
 type ChannelEmbedBackend struct {
 	pluginID    string
 	hasEmbedCap bool
@@ -101,8 +100,8 @@ func (b *ChannelEmbedBackend) Authorize(purpose, parentSessionID, hint string) e
 // Wire pumps bytes in both directions with no framing beyond the channel bus's own kind=0x02
 // frames: plugin -> data.Recv() -> sink.RouteTunnelFrameFromPlugin (e.g. video/output), and the
 // embed surface's outbound subscription -> data.Send() (e.g. control/input). Stage 5's
-// per-purpose exhaustion policy (drop-oldest for embed-stream) applies inside data.Send exactly
-// as it does for every other purpose; this method never inspects or overrides it.
+// exhaustion policy applies inside data.Send exactly as it does for every other purpose; this
+// method never inspects or overrides it.
 func (b *ChannelEmbedBackend) Wire(ctx context.Context, ch *domainplugin.ChannelHandle) error {
 	b.mu.Lock()
 	parentSessionID := b.parentSessionID
@@ -118,18 +117,15 @@ func (b *ChannelEmbedBackend) Wire(ctx context.Context, ch *domainplugin.Channel
 			Timestamp:       time.Now(),
 			PluginID:        b.pluginID,
 			Action:          "channel.open",
-			ChannelID:       ch.ChannelID,
-			Purpose:         ch.Purpose,
-			ParentSessionID: ch.ParentSessionID,
+			ChannelID:       ch.ChannelID(),
+			Purpose:         ch.Purpose(),
+			ParentSessionID: ch.ParentSessionID(),
 			Target:          tunnelID,
 			Success:         true,
 		})
 	}
 
-	if ch.Data == nil {
-		return nil
-	}
-	data := ch.Data
+	data := ch.Data()
 
 	safego.GoNamed("plugin.channelEmbedInbound", func() {
 		for {
@@ -139,6 +135,13 @@ func (b *ChannelEmbedBackend) Wire(ctx context.Context, ch *domainplugin.Channel
 				return
 			}
 			if err := b.sink.RouteTunnelFrameFromPlugin(ctx, parentSessionID, tunnelID, payload); err != nil {
+				_ = b.CloseRemote()
+				return
+			}
+			// The frame reached the browser-facing surface: the plugin may send one more.
+			// Acking here rather than after Recv is what makes the plugin's window track the
+			// browser's real consumption instead of the host's buffering.
+			if err := data.Ack(ctx); err != nil {
 				_ = b.CloseRemote()
 				return
 			}
