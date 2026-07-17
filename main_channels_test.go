@@ -14,6 +14,8 @@ import (
 	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/infra/plugin/capability"
 	"ssh-client/internal/infra/plugin/ipc"
+	"ssh-client/internal/pkg/ratelimit"
+	"ssh-client/internal/usecase"
 )
 
 // The tests here cover the composition root's channel resolver with the real thing on both sides
@@ -159,6 +161,7 @@ func relayPlugin(id string) domainplugin.InstalledPlugin {
 					AllowArbitraryOutbound: true,
 					AllowPrivateNetworks:   true,
 				},
+				Session: &domainplugin.SessionCaps{Embed: true},
 				Channel: &domainplugin.ChannelCaps{
 					Purposes: []string{
 						domainplugin.PurposeTCPRelay,
@@ -179,7 +182,7 @@ func newChannelSeam(t *testing.T, plugin domainplugin.InstalledPlugin) (*capabil
 	pluginOutR, pluginOutW := io.Pipe() // plugin -> host
 	hostOutR, hostOutW := io.Pipe()     // host -> plugin
 
-	resolve := newChannelResolverFor(nil)(plugin, "sess-1")
+	resolve := newChannelResolverFor(nil, nil)(plugin, "sess-1")
 	proxy := capability.NewChannelProxy(plugin.Manifest.ID, plugin.Manifest.Capabilities.Channel, resolve, nil)
 
 	conn := ipc.NewConn(pluginOutR, hostOutW, nil, nil, 0)
@@ -270,7 +273,7 @@ func TestChannelResolverWiresARealTCPRelayEndToEnd(t *testing.T) {
 // falsifiable every time.
 func TestChannelResolverBuildsAFreshBackendPerOpen(t *testing.T) {
 	plugin := relayPlugin("com.test.fresh")
-	resolve := newChannelResolverFor(nil)(plugin, "sess-1")
+	resolve := newChannelResolverFor(nil, nil)(plugin, "sess-1")
 
 	for _, purpose := range []string{domainplugin.PurposeTCPRelay, domainplugin.PurposeUDPRelay} {
 		// Resolved concurrently: the resolver is called from whichever goroutine serves a
@@ -376,6 +379,34 @@ func TestConcurrentChannelsStayOnTheirOwnPeers(t *testing.T) {
 	}
 }
 
+// TestChannelResolverBuildsEmbedStreamOnTheRealSink pins that embed-stream now resolves to a real
+// ChannelEmbedBackend built on the production EmbedTunnelService, not to an ErrNotImplemented.
+//
+// The sink is the whole point: EmbedTunnelService could not be passed to NewChannelEmbedBackend at
+// all until it grew SubscribeOutbound (3.6), so the resolver withheld the purpose. Asserting the
+// concrete type is deliberate -- it is what distinguishes "wired to the real service" from "wired
+// to something that compiles".
+func TestChannelResolverBuildsEmbedStreamOnTheRealSink(t *testing.T) {
+	sink := usecase.NewEmbedTunnelService(ratelimit.Factory{})
+	resolve := newChannelResolverFor(nil, sink)(relayPlugin("com.test.embed"), "sess-1")
+
+	first, err := resolve(domainplugin.PurposeEmbedStream)
+	if err != nil {
+		t.Fatalf("resolve embed-stream: %v -- the composition root still refuses the purpose", err)
+	}
+	if _, ok := first.(*usecase.ChannelEmbedBackend); !ok {
+		t.Fatalf("embed-stream backend is %T, want *usecase.ChannelEmbedBackend", first)
+	}
+	second, err := resolve(domainplugin.PurposeEmbedStream)
+	if err != nil {
+		t.Fatalf("resolve embed-stream twice: %v", err)
+	}
+	if first == second {
+		t.Fatal("embed-stream resolved to one shared backend: the second channel.open would " +
+			"overwrite the first's tunnelId (3.5)")
+	}
+}
+
 // TestChannelResolverRefusesPurposesItCannotHonestlyBuild pins what B2 deliberately does NOT wire,
 // so that it fails at channel.open (rule 9) instead of handing the plugin a channel that reports
 // success and then moves nothing.
@@ -383,15 +414,13 @@ func TestConcurrentChannelsStayOnTheirOwnPeers(t *testing.T) {
 //   - exec: NewChannelExecBackend takes consentGranted, which traces to an install-time grant that
 //     does not exist yet (3.9/D3 -- that is B6). Hardcoding true would make an install-time
 //     security gate decorative, so exec is withheld until the grant is real.
-//   - embed-stream: NewChannelEmbedBackend needs an EmbedFrameSink, and EmbedTunnelService does not
-//     satisfy it -- SubscribeOutbound does not exist on it (3.6 -- that is B3).
 //
-// This test is expected to be deleted, purpose by purpose, as B3 and B6 land. Until then it is the
-// thing standing between "not wired" and a fake.
+// embed-stream left this list when B3 gave EmbedTunnelService a SubscribeOutbound; the rest of the
+// list is expected to go the same way as B6 lands.
 func TestChannelResolverRefusesPurposesItCannotHonestlyBuild(t *testing.T) {
 	proxy, _ := newChannelSeam(t, relayPlugin("com.test.blocked"))
 
-	for _, purpose := range []string{domainplugin.PurposeExec, domainplugin.PurposeEmbedStream} {
+	for _, purpose := range []string{domainplugin.PurposeExec} {
 		if _, err := openChannel(t, proxy, purpose, "whatever"); err == nil {
 			t.Fatalf("channel.open %q succeeded: a backend was constructed that cannot work, and the "+
 				"plugin will only learn of it on its first frame", purpose)

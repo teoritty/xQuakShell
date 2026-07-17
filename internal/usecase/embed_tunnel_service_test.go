@@ -134,3 +134,31 @@ func TestEmbedTunnelRateLimited(t *testing.T) {
 		t.Fatalf("expected ErrRateLimited, got %v", err)
 	}
 }
+
+// TestEmbedTunnelSubscribeOutboundLastSubscriberWins pins the bookkeeping SubscribeOutbound owes,
+// mirroring AttachWebSocket's rule for the browser end of the same tunnel: a re-opened channel
+// replaces a stale subscription rather than splitting one input stream across two consumers, and a
+// stale unsubscribe func must not tear down its successor.
+func TestEmbedTunnelSubscribeOutboundLastSubscriberWins(t *testing.T) {
+	svc := newTestEmbedTunnelService()
+
+	_, unsubFirst := svc.SubscribeOutbound("sess-sub", "main")
+	_, unsubSecond := svc.SubscribeOutbound("sess-sub", "main")
+
+	unsubFirst()
+	svc.mu.RLock()
+	current := svc.outboundSubLocked("sess-sub", "main")
+	svc.mu.RUnlock()
+	if current == nil {
+		t.Fatal("the superseded subscription's unsubscribe removed its successor")
+	}
+
+	unsubSecond()
+	unsubSecond() // idempotent: CloseRemote may race the session-close cascade
+	svc.mu.RLock()
+	current = svc.outboundSubLocked("sess-sub", "main")
+	svc.mu.RUnlock()
+	if current != nil {
+		t.Fatal("unsubscribe left the subscription registered: input would block on a dead consumer")
+	}
+}

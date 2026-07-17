@@ -39,6 +39,34 @@ type EmbedTunnelService struct {
 
 	registry         *SessionRegistry
 	manifestLookup   PluginManifestLookup
+
+	// outbound holds the embed-stream channel subscribers, sessionID -> tunnelID -> sub. It is
+	// deliberately keyed on the session rather than stored on embedEntry: a subscription outlives a
+	// token rotation (Register replaces the entry), and D1's routing predicate is defined per
+	// (sessionID, tunnelID), not per token.
+	outbound map[string]map[string]*embedOutboundSub
+}
+
+// embedOutboundSub is one channel-bus subscriber for a (sessionID, tunnelID) pair's browser->plugin
+// input.
+//
+// ch is UNBUFFERED, on purpose. This direction is control input: every event is a state
+// transition, not a snapshot, so it may never be dropped (readiness 7.3), and the channel bus below
+// it now has real credit-based backpressure to propagate. A buffer here would absorb that
+// backpressure into an unbounded host-side queue -- the very thing ADR-011's credit window exists
+// to remove -- and a bounded buffer would eventually have to drop. Blocking does neither: the
+// browser's WebSocket read loop simply stops reading until the plugin's window reopens.
+//
+// done, not close(ch), signals teardown: senders hold no reference to the unsubscriber, so closing
+// ch would race a send into a panic.
+type embedOutboundSub struct {
+	ch   chan []byte
+	done chan struct{}
+	once sync.Once
+}
+
+func (sub *embedOutboundSub) stop() {
+	sub.once.Do(func() { close(sub.done) })
 }
 
 type embedEntry struct {
@@ -80,6 +108,7 @@ func NewEmbedTunnelService(factory domain.RateLimiterFactory) *EmbedTunnelServic
 		sessionToken:   make(map[string]string),
 		sessionActive:  make(map[string]bool),
 		limiterFactory: factory,
+		outbound:       make(map[string]map[string]*embedOutboundSub),
 	}
 }
 
@@ -352,6 +381,64 @@ func (s *EmbedTunnelService) AttachWebSocket(token, tunnelID string) (domain.Emb
 	entry.tunnelOpen[tunnelID] = true
 	entry.active = s.sessionActive[entry.reg.SessionID]
 	return conn, entry.reg, nil
+}
+
+// SubscribeOutbound registers an embed-stream channel as the consumer of a tunnel's
+// browser->plugin input, and is the plugin-side counterpart of AttachWebSocket: one registers the
+// browser end of a tunnel, this registers the plugin end.
+//
+// The returned channel is unbuffered -- see embedOutboundSub for why that is the contract and not
+// an oversight. The returned func unsubscribes; it is idempotent and safe to call concurrently with
+// delivery, and after it returns the tunnel falls back to the legacy session.tunnelData
+// notification (D1).
+//
+// Like AttachWebSocket, the last subscriber for a (sessionID, tunnelID) wins: a re-opened channel
+// replaces a stale one rather than splitting the input stream between two consumers.
+func (s *EmbedTunnelService) SubscribeOutbound(sessionID, tunnelID string) (<-chan []byte, func()) {
+	if s == nil || sessionID == "" || tunnelID == "" {
+		return nil, func() {}
+	}
+	sub := &embedOutboundSub{
+		ch:   make(chan []byte),
+		done: make(chan struct{}),
+	}
+
+	s.mu.Lock()
+	byTunnel, ok := s.outbound[sessionID]
+	if !ok {
+		byTunnel = make(map[string]*embedOutboundSub)
+		s.outbound[sessionID] = byTunnel
+	}
+	prev := byTunnel[tunnelID]
+	byTunnel[tunnelID] = sub
+	s.mu.Unlock()
+
+	if prev != nil {
+		prev.stop()
+	}
+
+	return sub.ch, func() {
+		s.mu.Lock()
+		// Only this subscription's own registration is removed: a later SubscribeOutbound for the
+		// same tunnel already replaced it, and must not be unsubscribed by its predecessor's func.
+		if byTunnel, ok := s.outbound[sessionID]; ok && byTunnel[tunnelID] == sub {
+			delete(byTunnel, tunnelID)
+			if len(byTunnel) == 0 {
+				delete(s.outbound, sessionID)
+			}
+		}
+		s.mu.Unlock()
+		sub.stop()
+	}
+}
+
+// outboundSubLocked reports the channel subscriber for a tunnel, if any. Callers hold s.mu.
+func (s *EmbedTunnelService) outboundSubLocked(sessionID, tunnelID string) *embedOutboundSub {
+	byTunnel, ok := s.outbound[sessionID]
+	if !ok {
+		return nil
+	}
+	return byTunnel[tunnelID]
 }
 
 // UIEntryForToken returns the ui entry path for a token.
