@@ -249,7 +249,7 @@ Host response:
 | Browser → plugin | Notification `session.tunnelData` (`sessionId`, `tunnelId`, `dataBase64`) |
 | Backpressure | Notification `session.tunnelBackpressure` / `session.tunnelResume` |
 
-Limits: max frame **64 KiB**; default aggregate **32 MiB/s** per session; max **4** tunnels per session. Oversized or rate-limited frames return `-32003`.
+Limits: max frame **64 KiB**; default aggregate **32 MiB/s** per session; max **8** tunnels per session. Oversized or rate-limited frames return `-32003`.
 
 Other plugin → host RPC: `session.tunnelOpen`, `session.tunnelClose`. **`session.writeTerminal` is not used.**
 
@@ -346,6 +346,8 @@ Opening and closing a channel is negotiated over JSON-RPC; only data flows as bi
 | `udp-relay` | Dials a target UDP endpoint directly from the host (`net.DialUDP`), validated against a `udp:`-prefixed allowlist entry (same dial-policy core as `tcp-relay`). SSH has no native UDP forwarding, so this is a direct host→target dial, not tunnelled through the parent SSH chain (matches topologies like mosh: SSH launches `mosh-server`, then UDP flows host↔server directly). Still bound to `parentSessionId` for ownership/lifecycle even though the dial is direct. One UDP datagram maps to exactly one `kind=0x02` frame. |
 
 **`embed-stream` frames are capped at 64 KiB, not 1 MiB.** The general `kind=0x02` ceiling is 1 MiB, but this one purpose is lower, because the embed surface behind it has always had a 64 KiB frame limit and because credit is counted in frames: with an 8-frame window, a 1 MiB cap would park 8 MiB per channel in host memory. The host enforces this on ingress, so an oversize frame never reaches the embed surface — it is refused as a **protocol violation** (fail-fast, exactly like any other oversized `length`), never as `ErrRateLimited`/backpressure: it is deterministic, and retrying it will never help. Chunk in the plugin, where you know what a frame means; RFB, for one, sends rectangles rather than screens.
+
+**A multi-channel protocol must declare `channel.maxConcurrent`.** When the field is absent the host applies a default of **4** concurrent channels. That is fine for VNC and wrong for anything else: an RDP session is ~6 `embed-stream` channels (display, clipboard, audio-out, audio-in, drive, printer) **plus** a `tcp-relay`, so the 5th `channel.open` fails with `ErrRateLimited` — which reads like a throughput problem and is not one. Declare `channel.maxConcurrent: 8` and the host honours it; the limit is per plugin, and the embed side is separately capped at 8 tunnels per session.
 
 ### Flow control (credit)
 

@@ -183,7 +183,9 @@ func (s *EmbedTunnelService) Register(ctx context.Context, reg domain.EmbedRegis
 		reg.TunnelIDs = []string{"main"}
 	}
 	if len(reg.TunnelIDs) > domain.MaxTunnelsPerSession {
-		return domain.SessionEmbedDescriptor{}, fmt.Errorf("too many tunnels")
+		return domain.SessionEmbedDescriptor{}, fmt.Errorf(
+			"too many tunnels: %d requested, limit is %d per embed session",
+			len(reg.TunnelIDs), domain.MaxTunnelsPerSession)
 	}
 	token, err := mintEmbedToken()
 	if err != nil {
