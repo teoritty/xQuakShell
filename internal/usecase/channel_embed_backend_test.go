@@ -25,6 +25,10 @@ type fakeEmbedSink struct {
 
 	subCh        chan []byte
 	unsubscribed int32
+
+	// refuseWith, when non-nil, is consulted before accepting a frame: a non-nil return refuses it,
+	// standing in for EmbedTunnelService's classified refusals.
+	refuseWith func() error
 }
 
 func newFakeEmbedSink() *fakeEmbedSink {
@@ -36,6 +40,11 @@ func (s *fakeEmbedSink) RouteTunnelFrameFromPlugin(_ context.Context, _ string, 
 	defer s.mu.Unlock()
 	if s.fromErr != nil {
 		return s.fromErr
+	}
+	if s.refuseWith != nil {
+		if err := s.refuseWith(); err != nil {
+			return err
+		}
 	}
 	s.fromPlugin = append(s.fromPlugin, append([]byte(nil), data...))
 	return nil
@@ -154,7 +163,7 @@ func (f *fakeEmbedDataPath) sentFrames() [][]byte {
 func TestChannelEmbedBackend_Authorize_NoEmbedCapability_Denied(t *testing.T) {
 	sink := newFakeEmbedSink()
 	sink.owners["sess-1"] = "com.test"
-	backend := NewChannelEmbedBackend("com.test", false, sink, nil)
+	backend := NewChannelEmbedBackend("com.test", false, sink, nil, nil)
 
 	err := backend.Authorize(domainplugin.PurposeEmbedStream, "sess-1", "main")
 	if !errors.Is(err, domainplugin.ErrCapabilityDenied) {
@@ -165,7 +174,7 @@ func TestChannelEmbedBackend_Authorize_NoEmbedCapability_Denied(t *testing.T) {
 func TestChannelEmbedBackend_Authorize_NotOwningSession_Denied(t *testing.T) {
 	sink := newFakeEmbedSink()
 	sink.owners["sess-1"] = "com.other-plugin"
-	backend := NewChannelEmbedBackend("com.test", true, sink, nil)
+	backend := NewChannelEmbedBackend("com.test", true, sink, nil, nil)
 
 	err := backend.Authorize(domainplugin.PurposeEmbedStream, "sess-1", "main")
 	if !errors.Is(err, domainplugin.ErrCapabilityDenied) {
@@ -179,7 +188,7 @@ func TestChannelEmbedBackend_Authorize_NotOwningSession_Denied(t *testing.T) {
 func TestChannelEmbedBackend_Wire_FramesFlowRawToEmbedSink(t *testing.T) {
 	sink := newFakeEmbedSink()
 	sink.owners["sess-1"] = "com.test"
-	backend := NewChannelEmbedBackend("com.test", true, sink, nil)
+	backend := NewChannelEmbedBackend("com.test", true, sink, nil, nil)
 
 	if err := backend.Authorize(domainplugin.PurposeEmbedStream, "sess-1", "main"); err != nil {
 		t.Fatalf("authorize: %v", err)
@@ -230,7 +239,7 @@ func TestChannelEmbedBackend_Wire_OverflowLosesNoInputFrame(t *testing.T) {
 	sink := newFakeEmbedSink()
 	sink.owners["sess-1"] = "com.test"
 	sink.subCh = make(chan []byte, 8)
-	backend := NewChannelEmbedBackend("com.test", true, sink, nil)
+	backend := NewChannelEmbedBackend("com.test", true, sink, nil, nil)
 
 	if err := backend.Authorize(domainplugin.PurposeEmbedStream, "sess-1", "main"); err != nil {
 		t.Fatalf("authorize: %v", err)
@@ -277,5 +286,186 @@ func TestChannelEmbedBackend_Wire_OverflowLosesNoInputFrame(t *testing.T) {
 	backend.CloseRemote()
 	if atomic.LoadInt32(&sink.unsubscribed) != 1 {
 		t.Fatalf("unsubscribed count = %d, want 1", sink.unsubscribed)
+	}
+}
+
+// embedInboundFrames feeds n numbered frames into the pump's Recv side and returns what the sink
+// must end up holding, in order. It drives past InitialCredit x 3 (the embed-stream window is 8),
+// because a test that moves 8 frames never proves the window reopens.
+func embedInboundFrames(data *fakeEmbedDataPath, n int) []string {
+	want := make([]string, 0, n)
+	for i := 0; i < n; i++ {
+		want = append(want, string(rune('a'+i%26))+string(rune('0'+i/26)))
+	}
+	go func() {
+		for _, f := range want {
+			data.inbound <- []byte(f)
+		}
+	}()
+	return want
+}
+
+const embedTestFrames = 24 // InitialCredit(8) x 3, per the readiness doc's 7.2
+
+func waitForFrames(t *testing.T, sink *fakeEmbedSink, want []string) {
+	t.Helper()
+	deadline := time.After(5 * time.Second)
+	for len(sink.framesFromPlugin()) < len(want) {
+		select {
+		case <-deadline:
+			t.Fatalf("timed out: only %d of %d frames reached the embed surface", len(sink.framesFromPlugin()), len(want))
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	got := sink.framesFromPlugin()
+	for i, w := range want {
+		if string(got[i]) != w {
+			t.Fatalf("frame[%d] = %q, want %q (frames must arrive in order, none lost)", i, got[i], w)
+		}
+	}
+}
+
+// newWiredEmbedBackend authorizes and wires a backend with a test-scale ceiling. The ceiling and
+// retry interval are the SAME fields production uses, set by the SAME constructor — lowered here
+// only so CI does not sleep for two minutes.
+func newWiredEmbedBackend(t *testing.T, sink *fakeEmbedSink, data *fakeEmbedDataPath, ceiling time.Duration, notify ChannelCloseNotifier) *ChannelEmbedBackend {
+	t.Helper()
+	sink.owners["sess-1"] = "com.test"
+	backend := NewChannelEmbedBackend("com.test", true, sink, nil, notify)
+	backend.ackCeiling = ceiling
+	backend.retryInterval = 2 * time.Millisecond
+	if err := backend.Authorize(domainplugin.PurposeEmbedStream, "sess-1", "main"); err != nil {
+		t.Fatalf("authorize: %v", err)
+	}
+	handle := mustChannelHandle(t, 7, "com.test", domainplugin.PurposeEmbedStream, "sess-1", "", data)
+	if err := backend.Wire(context.Background(), handle); err != nil {
+		t.Fatalf("wire: %v", err)
+	}
+	t.Cleanup(func() { backend.CloseRemote() })
+	return backend
+}
+
+// TestChannelEmbedBackend_BrieflyStalledConsumerWaitsAndResumes is D4's normal case: a browser
+// that is momentarily behind must not cost the plugin its channel. The frame in hand is not
+// dropped and not Acked — so the plugin's window closes and the backpressure reaches the VNC
+// server — and when the consumer drains, every frame continues in order.
+func TestChannelEmbedBackend_BrieflyStalledConsumerWaitsAndResumes(t *testing.T) {
+	sink := newFakeEmbedSink()
+	var stalled atomic.Bool
+	stalled.Store(true)
+	sink.refuseWith = func() error {
+		if stalled.Load() {
+			return newEmbedRefusal(EmbedRefusedWSBufferFull, domainplugin.ErrTerminalBackpressure)
+		}
+		return nil
+	}
+
+	data := newFakeEmbedDataPath(0)
+	backend := newWiredEmbedBackend(t, sink, data, 5*time.Second, nil)
+	want := embedInboundFrames(data, embedTestFrames)
+
+	// While the consumer is stalled: nothing delivered, and crucially nothing Acked. Acking here
+	// would reopen the plugin's window against a consumer that never took the frame.
+	time.Sleep(80 * time.Millisecond)
+	if n := len(sink.framesFromPlugin()); n != 0 {
+		t.Fatalf("frames delivered = %d, want 0 while the consumer is stalled", n)
+	}
+	if acks := data.ackCount(); acks != 0 {
+		t.Fatalf("acks = %d, want 0 while the frame has not reached the consumer", acks)
+	}
+	if backend.isClosed() {
+		t.Fatal("channel was torn down by a brief consumer stall — this is the B4 defect")
+	}
+
+	stalled.Store(false)
+	waitForFrames(t, sink, want)
+	if acks := data.ackCount(); acks < int64(len(want)) {
+		t.Fatalf("acks = %d, want >= %d once every frame was accepted", acks, len(want))
+	}
+}
+
+// TestChannelEmbedBackend_StallPastCeilingClosesWithReason is D4's other half: waiting is not
+// forever. An active tab whose buffer has not drained for the whole ceiling is gone, and the
+// channel must die with a reason the plugin can read, not wedge silently.
+func TestChannelEmbedBackend_StallPastCeilingClosesWithReason(t *testing.T) {
+	sink := newFakeEmbedSink()
+	sink.refuseWith = func() error {
+		return newEmbedRefusal(EmbedRefusedWSBufferFull, domainplugin.ErrTerminalBackpressure)
+	}
+
+	type closeCall struct {
+		channelID       uint32
+		reason, message string
+	}
+	closes := make(chan closeCall, 4)
+	data := newFakeEmbedDataPath(0)
+	backend := newWiredEmbedBackend(t, sink, data, 100*time.Millisecond, func(channelID uint32, reason, message string) {
+		closes <- closeCall{channelID, reason, message}
+	})
+	embedInboundFrames(data, embedTestFrames)
+
+	select {
+	case got := <-closes:
+		if got.reason != string(EmbedRefusedWSBufferFull) {
+			t.Fatalf("close reason = %q, want %q", got.reason, EmbedRefusedWSBufferFull)
+		}
+		if got.channelID != 7 {
+			t.Fatalf("close channelID = %d, want 7", got.channelID)
+		}
+		if got.message == "" {
+			t.Fatal("close message is empty — the plugin has no other way to learn why it died")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("consumer stalled past the ceiling but the channel was never closed with a reason")
+	}
+	if !backend.isClosed() {
+		t.Fatal("ceiling fired but the backend was not closed")
+	}
+	if acks := data.ackCount(); acks != 0 {
+		t.Fatalf("acks = %d, want 0 — no frame ever reached the consumer", acks)
+	}
+}
+
+// TestChannelEmbedBackend_InactiveTabPausesTheCeiling is D5, and it is the test that fails if D4
+// is implemented naively: tab-inactive shares a sentinel with ws-buffer-full, so charging the
+// ceiling against it kills the VNC session of every user who looks at another tab for two minutes
+// — the exact bug B4 exists to fix, through the front door. A backgrounded tab PAUSES the
+// ceiling; it does not spend it.
+func TestChannelEmbedBackend_InactiveTabPausesTheCeiling(t *testing.T) {
+	sink := newFakeEmbedSink()
+	var inactive atomic.Bool
+	inactive.Store(true)
+	sink.refuseWith = func() error {
+		if inactive.Load() {
+			return newEmbedRefusal(EmbedRefusedTabInactive, domainplugin.ErrTerminalBackpressure)
+		}
+		return nil
+	}
+
+	closes := make(chan string, 4)
+	data := newFakeEmbedDataPath(0)
+	const ceiling = 50 * time.Millisecond
+	backend := newWiredEmbedBackend(t, sink, data, ceiling, func(_ uint32, reason, _ string) {
+		closes <- reason
+	})
+	want := embedInboundFrames(data, embedTestFrames)
+
+	// Backgrounded for many times the ceiling: the user is simply looking elsewhere.
+	select {
+	case reason := <-closes:
+		t.Fatalf("channel closed with %q while the tab was merely backgrounded — the ceiling was spent, not paused", reason)
+	case <-time.After(10 * ceiling):
+	}
+	if backend.isClosed() {
+		t.Fatal("backend closed against a backgrounded tab")
+	}
+
+	// The user comes back.
+	inactive.Store(false)
+	waitForFrames(t, sink, want)
+	select {
+	case reason := <-closes:
+		t.Fatalf("channel closed with %q after the tab returned", reason)
+	default:
 	}
 }

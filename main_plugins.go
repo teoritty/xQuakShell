@@ -98,6 +98,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	})
 
 	channelBus := capability.NewChannelBus()
+	channelCloseNotify := newChannelCloseNotifiers()
 
 	hostCfg := infraplugin.HostConfig{
 		DataRoot:          dataRoot,
@@ -112,7 +113,8 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		// The channel purpose backends and everything they need are assembled in
 		// main_channels.go: constructing them is its own reason to change, separate from wiring
 		// the plugin runtime.
-		ChannelResolverFor: newChannelResolverFor(pluginAudit.ChannelFunc(), embedTunnels),
+		ChannelResolverFor:         newChannelResolverFor(pluginAudit.ChannelFunc(), embedTunnels, channelCloseNotify),
+		AttachChannelCloseNotifier: channelCloseNotify.attach,
 		ChannelAudit:       pluginAudit.ChannelFunc(),
 		ChannelBus:         channelBus,
 		OnCrash: func(pluginID, sessionID string) {

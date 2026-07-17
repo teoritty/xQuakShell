@@ -182,7 +182,7 @@ func newChannelSeam(t *testing.T, plugin domainplugin.InstalledPlugin) (*capabil
 	pluginOutR, pluginOutW := io.Pipe() // plugin -> host
 	hostOutR, hostOutW := io.Pipe()     // host -> plugin
 
-	resolve := newChannelResolverFor(nil, nil)(plugin, "sess-1")
+	resolve := newChannelResolverFor(nil, nil, nil)(plugin, "sess-1")
 	proxy := capability.NewChannelProxy(plugin.Manifest.ID, plugin.Manifest.Capabilities.Channel, resolve, nil)
 
 	conn := ipc.NewConn(pluginOutR, hostOutW, nil, nil, 0)
@@ -273,7 +273,7 @@ func TestChannelResolverWiresARealTCPRelayEndToEnd(t *testing.T) {
 // falsifiable every time.
 func TestChannelResolverBuildsAFreshBackendPerOpen(t *testing.T) {
 	plugin := relayPlugin("com.test.fresh")
-	resolve := newChannelResolverFor(nil, nil)(plugin, "sess-1")
+	resolve := newChannelResolverFor(nil, nil, nil)(plugin, "sess-1")
 
 	for _, purpose := range []string{domainplugin.PurposeTCPRelay, domainplugin.PurposeUDPRelay} {
 		// Resolved concurrently: the resolver is called from whichever goroutine serves a
@@ -388,7 +388,7 @@ func TestConcurrentChannelsStayOnTheirOwnPeers(t *testing.T) {
 // to something that compiles".
 func TestChannelResolverBuildsEmbedStreamOnTheRealSink(t *testing.T) {
 	sink := usecase.NewEmbedTunnelService(ratelimit.Factory{})
-	resolve := newChannelResolverFor(nil, sink)(relayPlugin("com.test.embed"), "sess-1")
+	resolve := newChannelResolverFor(nil, sink, nil)(relayPlugin("com.test.embed"), "sess-1")
 
 	first, err := resolve(domainplugin.PurposeEmbedStream)
 	if err != nil {
@@ -425,5 +425,40 @@ func TestChannelResolverRefusesPurposesItCannotHonestlyBuild(t *testing.T) {
 			t.Fatalf("channel.open %q succeeded: a backend was constructed that cannot work, and the "+
 				"plugin will only learn of it on its first frame", purpose)
 		}
+	}
+}
+
+// TestChannelCloseNotifierBindsAfterTheResolverRan pins the ordering hazard the holder exists for.
+// ProcessHost calls ChannelResolverFor while the process's Conn is still being built and only
+// supplies AttachChannelCloseNotifier afterwards, so a backend that captured the notifier VALUE at
+// resolve time would capture nothing and report its close reason into the void — silently, since
+// nothing fails when a notification is dropped. Resolution must happen at call time.
+func TestChannelCloseNotifierBindsAfterTheResolverRan(t *testing.T) {
+	notifiers := newChannelCloseNotifiers()
+	plugin := relayPlugin("com.test.notify")
+
+	// Resolve-time: exactly the order newConn uses — the notifier does not exist yet.
+	notify := notifiers.notifierFor(plugin.Manifest.ID, "sess-1")
+
+	// A close reported before the Conn exists must be harmless, not a panic (7.5).
+	notify(3, "ws-buffer-full", "no conn yet")
+
+	type call struct {
+		id              uint32
+		reason, message string
+	}
+	got := make(chan call, 1)
+	notifiers.attach(plugin, "sess-1", func(id uint32, reason, message string) {
+		got <- call{id, reason, message}
+	})
+
+	notify(7, "ws-buffer-full", "consumer gone")
+	select {
+	case c := <-got:
+		if c.id != 7 || c.reason != "ws-buffer-full" || c.message != "consumer gone" {
+			t.Fatalf("notify = %+v, want {7 ws-buffer-full consumer gone}", c)
+		}
+	default:
+		t.Fatal("close reason never reached the process's notifier — it was bound at resolve time, when it did not exist")
 	}
 }
