@@ -20,7 +20,15 @@ func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sess
 	tunnelLocal := capability.NewTunnelLocalProxy(plugin.Manifest.ID, h.cfg.Tunnel, tunnelDial)
 	// One ChannelProxy per plugin process (ADR-011 Stage 4b): its lifetime is tied to this
 	// managedProcess, not to any session, so a plugin crash tears down exactly its own channels.
-	channelProxy := capability.NewChannelProxy(plugin.Manifest.ID, plugin.Manifest.Capabilities.Channel, h.cfg.ChannelResolver, h.cfg.ChannelAudit)
+	// The resolver is built here and not in the composition root because this is where the
+	// process's manifest and sessionID are in scope — everything a purpose backend needs beyond
+	// the purpose string itself. A nil factory leaves the proxy resolverless, which it already
+	// reports as a denied channel.open rather than a panic.
+	var resolveChannel capability.ChannelBackendResolver
+	if h.cfg.ChannelResolverFor != nil {
+		resolveChannel = h.cfg.ChannelResolverFor(plugin, sessionID)
+	}
+	channelProxy := capability.NewChannelProxy(plugin.Manifest.ID, plugin.Manifest.Capabilities.Channel, resolveChannel, h.cfg.ChannelAudit)
 	var sessions domainplugin.SessionRPCHandler
 	if h.cfg.SessionRPC != nil {
 		sessions = h.cfg.SessionRPC(plugin, sessionID, channelInboundAdapter{proxy: channelProxy})

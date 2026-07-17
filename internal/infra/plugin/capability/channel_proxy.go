@@ -11,8 +11,15 @@ import (
 	domainplugin "ssh-client/internal/domain/plugin"
 )
 
-// ChannelBackendResolver resolves the ChannelPurposeBackend that serves a requested purpose.
-// Real backends (exec/tcp-relay/embed-stream) land in Stages 6-8; Stage 3 tests inject a fake.
+// ChannelBackendResolver resolves the ChannelPurposeBackend that serves a requested purpose for
+// one plugin process. It takes only the purpose because everything else a backend needs — the
+// manifest, the parent session — is closed over when the resolver is built, per process, by
+// HostConfig.ChannelResolverFor. Real backends (exec/tcp-relay/embed-stream) land in Stages 6-8;
+// Stage 3 tests inject a fake.
+//
+// It must return a fresh backend per call: the backends are stateful and single-use (they store
+// the resolved argv/target/tunnelId during Authorize), so a shared instance lets the second
+// channel.open overwrite the first's target.
 type ChannelBackendResolver func(purpose string) (domainplugin.ChannelPurposeBackend, error)
 
 // ChannelProxy enforces, per plugin process: the manifest's declared channel purposes,
