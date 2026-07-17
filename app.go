@@ -408,8 +408,8 @@ func (a *App) ValidateTrustedPublisherKey(keyB64 string) error {
 	return a.api.ValidateTrustedPublisherKey(keyB64)
 }
 
-func (a *App) InstallPlugin(sourceDir string, grantSecretAccess bool, grantAuthProviderAccess bool, grantTunnelProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) (presentation.PluginDTO, error) {
-	return a.api.InstallPlugin(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
+func (a *App) InstallPlugin(sourceDir string, grantSecretAccess bool, grantAuthProviderAccess bool, grantTunnelProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool, grantExecAccess bool) (presentation.PluginDTO, error) {
+	return a.api.InstallPlugin(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess)
 }
 
 func (a *App) GetPluginConnectionProtocols() []presentation.ConnectionProtocolDTO {
@@ -460,8 +460,8 @@ func (a *App) PreviewGitHubPluginInstall(repoURL, releaseTag string) (presentati
 	return a.api.PreviewGitHubPluginInstall(repoURL, releaseTag)
 }
 
-func (a *App) InstallGitHubPlugin(repoURL, releaseTag string, grantSecretAccess bool, grantAuthProviderAccess bool, grantTunnelProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) error {
-	return a.api.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
+func (a *App) InstallGitHubPlugin(repoURL, releaseTag string, grantSecretAccess bool, grantAuthProviderAccess bool, grantTunnelProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool, grantExecAccess bool) error {
+	return a.api.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess)
 }
 
 func (a *App) UninstallGitHubPlugin(pluginID string, removeData bool) error {

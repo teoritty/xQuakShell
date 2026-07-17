@@ -70,7 +70,7 @@ func TestInstallRequiresArbitraryNetworkConsent(t *testing.T) {
 			}, nil
 		},
 	})
-	_, err := mgr.Install(t.TempDir(), domainplugin.InstallTrustPolicy{}, false, false)
+	_, err := mgr.Install(t.TempDir(), domainplugin.InstallTrustPolicy{}, false, false, false)
 	if err == nil || !strings.Contains(err.Error(), "arbitrary network access consent required") {
 		t.Fatalf("expected consent error, got %v", err)
 	}

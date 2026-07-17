@@ -114,6 +114,7 @@ type GitHubPluginPreviewResponseDTO struct {
 	RequiresTunnelProviderAccess bool     `json:"requiresTunnelProviderAccess"`
 	MultiSessionWarning          bool     `json:"multiSessionWarning"`
 	ArbitraryNetworkWarning      bool     `json:"arbitraryNetworkWarning"`
+	ExecAccessWarning            bool     `json:"execAccessWarning"`
 	UnsignedPlugin               bool     `json:"unsignedPlugin"`
 	UntrustedSource              bool     `json:"untrustedSource"`
 	Compatible                   bool     `json:"compatible"`
@@ -157,6 +158,7 @@ func githubPreviewToDTO(p usecase.GitHubPluginPreviewDTO) GitHubPluginPreviewRes
 		RequiresTunnelProviderAccess: p.RequiresTunnelProviderAccess,
 		MultiSessionWarning:          p.MultiSessionWarning,
 		ArbitraryNetworkWarning:      p.ArbitraryNetworkWarning,
+		ExecAccessWarning:            p.ExecAccessWarning,
 		UnsignedPlugin:               p.UnsignedPlugin,
 		UntrustedSource:              p.UntrustedSource,
 		Compatible:                   p.Compatible,

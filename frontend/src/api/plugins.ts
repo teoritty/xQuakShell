@@ -36,6 +36,7 @@ export interface PluginInstallPreview {
   requiresTunnelProviderAccess?: boolean;
   multiSessionWarning?: boolean;
   arbitraryNetworkWarning?: boolean;
+  execAccessWarning?: boolean;
   unsignedWarning: boolean;
   untrustedSignatureWarning: boolean;
   permissions: string[];
@@ -168,13 +169,14 @@ export async function installPluginRpc(
   grantTunnelProviderAccess = false,
   grantMultiSessionAccess = false,
   grantArbitraryNetworkAccess = false,
+  grantExecAccess = false,
 ): Promise<PluginInfo> {
   const app = getGateway();
   if (!app?.InstallPlugin) {
     throw new Error('Plugin install is unavailable');
   }
   try {
-    return await app.InstallPlugin(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
+    return await app.InstallPlugin(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess);
   } catch (e) {
     handleError(e, 'Install plugin');
     throw e;

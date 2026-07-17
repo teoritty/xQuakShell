@@ -77,6 +77,7 @@ export interface GitHubPluginPreview {
   requiresTunnelProviderAccess?: boolean;
   multiSessionWarning?: boolean;
   arbitraryNetworkWarning: boolean;
+  execAccessWarning?: boolean;
   unsignedPlugin: boolean;
   untrustedSource: boolean;
   // Compatible is false when this host cannot satisfy the plugin's declared API/capability
@@ -173,11 +174,12 @@ export async function installGitHubPluginRpc(
   grantTunnelProviderAccess = false,
   grantMultiSessionAccess = false,
   grantArbitraryNetworkAccess = false,
+  grantExecAccess = false,
 ): Promise<void> {
   const app = getGateway();
   if (!app?.InstallGitHubPlugin) throw new Error('GitHub plugin install unavailable');
   try {
-    await app.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
+    await app.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess);
   } catch (e) {
     handleError(e, 'Install GitHub plugin');
     throw e;

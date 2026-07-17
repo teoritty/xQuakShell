@@ -31,6 +31,7 @@ type GitHubPluginPreviewDTO struct {
 	RequiresTunnelProviderAccess bool     `json:"requiresTunnelProviderAccess"`
 	MultiSessionWarning          bool     `json:"multiSessionWarning"`
 	ArbitraryNetworkWarning      bool     `json:"arbitraryNetworkWarning"`
+	ExecAccessWarning            bool     `json:"execAccessWarning"`
 	UnsignedPlugin               bool     `json:"unsignedPlugin"`
 	UntrustedSource              bool     `json:"untrustedSource"`
 	// Compatible reports whether this host can satisfy the plugin's declared API/capability
@@ -121,6 +122,7 @@ func BuildPreviewDTO(metadata *domainplugin.GitHubPluginMetadata, repoTrusted, u
 		RequiresTunnelProviderAccess: metadata.Manifest.RequiresTunnelProviderAccess(),
 		MultiSessionWarning:          metadata.Manifest.RequiresMultiSessionWarning(),
 		ArbitraryNetworkWarning:      arbitraryNetworkWarning,
+		ExecAccessWarning:            metadata.Manifest.RequiresChannelExecConsent(),
 		UnsignedPlugin:               unsignedPlugin,
 		UntrustedSource:              untrustedSource,
 		Compatible:                   compatible,

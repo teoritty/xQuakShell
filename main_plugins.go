@@ -34,6 +34,7 @@ type pluginRuntime struct {
 	dynamicForward      *usecase.DynamicForwardCoordinator
 	embedBridge         *usecase.PluginEmbedBridge
 	channelBus          *capability.ChannelBus
+	sessionRegistry     *sessionRegistryHolder
 	viewInbound         *usecase.PluginViewInbound
 	viewRelay           *usecase.PluginViewRelay
 	vaultInbound        *usecase.PluginVaultInbound
@@ -99,6 +100,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 
 	channelBus := capability.NewChannelBus()
 	channelCloseNotify := newChannelCloseNotifiers()
+	sessionRegistry := newSessionRegistryHolder()
 
 	hostCfg := infraplugin.HostConfig{
 		DataRoot:          dataRoot,
@@ -113,7 +115,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		// The channel purpose backends and everything they need are assembled in
 		// main_channels.go: constructing them is its own reason to change, separate from wiring
 		// the plugin runtime.
-		ChannelResolverFor:         newChannelResolverFor(pluginAudit.ChannelFunc(), embedTunnels, channelCloseNotify),
+		ChannelResolverFor:         newChannelResolverFor(pluginAudit.ChannelFunc(), embedTunnels, channelCloseNotify, sessionRegistry),
 		AttachChannelCloseNotifier: channelCloseNotify.attach,
 		ChannelAudit:       pluginAudit.ChannelFunc(),
 		ChannelBus:         channelBus,
@@ -234,6 +236,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		embedInbound:        embedInbound,
 		embedTunnels:        embedTunnels,
 		channelBus:          channelBus,
+		sessionRegistry:     sessionRegistry,
 		dynamicForward:      dynamicForward,
 		viewInbound:         viewInbound,
 		viewRelay:           viewRelay,
@@ -262,6 +265,10 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 		r.embedTunnels.SetEmbedReadyHandler(api.OnEmbedReady)
 	}
 	api.Sessions().SetEmbedTunnelService(r.embedTunnels)
+	// The exec channel backend needs the session registry NewSessionManager owns privately, and
+	// this runtime -- resolver included -- was built before it existed. SessionManager pushes it
+	// here rather than exposing it, the same way it hands it to EmbedTunnelService above.
+	api.Sessions().WireChannelSessionRegistry(r.sessionRegistry.set)
 	api.Sessions().SetChannelBus(r.channelBus)
 	api.Sessions().SetDynamicForward(r.dynamicForward)
 	if r.dynamicForward != nil && r.vaultSettings != nil {

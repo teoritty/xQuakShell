@@ -110,8 +110,9 @@ export async function installPlugin(
   grantTunnelProviderAccess = false,
   grantMultiSessionAccess = false,
   grantArbitraryNetworkAccess = false,
+  grantExecAccess = false,
 ): Promise<PluginInfo> {
-  const result = await installPluginRpc(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
+  const result = await installPluginRpc(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess);
   invalidateProtocolsCache();
   await refreshConnectionProtocols();
   return result;
@@ -132,8 +133,9 @@ export async function installGitHubPlugin(
   grantTunnelProviderAccess = false,
   grantMultiSessionAccess = false,
   grantArbitraryNetworkAccess = false,
+  grantExecAccess = false,
 ): Promise<void> {
-  await installGitHubPluginRpc(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess);
+  await installGitHubPluginRpc(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess);
 }
 
 /**

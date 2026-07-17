@@ -10,20 +10,45 @@ import (
 	"ssh-client/internal/usecase"
 )
 
-// errChannelExecConsentUnavailable names the one purpose this composition root cannot construct
-// honestly yet, so a channel.open for it fails at the door (rule 9) instead of returning an id
-// wired to nothing.
-//
-// exec: NewChannelExecBackend takes consentGranted, which is documented as the plugin's
-// install-time exec consent. That grant does not exist anywhere -- not in the install DTO, not in
-// AppAPI.InstallPlugin's gate, not in PluginManager.Install, and InstalledPlugin persists no
-// grants. Passing true would make an install-time security gate decorative, which is the same
-// defect class as a manifest field enforced nowhere; passing false would deny every exec channel
-// while pretending the wiring exists. Neither is honest, so exec is withheld until the grant is
-// real end to end (ADR-011 readiness D3).
-var errChannelExecConsentUnavailable = fmt.Errorf(
-	"%w: exec channels need an install-time consent grant, which is not plumbed yet",
+// errChannelExecSessionsUnavailable reports an exec channel.open that arrived before the session
+// registry was wired in. It is a startup-ordering guard, not a capability decision: an exec channel
+// cannot find its parent session's SSH client without the registry, and rule 9 says say so at
+// channel.open rather than let the plugin discover it on its first frame.
+var errChannelExecSessionsUnavailable = fmt.Errorf(
+	"%w: exec channels are not available until the session registry is wired",
 	domainplugin.ErrNotImplemented)
+
+// sessionRegistryHolder makes the session registry reachable from the channel resolver despite
+// being constructed after it.
+//
+// The ordering: newPluginRuntime -- and with it ChannelResolverFor -- is built before
+// NewSessionManager, which constructs the *usecase.SessionRegistry privately and exposes no
+// accessor. The exec backend needs that registry to find its parent session's authenticated SSH
+// client. Rather than reorder the composition root or widen SessionRegistry's exposure, the
+// registry is PUSHED here once it exists, exactly as SessionManager already pushes it to
+// EmbedTunnelService (SetEmbedTunnelService -> WireSessionContext), and the resolver reads it at
+// call time -- the same shape as channelCloseNotifiers below.
+//
+// A miss means the registry is not wired yet, which the resolver turns into a refused channel.open
+// rather than a backend that dereferences nil on its first frame.
+type sessionRegistryHolder struct {
+	mu sync.Mutex
+	r  *usecase.SessionRegistry
+}
+
+func newSessionRegistryHolder() *sessionRegistryHolder { return &sessionRegistryHolder{} }
+
+func (h *sessionRegistryHolder) set(r *usecase.SessionRegistry) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.r = r
+}
+
+func (h *sessionRegistryHolder) get() *usecase.SessionRegistry {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.r
+}
 
 // channelCloseNotifiers holds one channel.close notifier per plugin process, so the two halves of
 // a cycle neither side can close over can meet.
@@ -87,12 +112,28 @@ func (n *channelCloseNotifiers) notifierFor(pluginID, sessionID string) usecase.
 //
 // notifiers supplies each process's channel.close notifier once its Conn exists; see
 // channelCloseNotifiers for why it cannot simply be passed in as a value.
-func newChannelResolverFor(audit domainplugin.ChannelAuditRecorder, embedSink usecase.EmbedFrameSink, notifiers *channelCloseNotifiers) func(domainplugin.InstalledPlugin, string) capability.ChannelBackendResolver {
+//
+// sessions supplies the session registry the exec backend runs its commands over, once
+// NewSessionManager has built it; see sessionRegistryHolder for the same reason.
+func newChannelResolverFor(audit domainplugin.ChannelAuditRecorder, embedSink usecase.EmbedFrameSink, notifiers *channelCloseNotifiers, sessions *sessionRegistryHolder) func(domainplugin.InstalledPlugin, string) capability.ChannelBackendResolver {
 	return func(plugin domainplugin.InstalledPlugin, sessionID string) capability.ChannelBackendResolver {
 		// Closed over per process: everything a backend needs beyond the purpose string.
 		pluginID := plugin.Manifest.ID
 		network := plugin.Manifest.Capabilities.Network
 		hasEmbedCap := plugin.Manifest.Capabilities.Session != nil && plugin.Manifest.Capabilities.Session.Embed
+		// The exec backend's consentGranted traces to the user's install-time grant, and this is
+		// the whole of that trace: every install path (AppAPI.InstallPlugin and the GitHub path,
+		// both through PluginManager.Install) REFUSES to install a plugin whose manifest declares
+		// the exec purpose unless the user granted exec access, so a plugin that is both installed
+		// and declaring exec is one whose exec access was granted explicitly. That refusal is why
+		// no grant is persisted (ADR-011 D3) -- and it is what makes this predicate a real gate
+		// rather than the hardcoded true rule 8 forbids: remove the gate from Install and this
+		// value stops meaning consent.
+		var execCommands []domainplugin.ExecCommandTemplate
+		if plugin.Manifest.Capabilities.Channel != nil {
+			execCommands = plugin.Manifest.Capabilities.Channel.ExecCommands
+		}
+		execConsent := plugin.Manifest.RequiresChannelExecConsent()
 		// embed-stream closes with a reason when its wait ceiling expires; channel.close is the
 		// only way a plugin can learn why (ADR-011 has no binary error frame), so a nil notifier
 		// here would make that reason unobservable.
@@ -116,7 +157,20 @@ func newChannelResolverFor(audit domainplugin.ChannelAuditRecorder, embedSink us
 			case domainplugin.PurposeUDPRelay:
 				return capability.NewChannelUDPRelayBackend(pluginID, network, audit), nil
 			case domainplugin.PurposeExec:
-				return nil, errChannelExecConsentUnavailable
+				// The close notifier is not optional here: a remote process that exits reports its
+				// reason and captured stderr only through channel.close, and exec was the
+				// motivating consumer B8 built it for (3.10).
+				var registry *usecase.SessionRegistry
+				if sessions != nil {
+					registry = sessions.get()
+				}
+				if registry == nil {
+					// Only reachable if a plugin process opened an exec channel before
+					// wireEmbed pushed the registry in. Refusing at channel.open (rule 9) beats
+					// handing back a backend whose first act is to dereference nil.
+					return nil, errChannelExecSessionsUnavailable
+				}
+				return usecase.NewChannelExecBackend(pluginID, execCommands, execConsent, registry, audit, notifyClose), nil
 			case domainplugin.PurposeEmbedStream:
 				return usecase.NewChannelEmbedBackend(pluginID, hasEmbedCap, embedSink, audit, notifyClose), nil
 			default:

@@ -35,6 +35,18 @@ func (m *SessionManager) SetEmbedTunnelService(svc *EmbedTunnelService) {
 	svc.WireSessionContext(m.registry, lookup)
 }
 
+// WireChannelSessionRegistry hands the session registry to the composition root's channel
+// resolver, which is built before this SessionManager exists and therefore cannot be given it as a
+// constructor argument. The registry is pushed to the sink rather than returned by an accessor:
+// the exec channel backend is the only channel-side collaborator that needs it, and SessionRegistry
+// stays unexported to everything else (ADR-009 lock discipline -- Get is the only sanctioned door).
+func (m *SessionManager) WireChannelSessionRegistry(sink func(*SessionRegistry)) {
+	if m == nil || sink == nil {
+		return
+	}
+	sink(m.registry)
+}
+
 // SetChannelBus wires the channel bus into session lifecycle for close cascade.
 func (m *SessionManager) SetChannelBus(bus domainplugin.ChannelSessionCloser) {
 	if m != nil && m.lifecycle != nil {
