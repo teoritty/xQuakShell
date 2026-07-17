@@ -27,9 +27,15 @@ type execSession interface {
 }
 
 // ChannelCloseNotifier reports a channel's terminal reason/message once its remote process ends,
-// so the caller can surface it as a channel.close {reason, message} JSON-RPC notification (ADR-011:
-// there is no binary error frame for application-level errors).
-type ChannelCloseNotifier func(reason, message string)
+// so the caller can surface it as a channel.close {channelId, reason, message} JSON-RPC
+// notification (ADR-011: there is no binary error frame for application-level errors).
+//
+// The channel id is a parameter rather than something the notifier closes over, because no
+// notifier can be built per channel: the resolver constructs this backend during
+// ChannelProxy.Open, before an id has been allocated, and Authorize must run earlier still. The
+// backend learns its own id at Wire time (ChannelHandle.ChannelID) and supplies it here, so the
+// notifier binds once per plugin process — the same granularity as every other per-process seam.
+type ChannelCloseNotifier func(channelID uint32, reason, message string)
 
 const stderrCaptureLimit = 4 * 1024
 
@@ -167,6 +173,9 @@ func (b *ChannelExecBackend) Wire(ctx context.Context, ch *domainplugin.ChannelH
 	}
 
 	data := ch.Data()
+	// Captured here, not read inside the goroutine below: the id is what lets a per-process
+	// notifier route this close to the right channel (D8).
+	channelID := ch.ChannelID()
 
 	safego.GoNamed("plugin.channelExecInbound", func() {
 		for {
@@ -223,7 +232,7 @@ func (b *ChannelExecBackend) Wire(ctx context.Context, ch *domainplugin.ChannelH
 			}
 		}
 		if b.closeNotifier != nil {
-			b.closeNotifier(reason, message)
+			b.closeNotifier(channelID, reason, message)
 		}
 		_ = b.CloseRemote()
 	})
