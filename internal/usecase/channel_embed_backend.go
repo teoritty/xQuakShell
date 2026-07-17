@@ -244,10 +244,17 @@ func (b *ChannelEmbedBackend) deliverFrame(ctx context.Context, ch *domainplugin
 		switch cause {
 		case EmbedRefusedTabInactive:
 			// D5: wait with the ceiling STOPPED.
-		case EmbedRefusedWSBufferFull, EmbedRefusedRateLimited:
+		case EmbedRefusedWSBufferFull, EmbedRefusedRateLimited, EmbedRefusedTunnelNotAttached:
+			// D7: a tunnel that is open but not yet attached is the iframe still loading — a wait,
+			// with the ceiling RUNNING. Unlike a backgrounded tab this is nobody's deliberate act,
+			// so an iframe that never attaches must not park the channel forever.
 			charged = true
-		case EmbedRefusedSessionGone:
+		case EmbedRefusedSessionGone, EmbedRefusedTunnelClosed:
 			b.closeWithReason(ch, string(cause), err.Error())
+			return false
+		case EmbedRefusedTunnelUnknown:
+			b.closeWithReason(ch, string(cause),
+				"plugin bug: this tunnel id was never registered for this session via session.registerEmbed")
 			return false
 		case EmbedRefusedFrameTooLarge:
 			// Unreachable: the channel layer rejects an oversize embed-stream frame on ingress, so

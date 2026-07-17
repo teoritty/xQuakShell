@@ -92,3 +92,38 @@ func TestRouteTunnelFrameFromPluginClassifiesWSBufferFull(t *testing.T) {
 	err := svc.RouteTunnelFrameFromPlugin(ctx, "sess-refuse", "main", []byte("x"))
 	assertRefusal(t, err, EmbedRefusedWSBufferFull, domainplugin.ErrTerminalBackpressure)
 }
+
+// TestRouteTunnelFrameFromPluginClassifiesTunnelNotAttached is D7's transient row: the plugin may
+// legitimately push an RFB handshake before the iframe has loaded and called AttachWebSocket.
+// Registered-but-not-yet-attached must be a WAIT, never a silent success.
+func TestRouteTunnelFrameFromPluginClassifiesTunnelNotAttached(t *testing.T) {
+	svc, _ := registerEmbedForRefusal(t, true)
+	if err := svc.OpenTunnel("sess-refuse", "main"); err != nil {
+		t.Fatal(err)
+	}
+	err := svc.RouteTunnelFrameFromPlugin(context.Background(), "sess-refuse", "main", []byte("rfb"))
+	assertRefusal(t, err, EmbedRefusedTunnelNotAttached, domainplugin.ErrTerminalBackpressure)
+}
+
+// TestRouteTunnelFrameFromPluginClassifiesTunnelClosed is the 3.12 defect itself: CloseTunnel
+// leaves the entry alive, so before D7 every later frame returned nil — "delivered" — forever.
+func TestRouteTunnelFrameFromPluginClassifiesTunnelClosed(t *testing.T) {
+	svc, token := registerEmbedForRefusal(t, true)
+	svc.SetSessionActive("sess-refuse", true)
+	if _, _, err := svc.AttachWebSocket(token, "main"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.CloseTunnel("sess-refuse", "main"); err != nil {
+		t.Fatal(err)
+	}
+	err := svc.RouteTunnelFrameFromPlugin(context.Background(), "sess-refuse", "main", []byte("x"))
+	assertRefusal(t, err, EmbedRefusedTunnelClosed, domainplugin.ErrHandleNotFound)
+}
+
+// TestRouteTunnelFrameFromPluginClassifiesTunnelUnknown covers the never-registered id: the plugin
+// is addressing a tunnel this session never had. That is a plugin bug and must say so.
+func TestRouteTunnelFrameFromPluginClassifiesTunnelUnknown(t *testing.T) {
+	svc, _ := registerEmbedForRefusal(t, true)
+	err := svc.RouteTunnelFrameFromPlugin(context.Background(), "sess-refuse", "never-registered", []byte("x"))
+	assertRefusal(t, err, EmbedRefusedTunnelUnknown, domainplugin.ErrHandleNotFound)
+}

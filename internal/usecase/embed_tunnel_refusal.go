@@ -30,6 +30,17 @@ const (
 	// EmbedRefusedWSBufferFull is transient and momentary: the browser's WebSocket send queue is
 	// full because the consumer is behind. It clears in milliseconds on a healthy browser.
 	EmbedRefusedWSBufferFull EmbedRefusalCause = "ws-buffer-full"
+	// EmbedRefusedTunnelNotAttached is transient: the tunnel is registered and open, but the
+	// browser has not attached its WebSocket yet. A plugin may legitimately channel.open and push
+	// an RFB handshake before the iframe finishes loading, so this clears on its own.
+	EmbedRefusedTunnelNotAttached EmbedRefusalCause = "tunnel-not-attached"
+	// EmbedRefusedTunnelClosed is terminal: the tunnel was closed under the still-open channel.
+	// The session's embed registration is alive, so nothing else reports this; without it the
+	// frame is dropped and the channel is never told.
+	EmbedRefusedTunnelClosed EmbedRefusalCause = "tunnel-closed"
+	// EmbedRefusedTunnelUnknown is terminal and is a plugin bug: the tunnel id was never
+	// registered for this session, so the plugin is addressing something that never existed.
+	EmbedRefusedTunnelUnknown EmbedRefusalCause = "tunnel-unknown"
 	// EmbedRefusedSessionGone is terminal: the session's embed registration was revoked or never
 	// existed. Nothing about it improves with time.
 	EmbedRefusedSessionGone EmbedRefusalCause = "session-revoked"

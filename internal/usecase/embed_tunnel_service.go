@@ -313,13 +313,26 @@ func (s *EmbedTunnelService) RouteTunnelFrameFromPlugin(_ context.Context, sessi
 		return newEmbedRefusal(EmbedRefusedRateLimited, domainplugin.ErrRateLimited)
 	}
 	conn := entry.wsConns[tunnelID]
+	open, registered := entry.tunnelOpen[tunnelID]
 	s.mu.RUnlock()
 	if conn == nil {
-		// NOT classified, on purpose: today this nil covers two states that must end up opposite
-		// (browser not attached yet vs tunnel closed under the channel), and this function cannot
-		// tell them apart without reading tunnelOpen. Splitting them is D7's own change; inventing
-		// a cause here that means both would be the overloading this classification removes.
-		return nil
+		// An absent conn is three different states, and returning nil for all of them said
+		// "delivered" about a frame nobody received. tunnelOpen tells them apart:
+		switch {
+		case !registered:
+			// The plugin is addressing a tunnel this session never registered. Terminal, and its
+			// own bug: no amount of waiting makes an id appear that was never minted.
+			return newEmbedRefusal(EmbedRefusedTunnelUnknown, domainplugin.ErrHandleNotFound)
+		case open:
+			// Registered and open, but the iframe has not called AttachWebSocket yet. Transient
+			// and legitimate: a plugin may push an RFB handshake before the browser is ready.
+			return newEmbedRefusal(EmbedRefusedTunnelNotAttached, domainplugin.ErrTerminalBackpressure)
+		default:
+			// CloseTunnel removed the conn and left the entry alive, so nothing else ever reports
+			// this: unlike RevokeBySession, which deletes the whole entry and surfaces as
+			// session-revoked, a closed tunnel is invisible to every other check here.
+			return newEmbedRefusal(EmbedRefusedTunnelClosed, domainplugin.ErrHandleNotFound)
+		}
 	}
 	select {
 	case conn.send <- data:
