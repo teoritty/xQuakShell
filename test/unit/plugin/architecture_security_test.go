@@ -44,6 +44,40 @@ func TestCapabilityAndDomainDoNotImportIPC(t *testing.T) {
 	}
 }
 
+// TestCapabilityDoesNotImportUsecase guards the other half of the same rule. The channel purpose
+// backends live in usecase (exec, embed-stream), and capability is what resolves them — so the
+// shortest path from a channel.open to a working backend is an import that inverts the dependency
+// direction and welds infra to the orchestration layer.
+//
+// The seam that makes the import unnecessary is HostConfig.ChannelResolverFor: the composition
+// root builds the backends and hands capability a resolver, so capability names no backend at
+// all. That seam only stays worth its cost while this test exists.
+func TestCapabilityDoesNotImportUsecase(t *testing.T) {
+	const usecasePkg = `"ssh-client/internal/usecase"`
+	root := filepath.Join("..", "..", "..", "internal", "infra", "plugin", "capability")
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if strings.Contains(string(data), usecasePkg) {
+			t.Fatalf("%s imports the usecase layer; a channel purpose backend must reach the "+
+				"capability proxy as a ChannelBackendResolver built by the composition root, "+
+				"which is the only place allowed to know both", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestInfraHasNoSessionAuthorizationLogic(t *testing.T) {
 	root := filepath.Join("..", "..", "..", "internal", "infra", "plugin")
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
