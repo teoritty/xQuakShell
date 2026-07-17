@@ -69,6 +69,20 @@ func (sub *embedOutboundSub) stop() {
 	sub.once.Do(func() { close(sub.done) })
 }
 
+// deliver hands one frame to the subscriber, blocking until it is taken. It reports false only when
+// the subscription ended while waiting -- never when the frame was dropped, because it never drops
+// one: the caller then routes the frame to the legacy transport instead.
+func (sub *embedOutboundSub) deliver(ctx context.Context, data []byte) (bool, error) {
+	select {
+	case sub.ch <- data:
+		return true, nil
+	case <-sub.done:
+		return false, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
+}
+
 type embedEntry struct {
 	reg        domain.EmbedRegistration
 	tunnelOpen map[string]bool
@@ -306,13 +320,37 @@ func (s *EmbedTunnelService) RouteTunnelFrameFromPlugin(_ context.Context, sessi
 }
 
 // RouteTunnelFrameToPlugin forwards browser WebSocket bytes to the plugin.
+//
+// This is D1's one predicate, and it lives here because this is the one place both transports are
+// reachable and the only place the broker's pumpWSToPlugin calls: for a given (sessionID,
+// tunnelID), input goes to exactly one transport. An open embed-stream channel REPLACES
+// session.tunnelData for that tunnel -- it does not supplement it -- because a plugin subscribed to
+// both would receive every input event twice, once as a binary frame and once as base64 JSON.
+// Deciding this at two call sites is how that drifts back apart, so there is only ever this one.
 func (s *EmbedTunnelService) RouteTunnelFrameToPlugin(ctx context.Context, sessionID, tunnelID string, data []byte) error {
 	s.mu.RLock()
 	entry, err := s.entryForSessionLocked(sessionID)
 	notify := s.notifyPlugin
+	sub := s.outboundSubLocked(sessionID, tunnelID)
 	s.mu.RUnlock()
 	if err != nil {
 		return err
+	}
+	if sub != nil {
+		// Blocking, and deliberately outside the lock: the subscription carries the channel bus's
+		// credit-based backpressure back to the browser's WebSocket read loop instead of queueing
+		// input in the host. The tab-active check below is NOT applied here -- input is state
+		// transitions, and dropping a KeyEvent{down=0} because a tab blurred leaves a modifier held
+		// on the remote machine (7.3, D7's closing note).
+		delivered, err := sub.deliver(ctx, data)
+		if err != nil {
+			return err
+		}
+		if delivered {
+			return nil
+		}
+		// The channel unsubscribed while this frame was in hand. Fall through to the legacy
+		// transport rather than drop the event: still one predicate, still one place.
 	}
 	if !entry.active {
 		return nil
