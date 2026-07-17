@@ -224,10 +224,12 @@ func (timeoutAuthHost) CallWithTimeout(ctx context.Context, _, _, _ string, _ js
 func (timeoutAuthHost) Notify(context.Context, string, string, string, json.RawMessage) error {
 	return nil
 }
-func (timeoutAuthHost) State(string, string) domainplugin.ProcessState { return domainplugin.ProcessRunning }
+func (timeoutAuthHost) State(string, string) domainplugin.ProcessState {
+	return domainplugin.ProcessRunning
+}
 func (h *timeoutAuthHost) RunningInstances() []domainplugin.ProcessInstance { return h.running }
-func (timeoutAuthHost) BindSession(string, string) error { return nil }
-func (timeoutAuthHost) UnbindSession(string, string)     {}
+func (timeoutAuthHost) BindSession(string, string) error                    { return nil }
+func (timeoutAuthHost) UnbindSession(string, string)                        {}
 
 type okAuthHost struct {
 	mu      sync.Mutex
@@ -235,10 +237,10 @@ type okAuthHost struct {
 	result  json.RawMessage
 }
 
-func (okAuthHost) Start(context.Context, domainplugin.InstalledPlugin, string) error { return nil }
-func (okAuthHost) Stop(context.Context, string, string) error                        { return nil }
-func (okAuthHost) StopAll(context.Context)                                           {}
-func (okAuthHost) Call(context.Context, string, string, string, json.RawMessage) (json.RawMessage, error) {
+func (*okAuthHost) Start(context.Context, domainplugin.InstalledPlugin, string) error { return nil }
+func (*okAuthHost) Stop(context.Context, string, string) error                        { return nil }
+func (*okAuthHost) StopAll(context.Context)                                           {}
+func (*okAuthHost) Call(context.Context, string, string, string, json.RawMessage) (json.RawMessage, error) {
 	return nil, nil
 }
 func (h *okAuthHost) CallWithTimeout(_ context.Context, _, _, _ string, _ json.RawMessage, _ time.Duration) (json.RawMessage, error) {
@@ -246,8 +248,12 @@ func (h *okAuthHost) CallWithTimeout(_ context.Context, _, _, _ string, _ json.R
 	defer h.mu.Unlock()
 	return append(json.RawMessage(nil), h.result...), nil
 }
-func (okAuthHost) Notify(context.Context, string, string, string, json.RawMessage) error { return nil }
-func (okAuthHost) State(string, string) domainplugin.ProcessState                        { return domainplugin.ProcessRunning }
-func (h *okAuthHost) RunningInstances() []domainplugin.ProcessInstance                    { return h.running }
-func (okAuthHost) BindSession(string, string) error                                      { return nil }
-func (okAuthHost) UnbindSession(string, string)                                          {}
+func (*okAuthHost) Notify(context.Context, string, string, string, json.RawMessage) error {
+	return nil
+}
+func (*okAuthHost) State(string, string) domainplugin.ProcessState {
+	return domainplugin.ProcessRunning
+}
+func (h *okAuthHost) RunningInstances() []domainplugin.ProcessInstance { return h.running }
+func (*okAuthHost) BindSession(string, string) error                   { return nil }
+func (*okAuthHost) UnbindSession(string, string)                       {}
