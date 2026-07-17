@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -204,6 +205,15 @@ func (c *channel) ReceiveCredit(n uint32) error {
 	return nil
 }
 
+// errFrameTooLarge reports a frame above its purpose's ceiling. channelMux.Dispatch turns it into
+// a protocol violation, which is what it is: deterministic, always the plugin's own bug, and
+// fail-fast exactly as an oversized length already is at the header level (ADR-011 §2a). It is
+// pointedly not ErrRateLimited -- that reads as backpressure and would send a plugin author
+// hunting a throughput problem that does not exist.
+func errFrameTooLarge(purpose string, got, max int) error {
+	return fmt.Errorf("frame of %d bytes exceeds the %d byte ceiling for purpose %q", got, max, purpose)
+}
+
 // deliver enqueues an inbound frame. After Close(), further deliveries are dropped as
 // no-ops per ADR-011 §Session lifecycle coupling ("the host ignores all further frames
 // for that channelId"), not errors. For kind=0x02 frames on a channel with Stage 5 flow
@@ -219,6 +229,16 @@ func (c *channel) deliver(kind byte, payload []byte) error {
 	c.mu.Unlock()
 
 	if kind == domainplugin.FrameKindBinary {
+		// The per-purpose size rule is enforced here, before the frame is accounted, queued or
+		// seen by any backend, because this is the first place the purpose and the payload are
+		// both known: validateFrameHeader has only the header's 1 MiB ceiling to go on, and a
+		// backend that checked would be checking after the host already holds the bytes. It is
+		// deliberately the only such check -- an embed-stream frame above the cap cannot reach the
+		// embed sink, so the sink's own guard is unreachable defence in depth rather than a second
+		// competing rule (D2).
+		if max := domainplugin.MaxFrameBytesForPurpose(c.purpose); len(payload) > max {
+			return errFrameTooLarge(c.purpose, len(payload), max)
+		}
 		if err := c.credit.ConsumeInbound(); err != nil {
 			return err
 		}

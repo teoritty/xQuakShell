@@ -345,6 +345,8 @@ Opening and closing a channel is negotiated over JSON-RPC; only data flows as bi
 | `tcp-relay` | Dials a target through the existing `TunnelDialProxy` allowlist/dial policy — for cases that are genuinely a fresh TCP dial, not exec. |
 | `udp-relay` | Dials a target UDP endpoint directly from the host (`net.DialUDP`), validated against a `udp:`-prefixed allowlist entry (same dial-policy core as `tcp-relay`). SSH has no native UDP forwarding, so this is a direct host→target dial, not tunnelled through the parent SSH chain (matches topologies like mosh: SSH launches `mosh-server`, then UDP flows host↔server directly). Still bound to `parentSessionId` for ownership/lifecycle even though the dial is direct. One UDP datagram maps to exactly one `kind=0x02` frame. |
 
+**`embed-stream` frames are capped at 64 KiB, not 1 MiB.** The general `kind=0x02` ceiling is 1 MiB, but this one purpose is lower, because the embed surface behind it has always had a 64 KiB frame limit and because credit is counted in frames: with an 8-frame window, a 1 MiB cap would park 8 MiB per channel in host memory. The host enforces this on ingress, so an oversize frame never reaches the embed surface — it is refused as a **protocol violation** (fail-fast, exactly like any other oversized `length`), never as `ErrRateLimited`/backpressure: it is deterministic, and retrying it will never help. Chunk in the plugin, where you know what a frame means; RFB, for one, sends rectangles rather than screens.
+
 ### Flow control (credit)
 
 Credit-based flow control per channel, at **frame granularity**, carried entirely as binary `kind=0x03` frames — never JSON-RPC (routing credit through channel 0 would head-of-line-block the control plane).
