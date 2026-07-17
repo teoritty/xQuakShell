@@ -288,34 +288,44 @@ func (s *EmbedTunnelService) OpenTunnel(sessionID, tunnelID string) error {
 }
 
 // RouteTunnelFrameFromPlugin forwards plugin bytes to the browser WebSocket.
+//
+// Every refusal is classified (see EmbedFrameRefusedError): this service is the only thing that
+// knows whether a refusal means "wait a moment", "wait for the user to come back" or "this frame
+// can never be delivered", and the two sentinels it returns cannot carry that difference. The
+// sentinels are wrapped, never replaced, so callers matching them with errors.Is — the legacy
+// ADR-008 tunnel path and ipc.HostServer's JSON-RPC code mapping — are unaffected.
 func (s *EmbedTunnelService) RouteTunnelFrameFromPlugin(_ context.Context, sessionID, tunnelID string, data []byte) error {
 	if len(data) > domain.MaxTunnelFrameSize {
-		return domainplugin.ErrRateLimited
+		return newEmbedRefusal(EmbedRefusedFrameTooLarge, domainplugin.ErrRateLimited)
 	}
 	s.mu.RLock()
 	entry, err := s.entryForSessionLocked(sessionID)
 	if err != nil {
 		s.mu.RUnlock()
-		return err
+		return newEmbedRefusal(EmbedRefusedSessionGone, err)
 	}
 	if !entry.active {
 		s.mu.RUnlock()
-		return domainplugin.ErrTerminalBackpressure
+		return newEmbedRefusal(EmbedRefusedTabInactive, domainplugin.ErrTerminalBackpressure)
 	}
 	if !entry.limiter.AllowN(len(data)) {
 		s.mu.RUnlock()
-		return domainplugin.ErrRateLimited
+		return newEmbedRefusal(EmbedRefusedRateLimited, domainplugin.ErrRateLimited)
 	}
 	conn := entry.wsConns[tunnelID]
 	s.mu.RUnlock()
 	if conn == nil {
+		// NOT classified, on purpose: today this nil covers two states that must end up opposite
+		// (browser not attached yet vs tunnel closed under the channel), and this function cannot
+		// tell them apart without reading tunnelOpen. Splitting them is D7's own change; inventing
+		// a cause here that means both would be the overloading this classification removes.
 		return nil
 	}
 	select {
 	case conn.send <- data:
 		return nil
 	default:
-		return domainplugin.ErrTerminalBackpressure
+		return newEmbedRefusal(EmbedRefusedWSBufferFull, domainplugin.ErrTerminalBackpressure)
 	}
 }
 
