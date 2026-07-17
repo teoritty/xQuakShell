@@ -109,17 +109,12 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		Tunnel:            dynamicForward,
 		SessionAuthorizer: sessionAuthorizer,
 		Audit:             pluginAudit.RPCRecorder(),
-		// Real purpose backends (exec/tcp-relay/embed-stream) land in ADR-011 Stages 6-8; until
-		// then every channel.open is rejected after purpose/session validation, same as any other
-		// declared-but-unimplemented capability. The factory already receives the plugin and
-		// session the backends will need, so Stage 6 replaces the body, not the seam.
-		ChannelResolverFor: func(domainplugin.InstalledPlugin, string) capability.ChannelBackendResolver {
-			return func(string) (domainplugin.ChannelPurposeBackend, error) {
-				return nil, domainplugin.ErrNotImplemented
-			}
-		},
-		ChannelAudit: pluginAudit.ChannelFunc(),
-		ChannelBus:   channelBus,
+		// The channel purpose backends and everything they need are assembled in
+		// main_channels.go: constructing them is its own reason to change, separate from wiring
+		// the plugin runtime.
+		ChannelResolverFor: newChannelResolverFor(),
+		ChannelAudit:       pluginAudit.ChannelFunc(),
+		ChannelBus:         channelBus,
 		OnCrash: func(pluginID, sessionID string) {
 			if manager != nil {
 				manager.OnProcessCrashed(pluginID, sessionID)
