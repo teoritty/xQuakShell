@@ -275,7 +275,15 @@ func TestChannelResolverBuildsAFreshBackendPerOpen(t *testing.T) {
 	plugin := relayPlugin("com.test.fresh")
 	resolve := newChannelResolverFor(nil, nil, nil)(plugin, "sess-1")
 
-	for _, purpose := range []string{domainplugin.PurposeTCPRelay, domainplugin.PurposeUDPRelay} {
+	// embed-stream belongs in this loop for the same reason the relays do, and with the sharpest
+	// consequence: it stores the tunnel id from `hint` during Authorize, so a shared instance sends
+	// every tunnel of a multi-tunnel session to whichever one opened last.
+	purposes := []string{
+		domainplugin.PurposeTCPRelay,
+		domainplugin.PurposeUDPRelay,
+		domainplugin.PurposeEmbedStream,
+	}
+	for _, purpose := range purposes {
 		// Resolved concurrently: the resolver is called from whichever goroutine serves a
 		// channel.open, so a per-purpose instance cached under a mutex would still be a shared one.
 		const opens = 8
