@@ -91,6 +91,26 @@ type embedEntry struct {
 	active     bool
 }
 
+// embedWSSendQueueDepth bounds the frames a tunnel may hold between the sink and the wire.
+//
+// D10: "accepted downstream" means ws.WriteMessage returned, not that this queue took the frame.
+// RouteTunnelFrameFromPlugin returns as soon as the queue accepts, so the plugin's credit window
+// reopens on enqueue -- which means any depth this queue has is memory the credit window does not
+// account for and the plugin's Job Object does not bound. At the old depth of 256 that was
+// 256 x 64 KiB = 16 MiB per tunnel behind a 512 KiB window: 33x, invisible only because the pump
+// never ran.
+//
+// Pinning the depth to the embed-stream credit window makes the distinction stop mattering: the
+// queue can no longer hide more than a window, so the window is once again the only thing holding
+// frames and per-tunnel host cost is the 8 x 64 KiB = 512 KiB ADR-011 promises. The queue still
+// exists to decouple the sink from a single in-flight ws.WriteMessage; it is not a buffer.
+//
+// This must NOT drop (7.3). The enqueue below stays a non-blocking select whose full case is a
+// classified ws-buffer-full refusal, which the embed backend's pump waits on (B4/D4). Making a
+// full queue drop instead would lose a KeyEvent{down=0} and leave a modifier held on the remote
+// machine with nothing in any log.
+var embedWSSendQueueDepth = domainplugin.InitialCredit(domainplugin.PurposeEmbedStream)
+
 type embedWSConn struct {
 	send chan []byte
 	done chan struct{}
@@ -435,7 +455,7 @@ func (s *EmbedTunnelService) AttachWebSocket(token, tunnelID string) (domain.Emb
 		close(old.done)
 	}
 	conn := &embedWSConn{
-		send: make(chan []byte, 256),
+		send: make(chan []byte, embedWSSendQueueDepth),
 		done: make(chan struct{}),
 	}
 	entry.wsConns[tunnelID] = conn

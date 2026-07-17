@@ -84,7 +84,7 @@ func TestRouteTunnelFrameFromPluginClassifiesWSBufferFull(t *testing.T) {
 	ctx := context.Background()
 	// Fill the browser send queue without draining it, then prove the overflow frame is refused
 	// with the momentary cause rather than the minutes-long one it shares a sentinel with.
-	for i := 0; i < 256; i++ {
+	for i := 0; i < embedWSSendQueueDepth; i++ {
 		if err := svc.RouteTunnelFrameFromPlugin(ctx, "sess-refuse", "main", []byte("x")); err != nil {
 			t.Fatalf("frame %d refused while the queue still had room: %v", i, err)
 		}
