@@ -20,6 +20,12 @@ const (
 // ProcessCrashHandler is notified when a plugin process exits abnormally.
 type ProcessCrashHandler func(pluginID, sessionID string)
 
+// ChannelCloseNotify raises channel.close {channelId, reason, message} on one plugin process's
+// connection (ADR-011: application-level errors travel here, not as a binary frame). It is
+// structurally identical to usecase.ChannelCloseNotifier, which the composition root converts to:
+// infra must not import usecase, so the two halves only meet there.
+type ChannelCloseNotify func(channelID uint32, reason, message string)
+
 // HostConfig configures the out-of-process plugin host.
 type HostConfig struct {
 	DataRoot          string
@@ -46,8 +52,16 @@ type HostConfig struct {
 	// registers each process's ChannelProxy so SessionLifecycleService's CloseSession cascade
 	// (ADR-011 Stage 4) can reach it; process exit/crash teardown (Stage 4b) does not depend on it.
 	ChannelResolverFor func(plugin domainplugin.InstalledPlugin, sessionID string) capability.ChannelBackendResolver
-	ChannelAudit    domainplugin.ChannelAuditRecorder
-	ChannelBus      *capability.ChannelBus
+
+	// AttachChannelCloseNotifier hands the composition root the notifier for one plugin process,
+	// once that process's Conn exists. It is an attach rather than a config value for the same
+	// reason AttachDataPathOpener is: the notifier must close over Conn.Notify, and the Conn
+	// cannot exist before the request handler that routes channel.open, which needs the proxy the
+	// resolver serves. The cycle is broken here, after the Conn is built, and only here.
+	AttachChannelCloseNotifier func(plugin domainplugin.InstalledPlugin, sessionID string, notify ChannelCloseNotify)
+
+	ChannelAudit domainplugin.ChannelAuditRecorder
+	ChannelBus   *capability.ChannelBus
 }
 
 // ProcessHost implements domainplugin.ProcessHost using OS child processes.
