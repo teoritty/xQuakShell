@@ -36,7 +36,9 @@
     return true;
   }
 
-  $: visibleLines = lines.filter(passesFilter);
+  // Reference search/levelFilter here so Svelte tracks them as dependencies;
+  // passesFilter reads them internally, which the reactive analyzer can't see.
+  $: visibleLines = (search, levelFilter, lines.filter(passesFilter));
 
   function componentOf(entry: LogEntry): string {
     return entry.fields?.component ?? '';
