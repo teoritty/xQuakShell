@@ -60,6 +60,8 @@ const draft: ConnectionDetailsDraft = {
   jumpHops: [],
   forwardRules: [],
   pluginFields: {},
+  storedSecretFields: [],
+  pluginFieldsTouched: {},
 };
 
 applyProtocolFieldDefaults(draft, 'telnet', catalogWithTelnet);
@@ -69,6 +71,8 @@ const staleDraft: ConnectionDetailsDraft = {
   ...draft,
   protocol: 'telnet',
   pluginFields: {},
+  storedSecretFields: [],
+  pluginFieldsTouched: {},
 };
 applyProtocolFieldDefaults(staleDraft, 'ssh', catalogWithTelnet);
 assert(staleDraft.pluginFields.username === undefined, 'defaults use passed protocol id, not draft.protocol');

@@ -7,6 +7,38 @@
   export let values: Record<string, unknown> = {};
   export let errors: Record<string, string> = {};
   export let readonly = false;
+  // Plugin field ids whose secret is already stored in the vault (value masked to "").
+  export let storedSecretFields: string[] = [];
+  $: storedSecretSet = new Set(storedSecretFields);
+
+  // Classic "already saved" password UX. The real secret never leaves the host, so a stored secret
+  // arrives with an empty value; we render a fixed dot mask so the field reads as a filled password.
+  // Focusing it reveals an empty box to type a replacement; blurring without typing restores the
+  // mask and leaves the field UNTOUCHED, so the save payload omits it and the backend keeps the
+  // stored secret (a fake value is never submitted). The mask is display-only, never in the model.
+  const STORED_SECRET_MASK = '••••••••••';
+  let secretFocused: Record<string, boolean> = {};
+  let secretEdited: Record<string, boolean> = {};
+
+  function isStoredSecret(field: FieldDef): boolean {
+    return field.type === 'password' && storedSecretSet.has(field.id);
+  }
+  function passwordValue(field: FieldDef): string {
+    if (isStoredSecret(field) && !secretEdited[field.id] && !secretFocused[field.id]) {
+      return STORED_SECRET_MASK;
+    }
+    return String(values[field.id] ?? '');
+  }
+  function onSecretFocus(field: FieldDef) {
+    if (isStoredSecret(field)) secretFocused = { ...secretFocused, [field.id]: true };
+  }
+  function onSecretBlur(field: FieldDef) {
+    if (isStoredSecret(field)) secretFocused = { ...secretFocused, [field.id]: false };
+  }
+  function onPasswordInput(field: FieldDef, value: string) {
+    if (isStoredSecret(field)) secretEdited = { ...secretEdited, [field.id]: true };
+    handleInput(field, value);
+  }
 
   const dispatch = createEventDispatcher<{ fieldchange: { fieldId: string; value: unknown } }>();
 
@@ -163,10 +195,12 @@
                 <input
                   id="field-{field.id}"
                   type="password"
-                  value={String(values[field.id] ?? '')}
+                  value={passwordValue(field)}
                   placeholder={field.placeholder ?? ''}
                   disabled={readonly}
-                  on:input={(e) => handleInput(field, e.currentTarget.value)}
+                  on:focus={() => onSecretFocus(field)}
+                  on:blur={() => onSecretBlur(field)}
+                  on:input={(e) => onPasswordInput(field, e.currentTarget.value)}
                 />
               {:else if field.type === 'number'}
                 <input
@@ -251,10 +285,12 @@
               <input
                 id="field-{field.id}"
                 type="password"
-                value={String(values[field.id] ?? '')}
+                value={passwordValue(field)}
                 placeholder={field.placeholder ?? ''}
                 disabled={readonly}
-                on:input={(e) => handleInput(field, e.currentTarget.value)}
+                on:focus={() => onSecretFocus(field)}
+                on:blur={() => onSecretBlur(field)}
+                on:input={(e) => onPasswordInput(field, e.currentTarget.value)}
               />
             {:else if field.type === 'number'}
               <input

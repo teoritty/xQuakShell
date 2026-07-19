@@ -73,7 +73,10 @@ func (b *ChannelUDPRelayBackend) Authorize(purpose, _ string, hint string) error
 		patterns = udpOnlyPatterns(b.caps.Outbound)
 	}
 
-	patternHost := host
+	// Same rule as NetProxy.Dial and the tcp-relay backend: patternHost may only come from an
+	// allowlist match, never from the plugin's hint, or the hint authorizes itself past
+	// allowPrivateNetworks via AllowResolvedDialIP's explicit-IP carve-out.
+	patternHost := ""
 	allowlistAllowsHost := false
 	if len(patterns) > 0 {
 		var ok bool
@@ -154,9 +157,9 @@ func (b *ChannelUDPRelayBackend) Wire(ctx context.Context, ch *domainplugin.Chan
 			Timestamp:       time.Now(),
 			PluginID:        b.pluginID,
 			Action:          "channel.open",
-			ChannelID:       ch.ChannelID,
-			Purpose:         ch.Purpose,
-			ParentSessionID: ch.ParentSessionID,
+			ChannelID:       ch.ChannelID(),
+			Purpose:         ch.Purpose(),
+			ParentSessionID: ch.ParentSessionID(),
 			Target:          "udp:" + target,
 			Success:         true,
 		})
@@ -164,10 +167,7 @@ func (b *ChannelUDPRelayBackend) Wire(ctx context.Context, ch *domainplugin.Chan
 
 	b.armIdleTimer()
 
-	if ch.Data == nil {
-		return nil
-	}
-	data := ch.Data
+	data := ch.Data()
 
 	safego.GoNamed("plugin.channelUDPRelayInbound", func() {
 		for {
@@ -181,6 +181,11 @@ func (b *ChannelUDPRelayBackend) Wire(ctx context.Context, ch *domainplugin.Chan
 				return
 			}
 			b.resetIdleTimer()
+			// The datagram is on the socket: the plugin may send one more.
+			if err := data.Ack(ctx); err != nil {
+				_ = b.CloseRemote()
+				return
+			}
 		}
 	})
 

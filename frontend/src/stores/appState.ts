@@ -74,6 +74,10 @@ export interface Connection {
   forwardRules?: ForwardRule[];
   protocol?: string;
   pluginFields?: Record<string, string>;
+  // Plugin field ids whose secret value is stored in the vault. Their value is masked out of
+  // pluginFields (secrets never reach the UI); the editor uses this to show a "saved" placeholder
+  // and to keep an untouched secret out of the save payload so re-saving cannot wipe it.
+  storedSecretFields?: string[];
 }
 
 export type SessionState = 'connecting' | 'hostkey-required' | 'ready' | 'error' | 'closed';

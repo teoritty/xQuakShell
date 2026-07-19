@@ -8,8 +8,15 @@ import (
 	domainplugin "ssh-client/internal/domain/plugin"
 )
 
+// newTestChannel builds a channel the way production does — flow-controlled — with a discarding
+// writer, since these tests are about lifecycle and delivery rather than the wire.
+func newTestChannel(id uint32) *channel {
+	return newFlowChannel(id, domainplugin.PurposeExec, domainplugin.InitialCredit(domainplugin.PurposeExec),
+		domainplugin.DefaultChannelThroughputKbps, nil, func([]byte) error { return nil })
+}
+
 func TestChannelCloseIsIdempotentUnderConcurrentCallers(t *testing.T) {
-	ch := newChannel(1)
+	ch := newTestChannel(1)
 
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
@@ -31,7 +38,7 @@ func TestChannelCloseIsIdempotentUnderConcurrentCallers(t *testing.T) {
 }
 
 func TestChannelDropsInboundFramesAfterLocalCloseAsNoOp(t *testing.T) {
-	ch := newChannel(1)
+	ch := newTestChannel(1)
 	ch.deliver(domainplugin.FrameKindBinary, []byte("before close"))
 
 	ch.Close()
@@ -55,7 +62,7 @@ func TestChannelDropsInboundFramesAfterLocalCloseAsNoOp(t *testing.T) {
 }
 
 func TestChannelRecvBlocksUntilDelivered(t *testing.T) {
-	ch := newChannel(1)
+	ch := newTestChannel(1)
 
 	done := make(chan channelFrame, 1)
 	go func() {

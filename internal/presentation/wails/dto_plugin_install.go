@@ -24,6 +24,7 @@ type PluginInstallPreviewDTO struct {
 	RequiresTunnelProviderAccess bool     `json:"requiresTunnelProviderAccess"`
 	MultiSessionWarning        bool     `json:"multiSessionWarning"`
 	ArbitraryNetworkWarning   bool     `json:"arbitraryNetworkWarning"`
+	ExecAccessWarning         bool     `json:"execAccessWarning"`
 	UnsignedWarning           bool     `json:"unsignedWarning"`
 	UntrustedSignatureWarning bool     `json:"untrustedSignatureWarning"`
 	Permissions               []string `json:"permissions"`
@@ -43,6 +44,7 @@ func previewToDTO(p usecase.InstallPreview) PluginInstallPreviewDTO {
 		RequiresTunnelProviderAccess: p.RequiresTunnelProviderAccess,
 		MultiSessionWarning:        p.MultiSessionWarning,
 		ArbitraryNetworkWarning:   p.ArbitraryNetworkWarning,
+		ExecAccessWarning:         p.ExecAccessWarning,
 		UnsignedWarning:           p.UnsignedWarning,
 		UntrustedSignatureWarning: p.UntrustedSignatureWarning,
 		Permissions:               p.Permissions,

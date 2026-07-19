@@ -249,7 +249,7 @@ Host response:
 | Browser → plugin | Notification `session.tunnelData` (`sessionId`, `tunnelId`, `dataBase64`) |
 | Backpressure | Notification `session.tunnelBackpressure` / `session.tunnelResume` |
 
-Limits: max frame **64 KiB**; default aggregate **32 MiB/s** per session; max **4** tunnels per session. Oversized or rate-limited frames return `-32003`.
+Limits: max frame **64 KiB**; default aggregate **32 MiB/s** per session; max **8** tunnels per session. Oversized or rate-limited frames return `-32003`.
 
 Other plugin → host RPC: `session.tunnelOpen`, `session.tunnelClose`. **`session.writeTerminal` is not used.**
 
@@ -345,19 +345,26 @@ Opening and closing a channel is negotiated over JSON-RPC; only data flows as bi
 | `tcp-relay` | Dials a target through the existing `TunnelDialProxy` allowlist/dial policy — for cases that are genuinely a fresh TCP dial, not exec. |
 | `udp-relay` | Dials a target UDP endpoint directly from the host (`net.DialUDP`), validated against a `udp:`-prefixed allowlist entry (same dial-policy core as `tcp-relay`). SSH has no native UDP forwarding, so this is a direct host→target dial, not tunnelled through the parent SSH chain (matches topologies like mosh: SSH launches `mosh-server`, then UDP flows host↔server directly). Still bound to `parentSessionId` for ownership/lifecycle even though the dial is direct. One UDP datagram maps to exactly one `kind=0x02` frame. |
 
+**Declaring the `exec` purpose requires install-time user consent.** It runs commands over the connection the user authenticated, so the install prompt asks for it explicitly and the install is **refused** without it � on both the local and GitHub install paths. There is no runtime prompt and no way to add the grant afterwards: an installed plugin declaring `exec` is one whose exec access the user granted, which is exactly what the host relies on when it authorizes an `exec` channel.
+
+**`embed-stream` frames are capped at 64 KiB, not 1 MiB.** The general `kind=0x02` ceiling is 1 MiB, but this one purpose is lower, because the embed surface behind it has always had a 64 KiB frame limit and because credit is counted in frames: with an 8-frame window, a 1 MiB cap would park 8 MiB per channel in host memory. The host enforces this on ingress, so an oversize frame never reaches the embed surface — it is refused as a **protocol violation** (fail-fast, exactly like any other oversized `length`), never as `ErrRateLimited`/backpressure: it is deterministic, and retrying it will never help. Chunk in the plugin, where you know what a frame means; RFB, for one, sends rectangles rather than screens.
+
+**A multi-channel protocol must declare `channel.maxConcurrent`.** When the field is absent the host applies a default of **4** concurrent channels. That is fine for VNC and wrong for anything else: an RDP session is ~6 `embed-stream` channels (display, clipboard, audio-out, audio-in, drive, printer) **plus** a `tcp-relay`, so the 5th `channel.open` fails with `ErrRateLimited` — which reads like a throughput problem and is not one. Declare `channel.maxConcurrent: 8` and the host honours it; the limit is per plugin, and the embed side is separately capped at 8 tunnels per session.
+
 ### Flow control (credit)
 
 Credit-based flow control per channel, at **frame granularity**, carried entirely as binary `kind=0x03` frames — never JSON-RPC (routing credit through channel 0 would head-of-line-block the control plane).
 
 - On `channel.open`, the receiver grants an initial credit: **4 frames** for `exec` / `tcp-relay` / `udp-relay`, **8 frames** for `embed-stream`.
 - The sender may have at most `credit` frames in flight, unacknowledged, regardless of how large or small each frame's payload is (each frame still must stay under the 1 MiB `maxFrameSize` ceiling — credit and frame size are independent limits).
-- The receiver sends a `kind=0x03` credit-update frame as it drains frames, replenishing the sender's count.
+- The receiver sends a `kind=0x03` credit-update frame **once a frame has reached its consumer** — not merely when it was read off the wire — replenishing the sender's count. Credit therefore tracks real consumption, so when your plugin's window stays shut, something downstream genuinely is not keeping up.
+- A `kind=0x03` payload repeats the channel id (4 bytes) followed by the credit count (4 bytes). The repeated id **must** match the frame header's, the count must be non-zero, and grants may not push the peer's window past a small multiple of its initial credit. Each of those is a protocol violation (fail-fast), not a rounded-off value.
 - The host enforces credit limits server-side regardless of what the plugin claims locally; a plugin sending past its granted credit is a protocol violation (fail-fast).
 
-**Exhaustion policy is per-purpose:**
+**Exhaustion policy is the same for every purpose:** the reader **pauses reading from its upstream source** (the SSH exec stdout pipe, the relayed TCP connection, the UDP socket, the browser's input stream) once credit hits 0. This is real backpressure, not an unbounded in-process buffer, and **nothing is ever dropped** — a frame accepted for sending is sent, late if need be.
 
-- `exec` / `tcp-relay` / `udp-relay` — the backend **pauses reading from its upstream source** (the SSH exec stdout pipe, the relayed TCP connection, or the UDP socket) once credit hits 0. This is real backpressure, not an unbounded in-process buffer; for `udp-relay`, pausing the socket read lets the OS receive buffer bound and drop excess datagrams, the correct behavior for a lossy transport.
-- `embed-stream` — instead of blocking the producer, the host-side buffer **drops the oldest unsent frame** (latest-frame-wins), consistent with the existing embed backpressure model.
+- For `udp-relay`, pausing the socket read lets the OS receive buffer bound and drop excess datagrams, the correct behavior for a lossy transport — a consequence of not reading, not a policy of its own.
+- `embed-stream` is **not** a video pipe and has no latest-frame-wins policy. Both of its directions are incremental: the framebuffer is a stream of deltas, and the host→plugin direction is browser control input, where each event is a state transition. A dropped key-up would leave that key held down on the remote machine with nothing in any log. If your plugin needs frames coalesced, coalesce them yourself, where you know what a frame means.
 
 **Throughput cap (`maxThroughputKbps`) is enforced, not just declared** — a token-bucket limiter on the write path bounds sustained bytes/sec, independent of and in addition to the frame-count credit window. `0` (manifest field absent) uses the host default, the same numeric default as `maxTunnelBandwidthKbps` (32 MiB/s).
 

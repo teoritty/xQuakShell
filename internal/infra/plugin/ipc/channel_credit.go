@@ -11,6 +11,11 @@ import (
 // (defense in depth, ADR-011 §2b) — never trust the sender's own bookkeeping.
 var ErrCreditExceeded = errors.New("ipc: plugin sent more frames than granted credit")
 
+// ErrCreditWindowOverflow is returned when a plugin's kind=0x03 grants would push the
+// outbound window past its ceiling. Without it the window is an unbounded accumulator a
+// plugin can drive to integer overflow with a grant loop.
+var ErrCreditWindowOverflow = errors.New("ipc: credit grant exceeds the outbound window ceiling")
+
 // channelCredit tracks two independent ADR-011 §2b credit windows for one channel:
 //
 //   - outbound: how many kind=0x02 frames the host may still send before it must wait for a
@@ -23,23 +28,57 @@ var ErrCreditExceeded = errors.New("ipc: plugin sent more frames than granted cr
 // maxFrameSize per ADR-011 §Limits.
 type channelCredit struct {
 	mu       sync.Mutex
-	cond     *sync.Cond
 	outbound int
 	inbound  int
+	// grown is closed and replaced whenever outbound credit increases, broadcasting to every
+	// waiter at once. A sync.Cond would be the obvious fit but cannot be selected on alongside
+	// ctx.Done(), which forced a helper goroutine per blocking call to translate cancellation
+	// into a Broadcast — a goroutine per frame on the send path.
+	grown chan struct{}
 }
 
 func newChannelCredit(initial int) *channelCredit {
-	c := &channelCredit{outbound: initial, inbound: initial}
-	c.cond = sync.NewCond(&c.mu)
-	return c
+	return &channelCredit{
+		outbound: initial,
+		inbound:  initial,
+		grown:    make(chan struct{}),
+	}
+}
+
+// signalGrownLocked wakes every waiter. Must be called with c.mu held.
+func (c *channelCredit) signalGrownLocked() {
+	close(c.grown)
+	c.grown = make(chan struct{})
+}
+
+// awaitOutbound blocks until outbound credit grows or ctx is done. take is retried under the
+// lock after each wake-up and reports whether the waiter is satisfied; it may consume state.
+func (c *channelCredit) awaitOutbound(ctx context.Context, take func() bool) error {
+	for {
+		c.mu.Lock()
+		if take() {
+			c.mu.Unlock()
+			return nil
+		}
+		grown := c.grown
+		c.mu.Unlock()
+
+		if ctx == nil {
+			<-grown
+			continue
+		}
+		select {
+		case <-grown:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 }
 
 // AcquireOutbound blocks until at least one outbound credit unit is available, then consumes
 // it. Returns ctx.Err() if ctx is cancelled first.
 func (c *channelCredit) AcquireOutbound(ctx context.Context) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.waitLocked(ctx, func() bool {
+	return c.awaitOutbound(ctx, func() bool {
 		if c.outbound <= 0 {
 			return false
 		}
@@ -63,52 +102,16 @@ func (c *channelCredit) TryAcquireOutbound() bool {
 // is the non-consuming peek a backend's upstream read loop gates on (channel_backpressure.go)
 // — consumption happens separately, at actual send time.
 func (c *channelCredit) WaitOutboundAvailable(ctx context.Context) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.waitLocked(ctx, func() bool {
+	return c.awaitOutbound(ctx, func() bool {
 		return c.outbound > 0
 	})
 }
 
-// waitLocked loops cond.Wait() until attempt returns true (consuming state as needed under
-// the same lock) or ctx is done. Must be called with c.mu held.
-func (c *channelCredit) waitLocked(ctx context.Context, attempt func() bool) error {
-	if attempt() {
-		return nil
-	}
-	if ctx == nil {
-		for !attempt() {
-			c.cond.Wait()
-		}
-		return nil
-	}
-
-	stopped := make(chan struct{})
-	done := make(chan struct{})
-	go func() {
-		select {
-		case <-ctx.Done():
-			c.mu.Lock()
-			c.cond.Broadcast()
-			c.mu.Unlock()
-		case <-done:
-		}
-		close(stopped)
-	}()
-	defer func() {
-		close(done)
-		<-stopped
-	}()
-
-	for !attempt() {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-		c.cond.Wait()
-	}
-	return nil
+// AvailableInbound reports how many more frames the plugin is still allowed to send.
+func (c *channelCredit) AvailableInbound() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.inbound
 }
 
 // AvailableOutbound reports the current outbound credit without consuming it.
@@ -119,12 +122,22 @@ func (c *channelCredit) AvailableOutbound() int {
 }
 
 // ReplenishOutbound adds n credit units, e.g. from an inbound kind=0x03 frame, and wakes any
-// caller blocked in AcquireOutbound/WaitOutboundAvailable.
-func (c *channelCredit) ReplenishOutbound(n int) {
+// caller blocked in AcquireOutbound/WaitOutboundAvailable. It is the only way to grow the
+// window, and it always takes a ceiling: an unbounded variant would be a plugin-driven
+// accumulator, and having both would leave the bounded one merely conventional.
+//
+// The grant is refused whole (ErrCreditWindowOverflow, window untouched) rather than clamped,
+// and the check is against the post-add total rather than n alone, so a drip of small grants
+// cannot walk the window past the ceiling either.
+func (c *channelCredit) ReplenishOutbound(n, ceiling int) error {
 	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.outbound+n > ceiling {
+		return ErrCreditWindowOverflow
+	}
 	c.outbound += n
-	c.cond.Broadcast()
-	c.mu.Unlock()
+	c.signalGrownLocked()
+	return nil
 }
 
 // ConsumeInbound accounts for one arriving kind=0x02 frame against the credit the host has

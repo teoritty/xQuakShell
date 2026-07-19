@@ -2,12 +2,42 @@ package plugin
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 
 	domainplugin "ssh-client/internal/domain/plugin"
 	"ssh-client/internal/infra/plugin/capability"
 )
+
+// fakeCrashDataPath is an inert ChannelDataPath: these tests are about the process-exit
+// teardown cascade, not about moving bytes, but a channel cannot exist without a data path.
+type fakeCrashDataPath struct {
+	closed chan struct{}
+	once   sync.Once
+}
+
+func newFakeCrashDataPath() *fakeCrashDataPath {
+	return &fakeCrashDataPath{closed: make(chan struct{})}
+}
+
+func (f *fakeCrashDataPath) Send(context.Context, []byte) error { return nil }
+func (f *fakeCrashDataPath) Recv() ([]byte, bool)               { <-f.closed; return nil, false }
+func (f *fakeCrashDataPath) WaitForCapacity(context.Context) error {
+	return nil
+}
+func (f *fakeCrashDataPath) Ack(context.Context) error { return nil }
+func (f *fakeCrashDataPath) Close() error {
+	f.once.Do(func() { close(f.closed) })
+	return nil
+}
+
+// fakeCrashDataPathOpener stands in for the ipc Conn the composition root would attach.
+type fakeCrashDataPathOpener struct{}
+
+func (fakeCrashDataPathOpener) OpenDataPath(uint32, string) (domainplugin.ChannelDataPath, error) {
+	return newFakeCrashDataPath(), nil
+}
 
 // fakeCrashChannelBackend records CloseRemote calls without touching any session state, so
 // tests can prove a plugin-process exit tears down the remote end of a channel with no
@@ -42,6 +72,7 @@ func TestWaitProcess_ClosesChannelsOnCrash_WithoutSessionClose(t *testing.T) {
 	resolve := func(purpose string) (domainplugin.ChannelPurposeBackend, error) { return backend, nil }
 	caps := &domainplugin.ChannelCaps{Purposes: []string{"exec"}, MaxConcurrent: 4}
 	proxy := capability.NewChannelProxy("p1", caps, resolve, nil)
+	proxy.AttachDataPathOpener(fakeCrashDataPathOpener{})
 
 	if _, err := proxy.Open(context.Background(), openParamsJSON("sess-1", "exec")); err != nil {
 		t.Fatalf("open: %v", err)
@@ -92,6 +123,7 @@ func TestWaitProcess_ClosesChannelsOnCleanExit(t *testing.T) {
 	resolve := func(purpose string) (domainplugin.ChannelPurposeBackend, error) { return backend, nil }
 	caps := &domainplugin.ChannelCaps{Purposes: []string{"exec"}, MaxConcurrent: 4}
 	proxy := capability.NewChannelProxy("p1", caps, resolve, nil)
+	proxy.AttachDataPathOpener(fakeCrashDataPathOpener{})
 
 	if _, err := proxy.Open(context.Background(), openParamsJSON("sess-1", "exec")); err != nil {
 		t.Fatalf("open: %v", err)

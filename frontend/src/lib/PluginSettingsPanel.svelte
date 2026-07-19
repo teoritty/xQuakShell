@@ -93,6 +93,7 @@
   let grantMultiSessionAccess = false;
 
   let grantArbitraryNetworkAccess = false;
+  let grantExecAccess = false;
 
   let errorMessage = '';
 
@@ -145,6 +146,7 @@
   let githubGrantMultiSession = false;
 
   let githubGrantArbitraryNetwork = false;
+  let githubGrantExecAccess = false;
 
   let pendingGitHubRepoURL = '';
 
@@ -316,6 +318,7 @@
       grantTunnelProviderAccess = false;
       grantMultiSessionAccess = false;
       grantArbitraryNetworkAccess = false;
+      grantExecAccess = false;
 
       installConfirmOpen = true;
 
@@ -366,6 +369,7 @@
         grantTunnelProviderAccess,
         grantMultiSessionAccess,
         grantArbitraryNetworkAccess,
+        grantExecAccess,
       );
 
       installConfirmOpen = false;
@@ -671,6 +675,7 @@
       githubGrantTunnelProviderAccess = false;
       githubGrantMultiSession = false;
       githubGrantArbitraryNetwork = false;
+      githubGrantExecAccess = false;
       githubInstallConfirmOpen = true;
       selectedGitHubPlugin = plugin;
     } catch (e) {
@@ -701,6 +706,7 @@
         githubGrantTunnelProviderAccess,
         githubGrantMultiSession,
         githubGrantArbitraryNetwork,
+        githubGrantExecAccess,
       );
       closeGitHubInstallConfirm();
       if (selectedGitHubPlugin?.id) {
@@ -774,6 +780,8 @@
         installPreview.requiresSecretAccess ? 'This plugin will have access to connection passwords.' : '',
 
         installPreview.arbitraryNetworkWarning ? 'This plugin can open TCP connections to arbitrary hosts on the internet.' : '',
+
+        installPreview.execAccessWarning ? 'This plugin can run commands on the hosts you connect to, over your authenticated session.' : '',
 
         'Permissions:',
 
@@ -1134,6 +1142,16 @@
           Allow multi-session access (if required)
         </label>
       {/if}
+      {#if installPreview.execAccessWarning}
+        <div class="warning-box">
+          <strong>Command execution warning</strong>
+          <p>This plugin can run commands on the hosts you connect to, using your authenticated session.</p>
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" bind:checked={grantExecAccess} />
+          I understand this plugin can run commands on my sessions
+        </label>
+      {/if}
       <div class="dialog-actions">
         <button type="button" class="btn-secondary" on:click={cancelInstall}>Cancel</button>
         <button
@@ -1146,6 +1164,7 @@
             || (installPreview.requiresTunnelProviderAccess && !grantTunnelProviderAccess)
             || (installPreview.arbitraryNetworkWarning && !grantArbitraryNetworkAccess)
             || (installPreview.multiSessionWarning && !grantMultiSessionAccess)
+            || (installPreview.execAccessWarning && !grantExecAccess)
           }
           on:click={confirmInstall}
         >
@@ -1368,9 +1387,19 @@
           Allow multi-session access (if required)
         </label>
       {/if}
+      {#if githubInstallPreview.execAccessWarning}
+        <div class="warning-box">
+          <strong>Command execution warning</strong>
+          <p>This plugin can run commands on the hosts you connect to, using your authenticated session.</p>
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" bind:checked={githubGrantExecAccess} />
+          I understand this plugin can run commands on my sessions
+        </label>
+      {/if}
       <div class="dialog-actions">
         <button type="button" class="btn-secondary" on:click={closeGitHubInstallConfirm}>Cancel</button>
-        <button type="button" class="btn-secondary" disabled={githubInstallPreview.compatible === false || !githubInstallTrustConfirmed || githubInstallBusy || githubPreviewBusy || (githubInstallPreview.requiresSecretAccess && !githubGrantSecretAccess) || (githubInstallPreview.requiresAuthProviderAccess && !githubGrantAuthProviderAccess) || (githubInstallPreview.requiresTunnelProviderAccess && !githubGrantTunnelProviderAccess) || (githubInstallPreview.arbitraryNetworkWarning && !githubGrantArbitraryNetwork) || (githubInstallPreview.multiSessionWarning && !githubGrantMultiSession)} on:click={confirmGitHubInstall}>
+        <button type="button" class="btn-secondary" disabled={githubInstallPreview.compatible === false || !githubInstallTrustConfirmed || githubInstallBusy || githubPreviewBusy || (githubInstallPreview.requiresSecretAccess && !githubGrantSecretAccess) || (githubInstallPreview.requiresAuthProviderAccess && !githubGrantAuthProviderAccess) || (githubInstallPreview.requiresTunnelProviderAccess && !githubGrantTunnelProviderAccess) || (githubInstallPreview.arbitraryNetworkWarning && !githubGrantArbitraryNetwork) || (githubInstallPreview.multiSessionWarning && !githubGrantMultiSession) || (githubInstallPreview.execAccessWarning && !githubGrantExecAccess)} on:click={confirmGitHubInstall}>
           {githubInstallBusy ? 'Installing…' : 'Install'}
         </button>
       </div>

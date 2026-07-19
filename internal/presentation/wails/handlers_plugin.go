@@ -138,7 +138,7 @@ func (a *AppAPI) PreviewPluginInstall(sourcePath string) (PluginInstallPreviewDT
 }
 
 // InstallPlugin copies a plugin bundle into user storage after user consent.
-func (a *AppAPI) InstallPlugin(sourcePath string, grantSecretAccess bool, grantAuthProviderAccess bool, grantTunnelProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool) (PluginDTO, error) {
+func (a *AppAPI) InstallPlugin(sourcePath string, grantSecretAccess bool, grantAuthProviderAccess bool, grantTunnelProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool, grantExecAccess bool) (PluginDTO, error) {
 	if a.plugins == nil {
 		return PluginDTO{}, errPluginManagerUnavailable
 	}
@@ -165,7 +165,13 @@ func (a *AppAPI) InstallPlugin(sourcePath string, grantSecretAccess bool, grantA
 	if preview.ArbitraryNetworkWarning && !grantArbitraryNetworkAccess {
 		return PluginDTO{}, fmt.Errorf("arbitrary network access consent required for this plugin")
 	}
-	installed, err := a.plugins.Install(sourcePath, policy, grantMultiSessionAccess, grantArbitraryNetworkAccess)
+	// Exec channels run commands over the user's authenticated SSH session, so the install is
+	// refused outright without the grant rather than installing a plugin whose exec channels would
+	// later be denied one by one (ADR-011 D3).
+	if preview.ExecAccessWarning && !grantExecAccess {
+		return PluginDTO{}, fmt.Errorf("exec channel consent required for this plugin")
+	}
+	installed, err := a.plugins.Install(sourcePath, policy, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess)
 	if err != nil {
 		return PluginDTO{}, err
 	}

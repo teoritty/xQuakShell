@@ -22,6 +22,7 @@ type InstallPreview struct {
 	RequiresTunnelProviderAccess bool
 	MultiSessionWarning        bool
 	ArbitraryNetworkWarning   bool
+	ExecAccessWarning         bool
 	UnsignedWarning           bool
 	UntrustedSignatureWarning bool
 	Permissions               []string
@@ -91,7 +92,12 @@ func (m *PluginManager) PreviewInstall(sourcePath string, policy domainplugin.In
 }
 
 // Install copies the plugin into user storage and registers it.
-func (m *PluginManager) Install(sourcePath string, policy domainplugin.InstallTrustPolicy, grantMultiSession bool, grantArbitraryNetworkAccess bool) (domainplugin.InstalledPlugin, error) {
+//
+// The grant parameters are the user's install-time answers to the high-impact capabilities the
+// preview warned about. Each is refused here rather than persisted: an installed plugin is, by
+// construction, one whose declared high-impact capabilities were granted, which is what lets the
+// channel resolver treat "installed and declares exec" as consent (ADR-011 D3).
+func (m *PluginManager) Install(sourcePath string, policy domainplugin.InstallTrustPolicy, grantMultiSession bool, grantArbitraryNetworkAccess bool, grantExecAccess bool) (domainplugin.InstalledPlugin, error) {
 	if m.portable != nil {
 		if err := m.portable.RequireWritable(); err != nil {
 			return domainplugin.InstalledPlugin{}, err
@@ -119,6 +125,9 @@ func (m *PluginManager) Install(sourcePath string, policy domainplugin.InstallTr
 	if installed.Manifest.RequiresArbitraryNetworkAccess() && !grantArbitraryNetworkAccess {
 		return domainplugin.InstalledPlugin{}, fmt.Errorf("arbitrary network access consent required for this plugin")
 	}
+	if installed.Manifest.RequiresChannelExecConsent() && !grantExecAccess {
+		return domainplugin.InstalledPlugin{}, fmt.Errorf("exec channel consent required for this plugin")
+	}
 	if err := m.registry.Register(installed); err != nil {
 		return domainplugin.InstalledPlugin{}, err
 	}
@@ -127,6 +136,9 @@ func (m *PluginManager) Install(sourcePath string, policy domainplugin.InstallTr
 	}
 	if installed.Manifest.RequiresArbitraryNetworkAccess() && grantArbitraryNetworkAccess {
 		m.auditStart(installed.Manifest.ID, "install", "allowArbitraryNetwork", false)
+	}
+	if installed.Manifest.RequiresChannelExecConsent() {
+		m.auditStart(installed.Manifest.ID, "install", "channelExec", false)
 	}
 	return installed, nil
 }
@@ -146,6 +158,7 @@ func installPreviewFrom(p domainplugin.InstalledPlugin, trust domainplugin.Insta
 		RequiresTunnelProviderAccess: p.Manifest.RequiresTunnelProviderAccess(),
 		MultiSessionWarning:        p.Manifest.RequiresMultiSessionWarning() || trust.MultiSessionWarning,
 		ArbitraryNetworkWarning:   p.Manifest.RequiresArbitraryNetworkWarning() || trust.ArbitraryNetworkWarning,
+		ExecAccessWarning:         p.Manifest.RequiresChannelExecConsent(),
 		UnsignedWarning:           unsigned,
 		UntrustedSignatureWarning: trust.UntrustedSignatureWarning,
 		Permissions:               p.Manifest.PermissionSummary(),

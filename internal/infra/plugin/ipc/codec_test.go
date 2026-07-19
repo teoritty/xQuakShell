@@ -26,8 +26,40 @@ func TestCodecRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if msg.Method != "ping" || msg.ID == nil || *msg.ID != 1 {
+	if msg.Method != "ping" || msg.ID == nil || msg.ID.Key() != "1" {
 		t.Fatalf("unexpected message: %+v", msg)
+	}
+}
+
+func TestRPCIDAcceptsStringAndNumberRejectsOthers(t *testing.T) {
+	ok := []string{`"xqs-vnc-1"`, `1`, `-7`, `"1"`}
+	for _, in := range ok {
+		var id ipc.RPCID
+		if err := json.Unmarshal([]byte(in), &id); err != nil {
+			t.Errorf("Unmarshal(%s) rejected a valid id: %v", in, err)
+			continue
+		}
+		out, err := json.Marshal(id)
+		if err != nil {
+			t.Errorf("Marshal(%s): %v", in, err)
+			continue
+		}
+		if string(out) != in {
+			t.Errorf("round-trip %s -> %s: id must echo verbatim", in, out)
+		}
+	}
+	// A numeric 1 and a string "1" are distinct ids and must not share a key.
+	var num, str ipc.RPCID
+	_ = json.Unmarshal([]byte(`1`), &num)
+	_ = json.Unmarshal([]byte(`"1"`), &str)
+	if num.Key() == str.Key() {
+		t.Errorf("numeric 1 and string \"1\" collided on key %q", num.Key())
+	}
+	for _, bad := range []string{`null`, `{}`, `[1]`, `true`, `1.5e2x`} {
+		var id ipc.RPCID
+		if err := json.Unmarshal([]byte(bad), &id); err == nil {
+			t.Errorf("Unmarshal(%s) accepted an invalid id", bad)
+		}
 	}
 }
 
@@ -55,7 +87,7 @@ func TestConnCall(t *testing.T) {
 		serveEchoPlugin(pluginReader, pluginWrite)
 	}()
 
-	conn := ipc.NewConn(coreReader, coreWrite, nil, nil)
+	conn := ipc.NewConn(coreReader, coreWrite, nil, nil, 0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()

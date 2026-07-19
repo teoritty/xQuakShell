@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// testCreditCeiling is a ceiling high enough to never be the thing under test: these tests
+// exercise blocking and wake-up, while the ceiling itself is covered by
+// TestCreditFrameOverflowIsProtocolViolation.
+const testCreditCeiling = 1 << 20
+
 func TestChannelCreditBlocksSenderAtZeroRegardlessOfFrameSize(t *testing.T) {
 	c := newChannelCredit(2)
 
@@ -30,7 +35,9 @@ func TestChannelCreditBlocksSenderAtZeroRegardlessOfFrameSize(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 	}
 
-	c.ReplenishOutbound(1)
+	if err := c.ReplenishOutbound(1, testCreditCeiling); err != nil {
+		t.Fatalf("replenish: %v", err)
+	}
 
 	select {
 	case err := <-done:
@@ -52,7 +59,9 @@ func TestChannelCreditReplenishUnblocksExactlyOneWaiter(t *testing.T) {
 	}()
 
 	time.Sleep(20 * time.Millisecond)
-	c.ReplenishOutbound(1)
+	if err := c.ReplenishOutbound(1, testCreditCeiling); err != nil {
+		t.Fatalf("replenish: %v", err)
+	}
 
 	select {
 	case <-waiterDone:

@@ -101,7 +101,8 @@ export interface AppGateway {
     arg4: boolean,
     arg5: boolean,
     arg6: boolean,
-    arg7: boolean
+    arg7: boolean,
+    arg8: boolean
   ): Promise<void>;
 
   InstallPlugin?(
@@ -110,7 +111,8 @@ export interface AppGateway {
     arg3: boolean,
     arg4: boolean,
     arg5: boolean,
-    arg6: boolean
+    arg6: boolean,
+    arg7: boolean
   ): Promise<wails.PluginDTO>;
 
   IsVaultUnlocked(): Promise<boolean>;

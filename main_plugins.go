@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"log/slog"
+	"net"
 	"net/http"
 	"path/filepath"
 	"time"
@@ -34,6 +36,7 @@ type pluginRuntime struct {
 	dynamicForward      *usecase.DynamicForwardCoordinator
 	embedBridge         *usecase.PluginEmbedBridge
 	channelBus          *capability.ChannelBus
+	sessionRegistry     *sessionRegistryHolder
 	viewInbound         *usecase.PluginViewInbound
 	viewRelay           *usecase.PluginViewRelay
 	vaultInbound        *usecase.PluginVaultInbound
@@ -98,6 +101,8 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	})
 
 	channelBus := capability.NewChannelBus()
+	channelCloseNotify := newChannelCloseNotifiers()
+	sessionRegistry := newSessionRegistryHolder()
 
 	hostCfg := infraplugin.HostConfig{
 		DataRoot:          dataRoot,
@@ -109,14 +114,13 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		Tunnel:            dynamicForward,
 		SessionAuthorizer: sessionAuthorizer,
 		Audit:             pluginAudit.RPCRecorder(),
-		// Real purpose backends (exec/tcp-relay/embed-stream) land in ADR-011 Stages 6-8; until
-		// then every channel.open is rejected after purpose/session validation, same as any other
-		// declared-but-unimplemented capability.
-		ChannelResolver: func(string) (domainplugin.ChannelPurposeBackend, error) {
-			return nil, domainplugin.ErrNotImplemented
-		},
-		ChannelAudit: pluginAudit.ChannelFunc(),
-		ChannelBus:   channelBus,
+		// The channel purpose backends and everything they need are assembled in
+		// main_channels.go: constructing them is its own reason to change, separate from wiring
+		// the plugin runtime.
+		ChannelResolverFor:         newChannelResolverFor(pluginAudit.ChannelFunc(), embedTunnels, channelCloseNotify, sessionRegistry),
+		AttachChannelCloseNotifier: channelCloseNotify.attach,
+		ChannelAudit:       pluginAudit.ChannelFunc(),
+		ChannelBus:         channelBus,
 		OnCrash: func(pluginID, sessionID string) {
 			if manager != nil {
 				manager.OnProcessCrashed(pluginID, sessionID)
@@ -215,6 +219,21 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	})
 	compositeAssets := infrapluginembed.NewCompositeHandler(pluginAssets, embedBroker)
 
+	// The composite handler is also served through the Wails asset server (wails.localhost), but
+	// on Windows/WebView2 that host serves HTTP only — it does NOT proxy ws:// upgrades, so the
+	// embed tunnel WebSocket can never reach the broker there. Serve the same handler from a real
+	// loopback listener and point the embed UI/tunnel URLs at it (SetBaseURL), so the iframe loads
+	// its assets AND opens its ws:// tunnel against one same-origin host that actually accepts the
+	// upgrade. Best-effort: if the listener cannot bind, embed sessions degrade rather than crash.
+	if ln, lnErr := net.Listen("tcp", "127.0.0.1:0"); lnErr != nil {
+		slog.Warn("embed: loopback broker listener unavailable; embed tunnels disabled", "err", lnErr)
+	} else {
+		srv := &http.Server{Handler: compositeAssets}
+		safego.GoNamed("embed.loopbackBroker", func() { _ = srv.Serve(ln) })
+		embedTunnels.SetBaseURL("http://" + ln.Addr().String())
+		slog.Info("embed: loopback broker listening", "addr", ln.Addr().String())
+	}
+
 	embedTunnels.SetPluginNotifier(func(ctx context.Context, pluginID, sessionID, method string, params []byte) error {
 		if manager == nil {
 			return nil
@@ -234,6 +253,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		embedInbound:        embedInbound,
 		embedTunnels:        embedTunnels,
 		channelBus:          channelBus,
+		sessionRegistry:     sessionRegistry,
 		dynamicForward:      dynamicForward,
 		viewInbound:         viewInbound,
 		viewRelay:           viewRelay,
@@ -262,6 +282,10 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 		r.embedTunnels.SetEmbedReadyHandler(api.OnEmbedReady)
 	}
 	api.Sessions().SetEmbedTunnelService(r.embedTunnels)
+	// The exec channel backend needs the session registry NewSessionManager owns privately, and
+	// this runtime -- resolver included -- was built before it existed. SessionManager pushes it
+	// here rather than exposing it, the same way it hands it to EmbedTunnelService above.
+	api.Sessions().WireChannelSessionRegistry(r.sessionRegistry.set)
 	api.Sessions().SetChannelBus(r.channelBus)
 	api.Sessions().SetDynamicForward(r.dynamicForward)
 	if r.dynamicForward != nil && r.vaultSettings != nil {

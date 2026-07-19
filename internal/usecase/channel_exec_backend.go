@@ -9,6 +9,7 @@ import (
 
 	"ssh-client/internal/domain"
 	domainplugin "ssh-client/internal/domain/plugin"
+	"ssh-client/internal/pkg/logx"
 	"ssh-client/internal/pkg/safego"
 )
 
@@ -27,9 +28,15 @@ type execSession interface {
 }
 
 // ChannelCloseNotifier reports a channel's terminal reason/message once its remote process ends,
-// so the caller can surface it as a channel.close {reason, message} JSON-RPC notification (ADR-011:
-// there is no binary error frame for application-level errors).
-type ChannelCloseNotifier func(reason, message string)
+// so the caller can surface it as a channel.close {channelId, reason, message} JSON-RPC
+// notification (ADR-011: there is no binary error frame for application-level errors).
+//
+// The channel id is a parameter rather than something the notifier closes over, because no
+// notifier can be built per channel: the resolver constructs this backend during
+// ChannelProxy.Open, before an id has been allocated, and Authorize must run earlier still. The
+// backend learns its own id at Wire time (ChannelHandle.ChannelID) and supplies it here, so the
+// notifier binds once per plugin process — the same granularity as every other per-process seam.
+type ChannelCloseNotifier func(channelID uint32, reason, message string)
 
 const stderrCaptureLimit = 4 * 1024
 
@@ -158,51 +165,69 @@ func (b *ChannelExecBackend) Wire(ctx context.Context, ch *domainplugin.ChannelH
 			Timestamp:       time.Now(),
 			PluginID:        b.pluginID,
 			Action:          "channel.open",
-			ChannelID:       ch.ChannelID,
-			Purpose:         ch.Purpose,
-			ParentSessionID: ch.ParentSessionID,
+			ChannelID:       ch.ChannelID(),
+			Purpose:         ch.Purpose(),
+			ParentSessionID: ch.ParentSessionID(),
 			Target:          strings.Join(argv, " "),
 			Success:         true,
 		})
 	}
 
-	if data := ch.Data; data != nil {
-		safego.GoNamed("plugin.channelExecInbound", func() {
-			for {
-				payload, ok := data.Recv()
-				if !ok {
-					_ = stdin.Close()
-					return
-				}
-				if _, err := stdin.Write(payload); err != nil {
-					_ = stdin.Close()
+	data := ch.Data()
+	// Captured here, not read inside the goroutine below: the id is what lets a per-process
+	// notifier route this close to the right channel (D8).
+	channelID := ch.ChannelID()
+	log := logx.For("plugin.channel").With("pluginId", b.pluginID, "channelId", channelID)
+
+	safego.GoNamed("plugin.channelExecInbound", func() {
+		for {
+			payload, ok := data.Recv()
+			if !ok {
+				log.Debug("exec inbound closed: channel data ended")
+				_ = stdin.Close()
+				return
+			}
+			if _, err := stdin.Write(payload); err != nil {
+				log.Warn("exec inbound closed: stdin write failed", "err", err)
+				_ = stdin.Close()
+				return
+			}
+			// The frame is in the remote process's stdin: the plugin may send one more.
+			if err := data.Ack(ctx); err != nil {
+				log.Warn("exec inbound closed: ack failed", "err", err)
+				_ = stdin.Close()
+				return
+			}
+		}
+	})
+
+	safego.GoNamed("plugin.channelExecOutbound", func() {
+		buf := make([]byte, 32*1024)
+		for {
+			if err := data.WaitForCapacity(ctx); err != nil {
+				log.Debug("exec outbound closed: capacity wait ended", "err", err)
+				return
+			}
+			n, err := stdout.Read(buf)
+			if n > 0 {
+				if sendErr := data.Send(ctx, append([]byte(nil), buf[:n]...)); sendErr != nil {
+					log.Warn("exec outbound closed: channel send failed", "err", sendErr)
 					return
 				}
 			}
-		})
-
-		safego.GoNamed("plugin.channelExecOutbound", func() {
-			buf := make([]byte, 32*1024)
-			for {
-				if err := data.WaitForCapacity(ctx); err != nil {
-					return
+			if err != nil {
+				if err == io.EOF {
+					log.Debug("exec outbound closed: stdout EOF")
+				} else {
+					log.Warn("exec outbound closed: stdout read failed", "err", err)
 				}
-				n, err := stdout.Read(buf)
-				if n > 0 {
-					if sendErr := data.Send(ctx, append([]byte(nil), buf[:n]...)); sendErr != nil {
-						return
-					}
-				}
-				if err != nil {
-					return
-				}
+				return
 			}
-		})
-	}
+		}
+	})
 
-	// The wait/close-notify goroutine always runs, independent of whether a binary data path is
-	// wired, so a channel opened purely to observe process exit (no ch.Data) still surfaces its
-	// completion via channel.close {reason, message}.
+	// The wait/close-notify goroutine runs alongside the stdio pumps so process completion
+	// surfaces via channel.close {reason, message} even while they are still draining.
 	safego.GoNamed("plugin.channelExecWait", func() {
 		stderrBuf := make([]byte, 0, stderrCaptureLimit)
 		limited := io.LimitReader(stderr, stderrCaptureLimit)
@@ -218,8 +243,9 @@ func (b *ChannelExecBackend) Wire(ctx context.Context, ch *domainplugin.ChannelH
 				message = waitErr.Error()
 			}
 		}
+		log.Info("exec channel ended", "reason", reason)
 		if b.closeNotifier != nil {
-			b.closeNotifier(reason, message)
+			b.closeNotifier(channelID, reason, message)
 		}
 		_ = b.CloseRemote()
 	})

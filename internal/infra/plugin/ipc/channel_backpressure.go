@@ -1,41 +1,28 @@
 package ipc
 
-import (
-	"context"
-	"sync"
+import "context"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-)
+// At credit 0 every purpose behaves the same way: the backend's own upstream read loop stops
+// pulling more data until credit frees up, so backpressure propagates to the real source (SSH
+// stdout pipe, relayed socket, browser input stream) instead of an in-process buffer growing
+// without bound.
+//
+// embed-stream used to be the exception, dropping the oldest unsent frame at credit 0
+// (latest-frame-wins). That was written for video, where a frame is self-contained and losing
+// an old one costs a dropped picture. The purpose carries no such thing: its outbound direction
+// is browser control input, where every event is a state transition, not a snapshot. A dropped
+// KeyEvent with down=0 leaves the key held down on the remote machine — a stuck Ctrl or Shift,
+// with nothing in any log. Its inbound direction is an incremental framebuffer, which does not
+// survive a lost delta either. There is no direction in which dropping was correct.
+//
+// udp-relay looks like a candidate for dropping but is not: at credit 0 its backend stops
+// reading the socket and the OS receive buffer bounds and drops excess datagrams, which is
+// correct UDP behavior arrived at without a host-side policy.
+//
+// If a genuine video transport ever needs latest-frame-wins, it belongs to a purpose that opts
+// into it explicitly, not as the default for a channel carrying user input.
 
-// exhaustionPolicy is the per-purpose ADR-011 §2b behavior when a channel's outbound credit
-// hits zero.
-type exhaustionPolicy int
-
-const (
-	// policyPauseUpstreamRead covers exec/tcp-relay/udp-relay: the backend's own upstream
-	// read loop must stop pulling more data until credit frees up, so backpressure
-	// propagates to the real source (SSH stdout pipe / relayed socket) instead of an
-	// in-process buffer growing without bound.
-	policyPauseUpstreamRead exhaustionPolicy = iota
-	// policyDropOldestUnsent covers embed-stream: latest-frame-wins: the newest frame
-	// evicts the oldest still-unsent one. There is no upstream to pause — this is host-side
-	// buffer logic only.
-	policyDropOldestUnsent
-)
-
-// policyForPurpose dispatches the ADR-011 §2b exhaustion policy for a channel purpose.
-// udp-relay deliberately shares exec/tcp-relay's pause-upstream-read branch, not
-// embed-stream's drop-oldest branch: at credit 0 the UDP backend stops reading its socket
-// and the OS receive buffer bounds and drops excess datagrams, which is the correct
-// (bounded, no-unbounded-queue) UDP behavior rather than a distinct policy.
-func policyForPurpose(purpose string) exhaustionPolicy {
-	if purpose == domainplugin.PurposeEmbedStream {
-		return policyDropOldestUnsent
-	}
-	return policyPauseUpstreamRead
-}
-
-// backendGate is the capacity signal a pause-upstream-read purpose backend's read loop
+// backendGate is the capacity signal a purpose backend's read loop
 // blocks on before pulling more data from its upstream source. It never itself queues
 // anything — it only reports "credit is available", derived from the channel's live
 // outbound credit — so no unbounded in-process buffer can grow behind it.
@@ -52,47 +39,4 @@ func newBackendGate(credit *channelCredit) *backendGate {
 // pure "may I proceed" signal.
 func (g *backendGate) WaitForCapacity(ctx context.Context) error {
 	return g.credit.WaitOutboundAvailable(ctx)
-}
-
-// stagingBuffer implements the embed-stream drop-oldest-unsent-frame policy: a bounded,
-// host-side buffer of frames waiting for outbound credit. When a new frame arrives and the
-// buffer is already at capacity, the oldest entry is evicted first (latest-frame-wins).
-type stagingBuffer struct {
-	mu       sync.Mutex
-	capacity int
-	frames   [][]byte
-}
-
-func newStagingBuffer(capacity int) *stagingBuffer {
-	if capacity < 1 {
-		capacity = 1
-	}
-	return &stagingBuffer{capacity: capacity}
-}
-
-// Push appends payload, evicting the oldest still-unsent frame first if the buffer is
-// already at capacity.
-func (b *stagingBuffer) Push(payload []byte) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if len(b.frames) >= b.capacity {
-		b.frames = b.frames[1:]
-	}
-	b.frames = append(b.frames, append([]byte(nil), payload...))
-}
-
-// Frames returns a snapshot of the currently staged frames, oldest first.
-func (b *stagingBuffer) Frames() [][]byte {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	out := make([][]byte, len(b.frames))
-	copy(out, b.frames)
-	return out
-}
-
-// Len reports the number of currently staged frames.
-func (b *stagingBuffer) Len() int {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return len(b.frames)
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +40,55 @@ type EmbedTunnelService struct {
 
 	registry         *SessionRegistry
 	manifestLookup   PluginManifestLookup
+
+	// baseURL, when set, is prepended to the (otherwise root-relative) embed UI/tunnel paths so
+	// the descriptor carries an absolute origin. On Windows/WebView2 the Wails asset server
+	// (wails.localhost) serves HTTP but does NOT proxy WebSocket upgrades, so the embed tunnel
+	// must resolve to a real loopback listener (http://127.0.0.1:<port>) that serves both the UI
+	// assets and the ws:// tunnel from one same-origin host. Empty keeps the legacy relative URLs.
+	baseURL string
+
+	// outbound holds the embed-stream channel subscribers, sessionID -> tunnelID -> sub. It is
+	// deliberately keyed on the session rather than stored on embedEntry: a subscription outlives a
+	// token rotation (Register replaces the entry), and D1's routing predicate is defined per
+	// (sessionID, tunnelID), not per token.
+	outbound map[string]map[string]*embedOutboundSub
+}
+
+// embedOutboundSub is one channel-bus subscriber for a (sessionID, tunnelID) pair's browser->plugin
+// input.
+//
+// ch is UNBUFFERED, on purpose. This direction is control input: every event is a state
+// transition, not a snapshot, so it may never be dropped (readiness 7.3), and the channel bus below
+// it now has real credit-based backpressure to propagate. A buffer here would absorb that
+// backpressure into an unbounded host-side queue -- the very thing ADR-011's credit window exists
+// to remove -- and a bounded buffer would eventually have to drop. Blocking does neither: the
+// browser's WebSocket read loop simply stops reading until the plugin's window reopens.
+//
+// done, not close(ch), signals teardown: senders hold no reference to the unsubscriber, so closing
+// ch would race a send into a panic.
+type embedOutboundSub struct {
+	ch   chan []byte
+	done chan struct{}
+	once sync.Once
+}
+
+func (sub *embedOutboundSub) stop() {
+	sub.once.Do(func() { close(sub.done) })
+}
+
+// deliver hands one frame to the subscriber, blocking until it is taken. It reports false only when
+// the subscription ended while waiting -- never when the frame was dropped, because it never drops
+// one: the caller then routes the frame to the legacy transport instead.
+func (sub *embedOutboundSub) deliver(ctx context.Context, data []byte) (bool, error) {
+	select {
+	case sub.ch <- data:
+		return true, nil
+	case <-sub.done:
+		return false, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
 }
 
 type embedEntry struct {
@@ -48,6 +98,26 @@ type embedEntry struct {
 	wsConns    map[string]*embedWSConn
 	active     bool
 }
+
+// embedWSSendQueueDepth bounds the frames a tunnel may hold between the sink and the wire.
+//
+// D10: "accepted downstream" means ws.WriteMessage returned, not that this queue took the frame.
+// RouteTunnelFrameFromPlugin returns as soon as the queue accepts, so the plugin's credit window
+// reopens on enqueue -- which means any depth this queue has is memory the credit window does not
+// account for and the plugin's Job Object does not bound. At the old depth of 256 that was
+// 256 x 64 KiB = 16 MiB per tunnel behind a 512 KiB window: 33x, invisible only because the pump
+// never ran.
+//
+// Pinning the depth to the embed-stream credit window makes the distinction stop mattering: the
+// queue can no longer hide more than a window, so the window is once again the only thing holding
+// frames and per-tunnel host cost is the 8 x 64 KiB = 512 KiB ADR-011 promises. The queue still
+// exists to decouple the sink from a single in-flight ws.WriteMessage; it is not a buffer.
+//
+// This must NOT drop (7.3). The enqueue below stays a non-blocking select whose full case is a
+// classified ws-buffer-full refusal, which the embed backend's pump waits on (B4/D4). Making a
+// full queue drop instead would lose a KeyEvent{down=0} and leave a modifier held on the remote
+// machine with nothing in any log.
+var embedWSSendQueueDepth = domainplugin.InitialCredit(domainplugin.PurposeEmbedStream)
 
 type embedWSConn struct {
 	send chan []byte
@@ -80,6 +150,7 @@ func NewEmbedTunnelService(factory domain.RateLimiterFactory) *EmbedTunnelServic
 		sessionToken:   make(map[string]string),
 		sessionActive:  make(map[string]bool),
 		limiterFactory: factory,
+		outbound:       make(map[string]map[string]*embedOutboundSub),
 	}
 }
 
@@ -95,6 +166,15 @@ func (s *EmbedTunnelService) SetEmbedReadyHandler(fn EmbedReadyFunc) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.onEmbedReady = fn
+}
+
+// SetBaseURL sets the absolute origin (e.g. "http://127.0.0.1:52731") prepended to embed UI and
+// tunnel paths, so the browser resolves both from the real loopback listener that can serve the
+// ws:// tunnel (see baseURL). Empty leaves the URLs root-relative.
+func (s *EmbedTunnelService) SetBaseURL(u string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.baseURL = u
 }
 
 // WireSessionContext binds session registry and manifest lookup for plugin RPC handlers.
@@ -120,7 +200,9 @@ func (s *EmbedTunnelService) Register(ctx context.Context, reg domain.EmbedRegis
 		reg.TunnelIDs = []string{"main"}
 	}
 	if len(reg.TunnelIDs) > domain.MaxTunnelsPerSession {
-		return domain.SessionEmbedDescriptor{}, fmt.Errorf("too many tunnels")
+		return domain.SessionEmbedDescriptor{}, fmt.Errorf(
+			"too many tunnels: %d requested, limit is %d per embed session",
+			len(reg.TunnelIDs), domain.MaxTunnelsPerSession)
 	}
 	token, err := mintEmbedToken()
 	if err != nil {
@@ -149,7 +231,14 @@ func (s *EmbedTunnelService) Register(ctx context.Context, reg domain.EmbedRegis
 		entry.active = v
 	}
 	for _, id := range reg.TunnelIDs {
-		entry.tunnelOpen[id] = false
+		// Open (ready to receive) on registration, not false. A registered-but-not-yet-attached
+		// tunnel must classify a pre-attach frame as TunnelNotAttached (transient — the plugin, for a
+		// server-speaks-first protocol like VNC, pushes its synthetic RFB banner before the iframe's
+		// WebSocket attaches) so the host retries until attach. false made it TunnelClosed (terminal),
+		// tearing the embed channel down and dropping the banner. Only CloseTunnel sets it false. The
+		// channel-bus embed path never calls the legacy session.tunnelOpen, so this is the only place
+		// a channel-bus tunnel is ever marked ready.
+		entry.tunnelOpen[id] = true
 	}
 	s.entries[token] = entry
 	s.sessionToken[reg.SessionID] = token
@@ -160,8 +249,8 @@ func (s *EmbedTunnelService) Register(ctx context.Context, reg domain.EmbedRegis
 	desc := domain.SessionEmbedDescriptor{
 		SessionID: reg.SessionID,
 		PluginID:  reg.PluginID,
-		UIUrl:     embedUIPath(token, reg.UIEntry),
-		TunnelUrl: embedTunnelPath(token, mainTunnel),
+		UIUrl:     s.baseURL + embedUIPath(token, reg.UIEntry),
+		TunnelUrl: s.baseURL + embedTunnelPath(token, mainTunnel),
 		Sandbox:   []string{"allow-scripts", "allow-same-origin"},
 		ExpiresAt: reg.ExpiresAt,
 	}
@@ -222,8 +311,8 @@ func (s *EmbedTunnelService) GetDescriptor(sessionID string) (domain.SessionEmbe
 	return domain.SessionEmbedDescriptor{
 		SessionID: sessionID,
 		PluginID:  entry.reg.PluginID,
-		UIUrl:     embedUIPath(token, entry.reg.UIEntry),
-		TunnelUrl: embedTunnelPath(token, mainTunnel),
+		UIUrl:     s.baseURL + embedUIPath(token, entry.reg.UIEntry),
+		TunnelUrl: s.baseURL + embedTunnelPath(token, mainTunnel),
 		Sandbox:   []string{"allow-scripts", "allow-same-origin"},
 		ExpiresAt: entry.reg.ExpiresAt,
 	}, true
@@ -245,45 +334,94 @@ func (s *EmbedTunnelService) OpenTunnel(sessionID, tunnelID string) error {
 }
 
 // RouteTunnelFrameFromPlugin forwards plugin bytes to the browser WebSocket.
+//
+// Every refusal is classified (see EmbedFrameRefusedError): this service is the only thing that
+// knows whether a refusal means "wait a moment", "wait for the user to come back" or "this frame
+// can never be delivered", and the two sentinels it returns cannot carry that difference. The
+// sentinels are wrapped, never replaced, so callers matching them with errors.Is — the legacy
+// ADR-008 tunnel path and ipc.HostServer's JSON-RPC code mapping — are unaffected.
 func (s *EmbedTunnelService) RouteTunnelFrameFromPlugin(_ context.Context, sessionID, tunnelID string, data []byte) error {
 	if len(data) > domain.MaxTunnelFrameSize {
-		return domainplugin.ErrRateLimited
+		return newEmbedRefusal(EmbedRefusedFrameTooLarge, domainplugin.ErrRateLimited)
 	}
 	s.mu.RLock()
 	entry, err := s.entryForSessionLocked(sessionID)
 	if err != nil {
 		s.mu.RUnlock()
-		return err
+		return newEmbedRefusal(EmbedRefusedSessionGone, err)
 	}
 	if !entry.active {
 		s.mu.RUnlock()
-		return domainplugin.ErrTerminalBackpressure
+		return newEmbedRefusal(EmbedRefusedTabInactive, domainplugin.ErrTerminalBackpressure)
 	}
 	if !entry.limiter.AllowN(len(data)) {
 		s.mu.RUnlock()
-		return domainplugin.ErrRateLimited
+		return newEmbedRefusal(EmbedRefusedRateLimited, domainplugin.ErrRateLimited)
 	}
 	conn := entry.wsConns[tunnelID]
+	open, registered := entry.tunnelOpen[tunnelID]
 	s.mu.RUnlock()
 	if conn == nil {
-		return nil
+		// An absent conn is three different states, and returning nil for all of them said
+		// "delivered" about a frame nobody received. tunnelOpen tells them apart:
+		switch {
+		case !registered:
+			// The plugin is addressing a tunnel this session never registered. Terminal, and its
+			// own bug: no amount of waiting makes an id appear that was never minted.
+			return newEmbedRefusal(EmbedRefusedTunnelUnknown, domainplugin.ErrHandleNotFound)
+		case open:
+			// Registered and open, but the iframe has not called AttachWebSocket yet. Transient
+			// and legitimate: a plugin may push an RFB handshake before the browser is ready.
+			return newEmbedRefusal(EmbedRefusedTunnelNotAttached, domainplugin.ErrTerminalBackpressure)
+		default:
+			// CloseTunnel removed the conn and left the entry alive, so nothing else ever reports
+			// this: unlike RevokeBySession, which deletes the whole entry and surfaces as
+			// session-revoked, a closed tunnel is invisible to every other check here.
+			return newEmbedRefusal(EmbedRefusedTunnelClosed, domainplugin.ErrHandleNotFound)
+		}
 	}
 	select {
 	case conn.send <- data:
+		slog.Debug("embed: plugin->browser frame queued to WS", "pluginId", "com.xquakshell.vnc", "tunnelId", tunnelID, "bytes", len(data))
 		return nil
 	default:
-		return domainplugin.ErrTerminalBackpressure
+		return newEmbedRefusal(EmbedRefusedWSBufferFull, domainplugin.ErrTerminalBackpressure)
 	}
 }
 
 // RouteTunnelFrameToPlugin forwards browser WebSocket bytes to the plugin.
+//
+// This is D1's one predicate, and it lives here because this is the one place both transports are
+// reachable and the only place the broker's pumpWSToPlugin calls: for a given (sessionID,
+// tunnelID), input goes to exactly one transport. An open embed-stream channel REPLACES
+// session.tunnelData for that tunnel -- it does not supplement it -- because a plugin subscribed to
+// both would receive every input event twice, once as a binary frame and once as base64 JSON.
+// Deciding this at two call sites is how that drifts back apart, so there is only ever this one.
 func (s *EmbedTunnelService) RouteTunnelFrameToPlugin(ctx context.Context, sessionID, tunnelID string, data []byte) error {
 	s.mu.RLock()
 	entry, err := s.entryForSessionLocked(sessionID)
 	notify := s.notifyPlugin
+	sub := s.outboundSubLocked(sessionID, tunnelID)
 	s.mu.RUnlock()
 	if err != nil {
 		return err
+	}
+	slog.Debug("embed: browser->plugin frame received from WS", "pluginId", "com.xquakshell.vnc", "tunnelId", tunnelID, "bytes", len(data), "hasSub", sub != nil)
+	if sub != nil {
+		// Blocking, and deliberately outside the lock: the subscription carries the channel bus's
+		// credit-based backpressure back to the browser's WebSocket read loop instead of queueing
+		// input in the host. The tab-active check below is NOT applied here -- input is state
+		// transitions, and dropping a KeyEvent{down=0} because a tab blurred leaves a modifier held
+		// on the remote machine (7.3, D7's closing note).
+		delivered, err := sub.deliver(ctx, data)
+		if err != nil {
+			return err
+		}
+		if delivered {
+			return nil
+		}
+		// The channel unsubscribed while this frame was in hand. Fall through to the legacy
+		// transport rather than drop the event: still one predicate, still one place.
 	}
 	if !entry.active {
 		return nil
@@ -345,13 +483,83 @@ func (s *EmbedTunnelService) AttachWebSocket(token, tunnelID string) (domain.Emb
 		close(old.done)
 	}
 	conn := &embedWSConn{
-		send: make(chan []byte, 256),
+		send: make(chan []byte, embedWSSendQueueDepth),
 		done: make(chan struct{}),
 	}
 	entry.wsConns[tunnelID] = conn
 	entry.tunnelOpen[tunnelID] = true
 	entry.active = s.sessionActive[entry.reg.SessionID]
 	return conn, entry.reg, nil
+}
+
+// SubscribeOutbound registers an embed-stream channel as the consumer of a tunnel's
+// browser->plugin input, and is the plugin-side counterpart of AttachWebSocket: one registers the
+// browser end of a tunnel, this registers the plugin end.
+//
+// The returned channel is unbuffered -- see embedOutboundSub for why that is the contract and not
+// an oversight. The returned func unsubscribes; it is idempotent and safe to call concurrently with
+// delivery, and after it returns the tunnel falls back to the legacy session.tunnelData
+// notification (D1).
+//
+// Like AttachWebSocket, the last subscriber for a (sessionID, tunnelID) wins: a re-opened channel
+// replaces a stale one rather than splitting the input stream between two consumers.
+func (s *EmbedTunnelService) SubscribeOutbound(sessionID, tunnelID string) (<-chan []byte, func()) {
+	if s == nil || sessionID == "" || tunnelID == "" {
+		return nil, func() {}
+	}
+	sub := &embedOutboundSub{
+		ch:   make(chan []byte),
+		done: make(chan struct{}),
+	}
+
+	s.mu.Lock()
+	byTunnel, ok := s.outbound[sessionID]
+	if !ok {
+		byTunnel = make(map[string]*embedOutboundSub)
+		s.outbound[sessionID] = byTunnel
+	}
+	prev := byTunnel[tunnelID]
+	byTunnel[tunnelID] = sub
+	// The channel-bus embed path never calls session.tunnelOpen (that is the legacy ADR-008 path):
+	// wiring the embed-stream channel — which is what triggers this subscription — is itself the
+	// plugin declaring the tunnel ready. Mark it open so a plugin's pre-attach RFB banner (a VNC
+	// server speaks first, and the plugin pushes the synthetic handshake before the iframe's
+	// WebSocket attaches) is classified as "browser not attached yet" (transient, retried until the
+	// WS attaches) rather than "tunnel closed" (terminal), which would tear the channel down and
+	// drop the banner before noVNC ever receives it.
+	if entry, entryErr := s.entryForSessionLocked(sessionID); entryErr == nil {
+		if _, registered := entry.tunnelOpen[tunnelID]; registered {
+			entry.tunnelOpen[tunnelID] = true
+		}
+	}
+	s.mu.Unlock()
+
+	if prev != nil {
+		prev.stop()
+	}
+
+	return sub.ch, func() {
+		s.mu.Lock()
+		// Only this subscription's own registration is removed: a later SubscribeOutbound for the
+		// same tunnel already replaced it, and must not be unsubscribed by its predecessor's func.
+		if byTunnel, ok := s.outbound[sessionID]; ok && byTunnel[tunnelID] == sub {
+			delete(byTunnel, tunnelID)
+			if len(byTunnel) == 0 {
+				delete(s.outbound, sessionID)
+			}
+		}
+		s.mu.Unlock()
+		sub.stop()
+	}
+}
+
+// outboundSubLocked reports the channel subscriber for a tunnel, if any. Callers hold s.mu.
+func (s *EmbedTunnelService) outboundSubLocked(sessionID, tunnelID string) *embedOutboundSub {
+	byTunnel, ok := s.outbound[sessionID]
+	if !ok {
+		return nil
+	}
+	return byTunnel[tunnelID]
 }
 
 // UIEntryForToken returns the ui entry path for a token.

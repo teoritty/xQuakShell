@@ -25,16 +25,20 @@ type Conn struct {
 	enc         *Codec
 	reader      *bufio.Reader
 	writeCloser io.Closer
-	pending     map[int64]chan messageResult
-	nextID     atomic.Int64
-	onNotify   func(method string, params json.RawMessage)
-	onRequest  RequestHandler
-	mux        *channelMux
-	closeCh    chan struct{}
-	closeOnce  sync.Once
-	wg         sync.WaitGroup
-	readErr    error
-	mu         sync.Mutex
+	readCloser  io.Closer
+	pending     map[string]chan messageResult
+	nextID      atomic.Int64
+	onNotify    func(method string, params json.RawMessage)
+	onRequest   RequestHandler
+	mux         *channelMux
+	// channelThroughputKbps is the manifest's channel.maxThroughputKbps for this plugin,
+	// applied to every channel this conn opens.
+	channelThroughputKbps int
+	closeCh               chan struct{}
+	closeOnce             sync.Once
+	wg                    sync.WaitGroup
+	readErr               error
+	mu                    sync.Mutex
 }
 
 type messageResult struct {
@@ -43,21 +47,36 @@ type messageResult struct {
 }
 
 // NewConn creates a connection. readFrom is plugin stdout; writeTo is plugin stdin.
-func NewConn(readFrom io.Reader, writeTo io.Writer, onNotify func(string, json.RawMessage), onRequest RequestHandler) *Conn {
+// channelThroughputKbps is the manifest's declared channel bandwidth cap, applied to every
+// channel opened on this conn; 0 selects the host default.
+func NewConn(readFrom io.Reader, writeTo io.Writer, onNotify func(string, json.RawMessage), onRequest RequestHandler, channelThroughputKbps int) *Conn {
+	if channelThroughputKbps <= 0 {
+		channelThroughputKbps = domainplugin.DefaultChannelThroughputKbps
+	}
 	var wc io.Closer
 	if c, ok := writeTo.(io.Closer); ok {
 		wc = c
 	}
-	c := &Conn{
-		enc:         NewCodec(writeTo),
-		reader:      bufio.NewReader(readFrom),
-		writeCloser: wc,
-		pending:     make(map[int64]chan messageResult),
-		onNotify:  onNotify,
-		onRequest: onRequest,
-		mux:       newChannelMux(),
-		closeCh:   make(chan struct{}),
+	// readFrom is the plugin's stdout pipe in production (an io.ReadCloser). Close needs it to
+	// unpark the read loop; see Conn.Close.
+	var rc io.Closer
+	if c, ok := readFrom.(io.Closer); ok {
+		rc = c
 	}
+	c := &Conn{
+		enc:                   NewCodec(writeTo),
+		reader:                bufio.NewReader(readFrom),
+		writeCloser:           wc,
+		readCloser:            rc,
+		pending:               make(map[string]chan messageResult),
+		onNotify:              onNotify,
+		onRequest:             onRequest,
+		closeCh:               make(chan struct{}),
+		channelThroughputKbps: channelThroughputKbps,
+	}
+	// The mux's channels emit through this conn's serialized writer, so channel data and
+	// JSON-RPC never interleave mid-frame.
+	c.mux = newChannelMux(c.WriteBinary)
 	c.wg.Add(1)
 	safego.GoNamed("ipc.readLoop", c.readLoop)
 	return c
@@ -66,15 +85,16 @@ func NewConn(readFrom io.Reader, writeTo io.Writer, onNotify func(string, json.R
 // Call sends a JSON-RPC request and waits for the matching response.
 func (c *Conn) Call(ctx context.Context, method string, params json.RawMessage) (json.RawMessage, error) {
 	id := c.nextID.Add(1)
+	key := int64ID(id).Key()
 	ch := make(chan messageResult, 1)
 
 	c.mu.Lock()
-	c.pending[id] = ch
+	c.pending[key] = ch
 	c.mu.Unlock()
 
 	defer func() {
 		c.mu.Lock()
-		delete(c.pending, id)
+		delete(c.pending, key)
 		c.mu.Unlock()
 	}()
 
@@ -123,10 +143,27 @@ func (c *Conn) CloseWrite() {
 	}
 }
 
-// Close stops the read loop. Does not close underlying pipes.
+// Close stops the read loop and waits for it to exit.
+//
+// Closing closeCh alone is not enough to end the read loop: it parks in ReadFrame until the
+// plugin sends bytes or the pipe yields, and closeCh is only consulted between frames. A
+// plugin that is hung, wedged, or hostile simply never sends the frame that would let the
+// loop notice, so Close must also close the read side to unpark it. Without that, Close
+// blocks forever on wg.Wait — and since managedProcess.closeResources calls Close before it
+// kills the child, the kill that would have freed the pipe is unreachable.
+//
+// The read side is the child's stdout pipe; closing it early is safe alongside the reaper's
+// (*exec.Cmd).Wait, which closes its own descriptors and tolerates one already closed.
 func (c *Conn) Close() {
 	c.closeOnce.Do(func() {
 		close(c.closeCh)
+		if c.readCloser != nil {
+			_ = c.readCloser.Close()
+		}
+		// No plugin is left to spare, so every channel goes at once rather than waiting out
+		// its grace period. This also unparks any backend pump still sitting in Recv, which
+		// would otherwise keep the process's goroutines alive past its connection.
+		c.mux.ReleaseAll()
 	})
 	c.wg.Wait()
 }
@@ -172,7 +209,7 @@ func (c *Conn) readLoop() {
 				continue
 			}
 			c.mu.Lock()
-			ch, ok := c.pending[*msg.ID]
+			ch, ok := c.pending[msg.ID.Key()]
 			c.mu.Unlock()
 			if ok {
 				ch <- messageResult{msg: msg}
@@ -218,7 +255,7 @@ func (c *Conn) failReadLoop(err error, isParseError bool) {
 	c.mu.Unlock()
 }
 
-func (c *Conn) handleIncomingRequest(id int64, method string, params json.RawMessage) {
+func (c *Conn) handleIncomingRequest(id RPCID, method string, params json.RawMessage) {
 	ctx, cancel := context.WithTimeout(context.Background(), inboundRequestTimeout)
 	defer cancel()
 	result, rpcErr := c.onRequest(ctx, method, params)
@@ -232,7 +269,29 @@ func (c *Conn) handleIncomingRequest(id int64, method string, params json.RawMes
 		c.mu.Lock()
 		c.readErr = err
 		c.mu.Unlock()
+		return
 	}
+	// The channel.open reply is now on the wire ahead of any data frame the backend's pump has
+	// buffered (the pump blocks in channel.Send until here). Only now may host->plugin data
+	// flow: before the reply, the plugin has not registered the channelId and would kill itself
+	// over a frame for a channel it does not know is open.
+	if rpcErr == nil && method == "channel.open" {
+		if chID := channelIDFromOpenResult(result); chID != 0 {
+			c.mux.MarkOpened(chID)
+		}
+	}
+}
+
+// channelIDFromOpenResult extracts the channelId a successful channel.open reply carries, or 0
+// if the result is not the expected {"channelId":<uint32>} shape.
+func channelIDFromOpenResult(result json.RawMessage) uint32 {
+	var r struct {
+		ChannelID uint32 `json:"channelId"`
+	}
+	if err := json.Unmarshal(result, &r); err != nil {
+		return 0
+	}
+	return r.ChannelID
 }
 
 // ReadError returns the terminal read error, if any.

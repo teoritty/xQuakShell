@@ -132,10 +132,23 @@ type fakeChannelDataPath struct {
 	inbound  chan []byte
 	closed   chan struct{}
 	closeErr sync.Once
+	acks     atomic.Int64
 
 	mu       sync.Mutex
 	sent     [][]byte
 	capacity chan struct{}
+}
+
+func (f *fakeChannelDataPath) Ack(_ context.Context) error {
+	f.acks.Add(1)
+	return nil
+}
+
+func (f *fakeChannelDataPath) ackCount() int64 { return f.acks.Load() }
+
+func (f *fakeChannelDataPath) Close() error {
+	f.closeErr.Do(func() { close(f.closed) })
+	return nil
 }
 
 func newFakeChannelDataPath() *fakeChannelDataPath {
@@ -150,6 +163,17 @@ func closedCapacityChan() chan struct{} {
 	c := make(chan struct{})
 	close(c)
 	return c
+}
+
+// mustChannelHandle builds a handle the way the composition root does. There is no literal
+// form: a handle without a data path is not constructible, which is the point.
+func mustChannelHandle(t *testing.T, id uint32, pluginID, purpose, parentSessionID, hint string, data domainplugin.ChannelDataPath) *domainplugin.ChannelHandle {
+	t.Helper()
+	h, err := domainplugin.NewChannelHandle(id, pluginID, purpose, parentSessionID, hint, data)
+	if err != nil {
+		t.Fatalf("new channel handle: %v", err)
+	}
+	return h
 }
 
 func (f *fakeChannelDataPath) blockCapacity() {
@@ -231,14 +255,22 @@ func hintJSON(t *testing.T, template int, params map[string]string) string {
 	return string(b)
 }
 
+// closeNotification is one ChannelCloseNotifier call, recorded whole: the id is part of the
+// contract, not decoration (D8).
+type closeNotification struct {
+	channelID uint32
+	reason    string
+	message   string
+}
+
 func newTestExecBackend(t *testing.T, templates []domainplugin.ExecCommandTemplate, consentGranted bool, opener func(string) (execSession, error)) (*ChannelExecBackend, *SessionRegistry) {
 	t.Helper()
 	registry := NewSessionRegistry()
-	var notified []struct{ reason, message string }
+	var notified []closeNotification
 	var mu sync.Mutex
-	backend := NewChannelExecBackend("com.test", templates, consentGranted, registry, nil, func(reason, message string) {
+	backend := NewChannelExecBackend("com.test", templates, consentGranted, registry, nil, func(channelID uint32, reason, message string) {
 		mu.Lock()
-		notified = append(notified, struct{ reason, message string }{reason, message})
+		notified = append(notified, closeNotification{channelID, reason, message})
 		mu.Unlock()
 	})
 	if opener != nil {
@@ -274,7 +306,7 @@ func TestChannelExecBackend_Authorize_RegexFails_NoSessionOpened(t *testing.T) {
 
 	// Defense in depth: even if a caller wired anyway despite the Authorize failure, Wire must
 	// refuse (no stored argv) and never reach the session opener.
-	handle := &domainplugin.ChannelHandle{ChannelID: 1, PluginID: "com.test", Purpose: domainplugin.PurposeExec, ParentSessionID: "sess-1"}
+	handle := mustChannelHandle(t, 1, "com.test", domainplugin.PurposeExec, "sess-1", "", newFakeChannelDataPath())
 	if err := backend.Wire(context.Background(), handle); !errors.Is(err, domainplugin.ErrCapabilityDenied) {
 		t.Fatalf("wire err = %v, want ErrCapabilityDenied", err)
 	}
@@ -314,7 +346,7 @@ func TestChannelExecBackend_ShellInjectionInert(t *testing.T) {
 		t.Fatalf("authorize: %v", err)
 	}
 
-	handle := &domainplugin.ChannelHandle{ChannelID: 1, PluginID: "com.test", Purpose: domainplugin.PurposeExec, ParentSessionID: "sess-1"}
+	handle := mustChannelHandle(t, 1, "com.test", domainplugin.PurposeExec, "sess-1", "", newFakeChannelDataPath())
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}
@@ -343,7 +375,7 @@ func TestChannelExecBackend_ShellInjectionInert_EmbeddedSingleQuote(t *testing.T
 	if err := backend.Authorize(domainplugin.PurposeExec, "sess-1", hint); err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
-	handle := &domainplugin.ChannelHandle{ChannelID: 1, PluginID: "com.test", Purpose: domainplugin.PurposeExec, ParentSessionID: "sess-1"}
+	handle := mustChannelHandle(t, 1, "com.test", domainplugin.PurposeExec, "sess-1", "", newFakeChannelDataPath())
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}
@@ -362,10 +394,10 @@ func TestChannelExecBackend_Wire_ExitSurfacesViaCloseNotifier(t *testing.T) {
 	registry.Put("sess-1", newSessionEntry(sessionInfoFor("sess-1"), context.Background(), func() {}, "conn-1"))
 
 	var mu sync.Mutex
-	var got []struct{ reason, message string }
-	backend := NewChannelExecBackend("com.test", containerExecTemplates(), true, registry, nil, func(reason, message string) {
+	var got []closeNotification
+	backend := NewChannelExecBackend("com.test", containerExecTemplates(), true, registry, nil, func(channelID uint32, reason, message string) {
 		mu.Lock()
-		got = append(got, struct{ reason, message string }{reason, message})
+		got = append(got, closeNotification{channelID, reason, message})
 		mu.Unlock()
 	})
 	backend.sessionOpener = opener
@@ -374,7 +406,7 @@ func TestChannelExecBackend_Wire_ExitSurfacesViaCloseNotifier(t *testing.T) {
 	if err := backend.Authorize(domainplugin.PurposeExec, "sess-1", hint); err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
-	handle := &domainplugin.ChannelHandle{ChannelID: 1, PluginID: "com.test", Purpose: domainplugin.PurposeExec, ParentSessionID: "sess-1"}
+	handle := mustChannelHandle(t, 7, "com.test", domainplugin.PurposeExec, "sess-1", "", newFakeChannelDataPath())
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}
@@ -396,6 +428,11 @@ func TestChannelExecBackend_Wire_ExitSurfacesViaCloseNotifier(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
+	// The notifier is bound once per plugin process, so a notification that cannot name its
+	// channel cannot be routed: the id must come from the backend's own handle (D8).
+	if got[0].channelID != 7 {
+		t.Fatalf("channelID = %d, want 7 — the backend must supply the id it was wired with", got[0].channelID)
+	}
 	if got[0].reason != "exit" {
 		t.Fatalf("reason = %q, want exit", got[0].reason)
 	}
@@ -412,10 +449,10 @@ func TestChannelExecBackend_Wire_ErrorSurfacesViaCloseNotifier(t *testing.T) {
 	registry.Put("sess-1", newSessionEntry(sessionInfoFor("sess-1"), context.Background(), func() {}, "conn-1"))
 
 	var mu sync.Mutex
-	var got []struct{ reason, message string }
-	backend := NewChannelExecBackend("com.test", containerExecTemplates(), true, registry, nil, func(reason, message string) {
+	var got []closeNotification
+	backend := NewChannelExecBackend("com.test", containerExecTemplates(), true, registry, nil, func(channelID uint32, reason, message string) {
 		mu.Lock()
-		got = append(got, struct{ reason, message string }{reason, message})
+		got = append(got, closeNotification{channelID, reason, message})
 		mu.Unlock()
 	})
 	backend.sessionOpener = opener
@@ -424,7 +461,7 @@ func TestChannelExecBackend_Wire_ErrorSurfacesViaCloseNotifier(t *testing.T) {
 	if err := backend.Authorize(domainplugin.PurposeExec, "sess-1", hint); err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
-	handle := &domainplugin.ChannelHandle{ChannelID: 1, PluginID: "com.test", Purpose: domainplugin.PurposeExec, ParentSessionID: "sess-1"}
+	handle := mustChannelHandle(t, 1, "com.test", domainplugin.PurposeExec, "sess-1", "", newFakeChannelDataPath())
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}
@@ -470,7 +507,7 @@ func TestChannelExecBackend_CreditZeroSuspendsStdoutReads(t *testing.T) {
 
 	data := newFakeChannelDataPath()
 	data.blockCapacity()
-	handle := &domainplugin.ChannelHandle{ChannelID: 1, PluginID: "com.test", Purpose: domainplugin.PurposeExec, ParentSessionID: "sess-1", Data: data}
+	handle := mustChannelHandle(t, 1, "com.test", domainplugin.PurposeExec, "sess-1", "", data)
 	if err := backend.Wire(context.Background(), handle); err != nil {
 		t.Fatalf("wire: %v", err)
 	}

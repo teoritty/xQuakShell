@@ -24,7 +24,7 @@ func BenchmarkPluginIPCPingPong(b *testing.B) {
 		serveEchoPlugin(pluginReader, pluginWrite)
 	}()
 
-	conn := ipc.NewConn(coreReader, coreWrite, nil, nil)
+	conn := ipc.NewConn(coreReader, coreWrite, nil, nil, 0)
 	defer conn.Close()
 	defer coreWrite.Close()
 	defer pluginWrite.Close()
@@ -53,7 +53,7 @@ func TestPluginIPCPingPongSmoke(t *testing.T) {
 		serveEchoPlugin(pluginReader, pluginWrite)
 	}()
 
-	conn := ipc.NewConn(coreReader, coreWrite, nil, nil)
+	conn := ipc.NewConn(coreReader, coreWrite, nil, nil, 0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()

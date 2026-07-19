@@ -67,6 +67,30 @@ func dialPolicyFixtures() []dialPolicyFixture {
 			wantDenied:     true,
 		},
 		{
+			// The case above proves the block using a *hostname*. The caller chooses that
+			// spelling, and an IP literal is the spelling that used to walk straight through:
+			// with no patterns configured, patternHost fell back to the caller's own host, so
+			// AllowResolvedDialIP's "explicit pattern host == resolved IP" carve-out matched
+			// the request against itself. The carve-out exists for an IP the *manifest*
+			// allowlists — consent the user gave at install time — never for one the caller
+			// names at dial time. Without this fixture, allowPrivateNetworks was decorative
+			// for any arbitrary-outbound plugin.
+			name:           "arbitrary_blocks_private_ip_literal_without_flag",
+			allowArbitrary: true,
+			host:           "10.0.0.1",
+			resolvedIP:     net.ParseIP("10.0.0.1"),
+			port:           23,
+			wantDenied:     true,
+		},
+		{
+			name:           "arbitrary_blocks_loopback_ip_literal_without_flag",
+			allowArbitrary: true,
+			host:           "127.0.0.1",
+			resolvedIP:     net.ParseIP("127.0.0.1"),
+			port:           5900,
+			wantDenied:     true,
+		},
+		{
 			name:           "arbitrary_allows_private_with_flag",
 			allowArbitrary: true,
 			allowPrivate:   true,

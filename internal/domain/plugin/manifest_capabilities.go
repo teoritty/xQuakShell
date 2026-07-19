@@ -373,9 +373,11 @@ func allowedSecretField(field string) bool {
 	}
 }
 
-// requiresChannelExecConsent reports whether the plugin declared the exec channel purpose,
-// which requires install-time consent like auth.provider and allowArbitraryOutbound.
-func (m *Manifest) requiresChannelExecConsent() bool {
+// RequiresChannelExecConsent reports whether the plugin declared the exec channel purpose, which
+// runs commands over the user's authenticated SSH session and therefore requires an explicit
+// install-time grant, like auth.provider and allowArbitraryOutbound (ADR-011 D3). It is the
+// predicate every install path gates on, not merely a line in the permission summary.
+func (m *Manifest) RequiresChannelExecConsent() bool {
 	if m.Capabilities.Channel == nil {
 		return false
 	}
@@ -431,7 +433,7 @@ func (m *Manifest) PermissionSummary() []string {
 	if m.RequiresLocalEmbedServerWarning() {
 		lines = append(lines, "Run local HTTP server for session UI (loopback only)")
 	}
-	if m.requiresChannelExecConsent() {
+	if m.RequiresChannelExecConsent() {
 		lines = append(lines, "Run commands over your authenticated session (exec channel)")
 	}
 	if len(lines) == 0 {

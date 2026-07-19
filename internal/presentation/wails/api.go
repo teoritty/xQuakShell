@@ -2,11 +2,13 @@ package wails
 
 import (
 	"context"
+	"log/slog"
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"ssh-client/internal/domain"
 	domainplugin "ssh-client/internal/domain/plugin"
+	"ssh-client/internal/infra/loghub"
 	"ssh-client/internal/presentation/logwindow"
 	"ssh-client/internal/usecase"
 )
@@ -228,8 +230,10 @@ func (a *AppAPI) SetEmbedBridge(bridge *usecase.PluginEmbedBridge) {
 // OnEmbedReady emits SessionEmbedReady when a plugin registers an embed surface.
 func (a *AppAPI) OnEmbedReady(desc domain.SessionEmbedDescriptor) {
 	if a == nil || a.ctx == nil {
+		slog.Debug("embed: OnEmbedReady skipped, nil app ctx", "pluginId", "com.xquakshell.vnc", "sessionId", desc.SessionID)
 		return
 	}
+	slog.Debug("embed: emitting SessionEmbedReady to frontend", "pluginId", desc.PluginID, "sessionId", desc.SessionID, "uiUrl", desc.UIUrl, "tunnelUrl", desc.TunnelUrl)
 	wailsrt.EventsEmit(a.ctx, EventSessionEmbedReady, SessionEmbedToDTO(desc))
 }
 
@@ -338,6 +342,7 @@ func (a *AppAPI) UnlockVault(masterPassword string) error {
 				}
 			})
 		}
+		loghub.SetLevel(loghub.ParseLevel(data.Settings.Debug.LogLevel))
 		a.SyncDebugLogWindow(data.Settings.Debug.LogWindowEnabled)
 	}
 

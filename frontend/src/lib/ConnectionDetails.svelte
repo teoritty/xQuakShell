@@ -57,6 +57,8 @@
     jumpHops: [],
     forwardRules: [],
     pluginFields: {},
+    storedSecretFields: [],
+    pluginFieldsTouched: {},
   };
   let fieldErrors: Record<string, string> = {};
   let dirty = false;
@@ -168,6 +170,10 @@
     draft.protocol = e.detail.protocol;
     if (e.detail.defaultPort) draft.port = e.detail.defaultPort;
     draft.pluginFields = { ...(get(connectionDraftStore).protocolFieldHistory[e.detail.protocol] ?? {}) };
+    // The stored-secret set belongs to the saved protocol; a different protocol's fields have no
+    // secret in the vault under this connection, so every field is sent as typed.
+    draft.storedSecretFields = [];
+    draft.pluginFieldsTouched = {};
     applyProtocolFieldDefaults(draft, draft.protocol, protocols);
     updateFormMode();
     fieldErrors = {};
@@ -187,6 +193,9 @@
   function handleFieldChange(e: CustomEvent<{ fieldId: string; value: unknown }>) {
     const { fieldId, value } = e.detail;
     draft.pluginFields = { ...draft.pluginFields, [fieldId]: value };
+    // Mark the field edited so a stored secret, once the user actually types into it, is sent in
+    // the save payload (serializePluginFields omits stored secrets only while untouched).
+    draft.pluginFieldsTouched = { ...draft.pluginFieldsTouched, [fieldId]: true };
     markDirty();
   }
 
@@ -304,6 +313,7 @@
         forwardRules={draft.forwardRules}
         identities={$identities}
         pluginFields={draft.pluginFields}
+        storedSecretFields={draft.storedSecretFields}
         {fieldErrors}
         on:dirty={markDirty}
         on:userschange={(e) => setDraftUsers(e.detail)}

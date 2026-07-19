@@ -67,11 +67,13 @@ Credit is measured in **frames, not bytes** — this deliberately decouples flow
 
 - On `channel.opened`, the receiver grants an initial credit (e.g. 4 frames).
 - The sender may have at most `credit` frames in flight, unacknowledged, on that channel — regardless of how large or small each individual frame's payload is, as long as each stays under `maxFrameSize`.
-- The receiver sends a `kind=0x03` credit-update frame as it drains/processes frames, replenishing the sender's count.
-- **Per-`purpose` semantics differ on credit exhaustion:**
-  - `exec` / `tcp-relay` / `udp-relay`: the backend stops **reading from the underlying source** (the SSH exec stdout, the relayed TCP connection, or the UDP socket) when credit is exhausted — this is real backpressure that propagates upstream (e.g., to the remote process via its own stdout buffer filling), not unbounded local buffering inside the backend. A backend that keeps draining its source into an ever-growing in-memory queue while "blocked" reintroduces the exact unbounded-queue failure mode credit-based flow control exists to remove, and is not a correct implementation of this section. For `udp-relay` specifically, suspending the socket read lets the OS receive buffer bound and **drop** excess datagrams — the correct, still-bounded behavior for an inherently lossy transport, as opposed to the upstream-propagating backpressure of the stream purposes.
-  - `embed-stream`: instead of blocking the producer, the **host-side buffer drops the oldest unsent frame** when credit is exhausted — consistent with the latest-frame-wins policy already described for video. The plugin is not required to implement drop logic itself; it just stops being able to push once the host stops granting credit, and the host discards what it's already holding.
-- The host enforces credit limits server-side regardless of what the plugin claims locally (defense in depth); a plugin that sends past its granted credit is a protocol violation and follows the fail-fast path in 2a.
+- The receiver sends a `kind=0x03` credit-update frame **once a frame has reached its consumer**, replenishing the sender's count. "Reached its consumer" is the whole point and is not the same as "was read off the wire": credit that is returned on receipt measures only the host's willingness to buffer, and tells the sender nothing about whether anything is keeping up. Returned on consumption, it is an honest proxy for real consumption, and pressure propagates all the way back to the origin — which for `embed-stream` is the VNC server itself.
+  - Host-side this is an explicit `Ack` on the channel's data path, never a side effect of receiving. Only the purpose backend knows when a frame is genuinely consumed rather than merely held, so only it can say so. A backend that never `Ack`s stalls its own channel once the first window drains; the host reports such a stall (channel id and purpose) rather than leaving it silent.
+- **Credit exhaustion behaves identically for every `purpose`:** the backend stops **reading from the underlying source** (the SSH exec stdout, the relayed TCP connection, the UDP socket, the browser's input stream) — real backpressure that propagates upstream, not unbounded local buffering inside the backend. A backend that keeps draining its source into an ever-growing in-memory queue while "blocked" reintroduces the exact unbounded-queue failure mode credit-based flow control exists to remove, and is not a correct implementation of this section.
+  - For `udp-relay` specifically, suspending the socket read lets the OS receive buffer bound and **drop** excess datagrams — the correct, still-bounded behavior for an inherently lossy transport, arrived at without a host-side policy.
+  - `embed-stream` has **no drop policy and must not have one.** An earlier revision of this ADR had it drop the oldest unsent frame at credit exhaustion (latest-frame-wins), reasoning from video, where a frame is self-contained. The purpose carries no such thing in either direction. Outbound is the browser's control input, where every event is a state transition, not a snapshot: a dropped `KeyEvent` with `down=0` leaves the key held down on the remote machine — a stuck Ctrl or Shift, and nothing in any log. Inbound is an incremental framebuffer, which does not survive a lost delta either. Late is acceptable on this channel; lost is not. Should a genuine video transport ever need latest-frame-wins, it gets its own `purpose` that opts into it explicitly — it is never the default for a channel carrying user input.
+- The host enforces credit limits server-side regardless of what the plugin claims locally (defense in depth); a plugin that sends past its granted credit is a protocol violation and follows the fail-fast path in 2a. This is a security boundary, not an optimisation: the inbound queue lives in the **host** process, where the plugin's Job Object memory limit does not reach, so without an enforced window a plugin — compromised, buggy, or merely fast — can drive the host to OOM.
+- A `kind=0x03` frame repeats its channel id in the payload. It **must** equal the frame header's; a mismatch is a protocol violation, or a plugin could grant credit to a channel it does not own. Grants are also bounded: the outbound window may not exceed a small multiple of the purpose's initial credit, so a grant loop cannot turn the window into an unbounded accumulator. Over-grant is refused as a violation rather than silently clamped — clamping would hide a plugin whose own bookkeeping has diverged from the host's.
 - **Throughput cap (`maxThroughputKbps`) is enforced, not merely declared.** A manifest field with no corresponding runtime check would be worse than no field at all. Enforcement is a token-bucket limiter applied on the same write path as credit accounting, independent of (and in addition to) the frame-count credit — credit bounds how much can be in flight unacknowledged, the token bucket bounds sustained throughput over time.
 
 ### 3. What sits on the other end of a channel — host-mediated, never plugin-dialed
@@ -82,7 +84,7 @@ This is the core security property: **the plugin never gets a raw socket or raw 
 |---|---|
 | `exec` | Runs a command over the **already-authenticated parent session's** SSH connection (an exec channel on the existing `ssh.Client`), pipes stdin/stdout/stderr onto the binary channel. No new auth, no new dial. |
 | `embed-stream` | Wires the channel to the session's video/embed surface (VNC/RDP framebuffer path) for a `capabilities.session.embed` plugin. |
-| `tcp-relay` | Falls back to the *existing* `TunnelDialProxy` dial policy (host:port allowlist, no wildcards) — for cases that genuinely are a fresh TCP dial, not exec. |
+| `tcp-relay` | Falls back to the *existing* dial policy, reused verbatim — for cases that genuinely are a fresh TCP dial, not exec. That policy is an explicit `tcp:host:port` allowlist (no wildcards) **or** `allowArbitraryOutbound: true`, which permits any public host/port after explicit user consent at install; `allowPrivateNetworks: true` additionally permits loopback/RFC1918/link-local. Both modes may coexist; a dial succeeds if either permits the target. An allowlist-only reading would make `tcp-relay` useless for every protocol whose target the user picks at runtime — VNC, RDP, SPICE — which is the opposite of the intent. |
 | `udp-relay` | Same dial policy as `tcp-relay`, reused verbatim with a `udp:` allowlist token, but a **direct** host→target UDP dial (`net.DialUDP`) — SSH has no native UDP forwarding, so this is the "genuinely a fresh dial" case only, never tunnelled through the parent SSH chain. Matches real topologies like **mosh** (SSH launches `mosh-server`, then UDP flows host↔server directly). Bound to `parentSessionId` for ownership/lifecycle even though the dial is direct. |
 
 This reuses and extends the pattern already established by `TunnelDialProxy`/`TunnelLocalProxy`/`FSProxy`: the plugin describes *what it wants to happen*, the host — which holds the real credentials and the real session — is the only thing that ever touches them.
@@ -121,10 +123,11 @@ Net effect: the attack surface added is "one more capability-gated, audited, con
 
 A `capabilities.session.embed` plugin for VNC/RDP:
 1. Session connects as today (`session.connect`, `session.updateState`).
-2. Plugin opens a channel with `purpose: "embed-stream"`.
-3. Host wires that channel directly to the embed surface's video pipe.
-4. Framebuffer tiles/frames flow as raw binary frames — no JSON, no base64.
-5. Backpressure policy for this purpose is **latest-frame-wins**: the host-side channel buffer holds at most N frames and drops the oldest on overflow, rather than the unbounded-queue behavior appropriate for terminal text. This is a per-`purpose` policy, not a global one — `exec` channels (command output) should *not* silently drop bytes, `embed-stream` channels should.
+2. Plugin registers the embed surface via `session.registerEmbed` (ADR-008). This is mandatory and must come first: `embed-stream` authorization checks that the requesting plugin already owns `parentSessionId`'s embed registration. A channel is never itself how embed ownership is established.
+3. Plugin opens a channel with `purpose: "embed-stream"`, passing the ADR-008 `tunnelId` as the `hint` (absent, it defaults to `"main"`).
+4. Host wires that one channel to that tunnel's embed surface in **both** directions: plugin→host frames go to the browser-facing surface (framebuffer), and the surface's outbound stream (control input) goes host→plugin. There is no second channel and no `tunnelFrame` JSON envelope on this path — the channel bus *is* the binary transport that envelope existed to work around.
+5. Framebuffer tiles/frames flow as raw binary frames — no JSON, no base64.
+6. Backpressure is the same as every other purpose: at credit exhaustion the reader stops reading, and nothing is dropped. See §2b for why this purpose in particular must not drop — both of its directions are incremental, and the outbound one is user input, where a lost frame is a stuck modifier key rather than a dropped picture.
 
 ## Application to discovery (Docker / Kubernetes / DB)
 
@@ -238,6 +241,26 @@ This ADR only introduces `channel.open` / `channel.close` as new atomic verbs pl
 1. **Base64-in-JSON for binary data, no new transport.** Rejected — overhead and framing limits make it unworkable for video, and it doesn't solve the "duplex stream to a remote process" problem discovery needs at all.
 2. **Separate OS pipe/socket per binary channel instead of multiplexing on stdio.** Rejected for v1 — multiplexing avoids extra fd/handle plumbing per-OS (relevant given `procattr_windows.go`/`procattr_linux.go` already carry per-OS complexity); can be revisited later if throughput demands it.
 3. **Let plugins dial the target directly (raw socket/exec) themselves.** Rejected — reintroduces the exact credential-exposure and IDOR risk the existing proxy pattern was built to avoid.
+
+## How the embed page reaches the tunnel
+
+The channel bus only replaces the **plugin ↔ host** leg (binary frames instead of base64-in-JSON `tunnelFrame`). The **host ↔ embed page** leg is unchanged and still the ADR-008 WebSocket served by the local broker (`internal/infra/embed/broker_handler.go`). For VNC the full path is:
+
+```
+VNC server ──tcp──▶ plugin ──embed-stream channel──▶ host ──WebSocket──▶ iframe page (renders)
+                                       ◀── control input ──
+```
+
+Both broker URLs are minted from the same embed token by `EmbedTunnelService`:
+
+| | shape |
+|---|---|
+| `uiUrl` | `/embed/s/{token}/ui/index.html` |
+| `tunnelUrl` | `/embed/s/{token}/tunnel/{tunnelId}` |
+
+`tunnelUrl` is returned to the **plugin** in the `session.registerEmbed` response and to the **host frontend** in `SessionEmbedReady`. Neither is how the page gets it: the page is *served from* `uiUrl`, so the token is already in its own `location.pathname`, and it derives the tunnel path from there. That is why nothing passes `tunnelUrl` into the iframe — the host's init message (`xquakshell-host-init`) carries only `sessionId` and a `MessagePort`.
+
+This is worth stating plainly because it was previously implicit: derivation-from-own-URL is the contract, and it is load-bearing for every third-party embed plugin. If that ever stops being true — a page served from a different origin, say — the host must pass `tunnelUrl` through the init message, and this section is what has to change with it.
 
 ## References
 

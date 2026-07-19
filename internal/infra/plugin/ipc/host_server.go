@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -32,9 +33,10 @@ type HostServer struct {
 	audit      PluginAuditFunc
 	onActivity PluginActivityFunc
 
-	logMu     sync.Mutex
-	logCount  int
-	logWindow time.Time
+	logMu      sync.Mutex
+	logCount   int
+	logDropped int
+	logWindow  time.Time
 }
 
 // PluginActivityFunc records inbound plugin RPC activity (idle suspend, metrics).
@@ -89,7 +91,13 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 
 	switch method {
 	case "log.write":
-		if !s.allowLogWrite() {
+		allowed, dropped := s.allowLogWrite()
+		if dropped > 0 {
+			loghub.PublishPluginLog(s.pluginID, "warn",
+				"log rate-limited, "+strconv.Itoa(dropped)+" lines dropped",
+				map[string]string{"dropped": strconv.Itoa(dropped)})
+		}
+		if !allowed {
 			return nil, rateLimitedError(method)
 		}
 		s.handleLogWrite(params)
@@ -177,9 +185,15 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 		}
 		// channel.open dials a real backend (exec spawn / relay dial), so it gets the same
 		// 10s allowance as initialize instead of the default inbound RPC timeout.
+		slog.Debug("host_server: channel.open received, dispatching to sessions.Handle", "pluginId", s.pluginID)
 		openCtx, cancel := context.WithTimeout(ctx, domainplugin.ChannelOpenTimeout)
 		result, err = s.sessions.Handle(openCtx, s.pluginID, method, params)
 		cancel()
+		errMsg := ""
+		if err != nil {
+			errMsg = err.Error()
+		}
+		slog.Debug("host_server: sessions.Handle(channel.open) returned", "pluginId", s.pluginID, "err", errMsg)
 	case "channel.close":
 		if s.sessions == nil {
 			return nil, &RPCError{Code: -32603, Message: "session handler unavailable"}
@@ -230,10 +244,10 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 			return nil, &RPCError{Code: -32002, Message: "resource not found"}
 		}
 		if errors.Is(err, domainplugin.ErrNetworkDialFailed) {
-			slog.Debug("plugin net dial failed", "pluginId", s.pluginID, "method", method)
+			slog.Debug("plugin net dial failed", "component", "plugin.rpc", "pluginId", s.pluginID, "method", method)
 			return nil, &RPCError{Code: -32603, Message: "request failed"}
 		}
-		slog.Debug("plugin rpc failed", "pluginId", s.pluginID, "method", method, "err", err)
+		slog.Warn("plugin rpc failed", "component", "plugin.rpc", "pluginId", s.pluginID, "method", method, "err", err)
 		return nil, &RPCError{Code: -32603, Message: "request failed"}
 	}
 	return result, nil
@@ -251,19 +265,16 @@ func (s *HostServer) handleLogWrite(params json.RawMessage) {
 	if redacted {
 		fields["redacted"] = "true"
 	}
+	// Publish exactly once, honoring the plugin's declared level. loghub gates
+	// it against the process-wide level floor and tags it plugin:<id>.
 	loghub.PublishPluginLog(s.pluginID, payload.Level, payload.Message, fields)
-	if redacted {
-		slog.Info("plugin log", "pluginId", s.pluginID, "level", payload.Level, "message", payload.Message, "fields", payload.Fields, "redacted", true)
-		return
-	}
-	if len(payload.Fields) > 0 {
-		slog.Info("plugin log", "pluginId", s.pluginID, "level", payload.Level, "message", payload.Message, "fields", payload.Fields)
-		return
-	}
-	slog.Info("plugin log", "pluginId", s.pluginID, "level", payload.Level, "message", payload.Message)
 }
 
-func (s *HostServer) allowLogWrite() bool {
+// allowLogWrite applies the per-second rate limit. It returns whether the
+// current line is allowed and, on a window rollover, how many lines were
+// dropped in the previous window so the caller can surface a visible marker
+// instead of losing them silently.
+func (s *HostServer) allowLogWrite() (allowed bool, droppedToReport int) {
 	s.logMu.Lock()
 	defer s.logMu.Unlock()
 
@@ -271,12 +282,22 @@ func (s *HostServer) allowLogWrite() bool {
 	if now.Sub(s.logWindow) >= time.Second {
 		s.logWindow = now
 		s.logCount = 0
+		droppedToReport = s.logDropped
+		s.logDropped = 0
 	}
 	s.logCount++
-	return s.logCount <= domainplugin.MaxPluginLogLinesPerSecond
+	if s.logCount > domainplugin.MaxPluginLogLinesPerSecond {
+		s.logDropped++
+		return false, droppedToReport
+	}
+	return true, droppedToReport
 }
 
 func (s *HostServer) auditDenied(method, detail string) {
+	// Mirror every capability denial into the debug log (in addition to the
+	// durable audit trail) so a blocked plugin is visible while investigating.
+	slog.Warn("plugin rpc denied", "component", "plugin.rpc", "pluginId", s.pluginID, "method", method,
+		"reason", domainplugin.RedactAuditDetail(detail))
 	if s.audit != nil {
 		s.audit(s.pluginID, method, true, domainplugin.RedactAuditDetail(detail))
 	}

@@ -20,6 +20,7 @@ func (s *GitHubPluginService) InstallPluginFromGitHub(
 	grantTunnelProviderAccess bool,
 	grantMultiSessionAccess bool,
 	grantArbitraryNetworkAccess bool,
+	grantExecAccess bool,
 ) error {
 	normalizedURL, err := domainplugin.NormalizeURL(repoURL)
 	if err != nil {
@@ -55,11 +56,11 @@ func (s *GitHubPluginService) InstallPluginFromGitHub(
 	if err != nil {
 		return err
 	}
-	if err := enforceInstallConsents(preview, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess); err != nil {
+	if err := enforceInstallConsents(preview, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess); err != nil {
 		return err
 	}
 
-	return s.commitInstall(ctx, normalizedURL, stageDir, policy, preview, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess)
+	return s.commitInstall(ctx, normalizedURL, stageDir, policy, preview, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess)
 }
 
 func (s *GitHubPluginService) ensureRepositoryRegistered(ctx context.Context, normalizedURL string) error {
@@ -115,7 +116,7 @@ func (s *GitHubPluginService) downloadAndStage(
 
 func enforceInstallConsents(
 	preview InstallPreview,
-	grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess bool,
+	grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess bool,
 ) error {
 	if preview.RequiresSecretAccess && !grantSecretAccess {
 		return fmt.Errorf("secret access consent required for this plugin")
@@ -132,6 +133,9 @@ func enforceInstallConsents(
 	if preview.ArbitraryNetworkWarning && !grantArbitraryNetworkAccess {
 		return fmt.Errorf("arbitrary network access consent required for this plugin")
 	}
+	if preview.ExecAccessWarning && !grantExecAccess {
+		return fmt.Errorf("exec channel consent required for this plugin")
+	}
 	return nil
 }
 
@@ -141,9 +145,9 @@ func (s *GitHubPluginService) commitInstall(
 	stageDir string,
 	policy domainplugin.InstallTrustPolicy,
 	preview InstallPreview,
-	grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess bool,
+	grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess bool,
 ) error {
-	installed, err := s.pluginManager.Install(stageDir, policy, grantMultiSessionAccess, grantArbitraryNetworkAccess)
+	installed, err := s.pluginManager.Install(stageDir, policy, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess)
 	if err != nil {
 		return err
 	}

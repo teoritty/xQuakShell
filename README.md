@@ -38,6 +38,16 @@ xQuakShell is a remote-access platform. Out of the box it ships a complete **SSH
 - Out-of-process plugin system: sandboxed, capability-gated, extensible to new connection protocols — installable from GitHub.
 - Portable Windows build with bundled WebView2 runtime (`make portable`).
 
+## Official plugins
+
+Protocols beyond SSH are provided by sandboxed, out-of-process plugins installed
+from GitHub through the in-app plugin manager. The officially maintained ones:
+
+| Plugin | Protocol | Links |
+|--------|----------|-------|
+| **VNC** — remote desktop in an embedded noVNC viewer (fit-to-window, quality/bandwidth controls, auto-reconnect) | `vnc` | [Releases](https://github.com/teoritty/xqs-plugin-vnc/releases) · [Source](https://github.com/teoritty/xqs-plugin-vnc) |
+| **Telnet** — plaintext terminal sessions, optional auto-login | `telnet` | [Repository](https://github.com/teoritty/xqs-plugin-telnet) |
+
 ## Screenshots
 
 ### Main workspace

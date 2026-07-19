@@ -3,6 +3,7 @@ package capability
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"strconv"
 	"strings"
@@ -67,11 +68,12 @@ func (b *ChannelRelayBackend) Authorize(purpose, _ string, hint string) error {
 		patterns = tcpOnlyPatterns(b.caps.Outbound)
 	}
 
-	// Matches NetProxy.Dial exactly: when patterns are configured but none match, patternHost
-	// becomes "" rather than staying host, so an unmatched IP-literal hint cannot pass
-	// AllowResolvedDialIP's "explicit pattern host == resolved IP" carve-out. Only an actual
-	// allowlist match (or the zero-patterns arbitrary-only case below) may set patternHost.
-	patternHost := host
+	// Matches NetProxy.Dial exactly: patternHost may only come from an actual allowlist match,
+	// never from the plugin's hint. It feeds AllowResolvedDialIP's carve-out for an IP the
+	// manifest names explicitly — consent the user gave at install time — so seeding it with
+	// the hint let the plugin authorize itself: an IP-literal hint matched the carve-out
+	// against itself and reached loopback/private addresses with allowPrivateNetworks off.
+	patternHost := ""
 	allowlistAllowsHost := false
 	if len(patterns) > 0 {
 		var ok bool
@@ -145,18 +147,15 @@ func (b *ChannelRelayBackend) Wire(ctx context.Context, ch *domainplugin.Channel
 			Timestamp:       time.Now(),
 			PluginID:        b.pluginID,
 			Action:          "channel.open",
-			ChannelID:       ch.ChannelID,
-			Purpose:         ch.Purpose,
-			ParentSessionID: ch.ParentSessionID,
+			ChannelID:       ch.ChannelID(),
+			Purpose:         ch.Purpose(),
+			ParentSessionID: ch.ParentSessionID(),
 			Target:          target,
 			Success:         true,
 		})
 	}
 
-	if ch.Data == nil {
-		return nil
-	}
-	data := ch.Data
+	data := ch.Data()
 
 	safego.GoNamed("plugin.channelRelayInbound", func() {
 		for {
@@ -169,22 +168,36 @@ func (b *ChannelRelayBackend) Wire(ctx context.Context, ch *domainplugin.Channel
 				_ = conn.Close()
 				return
 			}
+			slog.Debug("relay: plugin->server wrote to VNC server", "pluginId", b.pluginID, "bytes", len(payload))
+			// The bytes are on the relayed socket: the plugin may send one more frame. A slow
+			// or blocked peer therefore holds the plugin's window shut instead of letting it
+			// pile frames up in the host.
+			if err := data.Ack(ctx); err != nil {
+				_ = conn.Close()
+				return
+			}
 		}
 	})
 
 	safego.GoNamed("plugin.channelRelayOutbound", func() {
 		buf := make([]byte, 32*1024)
 		for {
+			slog.Debug("relay: server->plugin waiting for outbound capacity", "pluginId", b.pluginID, "target", target)
 			if err := data.WaitForCapacity(ctx); err != nil {
+				slog.Debug("relay: server->plugin WaitForCapacity ended", "pluginId", b.pluginID, "err", err.Error())
 				return
 			}
 			n, err := conn.Read(buf)
+			slog.Debug("relay: server->plugin read from VNC server", "pluginId", b.pluginID, "bytes", n)
 			if n > 0 {
 				if sendErr := data.Send(ctx, append([]byte(nil), buf[:n]...)); sendErr != nil {
+					slog.Debug("relay: server->plugin Send failed", "pluginId", b.pluginID, "err", sendErr.Error())
 					return
 				}
+				slog.Debug("relay: server->plugin frame sent to plugin", "pluginId", b.pluginID, "bytes", n)
 			}
 			if err != nil {
+				slog.Debug("relay: server->plugin conn.Read error", "pluginId", b.pluginID, "err", err.Error())
 				return
 			}
 		}

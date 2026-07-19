@@ -14,11 +14,11 @@ import (
 )
 
 func TestChannelMuxDemuxesInterleavedFramesPerChannel(t *testing.T) {
-	mux := newChannelMux()
+	mux := newChannelMux(nil)
 	const n = 3
 	channels := make([]*channel, n)
 	for i := 0; i < n; i++ {
-		channels[i] = mux.Register(uint32(i + 1))
+		channels[i] = mux.Register(uint32(i+1), domainplugin.PurposeExec, domainplugin.DefaultChannelThroughputKbps)
 	}
 
 	// Interleave 0x02 frames across the N channels in mixed, non-round-robin order.
@@ -74,28 +74,40 @@ func drainNonBlocking(ch *channel) (channelFrame, bool) {
 }
 
 func TestChannelMuxDispatchUnknownChannelIsProtocolViolation(t *testing.T) {
-	mux := newChannelMux()
+	mux := newChannelMux(nil)
 	err := mux.Dispatch(FrameHeader{Kind: domainplugin.FrameKindBinary, ChannelID: 99}, []byte("x"))
 	if !errors.Is(err, ErrProtocolViolation) {
 		t.Fatalf("expected ErrProtocolViolation for unknown channel, got %v", err)
 	}
 }
 
-func TestChannelMuxDispatchRemovedChannelIsProtocolViolation(t *testing.T) {
-	mux := newChannelMux()
-	ch := mux.Register(5)
-	ch.Close()
-	mux.Remove(5)
+func TestChannelMuxDispatchReleasedChannelIsProtocolViolation(t *testing.T) {
+	mux := newChannelMux(nil)
+	mux.closedGrace = 0 // release immediately: this is the post-grace behaviour under test
+	mux.Register(5, domainplugin.PurposeExec, domainplugin.DefaultChannelThroughputKbps)
+	mux.CloseAndRelease(5)
+
+	deadline := time.After(2 * time.Second)
+	for {
+		if _, tracked := mux.Get(5); !tracked {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("channel was never released")
+		case <-time.After(time.Millisecond):
+		}
+	}
 
 	err := mux.Dispatch(FrameHeader{Kind: domainplugin.FrameKindBinary, ChannelID: 5}, []byte("x"))
 	if !errors.Is(err, ErrProtocolViolation) {
-		t.Fatalf("expected ErrProtocolViolation for removed channel, got %v", err)
+		t.Fatalf("expected ErrProtocolViolation for released channel, got %v", err)
 	}
 }
 
 func TestChannelMuxDispatchLocallyClosedButTrackedChannelIsSilentNoOp(t *testing.T) {
-	mux := newChannelMux()
-	ch := mux.Register(5)
+	mux := newChannelMux(nil)
+	ch := mux.Register(5, domainplugin.PurposeExec, domainplugin.DefaultChannelThroughputKbps)
 	ch.Close()
 
 	err := mux.Dispatch(FrameHeader{Kind: domainplugin.FrameKindBinary, ChannelID: 5}, []byte("x"))
@@ -110,6 +122,10 @@ func TestChannelMuxDispatchLocallyClosedButTrackedChannelIsSilentNoOp(t *testing
 // TestChannelMuxHeadOfLineBlocking proves that channel A, whose consumer never drains it,
 // does not block channel B's delivery nor the JSON-RPC (kind=0x01) control plane sharing
 // the same read loop.
+//
+// A is filled to exactly its inbound credit window and no further: past that the host is
+// entitled to kill the connection for a credit violation, which is the flood defence working
+// rather than head-of-line blocking. A backed-up-but-legal channel is the case worth proving.
 func TestChannelMuxHeadOfLineBlocking(t *testing.T) {
 	pluginOutR, pluginOutW := io.Pipe()
 	hostInR, hostInW := io.Pipe()
@@ -123,19 +139,19 @@ func TestChannelMuxHeadOfLineBlocking(t *testing.T) {
 		return raw, nil
 	}
 
-	conn := NewConn(pluginOutR, hostInW, nil, handler)
+	conn := NewConn(pluginOutR, hostInW, nil, handler, 0)
 	t.Cleanup(conn.Close)
 
 	const chanA, chanB = uint32(1), uint32(2)
-	a := conn.mux.Register(chanA)
-	b := conn.mux.Register(chanB)
+	a := conn.mux.Register(chanA, domainplugin.PurposeExec, domainplugin.DefaultChannelThroughputKbps)
+	b := conn.mux.Register(chanB, domainplugin.PurposeExec, domainplugin.DefaultChannelThroughputKbps)
 	// Channel A is deliberately never drained (no goroutine calls a.Recv()).
 	_ = a
 
 	bDone := make(chan struct{})
 	go func() {
 		defer close(bDone)
-		for i := 0; i < 5; i++ {
+		for i := 0; i < domainplugin.InitialCredit(domainplugin.PurposeExec); i++ {
 			if _, ok := b.Recv(); !ok {
 				return
 			}
@@ -144,16 +160,16 @@ func TestChannelMuxHeadOfLineBlocking(t *testing.T) {
 
 	pluginFW := NewFrameWriter(pluginOutW)
 
-	// Flood channel A's backlog, interleaved with channel B and a JSON-RPC request that
-	// the fake "plugin" on the other end (hostInR/pluginOutW) must be able to answer
-	// promptly even while A is backed up.
+	// Back channel A up to the edge of its window, interleaved with channel B and a JSON-RPC
+	// request that the fake "plugin" on the other end (hostInR/pluginOutW) must be able to
+	// answer promptly even while A is backed up.
 	go func() {
-		for i := 0; i < 200; i++ {
+		for i := 0; i < domainplugin.InitialCredit(domainplugin.PurposeExec); i++ {
 			_ = pluginFW.Write(domainplugin.FrameKindBinary, chanA, bytes.Repeat([]byte{'a'}, 64))
 		}
 	}()
 	go func() {
-		for i := 0; i < 5; i++ {
+		for i := 0; i < domainplugin.InitialCredit(domainplugin.PurposeExec); i++ {
 			_ = pluginFW.Write(domainplugin.FrameKindBinary, chanB, []byte("b-frame"))
 		}
 	}()

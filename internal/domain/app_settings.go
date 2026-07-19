@@ -103,6 +103,9 @@ func DefaultEmbedSettings() EmbedSettings {
 // DebugSettings configures developer diagnostics.
 type DebugSettings struct {
 	LogWindowEnabled bool `json:"logWindowEnabled,omitempty"`
+	// LogLevel is the minimum level published to the debug log
+	// (debug|info|warn|error). Empty means debug (most verbose).
+	LogLevel string `json:"logLevel,omitempty"`
 }
 
 // DefaultDebugSettings returns default debug settings.

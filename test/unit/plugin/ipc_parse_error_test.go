@@ -18,7 +18,7 @@ func TestConnParseErrorReturns32700(t *testing.T) {
 	hdr[4] = 0x01
 	frame := append(hdr[:], broken...)
 
-	conn := ipc.NewConn(bytes.NewReader(frame), &hostOut, nil, nil)
+	conn := ipc.NewConn(bytes.NewReader(frame), &hostOut, nil, nil, 0)
 	conn.Close()
 
 	if !strings.Contains(hostOut.String(), "-32700") {

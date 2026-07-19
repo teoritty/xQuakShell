@@ -48,6 +48,8 @@ const sshDraft: ConnectionDetailsDraft = {
     },
   ],
   pluginFields: {},
+  storedSecretFields: [],
+  pluginFieldsTouched: {},
 };
 
 assert(isDraftHopUiId('draft-hop-123'), 'draft-hop ids are UI-only');

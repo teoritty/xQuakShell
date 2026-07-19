@@ -48,6 +48,7 @@ type AppSettingsDTO struct {
 	AuditShowUsername        bool   `json:"auditShowUsername"`
 	AuditShowConnection      bool   `json:"auditShowConnection"`
 	DebugLogWindowEnabled    bool   `json:"debugLogWindowEnabled"`
+	DebugLogLevel            string `json:"debugLogLevel"`
 }
 
 // PuTTYSessionDTO is a preview item for REG import.
@@ -107,6 +108,7 @@ func AppSettingsToDTO(s domain.AppSettings) AppSettingsDTO {
 		AuditShowUsername:        s.AuditLog.ShowUsername,
 		AuditShowConnection:      s.AuditLog.ShowConnection,
 		DebugLogWindowEnabled:    s.Debug.LogWindowEnabled,
+		DebugLogLevel:            s.Debug.LogLevel,
 	}
 }
 
@@ -153,6 +155,7 @@ func DTOToAppSettings(dto AppSettingsDTO) domain.AppSettings {
 		},
 		Debug: domain.DebugSettings{
 			LogWindowEnabled: dto.DebugLogWindowEnabled,
+			LogLevel:         dto.DebugLogLevel,
 		},
 	}
 }

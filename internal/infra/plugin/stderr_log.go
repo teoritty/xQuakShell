@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"log/slog"
 
@@ -55,16 +56,19 @@ func (rs *redactingStderrWriter) consume(reader *io.PipeReader) {
 		rs.logLine(scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
-		slog.Debug("plugin stderr scanner", "pluginId", rs.pluginID, "err", err)
+		// bufio.ErrTooLong means a stderr line exceeded the buffer and was
+		// discarded — surface it rather than dropping silently.
+		if errors.Is(err, bufio.ErrTooLong) {
+			slog.Warn("plugin stderr line dropped: exceeds max length", "component", "plugin.stderr", "pluginId", rs.pluginID, "maxBytes", stderrMaxLineBytes)
+		} else {
+			slog.Debug("plugin stderr scanner", "component", "plugin.stderr", "pluginId", rs.pluginID, "err", err)
+		}
 	}
 }
 
 func (rs *redactingStderrWriter) logLine(line string) {
+	// Publish exactly once via loghub (tagged plugin-stderr:<id>); the previous
+	// extra slog.Info produced a duplicate entry in the hub.
 	message, redacted := domainplugin.RedactLogMessage(line)
 	loghub.PublishPluginStderr(rs.pluginID, message, redacted)
-	if redacted {
-		slog.Info("plugin stderr", "pluginId", rs.pluginID, "message", message, "redacted", true)
-		return
-	}
-	slog.Info("plugin stderr", "pluginId", rs.pluginID, "message", message)
 }
