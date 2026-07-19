@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	domainplugin "ssh-client/internal/domain/plugin"
 )
 
 func TestConnHandlesConcurrentPluginRequests(t *testing.T) {
@@ -86,4 +88,47 @@ func TestConnHandlesConcurrentPluginRequests(t *testing.T) {
 
 	_ = pluginOutW.Close()
 	conn.Close()
+}
+
+// TestConnDispatchesStringIDRequest reproduces the xqs-plugin-vnc failure: a
+// plugin whose JSON-RPC ids are strings ("xqs-vnc-N", valid per JSON-RPC 2.0)
+// must have its requests dispatched and answered, with the id echoed back
+// verbatim. Before RPCID the host decoded id as *int64, so a string id failed
+// to parse and the whole frame was dropped, hanging the plugin's channel.open.
+func TestConnDispatchesStringIDRequest(t *testing.T) {
+	pluginOutR, pluginOutW := io.Pipe()
+	hostInR, hostInW := io.Pipe()
+	t.Cleanup(func() {
+		_ = pluginOutW.Close()
+		_ = hostInR.Close()
+	})
+
+	var handled atomic.Bool
+	handler := func(_ context.Context, method string, _ json.RawMessage) (json.RawMessage, *RPCError) {
+		if method == "channel.open" {
+			handled.Store(true)
+		}
+		raw, _ := json.Marshal(map[string]bool{"ok": true})
+		return raw, nil
+	}
+
+	conn := NewConn(pluginOutR, hostInW, nil, handler, 0)
+	defer conn.Close()
+
+	fw := NewFrameWriter(pluginOutW)
+	req := []byte(`{"jsonrpc":"2.0","id":"xqs-vnc-1","method":"channel.open","params":{}}`)
+	go func() {
+		_ = fw.Write(domainplugin.FrameKindJSONRPC, 0, req)
+	}()
+
+	resp, err := ReadMessage(bufio.NewReader(hostInR))
+	if err != nil {
+		t.Fatalf("read host response: %v", err)
+	}
+	if !handled.Load() {
+		t.Fatal("channel.open with a string id was never dispatched to onRequest")
+	}
+	if resp.ID == nil || resp.ID.Key() != `"xqs-vnc-1"` {
+		t.Fatalf("response id = %v, want the request's string id echoed verbatim", resp.ID)
+	}
 }

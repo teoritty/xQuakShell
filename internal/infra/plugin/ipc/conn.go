@@ -26,7 +26,7 @@ type Conn struct {
 	reader      *bufio.Reader
 	writeCloser io.Closer
 	readCloser  io.Closer
-	pending     map[int64]chan messageResult
+	pending     map[string]chan messageResult
 	nextID      atomic.Int64
 	onNotify    func(method string, params json.RawMessage)
 	onRequest   RequestHandler
@@ -68,7 +68,7 @@ func NewConn(readFrom io.Reader, writeTo io.Writer, onNotify func(string, json.R
 		reader:                bufio.NewReader(readFrom),
 		writeCloser:           wc,
 		readCloser:            rc,
-		pending:               make(map[int64]chan messageResult),
+		pending:               make(map[string]chan messageResult),
 		onNotify:              onNotify,
 		onRequest:             onRequest,
 		closeCh:               make(chan struct{}),
@@ -85,15 +85,16 @@ func NewConn(readFrom io.Reader, writeTo io.Writer, onNotify func(string, json.R
 // Call sends a JSON-RPC request and waits for the matching response.
 func (c *Conn) Call(ctx context.Context, method string, params json.RawMessage) (json.RawMessage, error) {
 	id := c.nextID.Add(1)
+	key := int64ID(id).Key()
 	ch := make(chan messageResult, 1)
 
 	c.mu.Lock()
-	c.pending[id] = ch
+	c.pending[key] = ch
 	c.mu.Unlock()
 
 	defer func() {
 		c.mu.Lock()
-		delete(c.pending, id)
+		delete(c.pending, key)
 		c.mu.Unlock()
 	}()
 
@@ -208,7 +209,7 @@ func (c *Conn) readLoop() {
 				continue
 			}
 			c.mu.Lock()
-			ch, ok := c.pending[*msg.ID]
+			ch, ok := c.pending[msg.ID.Key()]
 			c.mu.Unlock()
 			if ok {
 				ch <- messageResult{msg: msg}
@@ -254,7 +255,7 @@ func (c *Conn) failReadLoop(err error, isParseError bool) {
 	c.mu.Unlock()
 }
 
-func (c *Conn) handleIncomingRequest(id int64, method string, params json.RawMessage) {
+func (c *Conn) handleIncomingRequest(id RPCID, method string, params json.RawMessage) {
 	ctx, cancel := context.WithTimeout(context.Background(), inboundRequestTimeout)
 	defer cancel()
 	result, rpcErr := c.onRequest(ctx, method, params)
@@ -268,7 +269,29 @@ func (c *Conn) handleIncomingRequest(id int64, method string, params json.RawMes
 		c.mu.Lock()
 		c.readErr = err
 		c.mu.Unlock()
+		return
 	}
+	// The channel.open reply is now on the wire ahead of any data frame the backend's pump has
+	// buffered (the pump blocks in channel.Send until here). Only now may host->plugin data
+	// flow: before the reply, the plugin has not registered the channelId and would kill itself
+	// over a frame for a channel it does not know is open.
+	if rpcErr == nil && method == "channel.open" {
+		if chID := channelIDFromOpenResult(result); chID != 0 {
+			c.mux.MarkOpened(chID)
+		}
+	}
+}
+
+// channelIDFromOpenResult extracts the channelId a successful channel.open reply carries, or 0
+// if the result is not the expected {"channelId":<uint32>} shape.
+func channelIDFromOpenResult(result json.RawMessage) uint32 {
+	var r struct {
+		ChannelID uint32 `json:"channelId"`
+	}
+	if err := json.Unmarshal(result, &r); err != nil {
+		return 0
+	}
+	return r.ChannelID
 }
 
 // ReadError returns the terminal read error, if any.
