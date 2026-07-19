@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -16,6 +17,11 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// buildMarker is a conspicuous, impossible-to-miss startup log line used
+// solely to confirm which binary is actually running while debugging the
+// channel.open hang for xqs-plugin-vnc.
+const buildMarker = "BUILD-MARKER-CHANNEL-OPEN-TRACE-20260718"
+
 func main() {
 	if logwindow.IsViewerMode(os.Args) {
 		logwindow.RunViewerApp(os.Args, assets)
@@ -23,6 +29,7 @@ func main() {
 	}
 
 	app := composeApp()
+	slog.Debug(buildMarker)
 
 	windowsOpts := &windows.Options{
 		WebviewIsTransparent:              true,

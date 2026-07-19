@@ -23,6 +23,7 @@ func (a *AppAPI) OpenSession(connectionID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	slog.Debug("embed: OpenSession RPC returning sessionId to frontend", "pluginId", "com.xquakshell.vnc", "sessionId", sessionID, "connectionId", connectionID)
 
 	if a.plugins != nil {
 		a.plugins.PublishCoreEvent(context.Background(), "core.session.opened", map[string]string{
@@ -137,6 +138,7 @@ func (a *AppAPI) ResolveHostKey(sessionID, action, host, authorizedKey string) e
 
 // ReportEmbedViewport forwards pixel dimensions to the plugin process.
 func (a *AppAPI) ReportEmbedViewport(sessionID string, widthPx, heightPx int, devicePixelRatio float64) error {
+	slog.Debug("embed: frontend reported viewport (embed panel mounted)", "pluginId", "com.xquakshell.vnc", "sessionId", sessionID, "w", widthPx, "h", heightPx)
 	if a.embedBridge == nil {
 		return nil
 	}
@@ -145,6 +147,7 @@ func (a *AppAPI) ReportEmbedViewport(sessionID string, widthPx, heightPx int, de
 
 // ReportEmbedActivity updates broker backpressure when the session tab focus changes.
 func (a *AppAPI) ReportEmbedActivity(sessionID string, active bool) error {
+	slog.Debug("embed: frontend reported activity (embed panel mounted)", "pluginId", "com.xquakshell.vnc", "sessionId", sessionID, "active", active)
 	if a.embedBridge == nil {
 		return nil
 	}
@@ -154,6 +157,7 @@ func (a *AppAPI) ReportEmbedActivity(sessionID string, active bool) error {
 // --- Internal helpers ---
 
 func (a *AppAPI) onSessionStateChange(session domain.ConnectionSession) {
+	slog.Debug("embed: emitting SessionStateChanged to frontend", "pluginId", "com.xquakshell.vnc", "sessionId", session.SessionID, "state", string(session.State), "surface", session.Surface)
 	if a.ctx != nil {
 		wailsrt.EventsEmit(a.ctx, EventSessionStateChanged, SessionToDTO(session))
 	}

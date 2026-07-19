@@ -3,6 +3,7 @@ package capability
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"strconv"
 	"strings"
@@ -167,6 +168,7 @@ func (b *ChannelRelayBackend) Wire(ctx context.Context, ch *domainplugin.Channel
 				_ = conn.Close()
 				return
 			}
+			slog.Debug("relay: plugin->server wrote to VNC server", "pluginId", b.pluginID, "bytes", len(payload))
 			// The bytes are on the relayed socket: the plugin may send one more frame. A slow
 			// or blocked peer therefore holds the plugin's window shut instead of letting it
 			// pile frames up in the host.
@@ -180,16 +182,22 @@ func (b *ChannelRelayBackend) Wire(ctx context.Context, ch *domainplugin.Channel
 	safego.GoNamed("plugin.channelRelayOutbound", func() {
 		buf := make([]byte, 32*1024)
 		for {
+			slog.Debug("relay: server->plugin waiting for outbound capacity", "pluginId", b.pluginID, "target", target)
 			if err := data.WaitForCapacity(ctx); err != nil {
+				slog.Debug("relay: server->plugin WaitForCapacity ended", "pluginId", b.pluginID, "err", err.Error())
 				return
 			}
 			n, err := conn.Read(buf)
+			slog.Debug("relay: server->plugin read from VNC server", "pluginId", b.pluginID, "bytes", n)
 			if n > 0 {
 				if sendErr := data.Send(ctx, append([]byte(nil), buf[:n]...)); sendErr != nil {
+					slog.Debug("relay: server->plugin Send failed", "pluginId", b.pluginID, "err", sendErr.Error())
 					return
 				}
+				slog.Debug("relay: server->plugin frame sent to plugin", "pluginId", b.pluginID, "bytes", n)
 			}
 			if err != nil {
+				slog.Debug("relay: server->plugin conn.Read error", "pluginId", b.pluginID, "err", err.Error())
 				return
 			}
 		}
