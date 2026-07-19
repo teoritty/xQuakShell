@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -172,10 +173,13 @@ func (p *ChannelProxy) Open(ctx context.Context, params json.RawMessage) (json.R
 		}
 	}()
 
+	slog.Debug("channel.open: calling Authorize", "pluginId", p.pluginID, "purpose", req.Purpose, "hint", req.Hint)
 	if err := backend.Authorize(req.Purpose, req.ParentSessionID, req.Hint); err != nil {
+		slog.Debug("channel.open: Authorize failed", "pluginId", p.pluginID, "purpose", req.Purpose, "err", err.Error())
 		p.auditOpen(0, req, false, err.Error())
 		return nil, err
 	}
+	slog.Debug("channel.open: Authorize OK", "pluginId", p.pluginID, "purpose", req.Purpose)
 
 	p.mu.Lock()
 	opener := p.opener
@@ -192,11 +196,14 @@ func (p *ChannelProxy) Open(ctx context.Context, params json.RawMessage) (json.R
 	// backend without one. Reporting the failure here — rather than returning a channelId that
 	// cannot carry bytes — is the difference between the plugin learning of it in this call and
 	// learning of it when the host kills it over the first frame.
+	slog.Debug("channel.open: calling OpenDataPath", "pluginId", p.pluginID, "purpose", req.Purpose, "channelId", id)
 	data, err := opener.OpenDataPath(id, req.Purpose)
 	if err != nil {
+		slog.Debug("channel.open: OpenDataPath failed", "pluginId", p.pluginID, "err", err.Error())
 		p.auditOpen(id, req, false, err.Error())
 		return nil, err
 	}
+	slog.Debug("channel.open: OpenDataPath OK", "pluginId", p.pluginID, "channelId", id)
 	// Until the channel is committed, every exit path owns closing the data path: otherwise a
 	// rejected open leaves a registered channel on the bus forever.
 	wired := false
@@ -226,10 +233,13 @@ func (p *ChannelProxy) Open(ctx context.Context, params json.RawMessage) (json.R
 		}
 	}()
 
+	slog.Debug("channel.open: calling Wire", "pluginId", p.pluginID, "purpose", req.Purpose, "channelId", id)
 	if err := backend.Wire(wireCtx, handle); err != nil {
+		slog.Debug("channel.open: Wire failed", "pluginId", p.pluginID, "channelId", id, "err", err.Error())
 		p.auditOpen(id, req, false, err.Error())
 		return nil, err
 	}
+	slog.Debug("channel.open: Wire OK", "pluginId", p.pluginID, "channelId", id)
 
 	p.mu.Lock()
 	p.pendingOpens--
@@ -244,6 +254,7 @@ func (p *ChannelProxy) Open(ctx context.Context, params json.RawMessage) (json.R
 	p.mu.Unlock()
 
 	p.auditOpen(id, req, true, "")
+	slog.Debug("channel.open: returning channelId to plugin", "pluginId", p.pluginID, "channelId", id)
 	return json.Marshal(channelOpenResult{ChannelID: id})
 }
 

@@ -30,7 +30,20 @@ func (c *Conn) OpenDataPath(id uint32, purpose string) (domainplugin.ChannelData
 		return nil, fmt.Errorf("%w: %q", ErrUnknownChannelPurpose, purpose)
 	}
 	ch := c.mux.Register(id, purpose, c.channelThroughputKbps)
+	// Hold the channel's outbound emission until the channel.open reply reaches the wire
+	// (Conn.MarkOpened): a host->plugin frame that arrives before the plugin has registered this
+	// channelId is fatal to the plugin. Engaged here, before the backend is wired, so no send
+	// can race it.
+	ch.gateUntilOpened()
 	return &channelDataPath{ch: ch, conn: c}, nil
+}
+
+// MarkChannelOpened releases a channel's outbound send gate (see channel.opened). Conn calls it
+// from handleIncomingRequest once the channel.open reply is on the wire; it is exported so a
+// caller that drives ChannelProxy.Open outside the inbound-request path (the composition-root
+// seam tests) can stand in for that step. A no-op for an unknown or un-gated id.
+func (c *Conn) MarkChannelOpened(id uint32) {
+	c.mux.MarkOpened(id)
 }
 
 // Send emits one outbound kind=0x02 frame, blocking per the channel's exhaustion policy.

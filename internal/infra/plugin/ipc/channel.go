@@ -41,6 +41,21 @@ type channel struct {
 	closeOnce sync.Once
 	closed    chan struct{}
 
+	// opened gates the first host->plugin send until the channel.open reply has been written to
+	// the wire (Conn.MarkOpened, called right after the reply). A plugin registers the channelId
+	// only once its channel.open Call returns, so a kind=0x02 data frame that reaches it before
+	// the reply is a frame for a channelId it does not yet know is open — a fatal protocol
+	// violation on the plugin side (observed with a VNC server, which speaks first: the host's
+	// relay pump read the RFB banner and sent it before the reply). Inbound (plugin->host)
+	// delivery is unaffected; only the host's own emission waits.
+	//
+	// nil means "not gated" — the default, so a channel constructed directly (unit tests, or any
+	// caller not driving the real channel.open RPC) is immediately sendable. Only OpenDataPath,
+	// the production seam reached through an actual channel.open, engages the gate via
+	// gateUntilOpened before the backend is wired.
+	opened   chan struct{}
+	openOnce sync.Once
+
 	// Flow control (ADR-011 §2b). Always populated: newFlowChannel is the only constructor
 	// reachable from channelMux.Register, so there is no such thing as a live channel without
 	// a credit window.
@@ -100,10 +115,39 @@ func (c *channel) Gate() *backendGate { return c.gate }
 // point. Nothing is ever dropped here — a frame the caller handed over is a frame that gets
 // sent, or an error (see channel_backpressure.go on why no purpose gets latest-frame-wins).
 func (c *channel) Send(ctx context.Context, payload []byte) error {
+	// Never emit before the channel.open reply is on the wire: see the `opened` field. Gates
+	// only the host's outbound emission; the plugin's presumed initial credit (the convention
+	// both sides start from) is unchanged, so the handshake it drives is not delayed. A nil gate
+	// (the un-gated default) skips the wait entirely.
+	if c.opened != nil {
+		select {
+		case <-c.opened:
+		case <-c.closed:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	if err := c.credit.AcquireOutbound(ctx); err != nil {
 		return err
 	}
 	return c.writeOut(ctx, payload)
+}
+
+// gateUntilOpened engages the outbound send gate: Send blocks until markOpened. Called by
+// OpenDataPath before the backend is wired, so no Send can race the assignment.
+func (c *channel) gateUntilOpened() {
+	c.opened = make(chan struct{})
+}
+
+// markOpened releases the outbound send gate once the channel.open reply has been written to
+// the wire. Idempotent, and a no-op for an un-gated channel.
+func (c *channel) markOpened() {
+	c.openOnce.Do(func() {
+		if c.opened != nil {
+			close(c.opened)
+		}
+	})
 }
 
 func (c *channel) writeOut(ctx context.Context, payload []byte) error {

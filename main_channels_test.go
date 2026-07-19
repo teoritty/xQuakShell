@@ -211,7 +211,7 @@ func execPlugin(id string) domainplugin.InstalledPlugin {
 }
 
 // newChannelSeam builds the real chain the composition root produces: resolver -> proxy -> conn.
-func newChannelSeam(t *testing.T, plugin domainplugin.InstalledPlugin) (*capability.ChannelProxy, *channelTestPlugin) {
+func newChannelSeam(t *testing.T, plugin domainplugin.InstalledPlugin) (*capability.ChannelProxy, *ipc.Conn, *channelTestPlugin) {
 	t.Helper()
 	pluginOutR, pluginOutW := io.Pipe() // plugin -> host
 	hostOutR, hostOutW := io.Pipe()     // host -> plugin
@@ -228,10 +228,13 @@ func newChannelSeam(t *testing.T, plugin domainplugin.InstalledPlugin) (*capabil
 		_ = hostOutR.Close()
 	})
 
-	return proxy, newChannelTestPlugin(hostOutR, pluginOutW)
+	return proxy, conn, newChannelTestPlugin(hostOutR, pluginOutW)
 }
 
-func openChannel(t *testing.T, proxy *capability.ChannelProxy, purpose, hint string) (uint32, error) {
+// openChannel drives ChannelProxy.Open directly and then releases the channel's outbound gate,
+// standing in for Conn.handleIncomingRequest which does that after the channel.open reply in
+// production. Without the release, a server-speaks-first backend's outbound pump stays blocked.
+func openChannel(t *testing.T, proxy *capability.ChannelProxy, conn *ipc.Conn, purpose, hint string) (uint32, error) {
 	t.Helper()
 	params, _ := json.Marshal(map[string]string{
 		"parentSessionId": "sess-1",
@@ -248,6 +251,7 @@ func openChannel(t *testing.T, proxy *capability.ChannelProxy, purpose, hint str
 	if err := json.Unmarshal(res, &opened); err != nil {
 		t.Fatalf("channel.open result: %v", err)
 	}
+	conn.MarkChannelOpened(opened.ChannelID)
 	return opened.ChannelID, nil
 }
 
@@ -260,9 +264,9 @@ func openChannel(t *testing.T, proxy *capability.ChannelProxy, purpose, hint str
 // passes with credit replenishment entirely broken, because the window never has to reopen.
 func TestChannelResolverWiresARealTCPRelayEndToEnd(t *testing.T) {
 	target := echoListener(t)
-	proxy, plugin := newChannelSeam(t, relayPlugin("com.test.relay"))
+	proxy, conn, plugin := newChannelSeam(t, relayPlugin("com.test.relay"))
 
-	id, err := openChannel(t, proxy, domainplugin.PurposeTCPRelay, target)
+	id, err := openChannel(t, proxy, conn, domainplugin.PurposeTCPRelay, target)
 	if err != nil {
 		t.Fatalf("channel.open tcp-relay: %v -- the composition root resolved no usable backend", err)
 	}
@@ -358,7 +362,7 @@ func TestChannelResolverBuildsAFreshBackendPerOpen(t *testing.T) {
 // what proves the resolver's output actually relays per channel rather than merely differing.
 func TestConcurrentChannelsStayOnTheirOwnPeers(t *testing.T) {
 	targets := []string{echoListener(t), echoListener(t)}
-	proxy, plugin := newChannelSeam(t, relayPlugin("com.test.fresh"))
+	proxy, conn, plugin := newChannelSeam(t, relayPlugin("com.test.fresh"))
 
 	ids := make([]uint32, len(targets))
 	var wg sync.WaitGroup
@@ -366,7 +370,7 @@ func TestConcurrentChannelsStayOnTheirOwnPeers(t *testing.T) {
 		wg.Add(1)
 		go func(i int, target string) {
 			defer wg.Done()
-			id, err := openChannel(t, proxy, domainplugin.PurposeTCPRelay, target)
+			id, err := openChannel(t, proxy, conn, domainplugin.PurposeTCPRelay, target)
 			if err != nil {
 				t.Errorf("channel.open %s: %v", target, err)
 				return
@@ -492,8 +496,8 @@ func TestExecChannelIsRefusedWithoutInstallTimeConsent(t *testing.T) {
 	unconsented := execPlugin("com.test.noexec")
 	unconsented.Manifest.Capabilities.Channel.Purposes = []string{domainplugin.PurposeTCPRelay}
 
-	proxy, _ := newChannelSeam(t, unconsented)
-	if _, err := openChannel(t, proxy, domainplugin.PurposeExec, execHint); err == nil {
+	proxy, conn, _ := newChannelSeam(t, unconsented)
+	if _, err := openChannel(t, proxy, conn, domainplugin.PurposeExec, execHint); err == nil {
 		t.Fatal("channel.open exec succeeded for a plugin that never asked for -- and was never " +
 			"granted -- exec consent at install time")
 	}

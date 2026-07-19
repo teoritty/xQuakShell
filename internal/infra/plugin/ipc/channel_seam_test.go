@@ -182,6 +182,10 @@ func TestSeamHostToPluginFlowsPastInitialCredit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open data path: %v", err)
 	}
+	// OpenDataPath gates outbound sends until the channel.open reply is on the wire; in
+	// production Conn.handleIncomingRequest releases it after that reply. This test drives the
+	// data path directly, so it stands in for that step.
+	conn.mux.MarkOpened(1)
 
 	total := domainplugin.InitialCredit(domainplugin.PurposeExec) * 3
 	sendErr := make(chan error, 1)
@@ -225,6 +229,42 @@ func TestSeamHostToPluginFlowsPastInitialCredit(t *testing.T) {
 // TestSeamOpenDataPathRejectsUnknownPurpose: InitialCredit returns 0 for a purpose the host has
 // no policy for, which would build a channel whose first Send blocks forever and whose first
 // inbound frame kills the plugin. It must be refused at the door instead.
+// TestSeamOutboundBlocksUntilOpened is the VNC-crash regression: a channel opened via
+// OpenDataPath must not emit host->plugin data until MarkOpened (in production, once the
+// channel.open reply is on the wire). A VNC server speaks first, so the relay pump reads the
+// RFB banner and calls Send immediately; before this gate that frame reached the plugin ahead
+// of the reply, for a channelId the plugin had not yet registered — a fatal protocol violation.
+func TestSeamOutboundBlocksUntilOpened(t *testing.T) {
+	conn, plugin := newSeamConn(t)
+
+	data, err := conn.OpenDataPath(1, domainplugin.PurposeExec)
+	if err != nil {
+		t.Fatalf("open data path: %v", err)
+	}
+
+	sent := make(chan error, 1)
+	go func() { sent <- data.Send(context.Background(), []byte("banner")) }()
+
+	select {
+	case <-sent:
+		t.Fatal("Send emitted before MarkOpened; a data frame can beat the channel.open reply")
+	case <-time.After(100 * time.Millisecond):
+		// Correctly blocked.
+	}
+
+	conn.mux.MarkOpened(1)
+
+	select {
+	case err := <-sent:
+		if err != nil {
+			t.Fatalf("Send after MarkOpened: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Send stayed blocked after MarkOpened")
+	}
+	_ = plugin
+}
+
 func TestSeamOpenDataPathRejectsUnknownPurpose(t *testing.T) {
 	conn, _ := newSeamConn(t)
 

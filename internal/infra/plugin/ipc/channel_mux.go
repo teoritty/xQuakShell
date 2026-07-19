@@ -106,6 +106,15 @@ func (m *channelMux) Register(id uint32, purpose string, throughputKbps int) *ch
 	return ch
 }
 
+// MarkOpened releases the outbound send gate for a channel once its channel.open reply has
+// reached the wire (see channel.opened). A no-op for an unknown id: a reply for a channel the
+// mux never registered means the open failed, and there is nothing to release.
+func (m *channelMux) MarkOpened(id uint32) {
+	if ch, ok := m.Get(id); ok {
+		ch.markOpened()
+	}
+}
+
 // Get returns the channel for id, if the mux still tracks it (open or already closed).
 func (m *channelMux) Get(id uint32) (*channel, bool) {
 	m.mu.Lock()
