@@ -291,6 +291,7 @@ export namespace wails {
 	    tags?: string[];
 	    jumpChain?: JumpHopDTO[];
 	    pluginFields?: Record<string, string>;
+	    storedSecretFields?: string[];
 	    forwardRules?: ForwardRuleDTO[];
 	
 	    static createFrom(source: any = {}) {
@@ -311,6 +312,7 @@ export namespace wails {
 	        this.tags = source["tags"];
 	        this.jumpChain = this.convertValues(source["jumpChain"], JumpHopDTO);
 	        this.pluginFields = source["pluginFields"];
+	        this.storedSecretFields = source["storedSecretFields"];
 	        this.forwardRules = this.convertValues(source["forwardRules"], ForwardRuleDTO);
 	    }
 	

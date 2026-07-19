@@ -16,6 +16,7 @@
   export let forwardRules: ForwardRule[] = [];
   export let identities: SSHIdentityMeta[] = [];
   export let pluginFields: Record<string, unknown> = {};
+  export let storedSecretFields: string[] = [];
   export let fieldErrors: Record<string, string> = {};
 
   const dispatch = createEventDispatcher<{
@@ -65,6 +66,7 @@
     groups={protocolDef.fields}
     bind:values={pluginFields}
     bind:errors={fieldErrors}
+    {storedSecretFields}
     on:fieldchange={(e) => dispatch('fieldchange', e.detail)}
   />
 {/if}

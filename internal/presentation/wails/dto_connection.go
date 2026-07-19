@@ -1,6 +1,7 @@
 package wails
 
 import (
+	"sort"
 	"strings"
 
 	"ssh-client/internal/domain"
@@ -81,6 +82,11 @@ type ConnectionDTO struct {
 	Tags          []string            `json:"tags,omitempty"`
 	JumpChain     []JumpHopDTO        `json:"jumpChain,omitempty"`
 	PluginFields  map[string]string   `json:"pluginFields,omitempty"`
+	// StoredSecretFields lists plugin field ids whose secret value is already stored in the vault.
+	// Their value is masked to "" in PluginFields (a secret is never sent to the UI), so the form
+	// uses this to show a "saved" placeholder and to leave the field out of the save payload while
+	// untouched — otherwise re-saving the connection would send an empty value and wipe the secret.
+	StoredSecretFields []string         `json:"storedSecretFields,omitempty"`
 	ForwardRules  []ForwardRuleDTO    `json:"forwardRules,omitempty"`
 }
 
@@ -139,7 +145,21 @@ func ConnectionToDTO(c domain.Connection) ConnectionDTO {
 		dto.ForwardRules = append(dto.ForwardRules, forwardRuleToDTO(r))
 	}
 	dto.PluginFields = pluginFieldsToDTO(c.PluginFields)
+	dto.StoredSecretFields = storedSecretFieldIDs(c.PluginFields)
 	return dto
+}
+
+// storedSecretFieldIDs returns the plugin field ids that carry a stored secret reference, sorted
+// for a stable payload. pluginFieldsToDTO masks these to "" so the value never leaves the host.
+func storedSecretFieldIDs(fields map[string]string) []string {
+	var ids []string
+	for k, v := range fields {
+		if strings.HasPrefix(v, "secret:") {
+			ids = append(ids, k)
+		}
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 func connectionUserToDTO(u domain.ConnectionUser) ConnectionUserDTO {

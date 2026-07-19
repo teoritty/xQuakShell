@@ -20,6 +20,8 @@ export function createDraftFromConnection(
     jumpHops: (connection?.jumpChain || []).map((h, i) => ensureHopUiId({ ...h }, i)),
     forwardRules: (connection?.forwardRules || []).map((r) => ensureRuleUiId({ ...r })),
     pluginFields: { ...(connection?.pluginFields || {}) },
+    storedSecretFields: [...(connection?.storedSecretFields || [])],
+    pluginFieldsTouched: {},
   };
 }
 

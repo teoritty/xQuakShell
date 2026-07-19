@@ -7,6 +7,19 @@
   export let values: Record<string, unknown> = {};
   export let errors: Record<string, string> = {};
   export let readonly = false;
+  // Plugin field ids whose secret is already stored in the vault (value masked to "").
+  export let storedSecretFields: string[] = [];
+  $: storedSecretSet = new Set(storedSecretFields);
+
+  // A stored secret arrives with an empty value (the real one never leaves the host). Show a hint
+  // that it is saved instead of the field's own placeholder, so the empty box does not read as
+  // "password lost". Once the user types, the typed value shows and this no longer applies.
+  function fieldPlaceholder(field: FieldDef): string {
+    if (field.type === 'password' && storedSecretSet.has(field.id) && !values[field.id]) {
+      return '•••••••• (saved — leave blank to keep)';
+    }
+    return field.placeholder ?? '';
+  }
 
   const dispatch = createEventDispatcher<{ fieldchange: { fieldId: string; value: unknown } }>();
 
@@ -164,7 +177,7 @@
                   id="field-{field.id}"
                   type="password"
                   value={String(values[field.id] ?? '')}
-                  placeholder={field.placeholder ?? ''}
+                  placeholder={fieldPlaceholder(field)}
                   disabled={readonly}
                   on:input={(e) => handleInput(field, e.currentTarget.value)}
                 />
@@ -252,7 +265,7 @@
                 id="field-{field.id}"
                 type="password"
                 value={String(values[field.id] ?? '')}
-                placeholder={field.placeholder ?? ''}
+                placeholder={fieldPlaceholder(field)}
                 disabled={readonly}
                 on:input={(e) => handleInput(field, e.currentTarget.value)}
               />
