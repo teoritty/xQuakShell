@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"log/slog"
+	"net"
 	"net/http"
 	"path/filepath"
 	"time"
@@ -216,6 +218,21 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		return filepath.Join(p.RootDir, "ui"), nil
 	})
 	compositeAssets := infrapluginembed.NewCompositeHandler(pluginAssets, embedBroker)
+
+	// The composite handler is also served through the Wails asset server (wails.localhost), but
+	// on Windows/WebView2 that host serves HTTP only — it does NOT proxy ws:// upgrades, so the
+	// embed tunnel WebSocket can never reach the broker there. Serve the same handler from a real
+	// loopback listener and point the embed UI/tunnel URLs at it (SetBaseURL), so the iframe loads
+	// its assets AND opens its ws:// tunnel against one same-origin host that actually accepts the
+	// upgrade. Best-effort: if the listener cannot bind, embed sessions degrade rather than crash.
+	if ln, lnErr := net.Listen("tcp", "127.0.0.1:0"); lnErr != nil {
+		slog.Warn("embed: loopback broker listener unavailable; embed tunnels disabled", "err", lnErr)
+	} else {
+		srv := &http.Server{Handler: compositeAssets}
+		safego.GoNamed("embed.loopbackBroker", func() { _ = srv.Serve(ln) })
+		embedTunnels.SetBaseURL("http://" + ln.Addr().String())
+		slog.Info("embed: loopback broker listening", "addr", ln.Addr().String())
+	}
 
 	embedTunnels.SetPluginNotifier(func(ctx context.Context, pluginID, sessionID, method string, params []byte) error {
 		if manager == nil {

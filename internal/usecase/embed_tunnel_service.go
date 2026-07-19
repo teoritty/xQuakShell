@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +40,13 @@ type EmbedTunnelService struct {
 
 	registry         *SessionRegistry
 	manifestLookup   PluginManifestLookup
+
+	// baseURL, when set, is prepended to the (otherwise root-relative) embed UI/tunnel paths so
+	// the descriptor carries an absolute origin. On Windows/WebView2 the Wails asset server
+	// (wails.localhost) serves HTTP but does NOT proxy WebSocket upgrades, so the embed tunnel
+	// must resolve to a real loopback listener (http://127.0.0.1:<port>) that serves both the UI
+	// assets and the ws:// tunnel from one same-origin host. Empty keeps the legacy relative URLs.
+	baseURL string
 
 	// outbound holds the embed-stream channel subscribers, sessionID -> tunnelID -> sub. It is
 	// deliberately keyed on the session rather than stored on embedEntry: a subscription outlives a
@@ -160,6 +168,15 @@ func (s *EmbedTunnelService) SetEmbedReadyHandler(fn EmbedReadyFunc) {
 	s.onEmbedReady = fn
 }
 
+// SetBaseURL sets the absolute origin (e.g. "http://127.0.0.1:52731") prepended to embed UI and
+// tunnel paths, so the browser resolves both from the real loopback listener that can serve the
+// ws:// tunnel (see baseURL). Empty leaves the URLs root-relative.
+func (s *EmbedTunnelService) SetBaseURL(u string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.baseURL = u
+}
+
 // WireSessionContext binds session registry and manifest lookup for plugin RPC handlers.
 func (s *EmbedTunnelService) WireSessionContext(registry *SessionRegistry, lookup PluginManifestLookup) {
 	if s == nil {
@@ -214,7 +231,14 @@ func (s *EmbedTunnelService) Register(ctx context.Context, reg domain.EmbedRegis
 		entry.active = v
 	}
 	for _, id := range reg.TunnelIDs {
-		entry.tunnelOpen[id] = false
+		// Open (ready to receive) on registration, not false. A registered-but-not-yet-attached
+		// tunnel must classify a pre-attach frame as TunnelNotAttached (transient — the plugin, for a
+		// server-speaks-first protocol like VNC, pushes its synthetic RFB banner before the iframe's
+		// WebSocket attaches) so the host retries until attach. false made it TunnelClosed (terminal),
+		// tearing the embed channel down and dropping the banner. Only CloseTunnel sets it false. The
+		// channel-bus embed path never calls the legacy session.tunnelOpen, so this is the only place
+		// a channel-bus tunnel is ever marked ready.
+		entry.tunnelOpen[id] = true
 	}
 	s.entries[token] = entry
 	s.sessionToken[reg.SessionID] = token
@@ -225,8 +249,8 @@ func (s *EmbedTunnelService) Register(ctx context.Context, reg domain.EmbedRegis
 	desc := domain.SessionEmbedDescriptor{
 		SessionID: reg.SessionID,
 		PluginID:  reg.PluginID,
-		UIUrl:     embedUIPath(token, reg.UIEntry),
-		TunnelUrl: embedTunnelPath(token, mainTunnel),
+		UIUrl:     s.baseURL + embedUIPath(token, reg.UIEntry),
+		TunnelUrl: s.baseURL + embedTunnelPath(token, mainTunnel),
 		Sandbox:   []string{"allow-scripts", "allow-same-origin"},
 		ExpiresAt: reg.ExpiresAt,
 	}
@@ -287,8 +311,8 @@ func (s *EmbedTunnelService) GetDescriptor(sessionID string) (domain.SessionEmbe
 	return domain.SessionEmbedDescriptor{
 		SessionID: sessionID,
 		PluginID:  entry.reg.PluginID,
-		UIUrl:     embedUIPath(token, entry.reg.UIEntry),
-		TunnelUrl: embedTunnelPath(token, mainTunnel),
+		UIUrl:     s.baseURL + embedUIPath(token, entry.reg.UIEntry),
+		TunnelUrl: s.baseURL + embedTunnelPath(token, mainTunnel),
 		Sandbox:   []string{"allow-scripts", "allow-same-origin"},
 		ExpiresAt: entry.reg.ExpiresAt,
 	}, true
@@ -358,6 +382,7 @@ func (s *EmbedTunnelService) RouteTunnelFrameFromPlugin(_ context.Context, sessi
 	}
 	select {
 	case conn.send <- data:
+		slog.Debug("embed: plugin->browser frame queued to WS", "pluginId", "com.xquakshell.vnc", "tunnelId", tunnelID, "bytes", len(data))
 		return nil
 	default:
 		return newEmbedRefusal(EmbedRefusedWSBufferFull, domainplugin.ErrTerminalBackpressure)
@@ -381,6 +406,7 @@ func (s *EmbedTunnelService) RouteTunnelFrameToPlugin(ctx context.Context, sessi
 	if err != nil {
 		return err
 	}
+	slog.Debug("embed: browser->plugin frame received from WS", "pluginId", "com.xquakshell.vnc", "tunnelId", tunnelID, "bytes", len(data), "hasSub", sub != nil)
 	if sub != nil {
 		// Blocking, and deliberately outside the lock: the subscription carries the channel bus's
 		// credit-based backpressure back to the browser's WebSocket read loop instead of queueing
@@ -494,6 +520,18 @@ func (s *EmbedTunnelService) SubscribeOutbound(sessionID, tunnelID string) (<-ch
 	}
 	prev := byTunnel[tunnelID]
 	byTunnel[tunnelID] = sub
+	// The channel-bus embed path never calls session.tunnelOpen (that is the legacy ADR-008 path):
+	// wiring the embed-stream channel — which is what triggers this subscription — is itself the
+	// plugin declaring the tunnel ready. Mark it open so a plugin's pre-attach RFB banner (a VNC
+	// server speaks first, and the plugin pushes the synthetic handshake before the iframe's
+	// WebSocket attaches) is classified as "browser not attached yet" (transient, retried until the
+	// WS attaches) rather than "tunnel closed" (terminal), which would tear the channel down and
+	// drop the banner before noVNC ever receives it.
+	if entry, entryErr := s.entryForSessionLocked(sessionID); entryErr == nil {
+		if _, registered := entry.tunnelOpen[tunnelID]; registered {
+			entry.tunnelOpen[tunnelID] = true
+		}
+	}
 	s.mu.Unlock()
 
 	if prev != nil {

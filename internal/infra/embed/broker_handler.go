@@ -1,7 +1,9 @@
 package embed
 
 import (
+	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -57,6 +59,10 @@ func (h *BrokerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := r.URL.Path
+	// Tagged with a pluginId once known so loghub routes it to the plugin's log stream (the debug
+	// window shows plugin:* sources, not bare core). Before Lookup the id is unknown, so this
+	// first line carries a synthetic marker id purely so it is visible at all.
+	slog.Debug("embed broker: request", "pluginId", "com.xquakshell.vnc", "method", r.Method, "path", path, "upgrade", r.Header.Get("Upgrade"))
 	if !strings.HasPrefix(path, embedPrefix) {
 		http.NotFound(w, r)
 		return
@@ -70,6 +76,7 @@ func (h *BrokerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	token := parts[0]
 	reg, err := h.tunnels.Lookup(token)
 	if err != nil {
+		slog.Debug("embed broker: token lookup failed", "pluginId", "com.xquakshell.vnc", "path", path, "err", err.Error())
 		h.recordFailedLookup(r)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -127,10 +134,33 @@ func (h *BrokerHandler) serveUI(w http.ResponseWriter, r *http.Request, token st
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
+	// The embed UI is DESIGNED to be rendered inside the app's own iframe, so it must NOT carry
+	// X-Frame-Options: DENY (which blocks all framing — the browser then refuses to render the
+	// document in the frame, leaving a blank panel and never running its scripts). The document is
+	// served from a loopback origin (127.0.0.1:<port>) and framed by the wails.localhost app — a
+	// cross-origin pair — so frame-ancestors 'self' would wrongly block it; access is gated by the
+	// unguessable per-session embed token instead. connect-src 'self' covers the same-origin ws://
+	// tunnel on that loopback host.
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:")
-	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	http.ServeFile(w, r, absTarget)
+	// Serve the content directly rather than via http.ServeFile: ServeFile issues a 301 redirect
+	// for any path ending in /index.html (-> "./"), which moves the iframe document to ".../ui/"
+	// and breaks the WebView2 asset interception of its module-script subresource (./boot.js),
+	// leaving the embed a blank frame. ServeContent has no such redirect.
+	f, openErr := os.Open(absTarget)
+	if openErr != nil {
+		slog.Debug("embed broker: UI asset not found", "pluginId", reg.PluginID, "rel", rel, "target", absTarget, "err", openErr.Error())
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+	info, statErr := f.Stat()
+	if statErr != nil || info.IsDir() {
+		http.NotFound(w, r)
+		return
+	}
+	slog.Debug("embed broker: UI asset served", "pluginId", reg.PluginID, "rel", rel)
+	http.ServeContent(w, r, filepath.Base(absTarget), info.ModTime(), f)
 	_ = token
 }
 
@@ -141,14 +171,17 @@ func (h *BrokerHandler) serveTunnel(w http.ResponseWriter, r *http.Request, toke
 	}
 	conn, regData, err := h.tunnels.AttachWebSocket(token, tunnelID)
 	if err != nil {
+		slog.Debug("embed broker: tunnel attach failed", "pluginId", reg.PluginID, "tunnelId", tunnelID, "err", err.Error())
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 	ws, err := wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
+		slog.Debug("embed broker: websocket upgrade failed", "pluginId", reg.PluginID, "tunnelId", tunnelID, "err", err.Error())
 		return
 	}
 	defer ws.Close()
+	slog.Debug("embed broker: tunnel websocket attached", "pluginId", reg.PluginID, "tunnelId", tunnelID, "sessionId", regData.SessionID)
 	safego.GoNamed("embed.pumpWS", func() { h.pumpWSToPlugin(r, regData.SessionID, tunnelID, ws, conn) })
 	h.pumpPluginToWS(ws, conn)
 }
@@ -163,8 +196,10 @@ func (h *BrokerHandler) pumpWSToPlugin(r *http.Request, sessionID, tunnelID stri
 		}
 		msgType, data, err := ws.ReadMessage()
 		if err != nil {
+			slog.Debug("embed broker: WS read ended", "pluginId", "com.xquakshell.vnc", "tunnelId", tunnelID, "err", err.Error())
 			return
 		}
+		slog.Debug("embed broker: WS read from browser", "pluginId", "com.xquakshell.vnc", "tunnelId", tunnelID, "msgType", msgType, "bytes", len(data))
 		if msgType != websocket.BinaryMessage && msgType != websocket.TextMessage {
 			continue
 		}
@@ -183,8 +218,10 @@ func (h *BrokerHandler) pumpPluginToWS(ws *websocket.Conn, conn domain.EmbedTunn
 				return
 			}
 			if err := ws.WriteMessage(websocket.BinaryMessage, data); err != nil {
+				slog.Debug("embed broker: WS write to browser failed", "pluginId", "com.xquakshell.vnc", "err", err.Error())
 				return
 			}
+			slog.Debug("embed broker: WS wrote to browser", "pluginId", "com.xquakshell.vnc", "bytes", len(data))
 		case <-conn.Done():
 			return
 		}
