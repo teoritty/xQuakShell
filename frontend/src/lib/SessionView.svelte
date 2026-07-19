@@ -92,12 +92,7 @@
 </script>
 
 <div class="session-view" class:visible={active}>
-  {#if session.state === 'connecting'}
-    <div class="session-status">
-      <div class="status-icon spinning"><Loader2 size={28} /></div>
-      <div class="status-text">Connecting to {session.connectionName}...</div>
-    </div>
-  {:else if session.state === 'error'}
+  {#if session.state === 'error'}
     <div class="session-status error">
       <div class="status-icon"><XCircle size={28} /></div>
       <div class="status-text">Connection error: {session.errorMessage}</div>
@@ -106,19 +101,33 @@
         <button class="secondary" on:click={() => closeSession(session.sessionId)}>Close</button>
       </div>
     </div>
+  {:else if session.surface === 'embed' && session.embed}
+    <!--
+      An embed session becomes interactive at session.registerEmbed, while it is
+      still 'connecting': the iframe must mount now so the plugin's browser-facing
+      handshake (rfb Frontshake over the embed-stream channel) can complete and
+      drive the session to 'ready'. Gating the panel on state === 'ready' deadlocks
+      — the plugin only reaches 'ready' after that handshake, which needs the very
+      browser this panel hosts. Error takes precedence above; everything else falls
+      through to the terminal/connecting states below.
+    -->
+    <div class="session-content">
+      <div class="embed-area" style="flex: 100">
+        <SessionEmbedPanel {session} {active} />
+      </div>
+    </div>
+  {:else if session.state === 'connecting'}
+    <div class="session-status">
+      <div class="status-icon spinning"><Loader2 size={28} /></div>
+      <div class="status-text">Connecting to {session.connectionName}...</div>
+    </div>
   {:else if session.state === 'ready'}
     <div class="session-content" class:no-select={isDragging || fileDragging} class:terminal-only={!filesVisible}>
-      {#if session.surface === 'embed' && session.embed}
-        <div class="embed-area" style="flex: {filesVisible ? splitRatio : 100}">
-          <SessionEmbedPanel {session} {active} />
-        </div>
-      {:else}
       <div class="terminal-area" style="flex: {filesVisible ? splitRatio : 100}">
         {#key session.sessionId}
           <Terminal sessionId={session.sessionId} {active} />
         {/key}
       </div>
-      {/if}
       {#if filesVisible}
       <div
         class="split-handle-h"
