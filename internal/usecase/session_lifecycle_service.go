@@ -280,6 +280,7 @@ func (s *SessionLifecycleService) connectSession(entry *sessionEntry, conn *doma
 		}
 	}
 
+	slog.Info("session connecting", "component", "session", "sessionID", entry.info.SessionID, "connectionId", conn.ID, "host", conn.EffectiveHost())
 	result := s.sshConnector.Connect(entry.ctx, conn)
 	if result.HostKeyInfo != nil {
 		s.applyHostKeyRequired(entry, *result.HostKeyInfo, result.Err)
@@ -291,6 +292,7 @@ func (s *SessionLifecycleService) connectSession(entry *sessionEntry, conn *doma
 		return
 	}
 
+	slog.Info("session connected", "component", "session", "sessionID", entry.info.SessionID, "connectionId", conn.ID)
 	s.registry.Mutate(entry.info.SessionID, func(e *sessionEntry) {
 		e.sshClient = result.Client
 		var limiter domain.ConcurrencyLimiter

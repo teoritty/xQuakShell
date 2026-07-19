@@ -33,7 +33,7 @@ func NewHandler(hub *Hub, w io.Writer) *Handler {
 }
 
 func (h *Handler) Enabled(_ context.Context, level slog.Level) bool {
-	return h.fallback.Enabled(context.Background(), level)
+	return Enabled(level)
 }
 
 func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
@@ -88,10 +88,15 @@ func attrString(a slog.Attr) string {
 	}
 }
 
-// PublishPluginLog records a plugin log.write entry.
+// PublishPluginLog records a plugin log.write entry. It honors the plugin's
+// declared level and is gated by the process-wide level floor, exactly like
+// core slog records.
 func PublishPluginLog(pluginID, level, message string, fields map[string]string) {
 	if level == "" {
 		level = "info"
+	}
+	if !Enabled(ParseLevel(level)) {
+		return
 	}
 	src := "plugin:" + pluginID
 	outFields := make(map[string]string, len(fields))
@@ -109,6 +114,9 @@ func PublishPluginLog(pluginID, level, message string, fields map[string]string)
 
 // PublishPluginStderr records a plugin stderr line.
 func PublishPluginStderr(pluginID, message string, redacted bool) {
+	if !Enabled(slog.LevelInfo) {
+		return
+	}
 	fields := map[string]string{}
 	if redacted {
 		fields["redacted"] = "true"
@@ -124,6 +132,9 @@ func PublishPluginStderr(pluginID, message string, redacted bool) {
 
 // PublishStdLog records a line from the standard log package.
 func PublishStdLog(line string) {
+	if !Enabled(slog.LevelInfo) {
+		return
+	}
 	Default().Publish(domain.DebugLogEntry{
 		Time:    time.Now(),
 		Level:   "info",

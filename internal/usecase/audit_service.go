@@ -221,6 +221,9 @@ func (s *AuditService) RecordCommand(ctx context.Context, sessionID, line string
 		slog.Error("audit append failed", "err", err)
 		return domain.ErrAuditLogWrite
 	}
+	// Debug "chirp" so command activity is visible in the debug log. The input
+	// is already secret-sanitized above (same value persisted to the audit DB).
+	slog.Debug("command recorded", "component", "audit", "sessionId", sessionID, "redacted", redacted, "command", input)
 	return s.EnforceRetention(ctx)
 }
 

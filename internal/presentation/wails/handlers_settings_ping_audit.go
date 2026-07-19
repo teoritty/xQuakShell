@@ -7,6 +7,7 @@ import (
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"ssh-client/internal/domain"
+	"ssh-client/internal/infra/loghub"
 	"ssh-client/internal/usecase"
 )
 
@@ -42,6 +43,7 @@ func (a *AppAPI) SaveSettings(dto AppSettingsDTO) error {
 			}
 		})
 	}
+	loghub.SetLevel(loghub.ParseLevel(settings.Debug.LogLevel))
 	a.SyncDebugLogWindow(settings.Debug.LogWindowEnabled)
 	return nil
 }

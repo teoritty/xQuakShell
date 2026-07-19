@@ -43,6 +43,7 @@ export namespace wails {
 	    auditShowUsername: boolean;
 	    auditShowConnection: boolean;
 	    debugLogWindowEnabled: boolean;
+	    debugLogLevel: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppSettingsDTO(source);
@@ -78,6 +79,7 @@ export namespace wails {
 	        this.auditShowUsername = source["auditShowUsername"];
 	        this.auditShowConnection = source["auditShowConnection"];
 	        this.debugLogWindowEnabled = source["debugLogWindowEnabled"];
+	        this.debugLogLevel = source["debugLogLevel"];
 	    }
 	}
 	export class AuditEntryDTO {
@@ -712,12 +714,13 @@ export namespace wails {
 	    requiresTunnelProviderAccess: boolean;
 	    multiSessionWarning: boolean;
 	    arbitraryNetworkWarning: boolean;
+	    execAccessWarning: boolean;
 	    unsignedPlugin: boolean;
 	    untrustedSource: boolean;
 	    compatible: boolean;
 	    compatibilityIssues: string[];
 	    warnings: string[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new GitHubPluginPreviewResponseDTO(source);
 	    }
@@ -746,6 +749,7 @@ export namespace wails {
 	        this.requiresTunnelProviderAccess = source["requiresTunnelProviderAccess"];
 	        this.multiSessionWarning = source["multiSessionWarning"];
 	        this.arbitraryNetworkWarning = source["arbitraryNetworkWarning"];
+	        this.execAccessWarning = source["execAccessWarning"];
 	        this.unsignedPlugin = source["unsignedPlugin"];
 	        this.untrustedSource = source["untrustedSource"];
 	        this.compatible = source["compatible"];
@@ -1056,6 +1060,7 @@ export namespace wails {
 	    requiresTunnelProviderAccess: boolean;
 	    multiSessionWarning: boolean;
 	    arbitraryNetworkWarning: boolean;
+	    execAccessWarning: boolean;
 	    unsignedWarning: boolean;
 	    untrustedSignatureWarning: boolean;
 	    permissions: string[];
@@ -1078,6 +1083,7 @@ export namespace wails {
 	        this.requiresTunnelProviderAccess = source["requiresTunnelProviderAccess"];
 	        this.multiSessionWarning = source["multiSessionWarning"];
 	        this.arbitraryNetworkWarning = source["arbitraryNetworkWarning"];
+	        this.execAccessWarning = source["execAccessWarning"];
 	        this.unsignedWarning = source["unsignedWarning"];
 	        this.untrustedSignatureWarning = source["untrustedSignatureWarning"];
 	        this.permissions = source["permissions"];

@@ -1,19 +1,32 @@
 package loghub
 
 import (
+	"strconv"
 	"sync"
+	"time"
 
 	"ssh-client/internal/domain"
 )
 
 const defaultCapacity = 5000
 
+// dropMarkerSource tags the synthetic entry emitted when a subscriber falls
+// behind and live entries had to be dropped.
+const dropMarkerSource = "loghub"
+
+// subscriber holds a live channel plus a counter of entries that could not be
+// delivered because the channel was full. The counter is guarded by Hub.mu.
+type subscriber struct {
+	ch      chan domain.DebugLogEntry
+	dropped int
+}
+
 // Hub stores recent log entries and fans them out to subscribers.
 type Hub struct {
 	mu      sync.RWMutex
 	buffer  []domain.DebugLogEntry
 	cap     int
-	subs    map[int]chan domain.DebugLogEntry
+	subs    map[int]*subscriber
 	nextSub int
 }
 
@@ -26,7 +39,7 @@ func NewHub(capacity int) *Hub {
 	}
 	return &Hub{
 		cap:  capacity,
-		subs: make(map[int]chan domain.DebugLogEntry),
+		subs: make(map[int]*subscriber),
 	}
 }
 
@@ -52,12 +65,37 @@ func (h *Hub) appendLocked(e domain.DebugLogEntry) {
 	}
 }
 
+// broadcastLocked delivers e to every subscriber without ever blocking. When a
+// subscriber's channel is full the entry is counted rather than silently lost;
+// the accumulated count is surfaced as a synthetic warn marker on the next
+// successful delivery so the drop is visible in the viewer.
 func (h *Hub) broadcastLocked(e domain.DebugLogEntry) {
-	for _, ch := range h.subs {
-		select {
-		case ch <- e:
-		default:
+	for _, s := range h.subs {
+		if s.dropped > 0 {
+			select {
+			case s.ch <- dropMarker(s.dropped):
+				s.dropped = 0
+			default:
+				// Still backed up: keep counting and skip the real entry too.
+				s.dropped++
+				continue
+			}
 		}
+		select {
+		case s.ch <- e:
+		default:
+			s.dropped++
+		}
+	}
+}
+
+func dropMarker(n int) domain.DebugLogEntry {
+	return domain.DebugLogEntry{
+		Time:    time.Now(),
+		Level:   "warn",
+		Source:  dropMarkerSource,
+		Message: "dropped " + strconv.Itoa(n) + " log entries (viewer too slow)",
+		Fields:  map[string]string{"dropped": strconv.Itoa(n)},
 	}
 }
 
@@ -82,7 +120,7 @@ func (h *Hub) Subscribe(buffer int) (id int, backlog []domain.DebugLogEntry, ch 
 	backlog = make([]domain.DebugLogEntry, len(h.buffer))
 	copy(backlog, h.buffer)
 	c := make(chan domain.DebugLogEntry, buffer)
-	h.subs[id] = c
+	h.subs[id] = &subscriber{ch: c}
 	return id, backlog, c
 }
 
@@ -90,8 +128,8 @@ func (h *Hub) Subscribe(buffer int) (id int, backlog []domain.DebugLogEntry, ch 
 func (h *Hub) Unsubscribe(id int) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if ch, ok := h.subs[id]; ok {
+	if s, ok := h.subs[id]; ok {
 		delete(h.subs, id)
-		close(ch)
+		close(s.ch)
 	}
 }

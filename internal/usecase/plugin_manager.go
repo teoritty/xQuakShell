@@ -278,6 +278,10 @@ func (m *PluginManager) SetStateChangeHandler(fn func(pluginID, state, sessionID
 }
 
 func (m *PluginManager) emitStateChange(pluginID, state, sessionID string) {
+	// Single choke point for every lifecycle transition, so start/running/
+	// suspended/stopped/crashed are all visible in the debug log (previously
+	// they only reached the frontend state event).
+	slog.Info("plugin state change", "component", "plugin", "pluginId", pluginID, "state", state, "sessionId", sessionID)
 	if m.stateChange != nil {
 		m.stateChange(pluginID, state, sessionID)
 	}

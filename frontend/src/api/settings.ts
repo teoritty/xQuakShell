@@ -43,6 +43,7 @@ export interface AppSettings {
   auditShowUsername: boolean;
   auditShowConnection: boolean;
   debugLogWindowEnabled: boolean;
+  debugLogLevel: string;
 }
 
 export interface AuditEntry {

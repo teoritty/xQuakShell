@@ -1,19 +1,19 @@
 package plugin_test
 
 import (
-	"bytes"
-	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	infraplugin "ssh-client/internal/infra/plugin"
+	"ssh-client/internal/infra/loghub"
 )
 
 func TestRedactingStderrWriterRedactsSecrets(t *testing.T) {
-	var buf bytes.Buffer
-	prev := slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})))
-	t.Cleanup(func() { slog.SetDefault(prev) })
+	// Plugin stderr is published once into the loghub (source plugin-stderr:<id>),
+	// no longer mirrored through slog. Subscribe to the hub and assert redaction.
+	id, _, ch := loghub.Default().Subscribe(16)
+	t.Cleanup(func() { loghub.Default().Unsubscribe(id) })
 
 	writer := infraplugin.NewRedactingStderrWriter("com.test.plugin")
 	if _, err := writer.Write([]byte("password=hunter2\n")); err != nil {
@@ -23,11 +23,22 @@ func TestRedactingStderrWriterRedactsSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out := buf.String()
-	if strings.Contains(out, "hunter2") {
-		t.Fatalf("expected secret redacted from stderr log, got %q", out)
-	}
-	if !strings.Contains(out, "REDACTED") && !strings.Contains(out, "redacted") {
-		t.Fatalf("expected redaction marker in stderr log, got %q", out)
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case e := <-ch:
+			if !strings.HasPrefix(e.Source, "plugin-stderr:") {
+				continue
+			}
+			if strings.Contains(e.Message, "hunter2") {
+				t.Fatalf("expected secret redacted from stderr log, got %q", e.Message)
+			}
+			if !strings.Contains(e.Message, "REDACTED") && e.Fields["redacted"] != "true" {
+				t.Fatalf("expected redaction marker in stderr log, got message=%q fields=%v", e.Message, e.Fields)
+			}
+			return
+		case <-deadline:
+			t.Fatal("timed out waiting for stderr log entry")
+		}
 	}
 }

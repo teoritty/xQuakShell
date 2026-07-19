@@ -97,6 +97,7 @@
   let auditLogSecrets = false;
   let auditSecretsConfirmShow = false;
   let debugLogWindowEnabled = false;
+  let debugLogLevel = 'debug';
 
   onMount(() => {
     const rt = (window as any).runtime;
@@ -200,6 +201,7 @@
       auditShowUsername = s.auditShowUsername ?? false;
       auditShowConnection = s.auditShowConnection ?? false;
       debugLogWindowEnabled = s.debugLogWindowEnabled ?? false;
+      debugLogLevel = s.debugLogLevel || 'debug';
     }
     const sessionState = await getAuditSessionState();
     auditLogSecrets = sessionState?.logSecretsEnabled ?? false;
@@ -315,6 +317,7 @@
       auditShowUsername,
       auditShowConnection,
       debugLogWindowEnabled,
+      debugLogLevel,
     });
     window.dispatchEvent(new CustomEvent('app-settings-updated'));
     uiScaleAtOpen = uiScalePercent;
@@ -393,6 +396,15 @@
               <label class="checkbox-row">
                 <input type="checkbox" bind:checked={debugLogWindowEnabled} />
                 Open debug log window
+              </label>
+              <label class="field-block">
+                <span>Minimum log level</span>
+                <select bind:value={debugLogLevel}>
+                  <option value="debug">Debug (most verbose)</option>
+                  <option value="info">Info</option>
+                  <option value="warn">Warning</option>
+                  <option value="error">Error</option>
+                </select>
               </label>
             </div>
           {/if}

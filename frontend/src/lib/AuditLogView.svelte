@@ -149,7 +149,7 @@
         </div>
 
         {#if activeTab === 'system'}
-          <p class="tab-hint">Read-only record of the app's own security-relevant behavior, kept for investigation.</p>
+          <p class="tab-hint">Durable, read-only record of the app's own security-relevant behavior (plugin grants, denials, session binds), kept for investigation. This is separate from the live Debug Log window.</p>
         {/if}
 
         <div class="search-bar">

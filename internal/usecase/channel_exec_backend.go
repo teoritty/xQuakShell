@@ -9,6 +9,7 @@ import (
 
 	"ssh-client/internal/domain"
 	domainplugin "ssh-client/internal/domain/plugin"
+	"ssh-client/internal/pkg/logx"
 	"ssh-client/internal/pkg/safego"
 )
 
@@ -176,20 +177,24 @@ func (b *ChannelExecBackend) Wire(ctx context.Context, ch *domainplugin.ChannelH
 	// Captured here, not read inside the goroutine below: the id is what lets a per-process
 	// notifier route this close to the right channel (D8).
 	channelID := ch.ChannelID()
+	log := logx.For("plugin.channel").With("pluginId", b.pluginID, "channelId", channelID)
 
 	safego.GoNamed("plugin.channelExecInbound", func() {
 		for {
 			payload, ok := data.Recv()
 			if !ok {
+				log.Debug("exec inbound closed: channel data ended")
 				_ = stdin.Close()
 				return
 			}
 			if _, err := stdin.Write(payload); err != nil {
+				log.Warn("exec inbound closed: stdin write failed", "err", err)
 				_ = stdin.Close()
 				return
 			}
 			// The frame is in the remote process's stdin: the plugin may send one more.
 			if err := data.Ack(ctx); err != nil {
+				log.Warn("exec inbound closed: ack failed", "err", err)
 				_ = stdin.Close()
 				return
 			}
@@ -200,15 +205,22 @@ func (b *ChannelExecBackend) Wire(ctx context.Context, ch *domainplugin.ChannelH
 		buf := make([]byte, 32*1024)
 		for {
 			if err := data.WaitForCapacity(ctx); err != nil {
+				log.Debug("exec outbound closed: capacity wait ended", "err", err)
 				return
 			}
 			n, err := stdout.Read(buf)
 			if n > 0 {
 				if sendErr := data.Send(ctx, append([]byte(nil), buf[:n]...)); sendErr != nil {
+					log.Warn("exec outbound closed: channel send failed", "err", sendErr)
 					return
 				}
 			}
 			if err != nil {
+				if err == io.EOF {
+					log.Debug("exec outbound closed: stdout EOF")
+				} else {
+					log.Warn("exec outbound closed: stdout read failed", "err", err)
+				}
 				return
 			}
 		}
@@ -231,6 +243,7 @@ func (b *ChannelExecBackend) Wire(ctx context.Context, ch *domainplugin.ChannelH
 				message = waitErr.Error()
 			}
 		}
+		log.Info("exec channel ended", "reason", reason)
 		if b.closeNotifier != nil {
 			b.closeNotifier(channelID, reason, message)
 		}
