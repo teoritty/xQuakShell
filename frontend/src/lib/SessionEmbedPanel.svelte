@@ -1,10 +1,20 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import type { Session } from '../stores/appState';
+  import { get } from 'svelte/store';
+  import { connections, type Session } from '../stores/appState';
   import { reportEmbedActivity, reportEmbedViewport } from '../api/sessions';
 
   export let session: Session;
   export let active: boolean = false;
+
+  // Plugin field values for this session's connection. The embed page (ui/boot.js) reads a few of
+  // them off the iframe URL query — readOnly (viewOnly UX) and the RFB quality/compression knobs —
+  // so they must be threaded onto the src rather than left in the backend, which only sees them at
+  // connect time.
+  function connectionPluginFields(): Record<string, string> {
+    const conn = get(connections).find((c) => c.id === session.connectionId);
+    return conn?.pluginFields ?? {};
+  }
 
   let iframeEl: HTMLIFrameElement | null = null;
   let hostPort: MessagePort | null = null;
@@ -18,6 +28,10 @@
     try {
       const resolved = new URL(url, window.location.href);
       resolved.searchParams.set('hostOrigin', window.location.origin);
+      const fields = connectionPluginFields();
+      if (fields.readOnly === 'true') resolved.searchParams.set('readOnly', '1');
+      if (fields.quality) resolved.searchParams.set('quality', String(fields.quality));
+      if (fields.compression) resolved.searchParams.set('compression', String(fields.compression));
       return resolved.toString();
     } catch {
       return url;
