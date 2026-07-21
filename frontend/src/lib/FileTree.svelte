@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import type { RemoteNode } from '../stores/appState';
+  import type { RemoteNode, TransferItem } from '../stores/appState';
   import { listPath, removePath, mkdirPath, createFilePath, renamePath, downloadFile } from '../api/remoteFs';
+  import { startUploadDrop } from '../actions/transferActions';
   import { getTempDir, openFileWithSystem, startFileWatch } from '../api/localFs';
   import { getSettings } from '../actions/settingsActions';
   import { sftpReadyPaths } from '../events/subscribe';
   import { editingFiles, transferCompleted } from '../stores/appState';
-  import { registerOsDropZone, resolveOsDropTarget, joinPath, baseName, isFileDrag, isInternalFileDrag } from './osFileDrop';
+  import { registerOsDropZone, resolveOsDropTarget, isFileDrag, isInternalFileDrag } from './osFileDrop';
   import { isInvalidMove } from './pathMove';
   import FileTreeNode from './FileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
@@ -21,7 +22,6 @@
   const STORAGE_HIDDEN = 'filetree-show-hidden';
 
   export let sessionId: string;
-  export let onDropUpload: ((localPath: string, remotePath: string) => void) | undefined = undefined;
 
   let tree: Map<string, RemoteNode[]> = new Map();
   let rawTree: Map<string, RemoteNode[]> = new Map();
@@ -76,14 +76,12 @@
     if (osDropOff) osDropOff();
   });
 
-  function handleOsFileDrop(paths: string[], x: number, y: number) {
-    if (!rootEl || !onDropUpload) return;
+  async function handleOsFileDrop(paths: string[], x: number, y: number) {
+    if (!rootEl) return;
     const targetDir = resolveOsDropTarget(rootEl, x, y, currentPath);
     if (targetDir === null) return;
-    for (const p of paths) {
-      const remoteDest = joinPath(targetDir, baseName(p));
-      onDropUpload(p, remoteDest);
-    }
+    await startUploadDrop(sessionId, paths, targetDir);
+    await refreshPreservingState([targetDir, currentPath]);
   }
 
   async function loadDir(path: string) {
@@ -181,11 +179,16 @@
     tree = tree;
   }
 
+  // The directory a finished operation affected. Batches report it explicitly;
+  // single-path operations only carry the path itself, so derive its parent.
+  function remoteDestDir(t: TransferItem): string {
+    return t.refreshDir || t.remotePath.replace(/\/[^/]+$/, '') || '/';
+  }
+
   $: if (ready && $transferCompleted?.direction === 'upload' && $transferCompleted?.sessionId === sessionId) {
     const t = $transferCompleted;
     transferCompleted.set(null);
-    const remoteParent = t.remotePath.replace(/\/[^/]+$/, '') || '/';
-    refreshPreservingState([remoteParent, currentPath]);
+    refreshPreservingState([remoteDestDir(t), currentPath]);
   }
 
   // Remote operations (delete/chmod/chown) finished (or partially applied) —
@@ -194,7 +197,7 @@
       && (($transferCompleted.kind === 'delete') || ($transferCompleted.kind === 'chmod') || ($transferCompleted.kind === 'chown'))) {
     const t = $transferCompleted;
     transferCompleted.set(null);
-    const affectedParent = t.remotePath.replace(/\/[^/]+$/, '') || '/';
+    const affectedParent = remoteDestDir(t);
     // For delete the path itself is gone, so listing it would fail ("file does
     // not exist"); only its parent and the current dir need refreshing. For
     // chmod/chown the path still exists and its own listing must be refreshed.
@@ -319,12 +322,9 @@
       return;
     }
     const locals = localPaths && localPaths.length > 0 ? localPaths : (localPath ? [localPath] : []);
-    if (locals.length > 0 && onDropUpload) {
-      for (const lp of locals) {
-        const fileName = lp.split(/[\\/]/).pop() || 'file';
-        const remoteDest = targetDir === '/' ? `/${fileName}` : `${targetDir}/${fileName}`;
-        onDropUpload(lp, remoteDest);
-      }
+    if (locals.length > 0) {
+      await startUploadDrop(sessionId, locals, targetDir);
+      await refreshPreservingState([targetDir, currentPath]);
     }
   }
 

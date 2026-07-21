@@ -32,6 +32,8 @@ export namespace wails {
 	    transferSpeedLimitKbps: number;
 	    connectionTimeoutSeconds: number;
 	    maxConcurrentTransfers: number;
+	    defaultUploadExistsAction: string;
+	    defaultDownloadExistsAction: string;
 	    sessionHotkeyCreate: string;
 	    sessionHotkeyNext: string;
 	    sessionHotkeyPrev: string;
@@ -68,6 +70,8 @@ export namespace wails {
 	        this.transferSpeedLimitKbps = source["transferSpeedLimitKbps"];
 	        this.connectionTimeoutSeconds = source["connectionTimeoutSeconds"];
 	        this.maxConcurrentTransfers = source["maxConcurrentTransfers"];
+	        this.defaultUploadExistsAction = source["defaultUploadExistsAction"];
+	        this.defaultDownloadExistsAction = source["defaultDownloadExistsAction"];
 	        this.sessionHotkeyCreate = source["sessionHotkeyCreate"];
 	        this.sessionHotkeyNext = source["sessionHotkeyNext"];
 	        this.sessionHotkeyPrev = source["sessionHotkeyPrev"];
@@ -122,6 +126,22 @@ export namespace wails {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.logSecretsEnabled = source["logSecretsEnabled"];
+	    }
+	}
+	export class ConflictInfoDTO {
+	    size: number;
+	    modTime: string;
+	    isDir: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConflictInfoDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.size = source["size"];
+	        this.modTime = source["modTime"];
+	        this.isDir = source["isDir"];
 	    }
 	}
 	export class ForwardRuleDTO {
@@ -503,6 +523,128 @@ export namespace wails {
 		}
 	}
 	
+	export class ResolvedActionDTO {
+	    target: string;
+	    action: string;
+	    newName?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ResolvedActionDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.target = source["target"];
+	        this.action = source["action"];
+	        this.newName = source["newName"];
+	    }
+	}
+	export class PlannedFileDTO {
+	    source: string;
+	    target: string;
+	    size: number;
+	    srcModTime: string;
+	    conflict?: ConflictInfoDTO;
+	
+	    static createFrom(source: any = {}) {
+	        return new PlannedFileDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.target = source["target"];
+	        this.size = source["size"];
+	        this.srcModTime = source["srcModTime"];
+	        this.conflict = this.convertValues(source["conflict"], ConflictInfoDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TransferPlanDTO {
+	    kind: string;
+	    destDir: string;
+	    dirs: string[];
+	    files: PlannedFileDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new TransferPlanDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.destDir = source["destDir"];
+	        this.dirs = source["dirs"];
+	        this.files = this.convertValues(source["files"], PlannedFileDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ExecutePlanDTO {
+	    plan: TransferPlanDTO;
+	    resolutions: ResolvedActionDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ExecutePlanDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.plan = this.convertValues(source["plan"], TransferPlanDTO);
+	        this.resolutions = this.convertValues(source["resolutions"], ResolvedActionDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class FetchGitHubPluginsRequest {
 	    url: string;
 	    forceRefresh: boolean;
@@ -863,6 +1005,7 @@ export namespace wails {
 	}
 	
 	
+	
 	export class PluginAuthMethodDTO {
 	    pluginId: string;
 	    id: string;
@@ -1180,6 +1323,7 @@ export namespace wails {
 	        this.group = source["group"];
 	    }
 	}
+	
 	export class SessionEmbedDTO {
 	    uiUrl: string;
 	    tunnelUrl: string;
@@ -1253,6 +1397,23 @@ export namespace wails {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.url = source["url"];
 	        this.trusted = source["trusted"];
+	    }
+	}
+	
+	export class VersionInfoDTO {
+	    appVersion: string;
+	    coreVersion: string;
+	    pluginApiVersion: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new VersionInfoDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.appVersion = source["appVersion"];
+	        this.coreVersion = source["coreVersion"];
+	        this.pluginApiVersion = source["pluginApiVersion"];
 	    }
 	}
 

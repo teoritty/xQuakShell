@@ -54,4 +54,9 @@ type HostFileSystem interface {
 	// Copy copies srcPath (file or directory, recursively) into destDir,
 	// keeping srcPath's base name. Symlinks are copied as links, not followed.
 	Copy(srcPath, destDir string) error
+	// CopyTo copies srcPath (file or directory, recursively) to the explicit
+	// destPath, i.e. the caller chooses the destination's base name. This is what
+	// lets a conflict "Rename" write under a fresh name. Symlinks are copied as
+	// links, not followed.
+	CopyTo(srcPath, destPath string) error
 }

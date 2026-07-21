@@ -15,33 +15,34 @@ import (
 
 // AppAPI is the Wails-bound struct that exposes all backend methods to the frontend.
 type AppAPI struct {
-	ctx                 context.Context
-	vaultRepo           domain.VaultRepository
-	vaultSvc            *usecase.VaultService
-	sessions            *usecase.SessionManager
-	settingsSvc         *usecase.SettingsService
-	auditSvc            *usecase.AuditService
-	transferSvc         *usecase.TransferService
-	remoteOpSvc         *usecase.RemoteOpService
-	hostKeys            *usecase.HostKeyService
-	remoteFS            *usecase.RemoteFSService
-	localFS             *usecase.LocalFSService
-	portableData        domain.PortableDataStore
-	puttyImport         *usecase.PuTTYImportService
-	lockout             domain.LockoutManager
-	pingMgr             *usecase.PingManager
-	plugins             *usecase.PluginManager
-	viewRelay           *usecase.PluginViewRelay
-	githubRepoService   *usecase.GitHubRepositoryService
-	githubPluginService *usecase.GitHubPluginService
-	pluginVaultGrant              func(pluginID string) error
-	pluginAuthGrant               func(pluginID string) error
-	pluginTunnelGrant             func(pluginID string) error
-	pluginMultiSessionGrant       func(pluginID string) error
-	pluginArbitraryNetworkGrant   func(pluginID string) error
-	embedBridge         *usecase.PluginEmbedBridge
-	forwardRules        *usecase.ForwardRuleValidator
-	logWindow           *logwindow.Manager
+	ctx                         context.Context
+	vaultRepo                   domain.VaultRepository
+	vaultSvc                    *usecase.VaultService
+	sessions                    *usecase.SessionManager
+	settingsSvc                 *usecase.SettingsService
+	auditSvc                    *usecase.AuditService
+	transferSvc                 *usecase.TransferService
+	transferPlanner             *usecase.TransferPlanner
+	remoteOpSvc                 *usecase.RemoteOpService
+	hostKeys                    *usecase.HostKeyService
+	remoteFS                    *usecase.RemoteFSService
+	localFS                     *usecase.LocalFSService
+	portableData                domain.PortableDataStore
+	puttyImport                 *usecase.PuTTYImportService
+	lockout                     domain.LockoutManager
+	pingMgr                     *usecase.PingManager
+	plugins                     *usecase.PluginManager
+	viewRelay                   *usecase.PluginViewRelay
+	githubRepoService           *usecase.GitHubRepositoryService
+	githubPluginService         *usecase.GitHubPluginService
+	pluginVaultGrant            func(pluginID string) error
+	pluginAuthGrant             func(pluginID string) error
+	pluginTunnelGrant           func(pluginID string) error
+	pluginMultiSessionGrant     func(pluginID string) error
+	pluginArbitraryNetworkGrant func(pluginID string) error
+	embedBridge                 *usecase.PluginEmbedBridge
+	forwardRules                *usecase.ForwardRuleValidator
+	logWindow                   *logwindow.Manager
 }
 
 // NewAppAPI creates a new AppAPI with the given dependencies.
@@ -121,10 +122,10 @@ func NewAppAPI(
 			Fields:  pluginFieldsSvc,
 			Audit:   pluginSessionAudit,
 		}),
-		OnStateChange:  api.onSessionStateChange,
-		OnStreamReady:  api.onStreamReady,
-		PassphraseReq:  api.onPassphraseRequest,
-		HostKeyRequest: api.onHostKeyRequest,
+		OnStateChange:             api.onSessionStateChange,
+		OnStreamReady:             api.onStreamReady,
+		PassphraseReq:             api.onPassphraseRequest,
+		HostKeyRequest:            api.onHostKeyRequest,
 		ForwardConnLimiterFactory: forwardConnLimiterFactory,
 	}
 	if sshAuth != nil && sshAuth.Enabled() {
@@ -148,6 +149,7 @@ func NewAppAPI(
 
 	api.auditSvc = usecase.NewAuditService(auditLogRepo, api.settingsSvc, api.sessions, connRepo, trackerFactory, sanitizerFactory)
 	api.transferSvc = usecase.NewTransferService(api.sessions, api.settingsSvc, hostFS, transferLimiter)
+	api.transferPlanner = usecase.NewTransferPlanner(api.sessions, hostFS)
 	api.remoteOpSvc = usecase.NewRemoteOpService(api.sessions)
 	api.hostKeys = usecase.NewHostKeyService(knownHosts, api.sessions)
 	api.remoteFS = usecase.NewRemoteFSService(api.sessions)

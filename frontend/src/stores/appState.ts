@@ -123,6 +123,11 @@ export interface TransferItem {
   direction: 'upload' | 'download';
   localPath: string;
   remotePath: string;
+  /** Destination directory to reload when the operation finishes. Batch
+   *  operations set remotePath to a display label ("3 items"), so it must not
+   *  be parsed as a path — use this instead, falling back to remotePath's
+   *  parent for single-path operations that don't set it. */
+  refreshDir?: string;
   done: number;
   total: number;
   state: 'pending' | 'active' | 'completed' | 'failed' | 'cancelled';

@@ -32,6 +32,8 @@ export interface AppSettings {
   transferSpeedLimitKbps: number;
   connectionTimeoutSeconds: number;
   maxConcurrentTransfers: number;
+  defaultUploadExistsAction: string;
+  defaultDownloadExistsAction: string;
   sessionHotkeyCreate: string;
   sessionHotkeyNext: string;
   sessionHotkeyPrev: string;

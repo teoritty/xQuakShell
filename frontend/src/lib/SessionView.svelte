@@ -6,7 +6,6 @@
   import TransferPanel from './TransferPanel.svelte';
   import type { Session } from '../stores/appState';
   import { closeSession, openSession } from '../actions/sessionActions';
-  import { uploadFile, downloadFile } from '../api/remoteFs';
   import { connectionProtocols } from '../actions/protocolActions';
   import { hasFilePanel } from './filePanelCapability';
   import { Loader2, XCircle, Circle } from 'lucide-svelte';
@@ -76,14 +75,6 @@
     window.addEventListener('mouseup', onMouseUp);
   }
 
-  function handleUpload(localPath: string, remotePath: string) {
-    uploadFile(session.sessionId, localPath, remotePath);
-  }
-
-  function handleDownload(remotePath: string, sessionId: string, localDir: string) {
-    downloadFile(sessionId, remotePath, localDir);
-  }
-
   async function handleReconnect() {
     const connId = session.connectionId;
     await closeSession(session.sessionId);
@@ -137,7 +128,7 @@
       ></div>
       <div class="files-column" style="flex: {100 - splitRatio}">
         <div class="remote-files" style="flex: {fileSplitRatio}">
-          <FileTree sessionId={session.sessionId} onDropUpload={handleUpload} />
+          <FileTree sessionId={session.sessionId} />
         </div>
         <div
           class="split-handle-v"
@@ -146,7 +137,7 @@
           aria-orientation="horizontal"
         ></div>
         <div class="local-files" style="flex: {100 - fileSplitRatio}">
-          <LocalFileTree onDropDownload={handleDownload} />
+          <LocalFileTree />
         </div>
       </div>
       {/if}

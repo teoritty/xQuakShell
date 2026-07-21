@@ -162,11 +162,25 @@ func (fs *HostFS) CreateFile(localPath string) error {
 // the local file browser. Symlinks are recreated as links, not followed —
 // this avoids infinite recursion on symlinked directories.
 func (fs *HostFS) Copy(srcPath, destDir string) error {
+	dest, err := fs.ResolvePath(destDir)
+	if err != nil {
+		return err
+	}
 	src, err := fs.ResolvePath(srcPath)
 	if err != nil {
 		return err
 	}
-	dest, err := fs.ResolvePath(destDir)
+	return fs.CopyTo(srcPath, filepath.Join(dest, filepath.Base(src)))
+}
+
+// CopyTo copies srcPath (file or directory tree) to the explicit destPath,
+// letting the caller pick the destination's base name. See domain.HostFileSystem.
+func (fs *HostFS) CopyTo(srcPath, destPath string) error {
+	src, err := fs.ResolvePath(srcPath)
+	if err != nil {
+		return err
+	}
+	target, err := fs.ResolvePath(destPath)
 	if err != nil {
 		return err
 	}
@@ -174,7 +188,6 @@ func (fs *HostFS) Copy(srcPath, destDir string) error {
 	if err != nil {
 		return err
 	}
-	target := filepath.Join(dest, filepath.Base(src))
 	if info.IsDir() {
 		return copyDirRecursive(src, target)
 	}

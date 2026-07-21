@@ -57,10 +57,17 @@ func DefaultPingSettings() PingSettings {
 }
 
 // TransferSettings configures file transfer behavior.
+//
+// DefaultUploadExistsAction and DefaultDownloadExistsAction hold the persisted
+// "file already exists" action (FileZilla-style), as ConflictAction wire names
+// (see domain.ParseConflictAction). Empty or "ask" means prompt with the
+// conflict dialog; any other value is applied without prompting.
 type TransferSettings struct {
-	SpeedLimitKbps       int `json:"speedLimitKbps"`
-	ConnectionTimeoutSec int `json:"connectionTimeoutSec"`
-	MaxConcurrent        int `json:"maxConcurrent"`
+	SpeedLimitKbps              int    `json:"speedLimitKbps"`
+	ConnectionTimeoutSec        int    `json:"connectionTimeoutSec"`
+	MaxConcurrent               int    `json:"maxConcurrent"`
+	DefaultUploadExistsAction   string `json:"defaultUploadExistsAction,omitempty"`
+	DefaultDownloadExistsAction string `json:"defaultDownloadExistsAction,omitempty"`
 }
 
 // DefaultTransferSettings returns reasonable defaults.
@@ -131,15 +138,15 @@ type AppSettings struct {
 
 // PluginSettings configures plugin trust and install policy.
 type PluginSettings struct {
-	TrustedPublisherKeys      []string        `json:"trustedPublisherKeys,omitempty"`
-	RequireSignedPlugins      bool            `json:"requireSignedPlugins,omitempty"`
-	SecretAccessGranted            map[string]bool `json:"secretAccessGranted,omitempty"`
-	AuthProviderAccessGranted      map[string]bool `json:"authProviderAccessGranted,omitempty"`
-	TunnelProviderAccessGranted    map[string]bool `json:"tunnelProviderAccessGranted,omitempty"`
-	MultiSessionAccessGranted      map[string]bool `json:"multiSessionAccessGranted,omitempty"`
-	ArbitraryNetworkAccessGranted  map[string]bool `json:"arbitraryNetworkAccessGranted,omitempty"`
-	LocalEmbedServerAccessGranted  map[string]bool `json:"localEmbedServerAccessGranted,omitempty"`
-	Disabled                       map[string]bool `json:"disabled,omitempty"`
+	TrustedPublisherKeys          []string        `json:"trustedPublisherKeys,omitempty"`
+	RequireSignedPlugins          bool            `json:"requireSignedPlugins,omitempty"`
+	SecretAccessGranted           map[string]bool `json:"secretAccessGranted,omitempty"`
+	AuthProviderAccessGranted     map[string]bool `json:"authProviderAccessGranted,omitempty"`
+	TunnelProviderAccessGranted   map[string]bool `json:"tunnelProviderAccessGranted,omitempty"`
+	MultiSessionAccessGranted     map[string]bool `json:"multiSessionAccessGranted,omitempty"`
+	ArbitraryNetworkAccessGranted map[string]bool `json:"arbitraryNetworkAccessGranted,omitempty"`
+	LocalEmbedServerAccessGranted map[string]bool `json:"localEmbedServerAccessGranted,omitempty"`
+	Disabled                      map[string]bool `json:"disabled,omitempty"`
 }
 
 // DefaultPluginSettings returns default plugin install policy.

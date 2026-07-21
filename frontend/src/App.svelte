@@ -7,6 +7,7 @@
   import HostKeyDialog from './lib/HostKeyDialog.svelte';
   import AuditLogView from './lib/AuditLogView.svelte';
   import ErrorDialog from './lib/ErrorDialog.svelte';
+  import ConflictDialog from './lib/ConflictDialog.svelte';
   import SettingsDialog from './lib/SettingsDialog.svelte';
   import type { SettingsTabId } from './lib/settingsSearch';
   import ScriptsDialog from './lib/ScriptsDialog.svelte';
@@ -271,6 +272,7 @@
 {/if}
 
 <ErrorDialog />
+<ConflictDialog />
 
 <style>
   .app-shell {

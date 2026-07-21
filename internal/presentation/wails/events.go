@@ -40,6 +40,7 @@ type TransferProgressPayload struct {
 	Direction  string `json:"direction"`
 	LocalPath  string `json:"localPath"`
 	RemotePath string `json:"remotePath"`
+	RefreshDir string `json:"refreshDir,omitempty"`
 	Done       int64  `json:"done"`
 	Total      int64  `json:"total"`
 	State      string `json:"state"`

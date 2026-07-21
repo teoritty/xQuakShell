@@ -22,6 +22,10 @@ type TransferProgress struct {
 	Direction  string
 	LocalPath  string
 	RemotePath string
+	// RefreshDir is the destination directory the UI should reload when the
+	// operation finishes. RemotePath may be a human label for batches ("3
+	// items"), so it must never be parsed as a path; prefer this field.
+	RefreshDir string
 	Done       int64
 	Total      int64
 	State      string

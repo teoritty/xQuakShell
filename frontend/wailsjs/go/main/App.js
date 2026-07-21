@@ -78,8 +78,20 @@ export function EnableAuditSecretLogging(arg1) {
   return window['go']['main']['App']['EnableAuditSecretLogging'](arg1);
 }
 
+export function ExecuteDownload(arg1, arg2) {
+  return window['go']['main']['App']['ExecuteDownload'](arg1, arg2);
+}
+
+export function ExecuteLocalCopy(arg1) {
+  return window['go']['main']['App']['ExecuteLocalCopy'](arg1);
+}
+
 export function ExecutePluginCommand(arg1, arg2, arg3) {
   return window['go']['main']['App']['ExecutePluginCommand'](arg1, arg2, arg3);
+}
+
+export function ExecuteUpload(arg1, arg2) {
+  return window['go']['main']['App']['ExecuteUpload'](arg1, arg2);
 }
 
 export function FetchGitHubPlugins(arg1) {
@@ -148,6 +160,10 @@ export function GetTempDir() {
 
 export function GetUserHomeDir() {
   return window['go']['main']['App']['GetUserHomeDir']();
+}
+
+export function GetVersionInfo() {
+  return window['go']['main']['App']['GetVersionInfo']();
 }
 
 export function ImportIdentity(arg1, arg2) {
@@ -232,6 +248,18 @@ export function PingConnection(arg1) {
 
 export function PingPlugin(arg1) {
   return window['go']['main']['App']['PingPlugin'](arg1);
+}
+
+export function PlanDownload(arg1, arg2, arg3) {
+  return window['go']['main']['App']['PlanDownload'](arg1, arg2, arg3);
+}
+
+export function PlanLocalCopy(arg1, arg2) {
+  return window['go']['main']['App']['PlanLocalCopy'](arg1, arg2);
+}
+
+export function PlanUpload(arg1, arg2, arg3) {
+  return window['go']['main']['App']['PlanUpload'](arg1, arg2, arg3);
 }
 
 export function PreparePluginViewPanel(arg1, arg2) {

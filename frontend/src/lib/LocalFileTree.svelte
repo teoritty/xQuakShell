@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { listLocalPath, getUserHomeDir, removeLocalPath, mkdirLocalPath, createLocalFile, renameLocalPath, openFileWithSystem, type LocalNode } from '../api/localFs';
-  import { copyLocalPath } from '../api/remoteFs';
+  import { startDownloadDrop, startLocalCopyDrop } from '../actions/transferActions';
   import { transferCompleted } from '../stores/appState';
   import { registerOsDropZone, resolveOsDropTarget, isFileDrag, isInternalFileDrag } from './osFileDrop';
   import { isInvalidMove } from './pathMove';
@@ -16,7 +16,6 @@
   const STORAGE_KEY = 'localfiletree-show-columns';
   const STORAGE_HIDDEN = 'localfiletree-show-hidden';
 
-  export let onDropDownload: ((remotePath: string, sessionId: string, localDir: string) => void) | undefined = undefined;
 
   let tree: Map<string, LocalNode[]> = new Map();
   let rawTree: Map<string, LocalNode[]> = new Map();
@@ -135,9 +134,7 @@
     if (!rootEl) return;
     const targetDir = resolveOsDropTarget(rootEl, x, y, currentPath);
     if (targetDir === null) return;
-    for (const p of paths) {
-      await copyLocalPath(p, targetDir);
-    }
+    await startLocalCopyDrop(paths, targetDir);
     await refreshPreservingState([targetDir, currentPath]);
   }
 
@@ -283,11 +280,16 @@
     tree = tree;
   }
 
-  $: if ($transferCompleted?.direction === 'download') {
+  // Downloads land here, and so do local copies (an Explorer drop), which the
+  // backend reports as an upload with no session.
+  $: if ($transferCompleted && ($transferCompleted.direction === 'download'
+      || ($transferCompleted.direction === 'upload' && !$transferCompleted.sessionId))) {
     const t = $transferCompleted;
     transferCompleted.set(null);
+    // Batches report their destination directly; single downloads only carry
+    // the written file path, so derive its parent.
     const sep = t.localPath.includes('\\') ? '\\' : '/';
-    const localParent = t.localPath.split(sep).slice(0, -1).join(sep) || sep;
+    const localParent = t.refreshDir || t.localPath.split(sep).slice(0, -1).join(sep) || sep;
     refreshPreservingState([localParent, currentPath]);
   }
 
@@ -422,10 +424,9 @@
       return;
     }
     const remotes = remotePaths && remotePaths.length > 0 ? remotePaths : (remotePath ? [remotePath] : []);
-    if (remotes.length > 0 && dropSessionId && onDropDownload) {
-      for (const rp of remotes) {
-        onDropDownload(rp, dropSessionId, targetDir);
-      }
+    if (remotes.length > 0 && dropSessionId) {
+      await startDownloadDrop(dropSessionId, remotes, targetDir);
+      await refreshPreservingState([targetDir, currentPath]);
     }
   }
 

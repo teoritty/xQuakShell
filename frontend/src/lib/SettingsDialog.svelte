@@ -3,6 +3,7 @@
   import Modal from './Modal.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import PluginSettingsPanel from './PluginSettingsPanel.svelte';
+  import { CONFLICT_ACTIONS } from './transfer/conflictActions';
   import { getSettings, saveSettings } from '../actions/settingsActions';
   import { fetchVersionInfo } from '../api/settings';
   import { parseHotkeyEvent, normalizeHotkey } from '../hotkeys/hotkeys';
@@ -82,6 +83,8 @@
   let transferSpeedLimitKbps = 0;
   let connectionTimeoutSeconds = 15;
   let maxConcurrentTransfers = 4;
+  let defaultUploadExistsAction = 'ask';
+  let defaultDownloadExistsAction = 'ask';
   let sessionHotkeyCreate = DEFAULT_SESSION_HOTKEYS.create;
   let sessionHotkeyNext = DEFAULT_SESSION_HOTKEYS.next;
   let sessionHotkeyPrev = DEFAULT_SESSION_HOTKEYS.prev;
@@ -190,6 +193,8 @@
       transferSpeedLimitKbps = s.transferSpeedLimitKbps ?? 0;
       connectionTimeoutSeconds = s.connectionTimeoutSeconds ?? 15;
       maxConcurrentTransfers = s.maxConcurrentTransfers ?? 4;
+      defaultUploadExistsAction = s.defaultUploadExistsAction || 'ask';
+      defaultDownloadExistsAction = s.defaultDownloadExistsAction || 'ask';
       sessionHotkeyCreate = normalizeHotkey(s.sessionHotkeyCreate || DEFAULT_SESSION_HOTKEYS.create);
       sessionHotkeyNext = normalizeHotkey(s.sessionHotkeyNext || DEFAULT_SESSION_HOTKEYS.next);
       sessionHotkeyPrev = normalizeHotkey(s.sessionHotkeyPrev || DEFAULT_SESSION_HOTKEYS.prev);
@@ -306,6 +311,8 @@
       transferSpeedLimitKbps,
       connectionTimeoutSeconds,
       maxConcurrentTransfers,
+      defaultUploadExistsAction,
+      defaultDownloadExistsAction,
       sessionHotkeyCreate: normalizeHotkey(sessionHotkeyCreate),
       sessionHotkeyNext: normalizeHotkey(sessionHotkeyNext),
       sessionHotkeyPrev: normalizeHotkey(sessionHotkeyPrev),
@@ -530,6 +537,34 @@
               <label class="field-block">
                 <span>Editor path</span>
                 <input type="text" bind:value={externalEditorPath} placeholder="e.g. code, notepad.exe, C:\...\gvim.exe" />
+              </label>
+            </div>
+          {/if}
+
+          {#if isSearching ? shouldShowSettingsSection('files', 'conflicts', searchViewState) : activeTab === 'files'}
+            {#if sectionTabLabel('files', 'conflicts')}
+              <div class="section-tab-label">{SETTINGS_TAB_LABELS.files}</div>
+            {/if}
+            <div class="section">
+              <h4>When a file already exists</h4>
+              <p class="section-desc">What to do when a transferred file already exists at the destination. "Ask every time" shows the conflict dialog; any other choice applies silently. Choosing an action in that dialog without "Apply to current queue only" also sets these.</p>
+              <label class="field-block">
+                <span>Uploads and local copies</span>
+                <select bind:value={defaultUploadExistsAction}>
+                  <option value="ask">Ask every time</option>
+                  {#each CONFLICT_ACTIONS as a}
+                    <option value={a.value}>{a.label}</option>
+                  {/each}
+                </select>
+              </label>
+              <label class="field-block">
+                <span>Downloads</span>
+                <select bind:value={defaultDownloadExistsAction}>
+                  <option value="ask">Ask every time</option>
+                  {#each CONFLICT_ACTIONS as a}
+                    <option value={a.value}>{a.label}</option>
+                  {/each}
+                </select>
               </label>
             </div>
           {/if}

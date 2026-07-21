@@ -7,6 +7,42 @@ import type { wails } from '../../wailsjs/go/models';
 // value over the Wails bridge; there is no corresponding exported TS type.
 type RawMessage = any;
 
+// --- Transfer conflict planning (FileZilla-style existing-file handling) ---
+// Mirrors the Go DTOs in internal/presentation/wails/dto_transfers.go. Defined
+// here (the backend seam) rather than in api/ so the dependency direction stays
+// api -> backend.
+
+export interface ConflictInfoDTO {
+  size: number;
+  modTime: string;
+  isDir: boolean;
+}
+
+export interface PlannedFileDTO {
+  source: string;
+  target: string;
+  size: number;
+  srcModTime: string;
+  conflict?: ConflictInfoDTO;
+}
+
+export interface TransferPlanDTO {
+  kind: string;
+  dirs: string[];
+  files: PlannedFileDTO[];
+}
+
+export interface ResolvedActionDTO {
+  target: string;
+  action: string;
+  newName?: string;
+}
+
+export interface ExecutePlanDTO {
+  plan: TransferPlanDTO;
+  resolutions: ResolvedActionDTO[];
+}
+
 export interface AppGateway {
   AddGitHubRepository?(arg1: wails.AddGitHubRepositoryRequest): Promise<void>;
 
@@ -140,6 +176,18 @@ export interface AppGateway {
   OpenSession(arg1: string): Promise<string>;
 
   PingConnection(arg1: string): Promise<void>;
+
+  PlanUpload(arg1: string, arg2: Array<string>, arg3: string): Promise<TransferPlanDTO>;
+
+  PlanDownload(arg1: string, arg2: Array<string>, arg3: string): Promise<TransferPlanDTO>;
+
+  PlanLocalCopy(arg1: Array<string>, arg2: string): Promise<TransferPlanDTO>;
+
+  ExecuteUpload(arg1: string, arg2: ExecutePlanDTO): Promise<void>;
+
+  ExecuteDownload(arg1: string, arg2: ExecutePlanDTO): Promise<void>;
+
+  ExecuteLocalCopy(arg1: ExecutePlanDTO): Promise<void>;
 
   PingPlugin?(arg1: string): Promise<wails.PluginPingResultDTO>;
 

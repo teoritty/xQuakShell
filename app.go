@@ -300,6 +300,34 @@ func (a *App) Download(sessionID, remotePath, localDir string) error {
 	return a.api.Download(sessionID, remotePath, localDir)
 }
 
+func (a *App) GetVersionInfo() presentation.VersionInfoDTO {
+	return a.api.GetVersionInfo()
+}
+
+func (a *App) PlanUpload(sessionID string, localPaths []string, remoteDir string) (presentation.TransferPlanDTO, error) {
+	return a.api.PlanUpload(sessionID, localPaths, remoteDir)
+}
+
+func (a *App) PlanDownload(sessionID string, remotePaths []string, localDir string) (presentation.TransferPlanDTO, error) {
+	return a.api.PlanDownload(sessionID, remotePaths, localDir)
+}
+
+func (a *App) PlanLocalCopy(srcPaths []string, destDir string) (presentation.TransferPlanDTO, error) {
+	return a.api.PlanLocalCopy(srcPaths, destDir)
+}
+
+func (a *App) ExecuteUpload(sessionID string, req presentation.ExecutePlanDTO) error {
+	return a.api.ExecuteUpload(sessionID, req)
+}
+
+func (a *App) ExecuteDownload(sessionID string, req presentation.ExecutePlanDTO) error {
+	return a.api.ExecuteDownload(sessionID, req)
+}
+
+func (a *App) ExecuteLocalCopy(req presentation.ExecutePlanDTO) error {
+	return a.api.ExecuteLocalCopy(req)
+}
+
 func (a *App) CancelTransfer(transferID string) {
 	a.api.CancelTransfer(transferID)
 }

@@ -41,7 +41,13 @@ export function Download(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function EnableAuditSecretLogging(arg1:boolean):Promise<void>;
 
+export function ExecuteDownload(arg1:string,arg2:wails.ExecutePlanDTO):Promise<void>;
+
+export function ExecuteLocalCopy(arg1:wails.ExecutePlanDTO):Promise<void>;
+
 export function ExecutePluginCommand(arg1:string,arg2:string,arg3:json.RawMessage):Promise<json.RawMessage>;
+
+export function ExecuteUpload(arg1:string,arg2:wails.ExecutePlanDTO):Promise<void>;
 
 export function FetchGitHubPlugins(arg1:wails.FetchGitHubPluginsRequest):Promise<wails.GitHubPluginListDTO>;
 
@@ -76,6 +82,8 @@ export function GetSettings():Promise<wails.AppSettingsDTO>;
 export function GetTempDir():Promise<string>;
 
 export function GetUserHomeDir():Promise<string>;
+
+export function GetVersionInfo():Promise<wails.VersionInfoDTO>;
 
 export function ImportIdentity(arg1:string,arg2:string):Promise<string>;
 
@@ -118,6 +126,12 @@ export function OpenSession(arg1:string):Promise<string>;
 export function PingConnection(arg1:string):Promise<void>;
 
 export function PingPlugin(arg1:string):Promise<wails.PluginPingResultDTO>;
+
+export function PlanDownload(arg1:string,arg2:Array<string>,arg3:string):Promise<wails.TransferPlanDTO>;
+
+export function PlanLocalCopy(arg1:Array<string>,arg2:string):Promise<wails.TransferPlanDTO>;
+
+export function PlanUpload(arg1:string,arg2:Array<string>,arg3:string):Promise<wails.TransferPlanDTO>;
 
 export function PreparePluginViewPanel(arg1:string,arg2:string):Promise<string>;
 

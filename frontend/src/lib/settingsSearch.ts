@@ -63,6 +63,20 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
     terms: ['Files', 'External Editor', 'Edit on the fly', 'Editor path'],
   },
   {
+    tabId: 'files',
+    sectionId: 'conflicts',
+    terms: [
+      'Files',
+      'When a file already exists',
+      'Ask every time',
+      'Conflict',
+      'Overwrite',
+      'Rename',
+      'Skip',
+      'default action',
+    ],
+  },
+  {
     tabId: 'hotkeys',
     sectionId: 'session',
     terms: [
