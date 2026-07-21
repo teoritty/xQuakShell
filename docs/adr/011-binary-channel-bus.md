@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Implemented
 
 ## Context
 
@@ -41,7 +41,7 @@ Opening a raw channel is still negotiated over JSON-RPC — the binary path is *
 
 ```
 plugin → host   channel.open   {purpose, parentSessionId, hint}   (JSON-RPC request)
-host   → plugin channel.opened {channelId}                        (JSON-RPC response)
+host   → plugin { channelId }                                    (the request's own JSON-RPC reply — "channel.opened" names this reply payload, not a separate message)
 ...binary frames flow on channelId until...
 either side      channel.close {channelId, reason}                (JSON-RPC notification)
 ```
@@ -125,13 +125,17 @@ A `capabilities.session.embed` plugin for VNC/RDP:
 1. Session connects as today (`session.connect`, `session.updateState`).
 2. Plugin registers the embed surface via `session.registerEmbed` (ADR-008). This is mandatory and must come first: `embed-stream` authorization checks that the requesting plugin already owns `parentSessionId`'s embed registration. A channel is never itself how embed ownership is established.
 3. Plugin opens a channel with `purpose: "embed-stream"`, passing the ADR-008 `tunnelId` as the `hint` (absent, it defaults to `"main"`).
-4. Host wires that one channel to that tunnel's embed surface in **both** directions: plugin→host frames go to the browser-facing surface (framebuffer), and the surface's outbound stream (control input) goes host→plugin. There is no second channel and no `tunnelFrame` JSON envelope on this path — the channel bus *is* the binary transport that envelope existed to work around.
+4. Host wires that one channel to that tunnel's embed surface in **both** directions: plugin→host frames go to the browser-facing surface (framebuffer), and the surface's outbound stream (control input) goes host→plugin. There is no second channel and no `tunnelFrame` JSON envelope on this path — the channel bus *is* the binary transport that envelope existed to work around, for any plugin that opens one.
+
+   The ADR-008 `session.tunnelOpen`/`session.tunnelFrame`/`session.tunnelClose` JSON-RPC/base64 path is not removed — it remains available for embed plugins that never open an `embed-stream` channel. `embed-stream` is an additional, binary-native alternative on top of the same `session.registerEmbed`-established ownership, not a replacement for the existing path.
 5. Framebuffer tiles/frames flow as raw binary frames — no JSON, no base64.
 6. Backpressure is the same as every other purpose: at credit exhaustion the reader stops reading, and nothing is dropped. See §2b for why this purpose in particular must not drop — both of its directions are incremental, and the outbound one is user input, where a lost frame is a stuck modifier key rather than a dropped picture.
 
-## Application to discovery (Docker / Kubernetes / DB)
+## Application to discovery (Docker / Kubernetes / DB) — deferred, not implemented
 
-Discovery becomes a thin layer on top of the same primitive, plus one new manifest capability for the "produces child connections" part:
+The `channel` capability described above (`exec`/`embed-stream`/`tcp-relay`/`udp-relay`) is implemented. The `discovery` manifest capability below is not: no discovery-specific capability exists on the plugin manifest today, and no discovery plugin ships. It remains a reasonable extension of the channel primitive and is recorded here as a future direction, not a shipped feature.
+
+Discovery would become a thin layer on top of the same primitive, plus one new manifest capability for the "produces child connections" part:
 
 ```json
 "capabilities": {
@@ -193,6 +197,7 @@ The following were left as illustrative (`e.g.`) values in earlier drafts and ar
 | Initial credit, `exec` / `tcp-relay` / `udp-relay` | 4 frames |
 | Initial credit, `embed-stream` | 8 frames |
 | `maxFrameSize` (kind=0x02) | 1 MiB, single global constant across all purposes |
+| `maxFrameSize` (kind=0x02), `embed-stream` override | 64 KiB — kept below the 1 MiB default because credit is measured in frames, not bytes: at the 8-frame initial credit for this purpose, a 1 MiB cap would let up to 8 MiB sit buffered in the host process before the sender is throttled |
 | `maxConcurrent` default (manifest field absent or `0`) | 4 |
 | `maxThroughputKbps` default (`0`) | host default, same numeric default as `maxTunnelBandwidthKbps` (32 MiB/s) — not "unlimited" |
 | `channel.open` (plugin→host) RPC timeout | 10 s (matches `initialize`, not the standard 5 s RPC timeout — spawning an exec process or dialing a relay is comparably slow setup work) |
@@ -269,3 +274,16 @@ This is worth stating plainly because it was previously implicit: derivation-fro
 - ADR-008 — Session embed surfaces
 - ADR-009 — SessionManager decomposition
 - `internal/infra/plugin/capability/tunnel_local_proxy_idor_test.go` — precedent for required IDOR coverage on new proxies
+
+Implementation:
+
+- `internal/infra/plugin/ipc/frame.go` — frame header format
+- `internal/infra/plugin/ipc/channel_credit.go`, `channel.go` — credit-based flow control
+- `internal/domain/plugin/channel_limits.go` — frame kinds, initial credit, size caps, defaults
+- `internal/domain/plugin/channel_caps.go`, `channel_caps_validate.go` — manifest `channel` capability
+- `internal/domain/plugin/channel_exec_match.go` — `exec` argv-template and placeholder validation
+- `internal/infra/plugin/capability/channel_proxy.go`, `gate.go` — capability gating and channel ownership
+- `internal/infra/plugin/capability/channel_proxy_idor_test.go` — IDOR coverage for `channel.close`
+- `internal/usecase/channel_exec_backend.go`, `channel_embed_backend.go` — `exec` and `embed-stream` purpose backends
+- `internal/infra/plugin/capability/channel_relay_backend.go`, `channel_udp_relay_backend.go` — `tcp-relay` and `udp-relay` purpose backends
+- `internal/usecase/session_lifecycle_service.go`, `session_lifecycle_channel_close_test.go` — session-close cascade
