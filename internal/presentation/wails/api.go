@@ -232,7 +232,7 @@ func (a *AppAPI) SetEmbedBridge(bridge *usecase.PluginEmbedBridge) {
 // OnEmbedReady emits SessionEmbedReady when a plugin registers an embed surface.
 func (a *AppAPI) OnEmbedReady(desc domain.SessionEmbedDescriptor) {
 	if a == nil || a.ctx == nil {
-		slog.Debug("embed: OnEmbedReady skipped, nil app ctx", "pluginId", "com.xquakshell.vnc", "sessionId", desc.SessionID)
+		slog.Debug("embed: OnEmbedReady skipped, nil app ctx", "pluginId", desc.PluginID, "sessionId", desc.SessionID)
 		return
 	}
 	slog.Debug("embed: emitting SessionEmbedReady to frontend", "pluginId", desc.PluginID, "sessionId", desc.SessionID, "uiUrl", desc.UIUrl, "tunnelUrl", desc.TunnelUrl)

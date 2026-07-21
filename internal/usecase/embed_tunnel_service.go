@@ -382,7 +382,8 @@ func (s *EmbedTunnelService) RouteTunnelFrameFromPlugin(_ context.Context, sessi
 	}
 	select {
 	case conn.send <- data:
-		slog.Debug("embed: plugin->browser frame queued to WS", "pluginId", "com.xquakshell.vnc", "tunnelId", tunnelID, "bytes", len(data))
+		pluginID, _ := s.PluginIDForSession(sessionID)
+		slog.Debug("embed: plugin->browser frame queued to WS", "pluginId", pluginID, "sessionId", sessionID, "tunnelId", tunnelID, "bytes", len(data))
 		return nil
 	default:
 		return newEmbedRefusal(EmbedRefusedWSBufferFull, domainplugin.ErrTerminalBackpressure)
@@ -406,7 +407,8 @@ func (s *EmbedTunnelService) RouteTunnelFrameToPlugin(ctx context.Context, sessi
 	if err != nil {
 		return err
 	}
-	slog.Debug("embed: browser->plugin frame received from WS", "pluginId", "com.xquakshell.vnc", "tunnelId", tunnelID, "bytes", len(data), "hasSub", sub != nil)
+	pluginID, _ := s.PluginIDForSession(sessionID)
+	slog.Debug("embed: browser->plugin frame received from WS", "pluginId", pluginID, "sessionId", sessionID, "tunnelId", tunnelID, "bytes", len(data), "hasSub", sub != nil)
 	if sub != nil {
 		// Blocking, and deliberately outside the lock: the subscription carries the channel bus's
 		// credit-based backpressure back to the browser's WebSocket read loop instead of queueing

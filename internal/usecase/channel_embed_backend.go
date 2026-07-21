@@ -167,13 +167,13 @@ func (b *ChannelEmbedBackend) Wire(ctx context.Context, ch *domainplugin.Channel
 		for {
 			payload, ok := data.Recv()
 			if !ok {
-				slog.Debug("embed: channel inbound pump ended (Recv closed)", "pluginId", "com.xquakshell.vnc", "sessionId", parentSessionID)
+				slog.Debug("embed: channel inbound pump ended (Recv closed)", "pluginId", b.pluginID, "sessionId", parentSessionID)
 				_ = b.CloseRemote()
 				return
 			}
-			slog.Debug("embed: channel inbound frame from plugin", "pluginId", "com.xquakshell.vnc", "sessionId", parentSessionID, "tunnelId", tunnelID, "bytes", len(payload))
+			slog.Debug("embed: channel inbound frame from plugin", "pluginId", b.pluginID, "sessionId", parentSessionID, "tunnelId", tunnelID, "bytes", len(payload))
 			if !b.deliverFrame(ctx, ch, parentSessionID, tunnelID, payload) {
-				slog.Debug("embed: deliverFrame gave up (channel torn down)", "pluginId", "com.xquakshell.vnc", "sessionId", parentSessionID)
+				slog.Debug("embed: deliverFrame gave up (channel torn down)", "pluginId", b.pluginID, "sessionId", parentSessionID)
 				return
 			}
 			// The frame reached the browser-facing surface: the plugin may send one more.
@@ -237,7 +237,7 @@ func (b *ChannelEmbedBackend) deliverFrame(ctx context.Context, ch *domainplugin
 		}
 
 		cause, classified := EmbedRefusalCauseOf(err)
-		slog.Debug("embed: deliverFrame refused", "pluginId", "com.xquakshell.vnc", "cause", string(cause), "classified", classified, "err", err.Error())
+		slog.Debug("embed: deliverFrame refused", "pluginId", b.pluginID, "cause", string(cause), "classified", classified, "err", err.Error())
 		if !classified {
 			// An unclassified error from the sink is not something this pump can reason about, and
 			// guessing is how "wait" and "tear down" get confused again. Fail where the cause is.

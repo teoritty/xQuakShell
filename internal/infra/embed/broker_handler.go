@@ -61,8 +61,8 @@ func (h *BrokerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	// Tagged with a pluginId once known so loghub routes it to the plugin's log stream (the debug
 	// window shows plugin:* sources, not bare core). Before Lookup the id is unknown, so this
-	// first line carries a synthetic marker id purely so it is visible at all.
-	slog.Debug("embed broker: request", "pluginId", "com.xquakshell.vnc", "method", r.Method, "path", path, "upgrade", r.Header.Get("Upgrade"))
+	// first line carries an explicit "unknown" placeholder rather than a guessed plugin id.
+	slog.Debug("embed broker: request", "pluginId", "unknown", "method", r.Method, "path", path, "upgrade", r.Header.Get("Upgrade"))
 	if !strings.HasPrefix(path, embedPrefix) {
 		http.NotFound(w, r)
 		return
@@ -76,7 +76,7 @@ func (h *BrokerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	token := parts[0]
 	reg, err := h.tunnels.Lookup(token)
 	if err != nil {
-		slog.Debug("embed broker: token lookup failed", "pluginId", "com.xquakshell.vnc", "path", path, "err", err.Error())
+		slog.Debug("embed broker: token lookup failed", "pluginId", "unknown", "path", path, "err", err.Error())
 		h.recordFailedLookup(r)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -182,11 +182,11 @@ func (h *BrokerHandler) serveTunnel(w http.ResponseWriter, r *http.Request, toke
 	}
 	defer ws.Close()
 	slog.Debug("embed broker: tunnel websocket attached", "pluginId", reg.PluginID, "tunnelId", tunnelID, "sessionId", regData.SessionID)
-	safego.GoNamed("embed.pumpWS", func() { h.pumpWSToPlugin(r, regData.SessionID, tunnelID, ws, conn) })
-	h.pumpPluginToWS(ws, conn)
+	safego.GoNamed("embed.pumpWS", func() { h.pumpWSToPlugin(r, reg.PluginID, regData.SessionID, tunnelID, ws, conn) })
+	h.pumpPluginToWS(reg.PluginID, ws, conn)
 }
 
-func (h *BrokerHandler) pumpWSToPlugin(r *http.Request, sessionID, tunnelID string, ws *websocket.Conn, conn domain.EmbedTunnelStream) {
+func (h *BrokerHandler) pumpWSToPlugin(r *http.Request, pluginID, sessionID, tunnelID string, ws *websocket.Conn, conn domain.EmbedTunnelStream) {
 	defer ws.Close()
 	for {
 		select {
@@ -196,10 +196,10 @@ func (h *BrokerHandler) pumpWSToPlugin(r *http.Request, sessionID, tunnelID stri
 		}
 		msgType, data, err := ws.ReadMessage()
 		if err != nil {
-			slog.Debug("embed broker: WS read ended", "pluginId", "com.xquakshell.vnc", "tunnelId", tunnelID, "err", err.Error())
+			slog.Debug("embed broker: WS read ended", "pluginId", pluginID, "tunnelId", tunnelID, "err", err.Error())
 			return
 		}
-		slog.Debug("embed broker: WS read from browser", "pluginId", "com.xquakshell.vnc", "tunnelId", tunnelID, "msgType", msgType, "bytes", len(data))
+		slog.Debug("embed broker: WS read from browser", "pluginId", pluginID, "tunnelId", tunnelID, "msgType", msgType, "bytes", len(data))
 		if msgType != websocket.BinaryMessage && msgType != websocket.TextMessage {
 			continue
 		}
@@ -210,7 +210,7 @@ func (h *BrokerHandler) pumpWSToPlugin(r *http.Request, sessionID, tunnelID stri
 	}
 }
 
-func (h *BrokerHandler) pumpPluginToWS(ws *websocket.Conn, conn domain.EmbedTunnelStream) {
+func (h *BrokerHandler) pumpPluginToWS(pluginID string, ws *websocket.Conn, conn domain.EmbedTunnelStream) {
 	for {
 		select {
 		case data, ok := <-conn.Send():
@@ -218,10 +218,10 @@ func (h *BrokerHandler) pumpPluginToWS(ws *websocket.Conn, conn domain.EmbedTunn
 				return
 			}
 			if err := ws.WriteMessage(websocket.BinaryMessage, data); err != nil {
-				slog.Debug("embed broker: WS write to browser failed", "pluginId", "com.xquakshell.vnc", "err", err.Error())
+				slog.Debug("embed broker: WS write to browser failed", "pluginId", pluginID, "err", err.Error())
 				return
 			}
-			slog.Debug("embed broker: WS wrote to browser", "pluginId", "com.xquakshell.vnc", "bytes", len(data))
+			slog.Debug("embed broker: WS wrote to browser", "pluginId", pluginID, "bytes", len(data))
 		case <-conn.Done():
 			return
 		}
