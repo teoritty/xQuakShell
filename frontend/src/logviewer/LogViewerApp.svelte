@@ -22,23 +22,24 @@
   // Rank levels so the filter can show "this level and above".
   const levelRank: Record<string, number> = { debug: 0, info: 1, warn: 2, warning: 2, error: 3 };
 
-  function passesFilter(entry: LogEntry): boolean {
-    if (levelFilter !== 'all') {
-      const min = levelRank[levelFilter] ?? 0;
+  function passesFilter(entry: LogEntry, query: string, level: typeof levelFilter): boolean {
+    if (level !== 'all') {
+      const min = levelRank[level] ?? 0;
       const lvl = levelRank[(entry.level || 'info').toLowerCase()] ?? 1;
       if (lvl < min) return false;
     }
-    const q = search.trim().toLowerCase();
-    if (q) {
+    if (query) {
       const hay = `${entry.message} ${entry.source} ${fieldsText(entry.fields)}`.toLowerCase();
-      if (!hay.includes(q)) return false;
+      if (!hay.includes(query)) return false;
     }
     return true;
   }
 
-  // Reference search/levelFilter here so Svelte tracks them as dependencies;
-  // passesFilter reads them internally, which the reactive analyzer can't see.
-  $: visibleLines = (search, levelFilter, lines.filter(passesFilter));
+  // Passing search/levelFilter as arguments makes them explicit dependencies of
+  // the reactive statement, so typing in the search box (which changes neither
+  // `lines` nor triggers passesFilter's closure vars) recomputes the list.
+  $: normalizedQuery = search.trim().toLowerCase();
+  $: visibleLines = lines.filter((entry) => passesFilter(entry, normalizedQuery, levelFilter));
 
   function componentOf(entry: LogEntry): string {
     return entry.fields?.component ?? '';
