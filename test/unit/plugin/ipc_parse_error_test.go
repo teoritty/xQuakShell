@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"ssh-client/internal/infra/plugin/ipc"
+	"xquakshell/internal/infra/plugin/ipc"
 )
 
 func TestConnParseErrorReturns32700(t *testing.T) {

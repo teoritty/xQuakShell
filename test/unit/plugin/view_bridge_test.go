@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	infraplugin "ssh-client/internal/infra/plugin"
-	"ssh-client/internal/usecase"
+	domainplugin "xquakshell/internal/domain/plugin"
+	infraplugin "xquakshell/internal/infra/plugin"
+	"xquakshell/internal/usecase"
 )
 
 func TestViewMessageRoundTrip(t *testing.T) {

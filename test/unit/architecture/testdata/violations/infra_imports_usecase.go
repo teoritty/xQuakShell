@@ -3,4 +3,4 @@
 // layer: infra
 package fixture
 
-import _ "ssh-client/internal/usecase"
+import _ "xquakshell/internal/usecase"

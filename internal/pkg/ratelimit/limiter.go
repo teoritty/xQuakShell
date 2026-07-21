@@ -6,7 +6,7 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 var (

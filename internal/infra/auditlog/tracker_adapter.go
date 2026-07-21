@@ -1,6 +1,6 @@
 package auditlog
 
-import "ssh-client/internal/domain"
+import "xquakshell/internal/domain"
 
 type trackerAdapter struct {
 	inner *CommandLineTracker

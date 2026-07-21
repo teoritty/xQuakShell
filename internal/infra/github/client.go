@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 const (

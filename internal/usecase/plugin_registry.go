@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // PluginRegistry holds discovered installed plugins.

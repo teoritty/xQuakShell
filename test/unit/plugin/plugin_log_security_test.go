@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/ipc"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/plugin/ipc"
 )
 
 func TestSanitizeLogWriteParamsRedactsSensitiveFields(t *testing.T) {

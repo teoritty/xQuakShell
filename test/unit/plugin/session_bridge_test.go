@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"ssh-client/internal/domain"
-	infraplugin "ssh-client/internal/infra/plugin"
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/domain"
+	infraplugin "xquakshell/internal/infra/plugin"
+	"xquakshell/internal/usecase"
 )
 
 type sessionCapture struct {

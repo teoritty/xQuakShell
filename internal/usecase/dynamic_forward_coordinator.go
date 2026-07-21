@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/pkg/safego"
 )
 
 // PluginTunnelStarter ensures a tunnel-provider plugin process is running.

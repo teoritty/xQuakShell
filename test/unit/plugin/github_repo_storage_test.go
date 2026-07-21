@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	infrapersistence "ssh-client/internal/infra/persistence"
+	domainplugin "xquakshell/internal/domain/plugin"
+	infrapersistence "xquakshell/internal/infra/persistence"
 )
 
 func TestFileGitHubRepositoryStorage_AddListRemove(t *testing.T) {

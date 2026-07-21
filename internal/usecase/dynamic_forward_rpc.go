@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"sync"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // TunnelDial implements domainplugin.TunnelInboundPort.

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func baseChannelManifest() domainplugin.Manifest {

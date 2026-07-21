@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // KnownHostsRepo implements domain.KnownHostsRepository backed by the vault.

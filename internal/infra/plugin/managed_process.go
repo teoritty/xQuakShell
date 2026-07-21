@@ -5,9 +5,9 @@ import (
 	"os/exec"
 	"sync"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/capability"
-	"ssh-client/internal/infra/plugin/ipc"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/plugin/capability"
+	"xquakshell/internal/infra/plugin/ipc"
 )
 
 type managedProcess struct {

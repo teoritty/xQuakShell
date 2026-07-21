@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 func TestVaultRepo_GetDataReturnsSnapshot(t *testing.T) {

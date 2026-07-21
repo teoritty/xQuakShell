@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // FolderDTO is the UI-facing representation of a folder.

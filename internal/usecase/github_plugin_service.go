@@ -1,7 +1,7 @@
 package usecase
 
 import (
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // GitHubPluginService orchestrates GitHub plugin discovery, preview, install, and uninstall.

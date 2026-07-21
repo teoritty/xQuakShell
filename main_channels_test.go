@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/capability"
-	"ssh-client/internal/infra/plugin/ipc"
-	"ssh-client/internal/pkg/ratelimit"
-	"ssh-client/internal/usecase"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/plugin/capability"
+	"xquakshell/internal/infra/plugin/ipc"
+	"xquakshell/internal/pkg/ratelimit"
+	"xquakshell/internal/usecase"
 )
 
 // The tests here cover the composition root's channel resolver with the real thing on both sides

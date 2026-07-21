@@ -1,6 +1,6 @@
 package auditlog
 
-import "ssh-client/internal/domain"
+import "xquakshell/internal/domain"
 
 // SanitizerFactory returns a factory for domain audit input sanitizers.
 func SanitizerFactory() domain.AuditInputSanitizerFactory {

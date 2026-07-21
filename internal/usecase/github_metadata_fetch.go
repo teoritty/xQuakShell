@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // FetchPluginMetadata retrieves plugin metadata from a GitHub repository.

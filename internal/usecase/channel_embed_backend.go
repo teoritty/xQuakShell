@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/pkg/safego"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/pkg/safego"
 )
 
 // EmbedFrameSink is the minimal ADR-008 embed-tunnel surface a channel embed-stream backend

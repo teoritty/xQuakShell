@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 const defaultPingTimeout = 3 * time.Second

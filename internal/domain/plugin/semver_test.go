@@ -3,7 +3,7 @@ package plugin_test
 import (
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func TestParseSemver(t *testing.T) {

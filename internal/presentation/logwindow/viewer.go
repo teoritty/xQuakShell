@@ -13,8 +13,8 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/pkg/safego"
 )
 
 const eventDebugLogLine = "DebugLogLine"

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // UninstallPlugin stops, unregisters, and removes a user-installed plugin.

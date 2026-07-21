@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/bundle"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/plugin/bundle"
 )
 
 func TestProcessHostStartRejectsConcurrentStarting(t *testing.T) {

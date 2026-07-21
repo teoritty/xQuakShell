@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // GetSSHClient returns the SSH client for a session.

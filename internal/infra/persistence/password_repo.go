@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // PasswordRepo implements domain.PasswordRepository backed by the vault.

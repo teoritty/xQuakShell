@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DOMAIN_COVERPKG="ssh-client/internal/domain/plugin"
-INFRA_COVERPKG="ssh-client/internal/infra/plugin,ssh-client/internal/infra/plugin/assets,ssh-client/internal/infra/plugin/bundle,ssh-client/internal/infra/plugin/capability,ssh-client/internal/infra/plugin/ipc,ssh-client/internal/infra/plugin/lifecycle"
-USECASE_COVERPKG="ssh-client/internal/usecase"
+DOMAIN_COVERPKG="xquakshell/internal/domain/plugin"
+INFRA_COVERPKG="xquakshell/internal/infra/plugin,xquakshell/internal/infra/plugin/assets,xquakshell/internal/infra/plugin/bundle,xquakshell/internal/infra/plugin/capability,xquakshell/internal/infra/plugin/ipc,xquakshell/internal/infra/plugin/lifecycle"
+USECASE_COVERPKG="xquakshell/internal/usecase"
 USECASE_MIN="${USECASE_MIN:-50}"
 
 DOMAIN_MIN="${DOMAIN_MIN:-80}"

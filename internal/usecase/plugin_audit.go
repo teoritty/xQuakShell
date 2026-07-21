@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // PluginAuditWriter records plugin security events through the vault audit log port.

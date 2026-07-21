@@ -3,4 +3,4 @@
 // layer: usecase
 package fixture
 
-import _ "ssh-client/internal/presentation/wails"
+import _ "xquakshell/internal/presentation/wails"

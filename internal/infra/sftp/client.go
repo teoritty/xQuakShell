@@ -6,7 +6,7 @@ import (
 	"github.com/pkg/sftp"
 	gossh "golang.org/x/crypto/ssh"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // maxConcurrentRequestsPerFile bounds how many SFTP read/write packets are in

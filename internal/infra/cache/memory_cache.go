@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/pkg/safego"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/pkg/safego"
 )
 
 // MemoryCache implements an in-memory cache with TTL.

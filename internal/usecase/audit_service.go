@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // AuditService orchestrates audit log recording, retention, and session secret policy.

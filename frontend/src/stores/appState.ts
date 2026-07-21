@@ -161,7 +161,7 @@ export const transfers = writable<TransferItem[]>([]);
 
 /** Emitted when a transfer completes; used to auto-refresh file trees. */
 export const transferCompleted = writable<TransferItem | null>(null);
-const EXPANDED_FOLDERS_KEY = 'ssh-client-expanded-folders';
+const EXPANDED_FOLDERS_KEY = 'xquakshell-expanded-folders';
 function loadExpandedFolders(): Set<string> {
   try {
     const raw = localStorage.getItem(EXPANDED_FOLDERS_KEY);
@@ -183,7 +183,7 @@ export const pendingHostKey = writable<HostKeyEvent | null>(null);
 export const pingResults = writable<Map<string, PingResult>>(new Map());
 export const platform = writable<string>('');
 
-const FAVORITES_KEY = 'ssh-client-favorites';
+const FAVORITES_KEY = 'xquakshell-favorites';
 function loadFavorites(): Set<string> {
   try {
     const raw = localStorage.getItem(FAVORITES_KEY);

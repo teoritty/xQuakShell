@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 var updateGolden = flag.Bool("update-golden", false, "rewrite the frozen plugin API golden file")

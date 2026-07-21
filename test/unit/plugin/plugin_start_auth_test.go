@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
-	infraplugin "ssh-client/internal/infra/plugin"
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
+	infraplugin "xquakshell/internal/infra/plugin"
+	"xquakshell/internal/usecase"
 )
 
 type settingsReader struct {

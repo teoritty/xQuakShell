@@ -3,7 +3,7 @@ package ssh
 import (
 	gossh "golang.org/x/crypto/ssh"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // HostKeyInfoFromPublicKey fills KeyType, Fingerprint, KeyBase64 for UI display.

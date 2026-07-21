@@ -3,7 +3,7 @@ package capability
 import (
 	"sync"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // ChannelBus fans a session-scoped close out to every plugin process's ChannelProxy, since a

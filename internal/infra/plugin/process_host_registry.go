@@ -1,6 +1,6 @@
 package plugin
 
-import domainplugin "ssh-client/internal/domain/plugin"
+import domainplugin "xquakshell/internal/domain/plugin"
 
 func (h *ProcessHost) resolveKey(pluginID, sessionID string) string {
 	if sessionID != "" {

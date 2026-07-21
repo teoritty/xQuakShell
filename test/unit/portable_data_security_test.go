@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"ssh-client/internal/infra/portable"
+	"xquakshell/internal/infra/portable"
 )
 
 func TestPortableDataStoreRejectsPathEscape(t *testing.T) {

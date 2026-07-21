@@ -1,6 +1,6 @@
 package wails
 
-import "ssh-client/internal/usecase"
+import "xquakshell/internal/usecase"
 
 // PluginDTO describes an installed plugin for the frontend.
 type PluginDTO struct {

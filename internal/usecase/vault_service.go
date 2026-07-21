@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // VaultService orchestrates CRUD for vault-stored folders, connections, passwords, and identities.

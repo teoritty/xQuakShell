@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func (s *GitHubPluginService) validateReleaseTag(ctx context.Context, repoURL, releaseTag string) error {

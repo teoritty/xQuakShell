@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func charTestSessionManager(t *testing.T) *SessionManager {

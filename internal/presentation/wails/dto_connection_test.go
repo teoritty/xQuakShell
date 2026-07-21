@@ -3,7 +3,7 @@ package wails
 import (
 	"testing"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 func TestConnectionDTO_JumpHopIDRoundTrip(t *testing.T) {

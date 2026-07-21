@@ -3,8 +3,8 @@ package usecase_test
 import (
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/usecase"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/usecase"
 )
 
 func TestPluginSessionAuthorizerPerSessionIsolation(t *testing.T) {

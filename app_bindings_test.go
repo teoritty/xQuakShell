@@ -5,7 +5,7 @@ import (
 	"sort"
 	"testing"
 
-	presentation "ssh-client/internal/presentation/wails"
+	presentation "xquakshell/internal/presentation/wails"
 )
 
 // App is a hand-written facade that Wails binds; every AppAPI handler must have

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 const viewRelayTokenTTL = 30 * time.Minute

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // TestRequiresJSONRoundTrip proves the requires{} block deserialises from the on-the-wire

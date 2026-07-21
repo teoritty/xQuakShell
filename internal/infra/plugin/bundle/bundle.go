@@ -13,8 +13,8 @@ import (
 	"sort"
 	"strings"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/pkg/pathsafe"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/pkg/pathsafe"
 )
 
 const (

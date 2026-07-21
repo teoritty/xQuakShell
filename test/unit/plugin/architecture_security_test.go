@@ -15,7 +15,7 @@ import (
 // The port costs a few lines; this test is what keeps someone from spending them and then
 // quietly taking the shortcut later.
 func TestCapabilityAndDomainDoNotImportIPC(t *testing.T) {
-	const ipcPkg = `"ssh-client/internal/infra/plugin/ipc"`
+	const ipcPkg = `"xquakshell/internal/infra/plugin/ipc"`
 	for _, root := range []string{
 		filepath.Join("..", "..", "..", "internal", "infra", "plugin", "capability"),
 		filepath.Join("..", "..", "..", "internal", "domain"),
@@ -53,7 +53,7 @@ func TestCapabilityAndDomainDoNotImportIPC(t *testing.T) {
 // root builds the backends and hands capability a resolver, so capability names no backend at
 // all. That seam only stays worth its cost while this test exists.
 func TestCapabilityDoesNotImportUsecase(t *testing.T) {
-	const usecasePkg = `"ssh-client/internal/usecase"`
+	const usecasePkg = `"xquakshell/internal/usecase"`
 	root := filepath.Join("..", "..", "..", "internal", "infra", "plugin", "capability")
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {

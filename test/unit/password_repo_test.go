@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/persistence"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/infra/persistence"
 )
 
 func setupPasswordRepo(t *testing.T) (*persistence.PasswordRepo, context.Context) {

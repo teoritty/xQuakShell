@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"sync"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 const MaxConcurrentAuthAttempts = 4

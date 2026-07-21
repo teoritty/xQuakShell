@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // ErrUnknownChannelPurpose reports a purpose the host has no credit policy for. Such a channel

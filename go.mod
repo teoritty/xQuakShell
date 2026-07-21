@@ -1,4 +1,4 @@
-module ssh-client
+module xquakshell
 
 go 1.25.0
 

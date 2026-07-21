@@ -3,7 +3,7 @@ package usecase
 import (
 	"strings"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // ActivationKind identifies why a plugin is being activated.

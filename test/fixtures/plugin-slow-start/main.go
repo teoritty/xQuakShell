@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"ssh-client/test/fixtures/pluginhost"
+	"xquakshell/test/fixtures/pluginhost"
 )
 
 func main() {

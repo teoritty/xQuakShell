@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // InstallDefault configures slog and the standard log package to publish into Default().

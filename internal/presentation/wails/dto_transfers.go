@@ -3,8 +3,8 @@ package wails
 import (
 	"time"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/usecase"
 )
 
 // ConflictInfoDTO is the existing-target metadata shown in the conflict dialog.

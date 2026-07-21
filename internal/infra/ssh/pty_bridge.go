@@ -8,8 +8,8 @@ import (
 
 	gossh "golang.org/x/crypto/ssh"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/pkg/safego"
 )
 
 const (

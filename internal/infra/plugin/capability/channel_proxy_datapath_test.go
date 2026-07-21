@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // ctxCapturingBackend records the context Wire was handed, so a test can outlive the call and

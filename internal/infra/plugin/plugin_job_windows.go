@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"unsafe"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 	"golang.org/x/sys/windows"
 )
 

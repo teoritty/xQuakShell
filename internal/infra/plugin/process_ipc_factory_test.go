@@ -6,8 +6,8 @@ import (
 	"io"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/capability"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/plugin/capability"
 )
 
 // wiredChannelBackend accepts anything and records the handle it was wired with, so the test can

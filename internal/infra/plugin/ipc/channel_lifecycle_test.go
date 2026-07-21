@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // TestClosedChannelTolerardsInFlightFramesDuringGrace: when the host closes a channel, the

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 func TestParseGetentName(t *testing.T) {

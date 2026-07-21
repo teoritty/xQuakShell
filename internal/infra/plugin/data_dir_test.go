@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func TestPluginInstanceDataDirSanitizesSessionID(t *testing.T) {

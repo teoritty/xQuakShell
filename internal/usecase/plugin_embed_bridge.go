@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // PluginEmbedBridge forwards host-initiated embed notifications to plugins.

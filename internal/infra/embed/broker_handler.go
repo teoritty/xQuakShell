@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/plugin/assets"
-	"ssh-client/internal/pkg/pathsafe"
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/infra/plugin/assets"
+	"xquakshell/internal/pkg/pathsafe"
+	"xquakshell/internal/pkg/safego"
 
 	"github.com/gorilla/websocket"
 )

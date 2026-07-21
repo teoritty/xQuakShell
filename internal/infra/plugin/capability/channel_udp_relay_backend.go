@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/pkg/safego"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/pkg/safego"
 )
 
 // ChannelUDPRelayBackend implements the udp-relay purpose (ADR-011 Stage 6b): it wires a

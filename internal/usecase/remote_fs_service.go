@@ -7,7 +7,7 @@ import (
 	"sync"
 	"unicode"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 type remoteFSSessionPort interface {

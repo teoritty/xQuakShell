@@ -8,7 +8,7 @@ import (
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 var errPluginManagerUnavailable = errors.New("plugin manager unavailable")

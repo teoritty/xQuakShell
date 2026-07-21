@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	infraplugin "ssh-client/internal/infra/plugin"
-	"ssh-client/internal/infra/plugin/bundle"
+	infraplugin "xquakshell/internal/infra/plugin"
+	"xquakshell/internal/infra/plugin/bundle"
 )
 
 func TestSafePluginInstallDirRejectsTraversalID(t *testing.T) {

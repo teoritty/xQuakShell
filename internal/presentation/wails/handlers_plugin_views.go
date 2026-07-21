@@ -6,7 +6,7 @@ import (
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/usecase"
 )
 
 // PluginViewMessagePayload is emitted to the frontend when a plugin posts to a view.

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // TunnelDialProxy enforces per-plugin SSH channel limits and tunnelId ownership for tunnel.dial / tunnel.close.

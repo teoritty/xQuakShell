@@ -7,8 +7,8 @@ import (
 	"net"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/capability"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/plugin/capability"
 )
 
 func TestNetProxyRejectsPortOnlyPattern(t *testing.T) {

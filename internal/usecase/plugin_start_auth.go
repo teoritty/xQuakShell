@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // StartReason identifies why a plugin process may be started.

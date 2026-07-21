@@ -3,7 +3,7 @@ package plugin
 import (
 	"strings"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func processKey(plugin domainplugin.InstalledPlugin, sessionID string) string {

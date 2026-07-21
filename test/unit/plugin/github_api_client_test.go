@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	infragithub "ssh-client/internal/infra/github"
+	domainplugin "xquakshell/internal/domain/plugin"
+	infragithub "xquakshell/internal/infra/github"
 )
 
 func TestParseChecksumsFile(t *testing.T) {

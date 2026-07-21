@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/bundle"
-	"ssh-client/internal/infra/portable"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/plugin/bundle"
+	"xquakshell/internal/infra/portable"
 )
 
 // LoadPluginSource loads a plugin directory or .xqsp bundle.

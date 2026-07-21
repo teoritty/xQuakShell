@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/host"
-	"ssh-client/internal/pkg/pathsafe"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/infra/host"
+	"xquakshell/internal/pkg/pathsafe"
 )
 
 func TestHostFSAllowsPathOutsidePortableRoot(t *testing.T) {

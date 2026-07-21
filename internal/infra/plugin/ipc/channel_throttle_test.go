@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // fakeClock is an injectable, manually-advanced clock so throughput tests are deterministic

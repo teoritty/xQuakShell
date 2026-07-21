@@ -1,6 +1,6 @@
 package auditlog
 
-import domainplugin "ssh-client/internal/domain/plugin"
+import domainplugin "xquakshell/internal/domain/plugin"
 
 // RecordSessionAudit implements domainplugin.SessionAuditor.
 func (l *PluginSessionAuditLog) RecordSessionAudit(entry domainplugin.SessionAuditEntry) {

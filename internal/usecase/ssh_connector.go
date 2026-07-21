@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // PluginAuthStarter ensures auth-provider plugins are running before handshake RPC.

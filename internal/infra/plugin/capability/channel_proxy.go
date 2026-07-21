@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // ChannelBackendResolver resolves the ChannelPurposeBackend that serves a requested purpose for

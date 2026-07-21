@@ -1,6 +1,6 @@
 package host
 
-import "ssh-client/internal/domain"
+import "xquakshell/internal/domain"
 
 // AppLauncher opens files with the system default app or a specified editor.
 type AppLauncher struct{}

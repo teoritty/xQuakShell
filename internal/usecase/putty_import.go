@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // PuTTYSessionPreview is a parsed PuTTY session suitable for UI preview.

@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/pkg/logx"
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/pkg/logx"
+	"xquakshell/internal/pkg/safego"
 )
 
 // execSession is the minimal surface ChannelExecBackend needs from an SSH exec session. Its

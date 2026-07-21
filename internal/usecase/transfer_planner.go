@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // TransferPlanner enumerates a drag-and-drop into a TransferPlan, detecting

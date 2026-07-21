@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/pkg/safego"
 )
 
 // SettingsSaver persists debug log window preference changes.

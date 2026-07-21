@@ -6,9 +6,9 @@ import (
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/loghub"
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/infra/loghub"
+	"xquakshell/internal/usecase"
 )
 
 // --- Settings ---

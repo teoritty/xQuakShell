@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 type trackingTunnelInbound struct {

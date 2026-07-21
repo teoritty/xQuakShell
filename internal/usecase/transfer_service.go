@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/pkg/safego"
 )
 
 // TransferProgress describes the state of a long-running operation for UI

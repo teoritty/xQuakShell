@@ -3,7 +3,7 @@ package usecase
 import (
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // SessionManagerConfig holds dependencies for creating a SessionManager.

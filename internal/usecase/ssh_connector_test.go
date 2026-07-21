@@ -13,8 +13,8 @@ import (
 
 	gossh "golang.org/x/crypto/ssh"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/domain"
 )
 
 // --- Stubs for SessionManager SSH tests (no network) ---

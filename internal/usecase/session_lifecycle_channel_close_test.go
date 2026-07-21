@@ -9,7 +9,7 @@ import (
 
 	gossh "golang.org/x/crypto/ssh"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // seqRecorder hands out monotonically increasing sequence numbers so tests can assert ordering

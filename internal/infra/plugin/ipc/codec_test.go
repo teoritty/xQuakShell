@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"ssh-client/internal/infra/plugin/ipc"
+	"xquakshell/internal/infra/plugin/ipc"
 )
 
 func TestCodecRoundTrip(t *testing.T) {

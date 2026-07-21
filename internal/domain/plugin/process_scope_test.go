@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func TestHostProcessScopePerPlugin(t *testing.T) {

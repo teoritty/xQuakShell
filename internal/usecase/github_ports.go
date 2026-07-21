@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // GitHubAPIClient abstracts GitHub repository and release access.

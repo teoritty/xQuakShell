@@ -11,7 +11,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 
-	"ssh-client/internal/presentation/logwindow"
+	"xquakshell/internal/presentation/logwindow"
 )
 
 //go:embed all:frontend/dist

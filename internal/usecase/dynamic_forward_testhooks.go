@@ -4,8 +4,8 @@ import (
 	"context"
 	"net"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/domain"
 )
 
 // StartDynamicForwardSessionForTest activates dynamic forward rules in integration tests.

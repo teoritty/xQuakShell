@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // fakeChannelDataPath is a minimal domainplugin.ChannelDataPath test double: Recv delivers

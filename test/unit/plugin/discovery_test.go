@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	infraplugin "ssh-client/internal/infra/plugin"
-	"ssh-client/internal/infra/plugin/bundle"
-	"ssh-client/internal/usecase"
+	domainplugin "xquakshell/internal/domain/plugin"
+	infraplugin "xquakshell/internal/infra/plugin"
+	"xquakshell/internal/infra/plugin/bundle"
+	"xquakshell/internal/usecase"
 )
 
 func hashFileContents(path string) (string, error) {

@@ -1,6 +1,6 @@
 package github
 
-import domainplugin "ssh-client/internal/domain/plugin"
+import domainplugin "xquakshell/internal/domain/plugin"
 
 // ToDomainRelease maps an infra release to the domain DTO.
 func ToDomainRelease(r Release) domainplugin.GitHubRelease {

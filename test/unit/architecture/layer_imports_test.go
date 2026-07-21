@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"ssh-client/test/unit/architecture"
+	"xquakshell/test/unit/architecture"
 )
 
 func TestLayerImports(t *testing.T) {

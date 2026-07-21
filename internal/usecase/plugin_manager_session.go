@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // BindSession registers a session for plugin session.* RPC authorization.

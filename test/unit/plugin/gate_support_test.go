@@ -3,8 +3,8 @@ package plugin_test
 import (
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/capability"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/plugin/capability"
 )
 
 // newGate builds a capability gate the way the runtime does — resolving the manifest against the

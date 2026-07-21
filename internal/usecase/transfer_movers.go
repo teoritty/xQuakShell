@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // fileMover performs the four filesystem primitives the plan executor needs,

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // channelState is the ADR-011 §Session lifecycle coupling state machine for one channel.

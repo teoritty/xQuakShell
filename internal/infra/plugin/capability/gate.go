@@ -1,7 +1,7 @@
 package capability
 
 import (
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // Gate enforces manifest capabilities for plugin→core RPC methods.

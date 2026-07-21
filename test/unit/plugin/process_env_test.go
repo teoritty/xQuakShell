@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	infraplugin "ssh-client/internal/infra/plugin"
+	infraplugin "xquakshell/internal/infra/plugin"
 )
 
 func TestPluginProcessEnvBlocksSecretsAndProfilePaths(t *testing.T) {

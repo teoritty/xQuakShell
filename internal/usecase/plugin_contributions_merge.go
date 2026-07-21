@@ -1,6 +1,6 @@
 package usecase
 
-import domainplugin "ssh-client/internal/domain/plugin"
+import domainplugin "xquakshell/internal/domain/plugin"
 
 // MergedView is a plugin-contributed view panel.
 type MergedView struct {

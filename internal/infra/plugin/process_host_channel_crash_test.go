@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/capability"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/plugin/capability"
 )
 
 // fakeCrashDataPath is an inert ChannelDataPath: these tests are about the process-exit

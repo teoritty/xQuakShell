@@ -8,7 +8,7 @@ import (
 	"log"
 	"net"
 
-	"ssh-client/test/fixtures/pluginhost"
+	"xquakshell/test/fixtures/pluginhost"
 )
 
 func main() {

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // planFakeFS models both the source tree (walk) and the target tree (listing)

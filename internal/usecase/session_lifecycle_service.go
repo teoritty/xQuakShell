@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/pkg/safego"
 )
 
 // SessionLifecycleService orchestrates session open, close, retry, and SSH connect.

@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // StateChangeFunc is called whenever a session transitions to a new state.

@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/pkg/safego"
 )
 
 // IdleLockoutManager implements domain.LockoutManager with idle timeout and minimize detection.

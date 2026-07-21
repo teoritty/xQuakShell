@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 // MergedCommand is a plugin-contributed command with owning plugin ID.
 type MergedCommand struct {

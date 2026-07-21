@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // channelMux demultiplexes kind=0x02/0x03 frames by channelId to the owning channel.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // HostKeyService orchestrates known-host mutations and host-key verification prompts.

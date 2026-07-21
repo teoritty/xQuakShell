@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"ssh-client/internal/infra/plugin/bundle"
+	"xquakshell/internal/infra/plugin/bundle"
 )
 
 func TestBundleExtractRejectsZipSlip(t *testing.T) {

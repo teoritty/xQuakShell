@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // PluginSessionSink receives inbound session RPC from plugins.

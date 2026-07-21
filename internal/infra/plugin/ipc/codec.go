@@ -8,7 +8,7 @@ import (
 	"io"
 	"strconv"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 const jsonRPCVersion = "2.0"

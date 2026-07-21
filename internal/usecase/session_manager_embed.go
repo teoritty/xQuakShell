@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // OnEmbedReadyFunc is called when an embed descriptor is registered for a session.

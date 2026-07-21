@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/usecase"
 )
 
 // PluginCommandDTO describes a contributed command for the command palette.

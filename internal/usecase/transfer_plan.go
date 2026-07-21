@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // errHostFSUnavailable is returned when a local-filesystem operation is

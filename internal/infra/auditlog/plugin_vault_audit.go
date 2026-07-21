@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // NDJSONVaultAuditLogger appends plugin vault access events to an immutable NDJSON file.

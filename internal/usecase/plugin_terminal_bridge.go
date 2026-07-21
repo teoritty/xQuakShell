@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 const (

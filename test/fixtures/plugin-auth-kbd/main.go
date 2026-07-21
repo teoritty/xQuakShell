@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"log"
 
-	"ssh-client/test/fixtures/pluginhost"
+	"xquakshell/test/fixtures/pluginhost"
 )
 
 func main() {

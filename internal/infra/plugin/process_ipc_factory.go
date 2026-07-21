@@ -6,9 +6,9 @@ import (
 	"io"
 	"log/slog"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/capability"
-	"ssh-client/internal/infra/plugin/ipc"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/plugin/capability"
+	"xquakshell/internal/infra/plugin/ipc"
 )
 
 func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sessionID string, stdout io.Reader, stdin io.Writer, negotiated domainplugin.NegotiatedDescriptor) (*ipc.Conn, *capability.NetProxy, *capability.TunnelDialProxy, *capability.TunnelLocalProxy, *capability.ChannelProxy, error) {

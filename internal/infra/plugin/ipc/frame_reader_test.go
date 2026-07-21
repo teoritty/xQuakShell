@@ -7,8 +7,8 @@ import (
 	"io"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/ipc"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/plugin/ipc"
 )
 
 func encodeFrame(t *testing.T, kind byte, channelID uint32, payload []byte) []byte {

@@ -17,11 +17,11 @@ import (
 	"testing"
 	"time"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
-	infraembed "ssh-client/internal/infra/embed"
-	"ssh-client/internal/pkg/ratelimit"
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
+	infraembed "xquakshell/internal/infra/embed"
+	"xquakshell/internal/pkg/ratelimit"
+	"xquakshell/internal/usecase"
 
 	"github.com/gorilla/websocket"
 )

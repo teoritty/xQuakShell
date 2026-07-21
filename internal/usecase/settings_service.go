@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // SettingsService orchestrates reading and persisting application settings.

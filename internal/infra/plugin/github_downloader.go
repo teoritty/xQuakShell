@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	infragithub "ssh-client/internal/infra/github"
+	infragithub "xquakshell/internal/infra/github"
 )
 
 // BinaryDownloader downloads and verifies plugin binaries from GitHub Releases.

@@ -1,8 +1,8 @@
 package capability
 
 import (
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/pkg/pathsafe"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/pkg/pathsafe"
 )
 
 // SecurePathUnderRoots resolves absPath and verifies it stays within roots without symlink escape.

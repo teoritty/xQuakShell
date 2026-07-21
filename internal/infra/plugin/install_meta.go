@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 const InstallMetaFile = "install-meta.json"

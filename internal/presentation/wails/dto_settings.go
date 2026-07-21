@@ -3,8 +3,8 @@ package wails
 import (
 	"time"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/usecase"
 )
 
 // LocalNodeDTO represents a local file or directory entry.

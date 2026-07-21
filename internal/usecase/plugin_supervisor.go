@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/pkg/safego"
 )
 
 const pluginSupervisorMaxAttempts = 3

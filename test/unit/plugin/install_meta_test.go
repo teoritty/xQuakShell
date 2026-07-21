@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	infraplugin "ssh-client/internal/infra/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
+	infraplugin "xquakshell/internal/infra/plugin"
 )
 
 func TestInstallMeta_RoundTrip(t *testing.T) {

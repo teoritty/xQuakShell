@@ -3,8 +3,8 @@ package plugin_test
 import (
 	"testing"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/usecase"
 )
 
 func TestCrossPluginSessionUpdateStateIDOR(t *testing.T) {

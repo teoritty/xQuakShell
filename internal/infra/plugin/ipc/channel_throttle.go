@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // clock abstracts time so tokenBucket is testable without wall-clock sleeps.

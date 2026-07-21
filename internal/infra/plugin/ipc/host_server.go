@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/loghub"
-	"ssh-client/internal/infra/plugin/capability"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/loghub"
+	"xquakshell/internal/infra/plugin/capability"
 )
 
 // PluginAuditFunc records plugin security events without secrets.

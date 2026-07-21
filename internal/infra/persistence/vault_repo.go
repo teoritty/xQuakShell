@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/vault"
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/infra/vault"
+	"xquakshell/internal/pkg/safego"
 )
 
 const vaultPersistDebounce = 400 * time.Millisecond

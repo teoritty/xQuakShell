@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // TestChannelProxy_CloseRejectsForeignChannelID is the required IDOR test, modeled 1:1 on

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // VaultProxy forwards vault RPC to the usecase inbound port.

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/pkg/pathsafe"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/pkg/pathsafe"
 )
 
 // ResolveEngineEntryPath resolves engine.entry under rootDir with prefix and symlink checks.

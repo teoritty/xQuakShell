@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 type stubConnRepo struct {

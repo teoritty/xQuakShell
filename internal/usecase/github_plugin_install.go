@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // InstallPluginFromGitHub downloads and installs a plugin from GitHub.

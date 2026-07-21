@@ -8,7 +8,7 @@ import (
 
 	"filippo.io/age"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // Encrypt serializes data to JSON and encrypts it with the given passphrase using age scrypt.

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // ErrProtocolViolation is the sentinel for any framing anomaly. Per ADR-011 §2a this is

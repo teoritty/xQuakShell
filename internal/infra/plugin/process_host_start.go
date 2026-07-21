@@ -3,8 +3,8 @@ package plugin
 import (
 	"context"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/pkg/safego"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/pkg/safego"
 )
 
 // Start launches the plugin binary and sends initialize.

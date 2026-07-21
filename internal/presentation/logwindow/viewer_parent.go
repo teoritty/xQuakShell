@@ -6,7 +6,7 @@ import (
 	"syscall"
 	"time"
 
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/pkg/safego"
 )
 
 // watchParentExit terminates the viewer when the parent process exits.

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // dialPolicyFixture is one dial-policy decision case, shared verbatim between NetProxy's own

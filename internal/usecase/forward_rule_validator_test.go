@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 type stubForwardManifestLookup struct {

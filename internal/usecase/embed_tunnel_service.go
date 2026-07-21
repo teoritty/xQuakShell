@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 const embedSandboxDefault = "allow-scripts allow-same-origin"

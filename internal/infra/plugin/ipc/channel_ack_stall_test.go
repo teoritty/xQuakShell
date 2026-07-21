@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // captureSlog redirects slog to a buffer for the duration of a test.

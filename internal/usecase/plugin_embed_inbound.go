@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // PluginEmbedSink receives embed-related plugin RPC from the session layer.

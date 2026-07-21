@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // GitHubRepositoryService handles GitHub repository registration and management.

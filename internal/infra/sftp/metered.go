@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // progressReader wraps an io.Reader to report cumulative bytes read and to

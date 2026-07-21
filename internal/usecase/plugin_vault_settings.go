@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // PluginVaultSettings reads and persists plugin secret-access grants from vault settings.

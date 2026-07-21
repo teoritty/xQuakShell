@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // attachStalledTunnel registers a session, opens a tunnel and attaches a browser end whose

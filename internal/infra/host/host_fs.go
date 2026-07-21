@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/pkg/pathsafe"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/pkg/pathsafe"
 )
 
 // HostFS implements domain.HostFileSystem for trusted host UI access (ADR-007).

@@ -3,7 +3,7 @@ package usecase
 import (
 	"io"
 
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/pkg/safego"
 )
 
 // splice copies bytes both directions between a and b until either side

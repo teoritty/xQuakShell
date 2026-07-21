@@ -6,7 +6,7 @@ import (
 	"io"
 	"os/exec"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 type spawnedProcess struct {

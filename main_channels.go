@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"sync"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	infraplugin "ssh-client/internal/infra/plugin"
-	"ssh-client/internal/infra/plugin/capability"
-	"ssh-client/internal/usecase"
+	domainplugin "xquakshell/internal/domain/plugin"
+	infraplugin "xquakshell/internal/infra/plugin"
+	"xquakshell/internal/infra/plugin/capability"
+	"xquakshell/internal/usecase"
 )
 
 // errChannelExecSessionsUnavailable reports an exec channel.open that arrived before the session

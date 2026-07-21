@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/usecase"
-	domainplugin "ssh-client/internal/domain/plugin"
-	infraplugin "ssh-client/internal/infra/plugin"
-	"ssh-client/internal/infra/plugin/bundle"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/usecase"
+	domainplugin "xquakshell/internal/domain/plugin"
+	infraplugin "xquakshell/internal/infra/plugin"
+	"xquakshell/internal/infra/plugin/bundle"
 )
 
 type multiSessionSettings struct {

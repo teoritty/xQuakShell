@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // PuTTYSession represents a parsed PuTTY session from a REG file.

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // ResolvedAction is the caller's decision for one conflicting target. NewName is

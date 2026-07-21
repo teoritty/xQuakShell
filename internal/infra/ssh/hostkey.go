@@ -6,7 +6,7 @@ import (
 
 	gossh "golang.org/x/crypto/ssh"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // HostKeyChecker wraps a KnownHostsRepository to provide an ssh.HostKeyCallback.

@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/pkg/safego"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/pkg/safego"
 )
 
 const inboundRequestTimeout = 30 * time.Second

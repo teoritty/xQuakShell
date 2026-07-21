@@ -6,9 +6,9 @@ import (
 	"io"
 	"log/slog"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/loghub"
-	"ssh-client/internal/pkg/safego"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/loghub"
+	"xquakshell/internal/pkg/safego"
 )
 
 const stderrMaxLineBytes = 64 << 10

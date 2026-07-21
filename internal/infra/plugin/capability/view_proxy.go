@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // ViewProxy forwards plugin view RPC to the core view inbound port.

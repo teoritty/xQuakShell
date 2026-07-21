@@ -1,6 +1,6 @@
 package plugin
 
-import domainplugin "ssh-client/internal/domain/plugin"
+import domainplugin "xquakshell/internal/domain/plugin"
 
 // InstallMetaWriter adapts WriteInstallMeta to the usecase GitHubInstallMetaWriter port.
 type InstallMetaWriter struct{}

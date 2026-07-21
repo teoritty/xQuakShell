@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	infracache "ssh-client/internal/infra/cache"
+	infracache "xquakshell/internal/infra/cache"
 )
 
 func TestMemoryCache_SetGetTTL(t *testing.T) {

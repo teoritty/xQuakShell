@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // fakeEmbedSink is a test double for EmbedFrameSink: RouteTunnelFrameFromPlugin records the raw

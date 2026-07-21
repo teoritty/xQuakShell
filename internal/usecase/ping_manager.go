@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/pkg/safego"
 )
 
 // PingResult holds the outcome of a single host TCP ping.

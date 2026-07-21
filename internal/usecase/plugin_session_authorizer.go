@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // SessionBindAuditFunc records plugin session bind/unbind security events.

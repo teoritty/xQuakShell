@@ -6,11 +6,11 @@ import (
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/loghub"
-	"ssh-client/internal/presentation/logwindow"
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/loghub"
+	"xquakshell/internal/presentation/logwindow"
+	"xquakshell/internal/usecase"
 )
 
 // AppAPI is the Wails-bound struct that exposes all backend methods to the frontend.

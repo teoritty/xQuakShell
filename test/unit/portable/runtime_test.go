@@ -3,7 +3,7 @@ package portable_test
 import (
 	"testing"
 
-	"ssh-client/internal/infra/portable"
+	"xquakshell/internal/infra/portable"
 )
 
 func TestRequireWritableWhenReadOnly(t *testing.T) {

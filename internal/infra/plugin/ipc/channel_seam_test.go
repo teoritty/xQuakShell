@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // The tests here exercise the seam between the bus (Conn/mux/channel/credit) and its consumers

@@ -3,7 +3,7 @@ package usecase_test
 import (
 	"testing"
 
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/usecase"
 )
 
 func TestSSHAuthWiring_Enabled(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/pkg/pathsafe"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/pkg/pathsafe"
 )
 
 // SafePluginInstallDir returns an absolute install directory under dataRoot/plugins.

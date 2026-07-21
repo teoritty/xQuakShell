@@ -3,7 +3,7 @@ package ipc
 import (
 	"encoding/binary"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // FrameHeader is the fixed 9-byte frame header: 4B length + 1B kind + 4B channelId.

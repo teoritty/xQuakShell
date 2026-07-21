@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"ssh-client/test/unit/architecture"
+	"xquakshell/test/unit/architecture"
 )
 
 func TestLayerImportRulesMeta(t *testing.T) {
-	const module = "ssh-client"
+	const module = "xquakshell"
 
 	cases := []struct {
 		name           string
@@ -20,40 +20,40 @@ func TestLayerImportRulesMeta(t *testing.T) {
 		wantViolation  bool
 	}{
 		// domain
-		{name: "domain allows internal/domain", layer: architecture.LayerDomain, importPath: "ssh-client/internal/domain", productionFile: true, wantViolation: false},
+		{name: "domain allows internal/domain", layer: architecture.LayerDomain, importPath: "xquakshell/internal/domain", productionFile: true, wantViolation: false},
 		{name: "domain allows golang.org/x/crypto/ssh", layer: architecture.LayerDomain, importPath: "golang.org/x/crypto/ssh", productionFile: true, wantViolation: false},
 		{name: "domain allows stdlib", layer: architecture.LayerDomain, importPath: "context", productionFile: true, wantViolation: false},
-		{name: "domain forbids infra", layer: architecture.LayerDomain, importPath: "ssh-client/internal/infra/vault", productionFile: true, wantViolation: true},
+		{name: "domain forbids infra", layer: architecture.LayerDomain, importPath: "xquakshell/internal/infra/vault", productionFile: true, wantViolation: true},
 		{name: "domain forbids golang.org/x/sys", layer: architecture.LayerDomain, importPath: "golang.org/x/sys/windows", productionFile: true, wantViolation: true},
 		{name: "domain forbids github.com", layer: architecture.LayerDomain, importPath: "github.com/google/uuid", productionFile: true, wantViolation: true},
 
 		// usecase production
-		{name: "usecase allows domain", layer: architecture.LayerUsecase, importPath: "ssh-client/internal/domain", productionFile: true, wantViolation: false},
-		{name: "usecase allows safego", layer: architecture.LayerUsecase, importPath: "ssh-client/internal/pkg/safego", productionFile: true, wantViolation: false},
-		{name: "usecase forbids infra", layer: architecture.LayerUsecase, importPath: "ssh-client/internal/infra/vault", productionFile: true, wantViolation: true},
-		{name: "usecase forbids presentation", layer: architecture.LayerUsecase, importPath: "ssh-client/internal/presentation/wails", productionFile: true, wantViolation: true},
-		{name: "usecase forbids other pkg", layer: architecture.LayerUsecase, importPath: "ssh-client/internal/pkg/conlimit", productionFile: true, wantViolation: true},
+		{name: "usecase allows domain", layer: architecture.LayerUsecase, importPath: "xquakshell/internal/domain", productionFile: true, wantViolation: false},
+		{name: "usecase allows safego", layer: architecture.LayerUsecase, importPath: "xquakshell/internal/pkg/safego", productionFile: true, wantViolation: false},
+		{name: "usecase forbids infra", layer: architecture.LayerUsecase, importPath: "xquakshell/internal/infra/vault", productionFile: true, wantViolation: true},
+		{name: "usecase forbids presentation", layer: architecture.LayerUsecase, importPath: "xquakshell/internal/presentation/wails", productionFile: true, wantViolation: true},
+		{name: "usecase forbids other pkg", layer: architecture.LayerUsecase, importPath: "xquakshell/internal/pkg/conlimit", productionFile: true, wantViolation: true},
 		{name: "usecase forbids golang.org/x", layer: architecture.LayerUsecase, importPath: "golang.org/x/crypto/ssh", productionFile: true, wantViolation: true},
 		{name: "usecase forbids github.com", layer: architecture.LayerUsecase, importPath: "github.com/google/uuid", productionFile: true, wantViolation: true},
 		{name: "usecase test allows golang.org/x", layer: architecture.LayerUsecase, importPath: "golang.org/x/crypto/ssh", productionFile: false, wantViolation: false},
 
 		// infra
-		{name: "infra allows domain", layer: architecture.LayerInfra, importPath: "ssh-client/internal/domain", productionFile: true, wantViolation: false},
-		{name: "infra allows pkg", layer: architecture.LayerInfra, importPath: "ssh-client/internal/pkg/pathsafe", productionFile: true, wantViolation: false},
+		{name: "infra allows domain", layer: architecture.LayerInfra, importPath: "xquakshell/internal/domain", productionFile: true, wantViolation: false},
+		{name: "infra allows pkg", layer: architecture.LayerInfra, importPath: "xquakshell/internal/pkg/pathsafe", productionFile: true, wantViolation: false},
 		{name: "infra allows third-party", layer: architecture.LayerInfra, importPath: "github.com/pkg/sftp", productionFile: true, wantViolation: false},
-		{name: "infra forbids usecase", layer: architecture.LayerInfra, importPath: "ssh-client/internal/usecase", productionFile: true, wantViolation: true},
-		{name: "infra forbids presentation", layer: architecture.LayerInfra, importPath: "ssh-client/internal/presentation/wails", productionFile: true, wantViolation: true},
+		{name: "infra forbids usecase", layer: architecture.LayerInfra, importPath: "xquakshell/internal/usecase", productionFile: true, wantViolation: true},
+		{name: "infra forbids presentation", layer: architecture.LayerInfra, importPath: "xquakshell/internal/presentation/wails", productionFile: true, wantViolation: true},
 
 		// presentation
-		{name: "presentation allows usecase", layer: architecture.LayerPresentation, importPath: "ssh-client/internal/usecase", productionFile: true, wantViolation: false},
+		{name: "presentation allows usecase", layer: architecture.LayerPresentation, importPath: "xquakshell/internal/usecase", productionFile: true, wantViolation: false},
 		{name: "presentation allows wails", layer: architecture.LayerPresentation, importPath: "github.com/wailsapp/wails/v2/pkg/runtime", productionFile: true, wantViolation: false},
 		{name: "presentation allows x/sys", layer: architecture.LayerPresentation, importPath: "golang.org/x/sys/windows", productionFile: true, wantViolation: false},
-		{name: "presentation forbids infra", layer: architecture.LayerPresentation, importPath: "ssh-client/internal/infra/vault", productionFile: true, wantViolation: true},
-		{name: "presentation forbids other pkg", layer: architecture.LayerPresentation, importPath: "ssh-client/internal/pkg/conlimit", productionFile: true, wantViolation: true},
+		{name: "presentation forbids infra", layer: architecture.LayerPresentation, importPath: "xquakshell/internal/infra/vault", productionFile: true, wantViolation: true},
+		{name: "presentation forbids other pkg", layer: architecture.LayerPresentation, importPath: "xquakshell/internal/pkg/conlimit", productionFile: true, wantViolation: true},
 		{name: "presentation forbids other third-party", layer: architecture.LayerPresentation, importPath: "github.com/google/uuid", productionFile: true, wantViolation: true},
 
 		// main
-		{name: "main allows anything internal", layer: architecture.LayerMain, importPath: "ssh-client/internal/infra/vault", productionFile: true, wantViolation: false},
+		{name: "main allows anything internal", layer: architecture.LayerMain, importPath: "xquakshell/internal/infra/vault", productionFile: true, wantViolation: false},
 	}
 
 	for _, tc := range cases {
@@ -113,7 +113,7 @@ func TestViolationFixtures(t *testing.T) {
 			if imp == "context" || imp == "testing" {
 				continue
 			}
-			v := architecture.CheckImportForLayer("ssh-client", imp, layer, true)
+			v := architecture.CheckImportForLayer("xquakshell", imp, layer, true)
 			if v == nil {
 				t.Fatalf("%s: expected violation for import %q in layer %s", entry.Name(), imp, layer)
 			}

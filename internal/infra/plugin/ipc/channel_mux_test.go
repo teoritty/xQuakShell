@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func TestChannelMuxDemuxesInterleavedFramesPerChannel(t *testing.T) {

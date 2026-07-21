@@ -3,7 +3,7 @@ package logwindow
 import (
 	"encoding/json"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // EncodeLine serializes an entry as NDJSON.

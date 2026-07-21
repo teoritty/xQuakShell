@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	infrapluginassets "ssh-client/internal/infra/plugin/assets"
+	infrapluginassets "xquakshell/internal/infra/plugin/assets"
 )
 
 func TestHandlerServesPluginFile(t *testing.T) {

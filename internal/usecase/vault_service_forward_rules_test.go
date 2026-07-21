@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 func newTestVaultServiceWithForwardRules(conn domain.ConnectionRepository, validator *ForwardRuleValidator) *VaultService {

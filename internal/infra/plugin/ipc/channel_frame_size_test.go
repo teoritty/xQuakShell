@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // TestEmbedStreamFrameCapMatchesTunnelLimit pins the two halves of the same rule together: the

@@ -3,7 +3,7 @@ package capability
 import (
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // TestGate_VersionEnforcementDeniesBelowNegotiated proves the forward-looking feature-version

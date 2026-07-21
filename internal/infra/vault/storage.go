@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 const (

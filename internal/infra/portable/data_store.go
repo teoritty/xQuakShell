@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/pkg/pathsafe"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/pkg/pathsafe"
 )
 
 // DataStore implements domain.PortableDataStore for jailed application state (ADR-006).

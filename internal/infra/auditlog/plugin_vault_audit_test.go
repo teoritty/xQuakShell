@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/auditlog"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/auditlog"
 )
 
 func TestNDJSONVaultAuditLoggerRecordsAccessWithoutSecrets(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // SQLiteRepo implements domain.AuditLogRepository using SQLite with FTS5.

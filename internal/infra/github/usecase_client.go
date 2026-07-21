@@ -3,7 +3,7 @@ package github
 import (
 	"context"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // UseCaseClient adapts the GitHub REST client to usecase ports with domain DTOs.

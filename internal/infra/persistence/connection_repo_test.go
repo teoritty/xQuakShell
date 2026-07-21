@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 type memVault struct {

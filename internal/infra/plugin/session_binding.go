@@ -1,7 +1,7 @@
 package plugin
 
 import (
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // BindSession registers an active session authorized for session.* RPC from this plugin.

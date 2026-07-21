@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // fakeRemoteFS is a minimal domain.RemoteFS for exercising RemoteOpService.

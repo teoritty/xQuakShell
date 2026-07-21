@@ -3,7 +3,7 @@ package wails
 import (
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // SessionDTO is the UI-facing representation of a session.

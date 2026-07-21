@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // IdentityRepo implements domain.IdentityRepository backed by the vault.

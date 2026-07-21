@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // newTestChannel builds a channel the way production does — flow-controlled — with a discarding

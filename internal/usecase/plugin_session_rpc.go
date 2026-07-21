@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // PluginSessionScope binds a plugin process instance for session RPC authorization.

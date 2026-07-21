@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // creditPayload builds a well-formed kind=0x03 payload per ADR-011: 4B channelId + 4B credit.

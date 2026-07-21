@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // FileGitHubRepositoryStorage stores repository registrations in a JSON file.

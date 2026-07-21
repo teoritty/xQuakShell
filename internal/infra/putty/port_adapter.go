@@ -1,6 +1,6 @@
 package putty
 
-import "ssh-client/internal/domain"
+import "xquakshell/internal/domain"
 
 // PortAdapter implements domain.PuTTYImporter using the infra putty package.
 type PortAdapter struct{}

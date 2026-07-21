@@ -14,7 +14,7 @@ import (
 
 	"github.com/pkg/sftp"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // sanitizeLocalPath normalizes a local path to prevent basic traversal attacks.

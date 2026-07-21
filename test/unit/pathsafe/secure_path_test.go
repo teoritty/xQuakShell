@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"ssh-client/internal/pkg/pathsafe"
+	"xquakshell/internal/pkg/pathsafe"
 )
 
 func TestSecurePathUnderRootsRejectsSymlinkEscape(t *testing.T) {

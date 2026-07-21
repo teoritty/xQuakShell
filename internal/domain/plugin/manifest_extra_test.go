@@ -4,7 +4,7 @@ import (
 	"crypto/ed25519"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func TestPermissionSummary(t *testing.T) {

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/ipc"
-	"ssh-client/internal/usecase"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/plugin/ipc"
+	"xquakshell/internal/usecase"
 )
 
 func TestHostServerRecordsPluginActivity(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // embedTunnelFixture registers one embed session against the REAL EmbedTunnelService and wires a

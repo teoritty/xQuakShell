@@ -3,4 +3,4 @@
 // layer: presentation
 package fixture
 
-import _ "ssh-client/internal/infra/vault"
+import _ "xquakshell/internal/infra/vault"

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // PostViewMessage forwards a UI message to a plugin view panel.

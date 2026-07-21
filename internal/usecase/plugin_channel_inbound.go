@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"sync"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // ChannelSink receives channel.open/channel.close plugin RPC from the session layer. The

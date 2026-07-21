@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // metadataCacheKey builds a cache key for repository metadata.

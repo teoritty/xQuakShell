@@ -3,7 +3,7 @@ package plugin
 import (
 	"fmt"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func preparePluginSandbox(dataRoot string, plugin domainplugin.InstalledPlugin, sessionID string, pid int) (pluginJob, string, error) {

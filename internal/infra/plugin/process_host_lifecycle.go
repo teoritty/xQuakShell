@@ -3,7 +3,7 @@ package plugin
 import (
 	"log/slog"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func (h *ProcessHost) waitProcess(key string, mp *managedProcess) {

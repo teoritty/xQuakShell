@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // CopyBundle copies a plugin directory tree to dest.

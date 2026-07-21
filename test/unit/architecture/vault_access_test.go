@@ -3,7 +3,7 @@ package architecture_test
 import (
 	"testing"
 
-	"ssh-client/test/unit/architecture"
+	"xquakshell/test/unit/architecture"
 )
 
 func TestPresentationVaultAccess(t *testing.T) {

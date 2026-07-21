@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // ConnectionRepo implements domain.ConnectionRepository using the vault as backing store.

@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/bundle"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/plugin/bundle"
 )
 
 // NewGitHubPluginStager returns a stager that creates staging directories under tempBase.

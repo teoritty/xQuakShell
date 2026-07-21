@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/vault"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/infra/vault"
 )
 
 func TestVaultEncryptDecryptRoundtrip(t *testing.T) {

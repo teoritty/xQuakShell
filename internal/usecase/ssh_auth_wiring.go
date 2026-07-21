@@ -1,6 +1,6 @@
 package usecase
 
-import "ssh-client/internal/domain"
+import "xquakshell/internal/domain"
 
 // PluginAuthGrantReader reports install-time auth provider consent.
 type PluginAuthGrantReader interface {

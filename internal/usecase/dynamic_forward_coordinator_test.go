@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/plugin/capability"
-	domainplugin "ssh-client/internal/domain/plugin"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/infra/plugin/capability"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func TestDynamicForwardCoordinator_StopSessionClosesPreBindLocals(t *testing.T) {

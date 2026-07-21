@@ -5,7 +5,7 @@ import (
 	"path"
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // localModTimeLayout matches domain.LocalFileEntry.ModTime formatting in HostFS.

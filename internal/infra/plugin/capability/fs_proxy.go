@@ -9,9 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/portable"
-	"ssh-client/internal/pkg/pathsafe"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/portable"
+	"xquakshell/internal/pkg/pathsafe"
 )
 
 // MaxReadBytes re-exports the domain limit for tests and infra.

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // PluginInstanceDataDir returns the writable data directory for a plugin process instance.

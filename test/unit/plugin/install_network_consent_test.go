@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/usecase"
 )
 
 type memVault struct {

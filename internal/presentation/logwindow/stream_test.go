@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 func TestEncodeDecodeLine(t *testing.T) {

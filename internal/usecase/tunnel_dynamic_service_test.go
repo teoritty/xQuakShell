@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func TestTunnelDynamicService_BindUnblocksWithoutClientData(t *testing.T) {

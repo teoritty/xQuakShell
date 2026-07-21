@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"sync"
 
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/pkg/safego"
 )
 
 // processReaper owns the single (*exec.Cmd).Wait call for a plugin child process.

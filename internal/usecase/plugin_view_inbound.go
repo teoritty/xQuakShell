@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"sync"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // PluginViewSink receives inbound view messages from plugins.

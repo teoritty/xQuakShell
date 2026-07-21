@@ -1,7 +1,7 @@
 package wails
 
 import (
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // AppVersion is the user-facing application/product version shown in the About panel. It is the

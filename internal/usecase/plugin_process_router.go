@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // hostProcessScope resolves the ProcessHost session key for a plugin IPC target.

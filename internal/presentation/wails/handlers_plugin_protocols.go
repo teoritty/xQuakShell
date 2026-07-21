@@ -1,6 +1,6 @@
 package wails
 
-import domainplugin "ssh-client/internal/domain/plugin"
+import domainplugin "xquakshell/internal/domain/plugin"
 
 // FieldValidationDTO mirrors field validation rules for the UI.
 type FieldValidationDTO struct {

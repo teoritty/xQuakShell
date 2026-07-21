@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 const defaultPluginIdleTimeout = 5 * time.Minute

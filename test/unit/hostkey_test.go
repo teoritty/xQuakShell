@@ -13,8 +13,8 @@ import (
 
 	gossh "golang.org/x/crypto/ssh"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/persistence"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/infra/persistence"
 )
 
 // mockVaultForKH is a minimal in-memory VaultRepository for testing known_hosts.

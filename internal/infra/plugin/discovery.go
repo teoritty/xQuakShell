@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/plugin/bundle"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/plugin/bundle"
 )
 
 const (

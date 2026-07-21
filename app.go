@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"ssh-client/internal/pkg/safego"
-	presentation "ssh-client/internal/presentation/wails"
+	"xquakshell/internal/pkg/safego"
+	presentation "xquakshell/internal/presentation/wails"
 )
 
 // App is the main application struct bound to Wails.

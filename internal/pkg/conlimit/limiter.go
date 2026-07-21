@@ -5,8 +5,8 @@ import (
 	"context"
 	"sync"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/pkg/safego"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/pkg/safego"
 )
 
 var _ domain.ConcurrencyLimiter = (*Limiter)(nil)

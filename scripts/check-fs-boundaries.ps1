@@ -43,7 +43,7 @@ $pluginDir = Join-Path $root "internal\infra\plugin"
 $pluginHits = @()
 Get-ChildItem -Path $pluginDir -Filter "*.go" -Recurse | ForEach-Object {
     $pluginHits += Find-NonCommentMatches -Path $_.FullName -Patterns @(
-        '"ssh-client/internal/infra/host"'
+        '"xquakshell/internal/infra/host"'
         'domain\.HostFileSystem'
     )
 }

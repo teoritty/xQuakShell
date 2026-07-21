@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // TestChannelProxy_CloseAllInvokesBackendCloseRemoteForEveryChannel proves CloseAll (the

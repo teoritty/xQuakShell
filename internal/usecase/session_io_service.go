@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 const serverAliveInterval = 30 * time.Second

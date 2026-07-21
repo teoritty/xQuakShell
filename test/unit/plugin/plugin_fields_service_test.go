@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/persistence"
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/persistence"
+	"xquakshell/internal/usecase"
 )
 
 func TestPluginFieldsServiceSaveAndResolve(t *testing.T) {

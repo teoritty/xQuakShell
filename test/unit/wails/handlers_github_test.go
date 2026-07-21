@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	infracache "ssh-client/internal/infra/cache"
-	infrapersistence "ssh-client/internal/infra/persistence"
-	"ssh-client/internal/presentation/wails"
-	"ssh-client/internal/usecase"
+	domainplugin "xquakshell/internal/domain/plugin"
+	infracache "xquakshell/internal/infra/cache"
+	infrapersistence "xquakshell/internal/infra/persistence"
+	"xquakshell/internal/presentation/wails"
+	"xquakshell/internal/usecase"
 )
 
 type stubGitHubAPIClient struct {

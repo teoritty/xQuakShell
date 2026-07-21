@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/domain"
 )
 
 // PluginCrashHandler reacts to abnormal plugin process exits.

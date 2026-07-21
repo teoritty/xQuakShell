@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // shouldAllowResolvedIP decides whether a resolved ip may be dialed. Shared verbatim by

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 func TestHubRingBuffer(t *testing.T) {

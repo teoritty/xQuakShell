@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // --- SFTP remote operations ---

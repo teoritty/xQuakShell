@@ -5,7 +5,7 @@ import (
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/usecase"
 )
 
 func (a *AppAPI) emitTransferProgress(p usecase.TransferProgress) {

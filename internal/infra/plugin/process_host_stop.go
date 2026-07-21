@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // Stop gracefully shuts down a plugin process.

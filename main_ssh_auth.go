@@ -1,10 +1,10 @@
 package main
 
 import (
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/infra/auditlog"
-	infrassh "ssh-client/internal/infra/ssh"
-	"ssh-client/internal/usecase"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/auditlog"
+	infrassh "xquakshell/internal/infra/ssh"
+	"xquakshell/internal/usecase"
 )
 
 // wireSSHAuth binds usecase and infra for plugin SSH auth (composition root only).

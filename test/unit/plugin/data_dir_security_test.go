@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	infraplugin "ssh-client/internal/infra/plugin"
-	"ssh-client/internal/infra/plugin/capability"
+	domainplugin "xquakshell/internal/domain/plugin"
+	infraplugin "xquakshell/internal/infra/plugin"
+	"xquakshell/internal/infra/plugin/capability"
 )
 
 func TestPluginInstanceDataDirPerSession(t *testing.T) {

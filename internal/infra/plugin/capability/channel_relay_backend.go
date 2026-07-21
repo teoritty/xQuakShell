@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
-	"ssh-client/internal/pkg/safego"
+	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/pkg/safego"
 )
 
 // ChannelRelayBackend implements the tcp-relay purpose (ADR-011 Stage 6): it wires a channel

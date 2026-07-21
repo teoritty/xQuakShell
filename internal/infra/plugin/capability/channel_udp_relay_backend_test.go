@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // udpDialPolicyFixtures reuses dialPolicyFixtures verbatim (the same shared table

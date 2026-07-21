@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // fakeUpstream models a backend's upstream source (SSH exec stdout pipe / relayed TCP or UDP

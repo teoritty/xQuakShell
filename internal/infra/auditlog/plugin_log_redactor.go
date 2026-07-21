@@ -1,6 +1,6 @@
 package auditlog
 
-import domainplugin "ssh-client/internal/domain/plugin"
+import domainplugin "xquakshell/internal/domain/plugin"
 
 // RedactPluginLogMessage removes likely secrets from plugin log lines.
 func RedactPluginLogMessage(message string) (redacted string, changed bool) {

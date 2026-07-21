@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // sessionEntry holds runtime state for a single session (tab).

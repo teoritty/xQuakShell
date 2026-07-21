@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"ssh-client/internal/domain"
-	domainplugin "ssh-client/internal/domain/plugin"
+	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // ForwardRuleManifestLookup resolves plugin manifest contributions for forward rules.

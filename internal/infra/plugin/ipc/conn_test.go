@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "ssh-client/internal/domain/plugin"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func TestConnHandlesConcurrentPluginRequests(t *testing.T) {
