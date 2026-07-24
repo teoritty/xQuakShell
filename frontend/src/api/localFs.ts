@@ -41,8 +41,12 @@ export async function selectLocalDirectory(): Promise<string> {
   return callBackend('Select local directory', '', (app) => app.SelectLocalDirectory());
 }
 
-export async function listLocalPath(dirPath: string, includeHidden = false): Promise<LocalNode[]> {
-  return callBackend('List local path', [], (app) => app.ListLocalPath(dirPath, includeHidden));
+export async function listLocalPath(
+  dirPath: string,
+  includeHidden = false,
+  opts?: { rethrow?: boolean; silence?: (msg: string) => boolean },
+): Promise<LocalNode[]> {
+  return callBackend('List local path', [], (app) => app.ListLocalPath(dirPath, includeHidden), opts);
 }
 
 // getPortableDataRoot / getUserHomeDir / getTempDir intentionally do NOT go

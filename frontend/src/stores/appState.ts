@@ -159,6 +159,25 @@ export const activeSessionId = writable<string>('');
 export const vaultUnlocked = writable<boolean>(false);
 export const transfers = writable<TransferItem[]>([]);
 
+/**
+ * Removes finished (completed/failed/cancelled) items from the transfers list,
+ * keeping in-progress (active/pending) ones. Used by the panel's close button so
+ * dismissing clears stale history instead of hiding it until the next event.
+ */
+export function clearFinishedTransfers(): void {
+  transfers.update((list) => list.filter((t) => t.state === 'active' || t.state === 'pending'));
+}
+
+/**
+ * Removes a single transfer/operation by id. Used to retire the transient
+ * "scanning" item a planned drop shows during enumeration when the drop turns
+ * out to have nothing to execute (empty plan or the user cancelled conflicts),
+ * so it never lingers in the panel.
+ */
+export function removeTransfer(id: string): void {
+  transfers.update((list) => list.filter((t) => t.id !== id));
+}
+
 /** Emitted when a transfer completes; used to auto-refresh file trees. */
 export const transferCompleted = writable<TransferItem | null>(null);
 const EXPANDED_FOLDERS_KEY = 'xquakshell-expanded-folders';

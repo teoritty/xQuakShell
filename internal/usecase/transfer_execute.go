@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"xquakshell/internal/domain"
 )
@@ -42,7 +41,13 @@ func (s *TransferService) ExecutePlan(parentCtx context.Context, sessionID strin
 
 	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
-	transferID := fmt.Sprintf("%s-%s-%d", plan.Kind, sessionID, time.Now().UnixNano())
+	// Reuse the OpID assigned during planning so the scanning phase and this
+	// byte-transfer phase are one continuous Transfers-panel item. Fall back to a
+	// fresh id for plans built without one.
+	transferID := plan.OpID
+	if transferID == "" {
+		transferID = newOpID(plan.Kind, sessionID)
+	}
 	s.cancels.Register(transferID, cancel)
 	defer s.cancels.Unregister(transferID)
 

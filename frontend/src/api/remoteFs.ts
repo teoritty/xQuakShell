@@ -10,8 +10,12 @@ function isCancelError(msg: string): boolean {
   return msg.toLowerCase().includes('cancel');
 }
 
-export async function listPath(sessionId: string, path: string): Promise<RemoteNode[]> {
-  return callBackend('List remote path', [], (app) => app.ListPath(sessionId, path));
+export async function listPath(
+  sessionId: string,
+  path: string,
+  opts?: { rethrow?: boolean; silence?: (msg: string) => boolean },
+): Promise<RemoteNode[]> {
+  return callBackend('List remote path', [], (app) => app.ListPath(sessionId, path), opts);
 }
 
 export async function uploadFile(sessionId: string, localPath: string, remotePath: string): Promise<void> {

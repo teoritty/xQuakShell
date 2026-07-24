@@ -15,16 +15,25 @@ const localModTimeLayout = "2006-01-02 15:04:05"
 // sourceEntry nodes rooted at the root's base name. Symlinked directories are
 // not descended into (HostFileSystem.List reports them as non-dir entries), so
 // they are transferred as single entries rather than followed — avoiding loops.
-func walkLocalSource(hostFS domain.HostFileSystem, root string) ([]sourceEntry, error) {
+// onScan, when non-nil, is ticked once per discovered entry so callers can stream
+// a live "scanning" counter during the walk.
+func walkLocalSource(hostFS domain.HostFileSystem, root string, onScan func()) ([]sourceEntry, error) {
 	info, err := hostFS.Stat(root)
 	if err != nil {
 		return nil, err
 	}
 	base := path.Base(toSlash(root))
+	scan := func() {
+		if onScan != nil {
+			onScan()
+		}
+	}
 	if !info.IsDir {
+		scan()
 		return []sourceEntry{{AbsPath: root, Rel: base, Size: info.Size, ModTime: info.ModTime}}, nil
 	}
 	out := []sourceEntry{{AbsPath: root, Rel: base, IsDir: true}}
+	scan()
 	var recur func(dir, rel string) error
 	recur = func(dir, rel string) error {
 		entries, err := hostFS.List(dir, true, nil)
@@ -33,6 +42,7 @@ func walkLocalSource(hostFS domain.HostFileSystem, root string) ([]sourceEntry, 
 		}
 		for _, e := range entries {
 			childRel := rel + "/" + e.Name
+			scan()
 			if e.IsDir {
 				out = append(out, sourceEntry{AbsPath: e.Path, Rel: childRel, IsDir: true})
 				if err := recur(e.Path, childRel); err != nil {
@@ -55,8 +65,9 @@ func walkLocalSource(hostFS domain.HostFileSystem, root string) ([]sourceEntry, 
 
 // walkRemoteSource enumerates a dropped remote root into sourceEntry nodes. It
 // discovers the root's own type by listing its parent (RemoteFS has no single
-// Stat), then recurses via List for directories.
-func walkRemoteSource(ctx context.Context, fs domain.RemoteFS, root string) ([]sourceEntry, error) {
+// Stat), then recurses via List for directories. onScan, when non-nil, is ticked
+// once per discovered entry (see walkLocalSource).
+func walkRemoteSource(ctx context.Context, fs domain.RemoteFS, root string, onScan func()) ([]sourceEntry, error) {
 	parent := path.Dir(root)
 	base := path.Base(root)
 	siblings, err := fs.List(ctx, parent)
@@ -73,10 +84,17 @@ func walkRemoteSource(ctx context.Context, fs domain.RemoteFS, root string) ([]s
 	if node == nil {
 		return nil, &notFoundError{path: root}
 	}
+	scan := func() {
+		if onScan != nil {
+			onScan()
+		}
+	}
 	if !node.IsDir {
+		scan()
 		return []sourceEntry{{AbsPath: root, Rel: base, Size: node.Size, ModTime: node.ModTime}}, nil
 	}
 	out := []sourceEntry{{AbsPath: root, Rel: base, IsDir: true}}
+	scan()
 	var recur func(dir, rel string) error
 	recur = func(dir, rel string) error {
 		entries, err := fs.List(ctx, dir)
@@ -85,6 +103,7 @@ func walkRemoteSource(ctx context.Context, fs domain.RemoteFS, root string) ([]s
 		}
 		for _, e := range entries {
 			childRel := rel + "/" + e.Name
+			scan()
 			if e.IsDir {
 				out = append(out, sourceEntry{AbsPath: e.Path, Rel: childRel, IsDir: true})
 				if err := recur(e.Path, childRel); err != nil {

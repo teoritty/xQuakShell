@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { transfers, type TransferItem, type OperationKind } from '../stores/appState';
+  import { transfers, clearFinishedTransfers, type TransferItem, type OperationKind } from '../stores/appState';
   import { uploadFile, downloadFile, cancelTransfer } from '../api/remoteFs';
   import { selectLocalFile, selectLocalDirectory } from '../api/localFs';
   import { Upload, Download, ChevronDown, ChevronRight, X, RefreshCw, Trash2, Lock, User } from 'lucide-svelte';
@@ -28,11 +28,15 @@
     return KIND_ICON[kind] ?? Upload;
   }
 
-  // A remote operation (delete/chmod/chown) is still scanning when it is active
-  // and no total is known yet; show a live scan counter instead of a percentage.
+  // An operation is still scanning when it is active and no total is known yet;
+  // show a live scan counter instead of a percentage. Remote ops
+  // (delete/chmod/chown) scan their tree before acting, and recursive transfers
+  // (upload/download; local copy is presented as upload) enumerate their sources
+  // before moving bytes.
   function isScanning(item: TransferItem): boolean {
     return item.state === 'active' && item.total <= 0
-      && (item.kind === 'delete' || item.kind === 'chmod' || item.kind === 'chown');
+      && (item.kind === 'delete' || item.kind === 'chmod' || item.kind === 'chown'
+        || item.kind === 'upload' || item.kind === 'download');
   }
 
   function progressText(item: TransferItem): string {
@@ -127,6 +131,15 @@
 
   $: hasActive = activeTransfers.length > 0;
 
+  // Closing the panel clears finished history (keeping any in-progress items)
+  // and folds the panel away. prevCount is realigned so the grow-detector above
+  // doesn't read the shrink as a brand-new batch and re-open.
+  function closePanel() {
+    clearFinishedTransfers();
+    dismissed = true;
+    prevCount = $transfers.filter(t => t.sessionId === sessionId || !t.sessionId).length;
+  }
+
   async function startUpload() {
     const localPath = await selectLocalFile();
     if (!localPath) return;
@@ -204,7 +217,7 @@
       <div class="actions" on:click|stopPropagation on:keydown|stopPropagation>
         <!-- <button on:click={startUpload} title="Upload file"><Upload size={11} /> Upload</button>
         <button on:click={startDownload} title="Download file"><Download size={11} /> Download</button> -->
-        <button class="cancel-btn" on:click={() => dismissed = true} title="Close"><X size={13} /></button>
+        <button class="cancel-btn" on:click={closePanel} title="Close"><X size={13} /></button>
       </div>
     </div>
 

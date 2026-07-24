@@ -56,7 +56,7 @@ func (a *AppAPI) PlanUpload(sessionID string, localPaths []string, remoteDir str
 	if a.transferPlanner == nil {
 		return TransferPlanDTO{}, nil
 	}
-	plan, err := a.transferPlanner.PlanUpload(sessionID, localPaths, remoteDir)
+	plan, err := a.transferPlanner.PlanUpload(sessionID, localPaths, remoteDir, a.emitTransferProgress)
 	if err != nil {
 		return TransferPlanDTO{}, err
 	}
@@ -69,7 +69,7 @@ func (a *AppAPI) PlanDownload(sessionID string, remotePaths []string, localDir s
 	if a.transferPlanner == nil {
 		return TransferPlanDTO{}, nil
 	}
-	plan, err := a.transferPlanner.PlanDownload(sessionID, remotePaths, localDir)
+	plan, err := a.transferPlanner.PlanDownload(sessionID, remotePaths, localDir, a.emitTransferProgress)
 	if err != nil {
 		return TransferPlanDTO{}, err
 	}
@@ -82,7 +82,7 @@ func (a *AppAPI) PlanLocalCopy(srcPaths []string, destDir string) (TransferPlanD
 	if a.transferPlanner == nil {
 		return TransferPlanDTO{}, nil
 	}
-	plan, err := a.transferPlanner.PlanLocalCopy(srcPaths, destDir)
+	plan, err := a.transferPlanner.PlanLocalCopy(srcPaths, destDir, a.emitTransferProgress)
 	if err != nil {
 		return TransferPlanDTO{}, err
 	}

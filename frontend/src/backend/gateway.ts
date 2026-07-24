@@ -28,6 +28,9 @@ export interface PlannedFileDTO {
 
 export interface TransferPlanDTO {
   kind: string;
+  // Operation id assigned during planning; the executor reuses it so the
+  // scanning and byte-transfer phases share one Transfers-panel item.
+  opID: string;
   dirs: string[];
   files: PlannedFileDTO[];
 }

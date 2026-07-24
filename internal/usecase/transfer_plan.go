@@ -32,6 +32,10 @@ func (f PlannedFile) HasConflict() bool { return f.Conflict != nil }
 // executor applies conflict resolutions to it.
 type TransferPlan struct {
 	Kind string
+	// OpID is the operation identifier assigned when the plan is built. The
+	// executor reuses it so the scanning phase and the byte-transfer phase share
+	// a single Transfers-panel item (scan → progress → completed).
+	OpID string
 	// DestDir is the directory everything lands in. It is the authoritative
 	// answer to "which directory should the UI refresh when this finishes" —
 	// unlike the per-transfer display label, which is not a path.

@@ -3,7 +3,7 @@
 import { callBackend, callBackendVoid } from '../backend/callBackend';
 import type { ExecutePlanDTO, TransferPlanDTO } from '../backend/gateway';
 
-const EMPTY_PLAN: TransferPlanDTO = { kind: '', dirs: [], files: [] };
+const EMPTY_PLAN: TransferPlanDTO = { kind: '', opID: '', dirs: [], files: [] };
 
 export async function planUpload(sessionId: string, localPaths: string[], remoteDir: string): Promise<TransferPlanDTO> {
   return callBackend('Plan upload', EMPTY_PLAN, (app) => app.PlanUpload(sessionId, localPaths, remoteDir));

@@ -11,7 +11,7 @@
   import ConfirmDialog from './ConfirmDialog.svelte';
   import OverflowToolbar from './OverflowToolbar.svelte';
   import { buildFilePanelToolbarItems, cycleSortState, type SortKey } from './filePanelToolbar';
-  import { ChevronUp } from 'lucide-svelte';
+  import { ChevronUp, X } from 'lucide-svelte';
 
   const STORAGE_KEY = 'localfiletree-show-columns';
   const STORAGE_HIDDEN = 'localfiletree-show-hidden';
@@ -207,8 +207,11 @@
     if (!trimmed) return;
     const nextPath = normalizePathInput(trimmed);
     const prevPath = currentPath;
+    // listLocalPath normally swallows errors (returns []) and shows a global
+    // banner; opt into rethrow so a non-existent path is caught here and the
+    // view is reverted instead of navigating into an empty folder.
     try {
-      const nodes = await listLocalPath(nextPath, showHidden);
+      const nodes = await listLocalPath(nextPath, showHidden, { rethrow: true, silence: () => true });
       rawTree.set(nextPath, nodes);
       tree.set(nextPath, applySort(nodes));
       currentPath = nextPath;
@@ -611,7 +614,10 @@
   </div>
 
   {#if error}
-    <div class="tree-error">{error}</div>
+    <div class="tree-error">
+      <span class="tree-error-msg">{error}</span>
+      <button class="tree-error-close" title="Dismiss" on:click={() => (error = '')}><X size={12} /></button>
+    </div>
   {/if}
 
   <div
@@ -744,11 +750,37 @@
   }
 
   .tree-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     padding: 8px 10px;
     font-size: 11px;
     color: var(--danger);
     background: rgba(211, 47, 47, 0.1);
     border-bottom: 1px solid var(--border-color);
+  }
+
+  .tree-error-msg {
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+  }
+
+  .tree-error-close {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    color: var(--danger);
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+
+  .tree-error-close:hover {
+    background: rgba(211, 47, 47, 0.18);
   }
 
   .tree-body {

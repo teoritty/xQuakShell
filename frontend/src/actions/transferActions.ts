@@ -14,6 +14,7 @@ import {
 import { resolveConflicts } from '../lib/transfer/conflictResolver';
 import { normalizeExistsDefault, type ConflictAction } from '../lib/transfer/conflictActions';
 import { promptConflict } from '../stores/conflictPrompt';
+import { removeTransfer } from '../stores/appState';
 
 export async function startUploadDrop(sessionId: string, localPaths: string[], remoteDir: string): Promise<void> {
   const plan = await planUpload(sessionId, localPaths, remoteDir);
@@ -35,7 +36,13 @@ async function runPlan(
   kind: 'upload' | 'download' | 'localcopy',
   execute: (req: ExecutePlanDTO) => Promise<void>,
 ): Promise<void> {
-  if (!plan.files || plan.files.length === 0) return;
+  // The planner emits a transient "scanning" item under plan.opID during
+  // enumeration. If nothing will actually execute below, retire that item so it
+  // doesn't linger in the panel forever.
+  if (!plan.files || plan.files.length === 0) {
+    removeTransfer(plan.opID);
+    return;
+  }
 
   const conflicts = plan.files.filter((f) => !!f.conflict);
 
@@ -52,7 +59,10 @@ async function runPlan(
   const result = await resolveConflicts(conflicts, settingsDefault, (file, index, total) =>
     promptConflict({ file, index, total, kind }),
   );
-  if (result === null) return; // user cancelled the batch
+  if (result === null) {
+    removeTransfer(plan.opID); // user cancelled the batch — retire the scan item
+    return;
+  }
 
   if (result.persistDefault && settings) {
     await putSettings(withDefaultAction(settings, kind, result.persistDefault));
