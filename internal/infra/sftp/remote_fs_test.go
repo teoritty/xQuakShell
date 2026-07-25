@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -53,20 +54,31 @@ func (f fakeFileInfo) IsDir() bool        { return f.isDir }
 func (f fakeFileInfo) Sys() any           { return nil }
 
 // TestDownloadRecursiveRejectsHostileEntryName drives downloadRecursive with a
-// fake remote directory listing containing a Windows-traversal name. It
-// asserts that nothing is created outside the temp download root: the seam
-// (readDirFn) lets us exercise the real filtering + mkdir/download logic
-// without a live SFTP server.
+// fake remote directory listing containing a traversal name. It asserts that
+// nothing is created outside the temp download root: the seam (readDirFn)
+// lets us exercise the real filtering + mkdir/download logic without a live
+// SFTP server.
+//
+// The hostile name uses forward slashes, not backslashes: filepath.Clean (and
+// therefore filepath.Join) treats both `/` and `\` as separators on Windows,
+// but only `/` is a separator on Linux. CI runs on ubuntu-latest, so a
+// backslash-only hostile name never traverses there — filepath.Join would
+// leave it as a single literal filename under absLocalRoot, and the setup
+// guard below would fire (correctly) before downloadRecursive is even
+// called. `../../evil.exe` escapes the root under filepath.Join on both
+// platforms, so it exercises real containment coverage everywhere the suite
+// runs, including on the CI platform.
 func TestDownloadRecursiveRejectsHostileEntryName(t *testing.T) {
 	localDir := t.TempDir()
 
-	hostileName := `..\..\evil.exe`
+	hostileName := "../../evil.exe"
 
 	// Derive the escape target from the exact same join logic the
 	// vulnerable code uses (filepath.Join on an absolute root followed by
 	// filepath.Clean via Join's normalization), rather than hand-computing
-	// a level count. On Windows, filepath.Join cleans `..\..\` against the
-	// absolute root, walking up two directory levels from localDir.
+	// a level count. filepath.Join cleans `../../` against the absolute
+	// root, walking up two directory levels from localDir, on both Windows
+	// and Linux.
 	absLocalRoot, err := filepath.Abs(localDir)
 	if err != nil {
 		t.Fatalf("resolve abs localDir: %v", err)
@@ -116,6 +128,64 @@ func TestDownloadRecursiveRejectsHostileEntryName(t *testing.T) {
 		if dir == filepath.Dir(dir) {
 			break // reached filesystem root
 		}
+	}
+
+	entries, err := os.ReadDir(localDir)
+	if err != nil {
+		t.Fatalf("reading localDir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("expected localDir to remain empty, got %d entries", len(entries))
+	}
+}
+
+// TestDownloadRecursiveRejectsWindowsBackslashHostileEntryName is a
+// Windows-only addition to the forward-slash case above. It exercises the
+// original backslash-traversal shape (`..\..\evil.exe`) that only escapes
+// under filepath.Join on Windows; on Linux the same literal string is not a
+// traversal at all (backslash is not a path separator there), so this test
+// is skipped on non-Windows rather than asserting something meaningless.
+// Backslash rejection itself is already covered platform-independently by
+// TestSafeEntryName, which inspects the raw string without touching the
+// filesystem.
+func TestDownloadRecursiveRejectsWindowsBackslashHostileEntryName(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("backslash-as-separator traversal only occurs on Windows")
+	}
+
+	localDir := t.TempDir()
+
+	hostileName := `..\..\evil.exe`
+
+	absLocalRoot, err := filepath.Abs(localDir)
+	if err != nil {
+		t.Fatalf("resolve abs localDir: %v", err)
+	}
+	outsideMarker := filepath.Join(absLocalRoot, hostileName)
+	if strings.HasPrefix(outsideMarker, absLocalRoot) {
+		t.Fatalf("test setup error: derived escape target %q is still under root %q; hostile name no longer traverses", outsideMarker, absLocalRoot)
+	}
+	_ = os.Remove(outsideMarker)
+
+	fs := &RemoteFS{
+		readDirFn: func(dir string) ([]os.FileInfo, error) {
+			if dir != "/remote" {
+				return nil, nil
+			}
+			return []os.FileInfo{
+				fakeFileInfo{name: hostileName, isDir: true, size: 4},
+			}, nil
+		},
+	}
+
+	var totalDone int64
+	err = fs.downloadRecursive(context.Background(), "/remote", localDir, &totalDone, -1, nil)
+	if err != nil {
+		t.Fatalf("downloadRecursive returned error: %v", err)
+	}
+
+	if _, statErr := os.Stat(outsideMarker); !os.IsNotExist(statErr) {
+		t.Fatalf("hostile entry escaped download root: %s exists (err=%v)", outsideMarker, statErr)
 	}
 
 	entries, err := os.ReadDir(localDir)
