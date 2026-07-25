@@ -20,17 +20,12 @@ type ResolvedAction struct {
 // aggregated progress and honouring cancellation. It is the conflict-aware
 // counterpart to Upload/Download.
 func (s *TransferService) ExecutePlan(parentCtx context.Context, sessionID string, plan *TransferPlan, resolutions map[string]ResolvedAction, onProgress TransferProgressFunc) error {
-	mover, err := s.moverFor(plan.Kind, sessionID)
-	if err != nil {
-		return err
-	}
-	if err := s.acquireSlot(parentCtx); err != nil {
-		return err
-	}
-	defer s.releaseSlot()
-
-	ctx, cancel := context.WithCancel(parentCtx)
-	defer cancel()
+	// Everything below the first fallible step inherits a live panel item: the
+	// planner published one under plan.OpID and deliberately did not close it, so
+	// the lifecycle invariant makes every exit path from here responsible for
+	// emitting exactly one terminal event. Ownership of both the item and its
+	// cancel registration is therefore taken over *before* anything can fail.
+	//
 	// Reuse the OpID assigned during planning so the scanning phase and this
 	// byte-transfer phase are one continuous Transfers-panel item. Fall back to a
 	// fresh id for plans built without one.
@@ -38,10 +33,14 @@ func (s *TransferService) ExecutePlan(parentCtx context.Context, sessionID strin
 	if transferID == "" {
 		transferID = newOpID(plan.Kind)
 	}
+	ctx, cancel := context.WithCancel(parentCtx)
+	defer cancel()
 	// Replace, not Register: for a planned drop the planner already owns this id
 	// and parked a "close the item" action under it. This phase takes over that
 	// ownership with a real cancellation, unbroken — the id is never absent from
-	// the registry while the panel item is active.
+	// the registry while the panel item is active. Unregistering on the way out
+	// also means an early return cannot leave the planner's parked closer behind
+	// to emit a second terminal event for an operation that already ended.
 	s.cancels.Replace(transferID, cancel)
 	defer s.cancels.Unregister(transferID)
 
@@ -49,6 +48,25 @@ func (s *TransferService) ExecutePlan(parentCtx context.Context, sessionID strin
 	// destination directory in the label while RefreshDir keeps the real path.
 	rep := newOperationReporter(transferID, sessionID, plan.Kind, plan.DestDir, onProgress).
 		withLabel(planLabel(plan))
+	// Structural safety net, not the normal path. The reporter's done latch makes
+	// this a no-op once any terminal state has been reported, so it fires only on
+	// a return that closed nothing itself — including one added here in future.
+	// This is what `defer s.releaseSlot()` does for the limiter slot, applied to
+	// the UI item.
+	defer rep.Finish("failed")
+
+	mover, err := s.moverFor(plan.Kind, sessionID)
+	if err != nil {
+		return err // closed as "failed" by the deferred net above
+	}
+	if err := s.acquireSlot(ctx); err != nil {
+		// acquireSlot fails only on a cancelled context, so this is "Cancelled",
+		// not "Error" — hence an explicit Finish rather than the net's "failed".
+		rep.Finish(terminalState(ctx, err))
+		return err
+	}
+	defer s.releaseSlot()
+
 	return executePlanCore(ctx, plan, resolutions, mover, rep.Report)
 }
 

@@ -160,6 +160,29 @@ func TestOperationReporterTerminalEventBypassesThrottle(t *testing.T) {
 	}
 }
 
+// Finish carries the last *reported* figures, not the last *emitted* ones. On a
+// determinate transfer the panel renders a ratio, so a safety-net Finish landing
+// right after a throttled progress tick must not rewind the bar to whatever the
+// throttle last let through.
+func TestOperationReporterFinishCarriesLastReportedFigures(t *testing.T) {
+	sink := &reporterSink{}
+	rep := newOperationReporter("op-8", "s", transferKindUpload, "/d", sink.fn)
+
+	rep.Report(0, 100, "active") // emitted: 0 % emitEvery == 0
+	rep.throttle.last = time.Now()
+	rep.Report(50, 100, "active") // suppressed by the throttle
+	rep.Finish("failed")
+
+	events := sink.all()
+	last := events[len(events)-1]
+	if last.State != "failed" {
+		t.Fatalf("last event = %+v, want failed", last)
+	}
+	if last.Done != 50 || last.Total != 100 {
+		t.Fatalf("terminal figures = %d/%d, want 50/100 (the last reported, not the last emitted)", last.Done, last.Total)
+	}
+}
+
 // Report runs on the mover's progress goroutine while Finish runs on the
 // caller's defer. The latch must hold under -race: exactly one terminal event,
 // no torn state.

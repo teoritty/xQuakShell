@@ -17,14 +17,19 @@ export async function planLocalCopy(srcPaths: string[], destDir: string): Promis
   return callBackend('Plan copy', EMPTY_PLAN, (app) => app.PlanLocalCopy(srcPaths, destDir));
 }
 
+// The three execute calls rethrow after showing the banner. Their caller has to
+// know whether the executor actually took the plan over: an RPC that fails
+// before ExecutePlan runs (no session context, no backend) emits no terminal
+// event, so the caller must hand the panel item back to be closed. Swallowing
+// the rejection is what left items stuck on "Scanning…".
 export async function executeUpload(sessionId: string, req: ExecutePlanDTO): Promise<void> {
-  return callBackendVoid('Upload', (app) => app.ExecuteUpload(sessionId, req));
+  return callBackendVoid('Upload', (app) => app.ExecuteUpload(sessionId, req), { rethrow: true });
 }
 
 export async function executeDownload(sessionId: string, req: ExecutePlanDTO): Promise<void> {
-  return callBackendVoid('Download', (app) => app.ExecuteDownload(sessionId, req));
+  return callBackendVoid('Download', (app) => app.ExecuteDownload(sessionId, req), { rethrow: true });
 }
 
 export async function executeLocalCopy(req: ExecutePlanDTO): Promise<void> {
-  return callBackendVoid('Copy', (app) => app.ExecuteLocalCopy(req));
+  return callBackendVoid('Copy', (app) => app.ExecuteLocalCopy(req), { rethrow: true });
 }

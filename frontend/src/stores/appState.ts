@@ -168,15 +168,11 @@ export function clearFinishedTransfers(): void {
   transfers.update((list) => list.filter((t) => t.state === 'active' || t.state === 'pending'));
 }
 
-/**
- * Removes a single transfer/operation by id. Used to retire the transient
- * "scanning" item a planned drop shows during enumeration when the drop turns
- * out to have nothing to execute (empty plan or the user cancelled conflicts),
- * so it never lingers in the panel.
- */
-export function removeTransfer(id: string): void {
-  transfers.update((list) => list.filter((t) => t.id !== id));
-}
+// NOTE: there is deliberately no removeTransfer(id) here. An operation's panel
+// item belongs to the backend, which guarantees exactly one terminal event per
+// op id on every exit path; deleting an item locally races that event, which
+// would then re-create the item from scratch. The only way to retire a live
+// item from the UI is to ask the backend to close it (cancelTransfer).
 
 /** Emitted when a transfer completes; used to auto-refresh file trees. */
 export const transferCompleted = writable<TransferItem | null>(null);

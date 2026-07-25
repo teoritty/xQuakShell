@@ -113,12 +113,16 @@ func (r *operationReporter) reportLocked(done, total int64, state string) {
 	if r.done {
 		return
 	}
+	// Recorded before the throttle check, so Finish carries the last *reported*
+	// figures rather than the last *emitted* ones: on a determinate transfer the
+	// panel renders a ratio, and a safety-net Finish must not rewind the bar to
+	// whatever the throttle happened to let through.
+	r.lastDone, r.lastTotal = done, total
 	if isTerminalState(state) {
 		r.done = true
 	} else if !r.throttle.ready(done) {
 		return // throttling applies to progress only, never to a terminal event
 	}
-	r.lastDone, r.lastTotal = done, total
 	r.emitLocked(done, total, state)
 }
 
