@@ -165,35 +165,66 @@ func TestPlanScanCancelAbortsRemoteWalk(t *testing.T) {
 	}
 }
 
+// singleFileRemoteFS is a domain.RemoteFS whose List is fully test-controlled,
+// used to plant a cancel inside the source walk's single List call without
+// going through the cancel registry.
+type singleFileRemoteFS struct {
+	*fakeRemoteFS
+	listFn func(ctx context.Context, dir string) ([]domain.RemoteNode, error)
+}
+
+func (s *singleFileRemoteFS) List(ctx context.Context, dir string) ([]domain.RemoteNode, error) {
+	return s.listFn(ctx, dir)
+}
+
 // The walk is not the whole scan: after it, every distinct target directory is
 // probed for conflicts, and those probes swallow their own errors ("no
 // conflicts here"). A cancel landing in that window must still close the item
 // as cancelled rather than be swallowed into a plan that quietly found no
 // conflicts.
+//
+// The cancellation here is delivered by cancelling the *session* context
+// directly, not by calling cancels.Cancel(opID) — that models the
+// terminalState path (finding 2: a session context with a deadline, or any
+// cancellation that does not route through the cancel button) and, crucially,
+// leaves opID's registry entry exactly as beginScan left it: registered. That
+// makes it possible for this test to tell whether branch 1b's own
+// cancels.Unregister(opID) actually ran: if it were removed, the entry would
+// still be sitting in the registry after finishPlan returns, and the trailing
+// cancels.Cancel(opID) below would report true instead of false. (Routing the
+// cancel through cancels.Cancel, as an earlier version of this test did, would
+// consume the entry itself and make that final assertion vacuously pass
+// regardless of whether branch 1b's Unregister exists.)
 func TestPlanCancelDuringConflictProbeIsHonoured(t *testing.T) {
 	cancels := NewCancelRegistry()
-	var opID string
-	hostFS := &mockHostFS{
-		statFn: func(string) (domain.HostFileInfo, error) {
-			return domain.HostFileInfo{IsDir: false, Size: 1}, nil
+	sessionCtx, cancelSession := context.WithCancel(context.Background())
+	defer cancelSession()
+
+	fs := &singleFileRemoteFS{
+		fakeRemoteFS: &fakeRemoteFS{},
+		listFn: func(context.Context, string) ([]domain.RemoteNode, error) {
+			return []domain.RemoteNode{{Name: "a.txt", Path: "/src/a.txt", Size: 1}}, nil
 		},
+	}
+	hostFS := &mockHostFS{
 		listFn: func(string, bool, func(string, string) bool) ([]domain.LocalFileEntry, error) {
 			// This is the conflict probe of the destination directory: the walk
-			// is over by now. Cancel exactly here.
-			cancels.Cancel(opID)
+			// is over by now. Cancel exactly here, bypassing the cancel registry.
+			cancelSession()
 			return nil, nil
 		},
 	}
-	p := NewTransferPlanner(nil, hostFS, cancels)
+	p := NewTransferPlanner(&fakeOpSessions{fs: fs, ctx: sessionCtx}, hostFS, cancels)
 
 	sink := &planEvents{}
+	var opID string
 	sink.onEvent = func(ev TransferProgress) {
 		if opID == "" {
 			opID = ev.ID
 		}
 	}
 
-	plan, err := p.PlanLocalCopy([]string{"/src/a.txt"}, "/dst", sink.fn)
+	plan, err := p.PlanDownload("s1", []string{"/src/a.txt"}, "/dst", sink.fn)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
@@ -205,7 +236,7 @@ func TestPlanCancelDuringConflictProbeIsHonoured(t *testing.T) {
 		t.Fatalf("terminals = %+v, want exactly one cancelled event", terminals)
 	}
 	if cancels.Cancel(opID) {
-		t.Fatal("a closed operation must not stay in the cancel registry")
+		t.Fatal("branch 1b did not release opID from the cancel registry: a closed operation must not stay cancellable")
 	}
 }
 

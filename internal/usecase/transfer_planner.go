@@ -94,8 +94,9 @@ func (p *TransferPlanner) PlanLocalCopy(srcPaths []string, destDir string, onPro
 // NOTE: there is deliberately no `defer p.cancels.Unregister(opID)` at any call
 // site. That is not a forgotten line: on the success path the registration is
 // handed to the next phase instead of being dropped, because the item stays
-// visible and active while the user resolves conflicts. All three exit paths are
-// spelled out in finishPlan — do not "fix" this by adding a defer.
+// visible and active while the user resolves conflicts. All four exit paths
+// (branches 1, 1b, 2 and 3) are spelled out in finishPlan below — do not "fix"
+// this by adding a defer.
 func (p *TransferPlanner) beginScan(parent context.Context, kind, sessionID, targetDir string, onProgress TransferProgressFunc) (context.Context, context.CancelFunc, *operationReporter) {
 	opID := newOpID(kind)
 	rep := newOperationReporter(opID, sessionID, kind, targetDir, onProgress)
@@ -124,7 +125,7 @@ func finishPlan(ctx context.Context, plan *TransferPlan, err error, rep *operati
 	// check a cancel landing during the probe phase would be swallowed and the
 	// item re-registered as if nothing happened.
 	if cerr := ctx.Err(); cerr != nil {
-		rep.Finish("cancelled")
+		rep.Finish(terminalState(ctx, cerr))
 		cancels.Unregister(opID)
 		return nil, cerr
 	}
@@ -140,6 +141,15 @@ func finishPlan(ctx context.Context, plan *TransferPlan, err error, rep *operati
 	// must stay cancellable, and here "cancel" means "close the item".
 	// ExecutePlan replaces this action with a real context cancellation when it
 	// takes over the id.
+	//
+	// NOTE: there is a narrow, accepted race here. A cancel click landing between
+	// the ctx.Err() check above and this Replace call finds the entry already
+	// removed (branch 1b's check happened, and produced no cancellation because
+	// ctx.Err() was still nil): the click is a silent no-op, and Replace then
+	// re-registers the id as if nothing happened, leaving the conflict dialog to
+	// open normally. A second click works. The window is a few instructions
+	// wide; do not close it with extra locking — that would introduce the very
+	// ordering dependency this handoff design avoids.
 	cancels.Replace(opID, func() { rep.Finish("cancelled") })
 	plan.OpID = opID
 	return plan, nil
