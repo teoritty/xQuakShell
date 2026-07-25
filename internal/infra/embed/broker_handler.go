@@ -1,6 +1,8 @@
 package embed
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"log/slog"
 	"net"
 	"net/http"
@@ -60,10 +62,6 @@ func (h *BrokerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := r.URL.Path
-	// Tagged with a pluginId once known so loghub routes it to the plugin's log stream (the debug
-	// window shows plugin:* sources, not bare core). Before Lookup the id is unknown, so this
-	// first line carries an explicit "unknown" placeholder rather than a guessed plugin id.
-	slog.Debug("embed broker: request", "pluginId", "unknown", "method", r.Method, "path", path, "upgrade", r.Header.Get("Upgrade"))
 	if !strings.HasPrefix(path, embedPrefix) {
 		http.NotFound(w, r)
 		return
@@ -75,13 +73,19 @@ func (h *BrokerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := parts[0]
+	// Tagged with a pluginId once known so loghub routes it to the plugin's log stream (the debug
+	// window shows plugin:* sources, not bare core). Before Lookup the id is unknown, so this
+	// first line carries an explicit "unknown" placeholder rather than a guessed plugin id. The
+	// full path is never logged: it contains the embed token (parts[0]), the only thing gating
+	// access to the tunnel, so only a non-reversible tag derived from it is logged instead.
+	slog.Debug("embed broker: request", "pluginId", "unknown", "method", r.Method, "route", parts[1], "token", tokenTag(token), "upgrade", r.Header.Get("Upgrade"))
 	if h.overBudget(r) {
 		http.Error(w, "too many requests", http.StatusTooManyRequests)
 		return
 	}
 	reg, err := h.tunnels.Lookup(token)
 	if err != nil {
-		slog.Debug("embed broker: token lookup failed", "pluginId", "unknown", "path", path, "err", err.Error())
+		slog.Debug("embed broker: token lookup failed", "pluginId", "unknown", "token", tokenTag(token), "err", err.Error())
 		if h.recordFailedLookup(r) {
 			http.Error(w, "too many requests", http.StatusTooManyRequests)
 			return
@@ -234,6 +238,19 @@ func (h *BrokerHandler) pumpPluginToWS(pluginID string, ws *websocket.Conn, conn
 			return
 		}
 	}
+}
+
+// tokenTag returns a short, non-reversible tag for an embed token, safe to log. The raw token is
+// a capability: anything that can read it can attach to the tunnel, and this log stream feeds the
+// debug log window. A truncated SHA-256 keeps entries correlatable across log lines without
+// carrying the secret — unlike a token prefix, which is part of the secret and shrinks the search
+// space for anyone reading the log.
+func tokenTag(token string) string {
+	if token == "" {
+		return "-"
+	}
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:4])
 }
 
 // failureKey reduces r.RemoteAddr (host:port) to just the host. The port is fresh for every TCP

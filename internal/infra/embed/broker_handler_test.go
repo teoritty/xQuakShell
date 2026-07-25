@@ -1,9 +1,12 @@
 package embed
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,6 +72,34 @@ func TestBrokerHandler_repeatedFailedLookupsThrottle(t *testing.T) {
 	}
 	if lastCode != http.StatusTooManyRequests {
 		t.Fatalf("status after %d failed lookups = %d, want %d", maxFailedLookups+1, lastCode, http.StatusTooManyRequests)
+	}
+}
+
+func TestBrokerHandler_doesNotLogRawToken(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	defer slog.SetDefault(prev)
+
+	const token = "super-secret-embed-token-value"
+	h := NewBrokerHandler(stubEmbedTunnelPort{
+		lookupFn: func(token string) (domain.EmbedRegistration, error) {
+			return domain.EmbedRegistration{}, domain.ErrSessionNotFound
+		},
+	}, func(string) (string, error) {
+		return "", domain.ErrSessionNotFound
+	})
+	req := httptest.NewRequest(http.MethodGet, "/embed/s/"+token+"/ui/index.html", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	out := buf.String()
+	if strings.Contains(out, token) {
+		t.Fatalf("log output contains raw token: %q", out)
+	}
+	tag := tokenTag(token)
+	if !strings.Contains(out, tag) {
+		t.Fatalf("log output missing stable token tag %q: %q", tag, out)
 	}
 }
 
