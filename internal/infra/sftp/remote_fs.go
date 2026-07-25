@@ -351,8 +351,8 @@ func (fs *RemoteFS) downloadRecursive(ctx context.Context, remoteDir, localDir s
 			continue
 		}
 		remotePath := path.Join(remoteDir, name)
-		localPath := filepath.Join(localDir, name)
-		if !pathsafe.UnderRoot(absLocalRoot, filepath.Join(absLocalRoot, name)) {
+		localPath := filepath.Join(absLocalRoot, name)
+		if !pathsafe.UnderRoot(absLocalRoot, localPath) {
 			slog.Warn("sftp: remote entry escapes download root",
 				"dir", remoteDir, "name", name, "target", localPath)
 			continue

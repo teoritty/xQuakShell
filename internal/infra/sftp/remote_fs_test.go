@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -58,26 +59,63 @@ func (f fakeFileInfo) Sys() any           { return nil }
 // without a live SFTP server.
 func TestDownloadRecursiveRejectsHostileEntryName(t *testing.T) {
 	localDir := t.TempDir()
-	outsideMarker := filepath.Join(filepath.Dir(localDir), "evil.exe")
-	_ = os.Remove(outsideMarker) // ensure clean slate
 
 	hostileName := `..\..\evil.exe`
+
+	// Derive the escape target from the exact same join logic the
+	// vulnerable code uses (filepath.Join on an absolute root followed by
+	// filepath.Clean via Join's normalization), rather than hand-computing
+	// a level count. On Windows, filepath.Join cleans `..\..\` against the
+	// absolute root, walking up two directory levels from localDir.
+	absLocalRoot, err := filepath.Abs(localDir)
+	if err != nil {
+		t.Fatalf("resolve abs localDir: %v", err)
+	}
+	outsideMarker := filepath.Join(absLocalRoot, hostileName)
+	if strings.HasPrefix(outsideMarker, absLocalRoot) {
+		t.Fatalf("test setup error: derived escape target %q is still under root %q; hostile name no longer traverses", outsideMarker, absLocalRoot)
+	}
+	_ = os.Remove(outsideMarker) // ensure clean slate
+
+	// The entry is a directory, not a file: a directory-typed hostile entry
+	// is handled purely with os.MkdirAll (no *sftp.Client involved), so a
+	// containment regression surfaces as a genuine assertion failure below
+	// rather than as a nil-pointer panic on fs.client.Open (fs.client is nil
+	// in this unit test). The mock only answers for the top-level listing so
+	// a broken containment check can't recurse into the escaped directory
+	// forever.
 	fs := &RemoteFS{
 		readDirFn: func(dir string) ([]os.FileInfo, error) {
+			if dir != "/remote" {
+				return nil, nil
+			}
 			return []os.FileInfo{
-				fakeFileInfo{name: hostileName, isDir: false, size: 4},
+				fakeFileInfo{name: hostileName, isDir: true, size: 4},
 			}, nil
 		},
 	}
 
 	var totalDone int64
-	err := fs.downloadRecursive(context.Background(), "/remote", localDir, &totalDone, -1, nil)
+	err = fs.downloadRecursive(context.Background(), "/remote", localDir, &totalDone, -1, nil)
 	if err != nil {
 		t.Fatalf("downloadRecursive returned error: %v", err)
 	}
 
 	if _, statErr := os.Stat(outsideMarker); !os.IsNotExist(statErr) {
 		t.Fatalf("hostile entry escaped download root: %s exists (err=%v)", outsideMarker, statErr)
+	}
+
+	// Also confirm nothing was written anywhere along the parent chain
+	// between localDir and the escape target (defence against a partial
+	// containment regression that stops one level short of the full
+	// traversal).
+	for dir := filepath.Dir(outsideMarker); dir != absLocalRoot && len(dir) >= len(filepath.VolumeName(absLocalRoot)); dir = filepath.Dir(dir) {
+		if _, statErr := os.Stat(filepath.Join(dir, "evil.exe")); !os.IsNotExist(statErr) {
+			t.Fatalf("hostile entry wrote into parent chain at %s (err=%v)", dir, statErr)
+		}
+		if dir == filepath.Dir(dir) {
+			break // reached filesystem root
+		}
 	}
 
 	entries, err := os.ReadDir(localDir)
