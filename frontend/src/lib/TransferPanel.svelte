@@ -110,7 +110,7 @@
             Notification.requestPermission().then(p => {
               if (p === 'granted') {
                 new Notification('Transfer completed', {
-                  body: `${t.direction === 'upload' ? 'Upload' : 'Download'}: ${t.remotePath}`,
+                  body: `${kindLabel(t.kind)}: ${t.remotePath}`,
                 });
               }
             });
@@ -160,9 +160,19 @@
     return p.slice(0, idx) || sep;
   }
 
+  // Retry re-issues the original single-path call, so it needs both real paths.
+  // Only the single-path transfer API fills localPath; a planned batch leaves it
+  // empty and puts a caption ("3 items") in remotePath, which must never be sent
+  // back as a path. canRetry gates the button on exactly that.
+  function canRetry(item: TransferItem): boolean {
+    return !!item.sessionId && !!item.localPath
+      && (item.kind === 'upload' || item.kind === 'download')
+      && (item.state === 'failed' || item.state === 'cancelled');
+  }
+
   async function retryTransfer(item: TransferItem) {
-    if (!item.sessionId) return;
-    if (item.direction === 'upload') {
+    if (!canRetry(item)) return;
+    if (item.kind === 'upload') {
       await uploadFile(item.sessionId, item.localPath, item.remotePath);
     } else {
       const localDir = getLocalDir(item);
@@ -220,7 +230,7 @@
               <span class="transfer-state">{stateLabel(item)}</span>
               {#if item.state === 'active' || item.state === 'pending'}
                 <button class="cancel-btn" on:click={() => cancelTransfer(item.id)} title="Cancel"><X size={10} /></button>
-              {:else if (item.state === 'failed' || item.state === 'cancelled') && item.sessionId && (item.kind === 'upload' || item.kind === 'download')}
+              {:else if canRetry(item)}
                 <button class="retry-btn" on:click={() => retryTransfer(item)} title="Retry"><RefreshCw size={10} /></button>
               {/if}
             </div>

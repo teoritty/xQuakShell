@@ -82,12 +82,10 @@ func (s *RemoteOpService) run(
 	}
 
 	opID := fmt.Sprintf("%s-%s-%s-%d", kind, sessionID, path.Base(remotePath), time.Now().UnixNano())
-	// A remote-tree mutation declares no target directory: it has no
-	// upload/download direction, and the UI derives the directory to refresh
-	// from the operated-on path itself.
-	rep := newOperationReporter(opID, sessionID, kind, "", onProgress).
-		withLabel(remotePath).
-		withDirection("")
+	// The caption is the path that was operated on; the directory to reload is a
+	// separate question that depends on the kind (see opRefreshDir).
+	rep := newOperationReporter(opID, sessionID, kind, opRefreshDir(kind, remotePath), onProgress).
+		withLabel(remotePath)
 
 	ctx, cancel := context.WithCancel(parentCtx)
 	s.cancels.Register(opID, cancel)
@@ -124,6 +122,21 @@ func (s *RemoteOpService) run(
 	})
 
 	return nil
+}
+
+// opRefreshDir answers, for a remote-tree mutation, which directory the UI must
+// reload. A delete destroys remotePath, so only its parent listing can change;
+// a recursive chmod/chown leaves remotePath in place and rewrites everything
+// under it, so that directory itself is the one whose contents went stale.
+// (Its own row, rendered by the parent listing, also shows the new mode; adding
+// that parent is the pane's decision, not this layer's — see
+// remoteRefreshDirs in the frontend.) Remote paths are POSIX — path, not
+// filepath.
+func opRefreshDir(kind, remotePath string) string {
+	if kind == "delete" {
+		return path.Dir(remotePath)
+	}
+	return remotePath
 }
 
 // terminalState maps an operation error to a UI state, distinguishing an

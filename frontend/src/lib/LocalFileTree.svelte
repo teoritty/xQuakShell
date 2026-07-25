@@ -11,6 +11,7 @@
   import ConfirmDialog from './ConfirmDialog.svelte';
   import OverflowToolbar from './OverflowToolbar.svelte';
   import { buildFilePanelToolbarItems, cycleSortState, type SortKey } from './filePanelToolbar';
+  import { refreshesLocalPane } from './transferPresentation';
   import { ChevronUp, X } from 'lucide-svelte';
 
   const STORAGE_KEY = 'localfiletree-show-columns';
@@ -283,20 +284,14 @@
     tree = tree;
   }
 
-  // Downloads land here, and so do local copies (an Explorer drop). Local
-  // copies report kind 'localcopy' with no session; the 'upload' + no-session
-  // check stays as a defensive fallback for a stale backend build that still
-  // rewrites the kind (pre-T4 behaviour).
-  $: if ($transferCompleted && ($transferCompleted.direction === 'download'
-      || $transferCompleted.kind === 'localcopy'
-      || ($transferCompleted.direction === 'upload' && !$transferCompleted.sessionId))) {
+  // Downloads land here, and so do local copies (an Explorer drop). Both are
+  // recognised by their own honest kind. The directory to reload comes from
+  // refreshDir, which every emitter fills with a real host path — single
+  // downloads included, so nothing is derived from localPath any more.
+  $: if ($transferCompleted && refreshesLocalPane($transferCompleted.kind)) {
     const t = $transferCompleted;
     transferCompleted.set(null);
-    // Batches report their destination directly; single downloads only carry
-    // the written file path, so derive its parent.
-    const sep = t.localPath.includes('\\') ? '\\' : '/';
-    const localParent = t.refreshDir || t.localPath.split(sep).slice(0, -1).join(sep) || sep;
-    refreshPreservingState([localParent, currentPath]);
+    refreshPreservingState([t.refreshDir, currentPath]);
   }
 
   function formatSize(size: number): string {

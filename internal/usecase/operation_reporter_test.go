@@ -53,8 +53,8 @@ func TestOperationReporterEmitsIdentityOnEveryEvent(t *testing.T) {
 		if e.ID != "op-1" || e.SessionID != "sess-1" {
 			t.Fatalf("identity lost: %+v", e)
 		}
-		if e.Kind != transferKindUpload || e.Direction != transferKindUpload {
-			t.Fatalf("kind/direction = %q/%q, want upload/upload", e.Kind, e.Direction)
+		if e.Kind != transferKindUpload {
+			t.Fatalf("kind = %q, want upload", e.Kind)
 		}
 		if e.RemotePath != "/var/www" || e.RefreshDir != "/var/www" {
 			t.Fatalf("target fields = %q/%q, want /var/www", e.RemotePath, e.RefreshDir)
@@ -68,13 +68,12 @@ func TestOperationReporterEmitsIdentityOnEveryEvent(t *testing.T) {
 	}
 }
 
-// withLabel overrides only the human-readable RemotePath caption; withDirection
-// overrides only Direction. Neither disturbs the refresh directory.
+// withLabel overrides only the human-readable RemotePath caption and never
+// disturbs the refresh directory — the two fields carry different data.
 func TestOperationReporterDisplayOverrides(t *testing.T) {
 	sink := &reporterSink{}
 	rep := newOperationReporter("op-2", "s", transferKindDownload, "/dst", sink.fn).
-		withLabel("3 items").
-		withDirection("")
+		withLabel("3 items")
 
 	rep.Started()
 
@@ -84,9 +83,6 @@ func TestOperationReporterDisplayOverrides(t *testing.T) {
 	}
 	if e.RefreshDir != "/dst" {
 		t.Fatalf("RefreshDir = %q, want /dst", e.RefreshDir)
-	}
-	if e.Direction != "" {
-		t.Fatalf("Direction = %q, want empty", e.Direction)
 	}
 	if e.Kind != transferKindDownload {
 		t.Fatalf("Kind = %q, want download", e.Kind)

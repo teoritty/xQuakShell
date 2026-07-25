@@ -37,10 +37,12 @@ type TransferProgressPayload struct {
 	ID         string `json:"id"`
 	SessionID  string `json:"sessionId"`
 	Kind       string `json:"kind"`
-	Direction  string `json:"direction"`
 	LocalPath  string `json:"localPath"`
+	// RemotePath is a display caption ("3 items" for a batch) — the frontend
+	// must never parse it as a path. RefreshDir is the machine-readable
+	// directory to reload and is always populated; see usecase.TransferProgress.
 	RemotePath string `json:"remotePath"`
-	RefreshDir string `json:"refreshDir,omitempty"`
+	RefreshDir string `json:"refreshDir"`
 	Done       int64  `json:"done"`
 	Total      int64  `json:"total"`
 	State      string `json:"state"`

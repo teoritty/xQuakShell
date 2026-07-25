@@ -1,4 +1,11 @@
-import { kindLabel, showsRate, isScanning } from './transferPresentation';
+import {
+  kindLabel,
+  showsRate,
+  isScanning,
+  refreshesRemotePane,
+  refreshesLocalPane,
+  remoteRefreshDirs,
+} from './transferPresentation';
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg);
@@ -42,6 +49,41 @@ function assert(cond: boolean, msg: string) {
   assert(isScanning('active', 100) === false, 'active + known total is not scanning');
   assert(isScanning('completed', 0) === false, 'completed is never scanning');
   assert(isScanning('pending', 0) === false, 'pending is never scanning');
+}
+
+// refreshesRemotePane: only operations that touched *this* session's remote
+// tree. The session check also keeps a local copy (no session) out of every
+// remote pane.
+{
+  assert(refreshesRemotePane('upload', 's1', 's1') === true, 'upload refreshes its own remote pane');
+  assert(refreshesRemotePane('upload', 's2', 's1') === false, 'another session\'s upload is ignored');
+  assert(refreshesRemotePane('delete', 's1', 's1') === true, 'delete refreshes the remote pane');
+  assert(refreshesRemotePane('chmod', 's1', 's1') === true, 'chmod refreshes the remote pane');
+  assert(refreshesRemotePane('chown', 's1', 's1') === true, 'chown refreshes the remote pane');
+  assert(refreshesRemotePane('download', 's1', 's1') === false, 'download changes nothing remote');
+  assert(refreshesRemotePane('localcopy', undefined, 's1') === false, 'a local copy has no session');
+}
+
+// refreshesLocalPane: downloads and Explorer drops write to the host FS.
+// A local copy is recognised by its own kind — it is no longer rewritten to
+// 'upload' by the backend, so no session-less-upload special case is needed.
+{
+  assert(refreshesLocalPane('download') === true, 'download refreshes the local pane');
+  assert(refreshesLocalPane('localcopy') === true, 'localcopy refreshes the local pane');
+  assert(refreshesLocalPane('upload') === false, 'upload writes nothing locally');
+  assert(refreshesLocalPane('delete') === false, 'remote delete writes nothing locally');
+}
+
+// remoteRefreshDirs: refreshDir is authoritative and used verbatim. Only a
+// recursive chmod/chown also needs the parent, because the operated
+// directory's own mode is rendered one level up.
+{
+  const eq = (a: string[], b: string[]) => a.length === b.length && a.every((v, i) => v === b[i]);
+  assert(eq(remoteRefreshDirs('upload', '/var/www'), ['/var/www']), 'upload reloads the destination');
+  assert(eq(remoteRefreshDirs('delete', '/srv'), ['/srv']), 'delete reloads the parent the backend chose');
+  assert(eq(remoteRefreshDirs('chmod', '/srv/logs'), ['/srv/logs', '/srv']), 'chmod reloads the dir and its parent');
+  assert(eq(remoteRefreshDirs('chown', '/srv/logs'), ['/srv/logs', '/srv']), 'chown reloads the dir and its parent');
+  assert(eq(remoteRefreshDirs('chmod', '/top'), ['/top', '/']), 'a top-level chmod bottoms out at the root');
 }
 
 console.log('transferPresentation.test.ts: all passed');

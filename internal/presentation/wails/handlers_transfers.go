@@ -16,7 +16,6 @@ func (a *AppAPI) emitTransferProgress(p usecase.TransferProgress) {
 		ID:         p.ID,
 		SessionID:  p.SessionID,
 		Kind:       p.Kind,
-		Direction:  p.Direction,
 		LocalPath:  p.LocalPath,
 		RemotePath: p.RemotePath,
 		RefreshDir: p.RefreshDir,

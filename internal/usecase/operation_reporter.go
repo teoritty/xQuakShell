@@ -24,15 +24,14 @@ type operationReporter struct {
 	opID      string
 	sessionID string
 	kind      string
-	// direction mirrors kind by default. It is a transfer-only notion
-	// (upload/download); operations that have none clear it via withDirection.
-	direction string
 	// label fills TransferProgress.RemotePath — a human-readable caption that
-	// must never be parsed as a path. It defaults to the target directory;
-	// batch callers replace it via withLabel.
+	// must never be parsed as a path. It defaults to the refresh directory,
+	// which reads well for a drop ("where is this going"); callers whose caption
+	// differs from their refresh directory replace it via withLabel.
 	label string
 	// refreshDir fills TransferProgress.RefreshDir — the directory the UI
-	// reloads when the operation finishes. Empty leaves the choice to the UI.
+	// reloads when the operation finishes. It is the machine-readable half of
+	// the pair and must always be a real path: the frontend has no fallback.
 	refreshDir string
 	emit       TransferProgressFunc
 
@@ -44,34 +43,28 @@ type operationReporter struct {
 	done      bool
 }
 
-// newOperationReporter builds a reporter for one operation. targetDir seeds both
-// the display label and the refresh directory; pass "" when the operation
-// declares neither.
-func newOperationReporter(opID, sessionID, kind, targetDir string, emit TransferProgressFunc) *operationReporter {
+// newOperationReporter builds a reporter for one operation. refreshDir is the
+// directory the UI must reload when the operation ends; it also seeds the
+// display caption, which callers with a better one override via withLabel.
+// refreshDir must not be empty — see the field comment.
+func newOperationReporter(opID, sessionID, kind, refreshDir string, emit TransferProgressFunc) *operationReporter {
 	return &operationReporter{
 		opID:       opID,
 		sessionID:  sessionID,
 		kind:       kind,
-		direction:  kind,
-		label:      targetDir,
-		refreshDir: targetDir,
+		label:      refreshDir,
+		refreshDir: refreshDir,
 		emit:       emit,
 		throttle:   newThrottler(),
 	}
 }
 
 // withLabel overrides the human-readable caption (TransferProgress.RemotePath)
-// without touching the refresh directory. Used by batch operations, whose
-// caption is a count ("3 items") rather than a path.
+// without touching the refresh directory. The two are genuinely different data:
+// a batch's caption is a count ("3 items") and a remote operation's caption is
+// the path it acted on, neither of which is the directory to reload.
 func (r *operationReporter) withLabel(label string) *operationReporter {
 	r.label = label
-	return r
-}
-
-// withDirection overrides TransferProgress.Direction. Used by operations that
-// move no bytes and therefore have no direction.
-func (r *operationReporter) withDirection(direction string) *operationReporter {
-	r.direction = direction
 	return r
 }
 
@@ -133,8 +126,7 @@ func (r *operationReporter) emitLocked(done, total int64, state string) {
 		return
 	}
 	r.emit(TransferProgress{
-		ID: r.opID, SessionID: r.sessionID,
-		Kind: r.kind, Direction: r.direction,
+		ID: r.opID, SessionID: r.sessionID, Kind: r.kind,
 		RemotePath: r.label, RefreshDir: r.refreshDir,
 		Done: done, Total: total, State: state,
 	})

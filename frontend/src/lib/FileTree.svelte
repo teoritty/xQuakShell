@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import type { RemoteNode, TransferItem } from '../stores/appState';
+  import type { RemoteNode } from '../stores/appState';
   import { listPath, removePath, mkdirPath, createFilePath, renamePath, downloadFile } from '../api/remoteFs';
   import { startUploadDrop } from '../actions/transferActions';
   import { getTempDir, openFileWithSystem, startFileWatch } from '../api/localFs';
@@ -16,6 +16,7 @@
   import PermissionsDialog from './PermissionsDialog.svelte';
   import OverflowToolbar from './OverflowToolbar.svelte';
   import { buildFilePanelToolbarItems, cycleSortState, type SortKey } from './filePanelToolbar';
+  import { refreshesRemotePane, remoteRefreshDirs } from './transferPresentation';
   import { Loader2, ChevronUp, X } from 'lucide-svelte';
 
   const STORAGE_KEY = 'filetree-show-columns';
@@ -179,32 +180,16 @@
     tree = tree;
   }
 
-  // The directory a finished operation affected. Batches report it explicitly;
-  // single-path operations only carry the path itself, so derive its parent.
-  function remoteDestDir(t: TransferItem): string {
-    return t.refreshDir || t.remotePath.replace(/\/[^/]+$/, '') || '/';
-  }
-
-  $: if (ready && $transferCompleted?.direction === 'upload' && $transferCompleted?.sessionId === sessionId) {
+  // An operation that touched this session's remote tree finished (or was
+  // partially applied — delete/chmod/chown mutate even on failure, which is why
+  // subscribe.ts signals them on any terminal state). Which directories went
+  // stale is answered entirely by refreshDir, the backend's machine-readable
+  // path; remotePath is a caption ("3 items") and is never parsed.
+  $: if (ready && $transferCompleted
+      && refreshesRemotePane($transferCompleted.kind, $transferCompleted.sessionId, sessionId)) {
     const t = $transferCompleted;
     transferCompleted.set(null);
-    refreshPreservingState([remoteDestDir(t), currentPath]);
-  }
-
-  // Remote operations (delete/chmod/chown) finished (or partially applied) —
-  // refresh the affected directory so the tree reflects the new state.
-  $: if (ready && $transferCompleted && $transferCompleted.sessionId === sessionId
-      && (($transferCompleted.kind === 'delete') || ($transferCompleted.kind === 'chmod') || ($transferCompleted.kind === 'chown'))) {
-    const t = $transferCompleted;
-    transferCompleted.set(null);
-    const affectedParent = remoteDestDir(t);
-    // For delete the path itself is gone, so listing it would fail ("file does
-    // not exist"); only its parent and the current dir need refreshing. For
-    // chmod/chown the path still exists and its own listing must be refreshed.
-    const paths = t.kind === 'delete'
-      ? [affectedParent, currentPath]
-      : [affectedParent, t.remotePath, currentPath];
-    refreshPreservingState(paths);
+    refreshPreservingState([...remoteRefreshDirs(t.kind, t.refreshDir), currentPath]);
   }
 
   function formatSize(size: number): string {

@@ -120,14 +120,14 @@ export interface TransferItem {
   id: string;
   sessionId?: string;
   kind: OperationKind;
-  direction: 'upload' | 'download';
   localPath: string;
+  /** Display caption for the panel row. Often path-shaped, but a batch reads
+   *  "3 items" — never parse it as a path; use refreshDir. */
   remotePath: string;
-  /** Destination directory to reload when the operation finishes. Batch
-   *  operations set remotePath to a display label ("3 items"), so it must not
-   *  be parsed as a path — use this instead, falling back to remotePath's
-   *  parent for single-path operations that don't set it. */
-  refreshDir?: string;
+  /** Directory to reload when the operation finishes. Always a real path and
+   *  always populated by the backend (every emitter fills it), which is why
+   *  there is no longer a fallback that derived it from remotePath. */
+  refreshDir: string;
   done: number;
   total: number;
   state: 'pending' | 'active' | 'completed' | 'failed' | 'cancelled';
