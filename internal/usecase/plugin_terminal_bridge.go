@@ -20,9 +20,16 @@ const (
 //
 // Two properties must hold at once:
 //
-//   - Latency: Write must never block on the network. The host->plugin RPC
-//     therefore runs outside mu, which guards only the in-memory batching
-//     state (buf/timer/closed).
+//   - Latency: no writer is ever blocked by *another* writer's network I/O. The
+//     host->plugin RPC runs outside mu, which guards only the in-memory batching
+//     state (buf/timer/closed), so a send in flight never stalls a concurrent
+//     Write — that Write leaves its bytes in buf and arms the timer.
+//     This is not the stronger "Write never blocks on the network": a Write that
+//     fills the batch (>= terminalBatchMaxBytes) claims the send slot and runs
+//     sendBatchLocked on the *caller's* goroutine, so it waits out that RPC, up
+//     to the 5s notifyWithTimeout. A large paste delivered as successive full
+//     batches therefore pays one sequential RPC per batch inline. Other writers
+//     are protected from that; the writer doing it is not.
 //   - Ordering: terminal bytes must reach the plugin in write order.
 //     Serializing the sends alone is not enough — two goroutines can take
 //     batches under mu in one order and then race to acquire the send slot in
@@ -31,6 +38,17 @@ const (
 //     batch is ever in flight and take-order equals send-order by
 //     construction. A goroutine that cannot claim the slot leaves its bytes in
 //     buf and (re-)arms the timer, which retries the flush later.
+//
+// Accepted trade-off: buf is unbounded while a send is parked. The previous
+// shape flushed under mu, so a writer that could not send waited, and that
+// backpressure capped how far the buffer could run ahead. Declining the send
+// slot instead removes the wait — the point of the latency property above — but
+// with it the cap: for as long as one RPC is outstanding (up to the 5s
+// notifyWithTimeout) every Write just appends, and the timer then delivers the
+// whole accumulation as one batch. Keystrokes make that negligible; a program
+// pasting megabytes into a wedged plugin can grow buf to the size of what it
+// wrote. Known property, not a surprise: cap it here if a producer ever appears
+// that can outrun a stalled plugin.
 //
 // Lock discipline: mu is never held while *blocking* on sendMu. Under mu the
 // send slot is only ever claimed with TryLock, which cannot block, so no
