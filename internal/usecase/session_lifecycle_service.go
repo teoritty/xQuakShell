@@ -90,7 +90,7 @@ func (s *SessionLifecycleService) OpenSession(ctx context.Context, connectionID 
 	}
 
 	proto := conn.GetProtocol()
-	sessionID := generateSessionID()
+	sessionID := newRandomID()
 	sessionCtx, cancel := context.WithCancel(context.Background())
 
 	entry := newSessionEntry(domain.ConnectionSession{

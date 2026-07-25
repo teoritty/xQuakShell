@@ -46,22 +46,16 @@ func (s *TransferService) ExecutePlan(parentCtx context.Context, sessionID strin
 	// fresh id for plans built without one.
 	transferID := plan.OpID
 	if transferID == "" {
-		transferID = newOpID(plan.Kind, sessionID)
+		transferID = newOpID(plan.Kind)
 	}
 	s.cancels.Register(transferID, cancel)
 	defer s.cancels.Unregister(transferID)
 
-	report := func(done, total int64, state string) {
-		if onProgress != nil {
-			onProgress(TransferProgress{
-				ID: transferID, SessionID: sessionID,
-				Kind: batchDisplayKind(plan.Kind), Direction: batchDisplayKind(plan.Kind),
-				RemotePath: planLabel(plan), RefreshDir: plan.DestDir,
-				Done: done, Total: total, State: state,
-			})
-		}
-	}
-	return executePlanCore(ctx, plan, resolutions, mover, report)
+	// The batch's caption is a count ("3 items"), not a path, so it replaces the
+	// destination directory in the label while RefreshDir keeps the real path.
+	rep := newOperationReporter(transferID, sessionID, batchDisplayKind(plan.Kind), plan.DestDir, onProgress).
+		withLabel(planLabel(plan))
+	return executePlanCore(ctx, plan, resolutions, mover, rep.Report)
 }
 
 func (s *TransferService) moverFor(kind, sessionID string) (fileMover, error) {

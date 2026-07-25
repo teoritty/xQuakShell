@@ -63,24 +63,24 @@ func TestScanReporterEmitsAndFinishPlanStampsOpID(t *testing.T) {
 	var events []TransferProgress
 	onProgress := func(p TransferProgress) { events = append(events, p) }
 
-	onScan, emit := newScanReporter("op-1", "sess", transferKindDownload, "/dst", onProgress)
-	emit(0, "active")
+	rep := newScanReporter(transferKindDownload, "sess", "/dst", onProgress)
+	rep.Started()
 	for range emitEvery { // guarantees at least one throttled emit
-		onScan()
+		rep.Scanned()
 	}
 
-	plan, err := finishPlan(&TransferPlan{Kind: transferKindDownload}, nil, "op-1", emit)
+	plan, err := finishPlan(&TransferPlan{Kind: transferKindDownload}, nil, rep)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.OpID != "op-1" {
-		t.Fatalf("OpID = %q, want op-1", plan.OpID)
+	if plan.OpID == "" || plan.OpID != rep.opID {
+		t.Fatalf("OpID = %q, want the scan reporter's id %q", plan.OpID, rep.opID)
 	}
 	if len(events) < 2 {
 		t.Fatalf("want initial + scanning events, got %d", len(events))
 	}
 	for _, e := range events {
-		if e.ID != "op-1" || e.Total != 0 || e.State != "active" || e.Kind != transferKindDownload {
+		if e.ID != rep.opID || e.Total != 0 || e.State != "active" || e.Kind != transferKindDownload {
 			t.Fatalf("unexpected scan event: %+v", e)
 		}
 	}
@@ -90,10 +90,10 @@ func TestScanReporterEmitsAndFinishPlanStampsOpID(t *testing.T) {
 // rather than leaving it spinning.
 func TestFinishPlanEmitsFailedOnError(t *testing.T) {
 	var events []TransferProgress
-	_, emit := newScanReporter("op-x", "s", transferKindUpload, "/d", func(p TransferProgress) {
+	rep := newScanReporter(transferKindUpload, "s", "/d", func(p TransferProgress) {
 		events = append(events, p)
 	})
-	if _, err := finishPlan(nil, errors.New("boom"), "op-x", emit); err == nil {
+	if _, err := finishPlan(nil, errors.New("boom"), rep); err == nil {
 		t.Fatal("want error")
 	}
 	if len(events) != 1 || events[0].State != "failed" {

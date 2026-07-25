@@ -44,6 +44,12 @@ type TransferPlan struct {
 	Files   []PlannedFile
 }
 
+// newOpID mints a unique operation identifier, shared by the planner's scan
+// phase (which stamps it onto TransferPlan.OpID) and the executor's byte phase.
+// The kind prefix is there to keep logs readable; the identifier itself is
+// opaque and is never parsed — neither here nor in the frontend.
+func newOpID(kind string) string { return kind + "-" + newRandomID() }
+
 // Conflicts returns the subset of files whose target already exists.
 func (p *TransferPlan) Conflicts() []PlannedFile {
 	var out []PlannedFile
