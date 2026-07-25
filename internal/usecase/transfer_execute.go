@@ -15,16 +15,6 @@ type ResolvedAction struct {
 	NewName string
 }
 
-// batchDisplayKind maps a plan kind to the TransferProgress "kind" the panel
-// understands. A local copy is presented as an upload (it places files, has no
-// remote side) so it reuses the upload icon and rate display.
-func batchDisplayKind(kind string) string {
-	if kind == transferKindLocalCopy {
-		return transferKindUpload
-	}
-	return kind
-}
-
 // ExecutePlan runs a resolved TransferPlan: it applies each file's conflict
 // resolution and moves bytes through the kind-appropriate mover, reporting
 // aggregated progress and honouring cancellation. It is the conflict-aware
@@ -53,7 +43,7 @@ func (s *TransferService) ExecutePlan(parentCtx context.Context, sessionID strin
 
 	// The batch's caption is a count ("3 items"), not a path, so it replaces the
 	// destination directory in the label while RefreshDir keeps the real path.
-	rep := newOperationReporter(transferID, sessionID, batchDisplayKind(plan.Kind), plan.DestDir, onProgress).
+	rep := newOperationReporter(transferID, sessionID, plan.Kind, plan.DestDir, onProgress).
 		withLabel(planLabel(plan))
 	return executePlanCore(ctx, plan, resolutions, mover, rep.Report)
 }

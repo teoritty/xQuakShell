@@ -86,6 +86,20 @@ func TestScanReporterEmitsAndFinishPlanStampsOpID(t *testing.T) {
 	}
 }
 
+// The backend must report a local copy's own honest kind — presentation
+// decisions (icon, rate display) belong to the panel, not the usecase layer.
+// This pins the removal of the old batchDisplayKind rewrite to "upload".
+func TestScanReporterLocalCopyReportsOwnKind(t *testing.T) {
+	var events []TransferProgress
+	rep := newScanReporter(transferKindLocalCopy, "", "/dst", func(p TransferProgress) {
+		events = append(events, p)
+	})
+	rep.Started()
+	if len(events) != 1 || events[0].Kind != transferKindLocalCopy {
+		t.Fatalf("events = %+v, want one event with kind %q", events, transferKindLocalCopy)
+	}
+}
+
 // A failed enumeration must retire the transient scan item with a terminal event
 // rather than leaving it spinning.
 func TestFinishPlanEmitsFailedOnError(t *testing.T) {

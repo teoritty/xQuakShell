@@ -283,9 +283,12 @@
     tree = tree;
   }
 
-  // Downloads land here, and so do local copies (an Explorer drop), which the
-  // backend reports as an upload with no session.
+  // Downloads land here, and so do local copies (an Explorer drop). Local
+  // copies report kind 'localcopy' with no session; the 'upload' + no-session
+  // check stays as a defensive fallback for a stale backend build that still
+  // rewrites the kind (pre-T4 behaviour).
   $: if ($transferCompleted && ($transferCompleted.direction === 'download'
+      || $transferCompleted.kind === 'localcopy'
       || ($transferCompleted.direction === 'upload' && !$transferCompleted.sessionId))) {
     const t = $transferCompleted;
     transferCompleted.set(null);

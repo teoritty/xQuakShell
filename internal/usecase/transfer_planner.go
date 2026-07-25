@@ -78,7 +78,7 @@ func (p *TransferPlanner) PlanLocalCopy(srcPaths []string, destDir string, onPro
 // that streams the enumeration phase: an initial indeterminate "active" event
 // from Started, then a throttled scan counter (Total=0) from Scanned.
 func newScanReporter(kind, sessionID, targetDir string, onProgress TransferProgressFunc) *operationReporter {
-	return newOperationReporter(newOpID(kind), sessionID, batchDisplayKind(kind), targetDir, onProgress)
+	return newOperationReporter(newOpID(kind), sessionID, kind, targetDir, onProgress)
 }
 
 // finishPlan stamps the OpID on a successful plan, or tears down the scanning
