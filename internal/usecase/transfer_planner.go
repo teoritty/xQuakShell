@@ -139,8 +139,14 @@ func finishPlan(ctx context.Context, plan *TransferPlan, err error, rep *operati
 	// Branch 3: the plan awaits execution. No work is running — the user may be
 	// staring at the conflict dialog for minutes — but the item is active, so it
 	// must stay cancellable, and here "cancel" means "close the item".
-	// ExecutePlan replaces this action with a real context cancellation when it
-	// takes over the id.
+	//
+	// This closer emits the id's one terminal event, and it does so while nothing
+	// downstream is watching: the frontend is blocked on the conflict dialog and
+	// will call ExecutePlan regardless of what happened out here. So the fact that
+	// it ran has to survive in something that outlives this reporter — the
+	// registry records it (Cancel -> terminated), and ExecutePlan asks with
+	// takeOver instead of assuming the id is still live. A second reporter with a
+	// second done latch cannot enforce one-terminal-per-id on its own.
 	//
 	// NOTE: there is a narrow, accepted race here. A cancel click landing between
 	// the ctx.Err() check above and this Replace call finds the entry already

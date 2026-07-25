@@ -2,10 +2,19 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"xquakshell/internal/domain"
 )
+
+// ErrOperationCancelled reports that an operation's id was already closed before
+// this phase could claim it — the user cancelled the panel item while the plan
+// was parked in the conflict dialog. It is deliberately not a failure: the
+// terminal event is already out, nothing ran, and there is nothing to tell the
+// user that they did not just ask for. Callers distinguish it with errors.Is and
+// stay quiet.
+var ErrOperationCancelled = errors.New("usecase: operation already cancelled")
 
 // ResolvedAction is the caller's decision for one conflicting target. NewName is
 // an optional explicit rename target (from the dialog's editable name field);
@@ -35,13 +44,24 @@ func (s *TransferService) ExecutePlan(parentCtx context.Context, sessionID strin
 	}
 	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
-	// Replace, not Register: for a planned drop the planner already owns this id
+	// takeOver, not Replace: for a planned drop the planner already owns this id
 	// and parked a "close the item" action under it. This phase takes over that
 	// ownership with a real cancellation, unbroken — the id is never absent from
 	// the registry while the panel item is active. Unregistering on the way out
 	// also means an early return cannot leave the planner's parked closer behind
 	// to emit a second terminal event for an operation that already ended.
-	s.cancels.Replace(transferID, cancel)
+	//
+	// takeOver can also decline. The user may have clicked the panel item's cancel
+	// while the conflict dialog was open: the planner's parked closer then already
+	// emitted this id's one terminal event. Nothing tells the dialog about it, so
+	// the frontend completes the resolution and calls us anyway — and this phase's
+	// reporter would be a *new* reporter with a *fresh* done latch, perfectly
+	// happy to emit "completed" over the user's "cancelled" after writing every
+	// byte, conflict overwrites included. So the decline must land here, before
+	// the reporter exists and before a single byte moves.
+	if !s.cancels.takeOver(transferID, cancel) {
+		return ErrOperationCancelled
+	}
 	defer s.cancels.Unregister(transferID)
 
 	// The batch's caption is a count ("3 items"), not a path, so it replaces the

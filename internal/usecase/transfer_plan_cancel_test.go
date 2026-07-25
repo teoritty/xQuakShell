@@ -366,5 +366,98 @@ func TestCancelRegistryReplaceOnMissingID(t *testing.T) {
 	}
 }
 
+// takeOver is Replace plus a veto. On a live id it behaves exactly like Replace,
+// so the phase chain is unbroken; on an id Cancel already closed it declines and
+// leaves the id unregistered, so the incoming phase cannot revive a closed item.
+func TestCancelRegistryTakeOverDeclinesACancelledID(t *testing.T) {
+	r := NewCancelRegistry()
+
+	r.Register("live", func() {})
+	if !r.takeOver("live", func() {}) {
+		t.Fatal("takeOver declined a live id: the handoff would drop every planned transfer")
+	}
+
+	r.Register("closed", func() {})
+	r.Cancel("closed")
+	if r.takeOver("closed", func() {}) {
+		t.Fatal("takeOver accepted an id whose terminal event is already out")
+	}
+	if r.Cancel("closed") {
+		t.Fatal("a declined takeOver must not leave the id registered")
+	}
+}
+
+// The terminal mark is a handoff signal, not a history: it must be gone the
+// moment any owner speaks for the id again, or the registry would accumulate one
+// entry per drop for the process lifetime.
+func TestCancelRegistryTerminalMarkIsDisposedByEveryOwner(t *testing.T) {
+	marks := func(r *CancelRegistry) int {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		if len(r.terminated) != len(r.terminatedOrder) {
+			t.Fatalf("terminated set and eviction order disagree: %d vs %d", len(r.terminated), len(r.terminatedOrder))
+		}
+		return len(r.terminated)
+	}
+
+	// Disposal 1 — the next phase claims the id (the conflict-dialog cancel that
+	// ExecutePlan then declines).
+	r := NewCancelRegistry()
+	r.Register("a", func() {})
+	r.Cancel("a")
+	r.takeOver("a", func() {})
+	if n := marks(r); n != 0 {
+		t.Fatalf("marks after takeOver = %d, want 0", n)
+	}
+
+	// Disposal 2 — the owner reaches its own terminal event (a cancel during a
+	// running transfer: the executor's deferred Unregister).
+	r.Register("b", func() {})
+	r.Cancel("b")
+	r.Unregister("b")
+	if n := marks(r); n != 0 {
+		t.Fatalf("marks after Unregister = %d, want 0", n)
+	}
+
+	// Disposal 3 — a second cancel, which is what the frontend's finally does for
+	// a batch abandoned in the dialog.
+	r.Register("c", func() {})
+	r.Cancel("c")
+	r.Cancel("c")
+	if n := marks(r); n != 0 {
+		t.Fatalf("marks after a repeat Cancel = %d, want 0", n)
+	}
+}
+
+// Nothing forces a disposal to happen: a batch cancelled and then abandoned
+// (renderer gone, app closing) never comes back for its id. That path must cost
+// a bounded amount of memory rather than one string per abandoned drop.
+func TestCancelRegistryTerminatedSetIsBounded(t *testing.T) {
+	r := NewCancelRegistry()
+	for i := 0; i < terminatedCap*20; i++ {
+		id := fmt.Sprintf("op-%d", i)
+		r.Register(id, func() {})
+		r.Cancel(id)
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.terminated) > terminatedCap {
+		t.Fatalf("terminated marks = %d, want at most %d", len(r.terminated), terminatedCap)
+	}
+	if len(r.terminatedOrder) > terminatedCap {
+		t.Fatalf("eviction order = %d, want at most %d", len(r.terminatedOrder), terminatedCap)
+	}
+	if len(r.actions) != 0 {
+		t.Fatalf("actions = %d, want 0: Cancel consumes the entry", len(r.actions))
+	}
+	// The most recent mark is the one that matters — it is the id a conflict
+	// dialog could still be sitting on.
+	newest := fmt.Sprintf("op-%d", terminatedCap*20-1)
+	if _, ok := r.terminated[newest]; !ok {
+		t.Fatalf("eviction dropped the newest mark %q: it must evict the oldest", newest)
+	}
+}
+
 // Compile-time guard: walkRemoteFS must remain a full domain.RemoteFS.
 var _ domain.RemoteFS = (*walkRemoteFS)(nil)

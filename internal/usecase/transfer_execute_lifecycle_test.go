@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -151,5 +152,121 @@ func TestExecutePlanEarlyReturnReleasesCancelRegistration(t *testing.T) {
 	}
 	if plannerClosed {
 		t.Fatal("the planner's closer ran: ownership was not taken over before the first fallible step")
+	}
+}
+
+// copyCountingHostFS is a host FS that counts the file copies a local-copy
+// transfer actually performs. "Did any bytes move?" is the assertion that
+// matters below; a terminal-event count alone would not catch a transfer that
+// wrote every file and merely mislabelled the result.
+type copyCountingHostFS struct {
+	*mockHostFS
+	copies int
+}
+
+func (c *copyCountingHostFS) CopyTo(_, _ string) error {
+	c.copies++
+	return nil
+}
+
+// The whole point of the phase handoff: a cancel landing in the conflict-dialog
+// gap must actually stop the transfer, not just be repainted over.
+//
+// The planner parks a "close the item" closer under the op id and returns. The
+// user clicks the panel item's ✕ — the closer runs, emitting the id's one
+// terminal event — but nothing interrupts the conflict dialog, so the frontend
+// resolves it and calls ExecutePlan as if nothing happened. ExecutePlan builds
+// its own reporter, with its own done latch, which knows nothing about the
+// terminal already emitted: before the fix it re-registered the id, copied every
+// file (overwriting the conflicting target the user was asked about) and emitted
+// "completed", flipping the panel row cancelled -> active -> completed. The
+// cancellation was not double-reported, it was discarded.
+func TestExecutePlanRefusesAnIDCancelledDuringTheConflictDialog(t *testing.T) {
+	hostFS := &copyCountingHostFS{mockHostFS: &mockHostFS{
+		statFn: func(string) (domain.HostFileInfo, error) {
+			return domain.HostFileInfo{IsDir: false, Size: 7}, nil
+		},
+		// The destination already holds a.txt, so the plan carries a conflict and
+		// the dialog is what the user is looking at when they hit cancel.
+		listFn: func(string, bool, func(string, string) bool) ([]domain.LocalFileEntry, error) {
+			return []domain.LocalFileEntry{{Name: "a.txt", Path: "/dst/a.txt", Size: 3}}, nil
+		},
+	}}
+	cancels := NewCancelRegistry()
+
+	// One sink across both phases: the invariant is one terminal event per op id,
+	// not one per phase.
+	sink := &execEvents{}
+
+	plan, err := NewTransferPlanner(nil, hostFS, cancels).PlanLocalCopy([]string{"/src/a.txt"}, "/dst", sink.fn)
+	if err != nil {
+		t.Fatalf("PlanLocalCopy: %v", err)
+	}
+	if plan.OpID == "" {
+		t.Fatal("a plan awaiting execution must carry its op id")
+	}
+	if len(plan.Files) != 1 || !plan.Files[0].HasConflict() {
+		t.Fatalf("want one conflicting file in the plan, got %+v", plan.Files)
+	}
+
+	// The user clicks the panel item's cancel while the dialog is open.
+	if !cancels.Cancel(plan.OpID) {
+		t.Fatal("the parked op id was not cancellable: the T5 handoff regressed")
+	}
+
+	// The dialog completes anyway and the frontend executes the resolved plan.
+	err = execService(hostFS, cancels).ExecutePlan(
+		context.Background(), "", plan,
+		// Keyed by the plan's own target so the overwrite really is chosen: a
+		// mismatched key would silently degrade to Skip and copy nothing anyway,
+		// making the "moved nothing" assertion vacuous.
+		map[string]ResolvedAction{plan.Files[0].Target: {Action: domain.ConflictOverwrite}},
+		sink.fn,
+	)
+	if !errors.Is(err, ErrOperationCancelled) {
+		t.Fatalf("err = %v, want ErrOperationCancelled: a cancel is not a failure to surface", err)
+	}
+
+	if hostFS.copies != 0 {
+		t.Fatalf("copies = %d, want 0: files were written after the user asked to stop", hostFS.copies)
+	}
+	terminals := sink.terminals()
+	if len(terminals) != 1 {
+		t.Fatalf("terminal events = %d, want exactly 1 for the op id: %+v", len(terminals), terminals)
+	}
+	if terminals[0].State != "cancelled" {
+		t.Fatalf("terminal state = %q, want cancelled", terminals[0].State)
+	}
+	if cancels.Cancel(plan.OpID) {
+		t.Fatal("declining the id must not leave it registered: the row would be cancellable after it closed")
+	}
+}
+
+// The other half of the same handoff: a plan the user did NOT cancel must be
+// taken over exactly as before, and must stay cancellable through execution.
+// Without this, "refuse the cancelled id" could be implemented by refusing
+// everything.
+func TestExecutePlanStillTakesOverAnUncancelledPlannedID(t *testing.T) {
+	hostFS := &copyCountingHostFS{mockHostFS: &mockHostFS{
+		statFn: func(string) (domain.HostFileInfo, error) {
+			return domain.HostFileInfo{IsDir: false, Size: 7}, nil
+		},
+	}}
+	cancels := NewCancelRegistry()
+	sink := &execEvents{}
+
+	plan, err := NewTransferPlanner(nil, hostFS, cancels).PlanLocalCopy([]string{"/src/a.txt"}, "/dst", sink.fn)
+	if err != nil {
+		t.Fatalf("PlanLocalCopy: %v", err)
+	}
+	if err := execService(hostFS, cancels).ExecutePlan(context.Background(), "", plan, nil, sink.fn); err != nil {
+		t.Fatalf("ExecutePlan: %v", err)
+	}
+	if hostFS.copies != 1 {
+		t.Fatalf("copies = %d, want 1: an uncancelled plan must still transfer", hostFS.copies)
+	}
+	terminals := sink.terminals()
+	if len(terminals) != 1 || terminals[0].State != "completed" {
+		t.Fatalf("terminals = %+v, want exactly one completed event", terminals)
 	}
 }
