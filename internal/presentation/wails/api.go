@@ -8,7 +8,6 @@ import (
 
 	"xquakshell/internal/domain"
 	domainplugin "xquakshell/internal/domain/plugin"
-	"xquakshell/internal/infra/loghub"
 	"xquakshell/internal/presentation/logwindow"
 	"xquakshell/internal/usecase"
 )
@@ -44,6 +43,7 @@ type AppAPI struct {
 	embedBridge                 *usecase.PluginEmbedBridge
 	forwardRules                *usecase.ForwardRuleValidator
 	logWindow                   *logwindow.Manager
+	logLevel                    domain.LogLevelController
 }
 
 // NewAppAPI creates a new AppAPI with the given dependencies.
@@ -76,6 +76,7 @@ func NewAppAPI(
 	forwardConnLimiterFactory func() domain.ConcurrencyLimiter,
 	pinger domain.Pinger,
 	sshAuth *usecase.SSHAuthWiring,
+	logLevel domain.LogLevelController,
 ) *AppAPI {
 	pingMgr := usecase.NewPingManager(connRepo, domain.DefaultPingSettings(), pingLimiter, pinger)
 	var pluginFieldsSvc *usecase.PluginFieldsService
@@ -102,6 +103,7 @@ func NewAppAPI(
 		pingMgr:      pingMgr,
 		plugins:      pluginMgr,
 		settingsSvc:  usecase.NewSettingsService(vaultRepo, lockoutMgr, pingMgr),
+		logLevel:     logLevel,
 	}
 
 	smCfg := usecase.SessionManagerConfig{
@@ -346,7 +348,9 @@ func (a *AppAPI) UnlockVault(masterPassword string) error {
 				}
 			})
 		}
-		loghub.SetLevel(loghub.ParseLevel(data.Settings.Debug.LogLevel))
+		if a.logLevel != nil {
+			a.logLevel.SetLevel(data.Settings.Debug.LogLevel)
+		}
 		a.SyncDebugLogWindow(data.Settings.Debug.LogWindowEnabled)
 	}
 

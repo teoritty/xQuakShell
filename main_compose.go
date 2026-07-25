@@ -93,6 +93,7 @@ func composeApp() *App {
 		func() domain.ConcurrencyLimiter { return conlimit.New(64) },
 		infrapinger.NewTCPPinger(3*time.Second),
 		sshAuth,
+		loghub.LevelController{},
 	)
 	if pluginRuntime.manager != nil && api.Sessions().PluginBridge() != nil {
 		bridge := api.Sessions().PluginBridge()
