@@ -29,6 +29,10 @@ func (a ApplyTarget) Matches(isDir bool) bool {
 }
 
 // RemoteNode represents a single entry (file or directory) in the remote filesystem.
+//
+// Name is a single path segment, already validated by the adapter: it never
+// contains a separator, never equals "." or "..", and is safe to join into a
+// local path. Adapters MUST enforce this — consumers rely on it.
 type RemoteNode struct {
 	Path    string    `json:"path"`
 	Name    string    `json:"name"`

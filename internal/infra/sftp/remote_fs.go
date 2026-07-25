@@ -15,6 +15,7 @@ import (
 	"github.com/pkg/sftp"
 
 	"xquakshell/internal/domain"
+	"xquakshell/internal/pkg/pathsafe"
 )
 
 // sanitizeLocalPath normalizes a local path to prevent basic traversal attacks.
@@ -26,6 +27,45 @@ func sanitizeLocalPath(p string) string {
 type RemoteFS struct {
 	client       *sftp.Client
 	rateLimitKbps int // 0 = unlimited
+
+	// readDirFn is a test seam for downloadRecursive: it defaults to
+	// client.ReadDir but lets tests drive downloadRecursive with a fake
+	// directory listing (including hostile names) without a live SFTP
+	// server. Production code never sets this field directly; it is
+	// resolved lazily via readDir() below.
+	readDirFn func(dir string) ([]os.FileInfo, error)
+}
+
+// readDir returns the configured readDirFn, or fs.client.ReadDir if unset.
+func (fs *RemoteFS) readDir(dir string) ([]os.FileInfo, error) {
+	if fs.readDirFn != nil {
+		return fs.readDirFn(dir)
+	}
+	return fs.client.ReadDir(dir)
+}
+
+// safeEntryName validates a filename taken from a remote directory listing.
+// The SFTP server controls these bytes completely, so a name is accepted only
+// if it is a single, inert path segment. Rejecting here — at the adapter
+// boundary — is what lets every consumer of RemoteFS treat RemoteNode.Name as
+// a trusted component. pkg/sftp already applies path.Base, but path.Base only
+// understands forward slashes: a name like `..\..\evil.exe` reaches us intact
+// and escapes once filepath.Join cleans it on Windows.
+func safeEntryName(name string) bool {
+	if name == "" || name == "." || name == ".." {
+		return false
+	}
+	if strings.ContainsAny(name, `/\`) {
+		return false
+	}
+	// Windows resolves ADS and drive-relative syntax inside a single segment.
+	if strings.ContainsRune(name, ':') {
+		return false
+	}
+	if strings.ContainsRune(name, 0) {
+		return false
+	}
+	return true
 }
 
 // NewRemoteFS wraps an SFTP client to implement domain.RemoteFS.
@@ -69,9 +109,16 @@ func (fs *RemoteFS) List(ctx context.Context, dirPath string) ([]domain.RemoteNo
 		default:
 		}
 
+		name := entry.Name()
+		if !safeEntryName(name) {
+			slog.Warn("sftp: skipping unsafe remote entry name",
+				"dir", dirPath, "name", name)
+			continue
+		}
+
 		node := domain.RemoteNode{
-			Path:    path.Join(dirPath, entry.Name()),
-			Name:    entry.Name(),
+			Path:    path.Join(dirPath, name),
+			Name:    name,
 			IsDir:   entry.IsDir(),
 			Size:    entry.Size(),
 			ModTime: entry.ModTime(),
@@ -283,7 +330,11 @@ func (fs *RemoteFS) DownloadRecursive(ctx context.Context, remoteDir, localDir s
 
 func (fs *RemoteFS) downloadRecursive(ctx context.Context, remoteDir, localDir string, totalDone *int64, totalSize int64, progress domain.ProgressFunc) error {
 	remoteDir = sanitizeRemotePath(remoteDir)
-	entries, err := fs.client.ReadDir(remoteDir)
+	absLocalRoot, err := filepath.Abs(localDir)
+	if err != nil {
+		return fmt.Errorf("resolve local dir %s: %w", localDir, err)
+	}
+	entries, err := fs.readDir(remoteDir)
 	if err != nil {
 		return fmt.Errorf("sftp download recursive readdir %s: %w", remoteDir, err)
 	}
@@ -293,8 +344,19 @@ func (fs *RemoteFS) downloadRecursive(ctx context.Context, remoteDir, localDir s
 			return ctx.Err()
 		default:
 		}
-		remotePath := path.Join(remoteDir, entry.Name())
-		localPath := filepath.Join(localDir, entry.Name())
+		name := entry.Name()
+		if !safeEntryName(name) {
+			slog.Warn("sftp: skipping unsafe remote entry name",
+				"dir", remoteDir, "name", name)
+			continue
+		}
+		remotePath := path.Join(remoteDir, name)
+		localPath := filepath.Join(localDir, name)
+		if !pathsafe.UnderRoot(absLocalRoot, filepath.Join(absLocalRoot, name)) {
+			slog.Warn("sftp: remote entry escapes download root",
+				"dir", remoteDir, "name", name, "target", localPath)
+			continue
+		}
 		if entry.IsDir() {
 			if err := os.MkdirAll(localPath, 0755); err != nil {
 				return fmt.Errorf("mkdir %s: %w", localPath, err)
