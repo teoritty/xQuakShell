@@ -56,6 +56,10 @@ func NewTunnelDynamicService(dialer domain.TunnelChannelDialer, notify PluginTun
 }
 
 // SetPreBindEvictHook wires cleanup when a pre-bind local is evicted by timeout.
+// The hook runs on the timer goroutine, after the entry has been removed from
+// s.local and after the tunnel.localClose notification has been sent — i.e. it
+// is the correct point to observe a completed eviction. Set once, during
+// wiring, before RegisterLocal is called.
 func (s *TunnelDynamicService) SetPreBindEvictHook(hook PreBindEvictHook) {
 	if s != nil {
 		s.onPreBindEvict = hook
