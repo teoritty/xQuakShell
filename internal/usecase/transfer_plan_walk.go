@@ -11,29 +11,43 @@ import (
 // localModTimeLayout matches domain.LocalFileEntry.ModTime formatting in HostFS.
 const localModTimeLayout = "2006-01-02 15:04:05"
 
+// newScanTick builds the per-entry hook shared by both source walks: it ticks
+// the caller's progress counter and reports cancellation. Checking the context
+// here — on every discovered entry rather than only at directory boundaries —
+// is what makes a huge tree abort promptly. onScan may be nil; ctx may not.
+func newScanTick(ctx context.Context, onScan func()) func() error {
+	return func() error {
+		if onScan != nil {
+			onScan()
+		}
+		return ctx.Err()
+	}
+}
+
 // walkLocalSource enumerates a dropped local root (file or directory) into
 // sourceEntry nodes rooted at the root's base name. Symlinked directories are
 // not descended into (HostFileSystem.List reports them as non-dir entries), so
 // they are transferred as single entries rather than followed — avoiding loops.
 // onScan, when non-nil, is ticked once per discovered entry so callers can stream
-// a live "scanning" counter during the walk.
-func walkLocalSource(hostFS domain.HostFileSystem, root string, onScan func()) ([]sourceEntry, error) {
+// a live "scanning" counter during the walk. ctx aborts the walk: enumerating a
+// large tree can take minutes, and the user must be able to stop it.
+func walkLocalSource(ctx context.Context, hostFS domain.HostFileSystem, root string, onScan func()) ([]sourceEntry, error) {
 	info, err := hostFS.Stat(root)
 	if err != nil {
 		return nil, err
 	}
 	base := path.Base(toSlash(root))
-	scan := func() {
-		if onScan != nil {
-			onScan()
-		}
-	}
+	scan := newScanTick(ctx, onScan)
 	if !info.IsDir {
-		scan()
+		if err := scan(); err != nil {
+			return nil, err
+		}
 		return []sourceEntry{{AbsPath: root, Rel: base, Size: info.Size, ModTime: info.ModTime}}, nil
 	}
 	out := []sourceEntry{{AbsPath: root, Rel: base, IsDir: true}}
-	scan()
+	if err := scan(); err != nil {
+		return nil, err
+	}
 	var recur func(dir, rel string) error
 	recur = func(dir, rel string) error {
 		entries, err := hostFS.List(dir, true, nil)
@@ -42,7 +56,9 @@ func walkLocalSource(hostFS domain.HostFileSystem, root string, onScan func()) (
 		}
 		for _, e := range entries {
 			childRel := rel + "/" + e.Name
-			scan()
+			if err := scan(); err != nil {
+				return err
+			}
 			if e.IsDir {
 				out = append(out, sourceEntry{AbsPath: e.Path, Rel: childRel, IsDir: true})
 				if err := recur(e.Path, childRel); err != nil {
@@ -84,17 +100,17 @@ func walkRemoteSource(ctx context.Context, fs domain.RemoteFS, root string, onSc
 	if node == nil {
 		return nil, &notFoundError{path: root}
 	}
-	scan := func() {
-		if onScan != nil {
-			onScan()
-		}
-	}
+	scan := newScanTick(ctx, onScan)
 	if !node.IsDir {
-		scan()
+		if err := scan(); err != nil {
+			return nil, err
+		}
 		return []sourceEntry{{AbsPath: root, Rel: base, Size: node.Size, ModTime: node.ModTime}}, nil
 	}
 	out := []sourceEntry{{AbsPath: root, Rel: base, IsDir: true}}
-	scan()
+	if err := scan(); err != nil {
+		return nil, err
+	}
 	var recur func(dir, rel string) error
 	recur = func(dir, rel string) error {
 		entries, err := fs.List(ctx, dir)
@@ -103,7 +119,9 @@ func walkRemoteSource(ctx context.Context, fs domain.RemoteFS, root string, onSc
 		}
 		for _, e := range entries {
 			childRel := rel + "/" + e.Name
-			scan()
+			if err := scan(); err != nil {
+				return err
+			}
 			if e.IsDir {
 				out = append(out, sourceEntry{AbsPath: e.Path, Rel: childRel, IsDir: true})
 				if err := recur(e.Path, childRel); err != nil {

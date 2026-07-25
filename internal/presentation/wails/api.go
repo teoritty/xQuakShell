@@ -24,6 +24,7 @@ type AppAPI struct {
 	transferSvc                 *usecase.TransferService
 	transferPlanner             *usecase.TransferPlanner
 	remoteOpSvc                 *usecase.RemoteOpService
+	cancels                     *usecase.CancelRegistry // shared by planner, executor and remote ops: one id space, one registry
 	hostKeys                    *usecase.HostKeyService
 	remoteFS                    *usecase.RemoteFSService
 	localFS                     *usecase.LocalFSService
@@ -148,9 +149,10 @@ func NewAppAPI(
 	}
 
 	api.auditSvc = usecase.NewAuditService(auditLogRepo, api.settingsSvc, api.sessions, connRepo, trackerFactory, sanitizerFactory)
-	api.transferSvc = usecase.NewTransferService(api.sessions, api.settingsSvc, hostFS, transferLimiter)
-	api.transferPlanner = usecase.NewTransferPlanner(api.sessions, hostFS)
-	api.remoteOpSvc = usecase.NewRemoteOpService(api.sessions)
+	api.cancels = usecase.NewCancelRegistry()
+	api.transferSvc = usecase.NewTransferService(api.sessions, api.settingsSvc, hostFS, transferLimiter, api.cancels)
+	api.transferPlanner = usecase.NewTransferPlanner(api.sessions, hostFS, api.cancels)
+	api.remoteOpSvc = usecase.NewRemoteOpService(api.sessions, api.cancels)
 	api.hostKeys = usecase.NewHostKeyService(knownHosts, api.sessions)
 	api.remoteFS = usecase.NewRemoteFSService(api.sessions)
 	api.localFS = usecase.NewLocalFSService(usecase.LocalFSServiceConfig{

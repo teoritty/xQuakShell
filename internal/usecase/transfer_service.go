@@ -40,20 +40,26 @@ type TransferService struct {
 	settings *SettingsService
 	hostFS   domain.HostFileSystem
 	limiter  domain.ConcurrencyLimiter
-	cancels  *cancelRegistry
+	cancels  *CancelRegistry
 }
 
-// NewTransferService creates a transfer orchestrator.
-func NewTransferService(sessions *SessionManager, settings *SettingsService, hostFS domain.HostFileSystem, limiter domain.ConcurrencyLimiter) *TransferService {
+// NewTransferService creates a transfer orchestrator. cancels is the
+// application-wide registry shared with the planner and RemoteOpService: the op
+// id of a drop is minted by the planner and handed to this service, so both
+// phases must resolve it in the same map.
+func NewTransferService(sessions *SessionManager, settings *SettingsService, hostFS domain.HostFileSystem, limiter domain.ConcurrencyLimiter, cancels *CancelRegistry) *TransferService {
 	if limiter == nil {
 		panic("usecase: TransferService requires ConcurrencyLimiter")
+	}
+	if cancels == nil {
+		panic("usecase: TransferService requires CancelRegistry")
 	}
 	return &TransferService{
 		sessions: sessions,
 		settings: settings,
 		hostFS:   hostFS,
 		limiter:  limiter,
-		cancels:  newCancelRegistry(),
+		cancels:  cancels,
 	}
 }
 
@@ -98,11 +104,6 @@ func (s *TransferService) Download(ctx context.Context, sessionID, remotePath, l
 		return s.downloadRecursive(ctx, sessionID, remotePath, localTarget, onProgress)
 	}
 	return s.downloadFile(ctx, sessionID, remotePath, resolvedDir, onProgress)
-}
-
-// Cancel aborts an active transfer by ID. Returns true if a transfer was found.
-func (s *TransferService) Cancel(transferID string) bool {
-	return s.cancels.Cancel(transferID)
 }
 
 func (s *TransferService) maxConcurrent() int {

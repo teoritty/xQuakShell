@@ -23,20 +23,18 @@ type remoteOpSessionPort interface {
 // (recursive delete / chmod / chown) as cancellable background jobs that report
 // progress through a TransferProgressFunc. It is the operation-level sibling of
 // TransferService: TransferService moves bytes, RemoteOpService mutates the
-// remote tree. Both share cancelRegistry.
+// remote tree. Both share the application-wide CancelRegistry.
 type RemoteOpService struct {
 	sessions remoteOpSessionPort
-	cancels  *cancelRegistry
+	cancels  *CancelRegistry
 }
 
-// NewRemoteOpService creates a RemoteOpService.
-func NewRemoteOpService(sessions remoteOpSessionPort) *RemoteOpService {
-	return &RemoteOpService{sessions: sessions, cancels: newCancelRegistry()}
-}
-
-// Cancel aborts a running operation by ID. Returns true if one was found.
-func (s *RemoteOpService) Cancel(opID string) bool {
-	return s.cancels.Cancel(opID)
+// NewRemoteOpService creates a RemoteOpService over the shared cancel registry.
+func NewRemoteOpService(sessions remoteOpSessionPort, cancels *CancelRegistry) *RemoteOpService {
+	if cancels == nil {
+		panic("usecase: RemoteOpService requires CancelRegistry")
+	}
+	return &RemoteOpService{sessions: sessions, cancels: cancels}
 }
 
 // Delete recursively deletes remotePath in the background, reporting progress.

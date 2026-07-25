@@ -12,48 +12,54 @@ import (
 type TransferPlanner struct {
 	sessions remoteOpSessionPort
 	hostFS   domain.HostFileSystem
+	cancels  *CancelRegistry
 }
 
-// NewTransferPlanner creates a planner over the session registry and host FS.
-func NewTransferPlanner(sessions remoteOpSessionPort, hostFS domain.HostFileSystem) *TransferPlanner {
-	return &TransferPlanner{sessions: sessions, hostFS: hostFS}
+// NewTransferPlanner creates a planner over the session registry, the host FS
+// and the application-wide cancel registry. The planner is the first owner of a
+// drop's op id: it registers the id, and hands ownership on to the executor.
+func NewTransferPlanner(sessions remoteOpSessionPort, hostFS domain.HostFileSystem, cancels *CancelRegistry) *TransferPlanner {
+	if cancels == nil {
+		panic("usecase: TransferPlanner requires CancelRegistry")
+	}
+	return &TransferPlanner{sessions: sessions, hostFS: hostFS, cancels: cancels}
 }
 
 // PlanUpload plans uploading local paths into a remote directory: source walked
 // on the host FS, targets probed over SFTP. onProgress streams a live "scanning"
 // counter during enumeration under the plan's OpID.
 func (p *TransferPlanner) PlanUpload(sessionID string, localPaths []string, remoteDir string, onProgress TransferProgressFunc) (*TransferPlan, error) {
-	fs, ctx, err := p.remote(sessionID)
+	fs, sessCtx, err := p.remote(sessionID)
 	if err != nil {
 		return nil, err
 	}
-	rep := newScanReporter(transferKindUpload, sessionID, remoteDir, onProgress)
-	rep.Started()
+	ctx, cancel, rep := p.beginScan(sessCtx, transferKindUpload, sessionID, remoteDir, onProgress)
+	defer cancel()
 	ports := planPorts{
-		walkRoot:      func(root string) ([]sourceEntry, error) { return walkLocalSource(p.hostFS, root, rep.Scanned) },
+		walkRoot:      func(root string) ([]sourceEntry, error) { return walkLocalSource(ctx, p.hostFS, root, rep.Scanned) },
 		listTargetDir: func(dir string) map[string]domain.FileStat { return listRemoteTargetDir(ctx, fs, dir) },
 		ops:           remotePathOps{},
 	}
 	plan, err := buildPlan(transferKindUpload, remoteDir, localPaths, ports)
-	return finishPlan(plan, err, rep)
+	return finishPlan(ctx, plan, err, rep, p.cancels)
 }
 
 // PlanDownload plans downloading remote paths into a local directory: source
 // walked over SFTP, targets probed on the host FS.
 func (p *TransferPlanner) PlanDownload(sessionID string, remotePaths []string, localDir string, onProgress TransferProgressFunc) (*TransferPlan, error) {
-	fs, ctx, err := p.remote(sessionID)
+	fs, sessCtx, err := p.remote(sessionID)
 	if err != nil {
 		return nil, err
 	}
-	rep := newScanReporter(transferKindDownload, sessionID, localDir, onProgress)
-	rep.Started()
+	ctx, cancel, rep := p.beginScan(sessCtx, transferKindDownload, sessionID, localDir, onProgress)
+	defer cancel()
 	ports := planPorts{
 		walkRoot:      func(root string) ([]sourceEntry, error) { return walkRemoteSource(ctx, fs, root, rep.Scanned) },
 		listTargetDir: func(dir string) map[string]domain.FileStat { return listLocalTargetDir(p.hostFS, dir) },
 		ops:           localPathOps{},
 	}
 	plan, err := buildPlan(transferKindDownload, localDir, remotePaths, ports)
-	return finishPlan(plan, err, rep)
+	return finishPlan(ctx, plan, err, rep, p.cancels)
 }
 
 // PlanLocalCopy plans copying local paths into a local directory (OS Explorer
@@ -63,34 +69,79 @@ func (p *TransferPlanner) PlanLocalCopy(srcPaths []string, destDir string, onPro
 	if p.hostFS == nil {
 		return nil, errHostFSUnavailable
 	}
-	rep := newScanReporter(transferKindLocalCopy, "", destDir, onProgress)
-	rep.Started()
+	// A local copy is not tied to a session, so the scan hangs off the process
+	// context; only an explicit cancel stops it.
+	ctx, cancel, rep := p.beginScan(context.Background(), transferKindLocalCopy, "", destDir, onProgress)
+	defer cancel()
 	ports := planPorts{
-		walkRoot:      func(root string) ([]sourceEntry, error) { return walkLocalSource(p.hostFS, root, rep.Scanned) },
+		walkRoot:      func(root string) ([]sourceEntry, error) { return walkLocalSource(ctx, p.hostFS, root, rep.Scanned) },
 		listTargetDir: func(dir string) map[string]domain.FileStat { return listLocalTargetDir(p.hostFS, dir) },
 		ops:           localPathOps{},
 	}
 	plan, err := buildPlan(transferKindLocalCopy, destDir, srcPaths, ports)
-	return finishPlan(plan, err, rep)
+	return finishPlan(ctx, plan, err, rep, p.cancels)
 }
 
-// newScanReporter mints the operation id for a drop and builds the reporter
-// that streams the enumeration phase: an initial indeterminate "active" event
-// from Started, then a throttled scan counter (Total=0) from Scanned.
-func newScanReporter(kind, sessionID, targetDir string, onProgress TransferProgressFunc) *operationReporter {
-	return newOperationReporter(newOpID(kind), sessionID, kind, targetDir, onProgress)
+// beginScan opens the enumeration phase of a drop: it mints the operation id,
+// derives a cancellable context from the session's, and builds the reporter that
+// streams an initial indeterminate "active" event followed by a throttled scan
+// counter (Total=0).
+//
+// The cancel func is registered BEFORE the first event is emitted. The panel
+// draws a cancel button the moment the item appears, and from that instant the
+// button must do something — scanning a large tree over SFTP takes minutes.
+//
+// NOTE: there is deliberately no `defer p.cancels.Unregister(opID)` at any call
+// site. That is not a forgotten line: on the success path the registration is
+// handed to the next phase instead of being dropped, because the item stays
+// visible and active while the user resolves conflicts. All three exit paths are
+// spelled out in finishPlan — do not "fix" this by adding a defer.
+func (p *TransferPlanner) beginScan(parent context.Context, kind, sessionID, targetDir string, onProgress TransferProgressFunc) (context.Context, context.CancelFunc, *operationReporter) {
+	opID := newOpID(kind)
+	rep := newOperationReporter(opID, sessionID, kind, targetDir, onProgress)
+	ctx, cancel := context.WithCancel(parent)
+	p.cancels.Register(opID, cancel)
+	rep.Started()
+	return ctx, cancel, rep
 }
 
-// finishPlan stamps the OpID on a successful plan, or tears down the scanning
-// item with a terminal "failed" event when enumeration errored. A successful
-// plan deliberately emits no terminal event: the executor reuses the same op id
-// and closes the panel item when the bytes are done.
-func finishPlan(plan *TransferPlan, err error, rep *operationReporter) (*TransferPlan, error) {
+// finishPlan closes the enumeration phase. Cancellability is an invariant, not a
+// courtesy: while the panel shows the item as active, the registry must hold a
+// way to close it. So the registration is released only together with the
+// terminal event, and handed on when there is no terminal event yet.
+func finishPlan(ctx context.Context, plan *TransferPlan, err error, rep *operationReporter, cancels *CancelRegistry) (*TransferPlan, error) {
+	opID := rep.opID
+	// Branch 1: enumeration broke off — cancelled by the user or genuinely
+	// failed. Either way the operation ends here.
 	if err != nil {
-		rep.Report(0, 0, "failed")
+		rep.Finish(terminalState(ctx, err))
+		cancels.Unregister(opID)
 		return nil, err
 	}
-	plan.OpID = rep.opID
+	// Branch 1b: the walk finished, but the user cancelled before we got here.
+	// The conflict probes that follow the walk have no cancellation point of
+	// their own — a failed probe just means "no conflicts" — so without this
+	// check a cancel landing during the probe phase would be swallowed and the
+	// item re-registered as if nothing happened.
+	if cerr := ctx.Err(); cerr != nil {
+		rep.Finish("cancelled")
+		cancels.Unregister(opID)
+		return nil, cerr
+	}
+	// Branch 2: nothing to transfer. The operation happened and ends here; the
+	// executor is never called, so the op id is not stamped onto the plan.
+	if len(plan.Files) == 0 {
+		rep.Finish("completed")
+		cancels.Unregister(opID)
+		return plan, nil
+	}
+	// Branch 3: the plan awaits execution. No work is running — the user may be
+	// staring at the conflict dialog for minutes — but the item is active, so it
+	// must stay cancellable, and here "cancel" means "close the item".
+	// ExecutePlan replaces this action with a real context cancellation when it
+	// takes over the id.
+	cancels.Replace(opID, func() { rep.Finish("cancelled") })
+	plan.OpID = opID
 	return plan, nil
 }
 

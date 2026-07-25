@@ -38,7 +38,11 @@ func (s *TransferService) ExecutePlan(parentCtx context.Context, sessionID strin
 	if transferID == "" {
 		transferID = newOpID(plan.Kind)
 	}
-	s.cancels.Register(transferID, cancel)
+	// Replace, not Register: for a planned drop the planner already owns this id
+	// and parked a "close the item" action under it. This phase takes over that
+	// ownership with a real cancellation, unbroken — the id is never absent from
+	// the registry while the panel item is active.
+	s.cancels.Replace(transferID, cancel)
 	defer s.cancels.Unregister(transferID)
 
 	// The batch's caption is a count ("3 items"), not a path, so it replaces the

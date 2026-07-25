@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -30,7 +31,7 @@ func TestWalkLocalSourceTicksOnScanPerEntry(t *testing.T) {
 		},
 	}
 	var ticks int
-	entries, err := walkLocalSource(fs, "/src", func() { ticks++ })
+	entries, err := walkLocalSource(context.Background(), fs, "/src", func() { ticks++ })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +51,7 @@ func TestWalkLocalSourceNilOnScan(t *testing.T) {
 			return domain.HostFileInfo{IsDir: false, Size: 3}, nil
 		},
 	}
-	entries, err := walkLocalSource(fs, "/src/a.txt", nil)
+	entries, err := walkLocalSource(context.Background(), fs, "/src/a.txt", nil)
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("entries = %d err = %v", len(entries), err)
 	}
@@ -63,13 +64,14 @@ func TestScanReporterEmitsAndFinishPlanStampsOpID(t *testing.T) {
 	var events []TransferProgress
 	onProgress := func(p TransferProgress) { events = append(events, p) }
 
-	rep := newScanReporter(transferKindDownload, "sess", "/dst", onProgress)
+	rep := newOperationReporter(newOpID(transferKindDownload), "sess", transferKindDownload, "/dst", onProgress)
 	rep.Started()
 	for range emitEvery { // guarantees at least one throttled emit
 		rep.Scanned()
 	}
 
-	plan, err := finishPlan(&TransferPlan{Kind: transferKindDownload}, nil, rep)
+	pending := &TransferPlan{Kind: transferKindDownload, Files: []PlannedFile{{Source: "/a", Target: "/dst/a"}}}
+	plan, err := finishPlan(context.Background(), pending, nil, rep, NewCancelRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +93,7 @@ func TestScanReporterEmitsAndFinishPlanStampsOpID(t *testing.T) {
 // This pins the removal of the old batchDisplayKind rewrite to "upload".
 func TestScanReporterLocalCopyReportsOwnKind(t *testing.T) {
 	var events []TransferProgress
-	rep := newScanReporter(transferKindLocalCopy, "", "/dst", func(p TransferProgress) {
+	rep := newOperationReporter(newOpID(transferKindLocalCopy), "", transferKindLocalCopy, "/dst", func(p TransferProgress) {
 		events = append(events, p)
 	})
 	rep.Started()
@@ -100,17 +102,40 @@ func TestScanReporterLocalCopyReportsOwnKind(t *testing.T) {
 	}
 }
 
-// A failed enumeration must retire the transient scan item with a terminal event
-// rather than leaving it spinning.
-func TestFinishPlanEmitsFailedOnError(t *testing.T) {
-	var events []TransferProgress
-	rep := newScanReporter(transferKindUpload, "s", "/d", func(p TransferProgress) {
-		events = append(events, p)
-	})
-	if _, err := finishPlan(nil, errors.New("boom"), rep); err == nil {
-		t.Fatal("want error")
-	}
-	if len(events) != 1 || events[0].State != "failed" {
-		t.Fatalf("events = %+v, want one failed", events)
+// A broken enumeration must retire the transient scan item with a terminal event
+// rather than leaving it spinning — and must distinguish the user cancelling the
+// scan from a genuine failure, since after the walk learned to honour the
+// context, cancellation is the most common error it returns.
+func TestFinishPlanDistinguishesCancelledFromFailed(t *testing.T) {
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	for _, tc := range []struct {
+		name  string
+		ctx   context.Context
+		err   error
+		state string
+	}{
+		{"genuine failure", context.Background(), errors.New("boom"), "failed"},
+		{"user cancellation", cancelled, context.Canceled, "cancelled"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var events []TransferProgress
+			rep := newOperationReporter(newOpID(transferKindUpload), "s", transferKindUpload, "/d", func(p TransferProgress) {
+				events = append(events, p)
+			})
+			cancels := NewCancelRegistry()
+			cancels.Register(rep.opID, func() {})
+
+			if _, err := finishPlan(tc.ctx, nil, tc.err, rep, cancels); err == nil {
+				t.Fatal("want error")
+			}
+			if len(events) != 1 || events[0].State != tc.state {
+				t.Fatalf("events = %+v, want one %s", events, tc.state)
+			}
+			if cancels.Cancel(rep.opID) {
+				t.Fatal("a closed operation must not stay in the cancel registry")
+			}
+		})
 	}
 }

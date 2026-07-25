@@ -122,14 +122,11 @@ func (a *AppAPI) ExecuteLocalCopy(req ExecutePlanDTO) error {
 	return a.transferSvc.ExecutePlan(context.Background(), "", dtoToTransferPlan(req.Plan), dtoToResolutions(req.Resolutions), a.emitTransferProgress)
 }
 
-// CancelTransfer cancels an active transfer or remote operation by ID. The ID
-// space is shared across both services, so it tries the transfer service first
-// and falls back to the remote-operation service.
+// CancelTransfer cancels an active transfer, a scanning drop or a remote
+// operation by ID. Every phase of every cancellable operation registers in the
+// one shared registry, so a single lookup covers them all.
 func (a *AppAPI) CancelTransfer(operationID string) {
-	if a.transferSvc != nil && a.transferSvc.Cancel(operationID) {
-		return
-	}
-	if a.remoteOpSvc != nil {
-		a.remoteOpSvc.Cancel(operationID)
+	if a.cancels != nil {
+		a.cancels.Cancel(operationID)
 	}
 }
