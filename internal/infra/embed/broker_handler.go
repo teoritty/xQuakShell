@@ -2,6 +2,7 @@ package embed
 
 import (
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -39,7 +40,7 @@ type UIRootResolver func(pluginID string) (string, error)
 type BrokerHandler struct {
 	tunnels  domain.EmbedTunnelPort
 	resolve  UIRootResolver
-	failMu   sync.Mutex
+	failMu   sync.RWMutex
 	failures map[string][]time.Time
 }
 
@@ -74,10 +75,17 @@ func (h *BrokerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := parts[0]
+	if h.overBudget(r) {
+		http.Error(w, "too many requests", http.StatusTooManyRequests)
+		return
+	}
 	reg, err := h.tunnels.Lookup(token)
 	if err != nil {
 		slog.Debug("embed broker: token lookup failed", "pluginId", "unknown", "path", path, "err", err.Error())
-		h.recordFailedLookup(r)
+		if h.recordFailedLookup(r) {
+			http.Error(w, "too many requests", http.StatusTooManyRequests)
+			return
+		}
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -228,10 +236,42 @@ func (h *BrokerHandler) pumpPluginToWS(pluginID string, ws *websocket.Conn, conn
 	}
 }
 
-func (h *BrokerHandler) recordFailedLookup(r *http.Request) {
+// failureKey reduces r.RemoteAddr (host:port) to just the host. The port is fresh for every TCP
+// connection, so keying by RemoteAddr as-is would give every failed request its own bucket: the
+// limiter would never trip, and the map would grow without bound.
+func failureKey(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+// overBudget is an advisory read: a concurrent request may slip through before recordFailedLookup
+// commits. That is intentional — this is a brute-force brake, not an accounting boundary. It must
+// NOT record anything, or a throttled caller would keep its own window alive forever and never
+// escape it.
+func (h *BrokerHandler) overBudget(r *http.Request) bool {
+	h.failMu.RLock()
+	defer h.failMu.RUnlock()
+	window := h.failures[failureKey(r)]
+	cutoff := time.Now().Add(-failedLookupWindow)
+	count := 0
+	for _, t := range window {
+		if t.After(cutoff) {
+			count++
+		}
+	}
+	return count >= maxFailedLookups
+}
+
+// recordFailedLookup registers a failed token lookup from r's remote address and reports whether
+// the caller has exceeded the failure budget. It never writes a response: only ServeHTTP owns the
+// ResponseWriter.
+func (h *BrokerHandler) recordFailedLookup(r *http.Request) (throttled bool) {
 	h.failMu.Lock()
 	defer h.failMu.Unlock()
-	key := r.RemoteAddr
+	key := failureKey(r)
 	now := time.Now()
 	window := h.failures[key]
 	cutoff := now.Add(-failedLookupWindow)
@@ -242,10 +282,12 @@ func (h *BrokerHandler) recordFailedLookup(r *http.Request) {
 		}
 	}
 	filtered = append(filtered, now)
-	h.failures[key] = filtered
-	if len(filtered) >= maxFailedLookups {
-		http.Error(nil, "too many requests", http.StatusTooManyRequests)
+	if len(filtered) == 0 {
+		delete(h.failures, key)
+	} else {
+		h.failures[key] = filtered
 	}
+	return len(filtered) >= maxFailedLookups
 }
 
 // CompositeHandler routes /plugin/* and /embed/* to dedicated handlers.

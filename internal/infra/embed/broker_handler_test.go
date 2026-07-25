@@ -53,6 +53,25 @@ func TestBrokerHandler_invalidTokenUnauthorized(t *testing.T) {
 	}
 }
 
+func TestBrokerHandler_repeatedFailedLookupsThrottle(t *testing.T) {
+	h := NewBrokerHandler(stubEmbedTunnelPort{}, func(string) (string, error) {
+		return "", domain.ErrSessionNotFound
+	})
+	// httptest.NewRequest defaults RemoteAddr to "192.0.2.1:1234" for every request, so all of
+	// these land in the same bucket once keyed by host. maxFailedLookups failures should be
+	// tolerated with 401 (bad token); the next one must be throttled with 429, not panic.
+	var lastCode int
+	for i := 0; i < maxFailedLookups+1; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/embed/s/bad-token/ui/index.html", nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		lastCode = rec.Code
+	}
+	if lastCode != http.StatusTooManyRequests {
+		t.Fatalf("status after %d failed lookups = %d, want %d", maxFailedLookups+1, lastCode, http.StatusTooManyRequests)
+	}
+}
+
 func TestBrokerHandler_validTokenUIForbiddenWithoutRoot(t *testing.T) {
 	h := NewBrokerHandler(stubEmbedTunnelPort{
 		lookupFn: func(token string) (domain.EmbedRegistration, error) {
