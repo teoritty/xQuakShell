@@ -83,8 +83,8 @@ subscribeToEvents(); // api.ts:950-1073 registers all handlers below via rt.Even
 {
   reset();
   const del: TransferItem = {
-    id: 't1', sessionId: 's1', kind: 'delete', direction: 'upload',
-    localPath: '', remotePath: '/x', done: 0, total: 0, state: 'cancelled',
+    id: 't1', sessionId: 's1', kind: 'delete',
+    localPath: '', remotePath: '/x', refreshDir: '/', done: 0, total: 0, state: 'cancelled',
   };
   handlers.get('TransferProgress')!(del);
   // isOp (delete/chmod/chown) + terminal state (cancelled/failed/completed) => refresh signal.
@@ -94,8 +94,8 @@ subscribeToEvents(); // api.ts:950-1073 registers all handlers below via rt.Even
 {
   reset();
   const up: TransferItem = {
-    id: 't2', sessionId: 's1', kind: 'upload', direction: 'upload',
-    localPath: '/a', remotePath: '/b', done: 0, total: 0, state: 'cancelled',
+    id: 't2', sessionId: 's1', kind: 'upload',
+    localPath: '/a', remotePath: '/b', refreshDir: '/', done: 0, total: 0, state: 'cancelled',
   };
   handlers.get('TransferProgress')!(up);
   // upload is not an "op" kind, and state !== 'completed', so no refresh signal.

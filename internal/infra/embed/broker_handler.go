@@ -1,7 +1,10 @@
 package embed
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -37,8 +40,10 @@ type UIRootResolver func(pluginID string) (string, error)
 
 // BrokerHandler serves embed UI assets and WebSocket tunnels.
 type BrokerHandler struct {
-	tunnels  domain.EmbedTunnelPort
-	resolve  UIRootResolver
+	tunnels domain.EmbedTunnelPort
+	resolve UIRootResolver
+	// failMu guards failures. A plain Mutex, not RWMutex: the only reader was the pre-Lookup
+	// budget check, and that check was the bug — see ServeHTTP.
 	failMu   sync.Mutex
 	failures map[string][]time.Time
 }
@@ -59,10 +64,6 @@ func (h *BrokerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := r.URL.Path
-	// Tagged with a pluginId once known so loghub routes it to the plugin's log stream (the debug
-	// window shows plugin:* sources, not bare core). Before Lookup the id is unknown, so this
-	// first line carries an explicit "unknown" placeholder rather than a guessed plugin id.
-	slog.Debug("embed broker: request", "pluginId", "unknown", "method", r.Method, "path", path, "upgrade", r.Header.Get("Upgrade"))
 	if !strings.HasPrefix(path, embedPrefix) {
 		http.NotFound(w, r)
 		return
@@ -74,10 +75,28 @@ func (h *BrokerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := parts[0]
+	// Tagged with a pluginId once known so loghub routes it to the plugin's log stream (the debug
+	// window shows plugin:* sources, not bare core). Before Lookup the id is unknown, so this
+	// first line carries an explicit "unknown" placeholder rather than a guessed plugin id. The
+	// full path is never logged: it contains the embed token (parts[0]), the only thing gating
+	// access to the tunnel, so only a non-reversible tag derived from it is logged instead.
+	slog.Debug("embed broker: request", "pluginId", "unknown", "method", r.Method, "route", parts[1], "token", tokenTag(token), "upgrade", r.Header.Get("Upgrade"))
+	// Deliberately no budget pre-check before Lookup. The limiter's bucket is per remote host, and
+	// the broker listens only on 127.0.0.1, so every embed client in the process shares one bucket
+	// (requests arriving via the Wails asset server, with no parseable RemoteAddr, share the ""
+	// bucket). Gating on the bucket before the token is even examined therefore made one embed
+	// session's failures lock out every other embed UI on the machine: an expired session whose
+	// iframe is still mounted trivially produces 20 failed lookups in a minute — a page with 20
+	// assets, or one reconnecting WebSocket — and valid tokens then got 429 as collateral. The
+	// brute-force brake is unaffected: recordFailedLookup below 429s the caller that is actually
+	// past budget, and a request holding a valid token never reaches it.
 	reg, err := h.tunnels.Lookup(token)
 	if err != nil {
-		slog.Debug("embed broker: token lookup failed", "pluginId", "unknown", "path", path, "err", err.Error())
-		h.recordFailedLookup(r)
+		slog.Debug("embed broker: token lookup failed", "pluginId", "unknown", "token", tokenTag(token), "err", err.Error())
+		if h.recordFailedLookup(r) {
+			http.Error(w, "too many requests", http.StatusTooManyRequests)
+			return
+		}
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -228,24 +247,75 @@ func (h *BrokerHandler) pumpPluginToWS(pluginID string, ws *websocket.Conn, conn
 	}
 }
 
-func (h *BrokerHandler) recordFailedLookup(r *http.Request) {
+// tokenTag returns a short, non-reversible tag for an embed token, safe to log. The raw token is
+// a capability: anything that can read it can attach to the tunnel, and this log stream feeds the
+// debug log window. A truncated SHA-256 keeps entries correlatable across log lines without
+// carrying the secret — unlike a token prefix, which is part of the secret and shrinks the search
+// space for anyone reading the log.
+func tokenTag(token string) string {
+	if token == "" {
+		return "-"
+	}
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:4])
+}
+
+// failureKey reduces r.RemoteAddr (host:port) to just the host. The port is fresh for every TCP
+// connection, so keying by RemoteAddr as-is would give every failed request its own bucket: the
+// limiter would never trip, and the map would grow without bound.
+func failureKey(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+// recordFailedLookup registers a failed token lookup from r's remote address and reports whether
+// the caller has exceeded the failure budget. It never writes a response: only ServeHTTP owns the
+// ResponseWriter.
+//
+// This is the limiter's only gate. Recording first and answering from the result is what keeps a
+// valid token out of the blast radius: the budget is spent by failures and charged to the request
+// that failed, never to a request that has not been examined yet. Cost is one map operation on a
+// path that has already failed a lookup.
+//
+// The map is bounded by eviction, not by the key space: a key whose window has fully aged out is
+// deleted rather than left holding an empty slice. That cannot happen on this call — the current
+// attempt is always in the window — so it is done as a sweep of the other keys, which is also what
+// reclaims the buckets of hosts that stopped failing and never came back.
+func (h *BrokerHandler) recordFailedLookup(r *http.Request) (throttled bool) {
 	h.failMu.Lock()
 	defer h.failMu.Unlock()
-	key := r.RemoteAddr
+	key := failureKey(r)
 	now := time.Now()
-	window := h.failures[key]
 	cutoff := now.Add(-failedLookupWindow)
-	filtered := window[:0]
-	for _, t := range window {
-		if t.After(cutoff) {
-			filtered = append(filtered, t)
+
+	filtered := append(withinWindow(h.failures[key], cutoff), now)
+	h.failures[key] = filtered
+
+	for other, window := range h.failures {
+		if other == key {
+			continue
+		}
+		if live := withinWindow(window, cutoff); len(live) == 0 {
+			delete(h.failures, other)
+		} else {
+			h.failures[other] = live
 		}
 	}
-	filtered = append(filtered, now)
-	h.failures[key] = filtered
-	if len(filtered) >= maxFailedLookups {
-		http.Error(nil, "too many requests", http.StatusTooManyRequests)
+	return len(filtered) >= maxFailedLookups
+}
+
+// withinWindow drops timestamps at or before cutoff, reusing the slice's storage.
+func withinWindow(window []time.Time, cutoff time.Time) []time.Time {
+	live := window[:0]
+	for _, t := range window {
+		if t.After(cutoff) {
+			live = append(live, t)
+		}
 	}
+	return live
 }
 
 // CompositeHandler routes /plugin/* and /embed/* to dedicated handlers.

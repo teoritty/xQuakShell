@@ -7,7 +7,6 @@ import (
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"xquakshell/internal/domain"
-	"xquakshell/internal/infra/loghub"
 	"xquakshell/internal/usecase"
 )
 
@@ -43,7 +42,9 @@ func (a *AppAPI) SaveSettings(dto AppSettingsDTO) error {
 			}
 		})
 	}
-	loghub.SetLevel(loghub.ParseLevel(settings.Debug.LogLevel))
+	if a.logLevel != nil {
+		a.logLevel.SetLevel(settings.Debug.LogLevel)
+	}
 	a.SyncDebugLogWindow(settings.Debug.LogWindowEnabled)
 	return nil
 }

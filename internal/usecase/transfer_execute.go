@@ -2,11 +2,19 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"time"
 
 	"xquakshell/internal/domain"
 )
+
+// ErrOperationCancelled reports that an operation's id was already closed before
+// this phase could claim it — the user cancelled the panel item while the plan
+// was parked in the conflict dialog. It is deliberately not a failure: the
+// terminal event is already out, nothing ran, and there is nothing to tell the
+// user that they did not just ask for. Callers distinguish it with errors.Is and
+// stay quiet.
+var ErrOperationCancelled = errors.New("usecase: operation already cancelled")
 
 // ResolvedAction is the caller's decision for one conflicting target. NewName is
 // an optional explicit rename target (from the dialog's editable name field);
@@ -16,47 +24,70 @@ type ResolvedAction struct {
 	NewName string
 }
 
-// batchDisplayKind maps a plan kind to the TransferProgress "kind" the panel
-// understands. A local copy is presented as an upload (it places files, has no
-// remote side) so it reuses the upload icon and rate display.
-func batchDisplayKind(kind string) string {
-	if kind == transferKindLocalCopy {
-		return transferKindUpload
-	}
-	return kind
-}
-
 // ExecutePlan runs a resolved TransferPlan: it applies each file's conflict
 // resolution and moves bytes through the kind-appropriate mover, reporting
 // aggregated progress and honouring cancellation. It is the conflict-aware
 // counterpart to Upload/Download.
 func (s *TransferService) ExecutePlan(parentCtx context.Context, sessionID string, plan *TransferPlan, resolutions map[string]ResolvedAction, onProgress TransferProgressFunc) error {
+	// Everything below the first fallible step inherits a live panel item: the
+	// planner published one under plan.OpID and deliberately did not close it, so
+	// the lifecycle invariant makes every exit path from here responsible for
+	// emitting exactly one terminal event. Ownership of both the item and its
+	// cancel registration is therefore taken over *before* anything can fail.
+	//
+	// Reuse the OpID assigned during planning so the scanning phase and this
+	// byte-transfer phase are one continuous Transfers-panel item. Fall back to a
+	// fresh id for plans built without one.
+	transferID := plan.OpID
+	if transferID == "" {
+		transferID = newOpID(plan.Kind)
+	}
+	ctx, cancel := context.WithCancel(parentCtx)
+	defer cancel()
+	// takeOver, not Replace: for a planned drop the planner already owns this id
+	// and parked a "close the item" action under it. This phase takes over that
+	// ownership with a real cancellation, unbroken — the id is never absent from
+	// the registry while the panel item is active. Unregistering on the way out
+	// also means an early return cannot leave the planner's parked closer behind
+	// to emit a second terminal event for an operation that already ended.
+	//
+	// takeOver can also decline. The user may have clicked the panel item's cancel
+	// while the conflict dialog was open: the planner's parked closer then already
+	// emitted this id's one terminal event. Nothing tells the dialog about it, so
+	// the frontend completes the resolution and calls us anyway — and this phase's
+	// reporter would be a *new* reporter with a *fresh* done latch, perfectly
+	// happy to emit "completed" over the user's "cancelled" after writing every
+	// byte, conflict overwrites included. So the decline must land here, before
+	// the reporter exists and before a single byte moves.
+	if !s.cancels.takeOver(transferID, cancel) {
+		return ErrOperationCancelled
+	}
+	defer s.cancels.Unregister(transferID)
+
+	// The batch's caption is a count ("3 items"), not a path, so it replaces the
+	// destination directory in the label while RefreshDir keeps the real path.
+	rep := newOperationReporter(transferID, sessionID, plan.Kind, plan.DestDir, onProgress).
+		withLabel(planLabel(plan))
+	// Structural safety net, not the normal path. The reporter's done latch makes
+	// this a no-op once any terminal state has been reported, so it fires only on
+	// a return that closed nothing itself — including one added here in future.
+	// This is what `defer s.releaseSlot()` does for the limiter slot, applied to
+	// the UI item.
+	defer rep.Finish("failed")
+
 	mover, err := s.moverFor(plan.Kind, sessionID)
 	if err != nil {
-		return err
+		return err // closed as "failed" by the deferred net above
 	}
-	if err := s.acquireSlot(parentCtx); err != nil {
+	if err := s.acquireSlot(ctx); err != nil {
+		// acquireSlot fails only on a cancelled context, so this is "Cancelled",
+		// not "Error" — hence an explicit Finish rather than the net's "failed".
+		rep.Finish(terminalState(ctx, err))
 		return err
 	}
 	defer s.releaseSlot()
 
-	ctx, cancel := context.WithCancel(parentCtx)
-	defer cancel()
-	transferID := fmt.Sprintf("%s-%s-%d", plan.Kind, sessionID, time.Now().UnixNano())
-	s.cancels.Register(transferID, cancel)
-	defer s.cancels.Unregister(transferID)
-
-	report := func(done, total int64, state string) {
-		if onProgress != nil {
-			onProgress(TransferProgress{
-				ID: transferID, SessionID: sessionID,
-				Kind: batchDisplayKind(plan.Kind), Direction: batchDisplayKind(plan.Kind),
-				RemotePath: planLabel(plan), RefreshDir: plan.DestDir,
-				Done: done, Total: total, State: state,
-			})
-		}
-	}
-	return executePlanCore(ctx, plan, resolutions, mover, report)
+	return executePlanCore(ctx, plan, resolutions, mover, rep.Report)
 }
 
 func (s *TransferService) moverFor(kind, sessionID string) (fileMover, error) {

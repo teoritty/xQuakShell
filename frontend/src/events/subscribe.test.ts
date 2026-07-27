@@ -72,8 +72,8 @@ subscribeToEvents();
 {
   reset();
   const del: TransferItem = {
-    id: 't1', sessionId: 's1', kind: 'delete', direction: 'upload',
-    localPath: '', remotePath: '/x', done: 0, total: 0, state: 'cancelled',
+    id: 't1', sessionId: 's1', kind: 'delete',
+    localPath: '', remotePath: '/x', refreshDir: '/', done: 0, total: 0, state: 'cancelled',
   };
   handlers.get('TransferProgress')!(del);
   assert(get(transferCompleted)?.id === 't1', 'delete-kind cancelled transfer sets transferCompleted');
@@ -82,8 +82,8 @@ subscribeToEvents();
 {
   reset();
   const up: TransferItem = {
-    id: 't2', sessionId: 's1', kind: 'upload', direction: 'upload',
-    localPath: '/a', remotePath: '/b', done: 0, total: 0, state: 'cancelled',
+    id: 't2', sessionId: 's1', kind: 'upload',
+    localPath: '/a', remotePath: '/b', refreshDir: '/', done: 0, total: 0, state: 'cancelled',
   };
   handlers.get('TransferProgress')!(up);
   assert(get(transferCompleted) === null, 'upload-kind cancelled transfer does NOT set transferCompleted');

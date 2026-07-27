@@ -7,6 +7,19 @@ import (
 	infraplugin "xquakshell/internal/infra/plugin"
 )
 
+// envLookup finds a variable in a process env slice. Windows env keys are
+// case-insensitive and os.Environ() reports them upper-cased there, so matching
+// must not depend on the OS's chosen casing.
+func envLookup(env []string, key string) (string, bool) {
+	for _, entry := range env {
+		k, v, ok := strings.Cut(entry, "=")
+		if ok && strings.EqualFold(k, key) {
+			return v, true
+		}
+	}
+	return "", false
+}
+
 func TestPluginProcessEnvBlocksSecretsAndProfilePaths(t *testing.T) {
 	t.Setenv("USERPROFILE", `C:\Users\secret`)
 	t.Setenv("APPDATA", `C:\Users\secret\AppData\Roaming`)
@@ -16,26 +29,25 @@ func TestPluginProcessEnvBlocksSecretsAndProfilePaths(t *testing.T) {
 	t.Setenv("SystemRoot", `C:\Windows`)
 
 	env := infraplugin.PluginProcessEnv(t.TempDir(), "com.example.plugin", "sess-1")
-	joined := strings.Join(env, "\n")
 
 	for _, forbidden := range []string{
-		"USERPROFILE=", "APPDATA=", "HOME=", "AWS_SECRET_ACCESS_KEY=", "API_KEY=",
+		"USERPROFILE", "APPDATA", "HOME", "AWS_SECRET_ACCESS_KEY", "API_KEY",
 	} {
-		if strings.Contains(joined, forbidden) {
-			t.Fatalf("forbidden env leaked: %s in %q", forbidden, joined)
+		if v, ok := envLookup(env, forbidden); ok {
+			t.Fatalf("forbidden env leaked: %s=%q", forbidden, v)
 		}
 	}
-	if !strings.Contains(joined, "XQS_PLUGIN=1") {
-		t.Fatal("expected XQS_PLUGIN marker")
+	if v, ok := envLookup(env, "XQS_PLUGIN"); !ok || v != "1" {
+		t.Fatalf("expected XQS_PLUGIN marker, got %q (present=%v)", v, ok)
 	}
-	if !strings.Contains(joined, "XQS_PLUGIN_ID=com.example.plugin") {
-		t.Fatal("expected plugin id marker")
+	if v, ok := envLookup(env, "XQS_PLUGIN_ID"); !ok || v != "com.example.plugin" {
+		t.Fatalf("expected plugin id marker, got %q (present=%v)", v, ok)
 	}
-	if !strings.Contains(joined, "XQS_PLUGIN_SESSION_ID=sess-1") {
-		t.Fatal("expected session id marker")
+	if v, ok := envLookup(env, "XQS_PLUGIN_SESSION_ID"); !ok || v != "sess-1" {
+		t.Fatalf("expected session id marker, got %q (present=%v)", v, ok)
 	}
-	if !strings.Contains(joined, "SystemRoot=C:\\Windows") {
-		t.Fatal("expected allowlisted SystemRoot")
+	if got, ok := envLookup(env, "SystemRoot"); !ok || got != `C:\Windows` {
+		t.Fatalf("expected allowlisted SystemRoot, got %q (present=%v)", got, ok)
 	}
 }
 

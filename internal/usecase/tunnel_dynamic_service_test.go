@@ -316,50 +316,60 @@ func TestTunnelDynamicService_RegisterLocalPreBindTimeoutNotifiesLocalClose(t *t
 	local, peer := net.Pipe()
 	t.Cleanup(func() { local.Close(); peer.Close() })
 
-	var closeNotified int
-	var evictedPlugin, evictedID string
 	const localConnID = "lc-timeout-notify"
+	type closeNotification struct {
+		pluginID    string
+		localConnID string
+	}
+	notifications := make(chan closeNotification, 4)
 	notify := func(_ context.Context, pluginID, _, method string, params []byte) error {
 		if method == "tunnel.localClose" {
-			closeNotified++
 			var p struct {
 				LocalConnID string `json:"localConnId"`
 			}
 			_ = json.Unmarshal(params, &p)
-			if p.LocalConnID != localConnID {
-				t.Errorf("localConnId = %q, want %q", p.LocalConnID, localConnID)
-			}
-			if pluginID != "plugin-a" {
-				t.Errorf("pluginID = %q, want plugin-a", pluginID)
-			}
+			notifications <- closeNotification{pluginID: pluginID, localConnID: p.LocalConnID}
 		}
 		return nil
 	}
 
+	type evictEvent struct {
+		pluginID string
+		id       string
+	}
+	evicted := make(chan evictEvent, 1)
+
 	svc := NewTunnelDynamicService(nil, notify)
 	svc.SetPreBindTimeoutForTest(50 * time.Millisecond)
 	svc.SetPreBindEvictHook(func(pluginID, id string) {
-		evictedPlugin = pluginID
-		evictedID = id
+		evicted <- evictEvent{pluginID: pluginID, id: id}
 	})
 
 	if err := svc.RegisterLocal(context.Background(), "plugin-a", "r", "socks5", localConnID, local); err != nil {
 		t.Fatalf("RegisterLocal: %v", err)
 	}
 
-	deadline := time.Now().Add(2 * time.Second)
-	for svc.HasLocal(localConnID) {
-		if time.Now().After(deadline) {
-			t.Fatal("entry still present after pre-bind timeout")
+	// The evict hook fires last inside evictPreBindLocal, after the
+	// tunnel.localClose notification, so receiving from it establishes a
+	// happens-before relationship with the notification above.
+	select {
+	case ev := <-evicted:
+		if ev.pluginID != "plugin-a" || ev.id != localConnID {
+			t.Fatalf("evict hook = (%q, %q), want (plugin-a, %q)", ev.pluginID, ev.id, localConnID)
 		}
-		time.Sleep(10 * time.Millisecond)
+	case <-time.After(2 * time.Second):
+		t.Fatal("pre-bind eviction did not fire")
 	}
 
-	if closeNotified != 1 {
-		t.Fatalf("tunnel.localClose notifications = %d, want 1", closeNotified)
+	if len(notifications) != 1 {
+		t.Fatalf("tunnel.localClose notifications = %d, want 1", len(notifications))
 	}
-	if evictedPlugin != "plugin-a" || evictedID != localConnID {
-		t.Fatalf("evict hook = (%q, %q), want (plugin-a, %q)", evictedPlugin, evictedID, localConnID)
+	got := <-notifications
+	if got.localConnID != localConnID {
+		t.Fatalf("localConnId = %q, want %q", got.localConnID, localConnID)
+	}
+	if got.pluginID != "plugin-a" {
+		t.Fatalf("pluginID = %q, want plugin-a", got.pluginID)
 	}
 }
 

@@ -27,6 +27,7 @@ type PlannedFileDTO struct {
 // TransferPlanDTO is the wire form of usecase.TransferPlan.
 type TransferPlanDTO struct {
 	Kind    string           `json:"kind"`
+	OpID    string           `json:"opID"`
 	DestDir string           `json:"destDir"`
 	Dirs    []string         `json:"dirs"`
 	Files   []PlannedFileDTO `json:"files"`
@@ -68,7 +69,7 @@ func transferPlanToDTO(plan *usecase.TransferPlan) TransferPlanDTO {
 	if plan == nil {
 		return TransferPlanDTO{}
 	}
-	dto := TransferPlanDTO{Kind: plan.Kind, DestDir: plan.DestDir, Dirs: plan.Dirs}
+	dto := TransferPlanDTO{Kind: plan.Kind, OpID: plan.OpID, DestDir: plan.DestDir, Dirs: plan.Dirs}
 	dto.Files = make([]PlannedFileDTO, 0, len(plan.Files))
 	for _, f := range plan.Files {
 		fd := PlannedFileDTO{
@@ -91,7 +92,7 @@ func transferPlanToDTO(plan *usecase.TransferPlan) TransferPlanDTO {
 
 // dtoToTransferPlan reconstructs a usecase plan from its wire form.
 func dtoToTransferPlan(dto TransferPlanDTO) *usecase.TransferPlan {
-	plan := &usecase.TransferPlan{Kind: dto.Kind, DestDir: dto.DestDir, Dirs: dto.Dirs}
+	plan := &usecase.TransferPlan{Kind: dto.Kind, OpID: dto.OpID, DestDir: dto.DestDir, Dirs: dto.Dirs}
 	plan.Files = make([]usecase.PlannedFile, 0, len(dto.Files))
 	for _, fd := range dto.Files {
 		f := usecase.PlannedFile{

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { transfers, type TransferItem, type OperationKind } from '../stores/appState';
+  import { transfers, clearFinishedTransfers, type TransferItem, type OperationKind } from '../stores/appState';
   import { uploadFile, downloadFile, cancelTransfer } from '../api/remoteFs';
   import { selectLocalFile, selectLocalDirectory } from '../api/localFs';
   import { Upload, Download, ChevronDown, ChevronRight, X, RefreshCw, Trash2, Lock, User } from 'lucide-svelte';
@@ -7,37 +7,31 @@
   import { onMount } from 'svelte';
   import { createRateTracker } from './transferRate';
   import { formatBytesPerSec } from './formatBytes';
+  import { kindLabel, showsRate, isScanning as isScanningState } from './transferPresentation';
 
   const KIND_ICON: Record<OperationKind, ComponentType> = {
     upload: Upload,
     download: Download,
+    localcopy: Upload, // a local copy places files, same as an upload — reuse the icon
     delete: Trash2,
     chmod: Lock,
     chown: User,
-  };
-
-  const KIND_LABEL: Record<OperationKind, string> = {
-    upload: 'Upload',
-    download: 'Download',
-    delete: 'Delete',
-    chmod: 'chmod',
-    chown: 'chown',
   };
 
   function kindIcon(kind: OperationKind): ComponentType {
     return KIND_ICON[kind] ?? Upload;
   }
 
-  // A remote operation (delete/chmod/chown) is still scanning when it is active
-  // and no total is known yet; show a live scan counter instead of a percentage.
+  // An operation is still scanning when it is active and no total is known
+  // yet; show a live scan counter instead of a percentage/indeterminate bar.
+  // This holds regardless of kind — see transferPresentation.ts.
   function isScanning(item: TransferItem): boolean {
-    return item.state === 'active' && item.total <= 0
-      && (item.kind === 'delete' || item.kind === 'chmod' || item.kind === 'chown');
+    return isScanningState(item.state, item.total);
   }
 
   function progressText(item: TransferItem): string {
     if (isScanning(item)) return item.done > 0 ? `Scanning ${item.done}…` : 'Scanning…';
-    return isIndeterminate(item) ? '…' : progressPercent(item) + '%';
+    return progressPercent(item) + '%';
   }
 
   export let sessionId: string;
@@ -53,8 +47,9 @@
   $: activeTransfers = $transfers.filter(t => t.sessionId === sessionId || !t.sessionId);
 
   // Byte-rate estimation lives in the presentation layer (see transferRate.ts).
-  // Only byte transfers (upload/download) have a meaningful rate; remote ops
-  // (delete/chmod/chown) and scanning do not.
+  // Only byte transfers (upload/download/localcopy) have a meaningful rate;
+  // remote ops (delete/chmod/chown) and scanning do not — see showsRate in
+  // transferPresentation.ts.
   //
   // Sampling is driven by a fixed tick rather than the progress-event stream:
   // events arrive many times per second, which made the displayed speed
@@ -75,7 +70,7 @@
     const next: Record<string, string> = {};
     const active = new Set<string>();
     for (const t of activeTransfers) {
-      if ((t.kind === 'upload' || t.kind === 'download') && t.state === 'active') {
+      if (showsRate(t.kind, t.state)) {
         active.add(t.id);
         const text = formatBytesPerSec(rateTracker.sample(t.id, t.done, now));
         if (text) next[t.id] = text;
@@ -109,13 +104,13 @@
         try {
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('Operation completed', {
-              body: `${KIND_LABEL[t.kind] ?? 'Operation'}: ${t.remotePath}`,
+              body: `${kindLabel(t.kind)}: ${t.remotePath}`,
             });
           } else if ('Notification' in window && Notification.permission !== 'denied') {
             Notification.requestPermission().then(p => {
               if (p === 'granted') {
                 new Notification('Transfer completed', {
-                  body: `${t.direction === 'upload' ? 'Upload' : 'Download'}: ${t.remotePath}`,
+                  body: `${kindLabel(t.kind)}: ${t.remotePath}`,
                 });
               }
             });
@@ -126,6 +121,15 @@
   }
 
   $: hasActive = activeTransfers.length > 0;
+
+  // Closing the panel clears finished history (keeping any in-progress items)
+  // and folds the panel away. prevCount is realigned so the grow-detector above
+  // doesn't read the shrink as a brand-new batch and re-open.
+  function closePanel() {
+    clearFinishedTransfers();
+    dismissed = true;
+    prevCount = $transfers.filter(t => t.sessionId === sessionId || !t.sessionId).length;
+  }
 
   async function startUpload() {
     const localPath = await selectLocalFile();
@@ -148,10 +152,6 @@
     return Math.round((item.done / item.total) * 100);
   }
 
-  function isIndeterminate(item: TransferItem): boolean {
-    return item.total <= 0 && item.state === 'active';
-  }
-
   function getLocalDir(item: TransferItem): string {
     const p = item.localPath;
     const sep = p.includes('\\') ? '\\' : '/';
@@ -160,9 +160,19 @@
     return p.slice(0, idx) || sep;
   }
 
+  // Retry re-issues the original single-path call, so it needs both real paths.
+  // Only the single-path transfer API fills localPath; a planned batch leaves it
+  // empty and puts a caption ("3 items") in remotePath, which must never be sent
+  // back as a path. canRetry gates the button on exactly that.
+  function canRetry(item: TransferItem): boolean {
+    return !!item.sessionId && !!item.localPath
+      && (item.kind === 'upload' || item.kind === 'download')
+      && (item.state === 'failed' || item.state === 'cancelled');
+  }
+
   async function retryTransfer(item: TransferItem) {
-    if (!item.sessionId) return;
-    if (item.direction === 'upload') {
+    if (!canRetry(item)) return;
+    if (item.kind === 'upload') {
       await uploadFile(item.sessionId, item.localPath, item.remotePath);
     } else {
       const localDir = getLocalDir(item);
@@ -204,7 +214,7 @@
       <div class="actions" on:click|stopPropagation on:keydown|stopPropagation>
         <!-- <button on:click={startUpload} title="Upload file"><Upload size={11} /> Upload</button>
         <button on:click={startDownload} title="Download file"><Download size={11} /> Download</button> -->
-        <button class="cancel-btn" on:click={() => dismissed = true} title="Close"><X size={13} /></button>
+        <button class="cancel-btn" on:click={closePanel} title="Close"><X size={13} /></button>
       </div>
     </div>
 
@@ -213,20 +223,20 @@
         {#each activeTransfers as item (item.id)}
           <div class="transfer-item" class:completed={item.state === 'completed'} class:failed={item.state === 'failed'} class:cancelled={item.state === 'cancelled'}>
             <div class="transfer-info">
-              <span class="transfer-direction" title={KIND_LABEL[item.kind] ?? ''}>
+              <span class="transfer-direction" title={kindLabel(item.kind)}>
                 <svelte:component this={kindIcon(item.kind)} size={11} />
               </span>
               <span class="transfer-path">{item.remotePath}</span>
               <span class="transfer-state">{stateLabel(item)}</span>
               {#if item.state === 'active' || item.state === 'pending'}
                 <button class="cancel-btn" on:click={() => cancelTransfer(item.id)} title="Cancel"><X size={10} /></button>
-              {:else if (item.state === 'failed' || item.state === 'cancelled') && item.sessionId && (item.kind === 'upload' || item.kind === 'download')}
+              {:else if canRetry(item)}
                 <button class="retry-btn" on:click={() => retryTransfer(item)} title="Retry"><RefreshCw size={10} /></button>
               {/if}
             </div>
             {#if item.state === 'active'}
-              <div class="progress-bar" class:indeterminate={isIndeterminate(item) || isScanning(item)}>
-                <div class="progress-fill" style="width: {(isIndeterminate(item) || isScanning(item)) ? 100 : progressPercent(item)}%"></div>
+              <div class="progress-bar" class:indeterminate={isScanning(item)}>
+                <div class="progress-fill" style="width: {isScanning(item) ? 100 : progressPercent(item)}%"></div>
               </div>
               <div class="progress-text">
                 {#if speeds[item.id]}<span class="progress-speed">{speeds[item.id]}</span>{/if}

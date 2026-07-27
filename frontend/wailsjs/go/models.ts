@@ -579,6 +579,7 @@ export namespace wails {
 	}
 	export class TransferPlanDTO {
 	    kind: string;
+	    opID: string;
 	    destDir: string;
 	    dirs: string[];
 	    files: PlannedFileDTO[];
@@ -590,6 +591,7 @@ export namespace wails {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.kind = source["kind"];
+	        this.opID = source["opID"];
 	        this.destDir = source["destDir"];
 	        this.dirs = source["dirs"];
 	        this.files = this.convertValues(source["files"], PlannedFileDTO);

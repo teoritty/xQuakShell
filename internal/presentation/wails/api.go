@@ -8,7 +8,6 @@ import (
 
 	"xquakshell/internal/domain"
 	domainplugin "xquakshell/internal/domain/plugin"
-	"xquakshell/internal/infra/loghub"
 	"xquakshell/internal/presentation/logwindow"
 	"xquakshell/internal/usecase"
 )
@@ -24,6 +23,7 @@ type AppAPI struct {
 	transferSvc                 *usecase.TransferService
 	transferPlanner             *usecase.TransferPlanner
 	remoteOpSvc                 *usecase.RemoteOpService
+	cancels                     *usecase.CancelRegistry // shared by planner, executor and remote ops: one id space, one registry
 	hostKeys                    *usecase.HostKeyService
 	remoteFS                    *usecase.RemoteFSService
 	localFS                     *usecase.LocalFSService
@@ -43,6 +43,7 @@ type AppAPI struct {
 	embedBridge                 *usecase.PluginEmbedBridge
 	forwardRules                *usecase.ForwardRuleValidator
 	logWindow                   *logwindow.Manager
+	logLevel                    domain.LogLevelController
 }
 
 // NewAppAPI creates a new AppAPI with the given dependencies.
@@ -75,6 +76,7 @@ func NewAppAPI(
 	forwardConnLimiterFactory func() domain.ConcurrencyLimiter,
 	pinger domain.Pinger,
 	sshAuth *usecase.SSHAuthWiring,
+	logLevel domain.LogLevelController,
 ) *AppAPI {
 	pingMgr := usecase.NewPingManager(connRepo, domain.DefaultPingSettings(), pingLimiter, pinger)
 	var pluginFieldsSvc *usecase.PluginFieldsService
@@ -101,6 +103,7 @@ func NewAppAPI(
 		pingMgr:      pingMgr,
 		plugins:      pluginMgr,
 		settingsSvc:  usecase.NewSettingsService(vaultRepo, lockoutMgr, pingMgr),
+		logLevel:     logLevel,
 	}
 
 	smCfg := usecase.SessionManagerConfig{
@@ -148,9 +151,10 @@ func NewAppAPI(
 	}
 
 	api.auditSvc = usecase.NewAuditService(auditLogRepo, api.settingsSvc, api.sessions, connRepo, trackerFactory, sanitizerFactory)
-	api.transferSvc = usecase.NewTransferService(api.sessions, api.settingsSvc, hostFS, transferLimiter)
-	api.transferPlanner = usecase.NewTransferPlanner(api.sessions, hostFS)
-	api.remoteOpSvc = usecase.NewRemoteOpService(api.sessions)
+	api.cancels = usecase.NewCancelRegistry()
+	api.transferSvc = usecase.NewTransferService(api.sessions, api.settingsSvc, hostFS, transferLimiter, api.cancels)
+	api.transferPlanner = usecase.NewTransferPlanner(api.sessions, hostFS, api.cancels)
+	api.remoteOpSvc = usecase.NewRemoteOpService(api.sessions, api.cancels)
 	api.hostKeys = usecase.NewHostKeyService(knownHosts, api.sessions)
 	api.remoteFS = usecase.NewRemoteFSService(api.sessions)
 	api.localFS = usecase.NewLocalFSService(usecase.LocalFSServiceConfig{
@@ -344,7 +348,9 @@ func (a *AppAPI) UnlockVault(masterPassword string) error {
 				}
 			})
 		}
-		loghub.SetLevel(loghub.ParseLevel(data.Settings.Debug.LogLevel))
+		if a.logLevel != nil {
+			a.logLevel.SetLevel(data.Settings.Debug.LogLevel)
+		}
 		a.SyncDebugLogWindow(data.Settings.Debug.LogWindowEnabled)
 	}
 

@@ -3,13 +3,13 @@ package usecase
 import (
 	"context"
 	"io"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
 	"xquakshell/internal/domain"
 	domainplugin "xquakshell/internal/domain/plugin"
-	"xquakshell/internal/pkg/logx"
 	"xquakshell/internal/pkg/safego"
 )
 
@@ -177,7 +177,7 @@ func (b *ChannelExecBackend) Wire(ctx context.Context, ch *domainplugin.ChannelH
 	// Captured here, not read inside the goroutine below: the id is what lets a per-process
 	// notifier route this close to the right channel (D8).
 	channelID := ch.ChannelID()
-	log := logx.For("plugin.channel").With("pluginId", b.pluginID, "channelId", channelID)
+	log := slog.With("component", "plugin.channel", "pluginId", b.pluginID, "channelId", channelID)
 
 	safego.GoNamed("plugin.channelExecInbound", func() {
 		for {

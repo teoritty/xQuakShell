@@ -228,7 +228,15 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	if ln, lnErr := net.Listen("tcp", "127.0.0.1:0"); lnErr != nil {
 		slog.Warn("embed: loopback broker listener unavailable; embed tunnels disabled", "err", lnErr)
 	} else {
-		srv := &http.Server{Handler: compositeAssets}
+		// No WriteTimeout/ReadTimeout: this server also serves WebSocket upgrades for embed
+		// tunnels (broker_handler.go), and either deadline would sever those long-lived
+		// connections. ReadHeaderTimeout and IdleTimeout are safe for upgraded connections and
+		// still bound unauthenticated connections that never send a request.
+		srv := &http.Server{
+			Handler:           compositeAssets,
+			ReadHeaderTimeout: 5 * time.Second,
+			IdleTimeout:       60 * time.Second,
+		}
 		safego.GoNamed("embed.loopbackBroker", func() { _ = srv.Serve(ln) })
 		embedTunnels.SetBaseURL("http://" + ln.Addr().String())
 		slog.Info("embed: loopback broker listening", "addr", ln.Addr().String())

@@ -26,11 +26,19 @@ type Conn struct {
 	reader      *bufio.Reader
 	writeCloser io.Closer
 	readCloser  io.Closer
-	pending     map[string]chan messageResult
-	nextID      atomic.Int64
-	onNotify    func(method string, params json.RawMessage)
-	onRequest   RequestHandler
-	mux         *channelMux
+	// pending maps an in-flight request id to its size-1 reply channel. Ownership
+	// invariant: whoever removes an entry from pending under c.mu becomes that
+	// channel's sole sender, and does the send outside the lock. Call never removes
+	// an entry to claim ownership — its deferred delete only cleans up the no-answer
+	// path (ctx expired before dispatch or failReadLoop ever claimed the entry) and
+	// must stay a no-op everywhere else. Breaking this invariant reintroduces a real
+	// deadlock: two senders racing a size-1 buffered channel, one of them inside
+	// failReadLoop while holding c.mu.
+	pending   map[string]chan messageResult
+	nextID    atomic.Int64
+	onNotify  func(method string, params json.RawMessage)
+	onRequest RequestHandler
+	mux       *channelMux
 	// channelThroughputKbps is the manifest's channel.maxThroughputKbps for this plugin,
 	// applied to every channel this conn opens.
 	channelThroughputKbps int
@@ -92,6 +100,10 @@ func (c *Conn) Call(ctx context.Context, method string, params json.RawMessage) 
 	c.pending[key] = ch
 	c.mu.Unlock()
 
+	// Cleanup for the no-answer path only: if a dispatch or failReadLoop already
+	// claimed this channel, the entry is gone and this delete is a no-op. Never
+	// remove it — it is what keeps an abandoned pending entry from leaking when
+	// ctx expires before any response arrives.
 	defer func() {
 		c.mu.Lock()
 		delete(c.pending, key)
@@ -208,11 +220,13 @@ func (c *Conn) readLoop() {
 				_ = c.enc.WriteMessage(NewErrorResponse(*msg.ID, RPCError{Code: -32600, Message: "Invalid Request"}))
 				continue
 			}
+			key := msg.ID.Key()
 			c.mu.Lock()
-			ch, ok := c.pending[msg.ID.Key()]
+			ch, ok := c.pending[key]
+			delete(c.pending, key) // ownership transfers here, under the same lock
 			c.mu.Unlock()
 			if ok {
-				ch <- messageResult{msg: msg}
+				ch <- messageResult{msg: msg} // buffer is guaranteed empty: sole sender
 				continue
 			}
 			if msg.Method != "" && c.onRequest != nil {
@@ -248,11 +262,16 @@ func (c *Conn) failReadLoop(err error, isParseError bool) {
 	}
 	c.mu.Lock()
 	c.readErr = err
-	for id, ch := range c.pending {
-		ch <- messageResult{err: err}
-		delete(c.pending, id)
-	}
+	pending := c.pending
+	c.pending = make(map[string]chan messageResult)
 	c.mu.Unlock()
+
+	// Outside the lock. Ownership of every entry transferred to us the instant we swapped
+	// the map out above, so each channel has exactly one sender here — the send can't block
+	// forever even if Call already gave up on it via ctx.Done() and nobody is left to read.
+	for _, ch := range pending {
+		ch <- messageResult{err: err}
+	}
 }
 
 func (c *Conn) handleIncomingRequest(id RPCID, method string, params json.RawMessage) {

@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"path"
 	"path/filepath"
 
 	"xquakshell/internal/domain"
@@ -15,16 +16,24 @@ import (
 // chmod/chown) — see Kind. TECH DEBT: the "Transfer" naming (this type, the
 // Wails event, and the frontend store) is kept for pragmatic reuse; a future
 // refactor should rename these to a generic "Operation" vocabulary.
+//
+// Two fields describe "where", and they are deliberately not interchangeable:
+//
+//   - RefreshDir is machine-readable and always a path. It is the single
+//     authoritative answer to "which directory must the UI reload when this
+//     finishes", and every emitter fills it — the frontend has no fallback.
+//   - RemotePath is a human-readable caption for the panel row. It is often
+//     path-shaped, but for a batch it reads "3 items", so it must never be
+//     parsed as a path.
 type TransferProgress struct {
-	ID         string
-	SessionID  string
-	Kind       string // "upload" | "download" | "delete" | "chmod" | "chown"
-	Direction  string
-	LocalPath  string
+	ID        string
+	SessionID string
+	Kind      string // "upload" | "download" | "localcopy" | "delete" | "chmod" | "chown"
+	LocalPath string
+	// RemotePath is a display caption only — see the type comment.
 	RemotePath string
-	// RefreshDir is the destination directory the UI should reload when the
-	// operation finishes. RemotePath may be a human label for batches ("3
-	// items"), so it must never be parsed as a path; prefer this field.
+	// RefreshDir is the directory the UI reloads when the operation finishes.
+	// Always a path, never empty — see the type comment.
 	RefreshDir string
 	Done       int64
 	Total      int64
@@ -36,24 +45,33 @@ type TransferProgressFunc func(TransferProgress)
 
 // TransferService orchestrates SFTP uploads and downloads with concurrency limits.
 type TransferService struct {
-	sessions *SessionManager
+	// sessions is the same narrow port TransferPlanner and RemoteOpService
+	// depend on — resolving a session's remote FS and context is all this
+	// service needs from the session registry.
+	sessions remoteOpSessionPort
 	settings *SettingsService
 	hostFS   domain.HostFileSystem
 	limiter  domain.ConcurrencyLimiter
-	cancels  *cancelRegistry
+	cancels  *CancelRegistry
 }
 
-// NewTransferService creates a transfer orchestrator.
-func NewTransferService(sessions *SessionManager, settings *SettingsService, hostFS domain.HostFileSystem, limiter domain.ConcurrencyLimiter) *TransferService {
+// NewTransferService creates a transfer orchestrator. cancels is the
+// application-wide registry shared with the planner and RemoteOpService: the op
+// id of a drop is minted by the planner and handed to this service, so both
+// phases must resolve it in the same map.
+func NewTransferService(sessions remoteOpSessionPort, settings *SettingsService, hostFS domain.HostFileSystem, limiter domain.ConcurrencyLimiter, cancels *CancelRegistry) *TransferService {
 	if limiter == nil {
 		panic("usecase: TransferService requires ConcurrencyLimiter")
+	}
+	if cancels == nil {
+		panic("usecase: TransferService requires CancelRegistry")
 	}
 	return &TransferService{
 		sessions: sessions,
 		settings: settings,
 		hostFS:   hostFS,
 		limiter:  limiter,
-		cancels:  newCancelRegistry(),
+		cancels:  cancels,
 	}
 }
 
@@ -98,11 +116,6 @@ func (s *TransferService) Download(ctx context.Context, sessionID, remotePath, l
 		return s.downloadRecursive(ctx, sessionID, remotePath, localTarget, onProgress)
 	}
 	return s.downloadFile(ctx, sessionID, remotePath, resolvedDir, onProgress)
-}
-
-// Cancel aborts an active transfer by ID. Returns true if a transfer was found.
-func (s *TransferService) Cancel(transferID string) bool {
-	return s.cancels.Cancel(transferID)
 }
 
 func (s *TransferService) maxConcurrent() int {
@@ -151,11 +164,14 @@ func (s *TransferService) uploadFile(parentCtx context.Context, sessionID, local
 	s.cancels.Register(transferID, cancel)
 	defer s.cancels.Unregister(transferID)
 
+	// The file lands *in* the remote parent directory, so that is what the tree
+	// must reload. Remote paths are POSIX, hence path.Dir rather than filepath.
+	refreshDir := path.Dir(remotePath)
 	progress := func(done, total int64) {
 		if onProgress != nil {
 			onProgress(TransferProgress{
-				ID: transferID, SessionID: sessionID, Kind: "upload", Direction: "upload",
-				LocalPath: localPath, RemotePath: remotePath,
+				ID: transferID, SessionID: sessionID, Kind: "upload",
+				LocalPath: localPath, RemotePath: remotePath, RefreshDir: refreshDir,
 				Done: done, Total: total, State: "active",
 			})
 		}
@@ -178,8 +194,8 @@ func (s *TransferService) uploadFile(parentCtx context.Context, sessionID, local
 	}
 	if onProgress != nil {
 		onProgress(TransferProgress{
-			ID: transferID, SessionID: sessionID, Kind: "upload", Direction: "upload",
-			LocalPath: localPath, RemotePath: remotePath,
+			ID: transferID, SessionID: sessionID, Kind: "upload",
+			LocalPath: localPath, RemotePath: remotePath, RefreshDir: refreshDir,
 			Done: 0, Total: 0, State: state,
 		})
 	}
@@ -203,11 +219,14 @@ func (s *TransferService) uploadRecursive(parentCtx context.Context, sessionID, 
 	s.cancels.Register(transferID, cancel)
 	defer s.cancels.Unregister(transferID)
 
+	// UploadRecursive creates remoteDir itself, so the new folder appears in the
+	// parent listing — that is the directory to reload.
+	refreshDir := path.Dir(remoteDir)
 	progress := func(done, total int64) {
 		if onProgress != nil {
 			onProgress(TransferProgress{
-				ID: transferID, SessionID: sessionID, Kind: "upload", Direction: "upload",
-				LocalPath: localDir, RemotePath: remoteDir,
+				ID: transferID, SessionID: sessionID, Kind: "upload",
+				LocalPath: localDir, RemotePath: remoteDir, RefreshDir: refreshDir,
 				Done: done, Total: total, State: "active",
 			})
 		}
@@ -228,8 +247,8 @@ func (s *TransferService) uploadRecursive(parentCtx context.Context, sessionID, 
 	}
 	if onProgress != nil {
 		onProgress(TransferProgress{
-			ID: transferID, SessionID: sessionID, Kind: "upload", Direction: "upload",
-			LocalPath: localDir, RemotePath: remoteDir,
+			ID: transferID, SessionID: sessionID, Kind: "upload",
+			LocalPath: localDir, RemotePath: remoteDir, RefreshDir: refreshDir,
 			Done: 0, Total: 0, State: state,
 		})
 	}
@@ -253,11 +272,14 @@ func (s *TransferService) downloadRecursive(parentCtx context.Context, sessionID
 	s.cancels.Register(transferID, cancel)
 	defer s.cancels.Unregister(transferID)
 
+	// Download created localDir (see Download above), so the reload target is the
+	// host directory that now contains it.
+	refreshDir := filepath.Dir(localDir)
 	progress := func(done, total int64) {
 		if onProgress != nil {
 			onProgress(TransferProgress{
-				ID: transferID, SessionID: sessionID, Kind: "download", Direction: "download",
-				LocalPath: localDir, RemotePath: remoteDir,
+				ID: transferID, SessionID: sessionID, Kind: "download",
+				LocalPath: localDir, RemotePath: remoteDir, RefreshDir: refreshDir,
 				Done: done, Total: total, State: "active",
 			})
 		}
@@ -278,8 +300,8 @@ func (s *TransferService) downloadRecursive(parentCtx context.Context, sessionID
 	}
 	if onProgress != nil {
 		onProgress(TransferProgress{
-			ID: transferID, SessionID: sessionID, Kind: "download", Direction: "download",
-			LocalPath: localDir, RemotePath: remoteDir,
+			ID: transferID, SessionID: sessionID, Kind: "download",
+			LocalPath: localDir, RemotePath: remoteDir, RefreshDir: refreshDir,
 			Done: 0, Total: 0, State: state,
 		})
 	}
@@ -309,11 +331,14 @@ func (s *TransferService) downloadFile(parentCtx context.Context, sessionID, rem
 	s.cancels.Register(transferID, cancel)
 	defer s.cancels.Unregister(transferID)
 
+	// The file lands in the directory the user picked, which is localPath's
+	// parent after the base name was appended above.
+	refreshDir := filepath.Dir(localPath)
 	progress := func(done, total int64) {
 		if onProgress != nil {
 			onProgress(TransferProgress{
-				ID: transferID, SessionID: sessionID, Kind: "download", Direction: "download",
-				LocalPath: localPath, RemotePath: remotePath,
+				ID: transferID, SessionID: sessionID, Kind: "download",
+				LocalPath: localPath, RemotePath: remotePath, RefreshDir: refreshDir,
 				Done: done, Total: total, State: "active",
 			})
 		}
@@ -335,8 +360,8 @@ func (s *TransferService) downloadFile(parentCtx context.Context, sessionID, rem
 	}
 	if onProgress != nil {
 		onProgress(TransferProgress{
-			ID: transferID, SessionID: sessionID, Kind: "download", Direction: "download",
-			LocalPath: localPath, RemotePath: remotePath,
+			ID: transferID, SessionID: sessionID, Kind: "download",
+			LocalPath: localPath, RemotePath: remotePath, RefreshDir: refreshDir,
 			Done: 0, Total: 0, State: state,
 		})
 	}

@@ -133,7 +133,7 @@ func waitTerminal(t *testing.T, c *collector) TransferProgress {
 }
 
 func TestRemoteOpDeleteReportsAccurateTotal(t *testing.T) {
-	svc := NewRemoteOpService(&fakeOpSessions{fs: &fakeRemoteFS{count: 10}})
+	svc := NewRemoteOpService(&fakeOpSessions{fs: &fakeRemoteFS{count: 10}}, NewCancelRegistry())
 	c := newCollector()
 
 	if err := svc.Delete("s1", "/tmp/big", c.fn); err != nil {
@@ -159,7 +159,8 @@ func TestRemoteOpDeleteReportsAccurateTotal(t *testing.T) {
 }
 
 func TestRemoteOpDeleteCancellation(t *testing.T) {
-	svc := NewRemoteOpService(&fakeOpSessions{fs: &fakeRemoteFS{count: 100000, perItemWait: 200 * time.Microsecond}})
+	cancels := NewCancelRegistry()
+	svc := NewRemoteOpService(&fakeOpSessions{fs: &fakeRemoteFS{count: 100000, perItemWait: 200 * time.Microsecond}}, cancels)
 	c := newCollector()
 
 	if err := svc.Delete("s1", "/tmp/huge", c.fn); err != nil {
@@ -179,10 +180,10 @@ func TestRemoteOpDeleteCancellation(t *testing.T) {
 			opID = ev[0].ID
 		}
 	}
-	if !svc.Cancel(opID) {
+	if !cancels.Cancel(opID) {
 		// Operation may have a brief window before registration; retry once.
 		time.Sleep(5 * time.Millisecond)
-		svc.Cancel(opID)
+		cancels.Cancel(opID)
 	}
 
 	final := waitTerminal(t, c)
@@ -194,7 +195,7 @@ func TestRemoteOpDeleteCancellation(t *testing.T) {
 func TestRemoteOpDeletePropagatesResolveError(t *testing.T) {
 	// A session that fails to resolve returns the error synchronously.
 	failing := &failingOpSessions{err: errors.New("no session")}
-	svc := NewRemoteOpService(failing)
+	svc := NewRemoteOpService(failing, NewCancelRegistry())
 	if err := svc.Delete("s1", "/x", func(TransferProgress) {}); err == nil {
 		t.Fatal("expected synchronous error when session cannot be resolved")
 	}

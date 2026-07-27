@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import type { RemoteNode, TransferItem } from '../stores/appState';
+  import type { RemoteNode } from '../stores/appState';
   import { listPath, removePath, mkdirPath, createFilePath, renamePath, downloadFile } from '../api/remoteFs';
   import { startUploadDrop } from '../actions/transferActions';
   import { getTempDir, openFileWithSystem, startFileWatch } from '../api/localFs';
@@ -16,7 +16,8 @@
   import PermissionsDialog from './PermissionsDialog.svelte';
   import OverflowToolbar from './OverflowToolbar.svelte';
   import { buildFilePanelToolbarItems, cycleSortState, type SortKey } from './filePanelToolbar';
-  import { Loader2, ChevronUp } from 'lucide-svelte';
+  import { refreshesRemotePane, remoteRefreshDirs } from './transferPresentation';
+  import { Loader2, ChevronUp, X } from 'lucide-svelte';
 
   const STORAGE_KEY = 'filetree-show-columns';
   const STORAGE_HIDDEN = 'filetree-show-hidden';
@@ -179,32 +180,16 @@
     tree = tree;
   }
 
-  // The directory a finished operation affected. Batches report it explicitly;
-  // single-path operations only carry the path itself, so derive its parent.
-  function remoteDestDir(t: TransferItem): string {
-    return t.refreshDir || t.remotePath.replace(/\/[^/]+$/, '') || '/';
-  }
-
-  $: if (ready && $transferCompleted?.direction === 'upload' && $transferCompleted?.sessionId === sessionId) {
+  // An operation that touched this session's remote tree finished (or was
+  // partially applied — delete/chmod/chown mutate even on failure, which is why
+  // subscribe.ts signals them on any terminal state). Which directories went
+  // stale is answered entirely by refreshDir, the backend's machine-readable
+  // path; remotePath is a caption ("3 items") and is never parsed.
+  $: if (ready && $transferCompleted
+      && refreshesRemotePane($transferCompleted.kind, $transferCompleted.sessionId, sessionId)) {
     const t = $transferCompleted;
     transferCompleted.set(null);
-    refreshPreservingState([remoteDestDir(t), currentPath]);
-  }
-
-  // Remote operations (delete/chmod/chown) finished (or partially applied) —
-  // refresh the affected directory so the tree reflects the new state.
-  $: if (ready && $transferCompleted && $transferCompleted.sessionId === sessionId
-      && (($transferCompleted.kind === 'delete') || ($transferCompleted.kind === 'chmod') || ($transferCompleted.kind === 'chown'))) {
-    const t = $transferCompleted;
-    transferCompleted.set(null);
-    const affectedParent = remoteDestDir(t);
-    // For delete the path itself is gone, so listing it would fail ("file does
-    // not exist"); only its parent and the current dir need refreshing. For
-    // chmod/chown the path still exists and its own listing must be refreshed.
-    const paths = t.kind === 'delete'
-      ? [affectedParent, currentPath]
-      : [affectedParent, t.remotePath, currentPath];
-    refreshPreservingState(paths);
+    refreshPreservingState([...remoteRefreshDirs(t.kind, t.refreshDir), currentPath]);
   }
 
   function formatSize(size: number): string {
@@ -490,13 +475,30 @@
     const trimmed = pathInput.trim();
     if (!trimmed) return;
     const normalized = trimmed.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '') || '/';
-    currentPath = normalized.startsWith('/') ? normalized : `/${normalized}`;
-    await loadDir(currentPath);
-    if (!expanded.has(currentPath)) {
-      expanded.add(currentPath);
-      expanded = expanded;
+    const nextPath = normalized.startsWith('/') ? normalized : `/${normalized}`;
+    const prevPath = currentPath;
+    // Fetch first: only commit navigation once the listing succeeds. A
+    // non-existent directory must leave the current view untouched. listPath
+    // normally swallows errors (returns []) and shows a global banner, which
+    // would let navigation proceed into an empty non-existent folder — so we
+    // opt into rethrow and surface the failure inline instead.
+    try {
+      const nodes = await listPath(sessionId, nextPath, { rethrow: true, silence: () => true });
+      rawTree.set(nextPath, nodes);
+      tree.set(nextPath, applySort(nodes));
+      currentPath = nextPath;
+      if (!expanded.has(currentPath)) {
+        expanded.add(currentPath);
+        expanded = expanded;
+      }
+      tree = tree;
+      error = '';
+    } catch (e: any) {
+      error = e?.message || String(e);
+      currentPath = prevPath;
+      pathInput = prevPath;
+      return;
     }
-    tree = tree;
   }
 
   let pathInput = '';
@@ -625,7 +627,10 @@
   {#if !ready}
     <div class="tree-loading"><Loader2 size={14} /> Connecting SFTP...</div>
   {:else if error}
-    <div class="tree-error">{error}</div>
+    <div class="tree-error">
+      <span class="tree-error-msg">{error}</span>
+      <button class="tree-error-close" title="Dismiss" on:click={() => (error = '')}><X size={12} /></button>
+    </div>
   {/if}
 
   <div
@@ -731,11 +736,37 @@
   }
 
   .tree-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     padding: 8px 10px;
     font-size: 11px;
     color: var(--danger);
     background: rgba(211, 47, 47, 0.1);
     border-bottom: 1px solid var(--border-color);
+  }
+
+  .tree-error-msg {
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+  }
+
+  .tree-error-close {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    color: var(--danger);
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+
+  .tree-error-close:hover {
+    background: rgba(211, 47, 47, 0.18);
   }
 
   .path-bar {

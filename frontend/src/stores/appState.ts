@@ -114,20 +114,20 @@ export interface RemoteNode {
 // long-running operation (upload/download plus delete/chmod/chown — see `kind`).
 // Kept for pragmatic reuse of the existing event→store→panel pipeline; a future
 // refactor should rename to a generic "Operation" vocabulary.
-export type OperationKind = 'upload' | 'download' | 'delete' | 'chmod' | 'chown';
+export type OperationKind = 'upload' | 'download' | 'localcopy' | 'delete' | 'chmod' | 'chown';
 
 export interface TransferItem {
   id: string;
   sessionId?: string;
   kind: OperationKind;
-  direction: 'upload' | 'download';
   localPath: string;
+  /** Display caption for the panel row. Often path-shaped, but a batch reads
+   *  "3 items" — never parse it as a path; use refreshDir. */
   remotePath: string;
-  /** Destination directory to reload when the operation finishes. Batch
-   *  operations set remotePath to a display label ("3 items"), so it must not
-   *  be parsed as a path — use this instead, falling back to remotePath's
-   *  parent for single-path operations that don't set it. */
-  refreshDir?: string;
+  /** Directory to reload when the operation finishes. Always a real path and
+   *  always populated by the backend (every emitter fills it), which is why
+   *  there is no longer a fallback that derived it from remotePath. */
+  refreshDir: string;
   done: number;
   total: number;
   state: 'pending' | 'active' | 'completed' | 'failed' | 'cancelled';
@@ -158,6 +158,21 @@ export const sessions = writable<Session[]>([]);
 export const activeSessionId = writable<string>('');
 export const vaultUnlocked = writable<boolean>(false);
 export const transfers = writable<TransferItem[]>([]);
+
+/**
+ * Removes finished (completed/failed/cancelled) items from the transfers list,
+ * keeping in-progress (active/pending) ones. Used by the panel's close button so
+ * dismissing clears stale history instead of hiding it until the next event.
+ */
+export function clearFinishedTransfers(): void {
+  transfers.update((list) => list.filter((t) => t.state === 'active' || t.state === 'pending'));
+}
+
+// NOTE: there is deliberately no removeTransfer(id) here. An operation's panel
+// item belongs to the backend, which guarantees exactly one terminal event per
+// op id on every exit path; deleting an item locally races that event, which
+// would then re-create the item from scratch. The only way to retire a live
+// item from the UI is to ask the backend to close it (cancelTransfer).
 
 /** Emitted when a transfer completes; used to auto-refresh file trees. */
 export const transferCompleted = writable<TransferItem | null>(null);

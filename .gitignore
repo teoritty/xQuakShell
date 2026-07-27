@@ -1,5 +1,9 @@
 # --- Local AI / dev guidelines (not committed) ---
 AI_GUIDELINES.md
+AUDIT-*.md
+
+# --- Agent workflow scratch (not committed) ---
+.superpowers/
 
 # --- Build outputs ---
 build/bin/
