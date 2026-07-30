@@ -162,9 +162,6 @@ A channel's `parentSessionId` binding is one-directional: **the parent session o
 - Channel state is a small explicit machine — `opening → open → closing → closed` — with `close` idempotent on both sides: whichever side didn't initiate the close still needs to handle receiving `channel.close` for a channel it already considers closed as a no-op, not an error.
 - **After sending `channel.close`, the host ignores all further frames for that `channelId`; the plugin must consider the channel closed and stop sending on it.** This applies equally whether the close was initiated by normal completion (command exited) or by an external event (user closed the tab, cascading from session close) — the plugin does not get a grace window to flush additional data after receiving `channel.close`.
 
-## Protocol framing bootstrap
-
-There is no prior shipped version of this transport and no installed base of plugins speaking raw NDJSON to preserve — the project has no users yet and this API is still under active development. Given that, the framing bootstrap has a clean answer instead of a negotiated one: **framing is mandatory from the first byte, for every plugin, unconditionally.** There is no raw-NDJSON fallback mode and therefore no chicken-and-egg problem to solve — `initialize` is simply the first JSON-RPC message sent on `channelId = 0` inside an already-framed stream, like every other control-plane message. The `kind` byte range `0x01–0x0F` stays reserved for core-defined frame types so the format can grow additively later, but no per-plugin version negotiation is needed for v1 because there is nothing yet to be compatible or incompatible with.
 
 ## Implementation note: multiple `exec` channels over one SSH connection
 
