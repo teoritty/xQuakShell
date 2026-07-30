@@ -36,6 +36,7 @@ const (
 	CapAuth       CapabilityID = "auth"
 	CapTunnel     CapabilityID = "tunnel"
 	CapChannel    CapabilityID = "channel"
+	CapDiscovery  CapabilityID = "discovery"
 )
 
 // Feature identifiers, grouped by capability. Named Feat<Capability><Feature> because feature ids
@@ -65,6 +66,11 @@ const (
 	FeatTunnelDial FeatureID = "dial"
 
 	FeatChannelOpen FeatureID = "open"
+
+	// FeatDiscoveryPublish is the plugin->host discovery.publish notification (ADR-014).
+	FeatDiscoveryPublish FeatureID = "publish"
+	// FeatDiscoveryInvoke is the host->plugin discovery.invokeAction request (ADR-014).
+	FeatDiscoveryInvoke FeatureID = "invoke"
 )
 
 // DeprecationInfo records that a capability or one of its features is on its way out.
@@ -126,6 +132,7 @@ var hostRegistry = NewRegistry(map[CapabilityID]CapabilityDescriptor{
 	CapAuth:       {Version: "1.0.0", Features: []FeatureID{FeatAuthProvider}},
 	CapTunnel:     {Version: "1.0.0", Features: []FeatureID{FeatTunnelBind, FeatTunnelDial}},
 	CapChannel:    {Version: "1.0.0", Features: []FeatureID{FeatChannelOpen}},
+	CapDiscovery:  {Version: "1.0.0", Features: []FeatureID{FeatDiscoveryPublish, FeatDiscoveryInvoke}},
 })
 
 // HostRegistry returns the shared immutable host contract. No copy is made — the type has no

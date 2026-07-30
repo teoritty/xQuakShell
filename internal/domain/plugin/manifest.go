@@ -54,6 +54,8 @@ type CapabilitySet struct {
 	Auth    *AuthCaps    `json:"auth,omitempty"`
 	Tunnel  *TunnelCaps  `json:"tunnel,omitempty"`
 	Channel *ChannelCaps `json:"channel,omitempty"`
+	// Discovery declares the ability to draw resource subtrees inside connections (ADR-014).
+	Discovery *DiscoveryCaps `json:"discovery,omitempty"`
 }
 
 // NetworkCaps controls outbound connectivity.
@@ -113,6 +115,9 @@ type Contributions struct {
 	StatusBar           []StatusBarContribution          `json:"statusBar,omitempty"`
 	AuthMethods         []AuthMethodContribution         `json:"authMethods,omitempty"`
 	TunnelProviders     []TunnelProviderContribution     `json:"tunnelProviders,omitempty"`
+	// DiscoveryIcons registers the icon assets a discovery plugin's nodes may reference by ID
+	// (ADR-014). Meaningless without capabilities.discovery — see validateDiscoveryCaps.
+	DiscoveryIcons []DiscoveryIconContribution `json:"discoveryIcons,omitempty"`
 }
 
 // CommandContribution registers a command palette entry.

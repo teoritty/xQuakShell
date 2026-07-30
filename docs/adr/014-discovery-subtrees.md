@@ -94,6 +94,10 @@ Exceeding the children limit is truncation with `Truncated{Shown, Total}`, not a
 
 In the tree, there is exactly one subtree per connection, no matter how many tabs are open. But a plugin can only enumerate resources through an authenticated transport, so the host designates one **leading** session — the earliest one in `ready` state — and passes only that one as `sessionId`. If the leading session closes while others are still alive, the role passes to the next `ready` session, and branches get `stale` for the duration of the handover. If no `ready` session remains, the tree state is deleted: nothing is cached or persisted.
 
+## Manifest surface versioning
+
+Adding `discovery` to `hostRegistry` is purely additive — a new capability entry, own `Version` starting at `1.0.0` — and does not bump `PluginAPIVersion`: per ADR-012 the envelope version covers wire framing and the lifecycle/handshake, which are unchanged, and `TestAPISurfaceAdditiveOnly` already permits new capabilities within a major (it only fails a *removed or downgraded* one). `TestFrozenAPISurface`'s golden file was regenerated to include it after review.
+
 ## Security model
 
 - New manifest capability `discovery`; `discovery.publish` is gated by the same `Gate` that denies undeclared methods with `-32001` and writes to the audit log.
