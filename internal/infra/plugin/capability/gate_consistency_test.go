@@ -28,14 +28,15 @@ func TestFeatureVersionsReferenceRealFeatures(t *testing.T) {
 // hardcoded list to drift.
 func TestRegistryCapabilitiesAreGrantable(t *testing.T) {
 	allGranted := domainplugin.CapabilitySet{
-		Network: &domainplugin.NetworkCaps{},
-		FS:      &domainplugin.FSCaps{},
-		Events:  &domainplugin.EventCaps{},
-		Vault:   &domainplugin.VaultCaps{},
-		Session: &domainplugin.SessionCaps{},
-		Auth:    &domainplugin.AuthCaps{},
-		Tunnel:  &domainplugin.TunnelCaps{},
-		Channel: &domainplugin.ChannelCaps{},
+		Network:   &domainplugin.NetworkCaps{},
+		FS:        &domainplugin.FSCaps{},
+		Events:    &domainplugin.EventCaps{},
+		Vault:     &domainplugin.VaultCaps{},
+		Session:   &domainplugin.SessionCaps{},
+		Auth:      &domainplugin.AuthCaps{},
+		Tunnel:    &domainplugin.TunnelCaps{},
+		Channel:   &domainplugin.ChannelCaps{},
+		Discovery: &domainplugin.DiscoveryCaps{},
 	}
 	grantable := map[domainplugin.CapabilityID]bool{}
 	for _, id := range allGranted.GrantedCapabilityNames() {

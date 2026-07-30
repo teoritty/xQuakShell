@@ -1,6 +1,7 @@
 package plugin_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -58,8 +59,8 @@ func TestValidateDiscoveryCapsRejectsEmptyProtocolEntry(t *testing.T) {
 	m := baseDiscoveryManifest()
 	m.Contributions.DiscoveryIcons = nil
 	m.Capabilities.Discovery.ParentProtocols = []string{"ssh", "  "}
-	if err := m.ValidateCapabilities(); err == nil {
-		t.Fatal("expected empty protocol entry to be rejected")
+	if err := m.ValidateCapabilities(); err == nil || !strings.Contains(err.Error(), "parentProtocols") {
+		t.Fatalf("expected empty protocol entry to be rejected with a parentProtocols error, got %v", err)
 	}
 }
 
@@ -85,13 +86,30 @@ func TestValidateDiscoveryCapsRejectsTooManyIcons(t *testing.T) {
 	icons := make([]domainplugin.DiscoveryIconContribution, 65)
 	for i := range icons {
 		icons[i] = domainplugin.DiscoveryIconContribution{
-			ID:    "icon-" + string(rune('a'+i%26)) + string(rune('0'+i%10)),
+			ID:    fmt.Sprintf("icon-%d", i),
 			Asset: "ui/icons/icon.svg",
 		}
 	}
 	m.Contributions.DiscoveryIcons = icons
-	if err := m.ValidateCapabilities(); err == nil {
-		t.Fatal("expected more than 64 icons to be rejected")
+	if err := m.ValidateCapabilities(); err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("expected more than 64 icons to be rejected with an exceeds error, got %v", err)
+	}
+}
+
+// TestValidateDiscoveryCapsAcceptsExactlyMaxIcons pins the boundary: exactly 64 icons must pass,
+// so the "> 64" check in validateDiscoveryIcons cannot silently drift into "> 63" or "> 65".
+func TestValidateDiscoveryCapsAcceptsExactlyMaxIcons(t *testing.T) {
+	m := baseDiscoveryManifest()
+	icons := make([]domainplugin.DiscoveryIconContribution, 64)
+	for i := range icons {
+		icons[i] = domainplugin.DiscoveryIconContribution{
+			ID:    fmt.Sprintf("icon-%d", i),
+			Asset: "ui/icons/icon.svg",
+		}
+	}
+	m.Contributions.DiscoveryIcons = icons
+	if err := m.ValidateCapabilities(); err != nil {
+		t.Fatalf("expected exactly 64 icons to be accepted, got %v", err)
 	}
 }
 
@@ -133,8 +151,20 @@ func TestValidateDiscoveryCapsRejectsPathTraversal(t *testing.T) {
 	m.Contributions.DiscoveryIcons = []domainplugin.DiscoveryIconContribution{
 		{ID: "docker", Asset: "ui/../../../etc/passwd.svg"},
 	}
-	if err := m.ValidateCapabilities(); err == nil {
-		t.Fatal("expected path traversal in discoveryIcons asset to be rejected")
+	// Confirms the traversal is actually caught by the reused ValidateViewAssetEntry (its "must
+	// not contain .." message), not by some unrelated check further down the function.
+	if err := m.ValidateCapabilities(); err == nil || !strings.Contains(err.Error(), "..") {
+		t.Fatalf("expected path traversal to be rejected by ValidateViewAssetEntry, got %v", err)
+	}
+}
+
+func TestValidateDiscoveryCapsRejectsEmptyAsset(t *testing.T) {
+	m := baseDiscoveryManifest()
+	m.Contributions.DiscoveryIcons = []domainplugin.DiscoveryIconContribution{
+		{ID: "docker", Asset: ""},
+	}
+	if err := m.ValidateCapabilities(); err == nil || !strings.Contains(err.Error(), "asset is required") {
+		t.Fatalf("expected empty asset to be rejected with 'asset is required', got %v", err)
 	}
 }
 
@@ -149,6 +179,28 @@ func TestPermissionSummaryIncludesDiscoveryLine(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected discovery permission line, got %v", lines)
+	}
+}
+
+// TestDiscoveryCapabilityIsGrantable is a regression test for a real bug found in review:
+// GrantedCapabilityNames() initially had no branch for Discovery, so grantsCapability(CapDiscovery)
+// returned false even for a manifest that plainly declared capabilities.discovery — which made
+// requires.capabilities.discovery rejected as "requires capability that is not granted" and the
+// plugin uninstallable. This exercises the full path (grant + requires + Validate), not just
+// GrantedCapabilityNames in isolation, so a future regression here fails loudly.
+func TestDiscoveryCapabilityIsGrantable(t *testing.T) {
+	m := baseDiscoveryManifest()
+	m.Requires = &domainplugin.RequirementSet{
+		PluginAPI: "1.0.0",
+		Capabilities: map[domainplugin.CapabilityID]domainplugin.CapabilityRequirement{
+			domainplugin.CapDiscovery: {Min: "1.0.0", Features: []domainplugin.FeatureID{domainplugin.FeatDiscoveryPublish}},
+		},
+	}
+	if err := m.Validate(); err != nil {
+		t.Fatalf("expected discovery capability to be grantable and satisfiable, got %v", err)
+	}
+	if err := m.CheckHostCompatibility(); err != nil {
+		t.Fatalf("expected discovery requirement to be satisfied by the host, got %v", err)
 	}
 }
 

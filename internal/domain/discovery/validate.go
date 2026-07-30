@@ -3,6 +3,7 @@ package discovery
 import (
 	"errors"
 	"fmt"
+	"unicode/utf8"
 )
 
 // ErrInvalidNode indicates a discovery.publish snapshot violates the node contract (ADR-014).
@@ -20,6 +21,13 @@ var ErrInvalidNode = errors.New("invalid discovery node")
 // is truncation, a policy decision for the calling usecase layer, not a validation failure)
 // and does NOT check IconID against the manifest's declared icons (the domain package has no
 // knowledge of manifests; that check belongs to the capability layer).
+//
+// ValidatePublish does not mutate or return children: it measures Label/Tooltip length against
+// the SanitizeText'd form (so a string that is only too long because of stripped control
+// characters is accepted), but the original, unsanitized bytes are still sitting in the Node
+// the caller holds. A publish that passes this check is NOT yet safe to store or render —
+// callers MUST run every accepted node through SanitizeNode before doing anything with it
+// beyond validation.
 func ValidatePublish(parentID string, children []Node) error {
 	_ = parentID // reserved for a future envelope cross-check; not used by structural validation
 	seenIDs := make(map[string]struct{}, len(children))
@@ -39,7 +47,7 @@ func validateNode(node Node) error {
 	if node.ID == "" {
 		return fmt.Errorf("%w: node id is required", ErrInvalidNode)
 	}
-	if len(node.ID) > MaxIDLen {
+	if utf8.RuneCountInString(node.ID) > MaxIDLen {
 		return fmt.Errorf("%w: node %q id exceeds %d characters", ErrInvalidNode, node.ID, MaxIDLen)
 	}
 	if node.Kind != KindGroup && node.Kind != KindInstance {
@@ -49,7 +57,10 @@ func validateNode(node Node) error {
 	if label == "" {
 		return fmt.Errorf("%w: node %q label is required", ErrInvalidNode, node.ID)
 	}
-	if len(label) > MaxLabelLen {
+	// Limits are documented in runes (see limits.go), not bytes: a non-ASCII resource name
+	// (Cyrillic, CJK, ...) is ordinary input for a remote-resource tree and must not be
+	// penalized for using more bytes per character than ASCII.
+	if utf8.RuneCountInString(label) > MaxLabelLen {
 		return fmt.Errorf("%w: node %q label exceeds %d characters", ErrInvalidNode, node.ID, MaxLabelLen)
 	}
 	if err := validateStatus(node.ID, node.Status); err != nil {
@@ -68,7 +79,7 @@ func validateStatus(nodeID string, status *Status) error {
 	if !ValidColor(status.Color) {
 		return fmt.Errorf("%w: node %q has invalid status color %q", ErrInvalidNode, nodeID, status.Color)
 	}
-	if len(SanitizeText(status.Tooltip)) > MaxTooltipLen {
+	if utf8.RuneCountInString(SanitizeText(status.Tooltip)) > MaxTooltipLen {
 		return fmt.Errorf("%w: node %q status tooltip exceeds %d characters", ErrInvalidNode, nodeID, MaxTooltipLen)
 	}
 	return nil
@@ -82,6 +93,9 @@ func validateActions(node Node) error {
 	for _, action := range node.Actions {
 		if action.ID == "" {
 			return fmt.Errorf("%w: node %q has an action with an empty id", ErrInvalidNode, node.ID)
+		}
+		if utf8.RuneCountInString(action.ID) > MaxIDLen {
+			return fmt.Errorf("%w: node %q action id %q exceeds %d characters", ErrInvalidNode, node.ID, action.ID, MaxIDLen)
 		}
 		if _, dup := seenActionIDs[action.ID]; dup {
 			return fmt.Errorf("%w: node %q has duplicate action id %q", ErrInvalidNode, node.ID, action.ID)

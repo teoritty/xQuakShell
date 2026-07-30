@@ -72,6 +72,12 @@ func (m *Manifest) validateDiscoveryIcons() error {
 			return fmt.Errorf("%w: duplicate discoveryIcons id %q", ErrInvalidManifest, id)
 		}
 		seenIDs[id] = struct{}{}
+		// ValidateViewAssetEntry treats "" as "use the default ui/index.html" (a view-contribution
+		// convenience that makes no sense for an icon), so an empty asset must be rejected here,
+		// before it reaches that call, with a message that names the actual problem.
+		if strings.TrimSpace(icon.Asset) == "" {
+			return fmt.Errorf("%w: discoveryIcons id %q: asset is required", ErrInvalidManifest, id)
+		}
 		// Reuse the existing asset-path validator rather than writing a second one: both
 		// checks exist to keep a manifest-declared path from escaping the bundle's ui/ tree.
 		if err := ValidateViewAssetEntry(icon.Asset); err != nil {

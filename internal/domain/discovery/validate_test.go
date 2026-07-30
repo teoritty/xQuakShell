@@ -121,11 +121,41 @@ func TestValidatePublishRejectsTooLongLabel(t *testing.T) {
 	}
 }
 
+func TestValidatePublishAcceptsMaxLenLabel(t *testing.T) {
+	n := baseNode("a")
+	n.Label = strings.Repeat("x", discovery.MaxLabelLen)
+	if err := discovery.ValidatePublish("", []discovery.Node{n}); err != nil {
+		t.Fatalf("expected max-length label to be valid, got %v", err)
+	}
+}
+
+// TestValidatePublishCountsLabelInRunesNotBytes pins limits.go's documented unit: MaxLabelLen is
+// a rune count, not a byte count. A multi-byte (Cyrillic) label of exactly MaxLabelLen characters
+// is ~2x that many bytes and must still pass; len()-based counting would wrongly reject it.
+func TestValidatePublishCountsLabelInRunesNotBytes(t *testing.T) {
+	n := baseNode("a")
+	n.Label = strings.Repeat("щ", discovery.MaxLabelLen) // 2 bytes/rune in UTF-8
+	if len(n.Label) <= discovery.MaxLabelLen {
+		t.Fatalf("test setup invalid: label byte length %d should exceed MaxLabelLen %d", len(n.Label), discovery.MaxLabelLen)
+	}
+	if err := discovery.ValidatePublish("", []discovery.Node{n}); err != nil {
+		t.Fatalf("expected a label of exactly MaxLabelLen runes (over MaxLabelLen bytes) to be valid, got %v", err)
+	}
+}
+
 func TestValidatePublishRejectsTooLongTooltip(t *testing.T) {
 	n := baseNode("a")
 	n.Status = &discovery.Status{Tone: discovery.ToneOK, Tooltip: strings.Repeat("x", discovery.MaxTooltipLen+1)}
 	if err := discovery.ValidatePublish("", []discovery.Node{n}); !errors.Is(err, discovery.ErrInvalidNode) {
 		t.Fatalf("expected ErrInvalidNode for too-long tooltip, got %v", err)
+	}
+}
+
+func TestValidatePublishAcceptsMaxLenTooltip(t *testing.T) {
+	n := baseNode("a")
+	n.Status = &discovery.Status{Tone: discovery.ToneOK, Tooltip: strings.Repeat("x", discovery.MaxTooltipLen)}
+	if err := discovery.ValidatePublish("", []discovery.Node{n}); err != nil {
+		t.Fatalf("expected max-length tooltip to be valid, got %v", err)
 	}
 }
 
@@ -139,6 +169,16 @@ func TestValidatePublishRejectsTooManyActions(t *testing.T) {
 	}
 }
 
+func TestValidatePublishAcceptsMaxActions(t *testing.T) {
+	n := baseNode("a")
+	for i := 0; i < discovery.MaxActionsPerNode; i++ {
+		n.Actions = append(n.Actions, discovery.Action{ID: fmt.Sprintf("action-%d", i)})
+	}
+	if err := discovery.ValidatePublish("", []discovery.Node{n}); err != nil {
+		t.Fatalf("expected exactly MaxActionsPerNode actions to be valid, got %v", err)
+	}
+}
+
 func TestValidatePublishRejectsDuplicateActionID(t *testing.T) {
 	n := baseNode("a")
 	n.Actions = []discovery.Action{{ID: "start"}, {ID: "start"}}
@@ -148,11 +188,51 @@ func TestValidatePublishRejectsDuplicateActionID(t *testing.T) {
 	}
 }
 
+func TestValidatePublishRejectsEmptyActionID(t *testing.T) {
+	n := baseNode("a")
+	n.Actions = []discovery.Action{{ID: ""}}
+	if err := discovery.ValidatePublish("", []discovery.Node{n}); !errors.Is(err, discovery.ErrInvalidNode) {
+		t.Fatalf("expected ErrInvalidNode for empty action id, got %v", err)
+	}
+}
+
+// TestValidatePublishRejectsTooLongActionID pins that MaxIDLen applies to Action.ID as well as
+// Node.ID, per its own doc comment in limits.go ("bounds Node.ID and Action.ID").
+func TestValidatePublishRejectsTooLongActionID(t *testing.T) {
+	n := baseNode("a")
+	n.Actions = []discovery.Action{{ID: strings.Repeat("x", discovery.MaxIDLen+1)}}
+	if err := discovery.ValidatePublish("", []discovery.Node{n}); !errors.Is(err, discovery.ErrInvalidNode) {
+		t.Fatalf("expected ErrInvalidNode for too-long action id, got %v", err)
+	}
+}
+
+func TestValidatePublishAcceptsMaxLenActionID(t *testing.T) {
+	n := baseNode("a")
+	n.Actions = []discovery.Action{{ID: strings.Repeat("x", discovery.MaxIDLen)}}
+	if err := discovery.ValidatePublish("", []discovery.Node{n}); err != nil {
+		t.Fatalf("expected max-length action id to be valid, got %v", err)
+	}
+}
+
 func TestValidatePublishRejectsUnknownDefaultActionID(t *testing.T) {
 	n := baseNode("a")
 	n.Actions = []discovery.Action{{ID: "start"}}
 	n.DefaultActionID = "stop"
 	if err := discovery.ValidatePublish("", []discovery.Node{n}); !errors.Is(err, discovery.ErrInvalidNode) {
 		t.Fatalf("expected ErrInvalidNode for unknown defaultActionId, got %v", err)
+	}
+}
+
+// TestValidatePublishDoesNotRejectOversizeChildCount pins the ADR-014 invariant that exceeding
+// MaxChildrenPerPublish is truncation policy for the caller (TruncateChildren), never a
+// validation failure. Written so a future "helpful" child-count check added directly to
+// ValidatePublish fails this test instead of silently changing the contract.
+func TestValidatePublishDoesNotRejectOversizeChildCount(t *testing.T) {
+	children := make([]discovery.Node, discovery.MaxChildrenPerPublish+1)
+	for i := range children {
+		children[i] = baseNode(fmt.Sprintf("node-%d", i))
+	}
+	if err := discovery.ValidatePublish("", children); err != nil {
+		t.Fatalf("ValidatePublish must not reject a snapshot for exceeding MaxChildrenPerPublish (that is TruncateChildren's job), got %v", err)
 	}
 }
