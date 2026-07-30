@@ -30,7 +30,7 @@ Branch{State, Error, Truncated{Shown, Total}}
 State ∈ {loading, ready, error, stale}
 ```
 
-The split is normative: the host never writes to `Status`, and the plugin never sends `Branch.State = stale` or `Truncated`.
+The split is normative: the host never writes to `Status`, and the plugin never sends `Branch.State = stale` or `Truncated`. If a plugin's `discovery.publish` payload contains them anyway, the host **silently drops those fields and processes the rest of the snapshot** — this is not a protocol violation or a gate denial. Sending `Branch` fields is ordinary plugin-author carelessness, not an attack, and rejecting an otherwise-valid snapshot over one stray host-only field would be disproportionate: the children the plugin reported are still real and still shown.
 
 **Icons**: `IconID` may be set on a node at any depth. Inheritance from the nearest ancestor is a fallback only, used when a node did not set its own icon. So a `docker` group with its own icon, its `containers`/`images`/`volumes`/`networks` subgroups each with their own, and instances inside `volumes` inherit the `volumes` icon — not `docker`'s.
 
@@ -128,7 +128,9 @@ Mass actions: selection is limited to children of the same parent; an action is 
 
 ## References
 
+- [plugin-api.md](../plugin-api.md)
+- [plugin-manifest.md](../plugin-manifest.md)
+- [security-model.md](../security-model.md)
 - ADR-008 — Session embed surfaces
 - ADR-011 — Binary duplex channel bus (§Application to discovery)
 - ADR-012 — Plugin API versioning
-- `docs/plugin-api.md`, `docs/plugin-manifest.md`, `docs/security-model.md`

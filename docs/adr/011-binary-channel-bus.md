@@ -135,19 +135,16 @@ A `capabilities.session.embed` plugin for VNC/RDP:
 
 The `channel` capability described above (`exec`/`embed-stream`/`tcp-relay`/`udp-relay`) is implemented. The `discovery` manifest capability below is not: no discovery-specific capability exists on the plugin manifest today, and no discovery plugin ships. Its full contract — node model, the `discovery.observe`/`discovery.publish`/`discovery.invokeAction` verbs, limits, and security model — is specified in [ADR-014](014-discovery-subtrees.md); it remains a reasonable extension of the channel primitive described below, recorded here as the transport it will ride on, not as a shipped feature.
 
-Discovery would become a thin layer on top of the same primitive, plus one new manifest capability for the "produces child connections" part:
+Discovery is a thin layer on top of the same primitive, plus the `discovery` manifest capability ADR-014 defines:
 
 ```json
 "capabilities": {
-  "discovery": {
-    "parentProtocols": ["ssh"],
-    "childProtocol": "docker-shell"
-  },
+  "discovery": { "parentProtocols": ["ssh"] },
   "channel": { "purposes": ["exec"] }
 }
 ```
 
-- **Docker:** plugin opens an `exec` channel running `docker system dial-stdio` over the parent SSH session, speaks the Docker Engine API on that duplex stream to list containers, returns structured child-connection descriptors (`discovery.list` over JSON-RPC, unchanged shape from what we discussed earlier). Clicking a discovered container opens a *new* `exec` channel running `docker exec -it <id> sh`, wired to the session's terminal — architecturally identical to a normal SSH terminal session, just a different remote command.
+- **Docker:** plugin opens an `exec` channel running `docker system dial-stdio` over the parent SSH session, speaks the Docker Engine API on that duplex stream to list containers, and reports them to the host as discovery nodes via `discovery.publish` (ADR-014) — a group node per resource kind (`containers`/`images`/`volumes`/`networks`), an instance node per container. Clicking a discovered container's default action opens a *new* `exec` channel running `docker exec -it <id> sh`, wired to the session's terminal — architecturally identical to a normal SSH terminal session, just a different remote command, invoked through `discovery.invokeAction`.
 - **Kubernetes:** same shape — `exec` channel running `kubectl exec -it <pod> -- sh` (or port-forward for API-server access), no new core mechanism needed.
 - **Databases (Postgres/MySQL/Redis):** here the channel purpose is `tcp-relay` instead of `exec` — the host dials the DB port through the *existing* jump-host/tunnel chain (reusing `TunnelDialProxy`'s allowlisted dial, not a new mechanism), and the plugin speaks the DB wire protocol on top. A discovery plugin here could enumerate databases/schemas by running a query over that relayed connection.
 
