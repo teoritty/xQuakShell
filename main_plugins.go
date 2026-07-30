@@ -38,6 +38,8 @@ type pluginRuntime struct {
 	channelBus          *capability.ChannelBus
 	sessionRegistry     *sessionRegistryHolder
 	viewInbound         *usecase.PluginViewInbound
+	discoveryService    *usecase.DiscoveryService
+	discoveryLeader     *usecase.DiscoveryLeader
 	viewRelay           *usecase.PluginViewRelay
 	vaultInbound        *usecase.PluginVaultInbound
 	vaultSettings       *usecase.PluginVaultSettings
@@ -158,8 +160,31 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		return manager.ActiveSessionCount(pluginID) > 0
 	})
 
-	discovery := infraplugin.NewDiscovery(infraplugin.SearchPaths(deps.ExeDir, dataRoot))
-	if err := manager.DiscoverPlugins(discovery.Discover); err != nil {
+	// Discovery subtrees (ADR-014). The observer and the leader need each other — the observer must
+	// resolve a connection to its leading session, the leader must resend the observed set on
+	// handover — so the observer is built first and the leader pushed into it, the same late-binding
+	// shape the channel bus uses. onChange is nil until the presentation layer that emits tree
+	// updates to the frontend is wired.
+	discoveryStore := usecase.NewDiscoveryStore()
+	discoveryObserver := usecase.NewDiscoveryObserver(registry, manager)
+	discoveryLeader := usecase.NewDiscoveryLeader(sessionRegistry, discoveryStore, discoveryObserver, nil)
+	discoveryObserver.SetLeader(discoveryLeader)
+	discoveryService := usecase.NewDiscoveryService(
+		discoveryStore,
+		discoveryObserver,
+		usecase.NewDiscoveryPublishRouter(
+			discoveryStore, discoveryObserver, discoveryLeader,
+			usecase.NewDiscoveryPublishLimiter(nil),
+			usecase.NewDiscoveryEmitCoalescer(nil, nil, nil),
+		),
+		usecase.NewDiscoveryInvoker(discoveryStore, discoveryLeader, manager),
+	)
+	// A restarted plugin is told the whole observed set again; without this the level-triggered
+	// contract silently degrades into an edge-triggered one (ADR-014 §data flow).
+	manager.SetProcessStartedHandler(discoveryObserver.PluginStarted)
+
+	pluginDiscovery := infraplugin.NewDiscovery(infraplugin.SearchPaths(deps.ExeDir, dataRoot))
+	if err := manager.DiscoverPlugins(pluginDiscovery.Discover); err != nil {
 		log.Printf("WARNING: plugin discovery failed: %v", err)
 	}
 
@@ -263,6 +288,8 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		channelBus:          channelBus,
 		sessionRegistry:     sessionRegistry,
 		dynamicForward:      dynamicForward,
+		discoveryService:    discoveryService,
+		discoveryLeader:     discoveryLeader,
 		viewInbound:         viewInbound,
 		viewRelay:           viewRelay,
 		vaultInbound:        vaultInbound,
@@ -295,6 +322,7 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 	// here rather than exposing it, the same way it hands it to EmbedTunnelService above.
 	api.Sessions().WireChannelSessionRegistry(r.sessionRegistry.set)
 	api.Sessions().SetChannelBus(r.channelBus)
+	api.Sessions().SetDiscovery(r.discoveryLeader)
 	api.Sessions().SetDynamicForward(r.dynamicForward)
 	if r.dynamicForward != nil && r.vaultSettings != nil {
 		r.dynamicForward.SetTunnelGrantReader(r.vaultSettings)

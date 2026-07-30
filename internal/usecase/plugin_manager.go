@@ -39,6 +39,7 @@ type PluginManager struct {
 	startAudit        PluginStartAuditFunc
 	outboundAuthAudit OutboundAuthAuditFunc
 	stateChange       func(pluginID, state, sessionID string)
+	processStarted    func(pluginID string)
 	connChecker    PluginConnectionChecker
 
 	mu              sync.Mutex
@@ -277,11 +278,22 @@ func (m *PluginManager) SetStateChangeHandler(fn func(pluginID, state, sessionID
 	m.stateChange = fn
 }
 
+// SetProcessStartedHandler registers a host-internal observer of plugin process starts. It is
+// separate from SetStateChangeHandler, which belongs to presentation: this one exists so
+// level-triggered subscriptions (discovery's observed set, ADR-014) can be replayed to a plugin
+// that just came up, and that must not depend on whether a UI is listening.
+func (m *PluginManager) SetProcessStartedHandler(fn func(pluginID string)) {
+	m.processStarted = fn
+}
+
 func (m *PluginManager) emitStateChange(pluginID, state, sessionID string) {
 	// Single choke point for every lifecycle transition, so start/running/
 	// suspended/stopped/crashed are all visible in the debug log (previously
 	// they only reached the frontend state event).
 	slog.Info("plugin state change", "component", "plugin", "pluginId", pluginID, "state", state, "sessionId", sessionID)
+	if state == "running" && m.processStarted != nil {
+		m.processStarted(pluginID)
+	}
 	if m.stateChange != nil {
 		m.stateChange(pluginID, state, sessionID)
 	}

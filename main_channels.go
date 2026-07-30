@@ -50,6 +50,19 @@ func (h *sessionRegistryHolder) get() *usecase.SessionRegistry {
 	return h.r
 }
 
+// ProtocolForSession lets the discovery leader ask which protocol a session speaks (ADR-014
+// parentProtocols addressing) through the same push-me-later indirection the exec backend uses:
+// the leader is built with the plugin runtime, long before NewSessionManager creates the registry.
+// A miss simply means no plugin is addressable for that connection yet, which is the correct
+// answer while the session is still coming up.
+func (h *sessionRegistryHolder) ProtocolForSession(sessionID string) (string, bool) {
+	registry := h.get()
+	if registry == nil {
+		return "", false
+	}
+	return registry.ProtocolForSession(sessionID)
+}
+
 // channelCloseNotifiers holds one channel.close notifier per plugin process, so the two halves of
 // a cycle neither side can close over can meet.
 //

@@ -25,6 +25,7 @@ type SessionLifecycleService struct {
 	plugins         *PluginSessionBridge
 	embed           *EmbedTunnelService
 	channelBus      domainplugin.ChannelSessionCloser
+	discovery       DiscoverySessionTracker
 	dynamicForward  *DynamicForwardCoordinator
 	forwardRules    *ForwardRuleValidator
 	forwardLimiter  func() domain.ConcurrencyLimiter
@@ -77,6 +78,12 @@ func (s *SessionLifecycleService) SetEmbed(embed *EmbedTunnelService) {
 // coupling), mirroring SetEmbed's shape.
 func (s *SessionLifecycleService) SetChannelBus(bus domainplugin.ChannelSessionCloser) {
 	s.channelBus = bus
+}
+
+// SetDiscovery wires the discovery leader tracker for the session-close cascade (ADR-014
+// §Leading session), mirroring SetChannelBus's shape.
+func (s *SessionLifecycleService) SetDiscovery(tracker DiscoverySessionTracker) {
+	s.discovery = tracker
 }
 
 // OpenSession creates a new session for the given connection ID.
@@ -154,6 +161,12 @@ func (s *SessionLifecycleService) CloseSession(sessionID string) error {
 		// client, so closing the client first would sever them uncleanly instead of letting
 		// each backend tear down its own remote end via CloseRemote.
 		s.channelBus.CloseSession(sessionID)
+	}
+	if s.discovery != nil {
+		// Discovery outlives this session whenever another ready one remains — the tree belongs to
+		// the connection, not the tab — so this reports a departure and lets the leader decide
+		// between a handover and a teardown.
+		s.discovery.SessionClosed(sessionID, entry.connectionID)
 	}
 	if entry.sshClient != nil {
 		if err := entry.sshClient.Close(); err != nil {
@@ -359,6 +372,16 @@ func (s *SessionLifecycleService) updateState(entry *sessionEntry, state domain.
 		e.signalReadyIfTerminal(state)
 	}) {
 		return
+	}
+	if s.discovery != nil {
+		// Discovery cares about exactly one distinction: can this session still carry an
+		// enumeration, or not. Leaving ready is the same event as closing — there is no third case
+		// worth a branch here, and inventing one is how the two paths drift apart.
+		if state == domain.SessionReady {
+			s.discovery.SessionReady(sessionID, entry.connectionID)
+		} else {
+			s.discovery.SessionClosed(sessionID, entry.connectionID)
+		}
 	}
 	s.notifyStateChange(info)
 }

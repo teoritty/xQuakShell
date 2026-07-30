@@ -224,6 +224,27 @@ func (r *PluginRegistry) AuthMethodKind(pluginID, authMethodID string) (string, 
 	return "", fmt.Errorf("%w: auth method %s", domainplugin.ErrPluginNotFound, authMethodID)
 }
 
+// DiscoveryPlugins lists the plugins that declared capabilities.discovery, with the connection
+// protocols each one asked to be told about. Plugins without the capability are absent rather than
+// filtered later: the host must never address discovery.observe to a plugin that did not declare
+// it, and the cheapest way to guarantee that is to never put it in the list.
+func (r *PluginRegistry) DiscoveryPlugins() []DiscoveryPluginTarget {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var targets []DiscoveryPluginTarget
+	for id, p := range r.plugins {
+		caps := p.Manifest.Capabilities.Discovery
+		if caps == nil {
+			continue
+		}
+		targets = append(targets, DiscoveryPluginTarget{
+			PluginID:        id,
+			ParentProtocols: append([]string(nil), caps.ParentProtocols...),
+		})
+	}
+	return targets
+}
+
 // HasTunnelProvider reports whether the plugin declares tunnel.provider capability.
 func (r *PluginRegistry) HasTunnelProvider(pluginID string) (bool, error) {
 	plugin, err := r.Get(pluginID)
