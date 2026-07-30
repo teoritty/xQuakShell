@@ -68,12 +68,17 @@ type discoveryInvokePayload struct {
 // — stopping fifty containers — must not hold the request open for it; it acknowledges receipt,
 // moves the nodes to a busy status itself, and reports the outcome through an ordinary publish.
 // Partial success needs no protocol of its own: some nodes end up ok and others error.
-func (i *DiscoveryInvoker) InvokeAction(ctx context.Context, connectionID string, nodeIDs []string, actionID string) error {
+// pluginID is required, not inferred. Node IDs are plugin-chosen and each plugin gets its own tree,
+// so two plugins may legitimately publish a node called "containers" under one connection; picking
+// the owner by searching the trees would resolve such a collision by map iteration order, which in
+// Go is randomized — a destructive action would then reach the wrong plugin some fraction of the
+// time. The caller always knows whose subtree was clicked, because Snapshot is grouped by plugin,
+// so the addressee is stated rather than guessed.
+func (i *DiscoveryInvoker) InvokeAction(ctx context.Context, connectionID, pluginID string, nodeIDs []string, actionID string) error {
 	if len(nodeIDs) == 0 || len(nodeIDs) > discovery.MaxNodesPerInvoke {
 		return fmt.Errorf("%w: %d (allowed 1..%d)", ErrDiscoveryInvokeSize, len(nodeIDs), discovery.MaxNodesPerInvoke)
 	}
-	pluginID, err := i.store.ResolveAction(connectionID, nodeIDs, actionID)
-	if err != nil {
+	if err := i.store.CheckAction(connectionID, pluginID, nodeIDs, actionID); err != nil {
 		return err
 	}
 	sessionID, _, ok := i.leader.Leading(connectionID)
@@ -94,29 +99,24 @@ func (i *DiscoveryInvoker) InvokeAction(ctx context.Context, connectionID string
 	return nil
 }
 
-// ResolveAction finds the plugin that owns a selection and checks the action is legitimately
-// invocable on all of it, without contacting anybody.
+// CheckAction verifies an action is legitimately invocable on a selection of one named plugin's
+// nodes, without contacting anybody.
 //
 // It lives on the store because every question it asks — do these nodes exist, do they share a
 // parent, is the branch above them healthy — is a question about the tree, and the tree has one
 // owner.
-func (s *DiscoveryStore) ResolveAction(connID string, nodeIDs []string, actionID string) (string, error) {
+func (s *DiscoveryStore) CheckAction(connID, pluginID string, nodeIDs []string, actionID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for pluginID, tree := range s.conns[connID] {
-		if !tree.hasAll(nodeIDs) {
-			continue
-		}
-		if err := tree.checkAction(nodeIDs, actionID); err != nil {
-			return "", err
-		}
-		return pluginID, nil
-	}
+	tree, ok := s.conns[connID][pluginID]
 	// One missing node refuses the whole call. A selection is a set the user saw on screen; if part
 	// of it is already gone, the tree they acted on is not the tree that exists, and guessing which
 	// half they still meant is not the host's call to make.
-	return "", fmt.Errorf("%w: %v", ErrDiscoveryNodeNotFound, nodeIDs)
+	if !ok || !tree.hasAll(nodeIDs) {
+		return fmt.Errorf("%w: plugin %q, nodes %v", ErrDiscoveryNodeNotFound, pluginID, nodeIDs)
+	}
+	return tree.checkAction(nodeIDs, actionID)
 }
 
 func (t *discoveryTree) checkAction(nodeIDs []string, actionID string) error {

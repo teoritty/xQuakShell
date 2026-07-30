@@ -86,18 +86,32 @@ func (s *DiscoveryStore) ApplySnapshot(connID, pluginID, parentID string, state 
 
 // hostAcceptedBranchState maps a plugin-published branch state onto one the host will store.
 //
-// A plugin may only speak to what it observed: loading/ready/error. "stale" describes a host-side
-// leading-session handover the plugin cannot know about, so it is dropped — silently, per ADR-014:
-// it is plugin-author carelessness, not an attack, and refusing an otherwise-valid snapshot over
-// one stray host-only field would throw away children that are real and still worth showing. The
-// substitute is "ready" because the host did receive and apply a snapshot of children, which is
-// precisely what ready means. The log line is for the plugin author, not the user.
+// A plugin may only speak to what it observed: loading/ready/error. Anything else becomes "ready",
+// because the host did receive and apply a snapshot of children, which is precisely what ready
+// means — and because refusing an otherwise-valid snapshot would throw away children that are real
+// and still worth showing (ADR-014).
+//
+// The three rejected cases are genuinely different mistakes and are logged as such. Reporting a
+// missing state as "dropping a host-only field" would be a lie in two of the three, and the empty
+// case is the one worth separating hardest: a plugin that forgot the field entirely gets a branch
+// that renders as successfully loaded, so the log line is the only trace that anything was wrong.
 func hostAcceptedBranchState(pluginID, parentID string, state discovery.BranchState) discovery.BranchState {
 	if discovery.PluginMayPublishState(state) {
 		return state
 	}
-	slog.Warn("discovery: dropping host-only branch state from plugin publish",
-		"component", "discovery", "pluginId", pluginID, "nodeId", parentID, "state", string(state))
+	switch state {
+	case discovery.BranchStale:
+		// Host-only by construction: staleness describes a leading-session handover the plugin has
+		// no way to observe. Carelessness, not an attack.
+		slog.Warn("discovery: dropping host-only branch state from plugin publish",
+			"component", "discovery", "pluginId", pluginID, "nodeId", parentID, "state", string(state))
+	case "":
+		slog.Warn("discovery: publish omitted branch state, treating branch as ready",
+			"component", "discovery", "pluginId", pluginID, "nodeId", parentID)
+	default:
+		slog.Warn("discovery: publish carried an unknown branch state, treating branch as ready",
+			"component", "discovery", "pluginId", pluginID, "nodeId", parentID, "state", string(state))
+	}
 	return discovery.BranchReady
 }
 
@@ -120,7 +134,12 @@ func (s *DiscoveryStore) admitLocked(tree *discoveryTree, parentID string, child
 	for _, child := range kept {
 		if _, exists := tree.nodes[child.ID]; !exists {
 			if budget <= 0 {
-				break
+				// continue, not break: an exhausted budget only bars nodes that would cost
+				// something. A sibling already in the tree costs nothing and has no business being
+				// evicted by a newcomer it happens to be listed after. It also keeps the dropped
+				// set to new nodes only, which is what makes vanishingLocked(kept) and
+				// vanishingLocked(admitted) provably the same set rather than incidentally so.
+				continue
 			}
 			budget--
 		}

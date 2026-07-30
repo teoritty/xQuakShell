@@ -167,16 +167,18 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	// updates to the frontend is wired.
 	discoveryStore := usecase.NewDiscoveryStore()
 	discoveryObserver := usecase.NewDiscoveryObserver(registry, manager)
-	discoveryLeader := usecase.NewDiscoveryLeader(sessionRegistry, discoveryStore, discoveryObserver, nil)
+	// Pace is built before the leader because both the publish path and connection teardown need
+	// it, and teardown lives on the leader.
+	discoveryPace := usecase.NewDiscoveryPace(
+		usecase.NewDiscoveryPublishLimiter(nil),
+		usecase.NewDiscoveryEmitCoalescer(nil, nil, nil),
+	)
+	discoveryLeader := usecase.NewDiscoveryLeader(sessionRegistry, discoveryStore, discoveryObserver, discoveryPace, nil)
 	discoveryObserver.SetLeader(discoveryLeader)
 	discoveryService := usecase.NewDiscoveryService(
 		discoveryStore,
 		discoveryObserver,
-		usecase.NewDiscoveryPublishRouter(
-			discoveryStore, discoveryObserver, discoveryLeader,
-			usecase.NewDiscoveryPublishLimiter(nil),
-			usecase.NewDiscoveryEmitCoalescer(nil, nil, nil),
-		),
+		usecase.NewDiscoveryPublishRouter(discoveryStore, discoveryObserver, discoveryLeader, discoveryPace),
 		usecase.NewDiscoveryInvoker(discoveryStore, discoveryLeader, manager),
 	)
 	// A restarted plugin is told the whole observed set again; without this the level-triggered

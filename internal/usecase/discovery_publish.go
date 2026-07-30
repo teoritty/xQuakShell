@@ -33,16 +33,15 @@ func DecodeDiscoveryPublish(params json.RawMessage) (DiscoveryPublish, error) {
 // implies. It owns no state of its own; it is the order in which the four things that do get
 // touched, which is why it is worth a file rather than a few lines inside the facade.
 type DiscoveryPublishRouter struct {
-	store     *DiscoveryStore
-	observer  *DiscoveryObserver
-	leader    DiscoveryLeaderLookup
-	limiter   *DiscoveryPublishLimiter
-	coalescer *DiscoveryEmitCoalescer
+	store    *DiscoveryStore
+	observer *DiscoveryObserver
+	leader   DiscoveryLeaderLookup
+	pace     *DiscoveryPace
 }
 
 // NewDiscoveryPublishRouter creates a publish router.
-func NewDiscoveryPublishRouter(store *DiscoveryStore, observer *DiscoveryObserver, leader DiscoveryLeaderLookup, limiter *DiscoveryPublishLimiter, coalescer *DiscoveryEmitCoalescer) *DiscoveryPublishRouter {
-	return &DiscoveryPublishRouter{store: store, observer: observer, leader: leader, limiter: limiter, coalescer: coalescer}
+func NewDiscoveryPublishRouter(store *DiscoveryStore, observer *DiscoveryObserver, leader DiscoveryLeaderLookup, pace *DiscoveryPace) *DiscoveryPublishRouter {
+	return &DiscoveryPublishRouter{store: store, observer: observer, leader: leader, pace: pace}
 }
 
 // Apply routes one snapshot.
@@ -75,7 +74,7 @@ func (r *DiscoveryPublishRouter) Apply(ctx context.Context, pluginID string, pay
 			"component", "discovery", "pluginId", pluginID, "sessionId", payload.SessionID)
 		return nil
 	}
-	if !r.limiter.Allow(pluginID, connectionID) {
+	if !r.pace.AllowPublish(pluginID, connectionID) {
 		slog.Warn("discovery: publish rate limit exceeded, snapshot dropped",
 			"component", "discovery", "pluginId", pluginID, "connectionId", connectionID,
 			"limit", discovery.MaxPublishPerSecond)
@@ -94,8 +93,14 @@ func (r *DiscoveryPublishRouter) Apply(ctx context.Context, pluginID string, pay
 	if len(removed) > 0 {
 		r.observer.Retain(connectionID, removed)
 	}
-	r.coalescer.Submit(connectionID, payload.NodeID)
+	r.pace.Emit(connectionID, payload.NodeID)
 	return nil
+}
+
+// ForgetConnection drops the pace state a connection accumulated. Called from teardown, not from
+// the publish path.
+func (r *DiscoveryPublishRouter) ForgetConnection(connectionID string) {
+	r.pace.ForgetConnection(connectionID)
 }
 
 // leadingConnectionFor resolves a publish's sessionId to the connection it may write to, and only

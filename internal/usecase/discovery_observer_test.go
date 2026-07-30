@@ -1,6 +1,9 @@
 package usecase
 
 import (
+	"fmt"
+	"slices"
+	"sync"
 	"testing"
 
 	"xquakshell/internal/domain/discovery"
@@ -118,6 +121,59 @@ func TestObservedSetSurvivesUntilTheConnectionIsCleared(t *testing.T) {
 	}
 	if _, ok := branchesOfPlugin(h.service.Snapshot("c1"), "p1"); ok {
 		t.Fatal("no branches may survive a cleared connection")
+	}
+}
+
+// TestConcurrentObservedSetChangesLeavePluginsWithTheCurrentSet pins the ordering guarantee. The
+// set is read inside the per-connection send gate rather than captured before it, so whichever
+// caller sends last necessarily read the newest state. Without that, two callers can each read
+// their own version and deliver them in the opposite order, leaving the plugin watching a set the
+// host has abandoned — and the branch the user just expanded never fills.
+func TestConcurrentObservedSetChangesLeavePluginsWithTheCurrentSet(t *testing.T) {
+	h := newDiscoveryHarness(t)
+	h.sessionReady("s1", "c1")
+
+	const writers = 24
+	var wg sync.WaitGroup
+	for i := range writers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// Every writer publishes a different set, so a stale delivery is visible as a mismatch
+			// rather than hidden behind identical payloads.
+			h.service.SetObserved("c1", []string{"", fmt.Sprintf("n%d", i)})
+		}()
+	}
+	wg.Wait()
+
+	sent := h.notifier.toPlugin("p1")
+	if len(sent) == 0 {
+		t.Fatal("expected at least one observe")
+	}
+	delivered := sent[len(sent)-1].nodeIDs
+	current := h.observer.nodeIDs("c1")
+	if !slices.Equal(delivered, current) {
+		t.Fatalf("the plugin was left with %v while the host holds %v", delivered, current)
+	}
+}
+
+func TestRepeatedBroadcastWithoutAChangeSaysNothingTwice(t *testing.T) {
+	h := newDiscoveryHarness(t)
+	h.sessionReady("s1", "c1")
+	h.service.SetObserved("c1", []string{"", "a"})
+	h.notifier.reset()
+
+	// Nothing changed: an already-delivered version has nothing to say.
+	h.observer.ConnectionChanged("c1")
+	first := len(h.notifier.toPlugin("p1"))
+	h.notifier.reset()
+	h.service.SetObserved("c1", []string{"", "a"})
+
+	if first != 1 {
+		t.Fatalf("a handover must resend even an unchanged set, got %d", first)
+	}
+	if got := len(h.notifier.toPlugin("p1")); got != 1 {
+		t.Fatalf("an explicit SetObserved must always be delivered, got %d", got)
 	}
 }
 

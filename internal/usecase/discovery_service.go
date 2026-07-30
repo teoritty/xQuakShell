@@ -45,16 +45,18 @@ func (s *DiscoveryService) Publish(ctx context.Context, pluginID string, params 
 	return nil, s.ApplyPublish(ctx, pluginID, payload)
 }
 
-// InvokeAction relays a (possibly mass) action on nodes of a connection's tree.
-func (s *DiscoveryService) InvokeAction(ctx context.Context, connectionID string, nodeIDs []string, actionID string) error {
-	return s.invoker.InvokeAction(ctx, connectionID, nodeIDs, actionID)
+// InvokeAction relays a (possibly mass) action on nodes of one plugin's subtree. pluginID is
+// explicit because node IDs are only unique within a plugin's own tree; see DiscoveryInvoker.
+func (s *DiscoveryService) InvokeAction(ctx context.Context, connectionID, pluginID string, nodeIDs []string, actionID string) error {
+	return s.invoker.InvokeAction(ctx, connectionID, pluginID, nodeIDs, actionID)
 }
 
-// ClearConnection implements domainplugin.DiscoveryConnectionClearer, dropping both the tree and
-// the observed set that pointed into it.
+// ClearConnection implements domainplugin.DiscoveryConnectionClearer, dropping everything keyed by
+// the connection: the tree, the observed set that pointed into it, and its pace windows.
 func (s *DiscoveryService) ClearConnection(connectionID string) {
 	s.store.ClearConnection(connectionID)
 	s.observer.ClearConnection(connectionID)
+	s.publish.ForgetConnection(connectionID)
 }
 
 // Snapshot returns a connection's tree for rendering.

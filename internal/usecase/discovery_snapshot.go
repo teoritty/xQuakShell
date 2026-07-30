@@ -9,9 +9,12 @@ import (
 // DiscoveryNodeView is one node as a reader needs it: the plugin's own node plus the icon the host
 // resolved for it. Icon is computed here rather than by the frontend because resolution walks the
 // node's ancestors (discovery.ResolveIcon) and only the store holds that chain.
+//
+// The json tags are not decoration: discovery.Node and discovery.Branch carry camelCase tags, so an
+// untagged wrapper would hand the frontend PascalCase outer keys around camelCase inner ones.
 type DiscoveryNodeView struct {
-	Node discovery.Node
-	Icon string
+	Node discovery.Node `json:"node"`
+	Icon string         `json:"icon,omitempty"`
 }
 
 // DiscoveryPluginTreeView is one plugin's slice of a connection's tree. The read model keeps
@@ -21,17 +24,17 @@ type DiscoveryNodeView struct {
 // Nodes are ordered parents-first so a reader can build the tree in one pass. Branches is keyed by
 // node ID, with "" standing for the connection root.
 type DiscoveryPluginTreeView struct {
-	PluginID string
-	Nodes    []DiscoveryNodeView
-	Branches map[string]discovery.Branch
+	PluginID string                      `json:"pluginId"`
+	Nodes    []DiscoveryNodeView         `json:"nodes"`
+	Branches map[string]discovery.Branch `json:"branches"`
 }
 
 // DiscoverySnapshot is one connection's whole discovery tree, addressed the only way anything
 // outside the backend is addressed: by connectionID. No sessionID appears here or anywhere
 // downstream of it (ADR-014).
 type DiscoverySnapshot struct {
-	ConnectionID string
-	Plugins      []DiscoveryPluginTreeView
+	ConnectionID string                    `json:"connectionId"`
+	Plugins      []DiscoveryPluginTreeView `json:"plugins"`
 }
 
 // Snapshot returns a deep copy of a connection's tree for reading.
@@ -72,12 +75,27 @@ func (t *discoveryTree) viewNodes() []DiscoveryNodeView {
 			if !ok {
 				continue
 			}
-			views = append(views, DiscoveryNodeView{Node: node, Icon: discovery.ResolveIcon(node, t.ancestors(node))})
+			views = append(views, DiscoveryNodeView{Node: copyDiscoveryNode(node), Icon: discovery.ResolveIcon(node, t.ancestors(node))})
 			walk(id)
 		}
 	}
 	walk("")
 	return views
+}
+
+// copyDiscoveryNode detaches a stored node from the store's state. Assigning the struct alone would
+// still share Actions' backing array and the Status pointer with live state, which would make the
+// deep-copy promise on Snapshot false — and that promise is what a reader on another goroutine is
+// entitled to rely on.
+func copyDiscoveryNode(node discovery.Node) discovery.Node {
+	if node.Actions != nil {
+		node.Actions = append([]discovery.Action(nil), node.Actions...)
+	}
+	if node.Status != nil {
+		status := *node.Status
+		node.Status = &status
+	}
+	return node
 }
 
 func (t *discoveryTree) viewBranches() map[string]discovery.Branch {

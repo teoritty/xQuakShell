@@ -32,7 +32,8 @@ type DiscoveryLeader struct {
 	protocols DiscoverySessionProtocols
 	store     *DiscoveryStore
 	observer  *DiscoveryObserver
-	onChange  func(connectionID string)
+	pace      *DiscoveryPace
+	onChange  func(connectionID, nodeID string)
 
 	mu          sync.Mutex
 	conns       map[string]*discoveryConnection
@@ -48,12 +49,16 @@ type discoveryConnection struct {
 }
 
 // NewDiscoveryLeader creates a leader tracker. onChange may be nil while the presentation layer is
-// not wired; it is called when a handover or teardown changes what the frontend should render.
-func NewDiscoveryLeader(protocols DiscoverySessionProtocols, store *DiscoveryStore, observer *DiscoveryObserver, onChange func(connectionID string)) *DiscoveryLeader {
+// not wired; it is called when a handover or teardown changes what the frontend should render, with
+// "" for the node — a whole-connection change, addressed at the connection root like everywhere
+// else in this package. It bypasses the coalescer deliberately: a teardown deferred behind a 100 ms
+// window would leave the user looking at a tree that no longer exists.
+func NewDiscoveryLeader(protocols DiscoverySessionProtocols, store *DiscoveryStore, observer *DiscoveryObserver, pace *DiscoveryPace, onChange func(connectionID, nodeID string)) *DiscoveryLeader {
 	return &DiscoveryLeader{
 		protocols:   protocols,
 		store:       store,
 		observer:    observer,
+		pace:        pace,
 		onChange:    onChange,
 		conns:       make(map[string]*discoveryConnection),
 		sessionConn: make(map[string]string),
@@ -133,6 +138,10 @@ func (l *DiscoveryLeader) SessionClosed(sessionID, connectionID string) {
 			"component", "discovery", "connectionId", connectionID)
 		l.store.ClearConnection(connectionID)
 		l.observer.ClearConnection(connectionID)
+		// Pace state is keyed by connection too, and nothing else would ever drop it: without this
+		// a long-lived process accumulates one window per (plugin, connection) and per node it ever
+		// rendered, for connections that closed hours ago.
+		l.pace.ForgetConnection(connectionID)
 	case wasLeader:
 		slog.Info("discovery: leading session handover",
 			"component", "discovery", "connectionId", connectionID)
@@ -143,6 +152,12 @@ func (l *DiscoveryLeader) SessionClosed(sessionID, connectionID string) {
 		return
 	}
 	l.notifyChange(connectionID)
+}
+
+func (l *DiscoveryLeader) notifyChange(connectionID string) {
+	if l.onChange != nil {
+		l.onChange(connectionID, "")
+	}
 }
 
 // Leading returns the session a connection's discovery traffic must be addressed to, and that
@@ -175,12 +190,6 @@ func (l *DiscoveryLeader) Connections() []string {
 		ids = append(ids, connectionID)
 	}
 	return ids
-}
-
-func (l *DiscoveryLeader) notifyChange(connectionID string) {
-	if l.onChange != nil {
-		l.onChange(connectionID)
-	}
 }
 
 func indexOfReadySession(sessions []string, sessionID string) int {

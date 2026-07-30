@@ -52,7 +52,23 @@ type DiscoveryObserver struct {
 
 	mu       sync.Mutex
 	leader   DiscoveryLeaderLookup
-	observed map[string]map[string]struct{}
+	observed map[string]*discoveryObservedSet
+	// sending serializes outbound observes per connection. It is a SECOND lock, deliberately, and
+	// the only one held across a Notify: mu guards state and must never be held across an IPC call
+	// (ADR-009), but with nothing serializing the sends themselves, two goroutines that each read
+	// the set and then each send can deliver them in the opposite order, leaving a plugin watching
+	// a set the host has already moved on from. Per connection rather than global, so one plugin
+	// blocking in Notify cannot stall observes for every other connection.
+	sending map[string]*sync.Mutex
+}
+
+// discoveryObservedSet is one connection's expanded nodes plus a version that increments on every
+// change, and the highest version actually delivered. Reading the set and its version under one
+// acquisition is what lets a send that lost the race be dropped rather than overwrite a newer one.
+type discoveryObservedSet struct {
+	nodeIDs map[string]struct{}
+	version uint64
+	sent    uint64
 }
 
 // NewDiscoveryObserver creates an observer. The leader is bound afterwards with SetLeader because
@@ -62,7 +78,8 @@ func NewDiscoveryObserver(plugins DiscoveryPluginLookup, notifier DiscoveryNotif
 	return &DiscoveryObserver{
 		plugins:  plugins,
 		notifier: notifier,
-		observed: make(map[string]map[string]struct{}),
+		observed: make(map[string]*discoveryObservedSet),
+		sending:  make(map[string]*sync.Mutex),
 	}
 }
 
@@ -78,11 +95,13 @@ func (o *DiscoveryObserver) SetLeader(leader DiscoveryLeaderLookup) {
 // expanded now, and the host does not try to reconstruct that from a history of clicks.
 func (o *DiscoveryObserver) SetObserved(connectionID string, nodeIDs []string) {
 	o.mu.Lock()
-	set := make(map[string]struct{}, len(nodeIDs))
+	ids := make(map[string]struct{}, len(nodeIDs))
 	for _, id := range nodeIDs {
-		set[id] = struct{}{}
+		ids[id] = struct{}{}
 	}
-	o.observed[connectionID] = set
+	set := o.setLocked(connectionID)
+	set.nodeIDs = ids
+	set.version++
 	o.mu.Unlock()
 	o.broadcast(connectionID)
 }
@@ -97,10 +116,13 @@ func (o *DiscoveryObserver) Retain(connectionID string, removed []string) {
 	changed := false
 	if ok {
 		for _, id := range removed {
-			if _, watched := set[id]; watched {
-				delete(set, id)
+			if _, watched := set.nodeIDs[id]; watched {
+				delete(set.nodeIDs, id)
 				changed = true
 			}
+		}
+		if changed {
+			set.version++
 		}
 	}
 	o.mu.Unlock()
@@ -115,13 +137,24 @@ func (o *DiscoveryObserver) Retain(connectionID string, removed []string) {
 func (o *DiscoveryObserver) IsObserved(connectionID, nodeID string) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	_, ok := o.observed[connectionID][nodeID]
-	return ok
+	set, ok := o.observed[connectionID]
+	if !ok {
+		return false
+	}
+	_, watched := set.nodeIDs[nodeID]
+	return watched
 }
 
-// ConnectionChanged resends the current set for a connection. Called when the session carrying the
-// traffic changes, so the new leader's plugins learn what to watch.
+// ConnectionChanged resends the current set for a connection, called when the session carrying the
+// traffic changes so the new leader's plugins learn what to watch.
+//
+// It bumps the version even though the contents did not change: what is stale here is the delivery,
+// not the set, and a broadcast that skipped an already-delivered version would leave the new leader
+// knowing nothing.
 func (o *DiscoveryObserver) ConnectionChanged(connectionID string) {
+	o.mu.Lock()
+	o.setLocked(connectionID).version++
+	o.mu.Unlock()
 	o.broadcast(connectionID)
 }
 
@@ -131,6 +164,7 @@ func (o *DiscoveryObserver) ClearConnection(connectionID string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	delete(o.observed, connectionID)
+	delete(o.sending, connectionID)
 }
 
 // PluginStarted resends every connection's observed set to one plugin that has just (re)started.
@@ -153,42 +187,97 @@ func (o *DiscoveryObserver) PluginStarted(pluginID string) {
 			if target.PluginID != pluginID || !discoveryAddressable(target, protocol) {
 				continue
 			}
+			// Under the connection's send gate, reading the set inside it, so this resend cannot
+			// interleave with a broadcast and hand one plugin an older set than its peers. It
+			// leaves the delivered-version mark alone: reaching one plugin is not delivery.
+			gate := o.sendGate(connectionID)
+			gate.Lock()
 			o.send(target.PluginID, sessionID, o.nodeIDs(connectionID))
+			gate.Unlock()
 		}
 	}
 }
 
 // broadcast sends the connection's current set to every plugin the connection is addressable to.
 //
-// The observed set is read under the lock and the notifications go out after it is released. That
-// ordering is not incidental: Notify crosses an IPC boundary into another process, and holding a
-// state lock across it is how this codebase has produced deadlocks before (ADR-009).
+// The set is never captured before the send gate is taken. Reading it inside the gate is what makes
+// the last write win: whichever caller enters first publishes whatever the set says at that moment,
+// and any caller queued behind it finds that version already delivered and says nothing. The
+// alternative — capture the set, queue, then send — is exactly the interleaving that leaves a plugin
+// watching a set the host abandoned.
+//
+// mu is still never held across Notify. The gate orders sends; mu guards state. Two locks with two
+// jobs, and only the one that touches no state is held across IPC (ADR-009).
 func (o *DiscoveryObserver) broadcast(connectionID string) {
+	gate := o.sendGate(connectionID)
+	gate.Lock()
+	defer gate.Unlock()
+
 	o.mu.Lock()
 	leader := o.leader
+	set, tracked := o.observed[connectionID]
+	if leader == nil || !tracked || set.version <= set.sent {
+		o.mu.Unlock()
+		return
+	}
+	version := set.version
+	nodeIDs := sortedNodeIDs(set.nodeIDs)
 	o.mu.Unlock()
-	if leader == nil {
+
+	sessionID, protocol, live := leader.Leading(connectionID)
+	if !live {
+		// No ready session: nothing to address this to. The version stays unmarked, so the next
+		// leader still gets the set through ConnectionChanged.
 		return
 	}
-	sessionID, protocol, ok := leader.Leading(connectionID)
-	if !ok {
-		// No ready session: nothing to address the notification to. The set survives, and the next
-		// leader gets it through ConnectionChanged.
-		return
-	}
-	nodeIDs := o.nodeIDs(connectionID)
 	for _, target := range o.plugins.DiscoveryPlugins() {
 		if !discoveryAddressable(target, protocol) {
 			continue
 		}
 		o.send(target.PluginID, sessionID, nodeIDs)
 	}
+
+	o.mu.Lock()
+	if current, ok := o.observed[connectionID]; ok && current.sent < version {
+		current.sent = version
+	}
+	o.mu.Unlock()
+}
+
+// sendGate returns the connection's send lock, creating it on first use.
+func (o *DiscoveryObserver) sendGate(connectionID string) *sync.Mutex {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	gate, ok := o.sending[connectionID]
+	if !ok {
+		gate = &sync.Mutex{}
+		o.sending[connectionID] = gate
+	}
+	return gate
+}
+
+// setLocked returns the connection's observed set, creating an empty one on first use. Callers must
+// hold mu.
+func (o *DiscoveryObserver) setLocked(connectionID string) *discoveryObservedSet {
+	set, ok := o.observed[connectionID]
+	if !ok {
+		set = &discoveryObservedSet{nodeIDs: make(map[string]struct{})}
+		o.observed[connectionID] = set
+	}
+	return set
 }
 
 func (o *DiscoveryObserver) nodeIDs(connectionID string) []string {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	set := o.observed[connectionID]
+	set, ok := o.observed[connectionID]
+	if !ok {
+		return nil
+	}
+	return sortedNodeIDs(set.nodeIDs)
+}
+
+func sortedNodeIDs(set map[string]struct{}) []string {
 	ids := make([]string, 0, len(set))
 	for id := range set {
 		ids = append(ids, id)

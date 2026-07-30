@@ -64,15 +64,22 @@ func (f *fakeDiscoveryNotifier) toPlugin(pluginID string) []sentObserve {
 // only job in most tests is to prove it was NOT called.
 type fakeDiscoveryCaller struct {
 	mu    sync.Mutex
-	calls []discoveryInvokePayload
+	calls []recordedInvoke
 	err   error
 }
 
-func (f *fakeDiscoveryCaller) CallWithTimeout(_ context.Context, _, _ string, params json.RawMessage, _ time.Duration) (json.RawMessage, error) {
+// recordedInvoke keeps the addressee alongside the payload: which plugin a destructive action
+// reached is the thing worth asserting, and the payload alone cannot say.
+type recordedInvoke struct {
+	pluginID string
+	payload  discoveryInvokePayload
+}
+
+func (f *fakeDiscoveryCaller) CallWithTimeout(_ context.Context, pluginID, _ string, params json.RawMessage, _ time.Duration) (json.RawMessage, error) {
 	var payload discoveryInvokePayload
 	_ = json.Unmarshal(params, &payload)
 	f.mu.Lock()
-	f.calls = append(f.calls, payload)
+	f.calls = append(f.calls, recordedInvoke{pluginID: pluginID, payload: payload})
 	f.mu.Unlock()
 	return nil, f.err
 }
@@ -81,6 +88,19 @@ func (f *fakeDiscoveryCaller) count() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.calls)
+}
+
+// firstCall returns the first recorded call under the fake's own lock. Tests must not reach into
+// f.calls directly: the field is mutex-guarded, and a test that reads it bare is a template for the
+// next test that adds a goroutine and gets a false pass under -race.
+func (f *fakeDiscoveryCaller) firstCall(t *testing.T) recordedInvoke {
+	t.Helper()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.calls) == 0 {
+		t.Fatal("no plugin call was recorded")
+	}
+	return f.calls[0]
 }
 
 type fakeDiscoveryPlugins struct {
@@ -127,6 +147,7 @@ type discoveryHarness struct {
 	observer  *DiscoveryObserver
 	leader    *DiscoveryLeader
 	service   *DiscoveryService
+	pace      *DiscoveryPace
 	notifier  *fakeDiscoveryNotifier
 	caller    *fakeDiscoveryCaller
 	plugins   *fakeDiscoveryPlugins
@@ -134,8 +155,14 @@ type discoveryHarness struct {
 	clock     *fakeClock
 
 	mu     sync.Mutex
-	emits  []string
+	emits  []emittedChange
 	timers []func()
+}
+
+// emittedChange is what the frontend would receive: DiscoveryTreeChanged{connectionId, nodeId}.
+type emittedChange struct {
+	connectionID string
+	nodeID       string
 }
 
 func newDiscoveryHarness(t *testing.T, targets ...DiscoveryPluginTarget) *discoveryHarness {
@@ -152,22 +179,35 @@ func newDiscoveryHarness(t *testing.T, targets ...DiscoveryPluginTarget) *discov
 	}
 	h.store = NewDiscoveryStore()
 	h.observer = NewDiscoveryObserver(h.plugins, h.notifier)
-	h.leader = NewDiscoveryLeader(h.protocols, h.store, h.observer, h.recordEmit)
+	h.pace = NewDiscoveryPace(
+		NewDiscoveryPublishLimiter(h.clock.Now),
+		NewDiscoveryEmitCoalescer(h.recordEmit, h.clock.Now, h.schedule),
+	)
+	h.leader = NewDiscoveryLeader(h.protocols, h.store, h.observer, h.pace, h.recordEmit)
 	h.observer.SetLeader(h.leader)
-	coalescer := NewDiscoveryEmitCoalescer(h.recordEmit, h.clock.Now, h.schedule)
 	h.service = NewDiscoveryService(
 		h.store,
 		h.observer,
-		NewDiscoveryPublishRouter(h.store, h.observer, h.leader, NewDiscoveryPublishLimiter(h.clock.Now), coalescer),
+		NewDiscoveryPublishRouter(h.store, h.observer, h.leader, h.pace),
 		NewDiscoveryInvoker(h.store, h.leader, h.caller),
 	)
 	return h
 }
 
-func (h *discoveryHarness) recordEmit(connectionID string) {
+func (h *discoveryHarness) recordEmit(connectionID, nodeID string) {
 	h.mu.Lock()
-	h.emits = append(h.emits, connectionID)
+	h.emits = append(h.emits, emittedChange{connectionID: connectionID, nodeID: nodeID})
 	h.mu.Unlock()
+}
+
+func (h *discoveryHarness) lastEmit(t *testing.T) emittedChange {
+	t.Helper()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.emits) == 0 {
+		t.Fatal("no change was emitted")
+	}
+	return h.emits[len(h.emits)-1]
 }
 
 func (h *discoveryHarness) schedule(_ time.Duration, fn func()) {
@@ -200,6 +240,14 @@ func (h *discoveryHarness) sessionReady(sessionID, connectionID string) {
 	h.protocols.bySession[sessionID] = "ssh"
 	h.leader.SessionReady(sessionID, connectionID)
 	h.notifier.reset()
+}
+
+// publishAs routes a snapshot from a named plugin, for the tests that need more than one publisher.
+func (h *discoveryHarness) publishAs(t *testing.T, pluginID, sessionID, nodeID string, children ...discovery.Node) {
+	t.Helper()
+	if err := h.publish(t, pluginID, sessionID, nodeID, children...); err != nil {
+		t.Fatalf("publish %q as %q: %v", nodeID, pluginID, err)
+	}
 }
 
 func (h *discoveryHarness) publish(t *testing.T, pluginID, sessionID, nodeID string, children ...discovery.Node) error {

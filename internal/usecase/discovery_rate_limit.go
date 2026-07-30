@@ -15,6 +15,14 @@ import (
 // Time is injected in both. A limiter tested with time.Sleep is a limiter tested by guessing, and
 // the tests it produces are slow and flaky in equal measure.
 
+// discoveryPaceKey identifies one budgeted thing. It is a struct rather than a joined string so
+// that forgetting everything belonging to a connection is an exact field comparison, not a prefix
+// match over keys whose other half is plugin- or node-supplied.
+type discoveryPaceKey struct {
+	connectionID string
+	item         string
+}
+
 // DiscoveryPublishLimiter caps inbound discovery.publish at MaxPublishPerSecond per (plugin,
 // connection).
 //
@@ -27,7 +35,7 @@ type DiscoveryPublishLimiter struct {
 	now func() time.Time
 
 	mu      sync.Mutex
-	windows map[string]*discoveryPublishWindow
+	windows map[discoveryPaceKey]*discoveryPublishWindow
 }
 
 type discoveryPublishWindow struct {
@@ -40,12 +48,12 @@ func NewDiscoveryPublishLimiter(now func() time.Time) *DiscoveryPublishLimiter {
 	if now == nil {
 		now = time.Now
 	}
-	return &DiscoveryPublishLimiter{now: now, windows: make(map[string]*discoveryPublishWindow)}
+	return &DiscoveryPublishLimiter{now: now, windows: make(map[discoveryPaceKey]*discoveryPublishWindow)}
 }
 
 // Allow reports whether this publish fits within the current second's budget.
 func (l *DiscoveryPublishLimiter) Allow(pluginID, connectionID string) bool {
-	key := discoveryPaceKey(pluginID, connectionID)
+	key := discoveryPaceKey{connectionID: connectionID, item: pluginID}
 	at := l.now()
 
 	l.mu.Lock()
@@ -59,12 +67,16 @@ func (l *DiscoveryPublishLimiter) Allow(pluginID, connectionID string) bool {
 	return window.count <= discovery.MaxPublishPerSecond
 }
 
-// Forget drops a pair's window, so a closed connection or an uninstalled plugin does not leave an
-// entry behind for the process lifetime.
-func (l *DiscoveryPublishLimiter) Forget(pluginID, connectionID string) {
+// ForgetConnection drops every window belonging to a connection, so a closed connection does not
+// leave one entry per plugin behind for the lifetime of the process.
+func (l *DiscoveryPublishLimiter) ForgetConnection(connectionID string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	delete(l.windows, discoveryPaceKey(pluginID, connectionID))
+	for key := range l.windows {
+		if key.connectionID == connectionID {
+			delete(l.windows, key)
+		}
+	}
 }
 
 // DiscoveryEmitCoalescer limits frontend notifications to one per CoalesceInterval per node.
@@ -75,22 +87,27 @@ func (l *DiscoveryPublishLimiter) Forget(pluginID, connectionID string) {
 // and a plain drop would land on the floor, leaving the user staring at an intermediate tree with
 // nothing left to correct it.
 //
+// The emit names the node, not just the connection. Windows are per node, so a connection whose
+// branches are all filling at once produces one emit per branch; without the node a reader could
+// only redraw the whole tree each time, and the interval would end up bounding the number of events
+// rather than the amount of re-rendering it exists to bound.
+//
 // Both the clock and the timer are injected so a test can open the window on demand rather than
 // sleeping through it.
 type DiscoveryEmitCoalescer struct {
 	now   func() time.Time
 	after func(time.Duration, func())
-	emit  func(connectionID string)
+	emit  func(connectionID, nodeID string)
 
 	mu      sync.Mutex
-	last    map[string]time.Time
-	pending map[string]struct{}
+	last    map[discoveryPaceKey]time.Time
+	pending map[discoveryPaceKey]struct{}
 }
 
-// NewDiscoveryEmitCoalescer creates a coalescer that calls emit with the connection whose tree
-// changed. now defaults to time.Now and after to time.AfterFunc; emit may be nil while the
-// presentation layer that consumes these events is not wired.
-func NewDiscoveryEmitCoalescer(emit func(connectionID string), now func() time.Time, after func(time.Duration, func())) *DiscoveryEmitCoalescer {
+// NewDiscoveryEmitCoalescer creates a coalescer that calls emit with the connection and the node
+// whose branch changed. now defaults to time.Now and after to time.AfterFunc; emit may be nil while
+// the presentation layer that consumes these events is not wired.
+func NewDiscoveryEmitCoalescer(emit func(connectionID, nodeID string), now func() time.Time, after func(time.Duration, func())) *DiscoveryEmitCoalescer {
 	if now == nil {
 		now = time.Now
 	}
@@ -101,15 +118,15 @@ func NewDiscoveryEmitCoalescer(emit func(connectionID string), now func() time.T
 		now:     now,
 		after:   after,
 		emit:    emit,
-		last:    make(map[string]time.Time),
-		pending: make(map[string]struct{}),
+		last:    make(map[discoveryPaceKey]time.Time),
+		pending: make(map[discoveryPaceKey]struct{}),
 	}
 }
 
 // Submit records that a node's branch changed and emits now, or schedules one trailing emit for
-// when the node's window reopens.
+// when that node's window reopens.
 func (c *DiscoveryEmitCoalescer) Submit(connectionID, nodeID string) {
-	key := discoveryPaceKey(connectionID, nodeID)
+	key := discoveryPaceKey{connectionID: connectionID, item: nodeID}
 	at := c.now()
 
 	c.mu.Lock()
@@ -124,28 +141,75 @@ func (c *DiscoveryEmitCoalescer) Submit(connectionID, nodeID string) {
 		}
 		c.pending[key] = struct{}{}
 		c.mu.Unlock()
-		c.after(discovery.CoalesceInterval-elapsed, func() { c.flush(key, connectionID) })
+		c.after(discovery.CoalesceInterval-elapsed, func() { c.flush(key) })
 		return
 	}
 	c.last[key] = at
 	c.mu.Unlock()
-	c.notify(connectionID)
+	c.notify(connectionID, nodeID)
 }
 
-func (c *DiscoveryEmitCoalescer) flush(key, connectionID string) {
+// ForgetConnection drops every window belonging to a connection. A trailing emit already booked for
+// a forgotten key still fires, and harmlessly: it reports a change on a connection whose tree is
+// gone, which is precisely what a reader still showing that tree needs to hear.
+func (c *DiscoveryEmitCoalescer) ForgetConnection(connectionID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for key := range c.last {
+		if key.connectionID == connectionID {
+			delete(c.last, key)
+		}
+	}
+	for key := range c.pending {
+		if key.connectionID == connectionID {
+			delete(c.pending, key)
+		}
+	}
+}
+
+func (c *DiscoveryEmitCoalescer) flush(key discoveryPaceKey) {
 	c.mu.Lock()
 	delete(c.pending, key)
 	c.last[key] = c.now()
 	c.mu.Unlock()
-	c.notify(connectionID)
+	c.notify(key.connectionID, key.item)
 }
 
 // notify calls the frontend callback outside the lock. Holding it across an emit would put an
 // unknown amount of presentation work inside this type's critical section.
-func (c *DiscoveryEmitCoalescer) notify(connectionID string) {
+func (c *DiscoveryEmitCoalescer) notify(connectionID, nodeID string) {
 	if c.emit != nil {
-		c.emit(connectionID)
+		c.emit(connectionID, nodeID)
 	}
 }
 
-func discoveryPaceKey(left, right string) string { return left + "\x00" + right }
+// DiscoveryPace bundles the two controls so that everything a connection accrues in the name of
+// pacing has exactly one place to be forgotten.
+//
+// They were two fields on two different collaborators before, and the result was a ForgetConnection
+// that nothing called: a teardown had to remember two objects, so it remembered neither.
+type DiscoveryPace struct {
+	limiter   *DiscoveryPublishLimiter
+	coalescer *DiscoveryEmitCoalescer
+}
+
+// NewDiscoveryPace bundles a limiter and a coalescer.
+func NewDiscoveryPace(limiter *DiscoveryPublishLimiter, coalescer *DiscoveryEmitCoalescer) *DiscoveryPace {
+	return &DiscoveryPace{limiter: limiter, coalescer: coalescer}
+}
+
+// AllowPublish reports whether an inbound snapshot fits the plugin's budget for this connection.
+func (p *DiscoveryPace) AllowPublish(pluginID, connectionID string) bool {
+	return p.limiter.Allow(pluginID, connectionID)
+}
+
+// Emit reports that a node's branch changed, subject to coalescing.
+func (p *DiscoveryPace) Emit(connectionID, nodeID string) {
+	p.coalescer.Submit(connectionID, nodeID)
+}
+
+// ForgetConnection drops all pace state for a connection.
+func (p *DiscoveryPace) ForgetConnection(connectionID string) {
+	p.limiter.ForgetConnection(connectionID)
+	p.coalescer.ForgetConnection(connectionID)
+}
