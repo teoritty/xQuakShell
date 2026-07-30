@@ -131,9 +131,9 @@ A `capabilities.session.embed` plugin for VNC/RDP:
 5. Framebuffer tiles/frames flow as raw binary frames — no JSON, no base64.
 6. Backpressure is the same as every other purpose: at credit exhaustion the reader stops reading, and nothing is dropped. See §2b for why this purpose in particular must not drop — both of its directions are incremental, and the outbound one is user input, where a lost frame is a stuck modifier key rather than a dropped picture.
 
-## Application to discovery (Docker / Kubernetes / DB) — deferred, not implemented
+## Application to discovery (Docker / Kubernetes / DB) — designed in ADR-014, not yet implemented
 
-The `channel` capability described above (`exec`/`embed-stream`/`tcp-relay`/`udp-relay`) is implemented. The `discovery` manifest capability below is not: no discovery-specific capability exists on the plugin manifest today, and no discovery plugin ships. It remains a reasonable extension of the channel primitive and is recorded here as a future direction, not a shipped feature.
+The `channel` capability described above (`exec`/`embed-stream`/`tcp-relay`/`udp-relay`) is implemented. The `discovery` manifest capability below is not: no discovery-specific capability exists on the plugin manifest today, and no discovery plugin ships. Its full contract — node model, the `discovery.observe`/`discovery.publish`/`discovery.invokeAction` verbs, limits, and security model — is specified in [ADR-014](014-discovery-subtrees.md); it remains a reasonable extension of the channel primitive described below, recorded here as the transport it will ride on, not as a shipped feature.
 
 Discovery would become a thin layer on top of the same primitive, plus one new manifest capability for the "produces child connections" part:
 
