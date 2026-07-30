@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"xquakshell/internal/domain/discovery"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // fakeDiscoveryNotifier stands in for the plugin process host on the host->plugin notification
@@ -109,6 +110,48 @@ type fakeDiscoveryPlugins struct {
 
 func (f *fakeDiscoveryPlugins) DiscoveryPlugins() []DiscoveryPluginTarget { return f.targets }
 
+// fakeDiscoveryIcons stands in for the plugin registry's manifest view: which icon IDs each plugin
+// actually declared in contributions.discoveryIcons.
+type fakeDiscoveryIcons struct {
+	mu       sync.Mutex
+	byPlugin map[string][]string
+}
+
+func (f *fakeDiscoveryIcons) declare(pluginID string, iconIDs ...string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.byPlugin[pluginID] = iconIDs
+}
+
+func (f *fakeDiscoveryIcons) DeclaredDiscoveryIcons(pluginID string) map[string]struct{} {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	ids := make(map[string]struct{}, len(f.byPlugin[pluginID]))
+	for _, id := range f.byPlugin[pluginID] {
+		ids[id] = struct{}{}
+	}
+	return ids
+}
+
+// fakeDiscoveryAudit captures the durable record of invokeAction, which is the thing ADR-014 makes
+// promises about — not the slog line beside it.
+type fakeDiscoveryAudit struct {
+	mu      sync.Mutex
+	entries []domainplugin.DiscoveryAuditEntry
+}
+
+func (f *fakeDiscoveryAudit) record(entry domainplugin.DiscoveryAuditEntry) {
+	f.mu.Lock()
+	f.entries = append(f.entries, entry)
+	f.mu.Unlock()
+}
+
+func (f *fakeDiscoveryAudit) all() []domainplugin.DiscoveryAuditEntry {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]domainplugin.DiscoveryAuditEntry(nil), f.entries...)
+}
+
 type fakeSessionProtocols struct {
 	bySession map[string]string
 }
@@ -152,6 +195,8 @@ type discoveryHarness struct {
 	caller    *fakeDiscoveryCaller
 	plugins   *fakeDiscoveryPlugins
 	protocols *fakeSessionProtocols
+	icons     *fakeDiscoveryIcons
+	audit     *fakeDiscoveryAudit
 	clock     *fakeClock
 
 	mu     sync.Mutex
@@ -175,6 +220,8 @@ func newDiscoveryHarness(t *testing.T, targets ...DiscoveryPluginTarget) *discov
 		caller:    &fakeDiscoveryCaller{},
 		plugins:   &fakeDiscoveryPlugins{targets: targets},
 		protocols: &fakeSessionProtocols{bySession: map[string]string{}},
+		icons:     &fakeDiscoveryIcons{byPlugin: map[string][]string{}},
+		audit:     &fakeDiscoveryAudit{},
 		clock:     newFakeClock(),
 	}
 	h.store = NewDiscoveryStore()
@@ -188,8 +235,8 @@ func newDiscoveryHarness(t *testing.T, targets ...DiscoveryPluginTarget) *discov
 	h.service = NewDiscoveryService(
 		h.store,
 		h.observer,
-		NewDiscoveryPublishRouter(h.store, h.observer, h.leader, h.pace),
-		NewDiscoveryInvoker(h.store, h.leader, h.caller),
+		NewDiscoveryPublishRouter(h.store, h.observer, h.leader, h.pace, h.icons),
+		NewDiscoveryInvoker(h.store, h.leader, h.caller, h.audit.record),
 	)
 	return h
 }

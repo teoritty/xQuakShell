@@ -33,6 +33,7 @@ func TestChannelOpen_RejectsUnownedParentSession(t *testing.T) {
 		usecase.NewPluginSessionInbound(),
 		usecase.NewPluginEmbedInbound(),
 		channels,
+		nil,
 		auth,
 		usecase.PluginSessionScope{
 			PluginID:         "plugin-a",
@@ -61,6 +62,7 @@ func TestChannelOpen_AllowsOwnedParentSession(t *testing.T) {
 		usecase.NewPluginSessionInbound(),
 		usecase.NewPluginEmbedInbound(),
 		channels,
+		nil,
 		auth,
 		usecase.PluginSessionScope{
 			PluginID:         "plugin-a",

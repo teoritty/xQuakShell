@@ -243,18 +243,44 @@ func (s *DiscoveryStore) ClearConnection(connID string) {
 }
 
 // ClearPlugin deletes one plugin's slice of a connection's tree, leaving other plugins' subtrees
-// standing — the teardown a single crashed or disabled plugin warrants.
-func (s *DiscoveryStore) ClearPlugin(connID, pluginID string) {
+// standing — the teardown a single crashed or disabled plugin warrants. It returns the node IDs
+// that disappeared, for the same reason ApplySnapshot does: those IDs must fall out of the observed
+// set before the next observe goes out, or the host keeps asking the remaining plugins to watch
+// nodes nobody has any more.
+func (s *DiscoveryStore) ClearPlugin(connID, pluginID string) []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	trees, ok := s.conns[connID]
 	if !ok {
-		return
+		return nil
+	}
+	var removed []string
+	if tree, held := trees[pluginID]; held {
+		removed = make([]string, 0, len(tree.nodes))
+		for id := range tree.nodes {
+			removed = append(removed, id)
+		}
 	}
 	delete(trees, pluginID)
 	if len(trees) == 0 {
 		delete(s.conns, connID)
 	}
+	return removed
+}
+
+// ConnectionsWithPlugin lists the connections currently holding a subtree published by pluginID.
+// It exists so that stopping a plugin can be expressed as "clear it wherever it drew something"
+// without a second index of plugin->connections that would have to be kept in step with this one.
+func (s *DiscoveryStore) ConnectionsWithPlugin(pluginID string) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var ids []string
+	for connID, trees := range s.conns {
+		if _, held := trees[pluginID]; held {
+			ids = append(ids, connID)
+		}
+	}
+	return ids
 }
 
 func (s *DiscoveryStore) treeLocked(connID, pluginID string) *discoveryTree {

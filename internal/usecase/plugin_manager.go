@@ -40,6 +40,7 @@ type PluginManager struct {
 	outboundAuthAudit OutboundAuthAuditFunc
 	stateChange       func(pluginID, state, sessionID string)
 	processStarted    func(pluginID string)
+	processStopped    func(pluginID string)
 	connChecker    PluginConnectionChecker
 
 	mu              sync.Mutex
@@ -286,6 +287,18 @@ func (m *PluginManager) SetProcessStartedHandler(fn func(pluginID string)) {
 	m.processStarted = fn
 }
 
+// SetProcessStoppedHandler registers a host-internal observer of a plugin being stopped outright —
+// disabled by the user, or uninstalled, both of which route through StopPlugin.
+//
+// It is the mirror of SetProcessStartedHandler and, like it, is separate from the presentation
+// state handler: discovery must drop a stopped plugin's subtree whether or not a UI is listening
+// (ADR-014). Crashes deliberately do NOT reach here — the supervisor restarts the process and the
+// replayed observed set refills the tree, so tearing it down would only make a recoverable blip
+// look like a disappearance.
+func (m *PluginManager) SetProcessStoppedHandler(fn func(pluginID string)) {
+	m.processStopped = fn
+}
+
 func (m *PluginManager) emitStateChange(pluginID, state, sessionID string) {
 	// Single choke point for every lifecycle transition, so start/running/
 	// suspended/stopped/crashed are all visible in the debug log (previously
@@ -293,6 +306,9 @@ func (m *PluginManager) emitStateChange(pluginID, state, sessionID string) {
 	slog.Info("plugin state change", "component", "plugin", "pluginId", pluginID, "state", state, "sessionId", sessionID)
 	if state == "running" && m.processStarted != nil {
 		m.processStarted(pluginID)
+	}
+	if state == "stopped" && m.processStopped != nil {
+		m.processStopped(pluginID)
 	}
 	if m.stateChange != nil {
 		m.stateChange(pluginID, state, sessionID)

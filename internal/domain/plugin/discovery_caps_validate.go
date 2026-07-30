@@ -11,6 +11,14 @@ import (
 // the bundle on disk and runs in infra at install time alongside the other on-disk checks.
 const maxDiscoveryIcons = 64
 
+// MaxDiscoveryIconBytes and MaxDiscoveryIconTotalBytes are the ADR-014 on-disk icon budgets. They
+// are declared here, with the rest of the manifest contract, but enforced in infra: the numbers are
+// part of what a plugin author must satisfy, while checking them means reading files.
+const (
+	MaxDiscoveryIconBytes      int64 = 64 * 1024
+	MaxDiscoveryIconTotalBytes int64 = 1024 * 1024
+)
+
 // allowedDiscoveryIconExt reports whether ext (as returned by filepath.Ext, including the
 // leading dot) is an accepted discovery icon format. Restricted to raster/vector formats the
 // frontend renders via <img src="data:...;base64,...">; anything else (e.g. .html, .js) would

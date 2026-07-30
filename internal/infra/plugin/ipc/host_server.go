@@ -139,7 +139,10 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 			return nil, proxyUnavailableError(method)
 		}
 		result, err = s.vault.GetSecret(ctx, s.pluginID, params)
-	case "session.updateState", "session.writeTerminal", "session.registerEmbed", "session.tunnelOpen", "session.tunnelFrame", "session.tunnelClose", "session.reportLocalEmbed":
+	// discovery.publish rides the session RPC handler for one reason: it names a sessionId, and the
+	// usecase layer is where "does this plugin hold that session" is decided (ADR-014, and the same
+	// path channel.open takes). Nothing about it is decoded here.
+	case "session.updateState", "session.writeTerminal", "session.registerEmbed", "session.tunnelOpen", "session.tunnelFrame", "session.tunnelClose", "session.reportLocalEmbed", "discovery.publish":
 		if s.sessions == nil {
 			return nil, &RPCError{Code: -32603, Message: "session handler unavailable"}
 		}

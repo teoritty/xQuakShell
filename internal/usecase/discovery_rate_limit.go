@@ -67,6 +67,15 @@ func (l *DiscoveryPublishLimiter) Allow(pluginID, connectionID string) bool {
 	return window.count <= discovery.MaxPublishPerSecond
 }
 
+// ForgetPlugin drops one plugin's window for one connection. It is the counterpart of a plugin
+// being stopped rather than a connection closing: the plugin's subtree is deleted, and leaving its
+// half-spent budget behind would throttle the first publishes it makes after being started again.
+func (l *DiscoveryPublishLimiter) ForgetPlugin(pluginID, connectionID string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	delete(l.windows, discoveryPaceKey{connectionID: connectionID, item: pluginID})
+}
+
 // ForgetConnection drops every window belonging to a connection, so a closed connection does not
 // leave one entry per plugin behind for the lifetime of the process.
 func (l *DiscoveryPublishLimiter) ForgetConnection(connectionID string) {
@@ -206,6 +215,13 @@ func (p *DiscoveryPace) AllowPublish(pluginID, connectionID string) bool {
 // Emit reports that a node's branch changed, subject to coalescing.
 func (p *DiscoveryPace) Emit(connectionID, nodeID string) {
 	p.coalescer.Submit(connectionID, nodeID)
+}
+
+// ForgetPlugin drops one plugin's publish budget for a connection. The coalescer is untouched on
+// purpose: its windows are keyed by node, and a node belongs to whichever plugin published it, so
+// there is nothing plugin-shaped for it to forget.
+func (p *DiscoveryPace) ForgetPlugin(pluginID, connectionID string) {
+	p.limiter.ForgetPlugin(pluginID, connectionID)
 }
 
 // ForgetConnection drops all pace state for a connection.

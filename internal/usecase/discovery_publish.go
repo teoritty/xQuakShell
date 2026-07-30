@@ -37,11 +37,13 @@ type DiscoveryPublishRouter struct {
 	observer *DiscoveryObserver
 	leader   DiscoveryLeaderLookup
 	pace     *DiscoveryPace
+	icons    DiscoveryIconLookup
 }
 
-// NewDiscoveryPublishRouter creates a publish router.
-func NewDiscoveryPublishRouter(store *DiscoveryStore, observer *DiscoveryObserver, leader DiscoveryLeaderLookup, pace *DiscoveryPace) *DiscoveryPublishRouter {
-	return &DiscoveryPublishRouter{store: store, observer: observer, leader: leader, pace: pace}
+// NewDiscoveryPublishRouter creates a publish router. icons may be nil, which leaves iconIds
+// unchecked — acceptable only where no manifest exists at all, never in production wiring.
+func NewDiscoveryPublishRouter(store *DiscoveryStore, observer *DiscoveryObserver, leader DiscoveryLeaderLookup, pace *DiscoveryPace, icons DiscoveryIconLookup) *DiscoveryPublishRouter {
+	return &DiscoveryPublishRouter{store: store, observer: observer, leader: leader, pace: pace, icons: icons}
 }
 
 // Apply routes one snapshot.
@@ -59,9 +61,10 @@ func NewDiscoveryPublishRouter(store *DiscoveryStore, observer *DiscoveryObserve
 // other purpose. ADR-014 treats expand/publish races as normal, so neither case is punished.
 //
 // This is deliberately NOT an authorization check. Refusing a session the plugin holds no binding
-// for is IDOR defence and belongs to the capability layer, where it is decided from the binding
-// itself. A second, weaker check of the same thing here would be one more place for the two to
-// drift apart.
+// for is IDOR defence, and it has already happened by the time a payload reaches here:
+// PluginSessionRPCHandler runs SessionRPCAuthorizer.AuthorizeSessionRPC on the sessionId before
+// dispatching discovery.publish, exactly as it does for channel.open. A second, weaker check of the
+// same thing here would be one more place for the two to drift apart.
 //
 // A malformed or contradictory snapshot does return an error: that one the plugin author needs to
 // see, and only that one.
@@ -84,7 +87,11 @@ func (r *DiscoveryPublishRouter) Apply(ctx context.Context, pluginID string, pay
 		return nil
 	}
 
-	removed, err := r.store.ApplySnapshot(connectionID, pluginID, payload.NodeID, payload.State, payload.Error, payload.Children)
+	// Icons are reconciled against the manifest here, before the store sees the nodes: the store is
+	// plugin-blind by design, and an undeclared icon must never be written and then corrected.
+	children := stripUndeclaredIcons(r.icons, pluginID, payload.Children)
+
+	removed, err := r.store.ApplySnapshot(connectionID, pluginID, payload.NodeID, payload.State, payload.Error, children)
 	if err != nil {
 		return err
 	}
@@ -101,6 +108,14 @@ func (r *DiscoveryPublishRouter) Apply(ctx context.Context, pluginID string, pay
 // the publish path.
 func (r *DiscoveryPublishRouter) ForgetConnection(connectionID string) {
 	r.pace.ForgetConnection(connectionID)
+}
+
+// ForgetPlugin drops one plugin's publish budget for a connection and announces the connection as
+// changed, the teardown a stopped or uninstalled plugin warrants. The emit names the connection
+// root because a whole subtree disappeared, not one branch.
+func (r *DiscoveryPublishRouter) ForgetPlugin(connectionID, pluginID string) {
+	r.pace.ForgetPlugin(pluginID, connectionID)
+	r.pace.Emit(connectionID, "")
 }
 
 // leadingConnectionFor resolves a publish's sessionId to the connection it may write to, and only

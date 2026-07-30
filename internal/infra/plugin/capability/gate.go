@@ -95,6 +95,17 @@ func (g *Gate) Allow(method string) bool {
 		return g.manifest.Capabilities.Tunnel != nil && g.manifest.Capabilities.Tunnel.Provider
 	case "channel.open", "channel.close":
 		return g.manifest.Capabilities.Channel != nil && len(g.manifest.Capabilities.Channel.Purposes) > 0
+	case "discovery.publish":
+		// The only discovery verb a plugin may call. observe and invokeAction travel host->plugin
+		// and never reach this gate at all: the host declines to address them to a plugin without
+		// the capability (PluginRegistry.DiscoveryPlugins), which is an addressing decision rather
+		// than a denial (ADR-014 "Security model").
+		//
+		// The grant is the capability's presence, with no sub-field to check. parentProtocols
+		// governs which connections the plugin is told about, not whether it may publish — a
+		// publish is already confined to a session the plugin holds a binding for, and that
+		// session's protocol is fixed by the connection behind it.
+		return g.manifest.Capabilities.Discovery != nil
 	default:
 		return false
 	}

@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
 	"xquakshell/internal/domain"
@@ -103,6 +104,30 @@ func formatPluginChannelAuditLine(entry domainplugin.ChannelAuditEntry) string {
 	if entry.Target != "" {
 		line += " target=" + domainplugin.RedactAuditDetail(entry.Target)
 	}
+	if entry.Error != "" {
+		line += " detail=" + domainplugin.RedactAuditDetail(entry.Error)
+	}
+	return line
+}
+
+// DiscoveryFunc returns a discovery.invokeAction audit callback.
+func (w *PluginAuditWriter) DiscoveryFunc() domainplugin.DiscoveryAuditRecorder {
+	return func(entry domainplugin.DiscoveryAuditEntry) {
+		w.append(formatPluginDiscoveryAuditLine(entry))
+	}
+}
+
+func formatPluginDiscoveryAuditLine(entry domainplugin.DiscoveryAuditEntry) string {
+	flag := "allowed"
+	if !entry.Success {
+		flag = "denied"
+	}
+	line := "[plugin] action=discovery.invokeAction pluginId=" + entry.PluginID +
+		" sessionId=" + entry.SessionID +
+		" connectionId=" + entry.ConnectionID +
+		" actionId=" + entry.ActionID +
+		" nodeIds=" + strings.Join(entry.NodeIDs, ",") +
+		" result=" + flag
 	if entry.Error != "" {
 		line += " detail=" + domainplugin.RedactAuditDetail(entry.Error)
 	}

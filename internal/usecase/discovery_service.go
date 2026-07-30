@@ -59,6 +59,25 @@ func (s *DiscoveryService) ClearConnection(connectionID string) {
 	s.publish.ForgetConnection(connectionID)
 }
 
+// ClearPlugin drops one plugin's subtree from every connection it drew under, leaving the other
+// plugins' subtrees on those connections untouched. It is the deactivation path: a plugin the user
+// stopped, disabled, or uninstalled must stop occupying the tree immediately, because nothing is
+// left that could confirm the resources it listed still exist.
+//
+// It is deliberately not reachable from a plugin: the argument is the plugin's own ID, supplied by
+// the lifecycle that stopped it.
+func (s *DiscoveryService) ClearPlugin(pluginID string) {
+	for _, connectionID := range s.store.ConnectionsWithPlugin(pluginID) {
+		removed := s.store.ClearPlugin(connectionID, pluginID)
+		// Same order as the publish path: the observed set sheds the vanished IDs before anything
+		// is told the tree changed.
+		if len(removed) > 0 {
+			s.observer.Retain(connectionID, removed)
+		}
+		s.publish.ForgetPlugin(connectionID, pluginID)
+	}
+}
+
 // Snapshot returns a connection's tree for rendering.
 func (s *DiscoveryService) Snapshot(connectionID string) DiscoverySnapshot {
 	return s.store.Snapshot(connectionID)

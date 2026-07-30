@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"xquakshell/internal/domain"
@@ -52,6 +53,41 @@ type pluginRuntime struct {
 	assets              http.Handler
 	cancel              context.CancelFunc
 }
+
+// discoveryInboundHolder makes the discovery service reachable from the session RPC factory despite
+// being constructed after it, the same push-me-later shape sessionRegistryHolder uses.
+//
+// The ordering is forced: SessionRPC is part of HostConfig, HostConfig builds the ProcessHost, the
+// ProcessHost is what PluginManager drives, and the discovery service needs that manager to notify
+// and call plugins. Something has to be late-bound, and this is the smallest something.
+//
+// A miss returns ErrCapabilityDenied rather than nil: the only way to reach it is a plugin process
+// publishing before composition finished, and a denial the plugin can act on beats a nil
+// dereference. It is exactly how PluginSessionRPCHandler treats every other unwired inbound port.
+type discoveryInboundHolder struct {
+	mu   sync.Mutex
+	port domainplugin.DiscoveryInboundPort
+}
+
+func newDiscoveryInboundHolder() *discoveryInboundHolder { return &discoveryInboundHolder{} }
+
+func (h *discoveryInboundHolder) set(port domainplugin.DiscoveryInboundPort) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.port = port
+}
+
+func (h *discoveryInboundHolder) Publish(ctx context.Context, pluginID string, params json.RawMessage) (json.RawMessage, error) {
+	h.mu.Lock()
+	port := h.port
+	h.mu.Unlock()
+	if port == nil {
+		return nil, domainplugin.ErrCapabilityDenied
+	}
+	return port.Publish(ctx, pluginID, params)
+}
+
+var _ domainplugin.DiscoveryInboundPort = (*discoveryInboundHolder)(nil)
 
 type pluginRuntimeDeps struct {
 	ConnRepo        domain.ConnectionRepository
@@ -105,12 +141,17 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	channelBus := capability.NewChannelBus()
 	channelCloseNotify := newChannelCloseNotifiers()
 	sessionRegistry := newSessionRegistryHolder()
+	// The discovery service cannot exist yet: it needs the PluginManager, which needs the host,
+	// which needs this session RPC factory. The holder closes that cycle the same way
+	// sessionRegistryHolder does — the port is resolved at CALL time, and a plugin process cannot
+	// call discovery.publish before it has been started by the very manager that fills it in.
+	discoveryInbound := newDiscoveryInboundHolder()
 
 	hostCfg := infraplugin.HostConfig{
 		DataRoot:          dataRoot,
 		Portable:          portableRuntime,
 		Vault:             vaultInbound,
-		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, embedInbound, sessionAuthorizer),
+		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, embedInbound, discoveryInbound, sessionAuthorizer),
 		Events:            eventBus,
 		Views:             viewInbound,
 		Tunnel:            dynamicForward,
@@ -178,12 +219,20 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	discoveryService := usecase.NewDiscoveryService(
 		discoveryStore,
 		discoveryObserver,
-		usecase.NewDiscoveryPublishRouter(discoveryStore, discoveryObserver, discoveryLeader, discoveryPace),
-		usecase.NewDiscoveryInvoker(discoveryStore, discoveryLeader, manager),
+		// The registry supplies the declared icon IDs: an iconId no manifest registered is dropped
+		// from the node rather than failing the publish (ADR-014 §Security model).
+		usecase.NewDiscoveryPublishRouter(discoveryStore, discoveryObserver, discoveryLeader, discoveryPace, registry),
+		usecase.NewDiscoveryInvoker(discoveryStore, discoveryLeader, manager, pluginAudit.DiscoveryFunc()),
 	)
+	// Now the plugin->host half can be reached: discovery.publish arrives through the session RPC
+	// handler, which authorizes the sessionId before anything here sees the snapshot.
+	discoveryInbound.set(discoveryService)
 	// A restarted plugin is told the whole observed set again; without this the level-triggered
 	// contract silently degrades into an edge-triggered one (ADR-014 §data flow).
 	manager.SetProcessStartedHandler(discoveryObserver.PluginStarted)
+	// The other end of the same lifecycle: a plugin the user disabled or uninstalled loses its
+	// subtree at once, under every connection, without touching its neighbours' (ADR-014).
+	manager.SetProcessStoppedHandler(discoveryService.ClearPlugin)
 
 	pluginDiscovery := infraplugin.NewDiscovery(infraplugin.SearchPaths(deps.ExeDir, dataRoot))
 	if err := manager.DiscoverPlugins(pluginDiscovery.Discover); err != nil {

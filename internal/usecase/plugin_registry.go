@@ -245,6 +245,28 @@ func (r *PluginRegistry) DiscoveryPlugins() []DiscoveryPluginTarget {
 	return targets
 }
 
+// DeclaredDiscoveryIcons returns the icon IDs a plugin registered in
+// contributions.discoveryIcons, as a set. An unknown plugin yields an empty set rather than an
+// error: the caller's answer to "not declared" and to "no such plugin" is identical — publish the
+// node without an icon — and an error would only invite a second, divergent handling of the same
+// outcome.
+//
+// It returns IDs, never asset paths. The paths were validated once at install time
+// (ValidateViewAssetEntry) and have no business on the publish hot path (ADR-014 "manifest").
+func (r *PluginRegistry) DeclaredDiscoveryIcons(pluginID string) map[string]struct{} {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	p, ok := r.plugins[pluginID]
+	if !ok {
+		return nil
+	}
+	ids := make(map[string]struct{}, len(p.Manifest.Contributions.DiscoveryIcons))
+	for _, icon := range p.Manifest.Contributions.DiscoveryIcons {
+		ids[icon.ID] = struct{}{}
+	}
+	return ids
+}
+
 // HasTunnelProvider reports whether the plugin declares tunnel.provider capability.
 func (r *PluginRegistry) HasTunnelProvider(pluginID string) (bool, error) {
 	plugin, err := r.Get(pluginID)
