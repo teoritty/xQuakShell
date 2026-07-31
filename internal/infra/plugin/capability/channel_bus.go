@@ -34,12 +34,22 @@ func (b *ChannelBus) Register(processKey string, proxy *ChannelProxy) {
 }
 
 // Unregister drops a plugin process's ChannelProxy (process exit/crash teardown, Stage 4b).
-func (b *ChannelBus) Unregister(processKey string) {
-	if b == nil {
+//
+// The proxy is half of the key. Process keys are reused — a plugin restarts under the same
+// pluginID — so a teardown running late for a dead process would otherwise tear the registration
+// off the LIVE process that replaced it, and silently cut that process's channels out of the
+// CloseSession cascade: the bus would report no proxy for a key that has one. Deleting only on
+// identity makes that impossible. The alternative, having the host hold its own lock across this
+// call so the check and the delete are atomic, would nest the two mutexes in the opposite order
+// from the teardown paths that already take them one after the other.
+func (b *ChannelBus) Unregister(processKey string, proxy *ChannelProxy) {
+	if b == nil || proxy == nil {
 		return
 	}
 	b.mu.Lock()
-	delete(b.proxies, processKey)
+	if b.proxies[processKey] == proxy {
+		delete(b.proxies, processKey)
+	}
 	b.mu.Unlock()
 }
 

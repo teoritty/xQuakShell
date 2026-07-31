@@ -123,6 +123,25 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 
 	if h.cfg.ChannelBus != nil {
 		h.cfg.ChannelBus.Register(key, channelProxy)
+
+		// Third checkpoint, for the one window the second cannot cover. The bus cannot be written to
+		// while h.mu is held — that would nest the two mutexes against the teardown paths — so the
+		// registration necessarily happens after the lock is released, and a Stop landing in between
+		// runs its Unregister BEFORE this Register. The bus would then hold a proxy for a process that
+		// is already dead until some later Start reused the key. Re-asking the question is what
+		// remains: whoever registered last checks whether it was still entitled to.
+		h.mu.Lock()
+		current, stillRegistered = h.processes[key]
+		abandoned = !stillRegistered || current != mp || mp.state == domainplugin.ProcessStopping
+		h.mu.Unlock()
+
+		if abandoned {
+			// Only the registration is ours to undo here: conn and the proxies reached mp at the
+			// checkpoint above, so the Stop that took the reservation closes them through
+			// closeResources, exactly once.
+			h.cfg.ChannelBus.Unregister(key, channelProxy)
+			return errStartAbortedByStop
+		}
 	}
 
 	portableReadOnly := h.cfg.Portable != nil && h.cfg.Portable.DataRootReadOnly()
