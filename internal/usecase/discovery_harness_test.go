@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -110,6 +111,87 @@ type fakeDiscoveryPlugins struct {
 
 func (f *fakeDiscoveryPlugins) DiscoveryPlugins() []DiscoveryPluginTarget { return f.targets }
 
+// fakeDiscoveryRuntime stands in for the plugin manager on the lifecycle path: which processes the
+// leader started, and which (plugin, session) authorizations it granted and released. Those grants
+// are what the IDOR check consults, so a test that asserts on them is asserting on the difference
+// between a subtree that renders and one that is refused on every publish.
+type fakeDiscoveryRuntime struct {
+	mu       sync.Mutex
+	started  []string
+	bound    []discoveryBinding
+	unbound  []discoveryBinding
+	startErr error
+	bindErr  error
+}
+
+func (f *fakeDiscoveryRuntime) EnsureRunning(_ context.Context, pluginID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.started = append(f.started, pluginID)
+	return f.startErr
+}
+
+func (f *fakeDiscoveryRuntime) BindSession(pluginID, sessionID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.bindErr != nil {
+		return f.bindErr
+	}
+	f.bound = append(f.bound, discoveryBinding{pluginID: pluginID, sessionID: sessionID})
+	return nil
+}
+
+func (f *fakeDiscoveryRuntime) UnbindSession(pluginID, sessionID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.unbound = append(f.unbound, discoveryBinding{pluginID: pluginID, sessionID: sessionID})
+}
+
+// live returns the bindings granted and not since released, which is the only question worth
+// asking: a plugin bound, unbound and bound again is correctly authorized, and a test comparing
+// raw call logs would call that a failure.
+func (f *fakeDiscoveryRuntime) live() []discoveryBinding {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []discoveryBinding
+	for _, b := range f.bound {
+		released := 0
+		for _, u := range f.unbound {
+			if u == b {
+				released++
+			}
+		}
+		granted := 0
+		for _, g := range f.bound {
+			if g == b {
+				granted++
+			}
+		}
+		if granted > released && !containsBinding(out, b) {
+			out = append(out, b)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].pluginID != out[j].pluginID {
+			return out[i].pluginID < out[j].pluginID
+		}
+		return out[i].sessionID < out[j].sessionID
+	})
+	return out
+}
+
+func (f *fakeDiscoveryRuntime) startedPlugins() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.started...)
+}
+
+func (f *fakeDiscoveryRuntime) wasUnbound(want discoveryBinding) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return containsBinding(f.unbound, want)
+}
+
 // fakeDiscoveryIcons stands in for the plugin registry's manifest view: which icon IDs each plugin
 // actually declared in contributions.discoveryIcons.
 type fakeDiscoveryIcons struct {
@@ -194,6 +276,7 @@ type discoveryHarness struct {
 	notifier  *fakeDiscoveryNotifier
 	caller    *fakeDiscoveryCaller
 	plugins   *fakeDiscoveryPlugins
+	runtime   *fakeDiscoveryRuntime
 	protocols *fakeSessionProtocols
 	icons     *fakeDiscoveryIcons
 	audit     *fakeDiscoveryAudit
@@ -219,6 +302,7 @@ func newDiscoveryHarness(t *testing.T, targets ...DiscoveryPluginTarget) *discov
 		notifier:  &fakeDiscoveryNotifier{},
 		caller:    &fakeDiscoveryCaller{},
 		plugins:   &fakeDiscoveryPlugins{targets: targets},
+		runtime:   &fakeDiscoveryRuntime{},
 		protocols: &fakeSessionProtocols{bySession: map[string]string{}},
 		icons:     &fakeDiscoveryIcons{byPlugin: map[string][]string{}},
 		audit:     &fakeDiscoveryAudit{},
@@ -230,7 +314,7 @@ func newDiscoveryHarness(t *testing.T, targets ...DiscoveryPluginTarget) *discov
 		NewDiscoveryPublishLimiter(h.clock.Now),
 		NewDiscoveryEmitCoalescer(h.recordEmit, h.clock.Now, h.schedule),
 	)
-	h.leader = NewDiscoveryLeader(h.protocols, h.store, h.observer, h.pace, h.recordEmit)
+	h.leader = NewDiscoveryLeader(h.protocols, h.plugins, h.runtime, h.store, h.observer, h.pace, h.recordEmit)
 	h.observer.SetLeader(h.leader)
 	h.service = NewDiscoveryService(
 		h.store,
@@ -239,6 +323,21 @@ func newDiscoveryHarness(t *testing.T, targets ...DiscoveryPluginTarget) *discov
 		NewDiscoveryInvoker(h.store, h.leader, h.caller, h.audit.record),
 	)
 	return h
+}
+
+// eventually polls until cond holds. Binding reconciliation runs on its own goroutine — starting a
+// plugin process must not block the path that reports a session as ready — so the tests that assert
+// on it wait rather than assume.
+func (h *discoveryHarness) eventually(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("timed out waiting until %s; bindings now %+v", what, h.runtime.live())
 }
 
 func (h *discoveryHarness) recordEmit(connectionID, nodeID string) {

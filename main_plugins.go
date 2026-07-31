@@ -251,7 +251,12 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		usecase.NewDiscoveryPublishLimiter(nil),
 		usecase.NewDiscoveryEmitCoalescer(discoveryEmit.notify, nil, nil),
 	)
-	discoveryLeader := usecase.NewDiscoveryLeader(sessionRegistry, discoveryStore, discoveryObserver, discoveryPace, nil)
+	// The leader owns the plugin lifecycle for discovery, and it is the only thing that can: a
+	// discovery plugin draws under a core SSH connection it does not own, so the session bridge —
+	// which binds a plugin to the session it provides — never binds it, and every publish would be
+	// refused by the IDOR check. registry and manager are constructor arguments so this cannot be
+	// left unwired without failing to compile.
+	discoveryLeader := usecase.NewDiscoveryLeader(sessionRegistry, registry, manager, discoveryStore, discoveryObserver, discoveryPace, nil)
 	discoveryObserver.SetLeader(discoveryLeader)
 	discoveryService := usecase.NewDiscoveryService(
 		discoveryStore,

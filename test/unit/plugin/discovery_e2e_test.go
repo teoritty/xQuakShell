@@ -45,16 +45,12 @@ func TestDiscoveryEndToEndWithLivePlugin(t *testing.T) {
 	//    an ssh connection. A plugin absent from this list is never sent an observe at all.
 	assertDiscoveryTarget(t, rig.registry)
 
-	if err := rig.manager.EnsureRunning(ctx, discoveryFixtureID); err != nil {
-		t.Fatalf("start fixture plugin: %v", err)
-	}
-	t.Cleanup(func() { rig.manager.StopAll(context.Background()) })
-
-	// The binding is what the IDOR check consults when discovery.publish names a session
-	// (ADR-014 §Security model). Without it every snapshot below would be refused.
-	if err := rig.manager.BindSession(discoveryFixtureID, discoverySession); err != nil {
-		t.Fatalf("bind session: %v", err)
-	}
+	// A ready session is the ONLY thing this test does to bring the plugin up. Starting the process
+	// and authorizing it for the session are the leader's job (ADR-014 §Leading session), and nothing
+	// else in the app would do either: the session bridge binds a plugin to the session it provides,
+	// and a discovery plugin provides none. Doing those two steps by hand here — as an earlier
+	// version of this rig did — hides exactly the defect that made discovery unusable in production,
+	// where every publish was refused by the IDOR check for want of a binding.
 	rig.leader.SessionReady(discoverySession, discoveryConnection)
 
 	// 2. Observing the connection root makes the plugin publish exactly one group.
@@ -64,8 +60,10 @@ func TestDiscoveryEndToEndWithLivePlugin(t *testing.T) {
 		t.Fatalf("observing the root alone must yield only the root group, got %v", ids)
 	}
 
-	// 3. Observing the group as well yields its two subgroups, and nothing deeper: the instances
-	//    below them are not observed, so a correct plugin has not enumerated them.
+	// 3. Observing the group as well yields its two subgroups, and nothing deeper. This is the
+	//    HOST's view: a snapshot for an unobserved branch would be dropped on arrival, so the count
+	//    below would hold even against a plugin that published its whole tree at once. That the
+	//    plugin itself withholds them is what step 6 proves, on the plugin's own counters.
 	rig.service.SetObserved(discoveryConnection, []string{"", "fake"})
 	rig.waitForNodes(t, "fake", "alpha", "beta")
 	if ids := rig.nodeIDs(); len(ids) != 3 {
@@ -224,7 +222,9 @@ func newDiscoveryRig(t *testing.T) *discoveryRig {
 		usecase.NewDiscoveryPublishLimiter(nil),
 		usecase.NewDiscoveryEmitCoalescer(func(string, string) {}, nil, nil),
 	)
-	rig.leader = usecase.NewDiscoveryLeader(sshOnlyProtocols{}, store, observer, pace, nil)
+	// registry and manager are what make the leader able to start and authorize plugins — the two
+	// steps this test must NOT perform by hand.
+	rig.leader = usecase.NewDiscoveryLeader(sshOnlyProtocols{}, rig.registry, rig.manager, store, observer, pace, nil)
 	observer.SetLeader(rig.leader)
 	rig.service = usecase.NewDiscoveryService(
 		store,
@@ -235,6 +235,7 @@ func newDiscoveryRig(t *testing.T) *discoveryRig {
 	inboundHolder.set(rig.service)
 	rig.manager.SetProcessStartedHandler(observer.PluginStarted)
 	rig.manager.SetProcessStoppedHandler(rig.service.ClearPlugin)
+	t.Cleanup(func() { rig.manager.StopAll(context.Background()) })
 
 	discoverer := infraplugin.NewDiscovery([]string{filepath.Dir(pluginDir)})
 	if err := rig.manager.DiscoverPlugins(discoverer.Discover); err != nil {
