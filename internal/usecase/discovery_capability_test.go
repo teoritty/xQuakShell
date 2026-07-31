@@ -251,10 +251,11 @@ func TestStoppingAPluginFreesAWindowItLeftWithoutATree(t *testing.T) {
 	}
 }
 
-// TestCrashedPluginBranchesGoStaleAndKeepTheirNodes is the ADR-014 crash case: the nodes stay, the
-// branch stops claiming to be current, and the subtree is not deleted — the supervisor restarts the
-// process and the replayed observed set refills it, so a teardown here would make a recoverable
-// blip look like a disappearance.
+// TestCrashedPluginBranchesGoStaleAndKeepTheirNodes is the ADR-014 crash case, and the same
+// treatment an idle suspension gets: the nodes stay, the branch stops claiming to be current, and
+// the subtree is not deleted — the process comes back (supervisor restart, or the next activation)
+// and the replayed observed set refills it, so a teardown here would make a recoverable absence
+// look like a disappearance.
 func TestCrashedPluginBranchesGoStaleAndKeepTheirNodes(t *testing.T) {
 	h := newDiscoveryHarness(t,
 		DiscoveryPluginTarget{PluginID: "pA", ParentProtocols: []string{"ssh"}},
@@ -267,7 +268,7 @@ func TestCrashedPluginBranchesGoStaleAndKeepTheirNodes(t *testing.T) {
 	h.publishAs(t, "pA", "s1", "a-group", instanceNode("a-child", "a-group"))
 	h.publishAs(t, "pB", "s1", "", instanceNode("b-node", ""))
 
-	h.service.MarkPluginCrashed("pA")
+	h.service.MarkPluginStale("pA")
 
 	ids := nodeIDsOf(h.service.Snapshot("c1"))
 	if !containsID(ids, "a-group") || !containsID(ids, "a-child") {
@@ -285,10 +286,12 @@ func TestCrashedPluginBranchesGoStaleAndKeepTheirNodes(t *testing.T) {
 	}
 }
 
-// TestActionsInsideACrashedPluginsBranchAreRefused is why stale is more than a label: the nodes on
-// screen name resources nothing has re-confirmed, and an action aimed at them could reach whatever
-// now answers to that name.
-func TestActionsInsideACrashedPluginsBranchAreRefused(t *testing.T) {
+// TestActionsInsideAStaleBranchAreRefusedRatherThanTimingOut is why stale is more than a label. It
+// is the same marking for a crash and for an idle suspension: in both the process is gone, so the
+// nodes on screen name resources nothing has re-confirmed. Without the mark the action is
+// dispatched into a dead process and fails on the 5 s ack timeout, which tells the user nothing
+// about why — the refusal is both faster and honest.
+func TestActionsInsideAStaleBranchAreRefusedRatherThanTimingOut(t *testing.T) {
 	h := newDiscoveryHarness(t)
 	h.sessionReady("s1", "c1")
 	h.service.SetObserved("c1", []string{""})
@@ -300,7 +303,7 @@ func TestActionsInsideACrashedPluginsBranchAreRefused(t *testing.T) {
 	}
 	before := h.caller.count()
 
-	h.service.MarkPluginCrashed("p1")
+	h.service.MarkPluginStale("p1")
 
 	if err := h.service.InvokeAction(context.Background(), "c1", "p1", []string{"one"}, "restart"); err == nil {
 		t.Fatal("an action inside a stale branch must be refused")
@@ -310,8 +313,8 @@ func TestActionsInsideACrashedPluginsBranchAreRefused(t *testing.T) {
 	}
 }
 
-// TestCrashOfAPluginWithNoSubtreeIsHarmless: every crash reaches MarkPluginCrashed, and most
-// plugins have drawn nothing.
+// TestCrashOfAPluginWithNoSubtreeIsHarmless: every crash and every idle suspension reaches
+// MarkPluginStale, and most plugins have drawn nothing.
 func TestCrashOfAPluginWithNoSubtreeIsHarmless(t *testing.T) {
 	h := newDiscoveryHarness(t)
 	h.sessionReady("s1", "c1")
@@ -319,7 +322,7 @@ func TestCrashOfAPluginWithNoSubtreeIsHarmless(t *testing.T) {
 	mustPublish(t, h, "", instanceNode("one", ""))
 	before := h.emitCount()
 
-	h.service.MarkPluginCrashed("never-published")
+	h.service.MarkPluginStale("never-published")
 
 	if ids := nodeIDsOf(h.service.Snapshot("c1")); !containsID(ids, "one") {
 		t.Fatalf("an unrelated plugin's crash must change nothing, got %v", ids)

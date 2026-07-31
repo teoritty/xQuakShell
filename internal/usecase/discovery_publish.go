@@ -69,7 +69,10 @@ func NewDiscoveryPublishRouter(store *DiscoveryStore, observer *DiscoveryObserve
 // A malformed or contradictory snapshot does return an error: that one the plugin author needs to
 // see, and only that one.
 func (r *DiscoveryPublishRouter) Apply(ctx context.Context, pluginID string, payload DiscoveryPublish) error {
-	_ = ctx // no plugin call happens on this path: a publish is a notification, nothing is awaited
+	// No plugin call happens on this path. publish is a request on the wire (it must be refusable —
+	// ADR-014 §data flow), but the host answers it from what it already knows: nothing downstream of
+	// here is awaited, so ctx has nothing to cancel.
+	_ = ctx
 
 	connectionID, addressed := r.leadingConnectionFor(payload.SessionID)
 	if !addressed {

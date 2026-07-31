@@ -5,10 +5,8 @@ import (
 	"log"
 	"strings"
 	"time"
-	"unicode"
 
 	"xquakshell/internal/domain"
-	"xquakshell/internal/domain/discovery"
 	domainplugin "xquakshell/internal/domain/plugin"
 )
 
@@ -127,60 +125,45 @@ func formatPluginDiscoveryAuditLine(entry domainplugin.DiscoveryAuditEntry) stri
 	line := "[plugin] action=" + entry.Action + " pluginId=" + entry.PluginID +
 		" sessionId=" + entry.SessionID +
 		" connectionId=" + entry.ConnectionID +
-		" actionId=" + domainplugin.RedactAuditDetail(auditToken(entry.ActionID)) +
+		" actionId=" + domainplugin.RedactAuditDetail(logfmtToken(entry.ActionID)) +
 		" nodeIds=" + joinAuditTokens(entry.NodeIDs) +
 		" result=" + flag
 	if entry.Error != "" {
-		line += " detail=" + domainplugin.RedactAuditDetail(entry.Error)
+		// detail= gets the same treatment as the id fields, and for the same reason: the host's own
+		// error strings interpolate plugin-chosen ids ("node %q has no action %q"), so a value that
+		// never touched an id field can still arrive carrying one. The shared detail= convention in
+		// channel_audit/session_audit is untouched — this formatter hardens its own field rather
+		// than changing a form three call sites depend on.
+		//
+		// Sanitizing rather than relocating the field is the point: detail= happens to sit after
+		// result= today, so a first-occurrence parser reads the host's verdict. That is field order,
+		// not a defence — a logfmt reader where the last occurrence wins would read the forgery.
+		line += " detail=" + domainplugin.RedactAuditDetail(logfmtToken(entry.Error))
 	}
 	return line
 }
 
-// joinAuditTokens renders plugin-chosen identifiers into one audit field without letting them
-// forge a second field.
+// joinAuditTokens renders plugin-chosen identifiers into one audit field without letting them forge
+// a second field.
 //
 // Node and action IDs are entirely plugin-authored: discovery validation bounds their length and
 // refuses empties, and SanitizeNode cleans Label and Tooltip — but not ID, because an ID is a key
-// the plugin must be able to match against its own bookkeeping, not a display string. An audit line
-// here is space-separated `key=value` pairs, so an unfiltered ID of `x result=allowed pluginId=core`
-// would insert a forged pair AHEAD of the real one, and any reader taking the first occurrence of
-// `result=` reads the plugin's answer instead of the host's.
+// the plugin must be able to match against its own bookkeeping, not a display string. See
+// logfmtToken for what an unfiltered one does to a `key=value` line.
 //
-// Every ID is therefore reduced to a token that cannot contain a separator, and only then joined.
 // The whole list is still written — an incident review needs to know which 200 nodes an action hit,
-// and truncating that to fit a line-length budget would defeat the entry's only purpose.
+// and truncating that to fit a line-length budget would defeat the entry's only purpose. Redaction
+// runs per ID rather than over the join for the same reason: its 512-character cut would otherwise
+// land in the middle of the list.
 func joinAuditTokens(ids []string) string {
 	if len(ids) == 0 {
 		return ""
 	}
 	safe := make([]string, 0, len(ids))
 	for _, id := range ids {
-		safe = append(safe, domainplugin.RedactAuditDetail(auditToken(id)))
+		safe = append(safe, domainplugin.RedactAuditDetail(logfmtToken(id)))
 	}
 	return strings.Join(safe, ",")
-}
-
-// auditToken strips control characters and bidi overrides, then neutralizes the two characters that
-// give an audit line its structure: the space that separates pairs and the '=' that binds one.
-//
-// Replacing rather than dropping them is deliberate — a dropped space silently welds two words into
-// a plausible-looking identifier, while a visible placeholder shows a reader that the plugin put
-// something there that had no business being in an ID.
-func auditToken(id string) string {
-	cleaned := discovery.SanitizeText(id)
-	var b strings.Builder
-	b.Grow(len(cleaned))
-	for _, r := range cleaned {
-		switch {
-		case r == '=' || r == ',':
-			b.WriteRune('_')
-		case unicode.IsSpace(r):
-			b.WriteRune('_')
-		default:
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
 }
 
 // SessionBindFunc returns a session bind/unbind audit callback.

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"xquakshell/internal/domain/discovery"
@@ -126,7 +127,7 @@ func (i *DiscoveryInvoker) InvokeAction(ctx context.Context, connectionID, plugi
 	// which nodes it hit (ADR-014 "Security model"). The durable record is the audit entry below;
 	// this log line is its debugging counterpart and is not a substitute for it.
 	slog.Info("discovery: invoking action", "component", "discovery", "pluginId", pluginID,
-		"connectionId", connectionID, "actionId", actionID, "nodeIds", nodeIDs)
+		"connectionId", connectionID, "actionId", logfmtToken(actionID), "nodeIds", logfmtTokens(nodeIDs))
 	// Audited before the call, not after: an action that reached the plugin and then timed out has
 	// still been dispatched, and an entry written only on success would omit exactly the invocations
 	// an incident review is looking for. The outcome is appended as a second entry.
@@ -154,7 +155,13 @@ func (s *DiscoveryStore) CheckAction(connID, pluginID string, nodeIDs []string, 
 	// of it is already gone, the tree they acted on is not the tree that exists, and guessing which
 	// half they still meant is not the host's call to make.
 	if !ok || !tree.hasAll(nodeIDs) {
-		return fmt.Errorf("%w: plugin %q, nodes %v", ErrDiscoveryNodeNotFound, pluginID, nodeIDs)
+		// The ids go through logfmtToken, not straight into %v. Every error built in this file ends
+		// up in the audit line's detail= field, and node ids are plugin-authored — an unfiltered
+		// `x result=allowed` here forges a pair in a field that never touched an id column. See
+		// logfmtToken. Counting them as well as naming them keeps the message useful when a long
+		// selection has been reduced to tokens.
+		return fmt.Errorf("%w: plugin %q, %d nodes [%s]", ErrDiscoveryNodeNotFound,
+			logfmtToken(pluginID), len(nodeIDs), strings.Join(logfmtTokens(nodeIDs), " "))
 	}
 	return tree.checkAction(nodeIDs, actionID)
 }
@@ -167,14 +174,17 @@ func (t *discoveryTree) checkAction(nodeIDs []string, actionID string) error {
 		if node.ParentID != parentID {
 			// Selection is limited to siblings (ADR-014 "Actions"): an action shared by nodes from
 			// unrelated branches means different things in each, and the core cannot tell.
-			return fmt.Errorf("%w: %q is not a sibling of %q", ErrDiscoveryMixedParents, nodeID, nodeIDs[0])
+			return fmt.Errorf("%w: %q is not a sibling of %q", ErrDiscoveryMixedParents,
+				logfmtToken(nodeID), logfmtToken(nodeIDs[0]))
 		}
 		action, ok := findDiscoveryAction(node, actionID)
 		if !ok {
-			return fmt.Errorf("%w: node %q has no action %q", ErrDiscoveryActionUnavailable, nodeID, actionID)
+			return fmt.Errorf("%w: node %q has no action %q", ErrDiscoveryActionUnavailable,
+				logfmtToken(nodeID), logfmtToken(actionID))
 		}
 		if multi && !action.Multi {
-			return fmt.Errorf("%w: action %q on node %q is not multi", ErrDiscoveryActionUnavailable, actionID, nodeID)
+			return fmt.Errorf("%w: action %q on node %q is not multi", ErrDiscoveryActionUnavailable,
+				logfmtToken(actionID), logfmtToken(nodeID))
 		}
 	}
 	return t.checkBranchActionable(parentID)
@@ -190,7 +200,7 @@ func (t *discoveryTree) checkBranchActionable(parentID string) error {
 	for current, steps := parentID, 0; steps <= discovery.MaxDepth+1; steps++ {
 		switch t.branches[current].State {
 		case discovery.BranchStale, discovery.BranchError:
-			return fmt.Errorf("%w: %q", ErrDiscoveryBranchNotActionable, current)
+			return fmt.Errorf("%w: %q", ErrDiscoveryBranchNotActionable, logfmtToken(current))
 		}
 		if current == "" {
 			return nil

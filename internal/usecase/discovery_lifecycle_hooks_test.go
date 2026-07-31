@@ -39,17 +39,28 @@ func (h *stubProcessHost) RunningInstances() []domainplugin.ProcessInstance { re
 func (h *stubProcessHost) BindSession(string, string) error                 { return nil }
 func (h *stubProcessHost) UnbindSession(string, string)                     {}
 
-func newHookedManager(t *testing.T, host domainplugin.ProcessHost) (*usecase.PluginManager, *[]string, *[]string) {
+// lifecycleHooks records which of the three host-internal lifecycle hooks fired. They are collected
+// together because the interesting assertion is always which ONE of them ran: the three demand
+// different treatments of discovery state (clear, mark stale, mark stale) and firing the wrong one
+// is the bug worth catching.
+type lifecycleHooks struct {
+	stopped   []string
+	crashed   []string
+	suspended []string
+}
+
+func newHookedManager(t *testing.T, host domainplugin.ProcessHost) (*usecase.PluginManager, *lifecycleHooks) {
 	t.Helper()
 	manager := usecase.NewPluginManagerWithConfig(usecase.PluginManagerConfig{
 		Registry:    usecase.NewPluginRegistry(),
 		Host:        host,
 		InstallRoot: t.TempDir(),
 	})
-	var stopped, crashed []string
-	manager.SetProcessStoppedHandler(func(pluginID string) { stopped = append(stopped, pluginID) })
-	manager.SetProcessCrashedHandler(func(pluginID string) { crashed = append(crashed, pluginID) })
-	return manager, &stopped, &crashed
+	hooks := &lifecycleHooks{}
+	manager.SetProcessStoppedHandler(func(id string) { hooks.stopped = append(hooks.stopped, id) })
+	manager.SetProcessCrashedHandler(func(id string) { hooks.crashed = append(hooks.crashed, id) })
+	manager.SetProcessSuspendedHandler(func(id string) { hooks.suspended = append(hooks.suspended, id) })
+	return manager, hooks
 }
 
 // TestStopPluginTearsDownEvenWhenStoppingFailed is the gap between "the user disabled this plugin"
@@ -62,17 +73,39 @@ func TestStopPluginTearsDownEvenWhenStoppingFailed(t *testing.T) {
 		stopErr:   failing,
 		instances: []domainplugin.ProcessInstance{{PluginID: "p1", SessionID: "s1"}},
 	}
-	manager, stopped, crashed := newHookedManager(t, host)
+	manager, hooks := newHookedManager(t, host)
 
 	err := manager.StopPlugin(context.Background(), "p1")
 	if !errors.Is(err, failing) {
 		t.Fatalf("the stop failure must still be reported to the caller, got %v", err)
 	}
-	if len(*stopped) != 1 || (*stopped)[0] != "p1" {
-		t.Fatalf("the stopped hook must fire regardless of the stop error, got %v", *stopped)
+	if len(hooks.stopped) != 1 || hooks.stopped[0] != "p1" {
+		t.Fatalf("the stopped hook must fire regardless of the stop error, got %v", hooks.stopped)
 	}
-	if len(*crashed) != 0 {
-		t.Fatalf("a deliberate stop is not a crash, got %v", *crashed)
+	if len(hooks.crashed) != 0 || len(hooks.suspended) != 0 {
+		t.Fatalf("a deliberate stop is neither a crash nor a suspension, got %+v", hooks)
+	}
+}
+
+// TestIdleSuspendFiresTheSuspendedHook covers the third way a plugin stops answering. An idle
+// suspension leaves the tree on screen with nobody able to confirm it, exactly like a crash — and
+// without a hook the subtree stayed labelled ready and an action inside it was dispatched into a
+// dead process, to fail on the ack timeout instead of being refused.
+func TestIdleSuspendFiresTheSuspendedHook(t *testing.T) {
+	host := &stubProcessHost{instances: []domainplugin.ProcessInstance{
+		{PluginID: "p1", SessionID: "s1", State: domainplugin.ProcessRunning},
+	}}
+	manager, hooks := newHookedManager(t, host)
+
+	// idleAfter of 0 makes every running instance idle immediately, so the real suspension path
+	// runs rather than a test-only shortcut into it.
+	manager.SuspendIdlePlugins(context.Background(), 0)
+
+	if len(hooks.suspended) != 1 || hooks.suspended[0] != "p1" {
+		t.Fatalf("the suspended hook must fire, got %v", hooks.suspended)
+	}
+	if len(hooks.stopped) != 0 {
+		t.Fatalf("a suspension is not a stop — its subtree must be marked, not cleared, got %v", hooks.stopped)
 	}
 }
 
@@ -81,14 +114,14 @@ func TestStopPluginTearsDownEvenWhenStoppingFailed(t *testing.T) {
 // would either delete a subtree the supervisor is about to refill, or leave a disabled plugin's
 // subtree standing.
 func TestCrashFiresTheCrashHookAndNotTheStopHook(t *testing.T) {
-	manager, stopped, crashed := newHookedManager(t, &stubProcessHost{})
+	manager, hooks := newHookedManager(t, &stubProcessHost{})
 
 	manager.OnProcessCrashed("p1", "s1")
 
-	if len(*crashed) != 1 || (*crashed)[0] != "p1" {
-		t.Fatalf("the crash hook must fire, got %v", *crashed)
+	if len(hooks.crashed) != 1 || hooks.crashed[0] != "p1" {
+		t.Fatalf("the crash hook must fire, got %v", hooks.crashed)
 	}
-	if len(*stopped) != 0 {
-		t.Fatalf("a crash must not fire the stopped hook, got %v", *stopped)
+	if len(hooks.stopped) != 0 {
+		t.Fatalf("a crash must not fire the stopped hook, got %v", hooks.stopped)
 	}
 }

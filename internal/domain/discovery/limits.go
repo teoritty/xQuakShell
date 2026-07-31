@@ -16,9 +16,12 @@ const (
 	// list and know it's partial, rather than see nothing because a plugin enumerated too much.
 	MaxChildrenPerPublish = 500
 
-	// MaxNodesPerPlugin bounds total nodes held in host memory per (plugin, session), across
-	// every branch that plugin has published into. It is the backstop against a plugin that
-	// stays under the per-publish cap but keeps many branches "loading" forever.
+	// MaxNodesPerPlugin bounds total nodes held in host memory per (plugin, CONNECTION), across
+	// every branch that plugin has published into. ADR-014 writes the limit as per (plugin,
+	// session) because a session is what a plugin can see; the host stores one tree per connection
+	// and enforces it there, which is the same budget from the only side that owns the memory.
+	// It is the backstop against a plugin that stays under the per-publish cap but keeps many
+	// branches "loading" forever.
 	MaxNodesPerPlugin = 2000
 
 	// MaxIDLen bounds Node.ID and Action.ID. IDs are plugin-chosen opaque strings (often a
@@ -44,9 +47,12 @@ const (
 	// turn one click into thousands of remote operations.
 	MaxNodesPerInvoke = 200
 
-	// MaxPublishPerSecond bounds discovery.publish notifications per (plugin, session). It
-	// caps CPU/allocation cost of processing snapshots from a plugin that polls too
-	// aggressively, independent of CoalesceInterval, which caps frontend *render* churn.
+	// MaxPublishPerSecond bounds inbound discovery.publish requests per (plugin, CONNECTION) — not
+	// per session. A connection shows one subtree however many tabs are open, and the session
+	// carrying the traffic can change under it during a leader handover, so a per-session budget
+	// would silently reset every time the transport moved. It caps the CPU/allocation cost of
+	// processing snapshots from a plugin that polls too aggressively, independent of
+	// CoalesceInterval, which caps frontend *render* churn.
 	MaxPublishPerSecond = 20
 
 	// CoalesceInterval is how long the frontend batches per-node publish events before

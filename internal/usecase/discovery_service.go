@@ -94,15 +94,20 @@ func (s *DiscoveryService) ClearPlugin(pluginID string) {
 	s.publish.ForgetPlugin(pluginID)
 }
 
-// MarkPluginCrashed flags every branch a crashed plugin drew as stale, under every connection,
-// touching no other plugin's branches and deleting nothing.
+// MarkPluginStale flags every branch a plugin drew as stale, under every connection, touching no
+// other plugin's branches and deleting nothing.
 //
-// This is the crash case ADR-014 specifies and it is deliberately NOT ClearPlugin: the supervisor
-// restarts the process and the observed set is replayed to it, so the tree refills on its own. What
-// the user must not see meanwhile is a subtree still labelled ready while the process that vouched
-// for it is gone — stale is both the honest label and what blocks actions inside the branch until a
-// publish re-confirms it.
-func (s *DiscoveryService) MarkPluginCrashed(pluginID string) {
+// It covers both ways a running plugin stops answering without being stopped by the user: a crash,
+// and an idle suspension. The two differ in intent and in nothing else that matters here — in both
+// the process is gone, the tree on screen is its last answer, and the supervisor or the next
+// activation brings it back, at which point the replayed observed set refills the branches. That is
+// why this is deliberately NOT ClearPlugin: a teardown would turn a recoverable absence into a
+// subtree that visibly vanishes and returns.
+//
+// Stale is more than a label. It is what refuses an action inside the branch, and refusing is the
+// honest answer: the alternative is an invokeAction dispatched into a dead process and failing on
+// the 5 s ack timeout, which tells the user nothing about why.
+func (s *DiscoveryService) MarkPluginStale(pluginID string) {
 	for _, connectionID := range s.store.ConnectionsWithPlugin(pluginID) {
 		if s.store.MarkPluginStale(connectionID, pluginID) {
 			s.publish.EmitConnectionChanged(connectionID)

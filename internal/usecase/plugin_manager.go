@@ -42,6 +42,7 @@ type PluginManager struct {
 	processStarted    func(pluginID string)
 	processStopped    func(pluginID string)
 	processCrashed    func(pluginID string)
+	processSuspended  func(pluginID string)
 	connChecker    PluginConnectionChecker
 
 	mu              sync.Mutex
@@ -311,6 +312,17 @@ func (m *PluginManager) SetProcessCrashedHandler(fn func(pluginID string)) {
 	m.processCrashed = fn
 }
 
+// SetProcessSuspendedHandler registers a host-internal observer of idle suspension.
+//
+// Suspension is deliberate where a crash is not, but to anything holding state the plugin vouched
+// for the two are the same event: the process is gone and can confirm nothing until it is started
+// again. It gets its own hook rather than reusing the crash one so the manager keeps saying what
+// actually happened, and so a future consumer that DOES care about the difference has somewhere to
+// hang that off.
+func (m *PluginManager) SetProcessSuspendedHandler(fn func(pluginID string)) {
+	m.processSuspended = fn
+}
+
 func (m *PluginManager) emitStateChange(pluginID, state, sessionID string) {
 	// Single choke point for every lifecycle transition, so start/running/
 	// suspended/stopped/crashed are all visible in the debug log (previously
@@ -324,6 +336,9 @@ func (m *PluginManager) emitStateChange(pluginID, state, sessionID string) {
 	}
 	if state == "crashed" && m.processCrashed != nil {
 		m.processCrashed(pluginID)
+	}
+	if state == "suspended" && m.processSuspended != nil {
+		m.processSuspended(pluginID)
 	}
 	if m.stateChange != nil {
 		m.stateChange(pluginID, state, sessionID)
