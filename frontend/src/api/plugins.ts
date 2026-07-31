@@ -21,6 +21,14 @@ export interface PluginInfo {
   requiresSecretAccess: boolean;
   signed: boolean;
   enabled: boolean;
+  /**
+   * Discovery icons (ADR-014), keyed by the plugin's own iconId, each value an
+   * already-encoded `data:` URI. They ride along on ListPlugins on purpose:
+   * icon bytes are read and cached once when the plugin enters the registry, so
+   * there is no endpoint that takes a plugin id and an asset name from the
+   * frontend.
+   */
+  discoveryIcons?: Record<string, string>;
 }
 
 export interface PluginInstallPreview {

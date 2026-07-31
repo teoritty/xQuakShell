@@ -1,5 +1,18 @@
 import type { Connection, Folder } from '../../stores/appState';
+import type { DiscoverySnapshot } from '../../api/discovery';
+import { buildDiscoverySubtree } from './discoveryTree';
 import type { TreeNode } from './types';
+
+/**
+ * Discovery state, passed in whole rather than reached for. buildTree stays a
+ * pure function of its arguments, and the subtree itself is built by
+ * discoveryTree.ts — this module knows only where to splice the result in.
+ */
+export interface DiscoveryTreeInput {
+  snapshots: Map<string, DiscoverySnapshot>;
+  /** connectionId -> expanded discoveryKey set; '' present means the root is open. */
+  expanded: Map<string, Set<string>>;
+}
 
 export function matchesSearch(q: string, name: string, host?: string): boolean {
   const lower = q.toLowerCase();
@@ -12,7 +25,8 @@ export function buildTree(
   folderList: Folder[],
   connList: Connection[],
   expanded: Set<string>,
-  query: string
+  query: string,
+  discovery?: DiscoveryTreeInput
 ): TreeNode[] {
   const folderMap = new Map<string, Folder[]>();
   const connMap = new Map<string, Connection[]>();
@@ -65,7 +79,7 @@ export function buildTree(
     const subConns = (connMap.get(parentId) || []).sort((a, b) => a.order - b.order);
     for (const c of subConns) {
       if (query && !matchesSearch(query, c.name, c.host)) continue;
-      nodes.push({
+      const connNode: TreeNode = {
         type: 'connection',
         id: c.id,
         name: c.name,
@@ -73,7 +87,24 @@ export function buildTree(
         parentId,
         connection: c,
         tags: c.tags || [],
-      });
+      };
+      // The one point where discovery enters the connection tree. A search query
+      // deliberately does NOT auto-expand a subtree: expanding is what publishes
+      // an `observe`, so a single keystroke would fan out observe/publish across
+      // every connection at once. Search filters the rows already loaded; the
+      // UI says so rather than pretending the subtree was searched.
+      const discoveryExpandedKeys = discovery?.expanded.get(c.id);
+      if (discoveryExpandedKeys?.has('')) {
+        connNode.expanded = true;
+        connNode.children = buildDiscoverySubtree({
+          connectionId: c.id,
+          snapshot: discovery?.snapshots.get(c.id),
+          expandedKeys: discoveryExpandedKeys,
+          baseDepth: depth,
+          parentId: c.id,
+        });
+      }
+      nodes.push(connNode);
     }
     return nodes;
   }
@@ -85,7 +116,9 @@ export function flattenTree(nodes: TreeNode[]): TreeNode[] {
   const result: TreeNode[] = [];
   for (const n of nodes) {
     result.push(n);
-    if (n.type === 'folder' && n.expanded && n.children) {
+    // Folders nest folders; connections nest their discovery subtree, which
+    // arrives already flat, so the recursion bottoms out one level down.
+    if (n.expanded && n.children) {
       result.push(...flattenTree(n.children));
     }
   }

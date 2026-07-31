@@ -292,6 +292,34 @@
   padding-left: 8px !important;
 }
 
+/* Discovery rows (ADR-014). Same density, same hover, same indent guides as any
+   other row — the subtree is part of the tree, not a panel inside it. Only the
+   states the host owns get their own treatment. */
+
+/* stale = the leading session handed over, or the plugin is restarting: nobody
+   can confirm what is on screen right now. Dimming the whole subtree says that
+   without removing rows the user is still reading. */
+.remote-tree .tree-node.discovery-stale {
+  opacity: 0.55;
+}
+
+/* Service lines are chrome: not selectable, not a hover affordance. */
+.remote-tree .tree-node.discovery-notice-row {
+  cursor: default;
+  min-height: 20px;
+}
+
+.remote-tree .tree-node.discovery-notice-row:hover {
+  background: transparent;
+}
+
+.remote-tree .search-hint {
+  padding: 4px 8px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
 .remote-tree .empty-tree {
   padding: 16px;
   text-align: center;

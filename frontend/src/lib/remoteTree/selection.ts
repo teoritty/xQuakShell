@@ -1,6 +1,31 @@
 import type { Connection, Folder } from '../../stores/appState';
 import type { Writable } from 'svelte/store';
-import type { TreeNode } from './types';
+import { isDiscoveryNodeId, type TreeNode } from './types';
+
+/**
+ * Strips discovery ids out of a selection before it is mapped onto real
+ * connections or folders.
+ *
+ * This is the single most dangerous seam in ADR-014. Discovery rows share the
+ * flat row list with connections, so a Shift-selection dragged down through an
+ * expanded subtree walks over them. If one of those ids reached
+ * connectionIdsInSelection it would reach the tree's Delete item, and the user
+ * would lose connections they never pointed at. Discovery rows are already kept
+ * in a separate selection value (discoverySelection.ts) and selectTreeNode below
+ * refuses to add them — this filter is the third, unconditional guard, placed at
+ * the last point before ids become deletions.
+ */
+function withoutDiscoveryIds(selectedPaths: Set<string>): Set<string> {
+  let hasDiscovery = false;
+  for (const id of selectedPaths) {
+    if (isDiscoveryNodeId(id)) {
+      hasDiscovery = true;
+      break;
+    }
+  }
+  if (!hasDiscovery) return selectedPaths;
+  return new Set([...selectedPaths].filter((id) => !isDiscoveryNodeId(id)));
+}
 
 export interface SelectionStores {
   selectedConnectionId: Writable<string>;
@@ -21,6 +46,13 @@ export function selectTreeNode(
   selectedPaths: Set<string>,
   e?: MouseEvent
 ): SelectNodeResult {
+  // A discovery row never enters this selection at all — it has its own
+  // (discoverySelection.ts). Returning the selection untouched, rather than
+  // clearing it, is the caller's job: RemoteTree clears this set explicitly when
+  // it moves the focus to a discovery row.
+  if (isDiscoveryNodeId(id)) {
+    return { selectedPaths, lastSelectedPath: lastSelectedPath ?? '' };
+  }
   if (e?.ctrlKey || e?.metaKey) {
     const next = new Set(selectedPaths);
     if (next.has(id)) next.delete(id);
@@ -32,7 +64,12 @@ export function selectTreeNode(
     const lastIdx = lastSelectedPath != null ? visibleNodes.findIndex((n) => n.id === lastSelectedPath) : -1;
     const next = new Set(selectedPaths);
     const [lo, hi] = lastIdx >= 0 ? (idx < lastIdx ? [idx, lastIdx] : [lastIdx, idx]) : [idx, idx];
-    for (let i = lo; i <= hi; i++) next.add(visibleNodes[i].id);
+    for (let i = lo; i <= hi; i++) {
+      // The range can span an expanded subtree; those rows are skipped rather
+      // than ending the range, so Shift still reaches the connection below.
+      if (visibleNodes[i].type === 'discovery') continue;
+      next.add(visibleNodes[i].id);
+    }
     return { selectedPaths: next, lastSelectedPath: id };
   }
   return { selectedPaths: new Set([id]), lastSelectedPath: id };
@@ -44,8 +81,9 @@ export function syncSelectionStores(
   folders: Folder[],
   stores: SelectionStores
 ): void {
-  const connIds = connections.filter((c) => selectedPaths.has(c.id)).map((c) => c.id);
-  const folderIds = folders.filter((f) => selectedPaths.has(f.id)).map((f) => f.id);
+  const paths = withoutDiscoveryIds(selectedPaths);
+  const connIds = connections.filter((c) => paths.has(c.id)).map((c) => c.id);
+  const folderIds = folders.filter((f) => paths.has(f.id)).map((f) => f.id);
   stores.selectedConnectionIds.set(new Set(connIds));
   stores.selectedConnectionId.set(connIds.length === 1 ? connIds[0] : '');
   stores.selectedFolderId.set(folderIds.length === 1 ? folderIds[0] : '');
@@ -63,16 +101,19 @@ export function prepareContextMenuSelection(
   node: TreeNode,
   selectedPaths: Set<string>
 ): SelectNodeResult | null {
+  if (node.type === 'discovery') return null;
   if (selectedPaths.has(node.id)) return null;
   return { selectedPaths: new Set([node.id]), lastSelectedPath: node.id };
 }
 
 export function connectionIdsInSelection(selectedPaths: Set<string>, connections: Connection[]): string[] {
-  return connections.filter((c) => selectedPaths.has(c.id)).map((c) => c.id);
+  const paths = withoutDiscoveryIds(selectedPaths);
+  return connections.filter((c) => paths.has(c.id)).map((c) => c.id);
 }
 
 export function folderIdsInSelection(selectedPaths: Set<string>, folders: Folder[]): string[] {
-  return folders.filter((f) => selectedPaths.has(f.id)).map((f) => f.id);
+  const paths = withoutDiscoveryIds(selectedPaths);
+  return folders.filter((f) => paths.has(f.id)).map((f) => f.id);
 }
 
 export function connectionIdsForDelete(
@@ -80,6 +121,7 @@ export function connectionIdsForDelete(
   selectedPaths: Set<string>,
   connections: Connection[]
 ): string[] {
+  if (isDiscoveryNodeId(nodeId)) return [];
   const connIds = connectionIdsInSelection(selectedPaths, connections);
   if (selectedPaths.has(nodeId) && connIds.length > 1) return connIds;
   return [nodeId];

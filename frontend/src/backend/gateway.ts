@@ -154,6 +154,19 @@ export interface AppGateway {
     arg7: boolean
   ): Promise<wails.PluginDTO>;
 
+  // --- Discovery subtrees (ADR-014). Everything is addressed by connectionId;
+  // the backend's sessionId never crosses this seam. ---
+  GetDiscoveryTree?(arg1: string): Promise<wails.DiscoverySnapshotDTO>;
+
+  InvokeDiscoveryAction?(
+    arg1: string,
+    arg2: string,
+    arg3: Array<string>,
+    arg4: string
+  ): Promise<void>;
+
+  SetDiscoveryObserved?(arg1: string, arg2: Array<string>): Promise<void>;
+
   IsVaultUnlocked(): Promise<boolean>;
 
   ListGitHubRepositories?(): Promise<Array<wails.GitHubRepositoryDTO>>;

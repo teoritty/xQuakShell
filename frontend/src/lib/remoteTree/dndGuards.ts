@@ -1,11 +1,26 @@
 import type { Connection, Folder } from '../../stores/appState';
 import type { DragPayload, DropZone, TreeNode } from './types';
 
+/**
+ * Discovery rows sit in the same flat list as folders and connections but take
+ * no part in drag and drop: they are a read-only reflection of a remote machine,
+ * there is no reorder or reparent verb for them, and a plugin does not get to
+ * become a drop target inside the user's connection library.
+ *
+ * Every entry point below returns early on one of these, so a drag passing over
+ * an expanded subtree draws no insertion indicator at all rather than an
+ * indicator for an operation that would then be ignored.
+ */
+export function isDiscoveryNode(node: TreeNode): boolean {
+  return node.type === 'discovery';
+}
+
 export function isNodeEditing(
   node: TreeNode,
   editingFolderId: string | null,
   editingConnId: string | null
 ): boolean {
+  if (node.type === 'discovery') return false;
   if (node.type === 'folder') return editingFolderId === node.id;
   return editingConnId === node.id;
 }
@@ -16,6 +31,9 @@ export function resolveDragPayload(
   selectedFolderIds: Set<string>,
   selectedConnectionIds: Set<string>
 ): DragPayload {
+  // Checked before the multi-selection branch: dragging a discovery row must
+  // never smuggle the current connection selection along with it.
+  if (isDiscoveryNode(node)) return { folderIds: [], connectionIds: [] };
   const multiSelection =
     selectedPaths.has(node.id) && selectedFolderIds.size + selectedConnectionIds.size > 1;
   if (multiSelection) {
@@ -135,6 +153,7 @@ export function isNoOpReorder(
 }
 
 export function isNoOpDragOver(payload: DragPayload, node: TreeNode): boolean {
+  if (isDiscoveryNode(node)) return true;
   if (payload.folderIds.includes(node.id)) return true;
   if (payload.connectionIds.length === 1 && payload.connectionIds[0] === node.id && payload.folderIds.length === 0) {
     return true;
@@ -142,7 +161,8 @@ export function isNoOpDragOver(payload: DragPayload, node: TreeNode): boolean {
   return false;
 }
 
-export function computeDropZone(e: DragEvent, node: TreeNode): DropZone {
+export function computeDropZone(e: DragEvent, node: TreeNode): DropZone | null {
+  if (isDiscoveryNode(node)) return null;
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
   const y = e.clientY - rect.top;
   const ratio = y / rect.height;
@@ -157,11 +177,12 @@ export function computeDropZone(e: DragEvent, node: TreeNode): DropZone {
 export function shouldShowDropIndicator(
   payload: DragPayload,
   node: TreeNode,
-  zone: DropZone,
+  zone: DropZone | null,
   connections: Connection[],
   folders: Folder[],
   flatNodes: TreeNode[]
 ): boolean {
+  if (zone === null) return false;
   if (isNoOpDragOver(payload, node)) return false;
   if (zone === 'folder' && node.type === 'folder') {
     return !isNoOpDropOnFolder(payload, node.id, connections, folders);

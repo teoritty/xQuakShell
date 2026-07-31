@@ -54,8 +54,34 @@
     syncSelectionStores,
     type SelectionStores,
   } from './remoteTree/selection';
-  import { emptyDragVisualState, type DragPayload, type DragVisualState, type TreeNode } from './remoteTree/types';
+  import { emptyDragVisualState, type DragPayload, type DragVisualState, type DiscoveryRow, type TreeNode } from './remoteTree/types';
   import { clampMenuPosition } from './clampMenuPosition';
+  import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
+  import { invokeDiscoveryAction } from '../api/discovery';
+  import {
+    computeDiscoveryMenu,
+    defaultDiscoveryAction,
+    type DiscoveryMenu,
+    type DiscoveryMenuItem,
+  } from './remoteTree/discoveryActions';
+  import {
+    moveDiscoverySelection,
+    selectDiscoveryRow,
+    selectedDiscoveryRows,
+  } from './remoteTree/discoverySelection';
+  import {
+    clearDiscoverySelection,
+    discoveryExpanded,
+    discoveryIcons,
+    discoverySelection,
+    discoverySnapshots,
+    reconcileDiscoverySelection,
+    refreshDiscoveryIcons,
+    setDiscoveryNodeExpanded,
+    toggleDiscoveryNode,
+    toggleDiscoveryRoot,
+  } from '../stores/discoveryState';
   import './remoteTree/remoteTreeShared.css';
 
   const selectionStores: SelectionStores = {
@@ -73,7 +99,13 @@
   let editingConnName = '';
   let dragPayload: DragPayload | null = null;
   let dragVisual: DragVisualState = emptyDragVisualState();
-  let ctxMenu = { show: false, x: 0, y: 0, node: null as TreeNode | null };
+  let ctxMenu = {
+    show: false,
+    x: 0,
+    y: 0,
+    node: null as TreeNode | null,
+    discoveryMenu: null as DiscoveryMenu | null,
+  };
   let confirmDeleteShow = false;
   let confirmDeleteType: 'connection' | 'folder' = 'connection';
   let confirmDeleteId = '';
@@ -82,11 +114,44 @@
   let confirmDeleteCritical = false;
   let confirmDeleteChildCount = 0;
   let showImportDialog = false;
+  let confirmActionShow = false;
+  let confirmActionMessage = '';
+  let pendingAction: { item: DiscoveryMenuItem; menu: DiscoveryMenu } | null = null;
 
-  $: tree = buildTree($folders, $connections, $expandedFolderIds, searchQuery);
+  onMount(() => {
+    // Icons ride along on ListPlugins and are cached in the registry, so this is
+    // one call for every icon of every plugin — there is no per-icon endpoint.
+    void refreshDiscoveryIcons();
+  });
+
+  $: tree = buildTree($folders, $connections, $expandedFolderIds, searchQuery, {
+    snapshots: $discoverySnapshots,
+    expanded: $discoveryExpanded,
+  });
   $: flatNodes = flattenTree(tree);
   $: favoriteConns = $connections.filter((c) => $favorites.has(c.id));
   $: sessionStatusByConnId = buildSessionStatusMap($sessions);
+  // Discovery needs a leading session to enumerate anything, so the expander
+  // appears only where a session exists. Connections without one look exactly
+  // as they did before this feature.
+  $: discoveryAvailableIds = new Set($sessions.map((s) => s.connectionId));
+  $: discoveryRows = flatNodes
+    .filter((n) => n.type === 'discovery' && n.discovery)
+    .map((n) => n.discovery as DiscoveryRow);
+  // A row that vanished from a republished snapshot must leave the selection,
+  // and an emptied selection closes the action menu.
+  $: {
+    reconcileDiscoverySelection(discoveryRows);
+  }
+  $: if ($discoverySelection.keys.size === 0 && ctxMenu.discoveryMenu) closeContextMenu();
+  // Search never auto-expands a discovery node: expanding is what publishes an
+  // `observe`, so one keystroke would fan observe/publish out across every
+  // connection at once. Say so rather than let the user believe the subtree was
+  // searched and found nothing.
+  $: searchHint =
+    searchQuery && $discoveryExpanded.size > 0
+      ? 'Search covers connections and folders. Discovered resources are not searched.'
+      : '';
   $: selectedConnectionCount = connectionIdsInSelection(selectedPaths, $connections).length;
   $: shiftNodes = (() => {
     const favIds = new Set(favoriteConns.map((c) => c.id));
@@ -181,6 +246,24 @@
   function showContextMenu(e: MouseEvent, node: TreeNode) {
     e.preventDefault();
     e.stopPropagation();
+    if (node.type === 'discovery') {
+      if (!node.discovery) return;
+      // Right-click on an unselected row solo-selects it, same file-manager rule
+      // the connection tree uses — but inside discovery's own selection.
+      if (!$discoverySelection.keys.has(node.discovery.key)) {
+        selectDiscoveryNode(node.discovery);
+      }
+      const rows = selectedDiscoveryRows(get(discoverySelection), discoveryRows);
+      const menu = computeDiscoveryMenu(rows);
+      const pos = clampMenuPosition(
+        { left: e.clientX, top: e.clientY, right: e.clientX, bottom: e.clientY },
+        260,
+        Math.max(60, menu.items.length * 28 + (menu.notice ? 40 : 0))
+      );
+      ctxMenu = { show: true, x: pos.left, y: pos.top, node, discoveryMenu: menu };
+      openContextMenu(closeContextMenu);
+      return;
+    }
     const prep = prepareContextMenuSelection(node, selectedPaths);
     if (prep) applySelection(prep);
     const pos = clampMenuPosition(
@@ -188,13 +271,61 @@
       200,
       node.type === 'folder' ? 150 : 160
     );
-    ctxMenu = { show: true, x: pos.left, y: pos.top, node };
+    ctxMenu = { show: true, x: pos.left, y: pos.top, node, discoveryMenu: null };
     openContextMenu(closeContextMenu);
   }
 
   function closeContextMenu() {
     releaseContextMenu(closeContextMenu);
-    ctxMenu = { ...ctxMenu, show: false };
+    ctxMenu = { ...ctxMenu, show: false, discoveryMenu: null };
+  }
+
+  /**
+   * Moving focus into a discovery row clears the connection/folder selection and
+   * vice versa. Two independent sets, only one of them ever populated — that is
+   * what stops a Shift-drag through a subtree from ending up aimed at Delete.
+   */
+  function selectDiscoveryNode(row: DiscoveryRow, e?: MouseEvent) {
+    if (selectedPaths.size > 0) {
+      selectedPaths = clearTreeSelection(selectionStores);
+      lastSelectedPath = null;
+    }
+    discoverySelection.update((sel) => selectDiscoveryRow(sel, row, discoveryRows, e));
+  }
+
+  async function runDiscoveryAction(item: DiscoveryMenuItem, menu: DiscoveryMenu) {
+    if (item.disabled || menu.nodeIds.length === 0) return;
+    await invokeDiscoveryAction(menu.connectionId, menu.pluginId, menu.nodeIds, item.id);
+  }
+
+  function requestDiscoveryAction(item: DiscoveryMenuItem, menu: DiscoveryMenu) {
+    closeContextMenu();
+    if (item.confirm) {
+      // A mass action names the count: "Remove" over 40 containers is a very
+      // different decision from "Remove" over one.
+      confirmActionMessage =
+        menu.nodeIds.length > 1
+          ? `${item.confirm} (${menu.nodeIds.length} items)`
+          : item.confirm;
+      pendingAction = { item, menu };
+      confirmActionShow = true;
+      return;
+    }
+    void runDiscoveryAction(item, menu);
+  }
+
+  async function handleConfirmDiscoveryAction() {
+    confirmActionShow = false;
+    const pending = pendingAction;
+    pendingAction = null;
+    if (pending) await runDiscoveryAction(pending.item, pending.menu);
+  }
+
+  function activateDiscoveryRow(row: DiscoveryRow) {
+    const menu = computeDiscoveryMenu([row]);
+    const item = defaultDiscoveryAction([row]);
+    if (item) requestDiscoveryAction(item, menu);
+    else if (row.kind === 'group') void toggleDiscoveryNode(row.connectionId, row.key);
   }
 
   function handleWindowClick(e: MouseEvent) {
@@ -203,6 +334,7 @@
     if (!target) return;
     if (target.closest('.tree-node')) return;
     if (target.closest('.context-menu')) return;
+    clearDiscoverySelection();
     if (selectedPaths.size === 0) return;
     selectedPaths = clearTreeSelection(selectionStores);
     lastSelectedPath = null;
@@ -276,8 +408,11 @@
     e.stopPropagation();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
     if (!dragPayload) return;
+    // null zone = a discovery row: no indicator is drawn at all, so a drag
+    // crossing an expanded subtree never suggests an insertion that cannot
+    // happen.
     const zone = computeDropZone(e, node);
-    if (!shouldShowDropIndicator(dragPayload, node, zone, $connections, $folders, flatNodes)) {
+    if (zone === null || !shouldShowDropIndicator(dragPayload, node, zone, $connections, $folders, flatNodes)) {
       dragVisual = { ...dragVisual, dragOverDropZone: null, dragOverTargetId: null, dragOverId: null };
       return;
     }
@@ -307,6 +442,10 @@
       return;
     }
     const zone = computeDropZone(e, node);
+    if (zone === null) {
+      clearDragState();
+      return;
+    }
     try {
       if (zone === 'folder' && node.type === 'folder') {
         await executeDropOnFolder(payload, node.id, $connections, $folders);
@@ -361,6 +500,7 @@
   }
 
   function handleSelectNode(id: string, e?: MouseEvent) {
+    clearDiscoverySelection();
     applySelection(selectTreeNode(id, shiftNodes, lastSelectedPath, selectedPaths, e));
     const isPlainClick = !e?.ctrlKey && !e?.metaKey && !e?.shiftKey;
     if (isPlainClick && $connections.some((c) => c.id === id)) {
@@ -383,16 +523,52 @@
   }
 
   function handleNodeClick(e: CustomEvent<{ event: MouseEvent; node: TreeNode }>) {
-    handleSelectNode(e.detail.node.id, e.detail.event);
+    const { event, node } = e.detail;
+    if (node.type === 'discovery') {
+      if (node.discovery) selectDiscoveryNode(node.discovery, event);
+      return;
+    }
+    handleSelectNode(node.id, event);
   }
 
   function handleNodeDblclick(e: CustomEvent<{ node: TreeNode }>) {
-    if (e.detail.node.connection) openSession(e.detail.node.connection.id);
-    else toggleFolder(e.detail.node.id);
+    const { node } = e.detail;
+    if (node.type === 'discovery') {
+      if (node.discovery) activateDiscoveryRow(node.discovery);
+      return;
+    }
+    if (node.connection) openSession(node.connection.id);
+    else toggleFolder(node.id);
   }
 
   function handleNodeKeydown(e: CustomEvent<{ event: KeyboardEvent; node: TreeNode }>) {
     const { event, node } = e.detail;
+    if (node.type === 'discovery') {
+      const row = node.discovery;
+      if (!row) return;
+      // Arrows walk the subtree the same way they walk folders; Enter runs the
+      // node's defaultActionId, which is the plugin's idea of "the obvious
+      // thing", not the core's.
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        activateDiscoveryRow(row);
+      } else if (event.key === 'ArrowRight' && row.kind === 'group' && !row.expanded) {
+        event.preventDefault();
+        void setDiscoveryNodeExpanded(row.connectionId, row.key, true);
+      } else if (event.key === 'ArrowLeft' && row.kind === 'group' && row.expanded) {
+        event.preventDefault();
+        void setDiscoveryNodeExpanded(row.connectionId, row.key, false);
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        // Shift extends, but only across siblings — the invariant lives in
+        // moveDiscoverySelection, not here.
+        event.preventDefault();
+        const direction = event.key === 'ArrowDown' ? 1 : -1;
+        discoverySelection.update((sel) =>
+          moveDiscoverySelection(sel, discoveryRows, direction, event.shiftKey)
+        );
+      }
+      return;
+    }
     if (event.key === 'Enter' && node.connection) openSession(node.connection.id);
     if (event.key === 'Enter' && node.type === 'folder') toggleFolder(node.id);
   }
@@ -439,6 +615,10 @@
     bind:editingConnName
     pingResults={$pingResults}
     {sessionStatusByConnId}
+    {discoveryAvailableIds}
+    discoveryIcons={$discoveryIcons}
+    discoverySelectedKeys={$discoverySelection.keys}
+    {searchHint}
     on:treeKeydown={handleTreeKeydown}
     on:selectConnection={({ detail }) => handleSelectNode(detail.id, detail.event)}
     on:openConnection={({ detail }) => openSession(detail.connection.id)}
@@ -462,6 +642,8 @@
     on:deleteFolder={({ detail }) => detail.folder && requestDeleteFolder(detail.folder)}
     on:startRenameConnection={({ detail }) => detail.connection && startRenameConnection(detail.connection)}
     on:deleteConnection={handleDeleteConnection}
+    on:toggleDiscoveryRoot={({ detail }) => toggleDiscoveryRoot(detail.connectionId)}
+    on:toggleDiscoveryNode={({ detail }) => toggleDiscoveryNode(detail.row.connectionId, detail.row.key)}
   />
 </div>
 
@@ -472,11 +654,25 @@
   isFolder={ctxMenu.node?.type === 'folder'}
   isConnection={ctxMenu.node?.type === 'connection'}
   isFavorite={ctxMenu.node?.type === 'connection' && ctxMenu.node?.id ? $favorites.has(ctxMenu.node.id) : false}
+  discoveryMenu={ctxMenu.discoveryMenu}
   on:delete={handleCtxDelete}
   on:edit={handleCtxEdit}
   on:newConnection={handleCtxNewConnection}
   on:newFolder={handleCtxNewFolder}
   on:toggleFavorite={() => ctxMenu.node?.type === 'connection' && toggleFavorite(ctxMenu.node.id)}
+  on:invokeAction={({ detail }) => ctxMenu.discoveryMenu && requestDiscoveryAction(detail, ctxMenu.discoveryMenu)}
+/>
+
+<ConfirmDialog
+  show={confirmActionShow}
+  title="Confirm action"
+  message={confirmActionMessage}
+  critical={!!pendingAction?.item.danger}
+  on:confirm={handleConfirmDiscoveryAction}
+  on:cancel={() => {
+    confirmActionShow = false;
+    pendingAction = null;
+  }}
 />
 
 <ConfirmDialog
