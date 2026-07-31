@@ -83,6 +83,16 @@ export async function refreshDiscoveryTree(connectionId: string): Promise<void> 
   });
 }
 
+/**
+ * Drops every trace of one connection's subtree: snapshot, expansion and
+ * selection.
+ *
+ * Nothing here is repaired lazily. `discoveryExpanded` is what makes buildTree
+ * emit rows at all, and buildTree knows nothing about sessions — so a subtree
+ * whose expansion survives its session keeps rendering with no way left to
+ * collapse it, because the only control that collapses it is the connection
+ * row's arrow, and that arrow is gone.
+ */
 export function forgetDiscoveryTree(connectionId: string): void {
   discoverySnapshots.update((map) => {
     if (!map.has(connectionId)) return map;
@@ -99,6 +109,29 @@ export function forgetDiscoveryTree(connectionId: string): void {
   discoverySelection.update((sel) =>
     sel.connectionId === connectionId ? emptyDiscoverySelection() : sel
   );
+}
+
+/**
+ * Forgets the subtree of every connection that can no longer have one.
+ *
+ * Discovery enumerates through a leading session; when the last `ready` session
+ * of a connection closes the backend deletes its tree outright (ADR-014: nothing
+ * is cached or persisted). The frontend has to follow, and it cannot wait to be
+ * told — DiscoveryTreeChanged is about a tree that still exists.
+ *
+ * Called reactively from the tree with the same set that decides whether the
+ * connection row draws its expander, so the rows and the control that hides them
+ * can never disagree.
+ */
+export function forgetUnavailableDiscovery(availableConnectionIds: Set<string>): void {
+  for (const connectionId of [...get(discoveryExpanded).keys()]) {
+    if (!availableConnectionIds.has(connectionId)) forgetDiscoveryTree(connectionId);
+  }
+  // A connection may hold a snapshot without an expansion for a moment after a
+  // refresh raced a collapse; clear those too rather than leak them.
+  for (const connectionId of [...get(discoverySnapshots).keys()]) {
+    if (!availableConnectionIds.has(connectionId)) forgetDiscoveryTree(connectionId);
+  }
 }
 
 /**

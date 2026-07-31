@@ -6,14 +6,20 @@ import { isDiscoveryNodeId, type TreeNode } from './types';
  * Strips discovery ids out of a selection before it is mapped onto real
  * connections or folders.
  *
- * This is the single most dangerous seam in ADR-014. Discovery rows share the
- * flat row list with connections, so a Shift-selection dragged down through an
- * expanded subtree walks over them. If one of those ids reached
- * connectionIdsInSelection it would reach the tree's Delete item, and the user
- * would lose connections they never pointed at. Discovery rows are already kept
- * in a separate selection value (discoverySelection.ts) and selectTreeNode below
- * refuses to add them — this filter is the third, unconditional guard, placed at
- * the last point before ids become deletions.
+ * HONEST STATUS: this is a backstop, not a proven layer, and no test can
+ * currently falsify it. The functions below already filter the selection through
+ * the actual `connections`/`folders` arrays, so an id that is not a real
+ * connection id cannot survive them anyway — and DISCOVERY_ID_PREFIX guarantees
+ * a discovery id never is one. Replacing this function body with `return
+ * selectedPaths` keeps every test green; that was measured, not assumed.
+ *
+ * It is kept because it stops being redundant the moment the id scheme changes:
+ * if discovery rows ever lose their prefix, or an id path appears that does not
+ * cross-check against the connections array, this is the guard that is already
+ * in place at the last point before ids become deletions. What actually protects
+ * the tree today is stated where it is provable — selectTreeNode refusing
+ * discovery rows, and the explicit check in connectionIdsForDelete, both of
+ * which fail discoveryIsolation.test.ts when removed.
  */
 function withoutDiscoveryIds(selectedPaths: Set<string>): Set<string> {
   let hasDiscovery = false;
@@ -121,6 +127,10 @@ export function connectionIdsForDelete(
   selectedPaths: Set<string>,
   connections: Connection[]
 ): string[] {
+  // Load-bearing, and provably so: nodeId is returned UNCHECKED on the single-row
+  // path below — it is never validated against `connections` — so without this
+  // line a delete aimed at a discovery row would hand that row's id straight to
+  // deleteConnection. Removing it fails discoveryIsolation.test.ts.
   if (isDiscoveryNodeId(nodeId)) return [];
   const connIds = connectionIdsInSelection(selectedPaths, connections);
   if (selectedPaths.has(nodeId) && connIds.length > 1) return connIds;

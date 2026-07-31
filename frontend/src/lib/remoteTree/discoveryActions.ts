@@ -83,19 +83,23 @@ export function computeDiscoveryMenu(rows: DiscoveryRow[]): DiscoveryMenu {
     return { ...emptyMenu(notice), ...base };
   }
 
-  if (rows.length > MAX_ACTION_NODES) {
-    return {
-      ...base,
-      items: candidates.map((a) => toItem(a, true)),
-      notice: `Actions run on at most ${MAX_ACTION_NODES} items at a time (${rows.length} selected)`,
-    };
-  }
-
+  // Checked BEFORE the size limit: both disable the menu, so only the notice
+  // differs, and a stale branch is the more fundamental reason. Told about the
+  // limit instead, the user would trim the selection and still be refused,
+  // having been given the wrong explanation twice.
   if (blocked) {
     return {
       ...base,
       items: candidates.map((a) => toItem(a, true)),
       notice: 'This branch is out of date — actions are unavailable until it refreshes',
+    };
+  }
+
+  if (rows.length > MAX_ACTION_NODES) {
+    return {
+      ...base,
+      items: candidates.map((a) => toItem(a, true)),
+      notice: `Actions run on at most ${MAX_ACTION_NODES} items at a time (${rows.length} selected)`,
     };
   }
 

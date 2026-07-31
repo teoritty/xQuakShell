@@ -72,6 +72,21 @@ for (const file of DISCOVERY_FILES) {
   );
 }
 
+// StatusDot.svelte must be the ONLY place that draws the dot. Sharing the colour
+// function while each row hand-rolls its own markup is how one primitive quietly
+// becomes three that drift apart.
+{
+  const owners: string[] = [];
+  for (const file of [...DISCOVERY_FILES, join(HERE, 'RemoteTreeFavorites.svelte')]) {
+    if (!file.endsWith('.svelte')) continue;
+    if (/class="ping-dot"/.test(stripComments(readFileSync(file, 'utf8')))) owners.push(file);
+  }
+  assert(
+    owners.length === 1 && owners[0].endsWith('StatusDot.svelte'),
+    `the status dot must be drawn only by StatusDot.svelte; also drawn by: ${owners.join(', ')}`
+  );
+}
+
 // The tree source must not reach for the backend's sessionId either: everything
 // on this side of the seam is addressed by connectionId. Comments are stripped
 // first — several of these files explain in prose why sessionId is absent, and

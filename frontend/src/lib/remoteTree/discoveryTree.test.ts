@@ -52,12 +52,17 @@ function rows(out: TreeNode[]): DiscoveryRow[] {
       },
     ],
   };
+  // 'zeta' is deliberately FIRST in the input array. Array#sort is stable, so if
+  // pluginId were not a real third sort key the two 'Same' rows would come out
+  // in input order (zeta before alpha) and this assertion would fail. That is
+  // what makes the third key falsifiable on its own.
   const out = rows(build(snapshot));
   const labels = out.map((r) => `${r.pluginId}/${r.label}`);
   assert(
     labels.join('|') === 'alpha/Zzz|zeta/Alpha|alpha/Same|zeta/Same',
     `order → label → pluginId, got ${labels.join('|')}`
   );
+  assert(snapshot.plugins[0].pluginId === 'zeta', 'the input order must stay adversarial for this test to mean anything');
 }
 
 // --- two plugins, identical node id: two distinct rows, distinct TreeNode ids ---

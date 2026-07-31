@@ -153,8 +153,13 @@ export function buildDiscoverySubtree(input: DiscoverySubtreeInput): TreeNode[] 
     ];
   }
 
+  // Deliberately NOT pre-sorted by pluginId. Array#sort is stable, so ordering
+  // the plugins first would decide ties on its own and make the third sort key
+  // in compareRows unfalsifiable — two mechanisms doing one job, neither of them
+  // testable in isolation. Rows are ordered by compareRows alone; the only place
+  // that needs a settled plugin order is the service lines, which sort
+  // themselves at the point of emission.
   const indexes = snapshot.plugins.map(indexPluginTree);
-  indexes.sort((a, b) => a.pluginId.localeCompare(b.pluginId));
   const out: TreeNode[] = [];
 
   function buildLevel(
@@ -228,7 +233,10 @@ export function buildDiscoverySubtree(input: DiscoverySubtreeInput): TreeNode[] 
       }
     }
 
-    for (const index of levelIndexes) {
+    // Service lines come after the level's rows, in a settled plugin order so
+    // two plugins reporting "loading" do not swap places between snapshots.
+    const noticeIndexes = [...levelIndexes].sort((a, b) => a.pluginId.localeCompare(b.pluginId));
+    for (const index of noticeIndexes) {
       out.push(
         ...branchNotices(
           index,

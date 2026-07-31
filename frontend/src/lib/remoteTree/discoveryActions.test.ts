@@ -87,6 +87,18 @@ const inspect: DiscoveryAction = { id: 'inspect', label: 'Inspect' };
   const menu = computeDiscoveryMenu([row('a', [start]), row('b', [start], { actionsBlocked: true })]);
   assert(menu.items.every((i) => i.disabled), 'any blocked row blocks the whole selection');
 }
+{
+  // Both reasons at once: the notice must name the stale branch, not the size
+  // limit. Trimming the selection would not help, so saying "at most 200" would
+  // send the user down a road that ends in the same refusal.
+  const many = Array.from({ length: 201 }, (_, i) => row(`n${i}`, [start], { actionsBlocked: true }));
+  const menu = computeDiscoveryMenu(many);
+  assert(menu.items.every((i) => i.disabled), 'still disabled');
+  assert(
+    menu.notice.includes('out of date') && !menu.notice.includes('200'),
+    `a stale branch outranks the size limit in the explanation, got "${menu.notice}"`
+  );
+}
 
 // --- defaultActionId is a single-row affordance only ---
 {

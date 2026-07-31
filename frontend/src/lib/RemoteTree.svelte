@@ -56,7 +56,7 @@
   } from './remoteTree/selection';
   import { emptyDragVisualState, type DragPayload, type DragVisualState, type DiscoveryRow, type TreeNode } from './remoteTree/types';
   import { clampMenuPosition } from './clampMenuPosition';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { get } from 'svelte/store';
   import { invokeDiscoveryAction } from '../api/discovery';
   import {
@@ -76,6 +76,7 @@
     discoveryIcons,
     discoverySelection,
     discoverySnapshots,
+    forgetUnavailableDiscovery,
     reconcileDiscoverySelection,
     refreshDiscoveryIcons,
     setDiscoveryNodeExpanded,
@@ -124,6 +125,19 @@
     void refreshDiscoveryIcons();
   });
 
+  // Discovery enumerates through a LEADING session, and ADR-014 defines that as
+  // the earliest one in `ready` state — so `connecting` and `error` do not count.
+  // Offering the expander for those would promise a subtree that cannot exist
+  // yet and answer with "No discovered resources".
+  $: discoveryAvailableIds = new Set(
+    $sessions.filter((s) => s.state === 'ready').map((s) => s.connectionId)
+  );
+  // Ordered before buildTree deliberately: when the last ready session goes, the
+  // backend deletes the tree and the connection row stops drawing its expander,
+  // so the expansion has to go in the same pass. buildTree knows nothing about
+  // sessions, and an expansion that outlived its session would keep rendering
+  // rows with no control left to collapse them.
+  $: forgetUnavailableDiscovery(discoveryAvailableIds);
   $: tree = buildTree($folders, $connections, $expandedFolderIds, searchQuery, {
     snapshots: $discoverySnapshots,
     expanded: $discoveryExpanded,
@@ -131,10 +145,6 @@
   $: flatNodes = flattenTree(tree);
   $: favoriteConns = $connections.filter((c) => $favorites.has(c.id));
   $: sessionStatusByConnId = buildSessionStatusMap($sessions);
-  // Discovery needs a leading session to enumerate anything, so the expander
-  // appears only where a session exists. Connections without one look exactly
-  // as they did before this feature.
-  $: discoveryAvailableIds = new Set($sessions.map((s) => s.connectionId));
   $: discoveryRows = flatNodes
     .filter((n) => n.type === 'discovery' && n.discovery)
     .map((n) => n.discovery as DiscoveryRow);
@@ -321,11 +331,38 @@
     if (pending) await runDiscoveryAction(pending.item, pending.menu);
   }
 
+  /**
+   * Enter on a discovery row. It acts on the SELECTION, not on whichever row
+   * happens to hold focus, so that what is highlighted and what the key does are
+   * the same thing. defaultActionId is a single-row affordance, so a
+   * multi-selection deliberately resolves to nothing rather than silently
+   * running one node's default across a set the user never named.
+   */
   function activateDiscoveryRow(row: DiscoveryRow) {
-    const menu = computeDiscoveryMenu([row]);
-    const item = defaultDiscoveryAction([row]);
-    if (item) requestDiscoveryAction(item, menu);
-    else if (row.kind === 'group') void toggleDiscoveryNode(row.connectionId, row.key);
+    const selected = selectedDiscoveryRows(get(discoverySelection), discoveryRows);
+    const target = selected.some((r) => r.key === row.key) && selected.length > 0 ? selected : [row];
+    const item = defaultDiscoveryAction(target);
+    if (item) requestDiscoveryAction(item, computeDiscoveryMenu(target));
+    else if (target.length === 1 && row.kind === 'group') {
+      void toggleDiscoveryNode(row.connectionId, row.key);
+    }
+  }
+
+  /**
+   * Keeps DOM focus on the row the selection just moved to.
+   *
+   * Without this, arrow keys would move the highlight while Enter and the
+   * left/right arrows kept reading the previously focused row — the user would
+   * see one row selected and the keyboard would act on another.
+   */
+  async function focusDiscoveryRow(key: string) {
+    if (!key || typeof document === 'undefined') return;
+    await tick();
+    const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(key) : key.replace(/["\\]/g, '\\$&');
+    const el = document.querySelector<HTMLElement>(
+      `.remote-tree .tree-node[data-discovery-key="${escaped}"]`
+    );
+    el?.focus();
   }
 
   function handleWindowClick(e: MouseEvent) {
@@ -566,6 +603,9 @@
         discoverySelection.update((sel) =>
           moveDiscoverySelection(sel, discoveryRows, direction, event.shiftKey)
         );
+        // Focus follows the selection so Enter and the left/right arrows keep
+        // acting on the row the user can see is current.
+        void focusDiscoveryRow(get(discoverySelection).lastKey);
       }
       return;
     }

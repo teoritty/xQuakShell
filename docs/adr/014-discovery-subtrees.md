@@ -112,6 +112,27 @@ Adding `discovery` to `hostRegistry` is purely additive — a new capability ent
 - `Label`/`Tooltip` are stripped of control characters and Unicode bidirectional overrides (U+202A–U+202E, U+2066–U+2069): without this, a resource name could visually spoof the neighboring tree row.
 - No new privilege for the plugin process: discovery carries metadata only.
 
+## Search (v1 limitation)
+
+The connection tree's search box filters folders and connections. It does **not**
+filter discovery rows, and it does not auto-expand a discovery node.
+
+Auto-expansion is the part that must not happen: expanding is what publishes an
+`observe`, so a single keystroke in the search box would fan `observe`/`publish`
+out across every connection at once — the exact load the level-based protocol
+exists to avoid.
+
+Filtering the rows already on screen would have been safe, but it was left out
+too: a search that silently reaches into some subtrees (expanded ones) and not
+others (collapsed ones) reports an absence it never checked, which is worse than
+not searching at all. The tree shows an explicit hint saying discovered resources
+are not searched, so the user is told rather than misled.
+
+Revisiting this means deciding what "not found" means for a branch nobody is
+observing — the honest answers are either "search only what is loaded, and say
+so" (today's behaviour) or a plugin-side search verb, which is a new wire verb
+and out of scope for v1.
+
 ## Actions
 
 Fully opaque to the core. A node carries `actions[]` and `defaultActionId`; the core draws the menu and calls `invokeAction`, and what the action does is known only to the plugin. A group carries its own `actions[]`: "stop all" is an ordinary action on the group, NOT an automatic core expansion into a list of children's actions. The core does not invent an "apply to all descendants" semantic — a collapsed group has no children in memory at all.
