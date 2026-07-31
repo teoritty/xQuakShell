@@ -2,6 +2,7 @@ package bundle
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,8 +38,11 @@ func ValidateCapabilitiesForInstall(m *domainplugin.Manifest, installDir string)
 // Every failure names the asset. "Plugin too large" sends an author hunting through 64 files; the
 // path and the two byte counts point straight at the one to shrink.
 //
-// A missing file is not this function's business: it is already covered by bundle integrity
-// verification, and re-reporting it here as a size problem would misdirect the reader.
+// A missing file does not refuse the plugin: integrity verification owns that judgement, and
+// reporting it here as a size problem would misdirect the reader. It is logged rather than passed
+// over in silence, because integrity does not cover every asset of every unsigned bundled plugin —
+// a manifest can be entirely valid while the icon it names is simply absent, and then the only
+// symptom is a node that renders without an icon for no visible reason.
 func validateDiscoveryIconAssets(m *domainplugin.Manifest, installDir string) error {
 	icons := m.Contributions.DiscoveryIcons
 	if len(icons) == 0 {
@@ -52,6 +56,8 @@ func validateDiscoveryIconAssets(m *domainplugin.Manifest, installDir string) er
 		info, err := os.Stat(filepath.Join(installDir, rel))
 		if err != nil {
 			if os.IsNotExist(err) {
+				slog.Warn("plugin declares a discovery icon whose asset is missing on disk",
+					"component", "plugin.bundle", "pluginId", m.ID, "iconId", icon.ID, "asset", icon.Asset)
 				continue
 			}
 			return fmt.Errorf("%w: discoveryIcons id %q: cannot read asset %q: %v",

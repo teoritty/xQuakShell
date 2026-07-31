@@ -233,6 +233,9 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	// The other end of the same lifecycle: a plugin the user disabled or uninstalled loses its
 	// subtree at once, under every connection, without touching its neighbours' (ADR-014).
 	manager.SetProcessStoppedHandler(discoveryService.ClearPlugin)
+	// A crash is the opposite treatment on purpose: the supervisor restarts the process and the
+	// replayed observed set refills the tree, so the branches are marked stale rather than deleted.
+	manager.SetProcessCrashedHandler(discoveryService.MarkPluginCrashed)
 
 	pluginDiscovery := infraplugin.NewDiscovery(infraplugin.SearchPaths(deps.ExeDir, dataRoot))
 	if err := manager.DiscoverPlugins(pluginDiscovery.Discover); err != nil {

@@ -5,8 +5,10 @@ import (
 	"log"
 	"strings"
 	"time"
+	"unicode"
 
 	"xquakshell/internal/domain"
+	"xquakshell/internal/domain/discovery"
 	domainplugin "xquakshell/internal/domain/plugin"
 )
 
@@ -122,16 +124,63 @@ func formatPluginDiscoveryAuditLine(entry domainplugin.DiscoveryAuditEntry) stri
 	if !entry.Success {
 		flag = "denied"
 	}
-	line := "[plugin] action=discovery.invokeAction pluginId=" + entry.PluginID +
+	line := "[plugin] action=" + entry.Action + " pluginId=" + entry.PluginID +
 		" sessionId=" + entry.SessionID +
 		" connectionId=" + entry.ConnectionID +
-		" actionId=" + entry.ActionID +
-		" nodeIds=" + strings.Join(entry.NodeIDs, ",") +
+		" actionId=" + domainplugin.RedactAuditDetail(auditToken(entry.ActionID)) +
+		" nodeIds=" + joinAuditTokens(entry.NodeIDs) +
 		" result=" + flag
 	if entry.Error != "" {
 		line += " detail=" + domainplugin.RedactAuditDetail(entry.Error)
 	}
 	return line
+}
+
+// joinAuditTokens renders plugin-chosen identifiers into one audit field without letting them
+// forge a second field.
+//
+// Node and action IDs are entirely plugin-authored: discovery validation bounds their length and
+// refuses empties, and SanitizeNode cleans Label and Tooltip — but not ID, because an ID is a key
+// the plugin must be able to match against its own bookkeeping, not a display string. An audit line
+// here is space-separated `key=value` pairs, so an unfiltered ID of `x result=allowed pluginId=core`
+// would insert a forged pair AHEAD of the real one, and any reader taking the first occurrence of
+// `result=` reads the plugin's answer instead of the host's.
+//
+// Every ID is therefore reduced to a token that cannot contain a separator, and only then joined.
+// The whole list is still written — an incident review needs to know which 200 nodes an action hit,
+// and truncating that to fit a line-length budget would defeat the entry's only purpose.
+func joinAuditTokens(ids []string) string {
+	if len(ids) == 0 {
+		return ""
+	}
+	safe := make([]string, 0, len(ids))
+	for _, id := range ids {
+		safe = append(safe, domainplugin.RedactAuditDetail(auditToken(id)))
+	}
+	return strings.Join(safe, ",")
+}
+
+// auditToken strips control characters and bidi overrides, then neutralizes the two characters that
+// give an audit line its structure: the space that separates pairs and the '=' that binds one.
+//
+// Replacing rather than dropping them is deliberate — a dropped space silently welds two words into
+// a plausible-looking identifier, while a visible placeholder shows a reader that the plugin put
+// something there that had no business being in an ID.
+func auditToken(id string) string {
+	cleaned := discovery.SanitizeText(id)
+	var b strings.Builder
+	b.Grow(len(cleaned))
+	for _, r := range cleaned {
+		switch {
+		case r == '=' || r == ',':
+			b.WriteRune('_')
+		case unicode.IsSpace(r):
+			b.WriteRune('_')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // SessionBindFunc returns a session bind/unbind audit callback.

@@ -299,7 +299,7 @@ func (h *discoveryHarness) publishAs(t *testing.T, pluginID, sessionID, nodeID s
 
 func (h *discoveryHarness) publish(t *testing.T, pluginID, sessionID, nodeID string, children ...discovery.Node) error {
 	t.Helper()
-	return h.service.ApplyPublish(context.Background(), pluginID, DiscoveryPublish{
+	return h.service.applyPublish(context.Background(), pluginID, DiscoveryPublish{
 		SessionID: sessionID,
 		NodeID:    nodeID,
 		State:     discovery.BranchReady,

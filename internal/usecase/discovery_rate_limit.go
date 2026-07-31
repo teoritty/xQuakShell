@@ -67,13 +67,23 @@ func (l *DiscoveryPublishLimiter) Allow(pluginID, connectionID string) bool {
 	return window.count <= discovery.MaxPublishPerSecond
 }
 
-// ForgetPlugin drops one plugin's window for one connection. It is the counterpart of a plugin
-// being stopped rather than a connection closing: the plugin's subtree is deleted, and leaving its
-// half-spent budget behind would throttle the first publishes it makes after being started again.
-func (l *DiscoveryPublishLimiter) ForgetPlugin(pluginID, connectionID string) {
+// ForgetPlugin drops every window belonging to one plugin, across all connections. It is the
+// counterpart of a plugin being stopped rather than a connection closing: leaving a half-spent
+// budget behind would throttle the first publishes the plugin makes after being started again.
+//
+// It sweeps by plugin rather than taking a (plugin, connection) pair because a window can exist for
+// a connection the plugin never successfully drew under: a publish refused for a collapsed branch
+// or a non-leading session is counted before it is refused, on purpose — the budget exists to bound
+// work the host does on the plugin's behalf, and deciding to drop a snapshot is some of that work.
+// Only the limiter's own keys can enumerate those.
+func (l *DiscoveryPublishLimiter) ForgetPlugin(pluginID string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	delete(l.windows, discoveryPaceKey{connectionID: connectionID, item: pluginID})
+	for key := range l.windows {
+		if key.item == pluginID {
+			delete(l.windows, key)
+		}
+	}
 }
 
 // ForgetConnection drops every window belonging to a connection, so a closed connection does not
@@ -217,11 +227,11 @@ func (p *DiscoveryPace) Emit(connectionID, nodeID string) {
 	p.coalescer.Submit(connectionID, nodeID)
 }
 
-// ForgetPlugin drops one plugin's publish budget for a connection. The coalescer is untouched on
-// purpose: its windows are keyed by node, and a node belongs to whichever plugin published it, so
-// there is nothing plugin-shaped for it to forget.
-func (p *DiscoveryPace) ForgetPlugin(pluginID, connectionID string) {
-	p.limiter.ForgetPlugin(pluginID, connectionID)
+// ForgetPlugin drops one plugin's publish budget everywhere. The coalescer is untouched on purpose:
+// its windows are keyed by node, and a node belongs to whichever plugin published it, so there is
+// nothing plugin-shaped for it to forget.
+func (p *DiscoveryPace) ForgetPlugin(pluginID string) {
+	p.limiter.ForgetPlugin(pluginID)
 }
 
 // ForgetConnection drops all pace state for a connection.

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"xquakshell/internal/domain/discovery"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // TestPluginWithoutDiscoveryCapabilityIsNeverAddressed covers the half of the security model the
@@ -138,6 +139,9 @@ func TestInvokeActionAuditCarriesEveryNodeID(t *testing.T) {
 	if entry.PluginID != "p1" || entry.SessionID != "s1" || entry.ActionID != "restart" || !entry.Success {
 		t.Fatalf("audit entry missing required context: %+v", entry)
 	}
+	if entry.Action != domainplugin.DiscoveryAuditDispatch {
+		t.Fatalf("a relayed action must be recorded as a dispatch, got %q", entry.Action)
+	}
 }
 
 // TestInvokeActionAuditIsIndependentOfTheCallerSlice guards the copy in record(): the audit entry
@@ -215,6 +219,113 @@ func TestStoppingAPluginFreesItsRateLimitWindow(t *testing.T) {
 
 	if !h.pace.AllowPublish("p1", "c1") {
 		t.Fatal("stopping a plugin must drop its window, so a restart publishes immediately")
+	}
+}
+
+// TestStoppingAPluginFreesAWindowItLeftWithoutATree is the tail behind the tail. A publish is
+// counted against the budget BEFORE it can be refused, so a plugin that only ever published into
+// collapsed branches spent budget and created no tree at all. Sweeping the windows by walking the
+// trees would forget exactly the plugins that have one and strand the ones that do not.
+func TestStoppingAPluginFreesAWindowItLeftWithoutATree(t *testing.T) {
+	h := newDiscoveryHarness(t)
+	h.sessionReady("s1", "c1")
+	// Nothing is observed, so every publish below is dropped and no tree is ever created.
+	h.service.SetObserved("c1", nil)
+
+	for i := 0; i < discovery.MaxPublishPerSecond; i++ {
+		if err := h.publish(t, "p1", "s1", "", instanceNode("n", "")); err != nil {
+			t.Fatalf("a publish for an unobserved node must be dropped, not failed: %v", err)
+		}
+	}
+	if h.pace.AllowPublish("p1", "c1") {
+		t.Fatal("dropped publishes were expected to spend budget; the rest of this test proves nothing")
+	}
+	if ids := h.store.ConnectionsWithPlugin("p1"); len(ids) != 0 {
+		t.Fatalf("no tree should exist for this plugin, got %v", ids)
+	}
+
+	h.service.ClearPlugin("p1")
+
+	if !h.pace.AllowPublish("p1", "c1") {
+		t.Fatal("a window with no tree behind it must still be forgotten when the plugin stops")
+	}
+}
+
+// TestCrashedPluginBranchesGoStaleAndKeepTheirNodes is the ADR-014 crash case: the nodes stay, the
+// branch stops claiming to be current, and the subtree is not deleted — the supervisor restarts the
+// process and the replayed observed set refills it, so a teardown here would make a recoverable
+// blip look like a disappearance.
+func TestCrashedPluginBranchesGoStaleAndKeepTheirNodes(t *testing.T) {
+	h := newDiscoveryHarness(t,
+		DiscoveryPluginTarget{PluginID: "pA", ParentProtocols: []string{"ssh"}},
+		DiscoveryPluginTarget{PluginID: "pB", ParentProtocols: []string{"ssh"}},
+	)
+	h.sessionReady("s1", "c1")
+	h.service.SetObserved("c1", []string{"", "a-group"})
+
+	h.publishAs(t, "pA", "s1", "", groupNode("a-group", ""))
+	h.publishAs(t, "pA", "s1", "a-group", instanceNode("a-child", "a-group"))
+	h.publishAs(t, "pB", "s1", "", instanceNode("b-node", ""))
+
+	h.service.MarkPluginCrashed("pA")
+
+	ids := nodeIDsOf(h.service.Snapshot("c1"))
+	if !containsID(ids, "a-group") || !containsID(ids, "a-child") {
+		t.Fatalf("a crash must not delete the crashed plugin's nodes, got %v", ids)
+	}
+	if got := branchOf(t, h.service.Snapshot("c1"), "pA", "").State; got != discovery.BranchStale {
+		t.Fatalf("the crashed plugin's root branch must go stale, got %q", got)
+	}
+	if got := branchOf(t, h.service.Snapshot("c1"), "pA", "a-group").State; got != discovery.BranchStale {
+		t.Fatalf("every branch of the crashed plugin must go stale, got %q", got)
+	}
+	// A neighbour under the same connection is still running and still authoritative.
+	if got := branchOf(t, h.service.Snapshot("c1"), "pB", "").State; got != discovery.BranchReady {
+		t.Fatalf("another plugin's branch must be untouched by the crash, got %q", got)
+	}
+}
+
+// TestActionsInsideACrashedPluginsBranchAreRefused is why stale is more than a label: the nodes on
+// screen name resources nothing has re-confirmed, and an action aimed at them could reach whatever
+// now answers to that name.
+func TestActionsInsideACrashedPluginsBranchAreRefused(t *testing.T) {
+	h := newDiscoveryHarness(t)
+	h.sessionReady("s1", "c1")
+	h.service.SetObserved("c1", []string{""})
+
+	restart := discovery.Action{ID: "restart", Label: "Restart"}
+	mustPublish(t, h, "", instanceNode("one", "", restart))
+	if err := h.service.InvokeAction(context.Background(), "c1", "p1", []string{"one"}, "restart"); err != nil {
+		t.Fatalf("the action must work before the crash, or this test proves nothing: %v", err)
+	}
+	before := h.caller.count()
+
+	h.service.MarkPluginCrashed("p1")
+
+	if err := h.service.InvokeAction(context.Background(), "c1", "p1", []string{"one"}, "restart"); err == nil {
+		t.Fatal("an action inside a stale branch must be refused")
+	}
+	if h.caller.count() != before {
+		t.Fatal("a refused action must never reach the plugin")
+	}
+}
+
+// TestCrashOfAPluginWithNoSubtreeIsHarmless: every crash reaches MarkPluginCrashed, and most
+// plugins have drawn nothing.
+func TestCrashOfAPluginWithNoSubtreeIsHarmless(t *testing.T) {
+	h := newDiscoveryHarness(t)
+	h.sessionReady("s1", "c1")
+	h.service.SetObserved("c1", []string{""})
+	mustPublish(t, h, "", instanceNode("one", ""))
+	before := h.emitCount()
+
+	h.service.MarkPluginCrashed("never-published")
+
+	if ids := nodeIDsOf(h.service.Snapshot("c1")); !containsID(ids, "one") {
+		t.Fatalf("an unrelated plugin's crash must change nothing, got %v", ids)
+	}
+	if h.emitCount() != before {
+		t.Fatal("a crash that changed no branch must not announce a redraw")
 	}
 }
 

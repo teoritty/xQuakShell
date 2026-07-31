@@ -41,6 +41,7 @@ type PluginManager struct {
 	stateChange       func(pluginID, state, sessionID string)
 	processStarted    func(pluginID string)
 	processStopped    func(pluginID string)
+	processCrashed    func(pluginID string)
 	connChecker    PluginConnectionChecker
 
 	mu              sync.Mutex
@@ -299,6 +300,17 @@ func (m *PluginManager) SetProcessStoppedHandler(fn func(pluginID string)) {
 	m.processStopped = fn
 }
 
+// SetProcessCrashedHandler registers a host-internal observer of a plugin process dying
+// unexpectedly.
+//
+// It is separate from the stopped handler because the two demand opposite treatments and always
+// will: a stop is final and its state should be torn down, while a crash is transient — the
+// supervisor restarts the process and the replayed level-triggered state refills it — so a crash
+// must only be MARKED, never cleared (ADR-014).
+func (m *PluginManager) SetProcessCrashedHandler(fn func(pluginID string)) {
+	m.processCrashed = fn
+}
+
 func (m *PluginManager) emitStateChange(pluginID, state, sessionID string) {
 	// Single choke point for every lifecycle transition, so start/running/
 	// suspended/stopped/crashed are all visible in the debug log (previously
@@ -309,6 +321,9 @@ func (m *PluginManager) emitStateChange(pluginID, state, sessionID string) {
 	}
 	if state == "stopped" && m.processStopped != nil {
 		m.processStopped(pluginID)
+	}
+	if state == "crashed" && m.processCrashed != nil {
+		m.processCrashed(pluginID)
 	}
 	if m.stateChange != nil {
 		m.stateChange(pluginID, state, sessionID)

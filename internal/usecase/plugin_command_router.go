@@ -124,12 +124,17 @@ func (m *PluginManager) ActivateForSession(ctx context.Context, pluginID, sessio
 }
 
 // StopPlugin stops every running OS process for a plugin.
+// The state change is emitted even when stopping failed, and the error is returned afterwards.
+// The user asked for this plugin to go away — disable or uninstall are the only two callers — and
+// every observer of "stopped" needs to hear it regardless of whether one OS process refused to die:
+// presentation already discards the error (handlers_plugin.go), so a silent path would leave the UI
+// showing a disabled plugin while its discovery subtree stayed in the tree, which is precisely the
+// combination a user cannot make sense of. A partially failed stop is the case where stale state is
+// most misleading, not least.
 func (m *PluginManager) StopPlugin(ctx context.Context, pluginID string) error {
-	if err := m.stopAllPluginInstances(ctx, pluginID); err != nil {
-		return err
-	}
+	err := m.stopAllPluginInstances(ctx, pluginID)
 	m.emitStateChange(pluginID, "stopped", "")
-	return nil
+	return err
 }
 
 func parseStartReason(reason string) (StartReason, string) {

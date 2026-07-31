@@ -110,11 +110,22 @@ func (r *DiscoveryPublishRouter) ForgetConnection(connectionID string) {
 	r.pace.ForgetConnection(connectionID)
 }
 
-// ForgetPlugin drops one plugin's publish budget for a connection and announces the connection as
-// changed, the teardown a stopped or uninstalled plugin warrants. The emit names the connection
-// root because a whole subtree disappeared, not one branch.
-func (r *DiscoveryPublishRouter) ForgetPlugin(connectionID, pluginID string) {
-	r.pace.ForgetPlugin(pluginID, connectionID)
+// ForgetPlugin drops a stopped plugin's publish budget everywhere, not merely on the connections
+// where it managed to draw something.
+//
+// The distinction is the whole reason this is not folded into the per-connection teardown loop: a
+// publish dropped because the branch was collapsed, or because the session had stopped leading,
+// still spent budget and still left a window behind, while creating no tree at all. Iterating the
+// trees would forget exactly the windows that had a tree to be found by, and keep the ones nothing
+// else will ever reach.
+func (r *DiscoveryPublishRouter) ForgetPlugin(pluginID string) {
+	r.pace.ForgetPlugin(pluginID)
+}
+
+// EmitConnectionChanged announces that a connection's tree changed for a reason no publish caused —
+// a plugin stopping or crashing. The node is the connection root: what changed is a whole subtree,
+// not one branch.
+func (r *DiscoveryPublishRouter) EmitConnectionChanged(connectionID string) {
 	r.pace.Emit(connectionID, "")
 }
 

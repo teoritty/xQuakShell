@@ -388,10 +388,11 @@ Only one session per connection is ever addressed: the host tracks a **leading**
 | Method | Direction | Kind | Params | Response |
 |--------|-----------|------|--------|----------|
 | `discovery.observe` | host → plugin | notification | `{"sessionId":"...","nodeIds":["..."]}` — full set of expanded nodes; `""` = the connection root | none |
-| `discovery.publish` | plugin → host | notification | `{"sessionId":"...","nodeId":"...","state":"loading"\|"ready"\|"error","error?":"...","children":[...]}` — full replacement of `nodeId`'s children | none |
+| `discovery.publish` | plugin → host | request | `{"sessionId":"...","nodeId":"...","state":"loading"\|"ready"\|"error","error?":"...","children":[...]}` — full replacement of `nodeId`'s children | `{"ok":true}` or error |
 | `discovery.invokeAction` | host → plugin | request | `{"sessionId":"...","nodeIds":["..."],"actionId":"..."}` | ack (`{"ok":true}`) or error |
 
 - `discovery.observe` is resent on every change to the expanded set AND on every plugin (re)start — a plugin never needs a separate resync path, and a lost notification self-heals on the next observe.
+- `discovery.publish` is a **request**, not a notification, even though the host has nothing meaningful to hand back: it names a `sessionId`, and the host must be able to answer `-32001` when the plugin lacks the `discovery` capability or the session is not one it holds a binding for. A notification has no channel for that answer, so a plugin sending one would be denied in silence, with no way to tell a denial from a lost message. `{"ok":true}` means the snapshot was accepted for processing — not that anything was rendered; a snapshot for a collapsed branch or a session that has stopped leading is accepted and then dropped, which is normal (see the level-triggered design above).
 - `discovery.publish` is a snapshot: children not present in the payload are removed. Truncation past the 500-children limit is signaled via the host-only `Branch.Truncated{Shown, Total}`, never by the plugin.
 - `discovery.invokeAction` requests ack. Long-running work must not block the RPC: acknowledge receipt within the timeout below and report the outcome via a subsequent `discovery.publish` (nodes move to `busy`, then `ok`/`error`).
 - `nodeIds` is always a list, even for a single node or a single-target action — there is no separate single-node verb.
@@ -510,7 +511,7 @@ All methods below require a matching manifest capability unless marked “always
 | `view.postMessage` | contributed `views` | `panelId`, `message` | `{"ok":true}` |
 | `channel.open` | `channel` | `purpose`, `parentSessionId`, `hint` | `channelId` — see [Channel bus](#channel-bus) |
 | `channel.close` | `channel` | `channelId`, `reason?`, `message?` | notification, no response |
-| `discovery.publish` | `discovery` | `sessionId`, `nodeId`, `state`, `error?`, `children[]` | notification, no response — see [Discovery subtrees](#discovery-subtrees) |
+| `discovery.publish` | `discovery` | `sessionId`, `nodeId`, `state`, `error?`, `children[]` | request; returns `{"ok":true}` on acceptance, `-32001` when denied — see [Discovery subtrees](#discovery-subtrees) |
 
 FS paths must use the `${pluginData}` prefix (see [plugin-manifest.md](./plugin-manifest.md#capabilities)). Symlinks are rejected.
 

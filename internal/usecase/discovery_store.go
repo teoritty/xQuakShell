@@ -233,6 +233,36 @@ func (s *DiscoveryStore) MarkConnectionStale(connID string) {
 	}
 }
 
+// MarkPluginStale flags one plugin's branches under one connection as stale, leaving every other
+// plugin's branches alone. It is the crash transition (ADR-014): the nodes on screen are the answer
+// of a process that is no longer running, and nothing has re-confirmed them.
+//
+// Deleting them instead would be wrong, and not merely unkind: the supervisor restarts the process,
+// the observed set is replayed to it, and the tree refills — so a teardown here would turn a
+// recoverable blip into a subtree that visibly vanishes and comes back. Stale says exactly what is
+// true, and it is what blocks actions inside the branch until a publish re-confirms it.
+//
+// It returns whether anything actually changed, so a caller does not announce a redraw for a plugin
+// that had drawn nothing.
+func (s *DiscoveryStore) MarkPluginStale(connID, pluginID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tree, ok := s.conns[connID][pluginID]
+	if !ok {
+		return false
+	}
+	changed := false
+	for nodeID, branch := range tree.branches {
+		if branch.State == discovery.BranchStale {
+			continue
+		}
+		branch.State = discovery.BranchStale
+		tree.branches[nodeID] = branch
+		changed = true
+	}
+	return changed
+}
+
 // ClearConnection deletes a connection's whole tree. Nothing is cached or persisted (ADR-014
 // alternative 4): discovery reflects remote reality, and a tree with no authenticated transport
 // behind it can no longer be checked against that reality.

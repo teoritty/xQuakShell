@@ -43,10 +43,12 @@ Three atomic verbs, no others:
 | Direction | Method | Payload |
 |---|---|---|
 | host → plugin (notification) | `discovery.observe` | `{sessionId, nodeIds: []}` — the FULL set of currently expanded nodes; `""` = the connection root |
-| plugin → host (notification) | `discovery.publish` | `{sessionId, nodeId, state: "loading"\|"ready"\|"error", error?, children: []}` — a snapshot that fully replaces `nodeId`'s children |
+| plugin → host (request) | `discovery.publish` | `{sessionId, nodeId, state: "loading"\|"ready"\|"error", error?, children: []}` — a snapshot that fully replaces `nodeId`'s children → `{ok:true}`/error |
 | host → plugin (request) | `discovery.invokeAction` | `{sessionId, nodeIds: [], actionId}` → ack/error |
 
 **Why level, not edge.** "A node was expanded" is a front-edge event; a lost one (plugin crash, a race at connect time) leaves the node empty forever, with nothing to repair it. `observe` is a level: an idempotent, full set, resent on every change AND on every plugin (re)start. This also removes load at the source — a plugin stops polling branches the user has collapsed.
+
+**Why `publish` is a request.** It carries no answer worth having — the host has nothing to tell a plugin about a snapshot the plugin composed — but it names a `sessionId`, and that makes it the one plugin→host verb here that can be *refused*: by the capability gate with `-32001`, or by the IDOR check when the session is not one the plugin holds a binding for. A notification has no channel for a refusal, so a plugin following the wire contract literally would be denied in silence and could not distinguish that from a message the host never received. The `{ok:true}` result therefore means only "accepted for processing"; a snapshot for a collapsed branch or a session that has stopped leading is accepted and then dropped, by design.
 
 `nodeIds` in `invokeAction` is always a list, even for a single node. There is deliberately no separate bulk verb: a single action is a mass action over a list of one.
 

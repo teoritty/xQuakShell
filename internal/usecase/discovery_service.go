@@ -29,20 +29,32 @@ func (s *DiscoveryService) SetObserved(connectionID string, nodeIDs []string) {
 	s.observer.SetObserved(connectionID, nodeIDs)
 }
 
-// ApplyPublish routes one plugin snapshot into the tree.
-func (s *DiscoveryService) ApplyPublish(ctx context.Context, pluginID string, payload DiscoveryPublish) error {
+// applyPublish routes one plugin snapshot into the tree.
+//
+// It is deliberately UNEXPORTED. Publish below is the only way in from outside this package, and it
+// is reached exclusively through PluginSessionRPCHandler, which authorizes the payload's sessionId
+// against the plugin's bindings first. An exported entry point beside it would be a second door
+// into the same room with no lock on it — and the presentation layer wiring up next would have no
+// way to tell, from the signature alone, that it was the unauthorized one.
+func (s *DiscoveryService) applyPublish(ctx context.Context, pluginID string, payload DiscoveryPublish) error {
 	return s.publish.Apply(ctx, pluginID, payload)
 }
 
-// Publish implements domainplugin.DiscoveryInboundPort. The empty result is deliberate: publish is
-// a notification, and there is nothing meaningful to hand back to a plugin that already knows what
-// it sent.
+// Publish implements domainplugin.DiscoveryInboundPort. It is a request rather than a notification
+// (ADR-014 §data flow): the host has nothing meaningful to tell a plugin about a snapshot the
+// plugin composed, but publish names a sessionId and must therefore be refusable — by the gate with
+// -32001, or by the IDOR check upstream. A notification would carry no refusal back, leaving a
+// denied plugin unable to tell rejection from a lost message.
+//
+// The nil result is the caller's cue to answer {"ok":true}: accepted for processing, which is not
+// the same as rendered. A snapshot for a collapsed branch or a session that has stopped leading is
+// accepted here and then dropped, by design.
 func (s *DiscoveryService) Publish(ctx context.Context, pluginID string, params json.RawMessage) (json.RawMessage, error) {
 	payload, err := DecodeDiscoveryPublish(params)
 	if err != nil {
 		return nil, err
 	}
-	return nil, s.ApplyPublish(ctx, pluginID, payload)
+	return nil, s.applyPublish(ctx, pluginID, payload)
 }
 
 // InvokeAction relays a (possibly mass) action on nodes of one plugin's subtree. pluginID is
@@ -74,7 +86,27 @@ func (s *DiscoveryService) ClearPlugin(pluginID string) {
 		if len(removed) > 0 {
 			s.observer.Retain(connectionID, removed)
 		}
-		s.publish.ForgetPlugin(connectionID, pluginID)
+		s.publish.EmitConnectionChanged(connectionID)
+	}
+	// Outside the loop, because a stopped plugin's pace windows outlive its trees: a publish that
+	// was counted and then dropped (collapsed branch, non-leading session) leaves a window and no
+	// tree, so sweeping only the connections it drew under would strand exactly those.
+	s.publish.ForgetPlugin(pluginID)
+}
+
+// MarkPluginCrashed flags every branch a crashed plugin drew as stale, under every connection,
+// touching no other plugin's branches and deleting nothing.
+//
+// This is the crash case ADR-014 specifies and it is deliberately NOT ClearPlugin: the supervisor
+// restarts the process and the observed set is replayed to it, so the tree refills on its own. What
+// the user must not see meanwhile is a subtree still labelled ready while the process that vouched
+// for it is gone — stale is both the honest label and what blocks actions inside the branch until a
+// publish re-confirms it.
+func (s *DiscoveryService) MarkPluginCrashed(pluginID string) {
+	for _, connectionID := range s.store.ConnectionsWithPlugin(pluginID) {
+		if s.store.MarkPluginStale(connectionID, pluginID) {
+			s.publish.EmitConnectionChanged(connectionID)
+		}
 	}
 }
 

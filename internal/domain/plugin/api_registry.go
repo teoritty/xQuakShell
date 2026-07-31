@@ -67,7 +67,10 @@ const (
 
 	FeatChannelOpen FeatureID = "open"
 
-	// FeatDiscoveryPublish is the plugin->host discovery.publish notification (ADR-014).
+	// FeatDiscoveryPublish is the plugin->host discovery.publish REQUEST (ADR-014). It is a request
+	// rather than a notification despite having no answer worth having: it names a sessionId, so it
+	// is one of the plugin->host calls the host can refuse — by the gate with -32001, or by the IDOR
+	// check — and a notification has no channel to carry a refusal back.
 	FeatDiscoveryPublish FeatureID = "publish"
 	// FeatDiscoveryInvoke is the host->plugin discovery.invokeAction request (ADR-014).
 	FeatDiscoveryInvoke FeatureID = "invoke"

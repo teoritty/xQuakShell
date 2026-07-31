@@ -57,14 +57,15 @@ func NewDiscoveryInvoker(store *DiscoveryStore, leader DiscoveryLeaderLookup, ca
 	return &DiscoveryInvoker{store: store, leader: leader, caller: caller, audit: audit}
 }
 
-// record writes one audit entry. The node list is copied: the caller's slice came from the
-// presentation layer and the recorder may hold on to the entry.
-func (i *DiscoveryInvoker) record(connectionID, pluginID, sessionID, actionID string, nodeIDs []string, err error) {
+// record writes one audit entry for a named phase. The node list is copied: the caller's slice came
+// from the presentation layer and the recorder may hold on to the entry.
+func (i *DiscoveryInvoker) record(phase, connectionID, pluginID, sessionID, actionID string, nodeIDs []string, err error) {
 	if i.audit == nil {
 		return
 	}
 	entry := domainplugin.DiscoveryAuditEntry{
 		Timestamp:    time.Now(),
+		Action:       phase,
 		PluginID:     pluginID,
 		ConnectionID: connectionID,
 		SessionID:    sessionID,
@@ -102,23 +103,23 @@ type discoveryInvokePayload struct {
 func (i *DiscoveryInvoker) InvokeAction(ctx context.Context, connectionID, pluginID string, nodeIDs []string, actionID string) error {
 	if len(nodeIDs) == 0 || len(nodeIDs) > discovery.MaxNodesPerInvoke {
 		err := fmt.Errorf("%w: %d (allowed 1..%d)", ErrDiscoveryInvokeSize, len(nodeIDs), discovery.MaxNodesPerInvoke)
-		i.record(connectionID, pluginID, "", actionID, nodeIDs, err)
+		i.record(domainplugin.DiscoveryAuditResult, connectionID, pluginID, "", actionID, nodeIDs, err)
 		return err
 	}
 	if err := i.store.CheckAction(connectionID, pluginID, nodeIDs, actionID); err != nil {
-		i.record(connectionID, pluginID, "", actionID, nodeIDs, err)
+		i.record(domainplugin.DiscoveryAuditResult, connectionID, pluginID, "", actionID, nodeIDs, err)
 		return err
 	}
 	sessionID, _, ok := i.leader.Leading(connectionID)
 	if !ok {
 		err := fmt.Errorf("%w: %s", ErrDiscoveryNoLeadingSession, connectionID)
-		i.record(connectionID, pluginID, "", actionID, nodeIDs, err)
+		i.record(domainplugin.DiscoveryAuditResult, connectionID, pluginID, "", actionID, nodeIDs, err)
 		return err
 	}
 	params, err := json.Marshal(discoveryInvokePayload{SessionID: sessionID, NodeIDs: nodeIDs, ActionID: actionID})
 	if err != nil {
 		err = fmt.Errorf("discovery: encode invokeAction: %w", err)
-		i.record(connectionID, pluginID, sessionID, actionID, nodeIDs, err)
+		i.record(domainplugin.DiscoveryAuditResult, connectionID, pluginID, sessionID, actionID, nodeIDs, err)
 		return err
 	}
 	// The full node list is recorded, not just the count: a mass action's blast radius is exactly
@@ -129,10 +130,10 @@ func (i *DiscoveryInvoker) InvokeAction(ctx context.Context, connectionID, plugi
 	// Audited before the call, not after: an action that reached the plugin and then timed out has
 	// still been dispatched, and an entry written only on success would omit exactly the invocations
 	// an incident review is looking for. The outcome is appended as a second entry.
-	i.record(connectionID, pluginID, sessionID, actionID, nodeIDs, nil)
+	i.record(domainplugin.DiscoveryAuditDispatch, connectionID, pluginID, sessionID, actionID, nodeIDs, nil)
 	if _, err := i.caller.CallWithTimeout(ctx, pluginID, discoveryInvokeMethod, params, discovery.InvokeAckTimeout); err != nil {
 		err = fmt.Errorf("discovery: invokeAction: %w", err)
-		i.record(connectionID, pluginID, sessionID, actionID, nodeIDs, err)
+		i.record(domainplugin.DiscoveryAuditResult, connectionID, pluginID, sessionID, actionID, nodeIDs, err)
 		return err
 	}
 	return nil
