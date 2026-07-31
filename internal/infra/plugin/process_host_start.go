@@ -91,11 +91,36 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	if err != nil {
 		return err
 	}
-	mp.conn = conn
-	mp.netProxy = netProxy
-	mp.tunnelDial = tunnelDial
-	mp.tunnelLocal = tunnelLocal
-	mp.channels = channelProxy
+
+	// Second checkpoint, same shape and same reason as the first. A Stop landing between them finds
+	// the process (published above) and kills it, but its closeResources runs against an mp whose
+	// connection and capability proxies this goroutine is still assigning — a write/read data race,
+	// and a leak of whatever it assigned afterwards, since cleanupOnce has already been spent.
+	//
+	// Publishing under the same lock that Stop takes to declare ProcessStopping makes the two
+	// mutually exclusive: either Stop got there first and nothing is published, or the publication
+	// happened-before Stop and closeResources sees all five. ChannelBus registration moved below the
+	// check for the same reason — registering after Stop's Unregister would leave the bus holding a
+	// proxy for a process that is already gone.
+	h.mu.Lock()
+	current, stillRegistered = h.processes[key]
+	abandoned = !stillRegistered || current != mp || mp.state == domainplugin.ProcessStopping
+	if !abandoned {
+		mp.conn = conn
+		mp.netProxy = netProxy
+		mp.tunnelDial = tunnelDial
+		mp.tunnelLocal = tunnelLocal
+		mp.channels = channelProxy
+	}
+	h.mu.Unlock()
+
+	if abandoned {
+		// The process itself was already killed by the Stop that took the reservation — it had the
+		// reaper and the job by then. These five never reached mp, so nothing else can close them.
+		discardConnResources(conn, netProxy, tunnelDial, tunnelLocal, channelProxy)
+		return errStartAbortedByStop
+	}
+
 	if h.cfg.ChannelBus != nil {
 		h.cfg.ChannelBus.Register(key, channelProxy)
 	}

@@ -175,8 +175,9 @@ func TestStopDuringStartingLeavesNoLiveProcess(t *testing.T) {
 	}()
 
 	// Same timing as TestProcessHostStopDuringStarting: ProcessStarting is set on Start's first
-	// lines, so Stop lands while the manifest negotiation and the bundle checksum walk are still
-	// running — before the process exists, let alone before it is published.
+	// lines, so Stop lands while the manifest negotiation and the entry-path resolution are still
+	// running — before the process exists, let alone before it is published. (Start does no checksum
+	// work; the bundle is verified at discovery and install time, not here.)
 	<-started
 	deadline := time.Now().Add(5 * time.Second)
 	for host.State(manifest.ID, "") != domainplugin.ProcessStarting {
@@ -202,7 +203,7 @@ func TestStopDuringStartingLeavesNoLiveProcess(t *testing.T) {
 	// Liveness is checked first, so that a regression is reported as the orphan it is rather than as
 	// a bookkeeping detail.
 	const what = "a Stop that arrived while the plugin was still starting"
-	pid, announced := fixturePID(t, pluginDir)
+	pid, announced := fixturePID(t, pluginDir, 2*time.Second)
 	if announced {
 		assertProcessGone(t, pid, what)
 	}
@@ -217,6 +218,48 @@ func TestStopDuringStartingLeavesNoLiveProcess(t *testing.T) {
 	if !announced && !errors.Is(startErr, errStartAbortedByStop) {
 		t.Fatalf("no pid was announced and Start failed with %v, so %s cannot be judged", startErr, what)
 	}
+}
+
+// TestStopAfterTheChildAnnouncedLeavesNoLiveProcess runs the same Stop-during-Starting scenario with
+// the Stop held back until the child has announced its pid, so the kill is judged by the kernel on
+// every green run and not only when something is broken.
+//
+// It is a second test rather than a change to the first because the two land on opposite sides of
+// the publication checkpoint, and only the first reaches the window that produced the regression:
+// the host publishes the process within a millisecond of exec, long before a fresh child can run its
+// first statement, so waiting for the pid necessarily waits past the danger. Measured, not assumed —
+// with the fix removed, this test still passes while the one above fails.
+func TestStopAfterTheChildAnnouncedLeavesNoLiveProcess(t *testing.T) {
+	pluginDir := buildSlowStartFixture(t)
+	manifest := readFixtureManifest(t, pluginDir)
+	plugin := domainplugin.InstalledPlugin{Manifest: manifest, RootDir: pluginDir}
+	host := NewProcessHost(HostConfig{DataRoot: t.TempDir()})
+
+	startDone := make(chan error, 1)
+	go func() { startDone <- host.Start(context.Background(), plugin, "") }()
+
+	pid, announced := fixturePID(t, pluginDir, 20*time.Second)
+	if !announced {
+		t.Fatal("the fixture never announced a pid, so there is nothing to judge the kill by")
+	}
+	if !processAliveForTest(pid) {
+		t.Fatalf("plugin process %d was gone before Stop was called", pid)
+	}
+
+	// The fixture sleeps 2s in initialize, so Start is still inside the handshake here.
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer stopCancel()
+	if err := host.Stop(stopCtx, manifest.ID, ""); err != nil {
+		t.Fatalf("stop after the child announced itself: %v", err)
+	}
+
+	select {
+	case <-startDone:
+	case <-time.After(30 * time.Second):
+		t.Fatal("Start never returned after a concurrent Stop")
+	}
+
+	assertProcessGone(t, pid, "a Stop that arrived after the plugin process was up")
 }
 
 // TestStartCancelledDuringHandshakeLeavesNoLiveProcess is the other half of "the child is no longer
@@ -249,7 +292,7 @@ func TestStartCancelledDuringHandshakeLeavesNoLiveProcess(t *testing.T) {
 	}
 	// Here the child certainly ran — the handshake reached it — so a missing pid would be a broken
 	// fixture, not a fast kill.
-	pid, ok := fixturePID(t, pluginDir)
+	pid, ok := fixturePID(t, pluginDir, 20*time.Second)
 	if !ok {
 		t.Fatal("the fixture never announced a pid, yet its handshake was under way")
 	}
@@ -269,14 +312,19 @@ func readFixtureManifest(t *testing.T, pluginDir string) domainplugin.Manifest {
 	return manifest
 }
 
-// fixturePID reads the pid the slow-start fixture announced. Taking it from the child rather than
-// from the host is the whole point: a host that lost a process mid-start has no pid to give, which
-// is precisely the case being tested.
-func fixturePID(t *testing.T, pluginDir string) (int, bool) {
+// fixturePID reads the pid the slow-start fixture announced, waiting up to within for it to appear.
+// Taking it from the child rather than from the host is the whole point: a host that lost a process
+// mid-start has no pid to give, which is precisely the case being tested.
+//
+// The wait is an assertion in disguise wherever the answer may be "never": a child that survives
+// reaches its first statement in milliseconds, so an absent pid after a generous wait means the
+// process was killed before it ran — and, since announcePID exits rather than swallowing a write
+// error, it cannot mean a live process that failed to write.
+func fixturePID(t *testing.T, pluginDir string, within time.Duration) (int, bool) {
 	t.Helper()
 	pidPath := filepath.Join(filepath.Dir(pluginDir), "slow-start.pid")
 
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(within)
 	for {
 		if data, err := os.ReadFile(pidPath); err == nil {
 			if pid, convErr := strconv.Atoi(strings.TrimSpace(string(data))); convErr == nil && pid > 0 {

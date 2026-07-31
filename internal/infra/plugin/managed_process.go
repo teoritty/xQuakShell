@@ -67,3 +67,33 @@ func (mp *managedProcess) closeResources(killProcess bool) {
 		closePluginJob(mp.job)
 	})
 }
+
+// discardConnResources closes an IPC connection and its capability proxies that were built for a
+// managedProcess but never handed to it. It mirrors the order closeResources uses — proxies first,
+// connection last — so a channel teardown still has a live connection to notify over.
+//
+// It exists for the same reason discardSpawnedProcess does: what never reached mp cannot be reached
+// by mp's own cleanup, and on this path that cleanup has already run and spent its sync.Once.
+func discardConnResources(
+	conn *ipc.Conn,
+	netProxy *capability.NetProxy,
+	tunnelDial *capability.TunnelDialProxy,
+	tunnelLocal *capability.TunnelLocalProxy,
+	channels *capability.ChannelProxy,
+) {
+	if netProxy != nil {
+		netProxy.CloseAll()
+	}
+	if tunnelDial != nil {
+		tunnelDial.CloseAll()
+	}
+	if tunnelLocal != nil {
+		tunnelLocal.CloseAll()
+	}
+	if channels != nil {
+		channels.CloseAll()
+	}
+	if conn != nil {
+		conn.Close()
+	}
+}

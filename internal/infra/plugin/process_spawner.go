@@ -104,8 +104,6 @@ func discardSpawnedProcess(spawned *spawnedProcess, job pluginJob) {
 	}
 	if spawned.reaper != nil {
 		_ = spawned.reaper.Kill()
-	} else if spawned.cmd != nil && spawned.cmd.Process != nil {
-		killPluginProcess(spawned.cmd.Process.Pid)
 	}
 	if spawned.cancel != nil {
 		spawned.cancel()
