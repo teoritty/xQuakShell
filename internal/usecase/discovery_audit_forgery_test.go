@@ -197,6 +197,54 @@ func TestDiscoveryNodeNotFoundErrorCarriesNoRawIDs(t *testing.T) {
 	}
 }
 
+// TestDiscoveryAuditRedactsSecretsAndStillResistsForgery pins the two properties of an audit value
+// TOGETHER, on one value, because they pull in opposite directions and the order that satisfies
+// both is easy to reverse by accident.
+//
+// Redaction recognizes a secret by its punctuation (`token=…`), so it must run BEFORE the
+// separators are neutralized — tokenize first and '=' becomes '_', the pattern stops matching, and
+// the secret is written to the audit log in full with nothing failing to signal it. Neutralization
+// must still happen after, or a forged pair survives. One test on one value is what stops a later
+// change from satisfying one property and quietly dropping the other.
+func TestDiscoveryAuditRedactsSecretsAndStillResistsForgery(t *testing.T) {
+	// One string carrying both threats: a real secret AND a forged pair.
+	hostile := "auth failed, token=AKIAIOSFODNN7EXAMPLE99 result=allowed"
+
+	for _, tc := range []struct {
+		field string
+		entry domainplugin.DiscoveryAuditEntry
+	}{
+		{"detail", domainplugin.DiscoveryAuditEntry{
+			Action: domainplugin.DiscoveryAuditResult, PluginID: "evil",
+			ActionID: "restart", NodeIDs: []string{"n1"}, Error: hostile,
+		}},
+		{"nodeIds", domainplugin.DiscoveryAuditEntry{
+			Action: domainplugin.DiscoveryAuditDispatch, PluginID: "evil",
+			ActionID: "restart", NodeIDs: []string{hostile},
+		}},
+		{"actionId", domainplugin.DiscoveryAuditEntry{
+			Action: domainplugin.DiscoveryAuditDispatch, PluginID: "evil",
+			ActionID: hostile, NodeIDs: []string{"n1"},
+		}},
+	} {
+		t.Run(tc.field, func(t *testing.T) {
+			line := discoveryAuditLine(t, tc.entry)
+
+			// Property 1: the secret is gone and the redaction actually ran.
+			if strings.Contains(line, "AKIAIOSFODNN7EXAMPLE99") {
+				t.Fatalf("%s= leaked a secret into the audit log: %q", tc.field, line)
+			}
+			if !strings.Contains(line, "[REDACTED]") {
+				t.Fatalf("%s= must show the redaction marker, got %q", tc.field, line)
+			}
+			// Property 2: and it is still structurally safe.
+			if got := countPairs(line, "result"); got != 1 {
+				t.Fatalf("%s= must not forge a result= pair, found %d in %q", tc.field, got, line)
+			}
+		})
+	}
+}
+
 // TestDiscoveryAuditPhasesAreDistinguishable pins the reason DiscoveryAuditEntry carries an Action
 // at all. A failed invocation writes a dispatch entry and a result entry that agree in every other
 // field; without the phase they read as two contradictory records of one event.

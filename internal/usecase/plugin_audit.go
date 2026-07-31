@@ -125,7 +125,7 @@ func formatPluginDiscoveryAuditLine(entry domainplugin.DiscoveryAuditEntry) stri
 	line := "[plugin] action=" + entry.Action + " pluginId=" + entry.PluginID +
 		" sessionId=" + entry.SessionID +
 		" connectionId=" + entry.ConnectionID +
-		" actionId=" + domainplugin.RedactAuditDetail(logfmtToken(entry.ActionID)) +
+		" actionId=" + safeAuditValue(entry.ActionID) +
 		" nodeIds=" + joinAuditTokens(entry.NodeIDs) +
 		" result=" + flag
 	if entry.Error != "" {
@@ -138,7 +138,7 @@ func formatPluginDiscoveryAuditLine(entry domainplugin.DiscoveryAuditEntry) stri
 		// Sanitizing rather than relocating the field is the point: detail= happens to sit after
 		// result= today, so a first-occurrence parser reads the host's verdict. That is field order,
 		// not a defence — a logfmt reader where the last occurrence wins would read the forgery.
-		line += " detail=" + domainplugin.RedactAuditDetail(logfmtToken(entry.Error))
+		line += " detail=" + safeAuditValue(entry.Error)
 	}
 	return line
 }
@@ -155,13 +155,33 @@ func formatPluginDiscoveryAuditLine(entry domainplugin.DiscoveryAuditEntry) stri
 // and truncating that to fit a line-length budget would defeat the entry's only purpose. Redaction
 // runs per ID rather than over the join for the same reason: its 512-character cut would otherwise
 // land in the middle of the list.
+// safeAuditValue makes one plugin-authored value fit to write into an audit field: secrets removed
+// first, structure neutralized second.
+//
+// THE ORDER IS LOAD-BEARING AND MUST NOT BE SWAPPED. RedactAuditDetail finds secrets by pattern —
+// (password|token|secret|apikey|...) followed by ':' or '=' and the value — so it needs the value's
+// original punctuation to recognize one. Tokenizing first rewrites '=' to '_', the pattern stops
+// matching, and a plugin error of `auth failed, token=AKIA...` is written to the audit log in full.
+// That failure is silent: nothing errors, the secret is simply there.
+//
+// Running redaction first costs the forgery defence nothing. Its output introduces no separators —
+// "[REDACTED]" and the truncation marker contain neither a space nor an '=' — so whatever structure
+// the plugin smuggled in is still present for logfmtToken to neutralize afterwards.
+//
+// Both properties are pinned together, on one value, by TestDiscoveryAuditRedactsSecretsAndStill-
+// ResistsForgery: testing them apart is what lets a later change satisfy one and quietly drop the
+// other.
+func safeAuditValue(value string) string {
+	return logfmtToken(domainplugin.RedactAuditDetail(value))
+}
+
 func joinAuditTokens(ids []string) string {
 	if len(ids) == 0 {
 		return ""
 	}
 	safe := make([]string, 0, len(ids))
 	for _, id := range ids {
-		safe = append(safe, domainplugin.RedactAuditDetail(logfmtToken(id)))
+		safe = append(safe, safeAuditValue(id))
 	}
 	return strings.Join(safe, ",")
 }

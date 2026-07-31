@@ -109,6 +109,32 @@ func TestIdleSuspendFiresTheSuspendedHook(t *testing.T) {
 	}
 }
 
+// TestFailedIdleSuspendLeavesTheSubtreeAlone pins the deliberate asymmetry with StopPlugin, which
+// DOES fire its hook on a failed stop.
+//
+// The difference is who asked and what the failure means. A failed user-requested stop still means
+// "gone as far as anyone can tell", and the UI already says so. A failed idle suspend means the
+// process is most likely still alive and still answering — firing the hook would mark a healthy
+// plugin's branches stale over a housekeeping hiccup, and the next sweep retries in a minute.
+func TestFailedIdleSuspendLeavesTheSubtreeAlone(t *testing.T) {
+	host := &stubProcessHost{
+		stopErr: errors.New("process refused to die"),
+		instances: []domainplugin.ProcessInstance{
+			{PluginID: "p1", SessionID: "s1", State: domainplugin.ProcessRunning},
+		},
+	}
+	manager, hooks := newHookedManager(t, host)
+
+	manager.SuspendIdlePlugins(context.Background(), 0)
+
+	if len(hooks.suspended) != 0 {
+		t.Fatalf("a plugin that is still running must not be announced as suspended, got %v", hooks.suspended)
+	}
+	if len(hooks.stopped) != 0 || len(hooks.crashed) != 0 {
+		t.Fatalf("a failed suspension is neither a stop nor a crash, got %+v", hooks)
+	}
+}
+
 // TestCrashFiresTheCrashHookAndNotTheStopHook pins the split the two hooks exist for: a crash is
 // transient and must only be marked, a stop is final and may be torn down. Firing the wrong one
 // would either delete a subtree the supervisor is about to refill, or leave a disabled plugin's

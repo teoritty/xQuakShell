@@ -69,6 +69,20 @@ func (m *PluginManager) SuspendIdlePlugins(ctx context.Context, idleAfter time.D
 	}
 }
 
+// hardSuspend deliberately does NOT emit "suspended" when the stop failed, which is the opposite of
+// StopPlugin's choice to emit "stopped" regardless. The asymmetry is intended, and it turns on who
+// asked and what the failure means:
+//
+//   - StopPlugin runs because the USER disabled or uninstalled the plugin. That intent stands
+//     whatever the OS did, presentation discards the error anyway, and a subtree left standing under
+//     a plugin the UI shows as disabled is a contradiction the user cannot resolve.
+//   - hardSuspend runs because a timer noticed idleness. Nobody asked for anything, and a failed
+//     stop means the process is most likely still alive and still answering — announcing it as
+//     suspended would mark its discovery branches stale while they are in fact current, degrading
+//     a healthy plugin over a housekeeping hiccup. The next sweep tries again in a minute.
+//
+// In short: a failed deliberate stop still means "gone as far as anyone can tell"; a failed idle
+// suspend means "still here". The state emitted follows that, not the call that failed.
 func (m *PluginManager) hardSuspend(ctx context.Context, pluginID, sessionID string) error {
 	if m.events != nil {
 		m.events.ClearPlugin(pluginID)
