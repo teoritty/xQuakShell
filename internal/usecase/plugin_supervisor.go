@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -124,8 +125,9 @@ func (s *PluginSupervisor) restartWithBackoff(pluginID, sessionID, key string) {
 		// branch, and three successful restarts in a row ended at "gave up", which now paints the
 		// plugin's branches error while the plugin is running and has already refilled them. That is
 		// the one thing ADR-014 forbids a branch state to do: say something the user can check and
-		// find false.
-		if s.recoverer != nil && sessionID != "" {
+		// find false. Trimmed, because the authorizer that refuses the id trims before checking it:
+		// a guard that disagrees with the rule it is protecting against is a guard with a gap in it.
+		if s.recoverer != nil && strings.TrimSpace(sessionID) != "" {
 			if err := s.manager.BindSession(pluginID, sessionID); err != nil {
 				slog.Warn("plugin supervisor bind session failed", "pluginId", pluginID, "sessionId", sessionID, "attempt", attempt, "err", err)
 				cancel()
@@ -146,7 +148,7 @@ func (s *PluginSupervisor) restartWithBackoff(pluginID, sessionID, key string) {
 	slog.Error("plugin supervisor gave up after max attempts", "pluginId", pluginID, "sessionId", sessionID)
 	// Same condition as the recovery above, and for the same reason: reporting a failed recovery of
 	// a session that never existed hands the session bridge an empty id to look up.
-	if s.recoverer != nil && sessionID != "" {
+	if s.recoverer != nil && strings.TrimSpace(sessionID) != "" {
 		s.recoverer.FailPluginSessionRecovery(pluginID, sessionID)
 	}
 	s.notifyGaveUp(pluginID)
