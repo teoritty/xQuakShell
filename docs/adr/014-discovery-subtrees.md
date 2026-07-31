@@ -72,6 +72,7 @@ Deltas are deliberately absent: a per-node snapshot removes a whole class of des
 - `parentProtocols` is not decorative: the host addresses `observe` only to plugins whose list contains the protocol of that connection.
 - Asset paths are validated by the existing `ValidateViewAssetEntry` **once, at install time**; there are no paths at all on the hot path — `iconId` refers to an already-validated asset.
 - Extensions `.svg`/`.png`/`.ico`; ≤ 64 assets per plugin, ≤ 64 KiB each, ≤ 1 MiB total.
+- Icon bytes are read **once, when the plugin enters the registry**, encoded as base64 data URIs and cached there; they reach the frontend on the existing `ListPlugins` call as `discoveryIcons: {iconId: dataUri}`, so there is no icon endpoint taking a plugin ID and an asset name from the frontend. This deliberately differs from view assets (`internal/infra/plugin/assets/handler.go`), which are read from disk per request: a discovery icon is fetched up to 64 times per plugin on a path that repaints, and the cache is also what keeps "an unreadable asset is logged once per plugin" true. `Register`/`Unregister` re-read, so install, update and removal are all reflected; only editing a file inside an already-installed bundle goes unnoticed, which is not a supported scenario.
 - No separate install-time consent: discovery by itself is metadata only — the actual work runs through `channel`/`exec`, which already carries consent. `PermissionSummary` gets one line: "Show discovered resources under your connections".
 
 ## Limits (v1, not overridable by the plugin)
