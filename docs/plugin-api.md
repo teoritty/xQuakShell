@@ -404,13 +404,13 @@ Only one session per connection is ever addressed: the host tracks a **leading**
 |-----------|-------|
 | Tree depth | 8 |
 | Children per `publish` | 500 |
-| Nodes per (plugin, session) | 2000 |
+| Nodes per (plugin, connection) | 2000 |
 | ID length | 256 |
 | `Label` | 128 |
 | `Tooltip` | 256 |
 | Actions per node | 16 |
 | Nodes in one `invokeAction` | 200 |
-| `publish` rate | 20/s per (plugin, session) |
+| `publish` rate | 20/s per (plugin, connection) |
 | Frontend emit coalescing | 100 ms per node |
 | `invokeAction` ack timeout | 5 s |
 

@@ -256,7 +256,12 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	// which binds a plugin to the session it provides — never binds it, and every publish would be
 	// refused by the IDOR check. registry and manager are constructor arguments so this cannot be
 	// left unwired without failing to compile.
-	discoveryLeader := usecase.NewDiscoveryLeader(sessionRegistry, registry, manager, discoveryStore, discoveryObserver, discoveryPace, nil)
+	// The last argument is discoveryEmit.notify, not nil. A handover marks every branch stale and
+	// the backend starts refusing actions inside them from that moment; with no callback the frontend
+	// was never told, so the rows still looked live and a click came back with "branch is stale or
+	// failed" and nothing on screen explaining why. It bypasses the coalescer deliberately — see
+	// NewDiscoveryLeader.
+	discoveryLeader := usecase.NewDiscoveryLeader(sessionRegistry, registry, manager, discoveryStore, discoveryObserver, discoveryPace, discoveryEmit.notify)
 	discoveryObserver.SetLeader(discoveryLeader)
 	discoveryService := usecase.NewDiscoveryService(
 		discoveryStore,
@@ -285,6 +290,11 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	// branches become error with a reason, so "restarting" and "given up" are not the same grey
 	// subtree (ADR-014 §Leading session / plan п.13).
 	supervisor.SetGaveUpHandler(discoveryService.MarkPluginUnrecoverable)
+	// And what makes that story reachable at all: a plugin drawing a subtree is in use, even though
+	// it holds no session and owns no view panel. Without this the idle sweeper reclaimed it after
+	// five quiet minutes and the supervisor declined to restart it, so its branches went stale and
+	// stayed there — the promise in ADR-014 §Leading session with nothing behind it.
+	manager.SetPluginRetentionChecker(discoveryLeader.HoldsBindings)
 
 	pluginDiscovery := infraplugin.NewDiscovery(infraplugin.SearchPaths(deps.ExeDir, dataRoot))
 	if err := manager.DiscoverPlugins(pluginDiscovery.Discover); err != nil {

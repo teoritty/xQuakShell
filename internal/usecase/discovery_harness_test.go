@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,12 +14,46 @@ import (
 	domainplugin "xquakshell/internal/domain/plugin"
 )
 
+// discoveryCallLog records the ORDER of calls across several fakes. Most tests care only about
+// what happened; the ones about the bind/observe race care about which happened first, and that is
+// not visible in any single fake's own record.
+type discoveryCallLog struct {
+	mu     sync.Mutex
+	events []string
+}
+
+func (l *discoveryCallLog) record(event string) {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	l.events = append(l.events, event)
+	l.mu.Unlock()
+}
+
+func (l *discoveryCallLog) all() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]string(nil), l.events...)
+}
+
+// firstIndexOf returns the position of the first event with the given prefix, or -1.
+func (l *discoveryCallLog) firstIndexOf(prefix string) int {
+	for i, event := range l.all() {
+		if strings.HasPrefix(event, prefix) {
+			return i
+		}
+	}
+	return -1
+}
+
 // fakeDiscoveryNotifier stands in for the plugin process host on the host->plugin notification
 // path. Tests assert on what was actually put on the wire, not on whether a method exists.
 type fakeDiscoveryNotifier struct {
 	mu    sync.Mutex
 	sent  []sentObserve
 	fails bool
+	log   *discoveryCallLog
 }
 
 type sentObserve struct {
@@ -34,6 +69,7 @@ func (f *fakeDiscoveryNotifier) Notify(_ context.Context, pluginID, method strin
 	f.mu.Lock()
 	f.sent = append(f.sent, sentObserve{pluginID: pluginID, method: method, sessionID: payload.SessionID, nodeIDs: payload.NodeIDs})
 	f.mu.Unlock()
+	f.log.record("observe:" + pluginID)
 	if f.fails {
 		return context.Canceled
 	}
@@ -122,13 +158,27 @@ type fakeDiscoveryRuntime struct {
 	unbound  []discoveryBinding
 	startErr error
 	bindErr  error
+	log      *discoveryCallLog
+	// onStart stands in for the host's process-started handler, which the real PluginManager fires
+	// from inside EnsureRunning — synchronously, before EnsureRunning returns. Without it a test
+	// cannot reproduce the ordering that matters: the started plugin is told what to observe while
+	// the reconciliation that started it has not finished authorizing it.
+	onStart func(pluginID string)
 }
 
 func (f *fakeDiscoveryRuntime) EnsureRunning(_ context.Context, pluginID string) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.started = append(f.started, pluginID)
-	return f.startErr
+	onStart, err := f.onStart, f.startErr
+	f.mu.Unlock()
+	f.log.record("start:" + pluginID)
+	if err != nil {
+		return err
+	}
+	if onStart != nil {
+		onStart(pluginID)
+	}
+	return nil
 }
 
 func (f *fakeDiscoveryRuntime) BindSession(pluginID, sessionID string) error {
@@ -138,13 +188,15 @@ func (f *fakeDiscoveryRuntime) BindSession(pluginID, sessionID string) error {
 		return f.bindErr
 	}
 	f.bound = append(f.bound, discoveryBinding{pluginID: pluginID, sessionID: sessionID})
+	f.log.record("bind:" + pluginID)
 	return nil
 }
 
 func (f *fakeDiscoveryRuntime) UnbindSession(pluginID, sessionID string) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.unbound = append(f.unbound, discoveryBinding{pluginID: pluginID, sessionID: sessionID})
+	f.mu.Unlock()
+	f.log.record("unbind:" + pluginID)
 }
 
 // live returns the bindings granted and not since released, which is the only question worth
@@ -281,6 +333,7 @@ type discoveryHarness struct {
 	icons     *fakeDiscoveryIcons
 	audit     *fakeDiscoveryAudit
 	clock     *fakeClock
+	callLog   *discoveryCallLog
 
 	mu     sync.Mutex
 	emits  []emittedChange
@@ -298,11 +351,13 @@ func newDiscoveryHarness(t *testing.T, targets ...DiscoveryPluginTarget) *discov
 	if len(targets) == 0 {
 		targets = []DiscoveryPluginTarget{{PluginID: "p1", ParentProtocols: []string{"ssh"}}}
 	}
+	callLog := &discoveryCallLog{}
 	h := &discoveryHarness{
-		notifier:  &fakeDiscoveryNotifier{},
+		callLog:   callLog,
+		notifier:  &fakeDiscoveryNotifier{log: callLog},
 		caller:    &fakeDiscoveryCaller{},
 		plugins:   &fakeDiscoveryPlugins{targets: targets},
-		runtime:   &fakeDiscoveryRuntime{},
+		runtime:   &fakeDiscoveryRuntime{log: callLog},
 		protocols: &fakeSessionProtocols{bySession: map[string]string{}},
 		icons:     &fakeDiscoveryIcons{byPlugin: map[string][]string{}},
 		audit:     &fakeDiscoveryAudit{},
@@ -385,6 +440,10 @@ func (h *discoveryHarness) emitCount() int {
 func (h *discoveryHarness) sessionReady(sessionID, connectionID string) {
 	h.protocols.bySession[sessionID] = "ssh"
 	h.leader.SessionReady(sessionID, connectionID)
+	// The observe for a new leader now goes out at the END of the binding reconciliation, on its own
+	// goroutine. Waiting for it here rather than resetting immediately is what keeps every test below
+	// seeing only the notifications its own subject produced.
+	h.leader.awaitReconcile()
 	h.notifier.reset()
 }
 

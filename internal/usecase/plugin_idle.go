@@ -37,7 +37,7 @@ func (m *PluginManager) SuspendIdlePlugins(ctx context.Context, idleAfter time.D
 		return
 	}
 	now := time.Now()
-	var toStop []domainplugin.ProcessInstance
+	var idle []domainplugin.ProcessInstance
 
 	m.mu.Lock()
 	instances := m.host.RunningInstances()
@@ -57,10 +57,23 @@ func (m *PluginManager) SuspendIdlePlugins(ctx context.Context, idleAfter time.D
 			m.lastActivity[inst.PluginID] = now
 		}
 		if now.Sub(last) >= idleAfter {
-			toStop = append(toStop, inst)
+			idle = append(idle, inst)
 		}
 	}
 	m.mu.Unlock()
+
+	// The retention check runs outside the lock, because it reaches into another use case and this
+	// sweep must not hold the manager's mutex across that (ADR-009). Idleness alone is not grounds
+	// for reclaiming a plugin: a discovery plugin holding bindings has no sessions and no view
+	// panels, and receives no traffic at all once the user has finished expanding the tree — so
+	// "quiet for five minutes" describes it perfectly while it is doing exactly what it should.
+	var toStop []domainplugin.ProcessInstance
+	for _, inst := range idle {
+		if m.PluginInUse(inst.PluginID) {
+			continue
+		}
+		toStop = append(toStop, inst)
+	}
 
 	for _, inst := range toStop {
 		if err := m.hardSuspend(ctx, inst.PluginID, inst.SessionID); err != nil {

@@ -137,6 +137,40 @@ func TestAPluginThatWillNotStartIsNotAuthorized(t *testing.T) {
 	}
 }
 
+// TestHoldsBindingsFollowsTheGrants is what the host asks to decide whether a plugin may be
+// suspended or abandoned. It must answer for the plugin, not for the connection: the same plugin
+// may be drawing under several connections, and losing one of them does not make it idle.
+func TestHoldsBindingsFollowsTheGrants(t *testing.T) {
+	h := newDiscoveryHarness(t)
+	if h.leader.HoldsBindings("p1") {
+		t.Fatal("nothing is bound yet")
+	}
+
+	h.sessionReady("s1", "c1")
+	h.sessionReady("s2", "c2")
+	h.eventually(t, "both connections are authorized", func() bool {
+		return len(h.runtime.live()) == 2
+	})
+	if !h.leader.HoldsBindings("p1") {
+		t.Fatal("a plugin drawing under two connections must count as held")
+	}
+	if h.leader.HoldsBindings("someone-else") {
+		t.Fatal("a plugin that holds nothing must not be reported as held")
+	}
+
+	h.leader.SessionClosed("s1", "c1")
+	h.leader.awaitReconcile()
+	if !h.leader.HoldsBindings("p1") {
+		t.Fatal("losing one connection must not make a plugin idle while another still holds it")
+	}
+
+	h.leader.SessionClosed("s2", "c2")
+	h.leader.awaitReconcile()
+	if h.leader.HoldsBindings("p1") {
+		t.Fatal("with every connection gone the plugin holds nothing and may be reclaimed")
+	}
+}
+
 // TestReconcilingTwiceDoesNotRebindWhatIsAlreadyBound. The reconciliation is level-triggered and
 // runs on every lifecycle event, so it runs often; each run must be a no-op when nothing changed.
 // Re-binding would be harmless today and is still worth pinning: it is the difference between a

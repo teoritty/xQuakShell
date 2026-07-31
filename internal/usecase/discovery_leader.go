@@ -68,6 +68,11 @@ type DiscoveryLeader struct {
 	// bound records the authorizations this leader created, per connection, so the same code that
 	// granted them is the code that takes them back. Nothing else in the app knows they exist.
 	bound map[string][]discoveryBinding
+	// reconciling tracks in-flight reconciliations. It is registered BEFORE the goroutine starts, so
+	// a caller that has returned from SessionReady or SessionClosed knows the work is either done or
+	// counted — which is what lets a test wait for it instead of polling, and what a shutdown would
+	// need if this ever grows one.
+	reconciling sync.WaitGroup
 	// binding serializes reconciliation per connection. It is a second lock for the same reason the
 	// observer keeps one: mu guards state and must never be held across an IPC call (ADR-009),
 	// while starting and binding plugin processes must not interleave for one connection.
@@ -135,8 +140,12 @@ func (l *DiscoveryLeader) SessionReady(sessionID, connectionID string) {
 	l.mu.Unlock()
 
 	if leads {
-		l.reconcileBindings(connectionID)
-		l.observer.ConnectionChanged(connectionID)
+		// No ConnectionChanged here. It used to run alongside the reconciliation, and if the plugin
+		// process happened to be up already the observe reached it BEFORE it held a binding — the
+		// publish it triggered was refused with -32001, and nothing replayed it, because broadcast had
+		// already marked that version delivered. The observe now goes out at the end of the
+		// reconciliation, once the authorizations it depends on exist.
+		l.reconcileBindings(connectionID, true)
 	}
 }
 
@@ -151,11 +160,27 @@ func (l *DiscoveryLeader) SessionReady(sessionID, connectionID string) {
 // It runs in the background because starting a plugin process spawns a child and handshakes with
 // it. SessionReady is on the path that reports a connection as usable, and a plugin that takes ten
 // seconds to come up must not delay that by ten seconds.
-func (l *DiscoveryLeader) reconcileBindings(connectionID string) {
+// thenObserve says whether the connection's observed set must be resent once the authorizations are
+// in place. It is false only on teardown, where there is no transport left to send it over and
+// where re-creating the observed set would resurrect the very state the caller is about to delete.
+func (l *DiscoveryLeader) reconcileBindings(connectionID string, thenObserve bool) {
 	if l.runtime == nil || l.plugins == nil {
+		// Nothing to authorize, but the observe is still owed: without it a leader with no plugin
+		// runtime wired — every test that does not care about processes — would stop telling plugins
+		// anything at all.
+		if thenObserve {
+			l.observer.ConnectionChanged(connectionID)
+		}
 		return
 	}
-	safego.GoNamed("discovery.bindings", func() { l.syncBindings(connectionID) })
+	l.reconciling.Add(1)
+	safego.GoNamed("discovery.bindings", func() {
+		defer l.reconciling.Done()
+		l.syncBindings(connectionID)
+		if thenObserve {
+			l.observer.ConnectionChanged(connectionID)
+		}
+	})
 }
 
 // syncBindings is reconcileBindings' body, called directly by tests that need it to have finished.
@@ -186,21 +211,27 @@ func (l *DiscoveryLeader) syncBindings(connectionID string) {
 		if containsBinding(kept, want) {
 			continue
 		}
+		// Authorized BEFORE it is started, and the order is load-bearing. Starting a plugin fires the
+		// host's process-started hook, which replays the observed set to it synchronously — so a
+		// plugin started first receives an observe it is not yet allowed to answer, publishes, and is
+		// refused with -32001. Binding first costs nothing: the authorization is a record in the
+		// session authorizer and needs no process to exist.
+		if err := l.runtime.BindSession(want.pluginID, want.sessionID); err != nil {
+			slog.Warn("discovery: could not authorize a plugin for this connection's session",
+				"component", "discovery", "pluginId", want.pluginID, "connectionId", connectionID, "err", err)
+			continue
+		}
 		// context.Background(), deliberately, with no deadline attached. The context handed to
 		// EnsureRunning reaches exec.CommandContext, so it owns the CHILD PROCESS's lifetime, not
 		// just the start call: cancelling it — including the cancel that a WithTimeout requires on
 		// the success path — kills the plugin the moment it has finished starting. The start call
 		// itself is already bounded by the host's own handshake timeout.
-		err := l.runtime.EnsureRunning(context.Background(), want.pluginID)
-		if err != nil {
-			// Not fatal to the connection: the plugin simply draws nothing. It is retried on the next
-			// reconciliation, and the observed set is replayed to it when it does start.
+		if err := l.runtime.EnsureRunning(context.Background(), want.pluginID); err != nil {
+			// The binding goes back: an authorization held by a process that never started is a grant
+			// nobody can use and nothing would take away until the session closed. Not fatal to the
+			// connection — the plugin simply draws nothing, and the next reconciliation retries.
+			l.runtime.UnbindSession(want.pluginID, want.sessionID)
 			slog.Warn("discovery: could not start a plugin for this connection",
-				"component", "discovery", "pluginId", want.pluginID, "connectionId", connectionID, "err", err)
-			continue
-		}
-		if err := l.runtime.BindSession(want.pluginID, want.sessionID); err != nil {
-			slog.Warn("discovery: could not authorize a plugin for this connection's session",
 				"component", "discovery", "pluginId", want.pluginID, "connectionId", connectionID, "err", err)
 			continue
 		}
@@ -304,8 +335,9 @@ func (l *DiscoveryLeader) SessionClosed(sessionID, connectionID string) {
 			"component", "discovery", "connectionId", connectionID)
 		// Reconciled before the state is torn down, not after: with no ready session left the desired
 		// set is empty, so this is what releases every authorization the connection held. Skipping it
-		// would leave plugins entitled to publish into a session that is gone.
-		l.reconcileBindings(connectionID)
+		// would leave plugins entitled to publish into a session that is gone. No observe follows —
+		// there is no transport left to carry one.
+		l.reconcileBindings(connectionID, false)
 		l.store.ClearConnection(connectionID)
 		l.observer.ClearConnection(connectionID)
 		// Pace state is keyed by connection too, and nothing else would ever drop it: without this
@@ -316,10 +348,10 @@ func (l *DiscoveryLeader) SessionClosed(sessionID, connectionID string) {
 		slog.Info("discovery: leading session handover",
 			"component", "discovery", "connectionId", connectionID)
 		// The same reconciliation moves every binding to the new leader and drops the old one's: the
-		// plugin must not keep publishing through a session that no longer leads.
-		l.reconcileBindings(connectionID)
+		// plugin must not keep publishing through a session that no longer leads. The observe for the
+		// new leader goes out at the end of it, for the ordering reason SessionReady explains.
 		l.store.MarkConnectionStale(connectionID)
-		l.observer.ConnectionChanged(connectionID)
+		l.reconcileBindings(connectionID, true)
 	default:
 		// A non-leading session left. Nothing about the tree or its transport changed.
 		return
@@ -351,6 +383,34 @@ func (l *DiscoveryLeader) ConnectionForSession(sessionID string) (string, bool) 
 	defer l.mu.Unlock()
 	connectionID, ok := l.sessionConn[sessionID]
 	return connectionID, ok
+}
+
+// awaitReconcile blocks until every reconciliation started so far has finished. Tests only: the
+// reconciliation is deliberately asynchronous, and a test that polled for its effects would be
+// asserting on a timeout as much as on the behaviour.
+func (l *DiscoveryLeader) awaitReconcile() {
+	l.reconciling.Wait()
+}
+
+// HoldsBindings reports whether this plugin currently holds a discovery authorization on any
+// connection.
+//
+// It is what stops the host from suspending or abandoning a plugin that is drawing a subtree
+// somebody is looking at. Nothing else in the app would know: a discovery plugin serves no session
+// of its own and owns no view panel, so every "is anyone using this?" check in the host answered no
+// and the idle sweeper reclaimed it after five quiet minutes — quiet being the normal state of a
+// tree the user has finished expanding.
+func (l *DiscoveryLeader) HoldsBindings(pluginID string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, bindings := range l.bound {
+		for _, binding := range bindings {
+			if binding.pluginID == pluginID {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Connections lists every connection with at least one ready session — what a restarted plugin

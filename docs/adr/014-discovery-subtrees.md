@@ -83,15 +83,21 @@ Deltas are deliberately absent: a per-node snapshot removes a whole class of des
 |---|---|
 | Tree depth | 8 |
 | Children per publish | 500 |
-| Nodes per (plugin, session) | 2000 |
+| Nodes per (plugin, connection) | 2000 |
 | ID length | 256 |
 | `Label` | 128 |
 | `Tooltip` | 256 |
 | Actions per node | 16 |
 | Nodes in one `invokeAction` | 200 |
-| Publish rate | 20/s per (plugin, session) |
+| Publish rate | 20/s per (plugin, connection) |
 | Frontend emit coalescing | 100 ms per node |
 | `invokeAction` ack timeout | 5 s |
+
+Both budgets are keyed by **connection**, not by session: the host stores one tree per connection
+whatever session currently carries the traffic, so that is the side that owns the memory and the
+only side that can enforce a ceiling on it. A plugin sees only sessions, which is why an earlier
+draft of this table said "session"; the code and `internal/domain/discovery/limits.go` have always
+said connection.
 
 Exceeding the children limit is truncation with `Truncated{Shown, Total}`, not a refusal: the user should see something and understand the list is incomplete, rather than see nothing.
 
@@ -100,6 +106,13 @@ Exceeding the children limit is truncation with `Truncated{Shown, Total}`, not a
 ## Leading session
 
 A plugin that stops answering — a crash, or an idle suspension — puts its branches in `stale` and keeps its nodes: the process is expected back, the observed set is replayed to it, and the branches refill, so deleting them would turn a recoverable absence into a subtree that visibly vanishes and returns.
+
+A plugin drawing a subtree is **in use** for as long as it holds a binding, even though it serves
+no session of its own and owns no view panel. Without that rule every "is anyone using this?" check
+in the host answered no: the idle sweeper reclaimed the plugin after five quiet minutes — quiet
+being the normal state of a tree the user has finished expanding — and the crash supervisor declined
+to restart it, so the two transitions below could never happen and a subtree went stale and stayed
+there until the connection was re-established.
 
 `stale` therefore means "expected back". Once that stops being true — after **3 failed restart attempts**, the host's fixed limit — the branches become `error` carrying a reason the row shows. The observable difference is what the user is told: `stale` says the tree is being re-confirmed, `error` says nobody is coming. Both refuse actions inside the subtree, and neither is terminal in the store: an `error` branch is repaired by an ordinary `publish`, so a plugin that is started again later — by the user, or by the next activation — refills it with no separate recovery path. The host never deletes the nodes on either transition; only the loss of the last `ready` session does that.
 

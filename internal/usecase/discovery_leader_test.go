@@ -29,6 +29,10 @@ func TestLeaderHandoverKeepsTheTreeMarksItStaleAndReObservesTheNewLeader(t *test
 	h.notifier.reset()
 
 	h.leader.SessionClosed("s1", "c1")
+	// The re-observe rides at the end of the handover's binding reconciliation, so that the new
+	// leader's plugins are authorized for the session named in it before they are told to watch
+	// anything through it.
+	h.leader.awaitReconcile()
 
 	if ids := nodeIDsOf(h.service.Snapshot("c1")); !containsID(ids, "a") {
 		t.Fatalf("a handover must not delete the tree, got %v", ids)

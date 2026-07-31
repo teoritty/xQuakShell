@@ -44,6 +44,7 @@ type PluginManager struct {
 	processCrashed    func(pluginID string)
 	processSuspended  func(pluginID string)
 	connChecker    PluginConnectionChecker
+	retention      PluginRetentionChecker
 
 	mu              sync.Mutex
 	sessionCounts   map[string]int
@@ -243,6 +244,52 @@ func (m *PluginManager) Registry() *PluginRegistry {
 // SetEventBus attaches the hub-and-spoke event bus.
 func (m *PluginManager) SetEventBus(bus *PluginEventBus) {
 	m.events = bus
+}
+
+// PluginRetentionChecker reports whether something outside the session bookkeeping still depends on
+// a plugin's process. It is consulted by the two places that would otherwise reclaim it: the idle
+// sweeper and the crash supervisor.
+//
+// It exists because "in use" was defined as "has open sessions", and a discovery plugin has none by
+// construction — it enumerates resources under a connection some other component owns. So the
+// sweeper suspended it after five quiet minutes, marking every subtree it had drawn stale, and the
+// supervisor declined to restart it after a crash, leaving those subtrees stale forever with no
+// path back. Quiet is the normal state of a tree the user has finished expanding.
+//
+// It is deliberately NOT implemented by incrementing the session counter instead. That counter also
+// drives PluginEventBus.SetSessionActiveChecker, so a discovery plugin would silently start
+// receiving core.session.* events — a widening of what a capability grants, arrived at as a side
+// effect of a lifecycle fix rather than as a decision.
+type PluginRetentionChecker func(pluginID string) bool
+
+// SetPluginRetentionChecker binds the predicate above. Unset means "sessions are the only thing
+// that counts", which is the behaviour every non-discovery plugin has always had.
+func (m *PluginManager) SetPluginRetentionChecker(fn PluginRetentionChecker) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	m.retention = fn
+	m.mu.Unlock()
+}
+
+// PluginInUse reports whether anything still depends on this plugin's process: an open session, or
+// a retention holder such as a discovery subtree currently drawn under a live connection.
+//
+// The checker is read under the lock and called outside it (ADR-009): it reaches into another use
+// case, and this one is called from the idle sweep that holds the manager's mutex for its own
+// bookkeeping.
+func (m *PluginManager) PluginInUse(pluginID string) bool {
+	if m == nil {
+		return false
+	}
+	if m.ActiveSessionCount(pluginID) > 0 {
+		return true
+	}
+	m.mu.Lock()
+	retention := m.retention
+	m.mu.Unlock()
+	return retention != nil && retention(pluginID)
 }
 
 // SetSessionOwnershipChecker binds session ownership checks for core event delivery.

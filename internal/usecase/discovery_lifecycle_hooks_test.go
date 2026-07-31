@@ -63,6 +63,86 @@ func newHookedManager(t *testing.T, host domainplugin.ProcessHost) (*usecase.Plu
 	return manager, hooks
 }
 
+// A discovery plugin holds no session and owns no view panel, so every "is anyone using this?"
+// check in the host answered no. The two consequences below were both live in production: the idle
+// sweeper reclaimed the plugin after five quiet minutes — quiet being the normal state of a tree
+// the user has finished expanding — and the supervisor refused to restart it after a crash, so the
+// give-up path that turns stale branches into a stated failure was never reached either.
+
+// TestIdleSweepSparesAPluginHeldOnlyByADiscoveryBinding: idleness is not grounds for reclaiming a
+// plugin that is still drawing something on screen.
+func TestIdleSweepSparesAPluginHeldOnlyByADiscoveryBinding(t *testing.T) {
+	host := &stubProcessHost{instances: []domainplugin.ProcessInstance{
+		{PluginID: "p1", SessionID: "s1", State: domainplugin.ProcessRunning},
+	}}
+	manager, hooks := newHookedManager(t, host)
+	manager.SetPluginRetentionChecker(func(pluginID string) bool { return pluginID == "p1" })
+
+	// idleAfter of 0 makes every running instance idle immediately, so only the retention check can
+	// save it.
+	manager.SuspendIdlePlugins(context.Background(), 0)
+
+	if len(hooks.suspended) != 0 {
+		t.Fatalf("a plugin drawing a subtree must not be suspended for being quiet, got %v", hooks.suspended)
+	}
+}
+
+// TestIdleSweepStillSuspendsAPluginNobodyHolds is the other half: without it the test above would
+// pass against a sweeper that had simply stopped suspending anything.
+func TestIdleSweepStillSuspendsAPluginNobodyHolds(t *testing.T) {
+	host := &stubProcessHost{instances: []domainplugin.ProcessInstance{
+		{PluginID: "p1", SessionID: "s1", State: domainplugin.ProcessRunning},
+	}}
+	manager, hooks := newHookedManager(t, host)
+	manager.SetPluginRetentionChecker(func(string) bool { return false })
+
+	manager.SuspendIdlePlugins(context.Background(), 0)
+
+	if len(hooks.suspended) != 1 {
+		t.Fatalf("an idle plugin nobody holds must still be reclaimed, got %v", hooks.suspended)
+	}
+}
+
+// TestSupervisorRestartsAPluginHeldOnlyByADiscoveryBinding: HandleCrash used to return on the first
+// line for a plugin with no sessions, so the restart loop never ran, the attempts never ran out,
+// and MarkPluginUnrecoverable had no production trigger at all. Reaching the give-up handler here
+// is the proof that the loop ran.
+func TestSupervisorRestartsAPluginHeldOnlyByADiscoveryBinding(t *testing.T) {
+	manager, _ := newHookedManager(t, &stubProcessHost{})
+	manager.SetPluginRetentionChecker(func(pluginID string) bool { return pluginID == "p1" })
+	supervisor := usecase.NewPluginSupervisor(manager)
+
+	gaveUp := make(chan string, 1)
+	supervisor.SetGaveUpHandler(func(pluginID string) { gaveUp <- pluginID })
+
+	supervisor.HandleCrash("p1", "s1")
+
+	select {
+	case <-gaveUp:
+	case <-time.After(30 * time.Second):
+		t.Fatal("a crashed plugin held by a discovery binding was never restarted or reported")
+	}
+}
+
+// TestSupervisorIgnoresAPluginNobodyHolds keeps the early return meaningful: a plugin with no
+// sessions and no retention holder is genuinely finished, and restarting it would resurrect
+// something nobody asked for.
+func TestSupervisorIgnoresAPluginNobodyHolds(t *testing.T) {
+	manager, _ := newHookedManager(t, &stubProcessHost{})
+	supervisor := usecase.NewPluginSupervisor(manager)
+
+	gaveUp := make(chan string, 1)
+	supervisor.SetGaveUpHandler(func(pluginID string) { gaveUp <- pluginID })
+
+	supervisor.HandleCrash("p1", "s1")
+
+	select {
+	case pluginID := <-gaveUp:
+		t.Fatalf("nothing holds %q; it must not be restarted at all", pluginID)
+	case <-time.After(2 * time.Second):
+	}
+}
+
 // TestSupervisorReportsThePluginItGaveUpOn wires the last lifecycle transition discovery cares
 // about. The crash hook fires on every crash, including the ones the supervisor immediately
 // repairs, so it cannot answer "is this subtree coming back?" — only the supervisor knows when the

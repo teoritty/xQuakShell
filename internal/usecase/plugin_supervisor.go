@@ -59,7 +59,11 @@ func (s *PluginSupervisor) HandleCrash(pluginID, sessionID string) {
 	if s == nil || s.manager == nil {
 		return
 	}
-	if s.manager.ActiveSessionCount(pluginID) <= 0 {
+	// Not ActiveSessionCount: a discovery plugin holds no session of its own, and asking only about
+	// sessions meant a crashed one was never restarted, never ran out of attempts, and therefore
+	// never reached the give-up path that turns its stale branches into a stated failure. The whole
+	// crash story below was unreachable for exactly the plugins ADR-014 describes.
+	if !s.manager.PluginInUse(pluginID) {
 		return
 	}
 
@@ -84,7 +88,7 @@ func (s *PluginSupervisor) restartWithBackoff(pluginID, sessionID, key string) {
 
 	backoff := 200 * time.Millisecond
 	for attempt := 1; attempt <= pluginSupervisorMaxAttempts; attempt++ {
-		if s.manager.ActiveSessionCount(pluginID) <= 0 {
+		if !s.manager.PluginInUse(pluginID) {
 			return
 		}
 		if !s.manager.IsPluginEnabled(pluginID) {
