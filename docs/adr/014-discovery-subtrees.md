@@ -116,22 +116,18 @@ there until the connection was re-established.
 
 `stale` therefore means "expected back". Once that stops being true — after **3 failed restart attempts**, the host's fixed limit — the branches become `error` carrying a reason the row shows. The observable difference is what the user is told: `stale` says the tree is being re-confirmed, `error` says nobody is coming. Both refuse actions inside the subtree, and neither is terminal in the store: an `error` branch is repaired by an ordinary `publish`, so a plugin that is started again later — by the user, or by the next activation — refills it with no separate recovery path. The host never deletes the nodes on either transition; only the loss of the last `ready` session does that.
 
-**Known limitation (v1): recovery from a crash is not observable, and neither transition above
-happens today.** The lifetime of a plugin's child process is tied to the context of the call that
-started it — `PluginSupervisor` passes its own per-attempt context to `EnsureRunningForSession`,
-which reaches `exec.CommandContext`, so the `cancel()` on the success path kills the process it has
-just brought up. The consequence for this ADR is concrete: the observed set is replayed to a process
-that is already dying, the branches do not refill, and because the supervisor correctly counts that
-restart as a success, its attempts never run out and the branches never reach `error` either. They
-stay `stale` — "expected back" — indefinitely, until the connection is re-established.
-
-That is stated here, beside the promise, rather than in a footnote, because this document makes a
-branch state that says something the user can check and find false the one thing it forbids, and a
-promise the system does not keep is the same failure one level up. The rule above is the intended
-behaviour and the code implementing it is in place; what is missing is underneath it. The context
-defect is not specific to discovery — the same pattern appears in the plugin start, command, view,
-connector and install paths, and killing a process on return from the call that started it affects
-every plugin — so it is separate work, and the `error` transition becomes reachable once it lands.
+Both transitions are live: a restarted plugin's branches refill, and a plugin the supervisor
+abandons after its three attempts turns them `error`. Getting there needed a fix one level below
+this ADR. A plugin's child process used to be spawned with `exec.CommandContext` on the **caller's**
+context, which in Go owns the child's lifetime — so `PluginSupervisor`'s `cancel()` on its own
+success path killed the process it had just brought up, the observed set was replayed to a process
+already dying, and because the supervisor rightly counted that restart as a success its attempts
+never ran out and the branches never reached `error` either. The child now gets its own context,
+owned by the host and cancelled with the rest of the process's resources; the caller's context still
+bounds the handshake, so a cancelled start still fails and still tears the process down. The defect
+was never specific to discovery — the same short-lived context reached the plugin start, command,
+view, connector and install paths — which is why it was fixed in the spawner rather than worked
+around here.
 
 In the tree, there is exactly one subtree per connection, no matter how many tabs are open. But a plugin can only enumerate resources through an authenticated transport, so the host designates one **leading** session — the earliest one in `ready` state — and passes only that one as `sessionId`. If the leading session closes while others are still alive, the role passes to the next `ready` session, and branches get `stale` for the duration of the handover. If no `ready` session remains, the tree state is deleted: nothing is cached or persisted.
 

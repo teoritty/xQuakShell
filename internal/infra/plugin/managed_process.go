@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"context"
 	"io"
 	"os/exec"
 	"sync"
@@ -15,6 +16,7 @@ type managedProcess struct {
 	plugin      domainplugin.InstalledPlugin
 	sessionID   string
 	cmd         *exec.Cmd
+	cancel      context.CancelFunc
 	reaper      *processReaper
 	stderr      io.WriteCloser
 	conn        *ipc.Conn
@@ -54,6 +56,13 @@ func (mp *managedProcess) closeResources(killProcess bool) {
 		if killProcess && mp.cmd != nil && mp.cmd.Process != nil && mp.reaper != nil {
 			_ = mp.reaper.Kill()
 			untrackPluginPID(mp.cmd.Process.Pid)
+		}
+		// The process context is cancelled unconditionally, after the kill rather than instead of it:
+		// killing is the reaper's job (it also waits), and this only releases the context and the
+		// watchdog goroutine exec.CommandContext attached to it. On the !killProcess path the child
+		// has already exited, so there is nothing left for the cancellation to reach.
+		if mp.cancel != nil {
+			mp.cancel()
 		}
 		closePluginJob(mp.job)
 	})

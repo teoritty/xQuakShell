@@ -145,6 +145,44 @@ func TestProcessHostStopDuringStarting(t *testing.T) {
 	}
 }
 
+// TestStartCancelledDuringHandshakeStillFailsAndReleases is the other half of "the child process is
+// no longer owned by the caller's context": detaching the child must not make a cancelled start
+// silently succeed. The caller's context still bounds the handshake, so cancelling it mid-initialize
+// must still fail Start and still run the teardown — `running` stays false, so Start's deferred
+// releaseStartReservation → finalizeProcess → closeResources(true) fires, which kills the child
+// explicitly. That path predates this change and made the context's own kill redundant.
+//
+// What this test asserts is the failure and the released reservation, not the kill itself. It could
+// not honestly assert the kill: every fixture exits on stdin EOF, and closeResources closes the
+// connection before killing, so a process left unkilled here would leave no trace either. Proving
+// the kill would need a fixture that ignores EOF; the reaper-level teardown itself is covered by
+// TestProcessHostStopDuringStarting.
+func TestStartCancelledDuringHandshakeStillFailsAndReleases(t *testing.T) {
+	pluginDir := buildSlowStartFixture(t)
+	manifestData, err := os.ReadFile(filepath.Join(pluginDir, "plugin.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest domainplugin.Manifest
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	plugin := domainplugin.InstalledPlugin{Manifest: manifest, RootDir: pluginDir}
+	host := NewProcessHost(HostConfig{DataRoot: t.TempDir()})
+
+	// The fixture sleeps 2s inside initialize, so this expires while the handshake is in flight —
+	// after the process is up, which is the window the caller's context used to cover on its own.
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+
+	if err := host.Start(ctx, plugin, ""); err == nil {
+		t.Fatal("a Start whose context died mid-handshake must fail")
+	}
+	if st := host.State(manifest.ID, ""); st != domainplugin.ProcessDiscovered {
+		t.Fatalf("a failed Start must release its reservation, got state %q", st)
+	}
+}
+
 func buildSlowStartFixture(t *testing.T) string {
 	t.Helper()
 	root := repoRootForTest(t)

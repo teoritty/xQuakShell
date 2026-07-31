@@ -46,11 +46,12 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	}
 	mp.negotiated = negotiated
 
-	spawned, err := spawnPluginProcess(ctx, h.cfg.DataRoot, plugin, sessionID)
+	spawned, err := spawnPluginProcess(h.cfg.DataRoot, plugin, sessionID)
 	if err != nil {
 		return err
 	}
 	mp.cmd = spawned.cmd
+	mp.cancel = spawned.cancel
 	mp.reaper = spawned.reaper
 	mp.stderr = spawned.stderr
 
