@@ -32,6 +32,7 @@
   export let selectedConnectionCount = 1;
   export let discoveryAvailable = false;
   export let discoveryIcons: Map<string, string> = new Map();
+  export let discoveryPluginNames: Map<string, string> = new Map();
 
   const dispatch = createEventDispatcher();
 
@@ -106,6 +107,11 @@
       on:deleteConnection
     />
   {:else}
-    <RemoteTreeDiscoveryRow {node} icons={discoveryIcons} on:toggleDiscoveryNode />
+    <RemoteTreeDiscoveryRow
+      {node}
+      icons={discoveryIcons}
+      pluginNames={discoveryPluginNames}
+      on:toggleDiscoveryNode
+    />
   {/if}
 </div>

@@ -62,15 +62,31 @@ export function discoveryExpandedKeys(
   return expanded.get(connectionId) ?? new Set();
 }
 
+/**
+ * pluginId -> display name, for the row tooltip. Two plugins may draw a group
+ * with the same label under one connection, and the tooltip is what tells them
+ * apart (see discoveryRowTitle).
+ */
+export const discoveryPluginNames = writable<Map<string, string>>(new Map());
+
+/**
+ * Fills both maps from one ListPlugins call. The names ride along rather than
+ * getting a refresher of their own: they come from the same response, change at
+ * the same moments (install, update, removal), and a second round trip for a
+ * tooltip would be a request nobody is waiting for.
+ */
 export async function refreshDiscoveryIcons(): Promise<void> {
   const plugins = await listPlugins();
   const next = new Map<string, string>();
+  const names = new Map<string, string>();
   for (const plugin of plugins) {
+    if (plugin.name) names.set(plugin.id, plugin.name);
     for (const [iconId, dataUri] of Object.entries(plugin.discoveryIcons ?? {})) {
       next.set(discoveryIconKey(plugin.id, iconId), dataUri);
     }
   }
   discoveryIcons.set(next);
+  discoveryPluginNames.set(names);
 }
 
 export async function refreshDiscoveryTree(connectionId: string): Promise<void> {

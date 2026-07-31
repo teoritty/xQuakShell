@@ -276,6 +276,10 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	// actions inside them, which beats dispatching into a dead process and waiting out the ack.
 	manager.SetProcessCrashedHandler(discoveryService.MarkPluginStale)
 	manager.SetProcessSuspendedHandler(discoveryService.MarkPluginStale)
+	// And the end of that story: once the supervisor stops trying, stale stops being true. The
+	// branches become error with a reason, so "restarting" and "given up" are not the same grey
+	// subtree (ADR-014 §Leading session / plan п.13).
+	supervisor.SetGaveUpHandler(discoveryService.MarkPluginUnrecoverable)
 
 	pluginDiscovery := infraplugin.NewDiscovery(infraplugin.SearchPaths(deps.ExeDir, dataRoot))
 	if err := manager.DiscoverPlugins(pluginDiscovery.Discover); err != nil {

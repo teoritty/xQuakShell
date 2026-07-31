@@ -15,11 +15,14 @@
   import PluginIcon from './PluginIcon.svelte';
   import StatusDot from './StatusDot.svelte';
   import type { StatusDot as StatusDotSpec } from './statusDot';
+  import { discoveryRowTitle } from './discoveryTree';
   import { discoveryKey, type TreeNode } from './types';
 
   export let node: TreeNode;
   /** Keyed by discoveryKey(pluginId, iconId) — iconIds are plugin-scoped. */
   export let icons: Map<string, string> = new Map();
+  /** pluginId -> display name. Two plugins may draw a group with the same label. */
+  export let pluginNames: Map<string, string> = new Map();
 
   const dispatch = createEventDispatcher();
 
@@ -30,6 +33,10 @@
   // an opinion about a resource when it has not offered one.
   $: status = (row?.status ?? null) as StatusDotSpec | null;
   $: iconSrc = row ? (icons.get(discoveryKey(row.pluginId, row.iconId)) ?? '') : '';
+  // The tooltip names the plugin that drew the row: two plugins may publish a
+  // group called "Storage" under one connection, and the label alone leaves
+  // them indistinguishable.
+  $: rowTitle = row ? discoveryRowTitle(row, pluginNames) : '';
 </script>
 
 {#if notice}
@@ -57,7 +64,7 @@
   {/if}
   <StatusDot {status} />
   <PluginIcon src={iconSrc} label={row.label} />
-  <span class="node-name" title={row.label}>{row.label}</span>
+  <span class="node-name" title={rowTitle}>{row.label}</span>
   {#if row.branchState === 'stale'}
     <span class="discovery-flag" title="The session that reported this handed over — refreshing">stale</span>
   {/if}

@@ -57,6 +57,46 @@ func TestPublishForUnobservedNodeIsDroppedSilently(t *testing.T) {
 	}
 }
 
+// TestPublishUnderAnInstanceIsRefused pins the one thing "instance" means: a leaf. Without the
+// check a plugin could hang children off a node it declared childless, and the tree widget would
+// draw a row that is a leaf and a branch at the same time.
+//
+// It is an error rather than one of the silent drops beside it because the plugin needs to see it:
+// there is a correct way to express "expandable but currently empty" — kind=group with no children
+// — so nothing legitimate is being refused here.
+func TestPublishUnderAnInstanceIsRefused(t *testing.T) {
+	h := newDiscoveryHarness(t)
+	h.sessionReady("s1", "c1")
+	h.service.SetObserved("c1", []string{"", "leaf"})
+
+	mustPublish(t, h, "", instanceNode("leaf", ""))
+
+	err := h.publish(t, "p1", "s1", "leaf", instanceNode("under-leaf", "leaf"))
+	if !errors.Is(err, ErrDiscoveryLeafParent) {
+		t.Fatalf("publishing under an instance must be refused, got %v", err)
+	}
+	if ids := nodeIDsOf(h.service.Snapshot("c1")); containsID(ids, "under-leaf") {
+		t.Fatalf("a refused publish must leave the tree untouched, got %v", ids)
+	}
+}
+
+// TestPublishUnderAGroupWithNoChildrenStaysAllowed is the other half: the empty branch a plugin is
+// supposed to use instead. Without it the test above would still pass if publishing under any
+// childless node were refused.
+func TestPublishUnderAGroupWithNoChildrenStaysAllowed(t *testing.T) {
+	h := newDiscoveryHarness(t)
+	h.sessionReady("s1", "c1")
+	h.service.SetObserved("c1", []string{"", "empty"})
+
+	mustPublish(t, h, "", groupNode("empty", ""))
+	if err := h.publish(t, "p1", "s1", "empty"); err != nil {
+		t.Fatalf("an empty group is how a plugin says \"nothing here\": %v", err)
+	}
+	if got := branchOf(t, h.service.Snapshot("c1"), "p1", "empty").State; got != discovery.BranchReady {
+		t.Fatalf("the empty branch must be ready, got %q", got)
+	}
+}
+
 func TestDuplicateNodeUnderDifferentParentRejectsWholeSnapshot(t *testing.T) {
 	h := newDiscoveryHarness(t)
 	h.sessionReady("s1", "c1")

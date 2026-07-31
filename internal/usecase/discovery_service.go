@@ -115,6 +115,29 @@ func (s *DiscoveryService) MarkPluginStale(pluginID string) {
 	}
 }
 
+// MarkPluginUnrecoverable flags every branch a plugin drew as failed, under every connection, once
+// the supervisor has stopped trying to restart it.
+//
+// It is the counterpart of MarkPluginStale and deliberately not the same thing. Stale is a promise:
+// the process is coming back and the replayed observed set will refill these branches. When the
+// supervisor gives up, that promise is void, and a subtree left dimmed-and-stale forever tells the
+// user the host is still working on it. Error says what is true, and the branch carries the reason.
+//
+// The tree is not deleted, for the same reason a crash does not delete it: the nodes are the last
+// thing anybody actually observed, and a user looking at a failed subtree is better served by
+// seeing what was there and why it stopped than by watching it vanish.
+func (s *DiscoveryService) MarkPluginUnrecoverable(pluginID string) {
+	for _, connectionID := range s.store.ConnectionsWithPlugin(pluginID) {
+		if s.store.MarkPluginFailed(connectionID, pluginID, discoveryPluginGaveUpMessage) {
+			s.publish.EmitConnectionChanged(connectionID)
+		}
+	}
+}
+
+// discoveryPluginGaveUpMessage is what a failed branch shows. It names the consequence rather than
+// the mechanism: "max restart attempts" is the supervisor's vocabulary, not the user's.
+const discoveryPluginGaveUpMessage = "The plugin stopped and could not be restarted"
+
 // Snapshot returns a connection's tree for rendering.
 func (s *DiscoveryService) Snapshot(connectionID string) DiscoverySnapshot {
 	return s.store.Snapshot(connectionID)

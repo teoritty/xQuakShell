@@ -1,5 +1,5 @@
 import type { DiscoveryNode, DiscoverySnapshot } from '../../api/discovery';
-import { buildDiscoverySubtree, observedNodeIds } from './discoveryTree';
+import { buildDiscoverySubtree, discoveryRowTitle, observedNodeIds } from './discoveryTree';
 import { discoveryKey, type DiscoveryRow, type TreeNode } from './types';
 
 function assert(cond: boolean, msg: string) {
@@ -198,6 +198,26 @@ function rows(out: TreeNode[]): DiscoveryRow[] {
   const ids = observedNodeIds(keys, true).sort();
   assert(ids.join(',') === ',g', `root plus deduped node ids, got "${ids.join(',')}"`);
   assert(observedNodeIds(keys, false).length === 0, 'a collapsed connection observes nothing at all');
+}
+
+// --- the tooltip names the plugin, so two identical labels stay distinguishable ---
+{
+  const names = new Map([
+    ['com.example.alpha', 'Alpha Plugin'],
+    ['com.example.beta', 'Beta Plugin'],
+  ]);
+  const one = discoveryRowTitle({ label: 'Storage', pluginId: 'com.example.alpha' }, names);
+  const two = discoveryRowTitle({ label: 'Storage', pluginId: 'com.example.beta' }, names);
+  assert(one !== two, 'two plugins drawing "Storage" must not produce the same tooltip');
+  assert(one.includes('Storage') && one.includes('Alpha Plugin'), `tooltip names label and plugin, got "${one}"`);
+  // The plugin list arrives asynchronously; until it does, the id still answers
+  // the question the tooltip exists to answer.
+  const unnamed = discoveryRowTitle({ label: 'Storage', pluginId: 'com.example.alpha' }, new Map());
+  assert(unnamed.includes('com.example.alpha'), `unknown plugin falls back to its id, got "${unnamed}"`);
+  assert(
+    discoveryRowTitle({ label: 'Storage', pluginId: 'com.example.alpha' }, undefined).includes('com.example.alpha'),
+    'a missing map is the same case as an unknown plugin, not a crash'
+  );
 }
 
 console.log('discoveryTree.test.ts: all passed');

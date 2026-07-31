@@ -63,6 +63,54 @@ func newHookedManager(t *testing.T, host domainplugin.ProcessHost) (*usecase.Plu
 	return manager, hooks
 }
 
+// TestSupervisorReportsThePluginItGaveUpOn wires the last lifecycle transition discovery cares
+// about. The crash hook fires on every crash, including the ones the supervisor immediately
+// repairs, so it cannot answer "is this subtree coming back?" — only the supervisor knows when the
+// answer becomes no, and before this hook existed nobody was told.
+//
+// The restart fails because the plugin is not in the registry: EnsureRunningForSession cannot
+// resolve it, every attempt fails, and the loop runs out — the real path, not a shortcut into it.
+func TestSupervisorReportsThePluginItGaveUpOn(t *testing.T) {
+	manager, _ := newHookedManager(t, &stubProcessHost{})
+	// HandleCrash only acts while sessions are still open: a plugin nobody is using is left dead.
+	manager.SessionOpened("p1")
+	supervisor := usecase.NewPluginSupervisor(manager)
+
+	gaveUp := make(chan string, 1)
+	supervisor.SetGaveUpHandler(func(pluginID string) { gaveUp <- pluginID })
+
+	supervisor.HandleCrash("p1", "s1")
+
+	select {
+	case pluginID := <-gaveUp:
+		if pluginID != "p1" {
+			t.Fatalf("the handler must name the abandoned plugin, got %q", pluginID)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("the supervisor exhausted its attempts without telling anyone")
+	}
+}
+
+// TestSupervisorWithoutAGiveUpHandlerStillGivesUp: the handler is optional wiring, and a nil one
+// must not turn an exhausted restart loop into a panic on a background goroutine.
+func TestSupervisorWithoutAGiveUpHandlerStillGivesUp(t *testing.T) {
+	manager, _ := newHookedManager(t, &stubProcessHost{})
+	manager.SessionOpened("p1")
+	supervisor := usecase.NewPluginSupervisor(manager)
+
+	done := make(chan struct{})
+	supervisor.SetGaveUpHandler(nil)
+	go func() {
+		supervisor.HandleCrash("p1", "s1")
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("HandleCrash must return promptly; the restart loop runs in the background")
+	}
+}
+
 // TestStopPluginTearsDownEvenWhenStoppingFailed is the gap between "the user disabled this plugin"
 // and "every OS process actually exited". Presentation discards StopPlugin's error, so a teardown
 // that only ran on the happy path would leave a disabled plugin's discovery subtree in the tree

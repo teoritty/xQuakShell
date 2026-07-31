@@ -75,6 +75,7 @@
     clearDiscoverySelection,
     discoveryExpanded,
     discoveryIcons,
+    discoveryPluginNames,
     discoverySelection,
     discoverySnapshots,
     forgetUnavailableDiscovery,
@@ -678,6 +679,7 @@
     {sessionStatusByConnId}
     {discoveryAvailableIds}
     discoveryIcons={$discoveryIcons}
+    discoveryPluginNames={$discoveryPluginNames}
     discoverySelection={$discoverySelection}
     {searchHint}
     on:treeKeydown={handleTreeKeydown}

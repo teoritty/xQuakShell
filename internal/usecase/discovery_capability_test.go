@@ -286,6 +286,66 @@ func TestCrashedPluginBranchesGoStaleAndKeepTheirNodes(t *testing.T) {
 	}
 }
 
+// TestGivingUpOnAPluginTurnsItsStaleBranchesIntoFailedOnes is the end of the crash story. Stale
+// claims someone is still coming back; once the supervisor stops trying, that claim is false, and a
+// subtree left stale forever is indistinguishable from one that is merely slow to restart.
+//
+// The nodes survive the transition for the same reason they survive the crash: they are the last
+// thing anybody observed, and a user reading "could not be restarted" over the resources that were
+// there is better served than one watching the subtree disappear.
+func TestGivingUpOnAPluginTurnsItsStaleBranchesIntoFailedOnes(t *testing.T) {
+	h := newDiscoveryHarness(t,
+		DiscoveryPluginTarget{PluginID: "pA", ParentProtocols: []string{"ssh"}},
+		DiscoveryPluginTarget{PluginID: "pB", ParentProtocols: []string{"ssh"}},
+	)
+	h.sessionReady("s1", "c1")
+	h.service.SetObserved("c1", []string{"", "a-group"})
+
+	h.publishAs(t, "pA", "s1", "", groupNode("a-group", ""))
+	h.publishAs(t, "pA", "s1", "a-group", instanceNode("a-child", "a-group"))
+	h.publishAs(t, "pB", "s1", "", instanceNode("b-node", ""))
+
+	h.service.MarkPluginStale("pA")
+	h.service.MarkPluginUnrecoverable("pA")
+
+	snapshot := h.service.Snapshot("c1")
+	if ids := nodeIDsOf(snapshot); !containsID(ids, "a-group") || !containsID(ids, "a-child") {
+		t.Fatalf("giving up must not delete the plugin's nodes, got %v", ids)
+	}
+	for _, nodeID := range []string{"", "a-group"} {
+		branch := branchOf(t, snapshot, "pA", nodeID)
+		if branch.State != discovery.BranchError {
+			t.Fatalf("branch %q must be error once the supervisor gave up, got %q", nodeID, branch.State)
+		}
+		if branch.Error == "" {
+			t.Fatalf("branch %q must carry a reason the UI can show", nodeID)
+		}
+	}
+	// A neighbour under the same connection never stopped answering.
+	if got := branchOf(t, snapshot, "pB", "").State; got != discovery.BranchReady {
+		t.Fatalf("another plugin's branch must be untouched, got %q", got)
+	}
+}
+
+// TestGivingUpOnAPluginThatDrewNothingIsHarmless: the hook fires for every abandoned plugin, and
+// most plugins never drew a subtree at all.
+func TestGivingUpOnAPluginThatDrewNothingIsHarmless(t *testing.T) {
+	h := newDiscoveryHarness(t)
+	h.sessionReady("s1", "c1")
+	h.service.SetObserved("c1", []string{""})
+	mustPublish(t, h, "", instanceNode("one", ""))
+
+	before := h.emitCount()
+	h.service.MarkPluginUnrecoverable("never-ran")
+
+	if h.emitCount() != before {
+		t.Fatal("a plugin with no subtree must not announce a redraw")
+	}
+	if got := branchOf(t, h.service.Snapshot("c1"), "p1", "").State; got != discovery.BranchReady {
+		t.Fatalf("another plugin's branch must be untouched, got %q", got)
+	}
+}
+
 // TestActionsInsideAStaleBranchAreRefusedRatherThanTimingOut is why stale is more than a label. It
 // is the same marking for a crash and for an idle suspension: in both the process is gone, so the
 // nodes on screen name resources nothing has re-confirmed. Without the mark the action is

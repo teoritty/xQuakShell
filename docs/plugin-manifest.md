@@ -172,7 +172,7 @@ Declares that a plugin draws a subtree of nested nodes (groups/instances) inside
 },
 "contributions": {
   "discoveryIcons": [
-    { "id": "docker", "asset": "icons/docker.svg" }
+    { "id": "docker", "asset": "ui/icons/docker.svg" }
   ]
 }
 ```

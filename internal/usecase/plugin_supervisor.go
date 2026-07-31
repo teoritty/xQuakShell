@@ -16,6 +16,7 @@ const pluginSupervisorMaxAttempts = 3
 type PluginSupervisor struct {
 	manager   *PluginManager
 	recoverer PluginSessionRecoverer
+	gaveUp    func(pluginID string)
 	mu        sync.Mutex
 	inflight  map[string]struct{}
 }
@@ -35,6 +36,21 @@ func (s *PluginSupervisor) SetRecoverer(r PluginSessionRecoverer) {
 	}
 	s.mu.Lock()
 	s.recoverer = r
+	s.mu.Unlock()
+}
+
+// SetGaveUpHandler binds the callback fired once the supervisor stops trying to restart a plugin.
+//
+// It exists because "crashed" and "abandoned" are different facts and only this type knows when the
+// second one becomes true. The crash hooks on PluginManager fire on every crash, including the ones
+// this supervisor is about to repair; nothing there can tell a restart in progress from a restart
+// that will never come.
+func (s *PluginSupervisor) SetGaveUpHandler(fn func(pluginID string)) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.gaveUp = fn
 	s.mu.Unlock()
 }
 
@@ -117,5 +133,17 @@ func (s *PluginSupervisor) restartWithBackoff(pluginID, sessionID, key string) {
 	slog.Error("plugin supervisor gave up after max attempts", "pluginId", pluginID, "sessionId", sessionID)
 	if s.recoverer != nil {
 		s.recoverer.FailPluginSessionRecovery(pluginID, sessionID)
+	}
+	s.notifyGaveUp(pluginID)
+}
+
+// notifyGaveUp calls the handler outside the lock: it reaches into another use case, and holding
+// this supervisor's mutex across that is exactly the shape ADR-009 forbids.
+func (s *PluginSupervisor) notifyGaveUp(pluginID string) {
+	s.mu.Lock()
+	handler := s.gaveUp
+	s.mu.Unlock()
+	if handler != nil {
+		handler(pluginID)
 	}
 }

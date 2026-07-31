@@ -87,6 +87,13 @@ func (r *DiscoveryPublishRouter) Apply(ctx context.Context, pluginID string, pay
 		return nil
 	}
 	if !r.observer.IsObserved(connectionID, payload.NodeID) {
+		// Debug, like the not-addressed case above and for the same reason: this is the hot path and
+		// this drop is ordinary. A plugin mid-enumeration when the user collapsed a branch is behaving
+		// correctly, and a Warn per snapshot would pace a log flood by the user's clicking. It is
+		// still logged, because "the plugin publishes and nothing appears" has no other symptom.
+		slog.Debug("discovery: publish for a node nobody is observing, ignored",
+			"component", "discovery", "pluginId", pluginID, "connectionId", connectionID,
+			"nodeId", logfmtToken(payload.NodeID))
 		return nil
 	}
 

@@ -32,6 +32,8 @@ State ∈ {loading, ready, error, stale}
 
 The split is normative: the host never writes to `Status`, and the plugin never sends `Branch.State = stale` or `Truncated`. If a plugin's `discovery.publish` payload contains them anyway, the host **silently drops those fields and processes the rest of the snapshot** — this is not a protocol violation or a gate denial. Sending `Branch` fields is ordinary plugin-author carelessness, not an attack, and rejecting an otherwise-valid snapshot over one stray host-only field would be disproportionate: the children the plugin reported are still real and still shown.
 
+`instance` is a leaf, normatively and not just descriptively: a `publish` naming an instance as its parent is **refused** with an error the plugin author sees. Nothing legitimate is blocked — a node that should be expandable but is currently empty is `kind: group` with `children: []`, which draws a chevron and an empty branch. Accepting the publish instead would produce a row that is a leaf and a branch at the same time.
+
 **Icons**: `IconID` may be set on a node at any depth. Inheritance from the nearest ancestor is a fallback only, used when a node did not set its own icon. So a `docker` group with its own icon, its `containers`/`images`/`volumes`/`networks` subgroups each with their own, and instances inside `volumes` inherit the `volumes` icon — not `docker`'s.
 
 **Node order**: `Order` (set by the plugin), then `Label`, then `pluginID`.
@@ -64,13 +66,13 @@ Deltas are deliberately absent: a per-node snapshot removes a whole class of des
 },
 "contributions": {
   "discoveryIcons": [
-    { "id": "docker", "asset": "icons/docker.svg" }
+    { "id": "docker", "asset": "ui/icons/docker.svg" }
   ]
 }
 ```
 
 - `parentProtocols` is not decorative: the host addresses `observe` only to plugins whose list contains the protocol of that connection.
-- Asset paths are validated by the existing `ValidateViewAssetEntry` **once, at install time**; there are no paths at all on the hot path — `iconId` refers to an already-validated asset.
+- Asset paths are validated by the existing `ValidateViewAssetEntry` **once, at install time**; there are no paths at all on the hot path — `iconId` refers to an already-validated asset. Reusing that validator means icons live under the bundle's `ui/` tree like every other declared asset: a path outside it fails manifest validation, so the plugin does not install at all.
 - Extensions `.svg`/`.png`/`.ico`; ≤ 64 assets per plugin, ≤ 64 KiB each, ≤ 1 MiB total.
 - Icon bytes are read **once, when the plugin enters the registry**, encoded as base64 data URIs and cached there; they reach the frontend on the existing `ListPlugins` call as `discoveryIcons: {iconId: dataUri}`, so there is no icon endpoint taking a plugin ID and an asset name from the frontend. This deliberately differs from view assets (`internal/infra/plugin/assets/handler.go`), which are read from disk per request: a discovery icon is fetched up to 64 times per plugin on a path that repaints, and the cache is also what keeps "an unreadable asset is logged once per plugin" true. `Register`/`Unregister` re-read, so install, update and removal are all reflected; only editing a file inside an already-installed bundle goes unnoticed, which is not a supported scenario.
 - No separate install-time consent: discovery by itself is metadata only — the actual work runs through `channel`/`exec`, which already carries consent. `PermissionSummary` gets one line: "Show discovered resources under your connections".
@@ -93,7 +95,11 @@ Deltas are deliberately absent: a per-node snapshot removes a whole class of des
 
 Exceeding the children limit is truncation with `Truncated{Shown, Total}`, not a refusal: the user should see something and understand the list is incomplete, rather than see nothing.
 
+**The tree is not virtualised**, and that is what the 500-children cap is for. Rendering every visible row is what keeps the connection tree one flat list that keyboard navigation, selection and drag-and-drop all walk the same way; a windowed renderer would have to answer what "the next row" means when it has not been rendered yet, for four node kinds at once. The cap bounds the worst case instead: one branch contributes at most 500 rows, and only while it is expanded. Virtualisation is out of scope for v1 and would be worth revisiting only if the cap itself were raised.
+
 ## Leading session
+
+A plugin that stops answering — a crash, or an idle suspension — puts its branches in `stale` and keeps its nodes: the supervisor restarts it, the observed set is replayed, and the branches refill, so deleting them would turn a recoverable absence into a subtree that visibly vanishes and returns. When the supervisor exhausts its restart attempts, that promise is void and the branches become `error` with a reason. Both states refuse actions inside the subtree; the difference is what the user is told, and "restarting" and "given up" must not look the same.
 
 In the tree, there is exactly one subtree per connection, no matter how many tabs are open. But a plugin can only enumerate resources through an authenticated transport, so the host designates one **leading** session — the earliest one in `ready` state — and passes only that one as `sessionId`. If the leading session closes while others are still alive, the role passes to the next `ready` session, and branches get `stale` for the duration of the handover. If no `ready` session remains, the tree state is deleted: nothing is cached or persisted.
 

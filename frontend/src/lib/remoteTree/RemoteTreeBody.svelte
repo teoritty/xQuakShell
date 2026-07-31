@@ -26,6 +26,8 @@
   /** Connections that can have a discovery subtree at all (they have a session). */
   export let discoveryAvailableIds: Set<string> = new Set();
   export let discoveryIcons: Map<string, string> = new Map();
+  /** pluginId -> display name, for the row tooltip that names the source plugin. */
+  export let discoveryPluginNames: Map<string, string> = new Map();
   /**
    * Discovery's own selection — a value of its own, never selectedPaths.
    *
@@ -68,6 +70,7 @@
       draggable={node.type !== 'discovery'}
       discoveryAvailable={node.type === 'connection' && discoveryAvailableIds.has(node.id)}
       {discoveryIcons}
+      {discoveryPluginNames}
       {dragOverDropZone}
       {dragOverTargetId}
       {editingFolderId}

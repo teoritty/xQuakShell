@@ -14,6 +14,13 @@ import (
 // neither the plugin nor the host believes in.
 var ErrDiscoveryDuplicateNode = errors.New("discovery: node already exists under a different parent")
 
+// ErrDiscoveryLeafParent reports a snapshot published for a node the same plugin declared an
+// instance. An instance is a leaf by definition (ADR-014 §node model), and a plugin that wants an
+// expandable-but-empty node already has a way to say so: kind=group with children: []. There is no
+// legitimate publish this refusal blocks, so it is an error the plugin author needs to see rather
+// than one of the silent drops around it.
+var ErrDiscoveryLeafParent = errors.New("discovery: an instance node cannot have children")
+
 // DiscoveryStore is the single owner of every connection's discovery tree state.
 //
 // It is keyed by connectionID, never sessionID. A connection shows one subtree no matter how many
@@ -64,8 +71,15 @@ func (s *DiscoveryStore) ApplySnapshot(connID, pluginID, parentID string, state 
 	defer s.mu.Unlock()
 
 	tree := s.treeLocked(connID, pluginID)
-	if _, known := tree.nodes[parentID]; parentID != "" && !known {
+	parent, known := tree.nodes[parentID]
+	if parentID != "" && !known {
 		return nil, nil
+	}
+	// Checked here rather than in ValidatePublish because the rule is about the PARENT, and the
+	// domain validator is handed only the parent's id and the children — it has no tree to look the
+	// parent up in. This is the first place that does.
+	if known && parent.Kind == discovery.KindInstance {
+		return nil, fmt.Errorf("%w: %q", ErrDiscoveryLeafParent, parentID)
 	}
 	for _, child := range children {
 		if existing, ok := tree.nodes[child.ID]; ok && existing.ParentID != parentID {
@@ -257,6 +271,34 @@ func (s *DiscoveryStore) MarkPluginStale(connID, pluginID string) bool {
 			continue
 		}
 		branch.State = discovery.BranchStale
+		tree.branches[nodeID] = branch
+		changed = true
+	}
+	return changed
+}
+
+// MarkPluginFailed flags one plugin's branches under one connection as failed, with a message the
+// UI can show. It is the end of the crash story MarkPluginStale begins: stale says "nobody has
+// re-confirmed this yet", which stops being true once the supervisor has given up and nobody is
+// going to. Leaving those branches stale forever would make "restarting" and "abandoned" look
+// identical to the user, and both refuse actions for reasons that read the same.
+//
+// Error is written here, unlike in SetBranchState, because there is a fact to state and no publish
+// left that could ever state it. Truncated is untouched: it still describes a real past snapshot.
+func (s *DiscoveryStore) MarkPluginFailed(connID, pluginID, message string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tree, ok := s.conns[connID][pluginID]
+	if !ok {
+		return false
+	}
+	changed := false
+	for nodeID, branch := range tree.branches {
+		if branch.State == discovery.BranchError && branch.Error == message {
+			continue
+		}
+		branch.State = discovery.BranchError
+		branch.Error = discovery.SanitizeText(message)
 		tree.branches[nodeID] = branch
 		changed = true
 	}

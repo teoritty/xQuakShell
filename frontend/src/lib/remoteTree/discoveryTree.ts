@@ -255,6 +255,28 @@ export function buildDiscoverySubtree(input: DiscoverySubtreeInput): TreeNode[] 
 }
 
 /**
+ * The tooltip of a discovery row: the label, plus the plugin that drew it.
+ *
+ * Two plugins may legitimately publish a group called "Storage" under the same
+ * connection — node ids are plugin-scoped and labels are free text — and the
+ * label alone leaves the two rows indistinguishable. Naming the source is the
+ * cheapest way to tell them apart without inventing a disambiguation rule that
+ * only kicks in on collisions and is therefore never exercised.
+ *
+ * The pluginId is the fallback: the plugin list arrives asynchronously, and an
+ * id is uglier than a name while still answering the question the tooltip is
+ * there to answer.
+ */
+export function discoveryRowTitle(
+  row: { label: string; pluginId: string },
+  pluginNames?: Map<string, string> | null
+): string {
+  const source = pluginNames?.get(row.pluginId) || row.pluginId;
+  if (!source) return row.label;
+  return `${row.label} — ${source}`;
+}
+
+/**
  * The full observe set for a connection: every expanded group's node id, plus
  * '' for the connection root. `observe` is a level — the backend gets the whole
  * set every time and the frontend never computes a delta.

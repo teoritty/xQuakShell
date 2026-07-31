@@ -100,4 +100,29 @@ for (const file of DISCOVERY_FILES) {
   );
 }
 
+// The row tooltip must name the plugin that drew the row. Two plugins may
+// publish a group called "Storage" under one connection, and a tooltip repeating
+// the label says nothing the row does not already show. discoveryRowTitle is
+// unit-tested next door; what cannot be tested there is that anyone calls it, and
+// the component cannot be rendered here (no DOM, no Svelte runtime) — so the link
+// is asserted on the source, the technique architecture.test.ts uses.
+{
+  const row = stripComments(readFileSync(join(HERE, 'RemoteTreeDiscoveryRow.svelte'), 'utf8'));
+  assert(
+    /discoveryRowTitle\(\s*row\s*,\s*pluginNames\s*\)/.test(row),
+    'RemoteTreeDiscoveryRow.svelte must build its tooltip with discoveryRowTitle(row, pluginNames)'
+  );
+  assert(
+    /class="node-name"[^>]*title=\{rowTitle\}/.test(row),
+    'the node name must carry that tooltip; title={row.label} repeats what the row already shows'
+  );
+  // And the map has to arrive: a prop that defaults to an empty Map degrades
+  // silently to the plugin id, which is exactly the bug this guards.
+  const tree = stripComments(readFileSync(join(SRC, 'lib', 'RemoteTree.svelte'), 'utf8'));
+  assert(
+    /discoveryPluginNames=\{\$discoveryPluginNames\}/.test(tree),
+    'RemoteTree.svelte must pass discoveryPluginNames down to the tree body'
+  );
+}
+
 console.log('discoveryMarkup.test.ts: all passed');

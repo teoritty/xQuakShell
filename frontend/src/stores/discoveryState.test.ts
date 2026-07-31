@@ -12,6 +12,7 @@ import {
   discoveryExpanded,
   discoveryIconKey,
   discoveryIcons,
+  discoveryPluginNames,
   discoverySelection,
   discoverySnapshots,
   forgetDiscoveryTree,
@@ -154,8 +155,8 @@ async function run() {
   // --- icons are keyed by plugin: two plugins may both ship "volumes" ---
   reset();
   fake.program('ListPlugins', [
-    { id: 'p1', discoveryIcons: { volumes: 'data:image/svg+xml;base64,AAA' } },
-    { id: 'p2', discoveryIcons: { volumes: 'data:image/svg+xml;base64,BBB' } },
+    { id: 'p1', name: 'Plugin One', discoveryIcons: { volumes: 'data:image/svg+xml;base64,AAA' } },
+    { id: 'p2', name: 'Plugin Two', discoveryIcons: { volumes: 'data:image/svg+xml;base64,BBB' } },
     { id: 'p3' },
   ]);
   await refreshDiscoveryIcons();
@@ -166,6 +167,17 @@ async function run() {
       icons.get(discoveryIconKey('p2', 'volumes')) === 'data:image/svg+xml;base64,BBB',
     'an iconId is only meaningful together with its plugin'
   );
+
+  // --- the same call carries the plugin names the row tooltip needs ---
+  //
+  // Two plugins may draw a group called "Storage" under one connection, and the
+  // label alone leaves the rows indistinguishable. The names ride on the icon
+  // refresh because they come from the same response and change at the same
+  // moments; a second round trip for a tooltip would be a request nobody waits for.
+  const names = get(discoveryPluginNames);
+  assert(names.get('p1') === 'Plugin One', `p1 name is carried, got ${names.get('p1')}`);
+  assert(names.get('p2') === 'Plugin Two', `p2 name is carried, got ${names.get('p2')}`);
+  assert(!names.has('p3'), 'a plugin with no name contributes none, and the row falls back to its id');
 
   // --- and the tree actually calls it ---
   //

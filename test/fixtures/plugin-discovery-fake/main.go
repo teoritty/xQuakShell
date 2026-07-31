@@ -11,6 +11,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"maps"
 	"sort"
 	"sync"
 	"time"
@@ -41,9 +42,7 @@ func main() {
 		tones:     make(map[string]string),
 		published: make(map[string]int),
 	}
-	for id, tone := range initialTones {
-		p.tones[id] = tone
-	}
+	maps.Copy(p.tones, initialTones)
 
 	p.host.Register("initialize", func(json.RawMessage) (any, error) { return map[string]bool{"ok": true}, nil })
 	p.host.Register("activate", func(json.RawMessage) (any, error) { return map[string]bool{"ok": true}, nil })
@@ -236,9 +235,7 @@ func (p *plugin) stats(json.RawMessage) (any, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	published := make(map[string]int, len(p.published))
-	for id, count := range p.published {
-		published[id] = count
-	}
+	maps.Copy(published, p.published)
 	observed := make([]string, 0, len(p.observed))
 	for id := range p.observed {
 		observed = append(observed, id)
