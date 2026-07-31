@@ -50,16 +50,42 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	if err != nil {
 		return err
 	}
-	mp.cmd = spawned.cmd
-	mp.cancel = spawned.cancel
-	mp.reaper = spawned.reaper
-	mp.stderr = spawned.stderr
 
 	job, dataDir, err := preparePluginSandbox(h.cfg.DataRoot, plugin, sessionID, spawned.cmd.Process.Pid)
 	if err != nil {
+		// The process is not on mp yet, so the deferred teardown below cannot see it. Kill it here.
+		discardSpawnedProcess(spawned, pluginJob{})
 		return err
 	}
-	mp.job = job
+
+	// Handing the process to mp and asking whether the reservation is still ours must be ONE atomic
+	// step, and Start must be prepared to lose it.
+	//
+	// Stop takes mp under this lock, sets ProcessStopping, and only then reads mp.cmd/mp.reaper —
+	// which, for everything above this point, are still nil. So a Stop landing in the spawn window
+	// kills nothing, finalizeProcess burns cleanupOnce, and mp leaves the registry, while this Start
+	// walks on and reports success. The child used to die anyway, killed by the caller's context on
+	// its way out; once that stopped owning the process, the same window left a live process the host
+	// had already forgotten — with a job handle (which on Windows is what kills the process on close)
+	// that nothing would ever close, and a waitProcess goroutine parked on a reaper nobody would
+	// reach. No amount of locking closes this: in that window Stop HONESTLY has nothing to kill. The
+	// reservation has to be re-checked by the side that owns the process.
+	h.mu.Lock()
+	current, stillRegistered := h.processes[key]
+	abandoned := !stillRegistered || current != mp || mp.state == domainplugin.ProcessStopping
+	if !abandoned {
+		mp.cmd = spawned.cmd
+		mp.cancel = spawned.cancel
+		mp.reaper = spawned.reaper
+		mp.stderr = spawned.stderr
+		mp.job = job
+	}
+	h.mu.Unlock()
+
+	if abandoned {
+		discardSpawnedProcess(spawned, job)
+		return errStartAbortedByStop
+	}
 
 	conn, netProxy, tunnelDial, tunnelLocal, channelProxy, err := h.newConn(plugin, dataDir, sessionID, spawned.stdout, spawned.stdin, negotiated)
 	if err != nil {

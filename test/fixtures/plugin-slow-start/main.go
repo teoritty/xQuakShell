@@ -3,12 +3,29 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"os"
+	"path/filepath"
+	"strconv"
 	"time"
 
 	"xquakshell/test/fixtures/pluginhost"
 )
 
+// announcePID writes this process's pid one directory above the installed bundle — outside it, so
+// the file cannot break the bundle's set-equality checksum check. It is how a test learns which OS
+// process to look for: a host that loses track of a plugin mid-start has, by definition, no pid to
+// report, and that is exactly the case worth testing.
+func announcePID() {
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	path := filepath.Join(filepath.Dir(filepath.Dir(exe)), "slow-start.pid")
+	_ = os.WriteFile(path, []byte(strconv.Itoa(os.Getpid())), 0o600)
+}
+
 func main() {
+	announcePID()
 	host := pluginhost.NewHost()
 
 	host.Register("initialize", func(_ json.RawMessage) (any, error) {

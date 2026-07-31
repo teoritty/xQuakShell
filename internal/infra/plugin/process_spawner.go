@@ -2,12 +2,17 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
 
 	domainplugin "xquakshell/internal/domain/plugin"
 )
+
+// errStartAbortedByStop is returned when a Stop arrived while this Start was still spawning, so the
+// process it brought up has been torn down again instead of being published.
+var errStartAbortedByStop = errors.New("plugin start aborted by a concurrent stop")
 
 type spawnedProcess struct {
 	cmd    *exec.Cmd
@@ -84,4 +89,32 @@ func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, se
 		stdin:  stdin,
 		stdout: stdout,
 	}, nil
+}
+
+// discardSpawnedProcess tears down a child that Start spawned but will not keep. It is the teardown
+// for a process that never reached managedProcess, so nothing else can reach it: closeResources
+// works from mp's fields and would find them nil.
+//
+// The kill goes through the reaper because the reaper also waits, which is what turns "signalled"
+// into "gone" — and on Windows what makes the pid safe to observe. The job handle is closed here
+// too: leaving it open would keep the process alive under KILL_ON_JOB_CLOSE and leak the handle.
+func discardSpawnedProcess(spawned *spawnedProcess, job pluginJob) {
+	if spawned == nil {
+		return
+	}
+	if spawned.reaper != nil {
+		_ = spawned.reaper.Kill()
+	} else if spawned.cmd != nil && spawned.cmd.Process != nil {
+		killPluginProcess(spawned.cmd.Process.Pid)
+	}
+	if spawned.cancel != nil {
+		spawned.cancel()
+	}
+	if spawned.stderr != nil {
+		_ = spawned.stderr.Close()
+	}
+	closePluginJob(job)
+	if spawned.cmd != nil && spawned.cmd.Process != nil {
+		untrackPluginPID(spawned.cmd.Process.Pid)
+	}
 }
