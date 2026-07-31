@@ -18,6 +18,13 @@ import {
   selectTreeNode,
   syncSelectionStores,
 } from './selection';
+import {
+  emptyDiscoverySelection,
+  isRowSelected,
+  moveDiscoverySelection,
+  selectDiscoveryRow,
+  selectedDiscoveryRows,
+} from './discoverySelection';
 import { discoveryNodeId, isDiscoveryNodeId } from './types';
 import { get, writable } from 'svelte/store';
 
@@ -105,9 +112,25 @@ for (const rowNode of discoveryRows) {
     ...discoveryRows.map((n) => n.id),
     discoveryNodeId('c1', 'p1', 'c2'), // a plugin node whose id spells a real connection
   ]);
+  // Reaching this state at all is a broken invariant, so the filter is expected
+  // to say so rather than clean up quietly. Capturing console.warn is what makes
+  // an otherwise-unfalsifiable backstop testable.
+  const warnings: string[] = [];
+  const realWarn = console.warn;
+  console.warn = (...args: unknown[]) => warnings.push(args.join(' '));
+
   const connIds = connectionIdsInSelection(poisoned, connections);
   assert(connIds.join(',') === 'c1', `only the genuine connection survives, got "${connIds.join(',')}"`);
+  assert(warnings.length === 1, `the dropped ids are reported, got ${warnings.length} warning(s)`);
+  assert(
+    warnings[0].includes('discovery node id') && warnings[0].includes('bug upstream'),
+    `the warning names the problem, got "${warnings[0]}"`
+  );
   assert(folderIdsInSelection(poisoned, folders).length === 0, 'no folder is conjured out of discovery ids');
+
+  warnings.length = 0;
+  connectionIdsInSelection(new Set(['c1', 'c2']), connections);
+  assert(warnings.length === 0, 'a clean selection is silent — the warning is a signal, not noise');
 
   const toDelete = connectionIdsForDelete('c1', poisoned, connections);
   assert(toDelete.join(',') === 'c1', `delete acts on exactly one connection, got "${toDelete.join(',')}"`);
@@ -122,6 +145,7 @@ for (const rowNode of discoveryRows) {
     selectedFolderId: writable(''),
   };
   syncSelectionStores(poisoned, connections, folders, stores);
+  console.warn = realWarn;
   assert(get(stores.selectedConnectionIds).size === 1, 'the store never sees a discovery id');
   assert(get(stores.selectedFolderId) === '', 'nor does the folder store');
 }
@@ -164,6 +188,67 @@ assert(
   );
   assert(collapsed.every((n) => n.type !== 'discovery'), 'nothing is observed, so nothing is drawn');
   assert(collapsed.length === 3, 'and the tree is exactly what it was before this feature');
+}
+
+// --- two connections, one plugin, the SAME node id: nothing may cross over ---
+//
+// The ordinary case, not a contrived one: one Docker-ish plugin publishing
+// `containers` on both hosts. A discoveryKey is (pluginId, nodeId) and carries no
+// connection, so every membership test, every highlight and every DOM lookup has
+// to pair it with the connectionId. Comparing keys alone put focus, Enter and the
+// context menu into the wrong connection's subtree.
+{
+  const shared: DiscoverySnapshot['plugins'] = [
+    {
+      pluginId: 'p1',
+      nodes: [{ id: 'containers', parentId: '', kind: 'instance', label: 'Containers', order: 0, actions: [] }],
+      branches: { '': { state: 'ready' } },
+    },
+  ];
+  const bothFlat = flattenTree(
+    buildTree(folders, connections, new Set(['f1']), '', {
+      snapshots: new Map([
+        ['c1', { connectionId: 'c1', plugins: shared }],
+        ['c2', { connectionId: 'c2', plugins: shared }],
+      ]),
+      expanded: new Map([
+        ['c1', new Set([''])],
+        ['c2', new Set([''])],
+      ]),
+    })
+  );
+  const both = bothFlat.filter((n) => n.discovery).map((n) => n.discovery!);
+  assert(both.length === 2, `both connections draw the row, got ${both.length}`);
+  const [underC1, underC2] = both[0].connectionId === 'c1' ? [both[0], both[1]] : [both[1], both[0]];
+
+  // The key is deliberately the same — that is the whole point.
+  assert(underC1.key === underC2.key, 'the same plugin node under two hosts shares a discoveryKey');
+  // The DOM addressing target is not.
+  const idC1 = discoveryNodeId(underC1.connectionId, underC1.pluginId, underC1.nodeId);
+  const idC2 = discoveryNodeId(underC2.connectionId, underC2.pluginId, underC2.nodeId);
+  assert(idC1 !== idC2, 'TreeNode ids stay distinct, so a focus lookup can tell the rows apart');
+  const domIds = bothFlat.filter((n) => n.discovery).map((n) => n.id);
+  assert(new Set(domIds).size === 2, 'and the rendered rows carry those distinct ids');
+
+  // A selection living under c2 must not make c1's row look selected...
+  const selInC2 = selectDiscoveryRow(emptyDiscoverySelection(), underC2, both);
+  assert(isRowSelected(selInC2, underC2), 'the row that was clicked is selected');
+  assert(!isRowSelected(selInC2, underC1), 'its twin under the other connection is NOT');
+  assert(
+    selInC2.keys.has(underC1.key),
+    'and the bare key test would have said yes — which is exactly why isRowSelected exists'
+  );
+
+  // ...nor may it be acted on. This is the set Enter and the context menu use.
+  const acted = selectedDiscoveryRows(selInC2, both);
+  assert(acted.length === 1 && acted[0].connectionId === 'c2', 'only the selected connection is acted on');
+
+  // Arrow movement stays inside the connection too.
+  const moved = moveDiscoverySelection(selInC2, both, -1, false);
+  assert(
+    moved.connectionId === 'c2' && moved.keys.size === 1,
+    'an arrow at the edge of one subtree does not step into another connection'
+  );
 }
 
 // --- buildTree without the discovery argument behaves exactly as it always did ---

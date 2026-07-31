@@ -187,6 +187,46 @@ async function run() {
       /discoveryAvailableIds\s*=\s*new Set\(\s*\$sessions\.filter\(\(s\) => s\.state === 'ready'\)/.test(code),
       "discoveryAvailableIds must be built from `ready` sessions only — ADR-014's leading session"
     );
+
+    // Position, not just presence. Svelte orders reactive blocks topologically by
+    // their tracked dependencies, and there is NO dependency between these two —
+    // the cleanup writes to a store the builder reads, which the compiler cannot
+    // see. So the order is the source order, and moving the cleanup below the
+    // builder would compile, compute `tree` from a stale set, and reproduce the
+    // original bug without any test noticing.
+    const cleanupAt = code.indexOf('forgetUnavailableDiscovery(discoveryAvailableIds)');
+    const buildAt = code.indexOf('tree = buildTree(');
+    assert(cleanupAt >= 0 && buildAt >= 0, 'both reactive blocks must exist');
+    assert(
+      cleanupAt < buildAt,
+      'forgetUnavailableDiscovery must appear BEFORE tree = buildTree(...): there is no tracked ' +
+        'dependency between them, so their source order is what makes the cleanup land in the same pass.'
+    );
+
+    // Focus must be addressed by the connection-scoped TreeNode id, never by the
+    // bare discoveryKey — one plugin publishing the same node on two hosts yields
+    // two rows with the same key, and querySelector would take whichever came
+    // first in the document.
+    assert(
+      /data-discovery-id="\$\{escaped\}"/.test(code) && /discoveryNodeId\(\s*row\.connectionId/.test(code),
+      'the focus lookup must select on data-discovery-id built from discoveryNodeId(connectionId, ...)'
+    );
+    assert(
+      !/data-discovery-key/.test(code),
+      'the connection-less data-discovery-key addressing must not come back'
+    );
+  }
+
+  // ...and the row must publish that same connection-scoped id.
+  {
+    const rowSrc = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'remoteTree', 'RemoteTreeNode.svelte'),
+      'utf8'
+    );
+    assert(
+      /data-discovery-id=\{node\.discovery \? node\.id : null\}/.test(rowSrc),
+      'RemoteTreeNode must emit data-discovery-id from node.id (connection-scoped), not from node.discovery.key'
+    );
   }
 
   console.log('discoveryState.test.ts: all assertions passed');

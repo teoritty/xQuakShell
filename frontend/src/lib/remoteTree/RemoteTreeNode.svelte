@@ -57,7 +57,7 @@
   class:drop-target-before={dropBefore}
   class:drop-target-after={dropAfter}
   style="padding-left: calc({Math.min(8 + node.depth * 12, 100)}px * var(--ui-scale))"
-  data-discovery-key={node.discovery?.key ?? null}
+  data-discovery-id={node.discovery ? node.id : null}
   draggable={draggable && !isEditing && !isDiscovery}
   role="treeitem"
   aria-selected={ariaSelected}

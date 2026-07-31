@@ -4,32 +4,32 @@ import { isDiscoveryNodeId, type TreeNode } from './types';
 
 /**
  * Strips discovery ids out of a selection before it is mapped onto real
- * connections or folders.
+ * connections or folders — and complains loudly when it has to.
  *
- * HONEST STATUS: this is a backstop, not a proven layer, and no test can
- * currently falsify it. The functions below already filter the selection through
- * the actual `connections`/`folders` arrays, so an id that is not a real
- * connection id cannot survive them anyway — and DISCOVERY_ID_PREFIX guarantees
- * a discovery id never is one. Replacing this function body with `return
- * selectedPaths` keeps every test green; that was measured, not assumed.
+ * Reaching the `if` below means an invariant broke upstream: a discovery row got
+ * into the connection selection, which selectTreeNode is supposed to make
+ * impossible. Filtering silently would leave that regression to be discovered
+ * later, by someone losing connections; warning turns an unfalsifiable backstop
+ * into a detector that says which id and which layer failed.
  *
- * It is kept because it stops being redundant the moment the id scheme changes:
- * if discovery rows ever lose their prefix, or an id path appears that does not
- * cross-check against the connections array, this is the guard that is already
- * in place at the last point before ids become deletions. What actually protects
- * the tree today is stated where it is provable — selectTreeNode refusing
- * discovery rows, and the explicit check in connectionIdsForDelete, both of
- * which fail discoveryIsolation.test.ts when removed.
+ * On its own the filtering is redundant today — the callers already intersect
+ * the selection with the real `connections`/`folders` arrays, and
+ * DISCOVERY_ID_PREFIX guarantees a discovery id is in neither. That was measured:
+ * replacing the body with `return selectedPaths` kept every test green. It stops
+ * being redundant if the id scheme changes, and the warning is what makes it
+ * testable in the meantime.
  */
 function withoutDiscoveryIds(selectedPaths: Set<string>): Set<string> {
-  let hasDiscovery = false;
+  const offenders: string[] = [];
   for (const id of selectedPaths) {
-    if (isDiscoveryNodeId(id)) {
-      hasDiscovery = true;
-      break;
-    }
+    if (isDiscoveryNodeId(id)) offenders.push(id);
   }
-  if (!hasDiscovery) return selectedPaths;
+  if (offenders.length === 0) return selectedPaths;
+  console.warn(
+    `[remoteTree] ${offenders.length} discovery node id(s) reached the connection selection and were ` +
+      `dropped. This is a bug upstream — discovery rows have their own selection and selectTreeNode ` +
+      `must refuse them. Offending ids: ${offenders.join(', ')}`
+  );
   return new Set([...selectedPaths].filter((id) => !isDiscoveryNodeId(id)));
 }
 

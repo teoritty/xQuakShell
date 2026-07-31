@@ -3,6 +3,11 @@
   import RemoteTreeNode from './RemoteTreeNode.svelte';
   import RemoteTreeFavorites from './RemoteTreeFavorites.svelte';
   import type { Connection } from '../../stores/appState';
+  import {
+    emptyDiscoverySelection,
+    isRowSelected,
+    type DiscoverySelection,
+  } from './discoverySelection';
   import type { ConnectionStatus, DropZone, TreeNode } from './types';
   import './remoteTreeShared.css';
 
@@ -21,8 +26,15 @@
   /** Connections that can have a discovery subtree at all (they have a session). */
   export let discoveryAvailableIds: Set<string> = new Set();
   export let discoveryIcons: Map<string, string> = new Map();
-  /** discoveryKey values selected inside a subtree — a set of its own, never selectedPaths. */
-  export let discoverySelectedKeys: Set<string> = new Set();
+  /**
+   * Discovery's own selection — a value of its own, never selectedPaths.
+   *
+   * The whole selection is passed rather than just its key set, because a
+   * discoveryKey is (pluginId, nodeId) and carries no connection: highlighting
+   * by key alone would light up the twin row under every other connection that
+   * shows the same plugin's node.
+   */
+  export let discoverySelection: DiscoverySelection = emptyDiscoverySelection();
   export let searchHint = '';
 
   const dispatch = createEventDispatcher();
@@ -48,10 +60,10 @@
     <RemoteTreeNode
       {node}
       selected={node.type === 'discovery'
-        ? !!node.discovery && discoverySelectedKeys.has(node.discovery.key)
+        ? !!node.discovery && isRowSelected(discoverySelection, node.discovery)
         : selectedPaths.has(node.id)}
       ariaSelected={node.type === 'discovery'
-        ? !!node.discovery && discoverySelectedKeys.has(node.discovery.key)
+        ? !!node.discovery && isRowSelected(discoverySelection, node.discovery)
         : selectedPaths.has(node.id)}
       draggable={node.type !== 'discovery'}
       discoveryAvailable={node.type === 'connection' && discoveryAvailableIds.has(node.id)}

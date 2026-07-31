@@ -54,7 +54,7 @@
     syncSelectionStores,
     type SelectionStores,
   } from './remoteTree/selection';
-  import { emptyDragVisualState, type DragPayload, type DragVisualState, type DiscoveryRow, type TreeNode } from './remoteTree/types';
+  import { discoveryNodeId, emptyDragVisualState, type DragPayload, type DragVisualState, type DiscoveryRow, type TreeNode } from './remoteTree/types';
   import { clampMenuPosition } from './clampMenuPosition';
   import { onMount, tick } from 'svelte';
   import { get } from 'svelte/store';
@@ -66,6 +66,7 @@
     type DiscoveryMenuItem,
   } from './remoteTree/discoveryActions';
   import {
+    isRowSelected,
     moveDiscoverySelection,
     selectDiscoveryRow,
     selectedDiscoveryRows,
@@ -260,7 +261,12 @@
       if (!node.discovery) return;
       // Right-click on an unselected row solo-selects it, same file-manager rule
       // the connection tree uses — but inside discovery's own selection.
-      if (!$discoverySelection.keys.has(node.discovery.key)) {
+      // isRowSelected, not keys.has: a discoveryKey is (pluginId, nodeId) and is
+      // not connection-scoped, so one plugin publishing the same node on two
+      // hosts would otherwise make a row look already-selected because its twin
+      // under another connection is, and the menu would be built from that other
+      // connection's rows.
+      if (!isRowSelected($discoverySelection, node.discovery)) {
         selectDiscoveryNode(node.discovery);
       }
       const rows = selectedDiscoveryRows(get(discoverySelection), discoveryRows);
@@ -340,7 +346,10 @@
    */
   function activateDiscoveryRow(row: DiscoveryRow) {
     const selected = selectedDiscoveryRows(get(discoverySelection), discoveryRows);
-    const target = selected.some((r) => r.key === row.key) && selected.length > 0 ? selected : [row];
+    // Membership is (connectionId, key), never key alone — otherwise Enter on a
+    // row under one connection could run over a selection under another that
+    // happens to hold the same plugin's node of the same name.
+    const target = isRowSelected(get(discoverySelection), row) ? selected : [row];
     const item = defaultDiscoveryAction(target);
     if (item) requestDiscoveryAction(item, computeDiscoveryMenu(target));
     else if (target.length === 1 && row.kind === 'group') {
@@ -355,12 +364,19 @@
    * left/right arrows kept reading the previously focused row — the user would
    * see one row selected and the keyboard would act on another.
    */
-  async function focusDiscoveryRow(key: string) {
-    if (!key || typeof document === 'undefined') return;
+  async function focusDiscoveryRow(row: DiscoveryRow | undefined) {
+    if (!row || typeof document === 'undefined') return;
     await tick();
-    const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(key) : key.replace(/["\\]/g, '\\$&');
+    // Addressed by TreeNode.id, which is scoped by (connectionId, pluginId,
+    // nodeId) — NOT by discoveryKey, which omits the connection. Two connections
+    // showing the same plugin's `containers` produce two rows with the same key,
+    // and querySelector would return whichever came first in the document, so
+    // focus could land in a different connection's subtree from the one the
+    // selection just moved through.
+    const id = discoveryNodeId(row.connectionId, row.pluginId, row.nodeId);
+    const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(id) : id.replace(/["\\]/g, '\\$&');
     const el = document.querySelector<HTMLElement>(
-      `.remote-tree .tree-node[data-discovery-key="${escaped}"]`
+      `.remote-tree .tree-node[data-discovery-id="${escaped}"]`
     );
     el?.focus();
   }
@@ -604,8 +620,13 @@
           moveDiscoverySelection(sel, discoveryRows, direction, event.shiftKey)
         );
         // Focus follows the selection so Enter and the left/right arrows keep
-        // acting on the row the user can see is current.
-        void focusDiscoveryRow(get(discoverySelection).lastKey);
+        // acting on the row the user can see is current. Resolved through the
+        // selection's own connectionId, so it can only ever land in the subtree
+        // the selection lives in.
+        const moved = get(discoverySelection);
+        void focusDiscoveryRow(
+          discoveryRows.find((r) => r.connectionId === moved.connectionId && r.key === moved.lastKey)
+        );
       }
       return;
     }
@@ -657,7 +678,7 @@
     {sessionStatusByConnId}
     {discoveryAvailableIds}
     discoveryIcons={$discoveryIcons}
-    discoverySelectedKeys={$discoverySelection.keys}
+    discoverySelection={$discoverySelection}
     {searchHint}
     on:treeKeydown={handleTreeKeydown}
     on:selectConnection={({ detail }) => handleSelectNode(detail.id, detail.event)}

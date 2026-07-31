@@ -144,6 +144,20 @@ export function moveDiscoverySelection(
   return selectDiscoveryRow(current, next, visibleRows, extend ? { shiftKey: true } : undefined);
 }
 
+/**
+ * Is this exact row selected?
+ *
+ * A discoveryKey is `(pluginId, nodeId)` — it is NOT connection-scoped, because
+ * the same plugin publishing `containers` on two hosts is the ordinary case, not
+ * a collision. Comparing keys alone would make a row under connection A look
+ * selected because its twin under connection B is. Every membership test must
+ * therefore carry the connectionId, and going through this helper is what stops
+ * the next caller from writing `keys.has(row.key)` again.
+ */
+export function isRowSelected(selection: DiscoverySelection, row: DiscoveryRow): boolean {
+  return selection.connectionId === row.connectionId && selection.keys.has(row.key);
+}
+
 /** The selected rows, in visible order — what the action menu is computed from. */
 export function selectedDiscoveryRows(
   selection: DiscoverySelection,
