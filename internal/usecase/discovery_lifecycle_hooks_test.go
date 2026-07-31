@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,10 +18,22 @@ import (
 type stubProcessHost struct {
 	stopErr   error
 	instances []domainplugin.ProcessInstance
+
+	mu     sync.Mutex
+	starts int
 }
 
 func (h *stubProcessHost) Start(context.Context, domainplugin.InstalledPlugin, string) error {
+	h.mu.Lock()
+	h.starts++
+	h.mu.Unlock()
 	return nil
+}
+
+func (h *stubProcessHost) startCount() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.starts
 }
 func (h *stubProcessHost) Stop(context.Context, string, string) error { return h.stopErr }
 func (h *stubProcessHost) StopAll(context.Context)                    {}
@@ -36,7 +50,16 @@ func (h *stubProcessHost) State(string, string) domainplugin.ProcessState {
 	return domainplugin.ProcessStopped
 }
 func (h *stubProcessHost) RunningInstances() []domainplugin.ProcessInstance { return h.instances }
-func (h *stubProcessHost) BindSession(string, string) error                 { return nil }
+// BindSession mirrors the production authorizer on the one rule this file depends on: an empty
+// session id authorizes nothing and is refused. A stub that accepted it would let the supervisor's
+// broken branch look healthy here while failing in the app — which is how the defect this stub now
+// reproduces survived a whole round of tests.
+func (h *stubProcessHost) BindSession(_, sessionID string) error {
+	if strings.TrimSpace(sessionID) == "" {
+		return domainplugin.ErrSessionNotBound
+	}
+	return nil
+}
 func (h *stubProcessHost) UnbindSession(string, string)                     {}
 
 // lifecycleHooks records which of the three host-internal lifecycle hooks fired. They are collected
@@ -100,6 +123,95 @@ func TestIdleSweepStillSuspendsAPluginNobodyHolds(t *testing.T) {
 
 	if len(hooks.suspended) != 1 {
 		t.Fatalf("an idle plugin nobody holds must still be reclaimed, got %v", hooks.suspended)
+	}
+}
+
+// recordingRecoverer stands in for the session bridge. Production always sets one, and the tests
+// that omitted it were the reason the bug below survived: with a nil recoverer the whole
+// session-recovery block is skipped, which is exactly the branch that was broken.
+type recordingRecoverer struct {
+	mu        sync.Mutex
+	recovered []string
+	failed    []string
+}
+
+func (r *recordingRecoverer) RecoverPluginSession(_ context.Context, _, sessionID string) error {
+	r.mu.Lock()
+	r.recovered = append(r.recovered, sessionID)
+	r.mu.Unlock()
+	return nil
+}
+
+func (r *recordingRecoverer) FailPluginSessionRecovery(_, sessionID string) {
+	r.mu.Lock()
+	r.failed = append(r.failed, sessionID)
+	r.mu.Unlock()
+}
+
+func (r *recordingRecoverer) calls() (recovered, failed []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.recovered...), append([]string(nil), r.failed...)
+}
+
+// TestASuccessfulRestartOfASessionlessPluginIsNotAFailedAttempt is the branch nothing covered: a
+// restart that WORKS.
+//
+// A shared-scope process is reported as crashed with an empty sessionID, because the host has no
+// session to name for it. The supervisor then tried to re-authorize that empty session, the
+// authorizer refused it with ErrSessionNotBound — correctly, an empty session id authorizes
+// nothing — and the loop counted the successful restart as a failed attempt. Three good restarts
+// later it announced that it had given up, and the give-up handler painted the plugin's branches
+// error, meaning "nobody is coming", over a plugin that was running and had already refilled them.
+//
+// Every earlier test reached give-up through a plugin that was NOT in the registry, so the restart
+// failed for real and this path never ran.
+func TestASuccessfulRestartOfASessionlessPluginIsNotAFailedAttempt(t *testing.T) {
+	host := &stubProcessHost{}
+	manager, _ := newHookedManager(t, host)
+	if err := manager.Registry().Register(domainplugin.InstalledPlugin{
+		Manifest: domainplugin.Manifest{ID: "p1", Name: "Sessionless", Version: "1.0.0"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Held by a discovery binding — no session of its own, which is the whole point.
+	manager.SetPluginRetentionChecker(func(pluginID string) bool { return pluginID == "p1" })
+
+	supervisor := usecase.NewPluginSupervisor(manager)
+	recoverer := &recordingRecoverer{}
+	supervisor.SetRecoverer(recoverer)
+	gaveUp := make(chan string, 1)
+	supervisor.SetGaveUpHandler(func(pluginID string) { gaveUp <- pluginID })
+
+	supervisor.HandleCrash("p1", "")
+
+	deadline := time.Now().Add(10 * time.Second)
+	for host.startCount() == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if host.startCount() == 0 {
+		t.Fatal("the crashed plugin was never restarted")
+	}
+
+	// Three failed attempts take ~1.4 s of backoff; this waits past that.
+	select {
+	case pluginID := <-gaveUp:
+		t.Fatalf("%q restarted successfully and was still reported as abandoned; its branches would "+
+			"be painted error over a running plugin", pluginID)
+	case <-time.After(3 * time.Second):
+	}
+
+	if starts := host.startCount(); starts != 1 {
+		t.Fatalf("a successful restart must be attempted once, not retried: %d starts", starts)
+	}
+	recovered, failed := recoverer.calls()
+	if len(recovered) != 0 {
+		t.Fatalf("there is no session to reconnect for a shared-scope process, got %d call(s) naming %q",
+			len(recovered), recovered)
+	}
+	if len(failed) != 0 {
+		t.Fatalf("no session recovery was attempted, so none can have failed, got %d call(s) naming %q",
+			len(failed), failed)
 	}
 }
 

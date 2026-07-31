@@ -116,7 +116,16 @@ func (s *PluginSupervisor) restartWithBackoff(pluginID, sessionID, key string) {
 			}
 		}
 
-		if s.recoverer != nil {
+		// Session recovery runs only for a plugin that HAS a session. A shared-scope process is
+		// reported as crashed with an empty sessionID (the host has no session to name), and both
+		// calls below are meaningless for it: there is no session to re-authorize and none to
+		// reconnect. Worse, they used to make a SUCCESSFUL restart look like a failed attempt —
+		// BindSession refuses an empty sessionID with ErrSessionNotBound, the loop took the failure
+		// branch, and three successful restarts in a row ended at "gave up", which now paints the
+		// plugin's branches error while the plugin is running and has already refilled them. That is
+		// the one thing ADR-014 forbids a branch state to do: say something the user can check and
+		// find false.
+		if s.recoverer != nil && sessionID != "" {
 			if err := s.manager.BindSession(pluginID, sessionID); err != nil {
 				slog.Warn("plugin supervisor bind session failed", "pluginId", pluginID, "sessionId", sessionID, "attempt", attempt, "err", err)
 				cancel()
@@ -135,7 +144,9 @@ func (s *PluginSupervisor) restartWithBackoff(pluginID, sessionID, key string) {
 	}
 
 	slog.Error("plugin supervisor gave up after max attempts", "pluginId", pluginID, "sessionId", sessionID)
-	if s.recoverer != nil {
+	// Same condition as the recovery above, and for the same reason: reporting a failed recovery of
+	// a session that never existed hands the session bridge an empty id to look up.
+	if s.recoverer != nil && sessionID != "" {
 		s.recoverer.FailPluginSessionRecovery(pluginID, sessionID)
 	}
 	s.notifyGaveUp(pluginID)
