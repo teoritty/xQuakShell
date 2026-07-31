@@ -110,6 +110,10 @@ export function GetAuditSessionState() {
   return window['go']['main']['App']['GetAuditSessionState']();
 }
 
+export function GetDiscoveryTree(arg1) {
+  return window['go']['main']['App']['GetDiscoveryTree'](arg1);
+}
+
 export function GetFolders() {
   return window['go']['main']['App']['GetFolders']();
 }
@@ -192,6 +196,10 @@ export function InstallGitHubPlugin(arg1, arg2, arg3, arg4, arg5, arg6, arg7, ar
 
 export function InstallPlugin(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
   return window['go']['main']['App']['InstallPlugin'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+}
+
+export function InvokeDiscoveryAction(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['InvokeDiscoveryAction'](arg1, arg2, arg3, arg4);
 }
 
 export function IsVaultUnlocked() {
@@ -376,6 +384,10 @@ export function SelectPluginSourceDir() {
 
 export function SendTerminalInput(arg1, arg2, arg3) {
   return window['go']['main']['App']['SendTerminalInput'](arg1, arg2, arg3);
+}
+
+export function SetDiscoveryObserved(arg1, arg2) {
+  return window['go']['main']['App']['SetDiscoveryObserved'](arg1, arg2);
 }
 
 export function SetGitHubRepositoryTrust(arg1) {

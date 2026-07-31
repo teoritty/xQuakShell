@@ -89,6 +89,7 @@ func (m *PluginManager) List() []PluginInfo {
 			Signed:               p.Manifest.Signature != "",
 			Enabled:              m.isPluginEnabled(p.Manifest.ID),
 			InstalledReleaseTag:  installedReleaseTag(p),
+			DiscoveryIcons:       m.registry.DiscoveryIconDataURIs(p.Manifest.ID),
 		})
 	}
 	return result
@@ -106,6 +107,11 @@ type PluginInfo struct {
 	Signed               bool
 	Enabled              bool
 	InstalledReleaseTag  string
+	// DiscoveryIcons carries the plugin's declared discovery icons as iconID -> data URI, already
+	// read from disk (ADR-014). They ride along with the plugin list instead of getting an endpoint
+	// of their own: an icon is a small, static part of what a plugin is, and a fetch-by-id endpoint
+	// would be one more surface taking a plugin ID and an asset name from the frontend.
+	DiscoveryIcons map[string]string
 }
 
 func installedReleaseTag(p domainplugin.InstalledPlugin) string {

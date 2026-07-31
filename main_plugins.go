@@ -41,6 +41,7 @@ type pluginRuntime struct {
 	viewInbound         *usecase.PluginViewInbound
 	discoveryService    *usecase.DiscoveryService
 	discoveryLeader     *usecase.DiscoveryLeader
+	discoveryEmit       *discoveryEmitHolder
 	viewRelay           *usecase.PluginViewRelay
 	vaultInbound        *usecase.PluginVaultInbound
 	vaultSettings       *usecase.PluginVaultSettings
@@ -89,6 +90,37 @@ func (h *discoveryInboundHolder) Publish(ctx context.Context, pluginID string, p
 
 var _ domainplugin.DiscoveryInboundPort = (*discoveryInboundHolder)(nil)
 
+// discoveryEmitHolder late-binds the frontend emit callback the same way discoveryInboundHolder
+// late-binds the inbound port, and for the same forced ordering: the emit coalescer is built inside
+// the plugin runtime, and the AppAPI that owns the Wails context is built afterwards from it.
+//
+// A miss is a no-op, not an error. Between composition and wireEmbed there is no window in which a
+// tree can change — no plugin has been told to observe anything yet — and a redraw nobody can
+// receive is nothing to report.
+type discoveryEmitHolder struct {
+	mu   sync.Mutex
+	emit func(connectionID, nodeID string)
+}
+
+func newDiscoveryEmitHolder() *discoveryEmitHolder { return &discoveryEmitHolder{} }
+
+func (h *discoveryEmitHolder) set(emit func(connectionID, nodeID string)) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.emit = emit
+}
+
+// notify runs the callback outside the lock: it reaches into the Wails runtime, and holding a mutex
+// across that would serialize every tree update behind an unknown amount of presentation work.
+func (h *discoveryEmitHolder) notify(connectionID, nodeID string) {
+	h.mu.Lock()
+	emit := h.emit
+	h.mu.Unlock()
+	if emit != nil {
+		emit(connectionID, nodeID)
+	}
+}
+
 type pluginRuntimeDeps struct {
 	ConnRepo        domain.ConnectionRepository
 	PasswordRepo    domain.PasswordRepository
@@ -104,6 +136,10 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	embedInbound := usecase.NewPluginEmbedInbound()
 	embedTunnels := usecase.NewEmbedTunnelService(ratelimit.Factory{})
 	registry := usecase.NewPluginRegistry()
+	// Discovery icons are read from the installed bundle as each plugin enters the registry and
+	// travel to the frontend as data URIs on the plugin list (ADR-014): no icon endpoint, no path
+	// ever leaving the backend. Must be set before DiscoverPlugins below.
+	registry.SetDiscoveryIconAssetReader(infrapluginassets.DiscoveryIconReader{})
 	viewInbound := usecase.NewPluginViewInbound(registry)
 	portableRuntime := infraportable.NewRuntimeAdapter()
 
@@ -204,15 +240,16 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	// Discovery subtrees (ADR-014). The observer and the leader need each other — the observer must
 	// resolve a connection to its leading session, the leader must resend the observed set on
 	// handover — so the observer is built first and the leader pushed into it, the same late-binding
-	// shape the channel bus uses. onChange is nil until the presentation layer that emits tree
-	// updates to the frontend is wired.
+	// shape the channel bus uses. Tree changes reach the frontend through discoveryEmit, filled in
+	// by wireEmbed once the AppAPI exists.
 	discoveryStore := usecase.NewDiscoveryStore()
 	discoveryObserver := usecase.NewDiscoveryObserver(registry, manager)
+	discoveryEmit := newDiscoveryEmitHolder()
 	// Pace is built before the leader because both the publish path and connection teardown need
 	// it, and teardown lives on the leader.
 	discoveryPace := usecase.NewDiscoveryPace(
 		usecase.NewDiscoveryPublishLimiter(nil),
-		usecase.NewDiscoveryEmitCoalescer(nil, nil, nil),
+		usecase.NewDiscoveryEmitCoalescer(discoveryEmit.notify, nil, nil),
 	)
 	discoveryLeader := usecase.NewDiscoveryLeader(sessionRegistry, discoveryStore, discoveryObserver, discoveryPace, nil)
 	discoveryObserver.SetLeader(discoveryLeader)
@@ -347,6 +384,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		dynamicForward:      dynamicForward,
 		discoveryService:    discoveryService,
 		discoveryLeader:     discoveryLeader,
+		discoveryEmit:       discoveryEmit,
 		viewInbound:         viewInbound,
 		viewRelay:           viewRelay,
 		vaultInbound:        vaultInbound,
@@ -380,6 +418,12 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 	api.Sessions().WireChannelSessionRegistry(r.sessionRegistry.set)
 	api.Sessions().SetChannelBus(r.channelBus)
 	api.Sessions().SetDiscovery(r.discoveryLeader)
+	if r.discoveryService != nil {
+		api.SetDiscoveryService(r.discoveryService)
+	}
+	if r.discoveryEmit != nil {
+		r.discoveryEmit.set(api.EmitDiscoveryTreeChanged)
+	}
 	api.Sessions().SetDynamicForward(r.dynamicForward)
 	if r.dynamicForward != nil && r.vaultSettings != nil {
 		r.dynamicForward.SetTunnelGrantReader(r.vaultSettings)
