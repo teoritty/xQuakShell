@@ -63,43 +63,47 @@ func (h *sessionRegistryHolder) ProtocolForSession(sessionID string) (string, bo
 	return registry.ProtocolForSession(sessionID)
 }
 
-// channelCloseNotifiers holds one channel.close notifier per plugin process, so the two halves of
-// a cycle neither side can close over can meet.
+// processChannelCloseNotifier is ONE plugin process's channel.close notifier, and the meeting point
+// for two halves of a cycle neither side can close over.
 //
 // The cycle: ChannelResolverFor is called while the process's Conn is still being built, so a
-// resolver cannot be handed Conn.Notify; AttachChannelCloseNotifier delivers it moments later,
-// after the Conn exists. A backend built by the resolver therefore gets a stable indirection —
-// looked up at CALL time, long after channel.open — rather than the notifier value itself. Keyed
-// per (plugin, session) because that is the granularity a plugin process has.
+// resolver cannot be handed Conn.Notify; the host delivers it moments later, after the Conn exists.
+// A backend built by the resolver therefore gets a stable indirection — resolved at CALL time, long
+// after channel.open — rather than the notifier value itself.
 //
-// A miss returns a no-op rather than nil: a backend reporting a close reason has nothing left to
-// do about a process whose Conn is already gone, and a closed channel must not depend on the
-// notification landing (7.5).
-type channelCloseNotifiers struct {
-	mu sync.Mutex
-	by map[string]infraplugin.ChannelCloseNotify
+// It is allocated inside the factory call that builds the process's resolver, and reachable only
+// from that call's two return values. That is deliberate, and it is what replaced a map keyed by
+// (pluginID, sessionID): process keys are REUSED — a plugin stopped and started again comes back
+// under the same key — so a shared map made the pairing depend on timing. A start that was
+// overtaken would write its notifier over the live process's entry, and every channel.close of the
+// running plugin would then be aimed at a dead Conn: silently, since a dropped notification fails
+// nothing. Nothing was ever removed from that map either, so a stale entry outlived its process by
+// design. With one holder per factory call there is no key to collide on, nothing to clean up, and
+// no ordering to get right — the same shape the rest of the host already uses, where each process
+// owns its own ChannelProxy rather than a share of a common structure.
+//
+// A notifier that has not arrived yet is a no-op rather than nil: a backend reporting a close
+// reason has nothing left to do about a process whose Conn is already gone, and a closed channel
+// must not depend on the notification landing (7.5).
+type processChannelCloseNotifier struct {
+	mu     sync.Mutex
+	notify infraplugin.ChannelCloseNotify
 }
 
-func newChannelCloseNotifiers() *channelCloseNotifiers {
-	return &channelCloseNotifiers{by: make(map[string]infraplugin.ChannelCloseNotify)}
-}
-
-func channelProcessKey(pluginID, sessionID string) string { return pluginID + "\x00" + sessionID }
-
-func (n *channelCloseNotifiers) attach(plugin domainplugin.InstalledPlugin, sessionID string, notify infraplugin.ChannelCloseNotify) {
+// attach is handed to the host as infraplugin.AttachChannelCloseNotify.
+func (n *processChannelCloseNotifier) attach(notify infraplugin.ChannelCloseNotify) {
 	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.by[channelProcessKey(plugin.Manifest.ID, sessionID)] = notify
+	n.notify = notify
+	n.mu.Unlock()
 }
 
-// notifierFor returns a usecase.ChannelCloseNotifier that resolves the process's real notifier at
-// call time. infra's ChannelCloseNotify and usecase's ChannelCloseNotifier are structurally
-// identical but deliberately distinct types — infra must not import usecase — so this conversion
-// is the composition root's job, and happens only here.
-func (n *channelCloseNotifiers) notifierFor(pluginID, sessionID string) usecase.ChannelCloseNotifier {
+// notifier converts to the usecase side. infra's ChannelCloseNotify and usecase's
+// ChannelCloseNotifier are structurally identical but deliberately distinct types — infra must not
+// import usecase — so this conversion is the composition root's job, and happens only here.
+func (n *processChannelCloseNotifier) notifier() usecase.ChannelCloseNotifier {
 	return func(channelID uint32, reason, message string) {
 		n.mu.Lock()
-		notify := n.by[channelProcessKey(pluginID, sessionID)]
+		notify := n.notify
 		n.mu.Unlock()
 		if notify != nil {
 			notify(channelID, reason, message)
@@ -123,13 +127,14 @@ func (n *channelCloseNotifiers) notifierFor(pluginID, sessionID string) usecase.
 // surface, it attaches a channel to the surface session.registerEmbed already established, and
 // Authorize refuses a session this plugin never registered for.
 //
-// notifiers supplies each process's channel.close notifier once its Conn exists; see
-// channelCloseNotifiers for why it cannot simply be passed in as a value.
+// Each call returns the process's resolver together with the attach that delivers that process's
+// channel.close notifier once its Conn exists; see processChannelCloseNotifier for why the notifier
+// cannot simply be passed in as a value, and why it is per call rather than looked up by key.
 //
 // sessions supplies the session registry the exec backend runs its commands over, once
 // NewSessionManager has built it; see sessionRegistryHolder for the same reason.
-func newChannelResolverFor(audit domainplugin.ChannelAuditRecorder, embedSink usecase.EmbedFrameSink, notifiers *channelCloseNotifiers, sessions *sessionRegistryHolder) func(domainplugin.InstalledPlugin, string) capability.ChannelBackendResolver {
-	return func(plugin domainplugin.InstalledPlugin, sessionID string) capability.ChannelBackendResolver {
+func newChannelResolverFor(audit domainplugin.ChannelAuditRecorder, embedSink usecase.EmbedFrameSink, sessions *sessionRegistryHolder) func(domainplugin.InstalledPlugin, string) (capability.ChannelBackendResolver, infraplugin.AttachChannelCloseNotify) {
+	return func(plugin domainplugin.InstalledPlugin, sessionID string) (capability.ChannelBackendResolver, infraplugin.AttachChannelCloseNotify) {
 		// Closed over per process: everything a backend needs beyond the purpose string.
 		pluginID := plugin.Manifest.ID
 		network := plugin.Manifest.Capabilities.Network
@@ -149,11 +154,10 @@ func newChannelResolverFor(audit domainplugin.ChannelAuditRecorder, embedSink us
 		execConsent := plugin.Manifest.RequiresChannelExecConsent()
 		// embed-stream closes with a reason when its wait ceiling expires; channel.close is the
 		// only way a plugin can learn why (ADR-011 has no binary error frame), so a nil notifier
-		// here would make that reason unobservable.
-		var notifyClose usecase.ChannelCloseNotifier
-		if notifiers != nil {
-			notifyClose = notifiers.notifierFor(pluginID, sessionID)
-		}
+		// here would make that reason unobservable. One holder per call: it belongs to the process
+		// whose resolver is being built right here, and to nothing else.
+		closeNotifier := &processChannelCloseNotifier{}
+		notifyClose := closeNotifier.notifier()
 
 		// A NEW backend on every call, never one shared per process or per purpose. All four are
 		// stateful and single-use: they store the resolved target/argv/tunnelId in fields during
@@ -161,7 +165,7 @@ func newChannelResolverFor(audit domainplugin.ChannelAuditRecorder, embedSink us
 		// channel.open overwrite the first's target and both channels silently converge on one
 		// peer. This is pinned by TestChannelResolverBuildsAFreshBackendPerOpen, not by this
 		// comment.
-		return func(purpose string) (domainplugin.ChannelPurposeBackend, error) {
+		resolve := func(purpose string) (domainplugin.ChannelPurposeBackend, error) {
 			switch purpose {
 			case domainplugin.PurposeTCPRelay:
 				// Dials directly from the host, not through the parent SSH connection, and
@@ -194,5 +198,6 @@ func newChannelResolverFor(audit domainplugin.ChannelAuditRecorder, embedSink us
 					domainplugin.ErrNotImplemented, purpose)
 			}
 		}
+		return resolve, closeNotifier.attach
 	}
 }

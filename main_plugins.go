@@ -175,7 +175,6 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	})
 
 	channelBus := capability.NewChannelBus()
-	channelCloseNotify := newChannelCloseNotifiers()
 	sessionRegistry := newSessionRegistryHolder()
 	// The discovery service cannot exist yet: it needs the PluginManager, which needs the host,
 	// which needs this session RPC factory. The holder closes that cycle the same way
@@ -196,8 +195,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		// The channel purpose backends and everything they need are assembled in
 		// main_channels.go: constructing them is its own reason to change, separate from wiring
 		// the plugin runtime.
-		ChannelResolverFor:         newChannelResolverFor(pluginAudit.ChannelFunc(), embedTunnels, channelCloseNotify, sessionRegistry),
-		AttachChannelCloseNotifier: channelCloseNotify.attach,
+		ChannelResolverFor: newChannelResolverFor(pluginAudit.ChannelFunc(), embedTunnels, sessionRegistry),
 		ChannelAudit:       pluginAudit.ChannelFunc(),
 		ChannelBus:         channelBus,
 		OnCrash: func(pluginID, sessionID string) {
