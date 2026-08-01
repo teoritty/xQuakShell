@@ -16,6 +16,7 @@ import {
 } from '../terminal/outputBuffer';
 import { disposeTerminal } from '../lib/terminalPool';
 import { uploadFile } from '../api/remoteFs';
+import { onDiscoveryTreeChanged } from '../stores/discoveryState';
 
 // SFTPReady is a one-shot broadcast emitted once per session right after the
 // remote filesystem is up. A FileTree component mounts only after its session
@@ -126,6 +127,14 @@ export function subscribeToEvents(): void {
       for (const r of data) map.set(r.connectionId, r);
     }
     pingResults.set(map);
+  });
+
+  // ADR-014. The payload names the changed node, but the read side is a
+  // whole-connection snapshot, so the store refetches by connectionId and
+  // ignores nodeId beyond using it as the "something moved" signal. The backend
+  // already coalesces these at 100 ms per node.
+  rt.EventsOn('DiscoveryTreeChanged', (data: { connectionId: string; nodeId?: string }) => {
+    onDiscoveryTreeChanged(data?.connectionId ?? '');
   });
 
   rt.EventsOn('VaultLocked', () => {

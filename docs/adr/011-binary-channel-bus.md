@@ -131,23 +131,20 @@ A `capabilities.session.embed` plugin for VNC/RDP:
 5. Framebuffer tiles/frames flow as raw binary frames — no JSON, no base64.
 6. Backpressure is the same as every other purpose: at credit exhaustion the reader stops reading, and nothing is dropped. See §2b for why this purpose in particular must not drop — both of its directions are incremental, and the outbound one is user input, where a lost frame is a stuck modifier key rather than a dropped picture.
 
-## Application to discovery (Docker / Kubernetes / DB) — deferred, not implemented
+## Application to discovery (Docker / Kubernetes / DB) — designed in ADR-014, not yet implemented
 
-The `channel` capability described above (`exec`/`embed-stream`/`tcp-relay`/`udp-relay`) is implemented. The `discovery` manifest capability below is not: no discovery-specific capability exists on the plugin manifest today, and no discovery plugin ships. It remains a reasonable extension of the channel primitive and is recorded here as a future direction, not a shipped feature.
+The `channel` capability described above (`exec`/`embed-stream`/`tcp-relay`/`udp-relay`) is implemented. The `discovery` manifest capability below is not: no discovery-specific capability exists on the plugin manifest today, and no discovery plugin ships. Its full contract — node model, the `discovery.observe`/`discovery.publish`/`discovery.invokeAction` verbs, limits, and security model — is specified in [ADR-014](014-discovery-subtrees.md); it remains a reasonable extension of the channel primitive described below, recorded here as the transport it will ride on, not as a shipped feature.
 
-Discovery would become a thin layer on top of the same primitive, plus one new manifest capability for the "produces child connections" part:
+Discovery is a thin layer on top of the same primitive, plus the `discovery` manifest capability ADR-014 defines:
 
 ```json
 "capabilities": {
-  "discovery": {
-    "parentProtocols": ["ssh"],
-    "childProtocol": "docker-shell"
-  },
+  "discovery": { "parentProtocols": ["ssh"] },
   "channel": { "purposes": ["exec"] }
 }
 ```
 
-- **Docker:** plugin opens an `exec` channel running `docker system dial-stdio` over the parent SSH session, speaks the Docker Engine API on that duplex stream to list containers, returns structured child-connection descriptors (`discovery.list` over JSON-RPC, unchanged shape from what we discussed earlier). Clicking a discovered container opens a *new* `exec` channel running `docker exec -it <id> sh`, wired to the session's terminal — architecturally identical to a normal SSH terminal session, just a different remote command.
+- **Docker:** plugin opens an `exec` channel running `docker system dial-stdio` over the parent SSH session, speaks the Docker Engine API on that duplex stream to list containers, and reports them to the host as discovery nodes via `discovery.publish` (ADR-014) — a group node per resource kind (`containers`/`images`/`volumes`/`networks`), an instance node per container. Clicking a discovered container's default action opens a *new* `exec` channel running `docker exec -it <id> sh`, wired to the session's terminal — architecturally identical to a normal SSH terminal session, just a different remote command, invoked through `discovery.invokeAction`.
 - **Kubernetes:** same shape — `exec` channel running `kubectl exec -it <pod> -- sh` (or port-forward for API-server access), no new core mechanism needed.
 - **Databases (Postgres/MySQL/Redis):** here the channel purpose is `tcp-relay` instead of `exec` — the host dials the DB port through the *existing* jump-host/tunnel chain (reusing `TunnelDialProxy`'s allowlisted dial, not a new mechanism), and the plugin speaks the DB wire protocol on top. A discovery plugin here could enumerate databases/schemas by running a query over that relayed connection.
 
@@ -162,9 +159,6 @@ A channel's `parentSessionId` binding is one-directional: **the parent session o
 - Channel state is a small explicit machine — `opening → open → closing → closed` — with `close` idempotent on both sides: whichever side didn't initiate the close still needs to handle receiving `channel.close` for a channel it already considers closed as a no-op, not an error.
 - **After sending `channel.close`, the host ignores all further frames for that `channelId`; the plugin must consider the channel closed and stop sending on it.** This applies equally whether the close was initiated by normal completion (command exited) or by an external event (user closed the tab, cascading from session close) — the plugin does not get a grace window to flush additional data after receiving `channel.close`.
 
-## Protocol framing bootstrap
-
-There is no prior shipped version of this transport and no installed base of plugins speaking raw NDJSON to preserve — the project has no users yet and this API is still under active development. Given that, the framing bootstrap has a clean answer instead of a negotiated one: **framing is mandatory from the first byte, for every plugin, unconditionally.** There is no raw-NDJSON fallback mode and therefore no chicken-and-egg problem to solve — `initialize` is simply the first JSON-RPC message sent on `channelId = 0` inside an already-framed stream, like every other control-plane message. The `kind` byte range `0x01–0x0F` stays reserved for core-defined frame types so the format can grow additively later, but no per-plugin version negotiation is needed for v1 because there is nothing yet to be compatible or incompatible with.
 
 ## Implementation note: multiple `exec` channels over one SSH connection
 

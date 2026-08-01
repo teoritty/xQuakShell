@@ -1,7 +1,8 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { CheckCircle2, Circle, Loader2, Monitor, XCircle } from 'lucide-svelte';
-  import { pingColor, pingTooltip, hasPingResult } from './connectionDisplay';
+  import StatusDot from './StatusDot.svelte';
+  import { hasPingResult, pingStatus } from './connectionDisplay';
   import type { Connection } from '../../stores/appState';
   import type { ConnectionStatus } from './types';
   import './remoteTreeShared.css';
@@ -35,7 +36,7 @@
         on:keydown={(e) => e.key === 'Enter' && dispatch('open', { connection: conn })}
       >
         {#if hasPingResult(pingResults, conn.id)}
-          <span class="ping-dot" style="background: {pingColor(pingResults, conn.id)}" title={pingTooltip(pingResults, conn.id)}></span>
+          <StatusDot status={pingStatus(pingResults, conn.id)} />
         {:else}
           <span class="ping-spinner" title="Pinging…"><Loader2 size={10} /></span>
         {/if}

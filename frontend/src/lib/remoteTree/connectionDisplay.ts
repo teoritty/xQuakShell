@@ -1,28 +1,54 @@
 import type { Session } from '../../stores/appState';
+import { statusDotColor, statusDotTooltip, type StatusDot } from './statusDot';
 import type { ConnectionStatus } from './types';
+
+type PingMap = Map<string, { reachable?: boolean; latencyMs?: number }>;
 
 // hasPingResult reports whether a ping result exists yet for the connection.
 // When false the host has not been pinged yet (a ping is pending/in progress),
 // which the UI renders as a spinner instead of a dot.
-export function hasPingResult(pingMap: Map<string, { reachable?: boolean; latencyMs?: number }>, connId: string): boolean {
+export function hasPingResult(pingMap: PingMap, connId: string): boolean {
   return pingMap.has(connId);
 }
 
-export function pingColor(pingMap: Map<string, { reachable?: boolean; latencyMs?: number }>, connId: string): string {
+/**
+ * The ping expressed as an ordinary StatusDot, so the connection row and a
+ * discovery row draw the same primitive.
+ *
+ * `null` means "no ping result yet" — the view renders a spinner, not a dot.
+ * The thresholds (100/300/1000 ms), the grey-not-red unreachable colour and the
+ * tooltip strings are unchanged from the hand-rolled version and are pinned by
+ * pingCharacterization.test.ts.
+ *
+ * The 300–999 ms band uses an explicit `color`: it is a fourth step that has no
+ * tone of its own, and #ff6f00 is a valid six-digit hex, so it passes the same
+ * override validation a plugin's colour would.
+ */
+export function pingStatus(pingMap: PingMap, connId: string): StatusDot | null {
   const r = pingMap.get(connId);
-  if (!r) return 'transparent';
-  if (!r.reachable) return 'var(--text-secondary, #9e9e9e)'; // unreachable → grey
-  if ((r.latencyMs ?? 0) < 100) return '#4caf50';
-  if ((r.latencyMs ?? 0) < 300) return '#ffb300';
-  if ((r.latencyMs ?? 0) < 1000) return '#ff6f00';
-  return 'var(--danger, #f44747)';
+  if (!r) return null;
+  if (!r.reachable) return { tone: 'neutral', tooltip: 'Unreachable' };
+  const tooltip = `${r.latencyMs}ms`;
+  const latency = r.latencyMs ?? 0;
+  if (latency < 100) return { tone: 'ok', tooltip };
+  if (latency < 300) return { tone: 'warn', tooltip };
+  if (latency < 1000) return { tone: 'warn', color: '#ff6f00', tooltip };
+  return { tone: 'error', tooltip };
 }
 
-export function pingTooltip(pingMap: Map<string, { reachable?: boolean; latencyMs?: number }>, connId: string): string {
-  const r = pingMap.get(connId);
-  if (!r) return 'Not pinged yet';
-  if (!r.reachable) return 'Unreachable';
-  return `${r.latencyMs}ms`;
+/**
+ * Kept as a thin wrapper over pingStatus + statusDotColor rather than deleted:
+ * pingCharacterization.test.ts calls it, and a characterization test that has to
+ * be rewritten to survive the refactor it characterizes is worth nothing.
+ */
+export function pingColor(pingMap: PingMap, connId: string): string {
+  return statusDotColor(pingStatus(pingMap, connId));
+}
+
+export function pingTooltip(pingMap: PingMap, connId: string): string {
+  const status = pingStatus(pingMap, connId);
+  if (!status) return 'Not pinged yet';
+  return statusDotTooltip(status);
 }
 
 export function tagColor(tag: string): string {

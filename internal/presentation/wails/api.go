@@ -40,6 +40,7 @@ type AppAPI struct {
 	pluginTunnelGrant           func(pluginID string) error
 	pluginMultiSessionGrant     func(pluginID string) error
 	pluginArbitraryNetworkGrant func(pluginID string) error
+	discovery                   DiscoveryTreeService
 	embedBridge                 *usecase.PluginEmbedBridge
 	forwardRules                *usecase.ForwardRuleValidator
 	logWindow                   *logwindow.Manager

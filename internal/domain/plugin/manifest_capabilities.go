@@ -75,6 +75,9 @@ func (m *Manifest) ValidateCapabilities() error {
 	if err := m.validateChannelCaps(); err != nil {
 		return err
 	}
+	if err := m.validateDiscoveryCaps(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -435,6 +438,9 @@ func (m *Manifest) PermissionSummary() []string {
 	}
 	if m.RequiresChannelExecConsent() {
 		lines = append(lines, "Run commands over your authenticated session (exec channel)")
+	}
+	if m.Capabilities.Discovery != nil {
+		lines = append(lines, "Show discovered resources under your connections")
 	}
 	if len(lines) == 0 {
 		lines = append(lines, "No elevated permissions requested")

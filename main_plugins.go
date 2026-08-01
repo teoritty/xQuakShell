@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"xquakshell/internal/domain"
@@ -38,6 +39,9 @@ type pluginRuntime struct {
 	channelBus          *capability.ChannelBus
 	sessionRegistry     *sessionRegistryHolder
 	viewInbound         *usecase.PluginViewInbound
+	discoveryService    *usecase.DiscoveryService
+	discoveryLeader     *usecase.DiscoveryLeader
+	discoveryEmit       *discoveryEmitHolder
 	viewRelay           *usecase.PluginViewRelay
 	vaultInbound        *usecase.PluginVaultInbound
 	vaultSettings       *usecase.PluginVaultSettings
@@ -49,6 +53,72 @@ type pluginRuntime struct {
 	host                *infraplugin.ProcessHost
 	assets              http.Handler
 	cancel              context.CancelFunc
+}
+
+// discoveryInboundHolder makes the discovery service reachable from the session RPC factory despite
+// being constructed after it, the same push-me-later shape sessionRegistryHolder uses.
+//
+// The ordering is forced: SessionRPC is part of HostConfig, HostConfig builds the ProcessHost, the
+// ProcessHost is what PluginManager drives, and the discovery service needs that manager to notify
+// and call plugins. Something has to be late-bound, and this is the smallest something.
+//
+// A miss returns ErrCapabilityDenied rather than nil: the only way to reach it is a plugin process
+// publishing before composition finished, and a denial the plugin can act on beats a nil
+// dereference. It is exactly how PluginSessionRPCHandler treats every other unwired inbound port.
+type discoveryInboundHolder struct {
+	mu   sync.Mutex
+	port domainplugin.DiscoveryInboundPort
+}
+
+func newDiscoveryInboundHolder() *discoveryInboundHolder { return &discoveryInboundHolder{} }
+
+func (h *discoveryInboundHolder) set(port domainplugin.DiscoveryInboundPort) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.port = port
+}
+
+func (h *discoveryInboundHolder) Publish(ctx context.Context, pluginID string, params json.RawMessage) (json.RawMessage, error) {
+	h.mu.Lock()
+	port := h.port
+	h.mu.Unlock()
+	if port == nil {
+		return nil, domainplugin.ErrCapabilityDenied
+	}
+	return port.Publish(ctx, pluginID, params)
+}
+
+var _ domainplugin.DiscoveryInboundPort = (*discoveryInboundHolder)(nil)
+
+// discoveryEmitHolder late-binds the frontend emit callback the same way discoveryInboundHolder
+// late-binds the inbound port, and for the same forced ordering: the emit coalescer is built inside
+// the plugin runtime, and the AppAPI that owns the Wails context is built afterwards from it.
+//
+// A miss is a no-op, not an error. Between composition and wireEmbed there is no window in which a
+// tree can change — no plugin has been told to observe anything yet — and a redraw nobody can
+// receive is nothing to report.
+type discoveryEmitHolder struct {
+	mu   sync.Mutex
+	emit func(connectionID, nodeID string)
+}
+
+func newDiscoveryEmitHolder() *discoveryEmitHolder { return &discoveryEmitHolder{} }
+
+func (h *discoveryEmitHolder) set(emit func(connectionID, nodeID string)) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.emit = emit
+}
+
+// notify runs the callback outside the lock: it reaches into the Wails runtime, and holding a mutex
+// across that would serialize every tree update behind an unknown amount of presentation work.
+func (h *discoveryEmitHolder) notify(connectionID, nodeID string) {
+	h.mu.Lock()
+	emit := h.emit
+	h.mu.Unlock()
+	if emit != nil {
+		emit(connectionID, nodeID)
+	}
 }
 
 type pluginRuntimeDeps struct {
@@ -66,6 +136,10 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	embedInbound := usecase.NewPluginEmbedInbound()
 	embedTunnels := usecase.NewEmbedTunnelService(ratelimit.Factory{})
 	registry := usecase.NewPluginRegistry()
+	// Discovery icons are read from the installed bundle as each plugin enters the registry and
+	// travel to the frontend as data URIs on the plugin list (ADR-014): no icon endpoint, no path
+	// ever leaving the backend. Must be set before DiscoverPlugins below.
+	registry.SetDiscoveryIconAssetReader(infrapluginassets.DiscoveryIconReader{})
 	viewInbound := usecase.NewPluginViewInbound(registry)
 	portableRuntime := infraportable.NewRuntimeAdapter()
 
@@ -101,14 +175,18 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	})
 
 	channelBus := capability.NewChannelBus()
-	channelCloseNotify := newChannelCloseNotifiers()
 	sessionRegistry := newSessionRegistryHolder()
+	// The discovery service cannot exist yet: it needs the PluginManager, which needs the host,
+	// which needs this session RPC factory. The holder closes that cycle the same way
+	// sessionRegistryHolder does — the port is resolved at CALL time, and a plugin process cannot
+	// call discovery.publish before it has been started by the very manager that fills it in.
+	discoveryInbound := newDiscoveryInboundHolder()
 
 	hostCfg := infraplugin.HostConfig{
 		DataRoot:          dataRoot,
 		Portable:          portableRuntime,
 		Vault:             vaultInbound,
-		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, embedInbound, sessionAuthorizer),
+		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, embedInbound, discoveryInbound, sessionAuthorizer),
 		Events:            eventBus,
 		Views:             viewInbound,
 		Tunnel:            dynamicForward,
@@ -117,8 +195,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		// The channel purpose backends and everything they need are assembled in
 		// main_channels.go: constructing them is its own reason to change, separate from wiring
 		// the plugin runtime.
-		ChannelResolverFor:         newChannelResolverFor(pluginAudit.ChannelFunc(), embedTunnels, channelCloseNotify, sessionRegistry),
-		AttachChannelCloseNotifier: channelCloseNotify.attach,
+		ChannelResolverFor: newChannelResolverFor(pluginAudit.ChannelFunc(), embedTunnels, sessionRegistry),
 		ChannelAudit:       pluginAudit.ChannelFunc(),
 		ChannelBus:         channelBus,
 		OnCrash: func(pluginID, sessionID string) {
@@ -158,8 +235,67 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		return manager.ActiveSessionCount(pluginID) > 0
 	})
 
-	discovery := infraplugin.NewDiscovery(infraplugin.SearchPaths(deps.ExeDir, dataRoot))
-	if err := manager.DiscoverPlugins(discovery.Discover); err != nil {
+	// Discovery subtrees (ADR-014). The observer and the leader need each other — the observer must
+	// resolve a connection to its leading session, the leader must resend the observed set on
+	// handover — so the observer is built first and the leader pushed into it, the same late-binding
+	// shape the channel bus uses. Tree changes reach the frontend through discoveryEmit, filled in
+	// by wireEmbed once the AppAPI exists.
+	discoveryStore := usecase.NewDiscoveryStore()
+	discoveryObserver := usecase.NewDiscoveryObserver(registry, manager)
+	discoveryEmit := newDiscoveryEmitHolder()
+	// Pace is built before the leader because both the publish path and connection teardown need
+	// it, and teardown lives on the leader.
+	discoveryPace := usecase.NewDiscoveryPace(
+		usecase.NewDiscoveryPublishLimiter(nil),
+		usecase.NewDiscoveryEmitCoalescer(discoveryEmit.notify, nil, nil),
+	)
+	// The leader owns the plugin lifecycle for discovery, and it is the only thing that can: a
+	// discovery plugin draws under a core SSH connection it does not own, so the session bridge —
+	// which binds a plugin to the session it provides — never binds it, and every publish would be
+	// refused by the IDOR check. registry and manager are constructor arguments so this cannot be
+	// left unwired without failing to compile.
+	// The last argument is discoveryEmit.notify, not nil. A handover marks every branch stale and
+	// the backend starts refusing actions inside them from that moment; with no callback the frontend
+	// was never told, so the rows still looked live and a click came back with "branch is stale or
+	// failed" and nothing on screen explaining why. It bypasses the coalescer deliberately — see
+	// NewDiscoveryLeader.
+	discoveryLeader := usecase.NewDiscoveryLeader(sessionRegistry, registry, manager, discoveryStore, discoveryObserver, discoveryPace, discoveryEmit.notify)
+	discoveryObserver.SetLeader(discoveryLeader)
+	discoveryService := usecase.NewDiscoveryService(
+		discoveryStore,
+		discoveryObserver,
+		// The registry supplies the declared icon IDs: an iconId no manifest registered is dropped
+		// from the node rather than failing the publish (ADR-014 §Security model).
+		usecase.NewDiscoveryPublishRouter(discoveryStore, discoveryObserver, discoveryLeader, discoveryPace, registry),
+		usecase.NewDiscoveryInvoker(discoveryStore, discoveryLeader, manager, pluginAudit.DiscoveryFunc()),
+	)
+	// Now the plugin->host half can be reached: discovery.publish arrives through the session RPC
+	// handler, which authorizes the sessionId before anything here sees the snapshot.
+	discoveryInbound.set(discoveryService)
+	// A restarted plugin is told the whole observed set again; without this the level-triggered
+	// contract silently degrades into an edge-triggered one (ADR-014 §data flow).
+	manager.SetProcessStartedHandler(discoveryObserver.PluginStarted)
+	// The other end of the same lifecycle: a plugin the user disabled or uninstalled loses its
+	// subtree at once, under every connection, without touching its neighbours' (ADR-014).
+	manager.SetProcessStoppedHandler(discoveryService.ClearPlugin)
+	// A crash and an idle suspension get the opposite treatment on purpose: the process comes back
+	// — restarted by the supervisor, or on the next activation — and the replayed observed set
+	// refills the tree, so the branches are marked stale rather than deleted. Marking also refuses
+	// actions inside them, which beats dispatching into a dead process and waiting out the ack.
+	manager.SetProcessCrashedHandler(discoveryService.MarkPluginStale)
+	manager.SetProcessSuspendedHandler(discoveryService.MarkPluginStale)
+	// And the end of that story: once the supervisor stops trying, stale stops being true. The
+	// branches become error with a reason, so "restarting" and "given up" are not the same grey
+	// subtree (ADR-014 §Leading session / plan п.13).
+	supervisor.SetGaveUpHandler(discoveryService.MarkPluginUnrecoverable)
+	// And what makes that story reachable at all: a plugin drawing a subtree is in use, even though
+	// it holds no session and owns no view panel. Without this the idle sweeper reclaimed it after
+	// five quiet minutes and the supervisor declined to restart it, so its branches went stale and
+	// stayed there — the promise in ADR-014 §Leading session with nothing behind it.
+	manager.SetPluginRetentionChecker(discoveryLeader.HoldsBindings)
+
+	pluginDiscovery := infraplugin.NewDiscovery(infraplugin.SearchPaths(deps.ExeDir, dataRoot))
+	if err := manager.DiscoverPlugins(pluginDiscovery.Discover); err != nil {
 		log.Printf("WARNING: plugin discovery failed: %v", err)
 	}
 
@@ -263,6 +399,9 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		channelBus:          channelBus,
 		sessionRegistry:     sessionRegistry,
 		dynamicForward:      dynamicForward,
+		discoveryService:    discoveryService,
+		discoveryLeader:     discoveryLeader,
+		discoveryEmit:       discoveryEmit,
 		viewInbound:         viewInbound,
 		viewRelay:           viewRelay,
 		vaultInbound:        vaultInbound,
@@ -295,6 +434,13 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 	// here rather than exposing it, the same way it hands it to EmbedTunnelService above.
 	api.Sessions().WireChannelSessionRegistry(r.sessionRegistry.set)
 	api.Sessions().SetChannelBus(r.channelBus)
+	api.Sessions().SetDiscovery(r.discoveryLeader)
+	if r.discoveryService != nil {
+		api.SetDiscoveryService(r.discoveryService)
+	}
+	if r.discoveryEmit != nil {
+		r.discoveryEmit.set(api.EmitDiscoveryTreeChanged)
+	}
 	api.Sessions().SetDynamicForward(r.dynamicForward)
 	if r.dynamicForward != nil && r.vaultSettings != nil {
 		r.dynamicForward.SetTunnelGrantReader(r.vaultSettings)

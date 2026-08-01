@@ -2,6 +2,7 @@ import { writable } from 'svelte/store';
 
 import { getPluginContributions, type PluginContributions } from '../api/pluginRuntime';
 import { invalidateProtocolsCache, refreshConnectionProtocols } from '../actions/protocolActions';
+import { refreshDiscoveryIcons } from './discoveryState';
 
 
 
@@ -46,6 +47,9 @@ export function initPluginContributionEvents(): void {
     void refreshPluginContributions();
     invalidateProtocolsCache();
     void refreshConnectionProtocols();
+    // Discovery icons are cached in the registry and only re-read on
+    // Register/Unregister, so install, update and removal all land here.
+    void refreshDiscoveryIcons();
 
   });
 

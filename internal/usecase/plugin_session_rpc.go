@@ -18,11 +18,12 @@ type PluginSessionScope struct {
 
 // PluginSessionRPCHandler enforces session scope in the usecase layer before forwarding RPC.
 type PluginSessionRPCHandler struct {
-	sessions domainplugin.SessionInboundPort
-	embed    *PluginEmbedInbound
-	channels domainplugin.ChannelInboundPort
-	scope    PluginSessionScope
-	auth     domainplugin.SessionRPCAuthorizer
+	sessions  domainplugin.SessionInboundPort
+	embed     *PluginEmbedInbound
+	channels  domainplugin.ChannelInboundPort
+	discovery domainplugin.DiscoveryInboundPort
+	scope     PluginSessionScope
+	auth      domainplugin.SessionRPCAuthorizer
 }
 
 // NewPluginSessionRPCHandler creates a session RPC handler with mandatory scope enforcement.
@@ -30,15 +31,17 @@ func NewPluginSessionRPCHandler(
 	sessions domainplugin.SessionInboundPort,
 	embed *PluginEmbedInbound,
 	channels domainplugin.ChannelInboundPort,
+	discovery domainplugin.DiscoveryInboundPort,
 	auth domainplugin.SessionRPCAuthorizer,
 	scope PluginSessionScope,
 ) *PluginSessionRPCHandler {
 	return &PluginSessionRPCHandler{
-		sessions: sessions,
-		embed:    embed,
-		channels: channels,
-		scope:    scope,
-		auth:     auth,
+		sessions:  sessions,
+		embed:     embed,
+		channels:  channels,
+		discovery: discovery,
+		scope:     scope,
+		auth:      auth,
 	}
 }
 
@@ -181,6 +184,25 @@ func (h *PluginSessionRPCHandler) Handle(ctx context.Context, pluginID, method s
 			return nil, domainplugin.ErrCapabilityDenied
 		}
 		return h.channels.Close(ctx, pluginID, params)
+	case "discovery.publish":
+		// A publish names the session it enumerated through, so it is an IDOR target exactly like
+		// channel.open, and it is authorized on exactly the same path: this handler, this
+		// authorizer, before the payload reaches anything that could act on it. The discovery
+		// usecase deliberately does NOT repeat the check (see DiscoveryPublishRouter.Apply) —
+		// two authorizations of one rule drift apart, and the weaker one becomes the way in.
+		if h.discovery == nil {
+			return nil, domainplugin.ErrCapabilityDenied
+		}
+		var req discoveryPublishAuthParams
+		if err := json.Unmarshal(params, &req); err != nil {
+			return nil, err
+		}
+		if err := h.authorize(req.SessionID); err != nil {
+			return nil, err
+		}
+		if _, err := h.discovery.Publish(ctx, pluginID, params); err != nil {
+			return nil, err
+		}
 	default:
 		return nil, domainplugin.ErrCapabilityDenied
 	}
@@ -189,6 +211,13 @@ func (h *PluginSessionRPCHandler) Handle(ctx context.Context, pluginID, method s
 
 type channelOpenAuthParams struct {
 	ParentSessionID string `json:"parentSessionId"`
+}
+
+// discoveryPublishAuthParams peels off just the field authorization needs. The rest of the
+// snapshot is decoded once, by the discovery usecase that will act on it; decoding it twice would
+// give this layer an opinion about a payload shape it has no business knowing.
+type discoveryPublishAuthParams struct {
+	SessionID string `json:"sessionId"`
 }
 
 func (h *PluginSessionRPCHandler) authorize(targetSessionID string) error {
@@ -213,9 +242,12 @@ var _ domainplugin.SessionRPCHandler = (*PluginSessionRPCHandler)(nil)
 // NewPluginSessionRPCHandlerFactory returns a factory wired to inbound session RPC and authorizer.
 // channels is supplied per-call by the caller (internal/infra/plugin/process_ipc_factory.go),
 // since each plugin process gets its own ChannelProxy (ADR-011 Stage 4b) rather than a shared one.
+// discovery is shared rather than per-process: unlike a channel, a discovery subtree belongs to a
+// connection and outlives any one plugin process, so there is exactly one service behind it.
 func NewPluginSessionRPCHandlerFactory(
 	inbound domainplugin.SessionInboundPort,
 	embed *PluginEmbedInbound,
+	discovery domainplugin.DiscoveryInboundPort,
 	auth domainplugin.SessionRPCAuthorizer,
 ) domainplugin.SessionRPCHandlerFactory {
 	return func(plugin domainplugin.InstalledPlugin, processSessionID string, channels domainplugin.ChannelInboundPort) domainplugin.SessionRPCHandler {
@@ -223,7 +255,7 @@ func NewPluginSessionRPCHandlerFactory(
 		if plugin.Manifest.Capabilities.Session != nil {
 			allowMulti = plugin.Manifest.Capabilities.Session.AllowMultiSession
 		}
-		return NewPluginSessionRPCHandler(inbound, embed, channels, auth, PluginSessionScope{
+		return NewPluginSessionRPCHandler(inbound, embed, channels, discovery, auth, PluginSessionScope{
 			PluginID:          plugin.Manifest.ID,
 			ProcessSessionID:  processSessionID,
 			Isolation:         plugin.Manifest.EffectiveIsolation(),

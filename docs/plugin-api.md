@@ -80,6 +80,7 @@ Plugins run out-of-process and communicate via **JSON-RPC 2.0 over NDJSON** on s
 | Plugin → host `channel.open` timeout | 10 s |
 | `channel.close` grace period | 0 s (immediate, no flush window) |
 | Max binary channel frame (`kind=0x02`) | 1 MiB |
+| Host → plugin `discovery.invokeAction` ack timeout | 5 s |
 
 **Shutdown sequence (host → plugin):**
 
@@ -345,7 +346,7 @@ Opening and closing a channel is negotiated over JSON-RPC; only data flows as bi
 | `tcp-relay` | Dials a target through the existing `TunnelDialProxy` allowlist/dial policy — for cases that are genuinely a fresh TCP dial, not exec. |
 | `udp-relay` | Dials a target UDP endpoint directly from the host (`net.DialUDP`), validated against a `udp:`-prefixed allowlist entry (same dial-policy core as `tcp-relay`). SSH has no native UDP forwarding, so this is a direct host→target dial, not tunnelled through the parent SSH chain (matches topologies like mosh: SSH launches `mosh-server`, then UDP flows host↔server directly). Still bound to `parentSessionId` for ownership/lifecycle even though the dial is direct. One UDP datagram maps to exactly one `kind=0x02` frame. |
 
-**Declaring the `exec` purpose requires install-time user consent.** It runs commands over the connection the user authenticated, so the install prompt asks for it explicitly and the install is **refused** without it � on both the local and GitHub install paths. There is no runtime prompt and no way to add the grant afterwards: an installed plugin declaring `exec` is one whose exec access the user granted, which is exactly what the host relies on when it authorizes an `exec` channel.
+**Declaring the `exec` purpose requires install-time user consent.** It runs commands over the connection the user authenticated, so the install prompt asks for it explicitly and the install is **refused** without it � on both the local and GitHub install paths. There is no runtime prompt and no way to add the grant afterwards: an installed plugin declaring `exec` is one whose exec access the user granted, which is exactly what the host relies on when it authorizes an `exec` channel.
 
 **`embed-stream` frames are capped at 64 KiB, not 1 MiB.** The general `kind=0x02` ceiling is 1 MiB, but this one purpose is lower, because the embed surface behind it has always had a 64 KiB frame limit and because credit is counted in frames: with an 8-frame window, a 1 MiB cap would park 8 MiB per channel in host memory. The host enforces this on ingress, so an oversize frame never reaches the embed surface — it is refused as a **protocol violation** (fail-fast, exactly like any other oversized `length`), never as `ErrRateLimited`/backpressure: it is deterministic, and retrying it will never help. Chunk in the plugin, where you know what a frame means; RFB, for one, sends rectangles rather than screens.
 
@@ -375,6 +376,45 @@ A channel's `parentSessionId` binding is one-directional: the parent session own
 Independently of session close, if the **plugin process** itself exits or crashes, every channel owned by that process is closed and its remote end torn down unconditionally — regardless of whether the parent session is still alive — so a `docker exec` can never outlive its channel across a plugin restart.
 
 Closing one channel has no effect on the parent session or its sibling channels.
+
+## Discovery subtrees
+
+A `capabilities.discovery` plugin draws a subtree of nested nodes (groups/instances) inside a connection's row in the tree — e.g. a Docker plugin listing containers under an SSH connection. Full node model, limits, and security rationale: [ADR-014](./adr/014-discovery-subtrees.md).
+
+Discovery is **level-triggered, not edge-triggered**: `observe` always carries the full set of currently expanded nodes, and `publish` always carries the full, current set of a node's children. There is no delta protocol and no separate bulk-action verb — three verbs, no others.
+
+Only one session per connection is ever addressed: the host tracks a **leading** session (the earliest `ready` session for that connection) and sends `sessionId` for that session only, regardless of how many tabs have the connection open. `sessionId` never reaches the frontend; the UI addresses everything by `connectionId`.
+
+| Method | Direction | Kind | Params | Response |
+|--------|-----------|------|--------|----------|
+| `discovery.observe` | host → plugin | notification | `{"sessionId":"...","nodeIds":["..."]}` — full set of expanded nodes; `""` = the connection root | none |
+| `discovery.publish` | plugin → host | request | `{"sessionId":"...","nodeId":"...","state":"loading"\|"ready"\|"error","error?":"...","children":[...]}` — full replacement of `nodeId`'s children | `{"ok":true}` or error |
+| `discovery.invokeAction` | host → plugin | request | `{"sessionId":"...","nodeIds":["..."],"actionId":"..."}` | ack (`{"ok":true}`) or error |
+
+- `discovery.observe` is resent on every change to the expanded set AND on every plugin (re)start — a plugin never needs a separate resync path, and a lost notification self-heals on the next observe.
+- `discovery.publish` is a **request**, not a notification, even though the host has nothing meaningful to hand back: it names a `sessionId`, and the host must be able to answer `-32001` when the plugin lacks the `discovery` capability or the session is not one it holds a binding for. A notification has no channel for that answer, so a plugin sending one would be denied in silence, with no way to tell a denial from a lost message. `{"ok":true}` means the snapshot was accepted for processing — not that anything was rendered; a snapshot for a collapsed branch or a session that has stopped leading is accepted and then dropped, which is normal (see the level-triggered design above).
+- `discovery.publish` is a snapshot: children not present in the payload are removed. Truncation past the 500-children limit is signaled via the host-only `Branch.Truncated{Shown, Total}`, never by the plugin.
+- **`nodeId` must not name a node you published as `kind: "instance"`.** An instance is a leaf; a publish naming one as its parent is **refused with an error** rather than silently dropped, because there is a correct way to say what it was probably trying to say: a node that should be expandable but currently has nothing in it is `kind: "group"` with `"children": []`, which renders a chevron and an empty branch. Publishing under a node the host has never seen — or one that has since disappeared — is a different case and is accepted-and-dropped, since collapsing a branch mid-enumeration is an ordinary race.
+- `discovery.invokeAction` requests ack. Long-running work must not block the RPC: acknowledge receipt within the timeout below and report the outcome via a subsequent `discovery.publish` (nodes move to `busy`, then `ok`/`error`).
+- `nodeIds` is always a list, even for a single node or a single-target action — there is no separate single-node verb.
+
+**Limits (v1, fixed):**
+
+| Parameter | Value |
+|-----------|-------|
+| Tree depth | 8 |
+| Children per `publish` | 500 |
+| Nodes per (plugin, connection) | 2000 |
+| ID length | 256 |
+| `Label` | 128 |
+| `Tooltip` | 256 |
+| Actions per node | 16 |
+| Nodes in one `invokeAction` | 200 |
+| `publish` rate | 20/s per (plugin, connection) |
+| Frontend emit coalescing | 100 ms per node |
+| `invokeAction` ack timeout | 5 s |
+
+`discovery.publish` is gated by the same capability `Gate` that denies undeclared methods with `-32001` and audit-logs the denial. `discovery.observe` and `discovery.invokeAction` go host → plugin and never pass through the gate — the host simply never addresses them to a plugin that lacks the `discovery` capability or whose `parentProtocols` doesn't match the connection's protocol.
 
 ## Plugin IPC reference
 
@@ -431,6 +471,7 @@ and refuses initialization on any incompatibility. `coreVersion` is informationa
 | `session.tunnelData` | `sessionId`, `tunnelId`, `dataBase64` | Browser → plugin tunnel bytes |
 | `session.tunnelBackpressure` | `sessionId` | Pause TCP read (consumer slow / tab inactive) |
 | `session.tunnelResume` | `sessionId` | Resume after backpressure |
+| `discovery.observe` | `sessionId`, `nodeIds[]` | Expanded-node set changed, or plugin (re)started — see [Discovery subtrees](#discovery-subtrees) |
 | `deactivate` | omitted | Before shutdown |
 | `view.postMessage` | `{"panelId":"...","message":<json>}` | UI → plugin WebView panel |
 | `event` | `{"channel":"...","payload":<json>}` | Core event bus delivery to subscribers |
@@ -440,6 +481,7 @@ and refuses initialization on any incompatibility. `coreVersion` is informationa
 | Method | Params | When |
 |--------|--------|------|
 | `command.execute` | `{"commandId":"...","args":<json>}` | Contributed command invoked |
+| `discovery.invokeAction` | `{"sessionId":"...","nodeIds":["..."],"actionId":"..."}` | Discovery node action invoked from the tree UI — see [Discovery subtrees](#discovery-subtrees); ack expected within 5 s |
 
 ### Plugin → host
 
@@ -470,6 +512,7 @@ All methods below require a matching manifest capability unless marked “always
 | `view.postMessage` | contributed `views` | `panelId`, `message` | `{"ok":true}` |
 | `channel.open` | `channel` | `purpose`, `parentSessionId`, `hint` | `channelId` — see [Channel bus](#channel-bus) |
 | `channel.close` | `channel` | `channelId`, `reason?`, `message?` | notification, no response |
+| `discovery.publish` | `discovery` | `sessionId`, `nodeId`, `state`, `error?`, `children[]` | request; returns `{"ok":true}` on acceptance, `-32001` when denied — see [Discovery subtrees](#discovery-subtrees) |
 
 FS paths must use the `${pluginData}` prefix (see [plugin-manifest.md](./plugin-manifest.md#capabilities)). Symlinks are rejected.
 

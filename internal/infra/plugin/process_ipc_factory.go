@@ -26,8 +26,9 @@ func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sess
 	// the purpose string itself. A nil factory leaves the proxy resolverless, which it already
 	// reports as a denied channel.open rather than a panic.
 	var resolveChannel capability.ChannelBackendResolver
+	var attachCloseNotify AttachChannelCloseNotify
 	if h.cfg.ChannelResolverFor != nil {
-		resolveChannel = h.cfg.ChannelResolverFor(plugin, sessionID)
+		resolveChannel, attachCloseNotify = h.cfg.ChannelResolverFor(plugin, sessionID)
 	}
 	channelProxy := capability.NewChannelProxy(plugin.Manifest.ID, plugin.Manifest.Capabilities.Channel, resolveChannel, h.cfg.ChannelAudit)
 	var sessions domainplugin.SessionRPCHandler
@@ -59,11 +60,10 @@ func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sess
 
 	// The close notifier sits behind the same cycle and is broken the same way: a backend built by
 	// the resolver above cannot be handed this process's Conn.Notify, because the Conn does not
-	// exist yet. So the composition root is given it here instead, once, for this process — the
-	// granularity the notifier needs, since the channel id travels in the call (D8) rather than in
-	// a closure no resolver could build.
-	if h.cfg.AttachChannelCloseNotifier != nil {
-		h.cfg.AttachChannelCloseNotifier(plugin, sessionID, func(channelID uint32, reason, message string) {
+	// exist yet. It goes back through the attach that came WITH that resolver, so the notifier can
+	// only reach the backends built in the same factory call — this process's, and no other's.
+	if attachCloseNotify != nil {
+		attachCloseNotify(func(channelID uint32, reason, message string) {
 			notifyChannelClose(conn, plugin.Manifest.ID, channelID, reason, message)
 		})
 	}

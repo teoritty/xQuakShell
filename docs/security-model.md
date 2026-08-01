@@ -142,6 +142,18 @@ Full wire format, `channel.open`/`channel.close`, credit model, and purpose sema
 - **`tcp-relay`/`udp-relay` audit the canonicalized, post-validation target, never the raw plugin-supplied `hint`** — the same principle already applied to dial-policy audit entries under [Network outbound (SSRF)](#network-outbound-ssrf) below: logging the raw value would let two different encodings of the same address (DNS name vs. IP literal vs. non-canonical IP form) look like different events, or let a bypass attempt look benign in the log.
 - **`hint` validation reuses the existing dial policy verbatim** — `tcp-relay` and `udp-relay` are checked through the same allowlist/IP-restriction functions `net.dial` already uses (`tcp:host:port` and `udp:host:port` respectively), not a parallel validator.
 
+## Discovery subtrees (ADR-014)
+
+Full node model, the three `discovery.*` verbs, and limits: [plugin-api.md — Discovery subtrees](./plugin-api.md#discovery-subtrees).
+
+- **`discovery.publish` is gated** by the same capability `Gate` that denies undeclared methods with `-32001` and audit-logs the denial. `discovery.observe`/`discovery.invokeAction` go host → plugin and never reach the gate — the host simply never addresses them to a plugin lacking the `discovery` capability or whose `parentProtocols` doesn't match the connection's protocol.
+- **IDOR ownership carries over unchanged:** `discovery.publish` is accepted only for a session the plugin holds an active binding for — the same rule that protects `vault.getSecret`, the tunnel proxies, and the channel bus (see [Ownership (IDOR)](#ownership-idor) above).
+- **`discovery.invokeAction` is audit-logged** with the full list of target `nodeIds`, including mass actions.
+- **Host/plugin field separation is enforced, not advisory:** the host never writes to a node's `Status`, and `Branch` fields (`State`, `Truncated`) sent by a plugin in a `discovery.publish` snapshot are **silently ignored** — the publish itself is still accepted and processed. This is not treated as a protocol violation or an attack: a plugin sending `Branch.State`/`Truncated` is ordinary author carelessness (`Branch` is host-computed and never belongs in a plugin payload), and rejecting the whole snapshot over one stray field would be disproportionate — the host would rather drop the field and keep the children the plugin actually reported.
+- **XSS:** discovery icons render exclusively as `<img src="data:image/svg+xml;base64,…">`, never inlined — inline SVG insertion would execute scripts from the plugin's bundle inside the main window. An unknown `iconId` at publish time degrades to no icon (logged), not a rejected publish.
+- **Spoofing:** `Label`/`Tooltip` are stripped of control characters and Unicode bidirectional overrides (U+202A–U+202E, U+2066–U+2069) before render, so a discovered resource's name cannot visually spoof a neighboring tree row.
+- **No new process privilege:** discovery carries metadata only; the actual work (enumeration, exec) rides the already-gated `channel`/`exec` capability, which already carries its own install-time consent. Discovery itself needs no separate consent gate beyond one `PermissionSummary` line.
+
 ## Network outbound (SSRF)
 Full `net.*` RPC reference and limits: [plugin-api.md — Network API](./plugin-api.md#network-api).
 

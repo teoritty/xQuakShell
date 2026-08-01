@@ -13,6 +13,13 @@
         "open"
       ]
     },
+    "discovery": {
+      "version": "1.0.0",
+      "features": [
+        "publish",
+        "invoke"
+      ]
+    },
     "events": {
       "version": "1.0.0",
       "features": [

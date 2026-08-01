@@ -54,6 +54,13 @@ func (m *SessionManager) SetChannelBus(bus domainplugin.ChannelSessionCloser) {
 	}
 }
 
+// SetDiscovery wires the discovery leader tracker into session lifecycle (ADR-014).
+func (m *SessionManager) SetDiscovery(tracker DiscoverySessionTracker) {
+	if m != nil && m.lifecycle != nil {
+		m.lifecycle.SetDiscovery(tracker)
+	}
+}
+
 // SetOnEmbedReady sets the callback invoked when embed UI becomes available.
 func (m *SessionManager) SetOnEmbedReady(fn OnEmbedReadyFunc) {
 	if m.embed != nil {

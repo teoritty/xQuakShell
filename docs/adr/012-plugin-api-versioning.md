@@ -21,7 +21,7 @@ The core problem is that a single monotonic version is a *lie*: bumping the surf
 ### 1. Two version axes, split by contract direction
 
 - **`pluginApi` — the protocol envelope.** ONE semver (`PluginAPIVersion`, frozen at `1.0.0`). Covers the wire framing (ADR-011), the JSON-RPC envelope, the `initialize` handshake shape, lifecycle, and the error-code space. Replaces the dead `coreAPIVersion`.
-- **Capabilities — the provided surface.** Each capability (`network`, `filesystem`, `events`, `vault`, `session`, `auth`, `tunnel`, `channel`) carries its **own** semver plus named **feature flags**, defined in the capability registry (`internal/domain/plugin/api_registry.go`).
+- **Capabilities — the provided surface.** Each capability (`network`, `filesystem`, `events`, `vault`, `session`, `auth`, `tunnel`, `channel`, `discovery`) carries its **own** semver plus named **feature flags**, defined in the capability registry (`internal/domain/plugin/api_registry.go`).
 
 **Plugins gate only on `pluginApi` + capability versions/features — never on the core or app version.** `HostCoreVersion` and the app/product version become purely informational (shown in About). `minCoreVersion` survives only as a deprecated legacy shim. This removes the core-vs-API conflation entirely.
 

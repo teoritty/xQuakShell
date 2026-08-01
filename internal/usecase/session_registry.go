@@ -177,6 +177,21 @@ func (r *SessionRegistry) IDs() []string {
 	return ids
 }
 
+// ProtocolForSession returns the connection protocol a session speaks. Discovery needs it to
+// decide which plugins a connection may be announced to (parentProtocols, ADR-014), and this is
+// the only place that fact is recorded.
+func (r *SessionRegistry) ProtocolForSession(id string) (string, bool) {
+	r.mu.RLock()
+	entry, ok := r.sessions[id]
+	if !ok {
+		r.mu.RUnlock()
+		return "", false
+	}
+	protocol := entry.info.Protocol
+	r.mu.RUnlock()
+	return protocol, true
+}
+
 // StillRegistered reports whether the session id is in the registry.
 func (r *SessionRegistry) StillRegistered(id string) bool {
 	r.mu.RLock()

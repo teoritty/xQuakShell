@@ -37,10 +37,10 @@ func TestNewConnWiresChannelProxyToTheBus(t *testing.T) {
 	backend := &wiredChannelBackend{}
 	host := NewProcessHost(HostConfig{
 		DataRoot: t.TempDir(),
-		ChannelResolverFor: func(domainplugin.InstalledPlugin, string) capability.ChannelBackendResolver {
+		ChannelResolverFor: func(domainplugin.InstalledPlugin, string) (capability.ChannelBackendResolver, AttachChannelCloseNotify) {
 			return func(string) (domainplugin.ChannelPurposeBackend, error) {
 				return backend, nil
-			}
+			}, nil
 		},
 	})
 
@@ -104,7 +104,7 @@ func TestNewConnResolvesChannelBackendsPerPluginProcess(t *testing.T) {
 	var built []*manifestScopedBackend
 	host := NewProcessHost(HostConfig{
 		DataRoot: t.TempDir(),
-		ChannelResolverFor: func(p domainplugin.InstalledPlugin, sessionID string) capability.ChannelBackendResolver {
+		ChannelResolverFor: func(p domainplugin.InstalledPlugin, sessionID string) (capability.ChannelBackendResolver, AttachChannelCloseNotify) {
 			return func(purpose string) (domainplugin.ChannelPurposeBackend, error) {
 				b := &manifestScopedBackend{
 					pluginID:  p.Manifest.ID,
@@ -113,7 +113,7 @@ func TestNewConnResolvesChannelBackendsPerPluginProcess(t *testing.T) {
 				}
 				built = append(built, b)
 				return b, nil
-			}
+			}, nil
 		},
 	})
 

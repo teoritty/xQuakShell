@@ -162,6 +162,37 @@ Declares access to the binary channel bus — a raw duplex byte stream, multiple
 
 A `channel.open` request for `exec` whose requested command doesn't match any declared template, or whose placeholder value fails its regex, is rejected at the capability gate (`-32001`, audit-logged) before any process is spawned.
 
+**`discovery` capability**
+
+Declares that a plugin draws a subtree of nested nodes (groups/instances) inside a connection's row in the tree — e.g. a Docker plugin listing containers under an SSH connection. Full node model, the three `discovery.*` verbs, limits, and security model: [ADR-014](./adr/014-discovery-subtrees.md).
+
+```json
+"capabilities": {
+  "discovery": { "parentProtocols": ["ssh"] }
+},
+"contributions": {
+  "discoveryIcons": [
+    { "id": "docker", "asset": "ui/icons/docker.svg" }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|--------------|
+| `parentProtocols` | string[] | Connection protocols this plugin discovers under. The host addresses `discovery.observe` only to plugins whose list contains the target connection's protocol. |
+
+`contributions.discoveryIcons` declares the `iconId` values a plugin's discovery nodes may reference:
+
+| Field | Type | Description |
+|-------|------|--------------|
+| `id` | string | Icon id referenced by a discovery node's `IconID`. |
+| `asset` | string | Path under `ui/` (or another plugin-relative root), validated by the existing `ValidateViewAssetEntry` **once, at install time**. The hot path never touches paths — `iconId` refers to an already-validated asset. |
+
+- Allowed extensions: `.svg`, `.png`, `.ico`.
+- Limits: ≤ 64 assets per plugin, ≤ 64 KiB each, ≤ 1 MiB total.
+- Icons render only as `<img src="data:image/svg+xml;base64,…">`; a node whose `iconId` is unknown at publish time is shown without an icon (logged), not rejected.
+- **No separate install-time consent.** Discovery by itself is metadata only — the actual work runs through the already-consented `channel`/`exec` capability. Install preview shows one `PermissionSummary` line: "Show discovered resources under your connections".
+
 **`udp-relay` and the network allowlist**
 
 `tcp-relay` and `udp-relay` validate their `hint` target against the same `capabilities.network.outbound` allowlist used by `net.dial` (see [Rules](#rules) below), just with a proto-prefixed pattern form:
@@ -221,6 +252,7 @@ Rules:
 - **`channel.purposes`:** each must be one of the closed enum `exec` / `embed-stream` / `tcp-relay` / `udp-relay`; unknown purposes are rejected at manifest load. `channel.execCommands` requires `exec` to also be declared in `purposes`; every `{placeholder}` in an `argv` template requires a matching, safely-compilable regex in that template's `params`. **`exec` requires install-time user consent**, same as `auth.provider` / `allowArbitraryOutbound` — see [security-model.md](./security-model.md#capability-gate).
 - **`allowMultiSession`:** when `false` (default) and `isolation: per-plugin`, only one bound session per plugin process is allowed; a second bind is rejected.
 - **`remoteFs` (display):** when `true`, the session UI shows the remote file panel (SFTP-style). Terminal-only plugins (e.g. telnet) should leave this `false`.
+- **`discovery.parentProtocols`:** the host addresses `discovery.observe` only to plugins declaring the target connection's protocol here (ADR-014). `contributions.discoveryIcons[].asset` follows the same asset validation rules as other UI assets (extension allowlist, size caps) and is checked once at install.
 - View `entry` paths must live under `ui/` (default `ui/index.html`). Embed `embedEntry` paths follow the same rule.
 
 ## Contributions

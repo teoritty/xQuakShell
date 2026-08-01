@@ -39,4 +39,3 @@ The composition root is **`package main`**, limited to:
 
 - Technical specification section 1.9 (composition root)
 - [`docs/architecture.md`](../architecture.md)
-- [`AI_GUIDELINES.md`](../../AI_GUIDELINES.md) section 1.3

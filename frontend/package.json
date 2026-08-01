@@ -9,6 +9,15 @@
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test:dnd": "tsx src/lib/remoteTree/dndGuards.test.ts && tsx src/lib/remoteTree/connectionDisplay.test.ts",
+    "test:ping-characterization": "tsx src/lib/remoteTree/pingCharacterization.test.ts",
+    "test:status-dot": "tsx src/lib/remoteTree/statusDot.test.ts",
+    "test:discovery-tree": "tsx src/lib/remoteTree/discoveryTree.test.ts",
+    "test:discovery-selection": "tsx src/lib/remoteTree/discoverySelection.test.ts",
+    "test:discovery-actions": "tsx src/lib/remoteTree/discoveryActions.test.ts",
+    "test:discovery-isolation": "tsx src/lib/remoteTree/discoveryIsolation.test.ts",
+    "test:discovery-markup": "tsx src/lib/remoteTree/discoveryMarkup.test.ts",
+    "test:api-discovery": "tsx src/api/discovery.test.ts",
+    "test:discovery-state": "tsx src/stores/discoveryState.test.ts",
     "test:connection-details": "tsx src/lib/connectionDetails/connectionDraft.test.ts && tsx src/lib/connectionDetails/forwardRuleIds.test.ts && tsx src/lib/connectionDetails/connectionFormMode.test.ts && tsx src/lib/pluginDisplay.test.ts && tsx src/lib/repoFetchSingleFlight.test.ts",
     "test:tiles": "tsx src/lib/tiles/invariants.test.ts && tsx src/lib/tiles/geometry.test.ts && tsx src/lib/tiles/operations.test.ts && tsx src/lib/tiles/reconcile.test.ts && tsx src/lib/tiles/dropZones.test.ts && tsx src/lib/tiles/dragPayload.test.ts",
     "test:transfers": "tsx src/lib/formatBytes.test.ts && tsx src/lib/transferRate.test.ts && tsx src/lib/transferPresentation.test.ts",
@@ -40,7 +49,7 @@
     "test:actions-transfers": "tsx src/actions/transferActions.test.ts",
     "test:characterization": "tsx src/characterization/seam.char.test.ts && tsx src/characterization/sessions.char.test.ts && tsx src/characterization/library.char.test.ts && tsx src/characterization/plugins.char.test.ts && tsx src/characterization/runtime.char.test.ts",
     "test:arch": "tsx src/architecture.test.ts",
-    "test": "npm run test:dnd && npm run test:connection-details && npm run test:tiles && npm run test:transfers && npm run test:transfer-conflict && npm run test:backend && npm run test:hotkeys && npm run test:terminal && npm run test:events && npm run test:api-remotefs && npm run test:api-localfs && npm run test:api-folders && npm run test:api-connections && npm run test:api-credentials && npm run test:api-knownhosts && npm run test:api-settings && npm run test:api-audit && npm run test:api-plugin-runtime && npm run test:api-plugins && npm run test:api-github-plugins && npm run test:api-vault && npm run test:api-sessions && npm run test:api-terminal && npm run test:actions-sessions && npm run test:actions-vault && npm run test:actions-folders && npm run test:actions-connections && npm run test:actions-settings && npm run test:actions-protocols && npm run test:actions-transfers && npm run test:characterization && npm run test:arch"
+    "test": "npm run test:dnd && npm run test:ping-characterization && npm run test:status-dot && npm run test:discovery-tree && npm run test:discovery-selection && npm run test:discovery-actions && npm run test:discovery-isolation && npm run test:discovery-markup && npm run test:api-discovery && npm run test:discovery-state && npm run test:connection-details && npm run test:tiles && npm run test:transfers && npm run test:transfer-conflict && npm run test:backend && npm run test:hotkeys && npm run test:terminal && npm run test:events && npm run test:api-remotefs && npm run test:api-localfs && npm run test:api-folders && npm run test:api-connections && npm run test:api-credentials && npm run test:api-knownhosts && npm run test:api-settings && npm run test:api-audit && npm run test:api-plugin-runtime && npm run test:api-plugins && npm run test:api-github-plugins && npm run test:api-vault && npm run test:api-sessions && npm run test:api-terminal && npm run test:actions-sessions && npm run test:actions-vault && npm run test:actions-folders && npm run test:actions-connections && npm run test:actions-settings && npm run test:actions-protocols && npm run test:actions-transfers && npm run test:characterization && npm run test:arch"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^1.0.1",

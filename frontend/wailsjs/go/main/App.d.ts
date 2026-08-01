@@ -57,6 +57,8 @@ export function GetAllConnections():Promise<Array<wails.ConnectionDTO>>;
 
 export function GetAuditSessionState():Promise<wails.AuditSessionStateDTO>;
 
+export function GetDiscoveryTree(arg1:string):Promise<wails.DiscoverySnapshotDTO>;
+
 export function GetFolders():Promise<Array<wails.FolderDTO>>;
 
 export function GetIdentities():Promise<Array<wails.IdentityDTO>>;
@@ -98,6 +100,8 @@ export function ImportPuTTYRegAsConnections(arg1:string,arg2:string):Promise<Arr
 export function InstallGitHubPlugin(arg1:string,arg2:string,arg3:boolean,arg4:boolean,arg5:boolean,arg6:boolean,arg7:boolean,arg8:boolean):Promise<void>;
 
 export function InstallPlugin(arg1:string,arg2:boolean,arg3:boolean,arg4:boolean,arg5:boolean,arg6:boolean,arg7:boolean):Promise<wails.PluginDTO>;
+
+export function InvokeDiscoveryAction(arg1:string,arg2:string,arg3:Array<string>,arg4:string):Promise<void>;
 
 export function IsVaultUnlocked():Promise<boolean>;
 
@@ -190,6 +194,8 @@ export function SelectPluginBundleFile():Promise<string>;
 export function SelectPluginSourceDir():Promise<string>;
 
 export function SendTerminalInput(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function SetDiscoveryObserved(arg1:string,arg2:Array<string>):Promise<void>;
 
 export function SetGitHubRepositoryTrust(arg1:wails.SetGitHubRepositoryTrustRequest):Promise<void>;
 

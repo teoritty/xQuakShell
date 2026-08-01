@@ -396,6 +396,23 @@ func (a *App) ListPlugins() ([]presentation.PluginDTO, error) {
 	return a.api.ListPlugins()
 }
 
+// Discovery subtrees (ADR-014). Everything here is addressed by connectionId; the sessionId a
+// plugin is actually reached through is resolved in the backend and never crosses this boundary.
+
+func (a *App) GetDiscoveryTree(connectionId string) (presentation.DiscoverySnapshotDTO, error) {
+	return a.api.GetDiscoveryTree(connectionId)
+}
+
+func (a *App) SetDiscoveryObserved(connectionId string, nodeIds []string) error {
+	return a.api.SetDiscoveryObserved(connectionId, nodeIds)
+}
+
+// InvokeDiscoveryAction names the addressee plugin explicitly: node ids are unique only within one
+// plugin's own subtree.
+func (a *App) InvokeDiscoveryAction(connectionId string, pluginId string, nodeIds []string, actionId string) error {
+	return a.api.InvokeDiscoveryAction(connectionId, pluginId, nodeIds, actionId)
+}
+
 func (a *App) PingPlugin(pluginID string) (presentation.PluginPingResultDTO, error) {
 	return a.api.PingPlugin(pluginID)
 }

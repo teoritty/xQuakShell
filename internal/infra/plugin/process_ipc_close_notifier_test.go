@@ -77,19 +77,20 @@ func readCloseNotification(t *testing.T, r io.Reader) (uint32, string, string) {
 func TestNewConnDeliversBackendCloseToThePluginConn(t *testing.T) {
 	backend := &notifyingBackend{fired: make(chan struct{})}
 
-	var attachedPlugin string
-	var attachedSession string
+	// The resolver and the attach come back from ONE factory call, so the process a notifier
+	// belongs to is fixed by construction rather than by a key looked up later.
+	var resolvedPlugin string
+	var resolvedSession string
 	host := NewProcessHost(HostConfig{
 		DataRoot: t.TempDir(),
-		ChannelResolverFor: func(domainplugin.InstalledPlugin, string) capability.ChannelBackendResolver {
+		ChannelResolverFor: func(p domainplugin.InstalledPlugin, sessionID string) (capability.ChannelBackendResolver, AttachChannelCloseNotify) {
+			resolvedPlugin = p.Manifest.ID
+			resolvedSession = sessionID
 			return func(string) (domainplugin.ChannelPurposeBackend, error) {
-				return backend, nil
-			}
-		},
-		AttachChannelCloseNotifier: func(p domainplugin.InstalledPlugin, sessionID string, notify ChannelCloseNotify) {
-			attachedPlugin = p.Manifest.ID
-			attachedSession = sessionID
-			backend.notify = notify
+					return backend, nil
+				}, func(notify ChannelCloseNotify) {
+					backend.notify = notify
+				}
 		},
 	})
 
@@ -123,8 +124,8 @@ func TestNewConnDeliversBackendCloseToThePluginConn(t *testing.T) {
 		t.Fatal("newConn never attached a close notifier: a backend has no way to reach this " +
 			"process's Conn, so channel.close can never be raised")
 	}
-	if attachedPlugin != plugin.Manifest.ID || attachedSession != "sess-9" {
-		t.Fatalf("notifier attached for (%q, %q), want (%q, %q)", attachedPlugin, attachedSession,
+	if resolvedPlugin != plugin.Manifest.ID || resolvedSession != "sess-9" {
+		t.Fatalf("channel wiring built for (%q, %q), want (%q, %q)", resolvedPlugin, resolvedSession,
 			plugin.Manifest.ID, "sess-9")
 	}
 
@@ -174,8 +175,8 @@ func TestChannelCloseNotifierForAForgottenChannelIsHarmless(t *testing.T) {
 	var notify ChannelCloseNotify
 	host := NewProcessHost(HostConfig{
 		DataRoot: t.TempDir(),
-		AttachChannelCloseNotifier: func(_ domainplugin.InstalledPlugin, _ string, n ChannelCloseNotify) {
-			notify = n
+		ChannelResolverFor: func(domainplugin.InstalledPlugin, string) (capability.ChannelBackendResolver, AttachChannelCloseNotify) {
+			return nil, func(n ChannelCloseNotify) { notify = n }
 		},
 	})
 

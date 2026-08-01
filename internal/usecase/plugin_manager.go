@@ -39,7 +39,12 @@ type PluginManager struct {
 	startAudit        PluginStartAuditFunc
 	outboundAuthAudit OutboundAuthAuditFunc
 	stateChange       func(pluginID, state, sessionID string)
+	processStarted    func(pluginID string)
+	processStopped    func(pluginID string)
+	processCrashed    func(pluginID string)
+	processSuspended  func(pluginID string)
 	connChecker    PluginConnectionChecker
+	retention      PluginRetentionChecker
 
 	mu              sync.Mutex
 	sessionCounts   map[string]int
@@ -85,6 +90,7 @@ func (m *PluginManager) List() []PluginInfo {
 			Signed:               p.Manifest.Signature != "",
 			Enabled:              m.isPluginEnabled(p.Manifest.ID),
 			InstalledReleaseTag:  installedReleaseTag(p),
+			DiscoveryIcons:       m.registry.DiscoveryIconDataURIs(p.Manifest.ID),
 		})
 	}
 	return result
@@ -102,6 +108,11 @@ type PluginInfo struct {
 	Signed               bool
 	Enabled              bool
 	InstalledReleaseTag  string
+	// DiscoveryIcons carries the plugin's declared discovery icons as iconID -> data URI, already
+	// read from disk (ADR-014). They ride along with the plugin list instead of getting an endpoint
+	// of their own: an icon is a small, static part of what a plugin is, and a fetch-by-id endpoint
+	// would be one more surface taking a plugin ID and an asset name from the frontend.
+	DiscoveryIcons map[string]string
 }
 
 func installedReleaseTag(p domainplugin.InstalledPlugin) string {
@@ -235,6 +246,52 @@ func (m *PluginManager) SetEventBus(bus *PluginEventBus) {
 	m.events = bus
 }
 
+// PluginRetentionChecker reports whether something outside the session bookkeeping still depends on
+// a plugin's process. It is consulted by the two places that would otherwise reclaim it: the idle
+// sweeper and the crash supervisor.
+//
+// It exists because "in use" was defined as "has open sessions", and a discovery plugin has none by
+// construction — it enumerates resources under a connection some other component owns. So the
+// sweeper suspended it after five quiet minutes, marking every subtree it had drawn stale, and the
+// supervisor declined to restart it after a crash, leaving those subtrees stale forever with no
+// path back. Quiet is the normal state of a tree the user has finished expanding.
+//
+// It is deliberately NOT implemented by incrementing the session counter instead. That counter also
+// drives PluginEventBus.SetSessionActiveChecker, so a discovery plugin would silently start
+// receiving core.session.* events — a widening of what a capability grants, arrived at as a side
+// effect of a lifecycle fix rather than as a decision.
+type PluginRetentionChecker func(pluginID string) bool
+
+// SetPluginRetentionChecker binds the predicate above. Unset means "sessions are the only thing
+// that counts", which is the behaviour every non-discovery plugin has always had.
+func (m *PluginManager) SetPluginRetentionChecker(fn PluginRetentionChecker) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	m.retention = fn
+	m.mu.Unlock()
+}
+
+// PluginInUse reports whether anything still depends on this plugin's process: an open session, or
+// a retention holder such as a discovery subtree currently drawn under a live connection.
+//
+// The checker is read under the lock and called outside it (ADR-009): it reaches into another use
+// case, and this one is called from the idle sweep that holds the manager's mutex for its own
+// bookkeeping.
+func (m *PluginManager) PluginInUse(pluginID string) bool {
+	if m == nil {
+		return false
+	}
+	if m.ActiveSessionCount(pluginID) > 0 {
+		return true
+	}
+	m.mu.Lock()
+	retention := m.retention
+	m.mu.Unlock()
+	return retention != nil && retention(pluginID)
+}
+
 // SetSessionOwnershipChecker binds session ownership checks for core event delivery.
 func (m *PluginManager) SetSessionOwnershipChecker(checker PluginSessionOwnershipChecker) {
 	if m != nil && m.events != nil {
@@ -277,11 +334,65 @@ func (m *PluginManager) SetStateChangeHandler(fn func(pluginID, state, sessionID
 	m.stateChange = fn
 }
 
+// SetProcessStartedHandler registers a host-internal observer of plugin process starts. It is
+// separate from SetStateChangeHandler, which belongs to presentation: this one exists so
+// level-triggered subscriptions (discovery's observed set, ADR-014) can be replayed to a plugin
+// that just came up, and that must not depend on whether a UI is listening.
+func (m *PluginManager) SetProcessStartedHandler(fn func(pluginID string)) {
+	m.processStarted = fn
+}
+
+// SetProcessStoppedHandler registers a host-internal observer of a plugin being stopped outright —
+// disabled by the user, or uninstalled, both of which route through StopPlugin.
+//
+// It is the mirror of SetProcessStartedHandler and, like it, is separate from the presentation
+// state handler: discovery must drop a stopped plugin's subtree whether or not a UI is listening
+// (ADR-014). Crashes deliberately do NOT reach here — the supervisor restarts the process and the
+// replayed observed set refills the tree, so tearing it down would only make a recoverable blip
+// look like a disappearance.
+func (m *PluginManager) SetProcessStoppedHandler(fn func(pluginID string)) {
+	m.processStopped = fn
+}
+
+// SetProcessCrashedHandler registers a host-internal observer of a plugin process dying
+// unexpectedly.
+//
+// It is separate from the stopped handler because the two demand opposite treatments and always
+// will: a stop is final and its state should be torn down, while a crash is transient — the
+// supervisor restarts the process and the replayed level-triggered state refills it — so a crash
+// must only be MARKED, never cleared (ADR-014).
+func (m *PluginManager) SetProcessCrashedHandler(fn func(pluginID string)) {
+	m.processCrashed = fn
+}
+
+// SetProcessSuspendedHandler registers a host-internal observer of idle suspension.
+//
+// Suspension is deliberate where a crash is not, but to anything holding state the plugin vouched
+// for the two are the same event: the process is gone and can confirm nothing until it is started
+// again. It gets its own hook rather than reusing the crash one so the manager keeps saying what
+// actually happened, and so a future consumer that DOES care about the difference has somewhere to
+// hang that off.
+func (m *PluginManager) SetProcessSuspendedHandler(fn func(pluginID string)) {
+	m.processSuspended = fn
+}
+
 func (m *PluginManager) emitStateChange(pluginID, state, sessionID string) {
 	// Single choke point for every lifecycle transition, so start/running/
 	// suspended/stopped/crashed are all visible in the debug log (previously
 	// they only reached the frontend state event).
 	slog.Info("plugin state change", "component", "plugin", "pluginId", pluginID, "state", state, "sessionId", sessionID)
+	if state == "running" && m.processStarted != nil {
+		m.processStarted(pluginID)
+	}
+	if state == "stopped" && m.processStopped != nil {
+		m.processStopped(pluginID)
+	}
+	if state == "crashed" && m.processCrashed != nil {
+		m.processCrashed(pluginID)
+	}
+	if state == "suspended" && m.processSuspended != nil {
+		m.processSuspended(pluginID)
+	}
 	if m.stateChange != nil {
 		m.stateChange(pluginID, state, sessionID)
 	}

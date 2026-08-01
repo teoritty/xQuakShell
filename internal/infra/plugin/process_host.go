@@ -26,6 +26,10 @@ type ProcessCrashHandler func(pluginID, sessionID string)
 // infra must not import usecase, so the two halves only meet there.
 type ChannelCloseNotify func(channelID uint32, reason, message string)
 
+// AttachChannelCloseNotify receives one plugin process's channel.close notifier once that process's
+// Conn exists. It is returned by ChannelResolverFor, alongside the resolver it belongs to.
+type AttachChannelCloseNotify func(notify ChannelCloseNotify)
+
 // HostConfig configures the out-of-process plugin host.
 type HostConfig struct {
 	DataRoot          string
@@ -48,17 +52,19 @@ type HostConfig struct {
 	// Only the composition root may supply it — the backends live in usecase, which capability
 	// must never import.
 	//
+	// It returns a second value for the one thing the resolver cannot be given at build time: this
+	// process's channel.close notifier, which must close over a Conn that does not exist yet
+	// (the Conn needs the request handler, which needs the proxy the resolver serves). The host
+	// calls the returned attach once the Conn is up. Handing it back through the SAME call that
+	// built the resolver is what keeps the pairing structural: the two halves meet inside one
+	// factory invocation, so a process's notifier cannot be delivered to another process's
+	// backends — which a registry keyed by anything reusable, such as the process key, could not
+	// promise.
+	//
 	// ChannelAudit records channel.open/channel.close events. ChannelBus
 	// registers each process's ChannelProxy so SessionLifecycleService's CloseSession cascade
 	// (ADR-011 Stage 4) can reach it; process exit/crash teardown (Stage 4b) does not depend on it.
-	ChannelResolverFor func(plugin domainplugin.InstalledPlugin, sessionID string) capability.ChannelBackendResolver
-
-	// AttachChannelCloseNotifier hands the composition root the notifier for one plugin process,
-	// once that process's Conn exists. It is an attach rather than a config value for the same
-	// reason AttachDataPathOpener is: the notifier must close over Conn.Notify, and the Conn
-	// cannot exist before the request handler that routes channel.open, which needs the proxy the
-	// resolver serves. The cycle is broken here, after the Conn is built, and only here.
-	AttachChannelCloseNotifier func(plugin domainplugin.InstalledPlugin, sessionID string, notify ChannelCloseNotify)
+	ChannelResolverFor func(plugin domainplugin.InstalledPlugin, sessionID string) (capability.ChannelBackendResolver, AttachChannelCloseNotify)
 
 	ChannelAudit domainplugin.ChannelAuditRecorder
 	ChannelBus   *capability.ChannelBus

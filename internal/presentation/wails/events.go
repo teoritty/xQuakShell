@@ -21,7 +21,18 @@ const (
 	EventPluginStateChanged         = "PluginStateChanged"
 	EventSessionEmbedReady          = "SessionEmbedReady"
 	EventDebugLogWindowChanged      = "DebugLogWindowChanged"
+	EventDiscoveryTreeChanged       = "DiscoveryTreeChanged"
 )
+
+// DiscoveryTreeChangedPayload names the connection and the node whose branch changed (ADR-014).
+// There is no sessionId here or anywhere else the frontend can see: sessions are how the host
+// reaches a plugin, connections are how the user sees the tree.
+type DiscoveryTreeChangedPayload struct {
+	ConnectionID string `json:"connectionId"`
+	// NodeID is the node whose children changed; "" means the connection root, i.e. the whole
+	// subtree. It is present because updates are coalesced per node, not per connection.
+	NodeID string `json:"nodeId"`
+}
 
 // TerminalOutputPayload carries terminal output data for a specific session.
 type TerminalOutputPayload struct {
