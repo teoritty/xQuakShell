@@ -590,13 +590,8 @@ func TestChannelCloseNotifierBindsAfterTheResolverRan(t *testing.T) {
 // would compile, start plugins, serve channels — and drop every channel.close silently, which is
 // the one failure mode ADR-011 §7.5 makes unobservable by design.
 //
-// What this does NOT assert is that two calls own independent notifiers. That property is now
-// structural — the holder is a local allocated inside each factory call and escapes only through
-// the two values that call returns — and observing it from outside would mean driving an embed
-// backend through its wait-ceiling path, which is far more machinery than the property is worth.
-// The end-to-end pairing is covered where it can be seen for real, in
-// TestNewConnDeliversBackendCloseToThePluginConn, which drives a live backend through newConn and
-// reads the notification off the wire.
+// That the two calls own INDEPENDENT notifiers is the separate claim, and it is asserted by
+// TestACloseFromOneProcessNeverReachesAnothersNotifier below.
 func TestChannelResolverHandsBackAnAttachPerProcess(t *testing.T) {
 	factory := newChannelResolverFor(nil, nil, wiredSessionRegistry())
 	plugin := relayPlugin("com.test.notify")
@@ -614,5 +609,104 @@ func TestChannelResolverHandsBackAnAttachPerProcess(t *testing.T) {
 		}
 		// Attaching must be safe on its own, before any Conn or backend exists (7.5).
 		attach(func(uint32, string, string) {})
+	}
+}
+
+// unclassifiedEmbedSink is an EmbedFrameSink that refuses the first frame with an error the embed
+// backend cannot classify. That refusal is the cheapest real path to a channel.close: deliverFrame
+// reports it through closeWithReason on its FIRST iteration, with no retry, no wait budget and no
+// timer involved.
+type unclassifiedEmbedSink struct{ owner string }
+
+func (s unclassifiedEmbedSink) RouteTunnelFrameFromPlugin(context.Context, string, string, []byte) error {
+	return fmt.Errorf("the embed surface is gone")
+}
+
+func (s unclassifiedEmbedSink) PluginIDForSession(string) (string, bool) { return s.owner, true }
+
+func (s unclassifiedEmbedSink) SubscribeOutbound(string, string) (<-chan []byte, func()) {
+	return nil, func() {}
+}
+
+// oneFrameDataPath hands the backend exactly one frame and then reports the channel as ended.
+type oneFrameDataPath struct {
+	mu   sync.Mutex
+	sent bool
+}
+
+func (p *oneFrameDataPath) Recv() ([]byte, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.sent {
+		return nil, false
+	}
+	p.sent = true
+	return []byte("frame"), true
+}
+
+func (p *oneFrameDataPath) Send(context.Context, []byte) error    { return nil }
+func (p *oneFrameDataPath) WaitForCapacity(context.Context) error { return nil }
+func (p *oneFrameDataPath) Ack(context.Context) error             { return nil }
+func (p *oneFrameDataPath) Close() error                          { return nil }
+
+// TestACloseFromOneProcessNeverReachesAnothersNotifier is the property the whole refactor was for.
+//
+// The composition root used to keep these notifiers in a map keyed by (pluginID, sessionID), and
+// that key is REUSED — a plugin stopped and started again comes back under the same one. Two starts
+// therefore shared an entry and the pairing came down to who wrote last: a start that was overtaken
+// would put its notifier over the live process's, and every channel.close of the RUNNING plugin
+// would be delivered to the dead one's Conn. Silently, because a dropped notification fails
+// nothing.
+//
+// So the test asks exactly that: same plugin, same session id, two factory calls, the live process
+// binding first and the overtaken one after it. Then a real backend from the live process raises a
+// real close, and the assertion is which notifier it lands on. A single holder hoisted out of the
+// per-call closure — precisely the old design — compiles, and fails here.
+func TestACloseFromOneProcessNeverReachesAnothersNotifier(t *testing.T) {
+	const pluginID = "com.test.embed"
+	const parentSession = "sess-embed"
+
+	plugin := relayPlugin(pluginID)
+	factory := newChannelResolverFor(nil, unclassifiedEmbedSink{owner: pluginID}, wiredSessionRegistry())
+
+	// Two starts of the same plugin under the same key: the live one, then the one it overtook.
+	liveResolve, attachLive := factory(plugin, parentSession)
+	_, attachOvertaken := factory(plugin, parentSession)
+
+	liveCloses := make(chan uint32, 4)
+	overtakenCloses := make(chan uint32, 4)
+	attachLive(func(id uint32, _, _ string) { liveCloses <- id })
+	// The overtaken start binds LAST — under the shared map this is the write that won.
+	attachOvertaken(func(id uint32, _, _ string) { overtakenCloses <- id })
+
+	backend, err := liveResolve(domainplugin.PurposeEmbedStream)
+	if err != nil {
+		t.Fatalf("resolve embed-stream for the live process: %v", err)
+	}
+	if err := backend.Authorize(domainplugin.PurposeEmbedStream, parentSession, ""); err != nil {
+		t.Fatalf("authorize embed-stream: %v", err)
+	}
+
+	const channelID = 77
+	handle, err := domainplugin.NewChannelHandle(
+		channelID, pluginID, domainplugin.PurposeEmbedStream, parentSession, "", &oneFrameDataPath{})
+	if err != nil {
+		t.Fatalf("build channel handle: %v", err)
+	}
+	if err := backend.Wire(context.Background(), handle); err != nil {
+		t.Fatalf("wire embed-stream: %v", err)
+	}
+
+	select {
+	case id := <-liveCloses:
+		if id != channelID {
+			t.Fatalf("channel.close named %d, want %d", id, channelID)
+		}
+	case id := <-overtakenCloses:
+		t.Fatalf("channel %d of the LIVE process was reported to the OVERTAKEN process's notifier: "+
+			"the two starts share one holder, so the later start silently takes over the running "+
+			"plugin's channel.close and every close reason is aimed at a dead Conn", id)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the close reason never reached any notifier at all")
 	}
 }

@@ -27,7 +27,7 @@ var errChannelExecSessionsUnavailable = fmt.Errorf(
 // client. Rather than reorder the composition root or widen SessionRegistry's exposure, the
 // registry is PUSHED here once it exists, exactly as SessionManager already pushes it to
 // EmbedTunnelService (SetEmbedTunnelService -> WireSessionContext), and the resolver reads it at
-// call time -- the same shape as channelCloseNotifiers below.
+// call time -- the same shape as processChannelCloseNotifier below.
 //
 // A miss means the registry is not wired yet, which the resolver turns into a refused channel.open
 // rather than a backend that dereferences nil on its first frame.
