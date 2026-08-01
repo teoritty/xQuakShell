@@ -99,9 +99,12 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	//
 	// Publishing under the same lock that Stop takes to declare ProcessStopping makes the two
 	// mutually exclusive: either Stop got there first and nothing is published, or the publication
-	// happened-before Stop and closeResources sees all five. ChannelBus registration moved below the
-	// check for the same reason — registering after Stop's Unregister would leave the bus holding a
-	// proxy for a process that is already gone.
+	// happened-before Stop and closeResources sees all five.
+	//
+	// The bus registration belongs in here with them, and for the same reason: the bus says which
+	// processes exist, so a registration written while the reservation belongs to somebody else is
+	// the same lie as a stale mp.channels. ChannelBus.mu is a leaf — nothing holds it while taking
+	// another lock — so taking it under h.mu introduces no ordering constraint on anyone.
 	h.mu.Lock()
 	current, stillRegistered = h.processes[key]
 	abandoned = !stillRegistered || current != mp || mp.state == domainplugin.ProcessStopping
@@ -111,6 +114,9 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 		mp.tunnelDial = tunnelDial
 		mp.tunnelLocal = tunnelLocal
 		mp.channels = channelProxy
+		if h.cfg.ChannelBus != nil {
+			h.cfg.ChannelBus.Register(key, channelProxy)
+		}
 	}
 	h.mu.Unlock()
 
@@ -119,29 +125,6 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 		// reaper and the job by then. These five never reached mp, so nothing else can close them.
 		discardConnResources(conn, netProxy, tunnelDial, tunnelLocal, channelProxy)
 		return errStartAbortedByStop
-	}
-
-	if h.cfg.ChannelBus != nil {
-		h.cfg.ChannelBus.Register(key, channelProxy)
-
-		// Third checkpoint, for the one window the second cannot cover. The bus cannot be written to
-		// while h.mu is held — that would nest the two mutexes against the teardown paths — so the
-		// registration necessarily happens after the lock is released, and a Stop landing in between
-		// runs its Unregister BEFORE this Register. The bus would then hold a proxy for a process that
-		// is already dead until some later Start reused the key. Re-asking the question is what
-		// remains: whoever registered last checks whether it was still entitled to.
-		h.mu.Lock()
-		current, stillRegistered = h.processes[key]
-		abandoned = !stillRegistered || current != mp || mp.state == domainplugin.ProcessStopping
-		h.mu.Unlock()
-
-		if abandoned {
-			// Only the registration is ours to undo here: conn and the proxies reached mp at the
-			// checkpoint above, so the Stop that took the reservation closes them through
-			// closeResources, exactly once.
-			h.cfg.ChannelBus.Unregister(key, channelProxy)
-			return errStartAbortedByStop
-		}
 	}
 
 	portableReadOnly := h.cfg.Portable != nil && h.cfg.Portable.DataRootReadOnly()
