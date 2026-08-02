@@ -132,9 +132,28 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 		return err
 	}
 
+	// Third checkpoint, same shape and same reason as the first two. A Stop landing during the
+	// handshake finds everything published and tears the process down — but the initialize request
+	// was already on the wire before its CloseWrite, so the response can still arrive and
+	// initializePluginProcess can still return success. Without this re-check Start would then
+	// declare ProcessRunning on an mp that Stop has already finalized and report success for a
+	// reservation it no longer owns, leaving the caller believing a plugin is up that is already
+	// dead. The Running transition and the ownership question must be one atomic step, exactly like
+	// the two publications above.
 	h.mu.Lock()
-	mp.state = domainplugin.ProcessRunning
+	current, stillRegistered = h.processes[key]
+	abandoned = !stillRegistered || current != mp || mp.state == domainplugin.ProcessStopping
+	if !abandoned {
+		mp.state = domainplugin.ProcessRunning
+	}
 	h.mu.Unlock()
+
+	if abandoned {
+		// The Stop that took the reservation owns the teardown; everything it needs reached mp at
+		// the second checkpoint, and closeResources is once-guarded, so the deferred release below
+		// is a no-op against it.
+		return errStartAbortedByStop
+	}
 
 	running = true
 	safego.GoNamed("plugin.waitProcess", func() { h.waitProcess(key, mp) })
