@@ -113,8 +113,7 @@ $usecaseDir = Join-Path $root "internal\usecase"
 $usecaseFsHits = @()
 Get-ChildItem -Path $usecaseDir -Filter "*.go" -Recurse | ForEach-Object {
     $usecaseFsHits += Find-NonCommentMatches -Path $_.FullName -Patterns @(
-        '\bos\.(Stat|Lstat|Remove|RemoveAll|ReadFile|WriteFile|Open|Create|Mkdir|Rename|ReadDir|Chmod|Chown)\b'
-        '"os"'
+        '\bos\.(Stat|Lstat|Remove|RemoveAll|ReadFile|WriteFile|Open|OpenFile|Create|Mkdir|MkdirAll|Rename|ReadDir|Chmod|Chown|Symlink|Link|Truncate|ReadLink|TempDir)\b'
     )
 }
 FailIfMatch -Label "internal/usecase must not call os.* filesystem APIs" -Hits $usecaseFsHits
