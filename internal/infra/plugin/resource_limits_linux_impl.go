@@ -31,9 +31,12 @@ func applyLinuxResourceLimits(pid int) error {
 		return fmt.Errorf("plugin open-files limit: %w", err)
 	}
 
-	nproc := uint64(domainplugin.MaxPluginProcessThreads)
-	if err := unix.Prlimit(pid, unix.RLIMIT_NPROC, &unix.Rlimit{Cur: nproc, Max: nproc}, nil); err != nil {
-		return fmt.Errorf("plugin thread limit: %w", err)
-	}
+	// No RLIMIT_NPROC here. On Linux it is accounted per-UID, not per-process: with the
+	// host, other apps and (on CI) parallel test binaries all under one UID, the user's
+	// task count routinely exceeds any small fixed cap, so the plugin's very first
+	// clone() fails with EAGAIN and the Go runtime dies before main() with
+	// "runtime: failed to create new OS thread" — the host then sees initialize EOF.
+	// A runaway thread spawner is still bounded indirectly by RLIMIT_DATA (thread
+	// stacks are private anonymous mappings); a real per-tree cap needs a pids cgroup.
 	return nil
 }
