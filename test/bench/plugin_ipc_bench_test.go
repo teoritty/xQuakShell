@@ -38,6 +38,15 @@ func BenchmarkPluginIPCPingPong(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+	b.StopTimer()
+
+	// serveEchoPlugin exits only when its read side of the pipe is closed, so the writes must be
+	// closed BEFORE wg.Wait — with the closes left to the defers (which run after the function
+	// body, i.e. after wg.Wait) the benchmark deadlocks: Wait blocks on the goroutine, the
+	// goroutine blocks on ReadMessage, and the close that would unblock it never runs. The smoke
+	// test below already does this in the right order.
+	_ = coreWrite.Close()
+	_ = pluginWrite.Close()
 	wg.Wait()
 }
 
