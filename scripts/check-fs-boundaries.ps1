@@ -103,7 +103,7 @@ Get-ChildItem -Path $root -Filter "*.go" -Recurse |
     ForEach-Object {
         $forbiddenFsSymbols += Find-NonCommentMatches -Path $_.FullName -Patterns @(
             'LocalFileSystem'
-            'NewLocalFS'
+            '\bNewLocalFS\b'
             'ErrLocalPathDenied'
         )
     }
