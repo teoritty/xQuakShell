@@ -123,9 +123,11 @@ func TestProcessHostStopDuringStarting(t *testing.T) {
 	host := NewProcessHost(HostConfig{DataRoot: t.TempDir()})
 
 	started := make(chan struct{})
+	startDone := make(chan struct{})
 	go func() {
 		close(started)
 		_ = host.Start(context.Background(), plugin, "")
+		close(startDone)
 	}()
 
 	<-started
@@ -144,6 +146,16 @@ func TestProcessHostStopDuringStarting(t *testing.T) {
 	}
 	if st := host.State(manifest.ID, ""); st != domainplugin.ProcessDiscovered {
 		t.Fatalf("expected discovered state after stop, got %q", st)
+	}
+
+	// The concurrent Start must finish before the test returns: its aborted child may still be
+	// coming up and writing slow-start.pid into this test's TempDir, racing the RemoveAll cleanup
+	// ("directory not empty"). Start's abort path kills and reaps the child, so once it returns the
+	// directory is quiescent.
+	select {
+	case <-startDone:
+	case <-time.After(30 * time.Second):
+		t.Fatal("Start never returned after a concurrent Stop")
 	}
 }
 
