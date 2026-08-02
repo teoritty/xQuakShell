@@ -30,7 +30,6 @@ type ChannelCloseNotify func(channelID uint32, reason, message string)
 // Conn exists. It is returned by ChannelResolverFor, alongside the resolver it belongs to.
 type AttachChannelCloseNotify func(notify ChannelCloseNotify)
 
-// HostConfig configures the out-of-process plugin host.
 type HostConfig struct {
 	DataRoot          string
 	Portable          domain.PortableRuntime
@@ -70,14 +69,12 @@ type HostConfig struct {
 	ChannelBus   *capability.ChannelBus
 }
 
-// ProcessHost implements domainplugin.ProcessHost using OS child processes.
 type ProcessHost struct {
 	cfg       HostConfig
 	mu        sync.Mutex
 	processes map[string]*managedProcess
 }
 
-// NewProcessHost creates a process host with capability proxies and audit hooks.
 func NewProcessHost(cfg HostConfig) *ProcessHost {
 	return &ProcessHost{
 		cfg:       cfg,

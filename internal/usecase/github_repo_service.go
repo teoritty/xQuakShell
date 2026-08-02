@@ -8,13 +8,11 @@ import (
 	domainplugin "xquakshell/internal/domain/plugin"
 )
 
-// GitHubRepositoryService handles GitHub repository registration and management.
 type GitHubRepositoryService struct {
 	storage domainplugin.GitHubRepositoryStorage
 	cache   domainplugin.GitHubCache
 }
 
-// NewGitHubRepositoryService creates a new repository service.
 func NewGitHubRepositoryService(
 	storage domainplugin.GitHubRepositoryStorage,
 	cache domainplugin.GitHubCache,
@@ -25,12 +23,10 @@ func NewGitHubRepositoryService(
 	}
 }
 
-// ListRepositories returns all registered GitHub repositories.
 func (s *GitHubRepositoryService) ListRepositories(ctx context.Context) ([]domainplugin.GitHubRepository, error) {
 	return s.storage.List(ctx)
 }
 
-// GetRepository returns a registered repository by URL.
 func (s *GitHubRepositoryService) GetRepository(ctx context.Context, repoURL string) (*domainplugin.GitHubRepository, error) {
 	normalizedURL, err := domainplugin.NormalizeURL(repoURL)
 	if err != nil {
@@ -39,7 +35,6 @@ func (s *GitHubRepositoryService) GetRepository(ctx context.Context, repoURL str
 	return s.storage.Get(ctx, normalizedURL)
 }
 
-// AddRepository registers a new GitHub repository.
 func (s *GitHubRepositoryService) AddRepository(ctx context.Context, repoURL string, trusted bool) error {
 	normalizedURL, err := domainplugin.NormalizeURL(repoURL)
 	if err != nil {
@@ -70,7 +65,6 @@ func (s *GitHubRepositoryService) AddRepository(ctx context.Context, repoURL str
 	return s.storage.Add(ctx, repository)
 }
 
-// RemoveRepository unregisters a GitHub repository.
 func (s *GitHubRepositoryService) RemoveRepository(ctx context.Context, repoURL string) error {
 	normalizedURL, err := domainplugin.NormalizeURL(repoURL)
 	if err != nil {
@@ -80,7 +74,6 @@ func (s *GitHubRepositoryService) RemoveRepository(ctx context.Context, repoURL 
 	return s.storage.Remove(ctx, normalizedURL)
 }
 
-// SetRepositoryTrust marks a repository as trusted or untrusted.
 func (s *GitHubRepositoryService) SetRepositoryTrust(ctx context.Context, repoURL string, trusted bool) error {
 	normalizedURL, err := domainplugin.NormalizeURL(repoURL)
 	if err != nil {

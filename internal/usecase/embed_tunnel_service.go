@@ -16,10 +16,8 @@ import (
 
 const embedSandboxDefault = "allow-scripts allow-same-origin"
 
-// PluginTunnelNotifier sends tunnel data and control notifications to a plugin process.
 type PluginTunnelNotifier func(ctx context.Context, pluginID, sessionID, method string, params []byte) error
 
-// EmbedReadyFunc is invoked when an embed descriptor becomes available for a session.
 type EmbedReadyFunc func(desc domain.SessionEmbedDescriptor)
 
 // EmbedTunnelService manages embed token lifecycle and tunnel frame routing.
@@ -38,8 +36,8 @@ type EmbedTunnelService struct {
 	notifyPlugin   PluginTunnelNotifier
 	onEmbedReady   EmbedReadyFunc
 
-	registry         *SessionRegistry
-	manifestLookup   PluginManifestLookup
+	registry       *SessionRegistry
+	manifestLookup PluginManifestLookup
 
 	// baseURL, when set, is prepended to the (otherwise root-relative) embed UI/tunnel paths so
 	// the descriptor carries an absolute origin. On Windows/WebView2 the Wails asset server
@@ -140,7 +138,6 @@ func (c *embedWSConn) Done() <-chan struct{} {
 	return c.done
 }
 
-// NewEmbedTunnelService creates an embed tunnel registry and broker coordinator.
 func NewEmbedTunnelService(factory domain.RateLimiterFactory) *EmbedTunnelService {
 	if factory == nil {
 		panic("usecase: EmbedTunnelService requires RateLimiterFactory")
@@ -154,14 +151,12 @@ func NewEmbedTunnelService(factory domain.RateLimiterFactory) *EmbedTunnelServic
 	}
 }
 
-// SetPluginNotifier wires host→plugin tunnel notifications.
 func (s *EmbedTunnelService) SetPluginNotifier(fn PluginTunnelNotifier) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.notifyPlugin = fn
 }
 
-// SetEmbedReadyHandler wires embed-ready callbacks to the presentation layer.
 func (s *EmbedTunnelService) SetEmbedReadyHandler(fn EmbedReadyFunc) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -177,7 +172,6 @@ func (s *EmbedTunnelService) SetBaseURL(u string) {
 	s.baseURL = u
 }
 
-// WireSessionContext binds session registry and manifest lookup for plugin RPC handlers.
 func (s *EmbedTunnelService) WireSessionContext(registry *SessionRegistry, lookup PluginManifestLookup) {
 	if s == nil {
 		return

@@ -12,14 +12,12 @@ import (
 	"xquakshell/internal/pkg/safego"
 )
 
-// PingResult holds the outcome of a single host TCP ping.
 type PingResult struct {
 	ConnectionID string `json:"connectionId"`
 	Reachable    bool   `json:"reachable"`
 	LatencyMs    int64  `json:"latencyMs"`
 }
 
-// PingEventHandler is called when ping results update.
 type PingEventHandler func(results []PingResult)
 
 type pingJob struct {
@@ -28,7 +26,6 @@ type pingJob struct {
 	port   int
 }
 
-// PingManager periodically checks TCP reachability for connections.
 type PingManager struct {
 	mu             sync.RWMutex
 	settings       domain.PingSettings
@@ -43,7 +40,6 @@ type PingManager struct {
 	cycleRunning   bool
 }
 
-// NewPingManager creates a new PingManager.
 func NewPingManager(connRepo domain.ConnectionRepository, settings domain.PingSettings, limiter domain.ConcurrencyLimiter, pinger domain.Pinger) *PingManager {
 	if limiter == nil {
 		panic("usecase: PingManager requires ConcurrencyLimiter")
@@ -60,7 +56,6 @@ func NewPingManager(connRepo domain.ConnectionRepository, settings domain.PingSe
 	}
 }
 
-// Start begins periodic pinging.
 func (pm *PingManager) Start(handler PingEventHandler) {
 	pm.mu.Lock()
 	pm.handler = handler
@@ -74,7 +69,6 @@ func (pm *PingManager) Start(handler PingEventHandler) {
 	safego.GoNamed("ping.run", func() { pm.run(ctx) })
 }
 
-// Stop halts periodic pinging.
 func (pm *PingManager) Stop() {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
@@ -84,7 +78,6 @@ func (pm *PingManager) Stop() {
 	}
 }
 
-// SetProtocolLookup configures default port resolution for plugin protocols.
 func (pm *PingManager) SetProtocolLookup(lookup domain.ConnectionProtocolLookup) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()

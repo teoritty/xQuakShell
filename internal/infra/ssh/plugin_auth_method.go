@@ -13,7 +13,6 @@ import (
 
 type pluginAuthMethodBuilder struct{}
 
-// NewPluginAuthMethodBuilder returns a domain.PluginAuthMethodBuilder implementation.
 func NewPluginAuthMethodBuilder() domain.PluginAuthMethodBuilder {
 	return pluginAuthMethodBuilder{}
 }
@@ -52,12 +51,12 @@ func (pluginAuthMethodBuilder) BuildPublicKey(
 }
 
 type pluginRemoteSigner struct {
-	ctx       context.Context
-	provider  domain.PluginAuthProvider
-	attemptID string
-	method    domain.PluginAuthMethod
-	once      sync.Once
-	pub       gossh.PublicKey
+	ctx        context.Context
+	provider   domain.PluginAuthProvider
+	attemptID  string
+	method     domain.PluginAuthMethod
+	once       sync.Once
+	pub        gossh.PublicKey
 	prepareErr error
 }
 

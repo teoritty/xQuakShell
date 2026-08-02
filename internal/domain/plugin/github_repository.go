@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// GitHubRepository represents a registered GitHub repository containing plugins.
 type GitHubRepository struct {
 	URL           string     `json:"url"`
 	Owner         string     `json:"owner"`
@@ -18,7 +17,6 @@ type GitHubRepository struct {
 	Trusted       bool       `json:"trusted"`
 }
 
-// Validate checks if the repository URL is valid.
 func (r *GitHubRepository) Validate() error {
 	if r.URL == "" {
 		return ErrInvalidRepositoryURL
@@ -45,7 +43,6 @@ func (r *GitHubRepository) Validate() error {
 	return nil
 }
 
-// NormalizeURL ensures consistent URL format.
 func NormalizeURL(rawURL string) (string, error) {
 	rawURL = strings.TrimSpace(rawURL)
 	rawURL = strings.TrimRight(rawURL, "/")
@@ -66,7 +63,6 @@ func NormalizeURL(rawURL string) (string, error) {
 	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
-// ParseGitHubURL extracts owner and repo from URL.
 func ParseGitHubURL(repoURL string) (owner, repo string, err error) {
 	normalized, err := NormalizeURL(repoURL)
 	if err != nil {

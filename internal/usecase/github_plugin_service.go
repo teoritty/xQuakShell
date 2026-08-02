@@ -4,7 +4,6 @@ import (
 	domainplugin "xquakshell/internal/domain/plugin"
 )
 
-// GitHubPluginService orchestrates GitHub plugin discovery, preview, install, and uninstall.
 type GitHubPluginService struct {
 	apiClient         GitHubAPIClient
 	downloader        PluginBinaryDownloader
@@ -15,7 +14,6 @@ type GitHubPluginService struct {
 	storage           domainplugin.GitHubRepositoryStorage
 }
 
-// NewGitHubPluginService creates a new GitHub plugin service.
 func NewGitHubPluginService(
 	apiClient GitHubAPIClient,
 	downloader PluginBinaryDownloader,

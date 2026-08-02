@@ -10,29 +10,26 @@ import (
 	"xquakshell/internal/domain"
 )
 
-// AuditService orchestrates audit log recording, retention, and session secret policy.
 type AuditService struct {
-	repo            domain.AuditLogRepository
-	settingsSvc     *SettingsService
-	sessions        SessionInfoProvider
-	connRepo        domain.ConnectionRepository
-	sanitizers      map[string]domain.AuditInputSanitizer
-	sanitizersMu    sync.Mutex
+	repo             domain.AuditLogRepository
+	settingsSvc      *SettingsService
+	sessions         SessionInfoProvider
+	connRepo         domain.ConnectionRepository
+	sanitizers       map[string]domain.AuditInputSanitizer
+	sanitizersMu     sync.Mutex
 	sanitizerFactory domain.AuditInputSanitizerFactory
-	trackerFactory  domain.CommandLineTrackerFactory
-	lineTrackers    map[string]domain.CommandLineTracker
-	lineTrackersMu  sync.Mutex
+	trackerFactory   domain.CommandLineTrackerFactory
+	lineTrackers     map[string]domain.CommandLineTracker
+	lineTrackersMu   sync.Mutex
 
 	sessionLogSecrets bool
 	secretsMu         sync.RWMutex
 }
 
-// SessionInfoProvider supplies session metadata for audit entries.
 type SessionInfoProvider interface {
 	GetState(sessionID string) (domain.ConnectionSession, error)
 }
 
-// NewAuditService creates an AuditService.
 func NewAuditService(
 	repo domain.AuditLogRepository,
 	settingsSvc *SettingsService,
@@ -64,33 +61,28 @@ func (s *AuditService) auditSettings() domain.AuditLogSettings {
 	return settings.AuditLog
 }
 
-// IsEnabled reports whether audit logging is enabled in vault settings.
 func (s *AuditService) IsEnabled() bool {
 	return s.auditSettings().Enabled
 }
 
-// SessionLogSecretsEnabled reports whether secret logging is active this session.
 func (s *AuditService) SessionLogSecretsEnabled() bool {
 	s.secretsMu.RLock()
 	defer s.secretsMu.RUnlock()
 	return s.sessionLogSecrets
 }
 
-// EnableSessionSecretLogging enables plaintext secret logging until lock/restart.
 func (s *AuditService) EnableSessionSecretLogging() {
 	s.secretsMu.Lock()
 	s.sessionLogSecrets = true
 	s.secretsMu.Unlock()
 }
 
-// DisableSessionSecretLogging turns off session secret logging.
 func (s *AuditService) DisableSessionSecretLogging() {
 	s.secretsMu.Lock()
 	s.sessionLogSecrets = false
 	s.secretsMu.Unlock()
 }
 
-// OnVaultLocked resets session-only secret logging.
 func (s *AuditService) OnVaultLocked() {
 	s.DisableSessionSecretLogging()
 }
@@ -109,14 +101,12 @@ func (s *AuditService) getSanitizer(sessionID string) domain.AuditInputSanitizer
 	return san
 }
 
-// FeedOutput updates sanitizer context from terminal output.
 func (s *AuditService) FeedOutput(sessionID, output string) {
 	if san := s.getSanitizer(sessionID); san != nil {
 		san.FeedOutput(output)
 	}
 }
 
-// RemoveSession cleans up per-session sanitizer state.
 func (s *AuditService) RemoveSession(sessionID string) {
 	s.sanitizersMu.Lock()
 	delete(s.sanitizers, sessionID)
@@ -127,7 +117,6 @@ func (s *AuditService) RemoveSession(sessionID string) {
 	s.lineTrackersMu.Unlock()
 }
 
-// ResolveCommandLine returns the submitted command line for audit logging.
 func (s *AuditService) ResolveCommandLine(sessionID, data, commandLine string) (string, bool) {
 	if commandLine != "" {
 		if tracker := s.getLineTracker(sessionID); tracker != nil {
@@ -157,7 +146,6 @@ func (s *AuditService) getLineTracker(sessionID string) domain.CommandLineTracke
 	return tracker
 }
 
-// RecordCommand persists a submitted command line when audit is enabled.
 func (s *AuditService) RecordCommand(ctx context.Context, sessionID, line string) error {
 	if s.repo == nil {
 		return nil
@@ -227,7 +215,6 @@ func (s *AuditService) RecordCommand(ctx context.Context, sessionID, line string
 	return s.EnforceRetention(ctx)
 }
 
-// Search queries audit log entries.
 func (s *AuditService) Search(ctx context.Context, query string, filter domain.AuditSearchFilter) ([]domain.AuditEntry, error) {
 	if s.repo == nil {
 		return nil, fmt.Errorf("audit log not available")
@@ -235,7 +222,6 @@ func (s *AuditService) Search(ctx context.Context, query string, filter domain.A
 	return s.repo.Search(ctx, query, filter)
 }
 
-// DeleteByID removes a single audit log entry.
 func (s *AuditService) DeleteByID(ctx context.Context, id int64) error {
 	if s.repo == nil {
 		return fmt.Errorf("audit log not available")
@@ -243,8 +229,6 @@ func (s *AuditService) DeleteByID(ctx context.Context, id int64) error {
 	return s.repo.DeleteByID(ctx, id)
 }
 
-// ClearAll removes audit log entries. An empty category clears all entries;
-// a non-empty category clears only entries of that category.
 func (s *AuditService) ClearAll(ctx context.Context, category string) error {
 	if s.repo == nil {
 		return fmt.Errorf("audit log not available")
@@ -252,7 +236,6 @@ func (s *AuditService) ClearAll(ctx context.Context, category string) error {
 	return s.repo.ClearAll(ctx, category)
 }
 
-// Close releases audit log resources.
 func (s *AuditService) Close() {
 	if s.repo != nil {
 		s.repo.Close()
@@ -269,7 +252,6 @@ func trimCommandLine(s string) string {
 	return s
 }
 
-// EnforceRetention applies configured retention policy.
 func (s *AuditService) EnforceRetention(ctx context.Context) error {
 	if s.repo == nil || !s.IsEnabled() {
 		return nil

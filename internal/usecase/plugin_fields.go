@@ -11,13 +11,11 @@ import (
 
 const pluginSecretRefPrefix = "secret:"
 
-// PluginFieldsService validates and persists plugin connection fields in the vault.
 type PluginFieldsService struct {
 	vault    domain.VaultRepository
 	registry *PluginRegistry
 }
 
-// NewPluginFieldsService creates a plugin fields service.
 func NewPluginFieldsService(vault domain.VaultRepository, registry *PluginRegistry) *PluginFieldsService {
 	return &PluginFieldsService{vault: vault, registry: registry}
 }

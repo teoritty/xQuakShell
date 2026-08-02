@@ -89,7 +89,6 @@ func ParsePuTTYReg(content string) ([]PuTTYSession, error) {
 	return sessions, nil
 }
 
-// ToConnection converts a PuTTY session to a domain Connection.
 func (p *PuTTYSession) ToConnection(folderID string, order int) domain.Connection {
 	conn := domain.Connection{
 		FolderID: folderID,

@@ -80,15 +80,15 @@ type SSHClient interface {
 
 // SSHClientConfig holds all parameters needed to establish an SSH connection.
 type SSHClientConfig struct {
-	Host            string
-	Port            int
-	User            string
+	Host             string
+	Port             int
+	User             string
 	Signers          []ssh.Signer
 	Password         string
 	ExtraAuthMethods []AuthMethod // plugin-provided auth (keyboard-interactive, remote signer)
 	HostKeyCallback  ssh.HostKeyCallback
-	TimeoutSeconds  int
-	Transport       net.Conn
+	TimeoutSeconds   int
+	Transport        net.Conn
 }
 
 // SSHClientFactory creates SSH connections from a configuration.
@@ -161,10 +161,8 @@ type HostKeyInfo struct {
 	Mismatch    bool   `json:"mismatch"`
 }
 
-// CommandLineTracker reconstructs shell command lines from PTY keystrokes.
 type CommandLineTracker interface {
 	Feed(data string) (submitted string, ok bool)
 }
 
-// CommandLineTrackerFactory creates a new command line tracker instance.
 type CommandLineTrackerFactory func() CommandLineTracker

@@ -16,7 +16,6 @@ type remoteFSSessionPort interface {
 	GetSessionContext(sessionID string) (context.Context, error)
 }
 
-// RemoteFSService orchestrates remote SFTP operations and UID/GID name resolution.
 type RemoteFSService struct {
 	sessions   remoteFSSessionPort
 	ownerCache map[string]map[string]string
@@ -24,7 +23,6 @@ type RemoteFSService struct {
 	mu         sync.Mutex
 }
 
-// NewRemoteFSService creates a RemoteFSService.
 func NewRemoteFSService(sessions remoteFSSessionPort) *RemoteFSService {
 	return &RemoteFSService{
 		sessions:   sessions,
@@ -33,7 +31,6 @@ func NewRemoteFSService(sessions remoteFSSessionPort) *RemoteFSService {
 	}
 }
 
-// ClearSessionCache removes cached identity mappings for a session.
 func (s *RemoteFSService) ClearSessionCache(sessionID string) {
 	s.mu.Lock()
 	delete(s.ownerCache, sessionID)
@@ -41,7 +38,6 @@ func (s *RemoteFSService) ClearSessionCache(sessionID string) {
 	s.mu.Unlock()
 }
 
-// ListPath lists remote directory contents with owner/group names resolved.
 func (s *RemoteFSService) ListPath(sessionID, dirPath string) ([]domain.RemoteNode, error) {
 	fs, err := s.sessions.GetRemoteFS(sessionID)
 	if err != nil {
@@ -66,7 +62,6 @@ func (s *RemoteFSService) ListPath(sessionID, dirPath string) ([]domain.RemoteNo
 	return nodes, nil
 }
 
-// MkdirPath creates a remote directory under parentPath.
 func (s *RemoteFSService) MkdirPath(sessionID, parentPath, name string) error {
 	fs, err := s.sessions.GetRemoteFS(sessionID)
 	if err != nil {
@@ -79,7 +74,6 @@ func (s *RemoteFSService) MkdirPath(sessionID, parentPath, name string) error {
 	return fs.Mkdir(ctx, path.Join(parentPath, name))
 }
 
-// CreateFilePath creates an empty remote file.
 func (s *RemoteFSService) CreateFilePath(sessionID, parentPath, name string) error {
 	fs, err := s.sessions.GetRemoteFS(sessionID)
 	if err != nil {
@@ -92,7 +86,6 @@ func (s *RemoteFSService) CreateFilePath(sessionID, parentPath, name string) err
 	return fs.CreateFile(ctx, path.Join(parentPath, name))
 }
 
-// RenamePath renames a remote file or directory.
 func (s *RemoteFSService) RenamePath(sessionID, oldPath, newPath string) error {
 	fs, err := s.sessions.GetRemoteFS(sessionID)
 	if err != nil {
@@ -105,7 +98,6 @@ func (s *RemoteFSService) RenamePath(sessionID, oldPath, newPath string) error {
 	return fs.Rename(ctx, oldPath, newPath)
 }
 
-// ChmodPath sets permission bits on a remote path.
 func (s *RemoteFSService) ChmodPath(sessionID, remotePath string, mode os.FileMode) error {
 	fs, err := s.sessions.GetRemoteFS(sessionID)
 	if err != nil {
@@ -118,7 +110,6 @@ func (s *RemoteFSService) ChmodPath(sessionID, remotePath string, mode os.FileMo
 	return fs.Chmod(ctx, remotePath, mode)
 }
 
-// ChownPath sets the owner uid/gid on a remote path.
 func (s *RemoteFSService) ChownPath(sessionID, remotePath string, uid, gid int) error {
 	fs, err := s.sessions.GetRemoteFS(sessionID)
 	if err != nil {

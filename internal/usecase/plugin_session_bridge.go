@@ -11,7 +11,6 @@ import (
 	domainplugin "xquakshell/internal/domain/plugin"
 )
 
-// SessionConnectParams is sent to plugins via session.connect RPC.
 type SessionConnectParams struct {
 	SessionID    string            `json:"sessionId"`
 	ConnectionID string            `json:"connectionId"`
@@ -42,7 +41,6 @@ type PluginSessionBridge struct {
 	pluginTerminalWriteTimeout time.Duration
 }
 
-// PluginSessionBridgeConfig configures the plugin session bridge.
 type PluginSessionBridgeConfig struct {
 	Plugins *PluginManager
 	Fields  *PluginFieldsService
@@ -58,7 +56,6 @@ type PluginSessionRuntimeConfig struct {
 	PluginTerminalWriteTimeout time.Duration
 }
 
-// WireSessionRuntime binds registry and presentation callbacks (called from NewSessionManager).
 func (b *PluginSessionBridge) WireSessionRuntime(cfg PluginSessionRuntimeConfig) {
 	if b == nil {
 		return
@@ -70,7 +67,6 @@ func (b *PluginSessionBridge) WireSessionRuntime(cfg PluginSessionRuntimeConfig)
 	b.pluginTerminalWriteTimeout = cfg.PluginTerminalWriteTimeout
 }
 
-// NewPluginSessionBridge creates a bridge over the plugin manager.
 func NewPluginSessionBridge(cfg PluginSessionBridgeConfig) *PluginSessionBridge {
 	return &PluginSessionBridge{
 		plugins: cfg.Plugins,
@@ -79,7 +75,6 @@ func NewPluginSessionBridge(cfg PluginSessionBridgeConfig) *PluginSessionBridge 
 	}
 }
 
-// SupportsProtocol reports whether a plugin owns the protocol.
 func (b *PluginSessionBridge) SupportsProtocol(protocol string) bool {
 	if b == nil || b.plugins == nil {
 		return false
@@ -233,17 +228,14 @@ func connAllowsPluginProtocol(b *PluginSessionBridge, pluginID, protocol string)
 	return plugin.Manifest.AllowsConnectProtocol(protocol)
 }
 
-// CallPlugin sends a JSON-RPC request to a plugin.
 func (b *PluginSessionBridge) CallPlugin(ctx context.Context, pluginID, method string, params json.RawMessage) (json.RawMessage, error) {
 	return b.plugins.Call(ctx, pluginID, method, params)
 }
 
-// NotifyForSession sends a JSON-RPC notification to a session-scoped plugin process.
 func (b *PluginSessionBridge) NotifyForSession(ctx context.Context, pluginID, sessionID, method string, params json.RawMessage) error {
 	return b.plugins.NotifyForSession(ctx, pluginID, sessionID, method, params)
 }
 
-// PluginIDForProtocol resolves the owning plugin for a protocol.
 func (b *PluginSessionBridge) PluginIDForProtocol(protocol string) (string, error) {
 	return b.plugins.Registry().PluginIDForProtocol(protocol)
 }

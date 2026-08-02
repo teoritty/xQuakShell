@@ -5,12 +5,10 @@ import (
 	"time"
 )
 
-// IdleTarget suspends plugins that exceeded an idle threshold.
 type IdleTarget interface {
 	SuspendIdlePlugins(ctx context.Context, idleAfter time.Duration)
 }
 
-// Config configures the idle suspender loop.
 type Config struct {
 	IdleAfter time.Duration
 	TickEvery time.Duration

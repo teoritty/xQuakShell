@@ -10,7 +10,6 @@ import (
 	"xquakshell/internal/pkg/safego"
 )
 
-// MemoryCache implements an in-memory cache with TTL.
 type MemoryCache struct {
 	mu         sync.RWMutex
 	items      map[string]*item
@@ -22,7 +21,6 @@ type item struct {
 	expiresAt time.Time
 }
 
-// NewMemoryCache creates a new in-memory cache.
 func NewMemoryCache(defaultTTL time.Duration) *MemoryCache {
 	c := &MemoryCache{
 		items:      make(map[string]*item),
@@ -32,7 +30,6 @@ func NewMemoryCache(defaultTTL time.Duration) *MemoryCache {
 	return c
 }
 
-// Get retrieves a value from cache.
 func (c *MemoryCache) Get(_ context.Context, key string) (interface{}, bool, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -47,12 +44,10 @@ func (c *MemoryCache) Get(_ context.Context, key string) (interface{}, bool, err
 	return entry.value, true, nil
 }
 
-// Set stores a value with default TTL.
 func (c *MemoryCache) Set(ctx context.Context, key string, value interface{}) error {
 	return c.SetWithTTL(ctx, key, value, c.defaultTTL)
 }
 
-// SetWithTTL stores a value with custom TTL.
 func (c *MemoryCache) SetWithTTL(_ context.Context, key string, value interface{}, ttl time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -64,7 +59,6 @@ func (c *MemoryCache) SetWithTTL(_ context.Context, key string, value interface{
 	return nil
 }
 
-// Delete removes a value from cache.
 func (c *MemoryCache) Delete(_ context.Context, key string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -72,7 +66,6 @@ func (c *MemoryCache) Delete(_ context.Context, key string) error {
 	return nil
 }
 
-// DeletePrefix removes all keys with the given prefix.
 func (c *MemoryCache) DeletePrefix(_ context.Context, prefix string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -84,7 +77,6 @@ func (c *MemoryCache) DeletePrefix(_ context.Context, prefix string) error {
 	return nil
 }
 
-// Clear removes all items from cache.
 func (c *MemoryCache) Clear(_ context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

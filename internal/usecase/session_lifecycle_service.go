@@ -34,21 +34,19 @@ type SessionLifecycleService struct {
 	hostKeyRequest  HostKeyRequestFunc
 }
 
-// SessionLifecycleConfig configures SessionLifecycleService.
 type SessionLifecycleConfig struct {
-	Registry        *SessionRegistry
-	ConnRepo        domain.ConnectionRepository
-	SSHConnector    *SSHConnector
-	Plugins         *PluginSessionBridge
-	PassphraseCache domain.PassphraseCache
-	DynamicForward  *DynamicForwardCoordinator
-	ForwardRules    *ForwardRuleValidator
+	Registry                  *SessionRegistry
+	ConnRepo                  domain.ConnectionRepository
+	SSHConnector              *SSHConnector
+	Plugins                   *PluginSessionBridge
+	PassphraseCache           domain.PassphraseCache
+	DynamicForward            *DynamicForwardCoordinator
+	ForwardRules              *ForwardRuleValidator
 	ForwardConnLimiterFactory func() domain.ConcurrencyLimiter
-	OnStateChange   StateChangeFunc
-	HostKeyRequest  HostKeyRequestFunc
+	OnStateChange             StateChangeFunc
+	HostKeyRequest            HostKeyRequestFunc
 }
 
-// NewSessionLifecycleService creates a lifecycle orchestrator.
 func NewSessionLifecycleService(cfg SessionLifecycleConfig) *SessionLifecycleService {
 	return &SessionLifecycleService{
 		registry:        cfg.Registry,
@@ -64,24 +62,18 @@ func NewSessionLifecycleService(cfg SessionLifecycleConfig) *SessionLifecycleSer
 	}
 }
 
-// SetIO wires the IO service after construction (breaks NotifySessionDisconnected cycle).
 func (s *SessionLifecycleService) SetIO(io *SessionIOService) {
 	s.io = io
 }
 
-// SetEmbed wires the embed tunnel service for session teardown.
 func (s *SessionLifecycleService) SetEmbed(embed *EmbedTunnelService) {
 	s.embed = embed
 }
 
-// SetChannelBus wires the channel bus for session-close cascade (ADR-011 §Session lifecycle
-// coupling), mirroring SetEmbed's shape.
 func (s *SessionLifecycleService) SetChannelBus(bus domainplugin.ChannelSessionCloser) {
 	s.channelBus = bus
 }
 
-// SetDiscovery wires the discovery leader tracker for the session-close cascade (ADR-014
-// §Leading session), mirroring SetChannelBus's shape.
 func (s *SessionLifecycleService) SetDiscovery(tracker DiscoverySessionTracker) {
 	s.discovery = tracker
 }
@@ -179,7 +171,6 @@ func (s *SessionLifecycleService) CloseSession(sessionID string) error {
 	return nil
 }
 
-// CloseAll terminates all active sessions.
 func (s *SessionLifecycleService) CloseAll() {
 	for _, id := range s.registry.IDs() {
 		s.CloseSession(id)
@@ -189,7 +180,6 @@ func (s *SessionLifecycleService) CloseAll() {
 	}
 }
 
-// GetState returns the current session info for a given session ID.
 func (s *SessionLifecycleService) GetState(sessionID string) (domain.ConnectionSession, error) {
 	entry, ok := s.registry.Get(sessionID)
 	if !ok {
@@ -198,7 +188,6 @@ func (s *SessionLifecycleService) GetState(sessionID string) (domain.ConnectionS
 	return entry.info, nil
 }
 
-// GetAllSessions returns info for all active sessions.
 func (s *SessionLifecycleService) GetAllSessions() []domain.ConnectionSession {
 	entries := s.registry.All()
 	result := make([]domain.ConnectionSession, 0, len(entries))
@@ -255,7 +244,6 @@ func (s *SessionLifecycleService) NotifySessionDisconnected(sessionID string) {
 	s.updateState(entry, domain.SessionError, "Connection lost")
 }
 
-// GetHostKeyInfo returns pending host key info for a session.
 func (s *SessionLifecycleService) GetHostKeyInfo(sessionID string) (*domain.HostKeyInfo, error) {
 	entry, ok := s.registry.Get(sessionID)
 	if !ok {
@@ -264,7 +252,6 @@ func (s *SessionLifecycleService) GetHostKeyInfo(sessionID string) (*domain.Host
 	return entry.hostKeyInfo, nil
 }
 
-// SetForwardRuleValidator wires forward rule validation at connect time.
 func (s *SessionLifecycleService) SetForwardRuleValidator(v *ForwardRuleValidator) {
 	if s != nil {
 		s.forwardRules = v

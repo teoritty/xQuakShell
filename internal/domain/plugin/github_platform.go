@@ -20,7 +20,6 @@ type GitHubRelease struct {
 	Assets      []GitHubReleaseAsset
 }
 
-// ParseGitHubAssetName extracts os/arch from a release asset filename.
 func ParseGitHubAssetName(filename string) (osName, arch string) {
 	name := strings.ToLower(filename)
 	name = strings.TrimSuffix(name, ".exe")
@@ -41,7 +40,6 @@ func ParseGitHubAssetName(filename string) (osName, arch string) {
 	return osName, arch
 }
 
-// ExtractPlatformsFromAssets maps release assets to supported platform entries.
 func ExtractPlatformsFromAssets(assets []GitHubReleaseAsset, checksums map[string]string) []PlatformInfo {
 	var platforms []PlatformInfo
 	for _, asset := range assets {
@@ -62,7 +60,6 @@ func ExtractPlatformsFromAssets(assets []GitHubReleaseAsset, checksums map[strin
 	return platforms
 }
 
-// BuildReleaseSummaries converts GitHub releases into discovery summaries without checksum downloads.
 func BuildReleaseSummaries(releases []GitHubRelease) []GitHubReleaseSummary {
 	summaries := make([]GitHubReleaseSummary, 0, len(releases))
 	for i := range releases {
@@ -79,7 +76,6 @@ func BuildReleaseSummaries(releases []GitHubRelease) []GitHubReleaseSummary {
 	return summaries
 }
 
-// HasReleaseWithPlatforms reports whether any release exposes platform assets.
 func HasReleaseWithPlatforms(releases []GitHubReleaseSummary) bool {
 	for _, release := range releases {
 		if len(release.Platforms) > 0 {
@@ -89,7 +85,6 @@ func HasReleaseWithPlatforms(releases []GitHubReleaseSummary) bool {
 	return false
 }
 
-// ParseChecksumsFile parses SHA256SUMS content into asset name -> checksum map.
 func ParseChecksumsFile(content string) map[string]string {
 	out := make(map[string]string)
 	for _, line := range strings.Split(content, "\n") {
@@ -107,7 +102,6 @@ func ParseChecksumsFile(content string) map[string]string {
 	return out
 }
 
-// ParseReleasePublishedAt normalizes GitHub's published_at timestamp.
 func ParseReleasePublishedAt(raw string) string {
 	if raw == "" {
 		return ""
@@ -119,7 +113,6 @@ func ParseReleasePublishedAt(raw string) string {
 	return t.Format(time.RFC3339)
 }
 
-// TotalReleaseDownloadCount sums asset download counts for a release.
 func TotalReleaseDownloadCount(assets []GitHubReleaseAsset) int {
 	total := 0
 	for _, a := range assets {

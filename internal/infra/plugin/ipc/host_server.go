@@ -15,23 +15,21 @@ import (
 	"xquakshell/internal/infra/plugin/capability"
 )
 
-// PluginAuditFunc records plugin security events without secrets.
 type PluginAuditFunc = domainplugin.AuditRecorder
 
-// HostServer handles plugin→core JSON-RPC requests.
 type HostServer struct {
-	pluginID   string
-	gate       *capability.Gate
-	fs         *capability.FSProxy
-	net        *capability.NetProxy
-	vault      *capability.VaultProxy
-	sessions   domainplugin.SessionRPCHandler
-	events     *capability.EventsProxy
-	views      *capability.ViewProxy
-	tunnelDial *capability.TunnelDialProxy
+	pluginID    string
+	gate        *capability.Gate
+	fs          *capability.FSProxy
+	net         *capability.NetProxy
+	vault       *capability.VaultProxy
+	sessions    domainplugin.SessionRPCHandler
+	events      *capability.EventsProxy
+	views       *capability.ViewProxy
+	tunnelDial  *capability.TunnelDialProxy
 	tunnelLocal *capability.TunnelLocalProxy
-	audit      PluginAuditFunc
-	onActivity PluginActivityFunc
+	audit       PluginAuditFunc
+	onActivity  PluginActivityFunc
 
 	logMu      sync.Mutex
 	logCount   int
@@ -39,40 +37,37 @@ type HostServer struct {
 	logWindow  time.Time
 }
 
-// PluginActivityFunc records inbound plugin RPC activity (idle suspend, metrics).
 type PluginActivityFunc func(pluginID string)
 
-// HostServerConfig configures a plugin host RPC server.
 type HostServerConfig struct {
-	PluginID string
-	Gate     *capability.Gate
-	FS       *capability.FSProxy
-	Net      *capability.NetProxy
-	Vault    *capability.VaultProxy
-	Sessions domainplugin.SessionRPCHandler
-	Events   *capability.EventsProxy
-	Views    *capability.ViewProxy
-	TunnelDial *capability.TunnelDialProxy
+	PluginID    string
+	Gate        *capability.Gate
+	FS          *capability.FSProxy
+	Net         *capability.NetProxy
+	Vault       *capability.VaultProxy
+	Sessions    domainplugin.SessionRPCHandler
+	Events      *capability.EventsProxy
+	Views       *capability.ViewProxy
+	TunnelDial  *capability.TunnelDialProxy
 	TunnelLocal *capability.TunnelLocalProxy
-	Audit    PluginAuditFunc
-	OnActivity PluginActivityFunc
+	Audit       PluginAuditFunc
+	OnActivity  PluginActivityFunc
 }
 
-// NewHostServer creates a host-side RPC dispatcher.
 func NewHostServer(cfg HostServerConfig) *HostServer {
 	return &HostServer{
-		pluginID:   cfg.PluginID,
-		gate:       cfg.Gate,
-		fs:         cfg.FS,
-		net:        cfg.Net,
-		vault:      cfg.Vault,
-		sessions:   cfg.Sessions,
-		events:     cfg.Events,
-		views:      cfg.Views,
-		tunnelDial: cfg.TunnelDial,
+		pluginID:    cfg.PluginID,
+		gate:        cfg.Gate,
+		fs:          cfg.FS,
+		net:         cfg.Net,
+		vault:       cfg.Vault,
+		sessions:    cfg.Sessions,
+		events:      cfg.Events,
+		views:       cfg.Views,
+		tunnelDial:  cfg.TunnelDial,
 		tunnelLocal: cfg.TunnelLocal,
-		audit:      cfg.Audit,
-		onActivity: cfg.OnActivity,
+		audit:       cfg.Audit,
+		onActivity:  cfg.OnActivity,
 	}
 }
 
@@ -359,7 +354,6 @@ func mustJSON(v any) json.RawMessage {
 	return data
 }
 
-// RequestHandler adapts HostServer to Conn request callbacks.
 func (s *HostServer) RequestHandler() RequestHandler {
 	return func(ctx context.Context, method string, params json.RawMessage) (json.RawMessage, *RPCError) {
 		return s.HandleRequest(ctx, method, params)

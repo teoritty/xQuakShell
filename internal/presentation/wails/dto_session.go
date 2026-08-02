@@ -6,7 +6,6 @@ import (
 	"xquakshell/internal/domain"
 )
 
-// SessionDTO is the UI-facing representation of a session.
 type SessionDTO struct {
 	SessionID      string           `json:"sessionId"`
 	ConnectionID   string           `json:"connectionId"`
@@ -18,20 +17,17 @@ type SessionDTO struct {
 	Embed          *SessionEmbedDTO `json:"embed,omitempty"`
 }
 
-// SessionEmbedDTO carries embed surface URLs for the frontend iframe.
 type SessionEmbedDTO struct {
 	UIUrl     string   `json:"uiUrl"`
 	TunnelUrl string   `json:"tunnelUrl"`
 	Sandbox   []string `json:"sandbox"`
 }
 
-// SessionEmbedReadyPayload is emitted when an embed session becomes interactive.
 type SessionEmbedReadyPayload struct {
-	SessionID string           `json:"sessionId"`
-	Embed     SessionEmbedDTO  `json:"embed"`
+	SessionID string          `json:"sessionId"`
+	Embed     SessionEmbedDTO `json:"embed"`
 }
 
-// RemoteNodeDTO is the UI-facing representation of a remote file/directory.
 type RemoteNodeDTO struct {
 	Path    string `json:"path"`
 	Name    string `json:"name"`
@@ -43,7 +39,6 @@ type RemoteNodeDTO struct {
 	Group   string `json:"group,omitempty"`
 }
 
-// AuditEntryDTO is the UI-facing representation of an audit log entry.
 type AuditEntryDTO struct {
 	ID             int64  `json:"id"`
 	Timestamp      string `json:"timestamp"`
@@ -57,14 +52,12 @@ type AuditEntryDTO struct {
 	Redacted       bool   `json:"redacted"`
 }
 
-// PingResultDTO is the UI-facing representation of a TCP ping result.
 type PingResultDTO struct {
 	ConnectionID string `json:"connectionId"`
 	Reachable    bool   `json:"reachable"`
 	LatencyMs    int64  `json:"latencyMs"`
 }
 
-// SessionToDTO maps a domain session to a DTO.
 func SessionToDTO(s domain.ConnectionSession) SessionDTO {
 	return SessionDTO{
 		SessionID:      s.SessionID,
@@ -77,7 +70,6 @@ func SessionToDTO(s domain.ConnectionSession) SessionDTO {
 	}
 }
 
-// SessionEmbedToDTO maps a domain embed descriptor to a DTO payload.
 func SessionEmbedToDTO(desc domain.SessionEmbedDescriptor) SessionEmbedReadyPayload {
 	return SessionEmbedReadyPayload{
 		SessionID: desc.SessionID,
@@ -89,7 +81,6 @@ func SessionEmbedToDTO(desc domain.SessionEmbedDescriptor) SessionEmbedReadyPayl
 	}
 }
 
-// RemoteNodeToDTO maps a domain remote node to a DTO.
 func RemoteNodeToDTO(n domain.RemoteNode) RemoteNodeDTO {
 	return RemoteNodeDTO{
 		Path:    n.Path,
@@ -103,7 +94,6 @@ func RemoteNodeToDTO(n domain.RemoteNode) RemoteNodeDTO {
 	}
 }
 
-// RemoteNodesToDTO maps a slice of domain remote nodes to DTOs.
 func RemoteNodesToDTO(ns []domain.RemoteNode) []RemoteNodeDTO {
 	result := make([]RemoteNodeDTO, len(ns))
 	for i, n := range ns {
@@ -112,7 +102,6 @@ func RemoteNodesToDTO(ns []domain.RemoteNode) []RemoteNodeDTO {
 	return result
 }
 
-// AuditEntryToDTO converts a domain.AuditEntry to AuditEntryDTO.
 func AuditEntryToDTO(e domain.AuditEntry) AuditEntryDTO {
 	return AuditEntryDTO{
 		ID:             e.ID,
@@ -128,7 +117,6 @@ func AuditEntryToDTO(e domain.AuditEntry) AuditEntryDTO {
 	}
 }
 
-// AuditEntriesToDTO converts a slice of domain.AuditEntry to DTOs.
 func AuditEntriesToDTO(entries []domain.AuditEntry) []AuditEntryDTO {
 	result := make([]AuditEntryDTO, len(entries))
 	for i, e := range entries {

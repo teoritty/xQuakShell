@@ -7,7 +7,6 @@ import (
 	"xquakshell/internal/domain"
 )
 
-// FolderDTO is the UI-facing representation of a folder.
 type FolderDTO struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
@@ -15,14 +14,12 @@ type FolderDTO struct {
 	Order    int    `json:"order"`
 }
 
-// PluginAuthConfigDTO holds plugin auth references for the UI.
 type PluginAuthConfigDTO struct {
 	PluginID     string            `json:"pluginId"`
 	AuthMethodID string            `json:"authMethodId"`
 	Fields       map[string]string `json:"fields,omitempty"`
 }
 
-// ConnectionUserDTO is the UI-facing representation of a connection user.
 type ConnectionUserDTO struct {
 	ID         string               `json:"id"`
 	Username   string               `json:"username"`
@@ -33,17 +30,14 @@ type ConnectionUserDTO struct {
 	Label      string               `json:"label,omitempty"`
 }
 
-// KeyAuthConfigDTO holds key auth references for the UI.
 type KeyAuthConfigDTO struct {
 	IdentityIDs []string `json:"identityIds"`
 }
 
-// PassAuthConfigDTO holds password auth reference for the UI.
 type PassAuthConfigDTO struct {
 	PasswordID string `json:"passwordId"`
 }
 
-// JumpHopDTO is the UI-facing representation of a single jump hop.
 type JumpHopDTO struct {
 	ID         string               `json:"id"`
 	Host       string               `json:"host"`
@@ -55,7 +49,6 @@ type JumpHopDTO struct {
 	PluginAuth *PluginAuthConfigDTO `json:"pluginAuth,omitempty"`
 }
 
-// ForwardRuleDTO is the UI-facing representation of a port-forward rule.
 type ForwardRuleDTO struct {
 	ID          string `json:"id"`
 	Kind        string `json:"kind"`
@@ -68,7 +61,6 @@ type ForwardRuleDTO struct {
 	Enabled     bool   `json:"enabled"`
 }
 
-// ConnectionDTO is the UI-facing representation of a connection.
 type ConnectionDTO struct {
 	ID            string              `json:"id"`
 	FolderID      string              `json:"folderId"`
@@ -87,10 +79,9 @@ type ConnectionDTO struct {
 	// uses this to show a "saved" placeholder and to leave the field out of the save payload while
 	// untouched — otherwise re-saving the connection would send an empty value and wipe the secret.
 	StoredSecretFields []string         `json:"storedSecretFields,omitempty"`
-	ForwardRules  []ForwardRuleDTO    `json:"forwardRules,omitempty"`
+	ForwardRules       []ForwardRuleDTO `json:"forwardRules,omitempty"`
 }
 
-// IdentityDTO is the UI-facing representation of an SSH identity.
 type IdentityDTO struct {
 	ID        string `json:"id"`
 	Comment   string `json:"comment"`
@@ -98,19 +89,16 @@ type IdentityDTO struct {
 	Encrypted bool   `json:"encrypted"`
 }
 
-// KnownHostDTO is the UI-facing representation of a known host entry.
 type KnownHostDTO struct {
 	Host        string `json:"host"`
 	KeyType     string `json:"keyType"`
 	Fingerprint string `json:"fingerprint"`
 }
 
-// FolderToDTO maps a domain folder to a DTO.
 func FolderToDTO(f domain.ConnectionFolder) FolderDTO {
 	return FolderDTO{ID: f.ID, Name: f.Name, ParentID: f.ParentID, Order: f.Order}
 }
 
-// FoldersToDTO maps a slice of domain folders to DTOs.
 func FoldersToDTO(fs []domain.ConnectionFolder) []FolderDTO {
 	result := make([]FolderDTO, len(fs))
 	for i, f := range fs {
@@ -119,7 +107,6 @@ func FoldersToDTO(fs []domain.ConnectionFolder) []FolderDTO {
 	return result
 }
 
-// ConnectionToDTO maps a domain connection to a DTO.
 func ConnectionToDTO(c domain.Connection) ConnectionDTO {
 	dto := ConnectionDTO{
 		ID:            c.ID,
@@ -288,7 +275,6 @@ func cloneStringSlice(in []string) []string {
 	return out
 }
 
-// ConnectionsToDTO maps a slice of domain connections to DTOs.
 func ConnectionsToDTO(cs []domain.Connection) []ConnectionDTO {
 	result := make([]ConnectionDTO, len(cs))
 	for i, c := range cs {
@@ -297,12 +283,10 @@ func ConnectionsToDTO(cs []domain.Connection) []ConnectionDTO {
 	return result
 }
 
-// IdentityToDTO maps a domain identity to a DTO.
 func IdentityToDTO(id domain.SSHIdentity) IdentityDTO {
 	return IdentityDTO{ID: id.ID, Comment: id.Comment, KeyType: id.KeyType, Encrypted: id.Encrypted}
 }
 
-// IdentitiesToDTO maps a slice of domain identities to DTOs.
 func IdentitiesToDTO(ids []domain.SSHIdentity) []IdentityDTO {
 	result := make([]IdentityDTO, len(ids))
 	for i, id := range ids {
@@ -311,12 +295,10 @@ func IdentitiesToDTO(ids []domain.SSHIdentity) []IdentityDTO {
 	return result
 }
 
-// KnownHostToDTO maps a domain known host entry to a DTO.
 func KnownHostToDTO(e domain.KnownHostEntry) KnownHostDTO {
 	return KnownHostDTO{Host: e.Host, KeyType: e.KeyType, Fingerprint: e.Fingerprint}
 }
 
-// KnownHostsToDTO maps a slice of domain known host entries to DTOs.
 func KnownHostsToDTO(es []domain.KnownHostEntry) []KnownHostDTO {
 	result := make([]KnownHostDTO, len(es))
 	for i, e := range es {
@@ -325,12 +307,10 @@ func KnownHostsToDTO(es []domain.KnownHostEntry) []KnownHostDTO {
 	return result
 }
 
-// DTOToFolder maps a FolderDTO back to a domain folder.
 func DTOToFolder(d FolderDTO) domain.ConnectionFolder {
 	return domain.ConnectionFolder{ID: d.ID, Name: d.Name, ParentID: d.ParentID, Order: d.Order}
 }
 
-// DTOToConnection maps a ConnectionDTO back to a domain connection.
 func DTOToConnection(d ConnectionDTO) domain.Connection {
 	c := domain.Connection{
 		ID:            d.ID,

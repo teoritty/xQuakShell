@@ -29,7 +29,6 @@ type RemoteOpService struct {
 	cancels  *CancelRegistry
 }
 
-// NewRemoteOpService creates a RemoteOpService over the shared cancel registry.
 func NewRemoteOpService(sessions remoteOpSessionPort, cancels *CancelRegistry) *RemoteOpService {
 	if cancels == nil {
 		panic("usecase: RemoteOpService requires CancelRegistry")
@@ -37,7 +36,6 @@ func NewRemoteOpService(sessions remoteOpSessionPort, cancels *CancelRegistry) *
 	return &RemoteOpService{sessions: sessions, cancels: cancels}
 }
 
-// Delete recursively deletes remotePath in the background, reporting progress.
 func (s *RemoteOpService) Delete(sessionID, remotePath string, onProgress TransferProgressFunc) error {
 	return s.run(sessionID, "delete", remotePath, domain.ApplyBoth, onProgress,
 		func(ctx context.Context, fs domain.RemoteFS, onEach func()) error {
@@ -45,7 +43,6 @@ func (s *RemoteOpService) Delete(sessionID, remotePath string, onProgress Transf
 		})
 }
 
-// ChmodRecursive applies mode under remotePath in the background, reporting progress.
 func (s *RemoteOpService) ChmodRecursive(sessionID, remotePath string, mode os.FileMode, applyTo domain.ApplyTarget, onProgress TransferProgressFunc) error {
 	return s.run(sessionID, "chmod", remotePath, applyTo, onProgress,
 		func(ctx context.Context, fs domain.RemoteFS, onEach func()) error {
@@ -53,7 +50,6 @@ func (s *RemoteOpService) ChmodRecursive(sessionID, remotePath string, mode os.F
 		})
 }
 
-// ChownRecursive applies uid/gid under remotePath in the background, reporting progress.
 func (s *RemoteOpService) ChownRecursive(sessionID, remotePath string, uid, gid int, applyTo domain.ApplyTarget, onProgress TransferProgressFunc) error {
 	return s.run(sessionID, "chown", remotePath, applyTo, onProgress,
 		func(ctx context.Context, fs domain.RemoteFS, onEach func()) error {

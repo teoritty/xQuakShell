@@ -8,25 +8,21 @@ import (
 	domainplugin "xquakshell/internal/domain/plugin"
 )
 
-// ForwardRuleManifestLookup resolves plugin manifest contributions for forward rules.
 type ForwardRuleManifestLookup interface {
 	HasTunnelProvider(pluginID string) (bool, error)
 	TunnelProviderExists(pluginID, providerID string) (bool, error)
 }
 
-// ForwardRuleGrantReader reports install-time tunnel provider consent.
 type ForwardRuleGrantReader interface {
 	IsTunnelProviderGranted(pluginID string) bool
 }
 
-// ForwardRuleValidator validates forward rules against vault and plugin manifests.
 type ForwardRuleValidator struct {
 	connRepo domain.ConnectionRepository
 	lookup   ForwardRuleManifestLookup
 	grants   ForwardRuleGrantReader
 }
 
-// NewForwardRuleValidator creates a forward rule validator.
 func NewForwardRuleValidator(connRepo domain.ConnectionRepository, lookup ForwardRuleManifestLookup, grants ForwardRuleGrantReader) *ForwardRuleValidator {
 	return &ForwardRuleValidator{connRepo: connRepo, lookup: lookup, grants: grants}
 }

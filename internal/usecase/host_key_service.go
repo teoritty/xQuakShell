@@ -7,23 +7,19 @@ import (
 	"xquakshell/internal/domain"
 )
 
-// HostKeyService orchestrates known-host mutations and host-key verification prompts.
 type HostKeyService struct {
 	repo     domain.KnownHostsRepository
 	sessions *SessionManager
 }
 
-// NewHostKeyService creates a HostKeyService.
 func NewHostKeyService(repo domain.KnownHostsRepository, sessions *SessionManager) *HostKeyService {
 	return &HostKeyService{repo: repo, sessions: sessions}
 }
 
-// List returns all known host entries.
 func (s *HostKeyService) List() ([]domain.KnownHostEntry, error) {
 	return s.repo.List()
 }
 
-// Add parses authorizedKey and stores a new known host entry.
 func (s *HostKeyService) Add(ctx context.Context, host, authorizedKey string) error {
 	key, err := domain.ParseAuthorizedSSHKey(authorizedKey)
 	if err != nil {
@@ -32,12 +28,10 @@ func (s *HostKeyService) Add(ctx context.Context, host, authorizedKey string) er
 	return s.repo.Add(ctx, host, key)
 }
 
-// Remove deletes a known host entry by host pattern.
 func (s *HostKeyService) Remove(ctx context.Context, host string) error {
 	return s.repo.Remove(ctx, host)
 }
 
-// Replace parses authorizedKey and replaces the existing host key entry.
 func (s *HostKeyService) Replace(ctx context.Context, host, authorizedKey string) error {
 	key, err := domain.ParseAuthorizedSSHKey(authorizedKey)
 	if err != nil {
@@ -46,7 +40,6 @@ func (s *HostKeyService) Replace(ctx context.Context, host, authorizedKey string
 	return s.repo.Replace(ctx, host, key)
 }
 
-// Verify checks a remote host key against stored known hosts.
 func (s *HostKeyService) Verify(host string, remoteKey domain.PublicKey) error {
 	return s.repo.Check(host, remoteKey)
 }

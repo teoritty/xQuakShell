@@ -8,15 +8,12 @@ import (
 	"xquakshell/internal/domain"
 )
 
-// SettingsService orchestrates reading and persisting application settings.
-// It applies defaults and normalization so presentation handlers stay thin.
 type SettingsService struct {
 	vaultRepo domain.VaultRepository
 	lockout   domain.LockoutManager
 	pingMgr   *PingManager
 }
 
-// NewSettingsService creates a SettingsService with the provided dependencies.
 func NewSettingsService(vault domain.VaultRepository, lockout domain.LockoutManager, ping *PingManager) *SettingsService {
 	return &SettingsService{vaultRepo: vault, lockout: lockout, pingMgr: ping}
 }

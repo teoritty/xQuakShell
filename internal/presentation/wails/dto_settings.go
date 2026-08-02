@@ -7,7 +7,6 @@ import (
 	"xquakshell/internal/usecase"
 )
 
-// LocalNodeDTO represents a local file or directory entry.
 type LocalNodeDTO struct {
 	Name    string `json:"name"`
 	Path    string `json:"path"`
@@ -18,7 +17,6 @@ type LocalNodeDTO struct {
 	Owner   string `json:"owner,omitempty"`
 }
 
-// AppSettingsDTO is the UI-facing representation of application settings.
 type AppSettingsDTO struct {
 	LockoutEnabled              bool   `json:"lockoutEnabled"`
 	LockoutIdleMinutes          int    `json:"lockoutIdleMinutes"`
@@ -53,7 +51,6 @@ type AppSettingsDTO struct {
 	DebugLogLevel               string `json:"debugLogLevel"`
 }
 
-// PuTTYSessionDTO is a preview item for REG import.
 type PuTTYSessionDTO struct {
 	Name     string `json:"name"`
 	HostName string `json:"hostName"`
@@ -61,7 +58,6 @@ type PuTTYSessionDTO struct {
 	UserName string `json:"userName"`
 }
 
-// puttySessionsToDTO converts parsed PuTTY sessions to UI DTOs.
 func puttySessionsToDTO(sessions []usecase.PuTTYSessionPreview) []PuTTYSessionDTO {
 	result := make([]PuTTYSessionDTO, len(sessions))
 	for i, s := range sessions {
@@ -75,12 +71,10 @@ func puttySessionsToDTO(sessions []usecase.PuTTYSessionPreview) []PuTTYSessionDT
 	return result
 }
 
-// LocalNodeToDTO converts a file/dir info to LocalNodeDTO.
 func LocalNodeToDTO(name, fullPath string, isDir bool, size int64, modTime, mode, owner string) LocalNodeDTO {
 	return LocalNodeDTO{Name: name, Path: fullPath, IsDir: isDir, Size: size, ModTime: modTime, Mode: mode, Owner: owner}
 }
 
-// AppSettingsToDTO converts domain.AppSettings to AppSettingsDTO.
 func AppSettingsToDTO(s domain.AppSettings) AppSettingsDTO {
 	return AppSettingsDTO{
 		LockoutEnabled:              s.Lockout.Enabled,
@@ -116,7 +110,6 @@ func AppSettingsToDTO(s domain.AppSettings) AppSettingsDTO {
 	}
 }
 
-// DTOToAppSettings converts AppSettingsDTO to domain.AppSettings.
 func DTOToAppSettings(dto AppSettingsDTO) domain.AppSettings {
 	return domain.AppSettings{
 		Lockout: domain.LockoutSettings{

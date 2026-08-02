@@ -15,26 +15,22 @@ type PluginAuditWriter struct {
 	repo domain.AuditLogRepository
 }
 
-// NewPluginAuditWriter creates a plugin audit writer.
 func NewPluginAuditWriter(repo domain.AuditLogRepository) *PluginAuditWriter {
 	return &PluginAuditWriter{repo: repo}
 }
 
-// RPCRecorder returns an audit callback for plugin→core RPC denials.
 func (w *PluginAuditWriter) RPCRecorder() domainplugin.AuditRecorder {
 	return func(pluginID, method string, denied bool, detail string) {
 		w.append(formatPluginRPCAuditLine(pluginID, method, denied, detail))
 	}
 }
 
-// StartFunc returns a start-authorization audit callback.
 func (w *PluginAuditWriter) StartFunc() PluginStartAuditFunc {
 	return func(pluginID, reason, detail string, denied bool) {
 		w.append(formatPluginStartAuditLine(pluginID, reason, detail, denied))
 	}
 }
 
-// OutboundAuthFunc returns an audit callback for host→plugin auth.* RPC calls.
 func (w *PluginAuditWriter) OutboundAuthFunc() OutboundAuthAuditFunc {
 	return func(pluginID, method, sanitizedParams string) {
 		w.append(formatPluginOutboundAuthAuditLine(pluginID, method, sanitizedParams))
@@ -88,7 +84,6 @@ func formatPluginStartAuditLine(pluginID, reason, detail string, denied bool) st
 	return line
 }
 
-// ChannelFunc returns a channel.open/channel.close audit callback.
 func (w *PluginAuditWriter) ChannelFunc() domainplugin.ChannelAuditRecorder {
 	return func(entry domainplugin.ChannelAuditEntry) {
 		w.append(formatPluginChannelAuditLine(entry))
@@ -110,7 +105,6 @@ func formatPluginChannelAuditLine(entry domainplugin.ChannelAuditEntry) string {
 	return line
 }
 
-// DiscoveryFunc returns a discovery.invokeAction audit callback.
 func (w *PluginAuditWriter) DiscoveryFunc() domainplugin.DiscoveryAuditRecorder {
 	return func(entry domainplugin.DiscoveryAuditEntry) {
 		w.append(formatPluginDiscoveryAuditLine(entry))
@@ -186,7 +180,6 @@ func joinAuditTokens(ids []string) string {
 	return strings.Join(safe, ",")
 }
 
-// SessionBindFunc returns a session bind/unbind audit callback.
 func (w *PluginAuditWriter) SessionBindFunc() SessionBindAuditFunc {
 	return func(pluginID, sessionID, action string, allowed bool, detail string) {
 		w.append(formatPluginSessionBindAuditLine(pluginID, sessionID, action, allowed, detail))

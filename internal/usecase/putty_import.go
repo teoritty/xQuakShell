@@ -24,7 +24,6 @@ type PuTTYImportService struct {
 	importer  domain.PuTTYImporter
 }
 
-// NewPuTTYImportService creates a PuTTY import service.
 func NewPuTTYImportService(connRepo domain.ConnectionRepository, identRepo domain.IdentityRepository, importer domain.PuTTYImporter) *PuTTYImportService {
 	return &PuTTYImportService{
 		connRepo:  connRepo,

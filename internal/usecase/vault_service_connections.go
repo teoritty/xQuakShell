@@ -6,12 +6,10 @@ import (
 	"xquakshell/internal/domain"
 )
 
-// GetAllConnections returns all connections in the vault.
 func (s *VaultService) GetAllConnections(ctx context.Context) ([]domain.Connection, error) {
 	return s.connRepo.GetAllConnections(ctx)
 }
 
-// GetConnection returns one connection by ID.
 func (s *VaultService) GetConnection(ctx context.Context, id string) (*domain.Connection, error) {
 	return s.connRepo.GetByID(ctx, id)
 }
@@ -42,27 +40,22 @@ func (s *VaultService) SaveConnection(ctx context.Context, conn *domain.Connecti
 	return saved, nil
 }
 
-// DeleteConnection removes a connection by ID.
 func (s *VaultService) DeleteConnection(ctx context.Context, id string) error {
 	return s.connRepo.Delete(ctx, id)
 }
 
-// MoveConnections moves connections to a target folder.
 func (s *VaultService) MoveConnections(ctx context.Context, connectionIDs []string, targetFolderID string) error {
 	return s.connRepo.MoveToFolder(ctx, connectionIDs, targetFolderID)
 }
 
-// MoveFolder changes a folder's parent.
 func (s *VaultService) MoveFolder(ctx context.Context, folderID, targetParentID string) error {
 	return s.connRepo.MoveFolder(ctx, folderID, targetParentID)
 }
 
-// ReorderConnections updates the order of connections within a folder.
 func (s *VaultService) ReorderConnections(ctx context.Context, connectionIDs []string, folderID string) error {
 	return s.connRepo.ReorderConnections(ctx, connectionIDs, folderID)
 }
 
-// ReorderFolders updates the order of folders under a parent.
 func (s *VaultService) ReorderFolders(ctx context.Context, folderIDs []string, parentID string) error {
 	return s.connRepo.ReorderFolders(ctx, folderIDs, parentID)
 }

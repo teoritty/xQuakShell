@@ -30,7 +30,6 @@ type PingSettings struct {
 	MaxConcurrent   int    `json:"maxConcurrent"`
 }
 
-// EffectiveIntervalSeconds returns the interval in seconds.
 func (p PingSettings) EffectiveIntervalSeconds() int {
 	if p.IntervalSeconds > 0 {
 		return p.IntervalSeconds
@@ -38,7 +37,6 @@ func (p PingSettings) EffectiveIntervalSeconds() int {
 	return 5
 }
 
-// EffectiveMaxConcurrent returns the max parallel ping workers.
 func (p PingSettings) EffectiveMaxConcurrent() int {
 	if p.MaxConcurrent > 0 {
 		return p.MaxConcurrent
@@ -46,7 +44,6 @@ func (p PingSettings) EffectiveMaxConcurrent() int {
 	return 16
 }
 
-// DefaultPingSettings returns reasonable defaults for ping monitoring.
 func DefaultPingSettings() PingSettings {
 	return PingSettings{
 		Enabled:         true,
@@ -70,7 +67,6 @@ type TransferSettings struct {
 	DefaultDownloadExistsAction string `json:"defaultDownloadExistsAction,omitempty"`
 }
 
-// DefaultTransferSettings returns reasonable defaults.
 func DefaultTransferSettings() TransferSettings {
 	return TransferSettings{
 		SpeedLimitKbps:       0,
@@ -79,7 +75,6 @@ func DefaultTransferSettings() TransferSettings {
 	}
 }
 
-// SessionHotkeysSettings configures keyboard shortcuts for session management.
 type SessionHotkeysSettings struct {
 	Create string `json:"create"`
 	Next   string `json:"next"`
@@ -87,7 +82,6 @@ type SessionHotkeysSettings struct {
 	Close  string `json:"close"`
 }
 
-// DefaultSessionHotkeysSettings returns default shortcuts for session management.
 func DefaultSessionHotkeysSettings() SessionHotkeysSettings {
 	return SessionHotkeysSettings{
 		Create: "Ctrl+Shift+N",
@@ -97,17 +91,14 @@ func DefaultSessionHotkeysSettings() SessionHotkeysSettings {
 	}
 }
 
-// EmbedSettings configures session embed behavior.
 type EmbedSettings struct {
 	SuspendTcpWhenInactive bool `json:"suspendTcpWhenInactive,omitempty"`
 }
 
-// DefaultEmbedSettings returns default embed session settings.
 func DefaultEmbedSettings() EmbedSettings {
 	return EmbedSettings{}
 }
 
-// DebugSettings configures developer diagnostics.
 type DebugSettings struct {
 	LogWindowEnabled bool `json:"logWindowEnabled,omitempty"`
 	// LogLevel is the minimum level published to the debug log
@@ -115,12 +106,10 @@ type DebugSettings struct {
 	LogLevel string `json:"logLevel,omitempty"`
 }
 
-// DefaultDebugSettings returns default debug settings.
 func DefaultDebugSettings() DebugSettings {
 	return DebugSettings{}
 }
 
-// AppSettings stores user-configurable application settings inside the vault.
 type AppSettings struct {
 	Lockout            LockoutSettings        `json:"lockout"`
 	Terminal           TerminalSettings       `json:"terminal"`
@@ -136,7 +125,6 @@ type AppSettings struct {
 	Debug              DebugSettings          `json:"debug"`
 }
 
-// PluginSettings configures plugin trust and install policy.
 type PluginSettings struct {
 	TrustedPublisherKeys          []string        `json:"trustedPublisherKeys,omitempty"`
 	RequireSignedPlugins          bool            `json:"requireSignedPlugins,omitempty"`
@@ -149,7 +137,6 @@ type PluginSettings struct {
 	Disabled                      map[string]bool `json:"disabled,omitempty"`
 }
 
-// DefaultPluginSettings returns default plugin install policy.
 func DefaultPluginSettings() PluginSettings {
 	return PluginSettings{}
 }

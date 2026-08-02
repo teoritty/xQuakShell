@@ -31,10 +31,8 @@ func (e *localEntry) disarmPreBindTimer() {
 	}
 }
 
-// PreBindEvictHook is called when a pre-bind local connection is evicted by timeout.
 type PreBindEvictHook func(pluginID, localConnID string)
 
-// TunnelDynamicService manages pre-bind local/tunnel channel registries for dynamic forwards.
 type TunnelDynamicService struct {
 	mu             sync.Mutex
 	local          map[string]*localEntry
@@ -45,7 +43,6 @@ type TunnelDynamicService struct {
 	preBindTimeout time.Duration // zero → domainplugin.PreBindTunnelTimeout
 }
 
-// NewTunnelDynamicService creates a dynamic tunnel coordinator.
 func NewTunnelDynamicService(dialer domain.TunnelChannelDialer, notify PluginTunnelNotifier) *TunnelDynamicService {
 	return &TunnelDynamicService{
 		local:    make(map[string]*localEntry),

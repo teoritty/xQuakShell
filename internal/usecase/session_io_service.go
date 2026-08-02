@@ -26,7 +26,6 @@ type SessionIOService struct {
 	onDisconnected    func(sessionID string)
 }
 
-// SessionIOServiceConfig configures SessionIOService.
 type SessionIOServiceConfig struct {
 	Registry          *SessionRegistry
 	VaultRepo         domain.VaultRepository
@@ -35,7 +34,6 @@ type SessionIOServiceConfig struct {
 	OnDisconnected    func(sessionID string)
 }
 
-// NewSessionIOService creates a SessionIOService.
 func NewSessionIOService(cfg SessionIOServiceConfig) *SessionIOService {
 	return &SessionIOService{
 		registry:          cfg.Registry,
@@ -46,7 +44,6 @@ func NewSessionIOService(cfg SessionIOServiceConfig) *SessionIOService {
 	}
 }
 
-// GetSSHClient returns the SSH client for a session.
 func (s *SessionIOService) GetSSHClient(sessionID string) (domain.SSHClient, error) {
 	entry, ok := s.registry.Get(sessionID)
 	if !ok {
@@ -58,7 +55,6 @@ func (s *SessionIOService) GetSSHClient(sessionID string) (domain.SSHClient, err
 	return entry.sshClient, nil
 }
 
-// GetRemoteFS returns the remote filesystem for a session.
 func (s *SessionIOService) GetRemoteFS(sessionID string) (domain.RemoteFS, error) {
 	entry, ok := s.registry.Get(sessionID)
 	if !ok {
@@ -70,7 +66,6 @@ func (s *SessionIOService) GetRemoteFS(sessionID string) (domain.RemoteFS, error
 	return entry.remoteFS, nil
 }
 
-// GetPTYBridge returns the PTY bridge for a session.
 func (s *SessionIOService) GetPTYBridge(sessionID string) (domain.TerminalPTYBridge, error) {
 	entry, ok := s.registry.Get(sessionID)
 	if !ok {
@@ -82,7 +77,6 @@ func (s *SessionIOService) GetPTYBridge(sessionID string) (domain.TerminalPTYBri
 	return entry.ptyBridge, nil
 }
 
-// GetSessionContext returns the context for a session.
 func (s *SessionIOService) GetSessionContext(sessionID string) (context.Context, error) {
 	entry, ok := s.registry.Get(sessionID)
 	if !ok {
@@ -91,7 +85,6 @@ func (s *SessionIOService) GetSessionContext(sessionID string) (context.Context,
 	return entry.ctx, nil
 }
 
-// SetRemoteFS stores the SFTP remote filesystem for a session.
 func (s *SessionIOService) SetRemoteFS(sessionID string, fs domain.RemoteFS) {
 	s.registry.Mutate(sessionID, func(entry *sessionEntry) {
 		entry.remoteFS = fs
@@ -215,7 +208,6 @@ func (s *SessionIOService) InitSessionIO(ctx context.Context, sessionID string) 
 	return outputCh, initialPath, nil
 }
 
-// Exec runs a command on the remote host via SSH and returns trimmed combined output.
 func (s *SessionIOService) Exec(sessionID, cmd string) (string, error) {
 	sshClient, err := s.GetSSHClient(sessionID)
 	if err != nil {
@@ -233,7 +225,6 @@ func (s *SessionIOService) Exec(sessionID, cmd string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// RunServerAlive sends periodic keepalive requests to detect connection loss.
 func (s *SessionIOService) RunServerAlive(entry *sessionEntry) {
 	var client domain.SSHClient
 	s.registry.View(entry.info.SessionID, func(e *sessionEntry) {
