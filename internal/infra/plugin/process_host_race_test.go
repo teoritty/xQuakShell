@@ -368,7 +368,9 @@ func buildSlowStartFixture(t *testing.T) string {
 	if runtime.GOOS == "windows" {
 		binName += ".exe"
 	}
-	binPath := filepath.Join(outDir, binName)
+	// Build into a separate temp dir: on non-Windows binName has no .exe suffix and a
+	// binary at outDir/plugin-slow-start would collide with the install directory below.
+	binPath := filepath.Join(t.TempDir(), binName)
 
 	cmd := exec.Command("go", "build", "-ldflags=-s -w", "-trimpath", "-o", binPath, "./test/fixtures/plugin-slow-start")
 	cmd.Dir = root

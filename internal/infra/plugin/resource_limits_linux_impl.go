@@ -15,8 +15,14 @@ func applyLinuxResourceLimits(pid int) error {
 		return fmt.Errorf("invalid plugin pid")
 	}
 
+	// RLIMIT_DATA, not RLIMIT_AS: AS caps *virtual* address space, and the Go runtime
+	// reserves multi-GiB PROT_NONE arenas at startup while touching only a few MiB —
+	// under a 128 MiB AS cap a Go plugin dies before main() with
+	// "fatal error: failed to reserve page summary memory". RLIMIT_DATA (kernel >= 4.7)
+	// counts brk plus committed private anonymous mappings, so it caps what the plugin
+	// actually allocates and still kills a runaway allocator.
 	mem := uint64(domainplugin.MaxPluginProcessMemoryBytes)
-	if err := unix.Prlimit(pid, unix.RLIMIT_AS, &unix.Rlimit{Cur: mem, Max: mem}, nil); err != nil {
+	if err := unix.Prlimit(pid, unix.RLIMIT_DATA, &unix.Rlimit{Cur: mem, Max: mem}, nil); err != nil {
 		return fmt.Errorf("plugin memory limit: %w", err)
 	}
 
