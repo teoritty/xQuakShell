@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"xquakshell/internal/domain"
-	"xquakshell/internal/infra/plugin/capability"
 	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/infra/plugin/capability"
 )
 
 func TestDynamicForwardCoordinator_StopSessionClosesPreBindLocals(t *testing.T) {
@@ -103,20 +103,25 @@ func TestDynamicForwardCoordinator_PreBindLocalTimeoutReleasesOwnerAndNotifies(t
 		t.Fatal("expected localOwners entry before timeout")
 	}
 
+	// evictPreBindLocal clears s.local (HasLocal) and only afterwards, via the
+	// onPreBindEvict hook, clears coord.localOwners. These are two separately
+	// locked pieces of state with no shared barrier, so an observer must wait
+	// for both together rather than treating "HasLocal is false" as proof
+	// that localOwners has already been released.
 	deadline := time.Now().Add(2 * time.Second)
-	for sf.service.HasLocal(localConnID) {
+	for {
+		coord.mu.Lock()
+		_, hasOwner = coord.localOwners[localConnID]
+		coord.mu.Unlock()
+		if !sf.service.HasLocal(localConnID) && !hasOwner {
+			break
+		}
 		if time.Now().After(deadline) {
 			t.Fatal("entry still present after pre-bind timeout")
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	coord.mu.Lock()
-	_, hasOwner = coord.localOwners[localConnID]
-	coord.mu.Unlock()
-	if hasOwner {
-		t.Fatal("localOwners entry still present after pre-bind timeout")
-	}
 	if closeNotified != 1 {
 		t.Fatalf("tunnel.localClose notifications = %d, want 1", closeNotified)
 	}
