@@ -1,13 +1,16 @@
 name: Test
+
 on:
   push:
     branches: [main, master]
   pull_request:
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25'
@@ -24,6 +27,18 @@ jobs:
         shell: pwsh
         run: ./scripts/check-session-manager-boundaries.ps1
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend (for go:embed)
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
       - name: Unit tests
         run: go test ./... -race -count=1
 
@@ -37,6 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -54,4 +70,3 @@ jobs:
       - name: Unit tests
         working-directory: frontend
         run: npm test
-
