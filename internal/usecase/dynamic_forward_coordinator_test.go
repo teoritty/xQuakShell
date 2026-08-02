@@ -184,8 +184,20 @@ func TestDynamicForwardCoordinator_PreBindLocalTimeoutReleasesLocalProxy(t *test
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	if err := localRequireLocal(localProxy, localConnID); !errors.Is(err, domainplugin.ErrHandleNotFound) {
-		t.Fatalf("local write after timeout = %v, want ErrHandleNotFound", err)
+	// The evict path removes the entry from the service map first and sends the
+	// tunnel.localClose notification after (post-unlock, past stopReading and conn.Close), so
+	// observing HasLocal == false does not yet imply the proxy release has happened — assert the
+	// released state with the same deadline instead of instantly.
+	deadline = time.Now().Add(2 * time.Second)
+	for {
+		err := localRequireLocal(localProxy, localConnID)
+		if errors.Is(err, domainplugin.ErrHandleNotFound) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("local write after timeout = %v, want ErrHandleNotFound", err)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
