@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	domainplugin "xquakshell/internal/domain/plugin"
+
 	"golang.org/x/sys/unix"
 )
 
@@ -14,19 +15,19 @@ func applyLinuxResourceLimits(pid int) error {
 		return fmt.Errorf("invalid plugin pid")
 	}
 
-	mem := domainplugin.MaxPluginProcessMemoryBytes
+	mem := uint64(domainplugin.MaxPluginProcessMemoryBytes)
 	if err := unix.Prlimit(pid, unix.RLIMIT_AS, &unix.Rlimit{Cur: mem, Max: mem}, nil); err != nil {
 		return fmt.Errorf("plugin memory limit: %w", err)
 	}
 
-	files := domainplugin.MaxPluginProcessOpenFiles
+	files := uint64(domainplugin.MaxPluginProcessOpenFiles)
 	if err := unix.Prlimit(pid, unix.RLIMIT_NOFILE, &unix.Rlimit{Cur: files, Max: files}, nil); err != nil {
 		return fmt.Errorf("plugin open-files limit: %w", err)
 	}
 
-	nproc := domainplugin.MaxPluginProcessThreads
+	nproc := uint64(domainplugin.MaxPluginProcessThreads)
 	if err := unix.Prlimit(pid, unix.RLIMIT_NPROC, &unix.Rlimit{Cur: nproc, Max: nproc}, nil); err != nil {
-		return nil
+		return fmt.Errorf("plugin thread limit: %w", err)
 	}
 	return nil
 }
