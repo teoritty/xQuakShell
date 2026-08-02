@@ -83,7 +83,9 @@ func buildFixturePlugin(t *testing.T, fixtureName string) string {
 	if runtime.GOOS == "windows" {
 		binName += ".exe"
 	}
-	binPath := filepath.Join(outDir, binName)
+	// The binary is built into a separate subdirectory: on non-Windows platforms binName has no
+	// .exe suffix and would otherwise collide with the install directory named after the fixture.
+	binPath := filepath.Join(outDir, "build", binName)
 
 	cmd := exec.Command("go", "build", "-ldflags=-s -w", "-trimpath", "-o", binPath, "./test/fixtures/"+fixtureName)
 	cmd.Dir = root

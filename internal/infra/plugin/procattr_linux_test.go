@@ -13,8 +13,8 @@ func TestConfigurePluginCmdSetsPdeathsigAndProcessGroup(t *testing.T) {
 	if err := configurePluginCmd(cmd); err != nil {
 		t.Fatal(err)
 	}
-	attr, ok := cmd.SysProcAttr.(*syscall.SysProcAttr)
-	if !ok || attr == nil {
+	attr := cmd.SysProcAttr
+	if attr == nil {
 		t.Fatal("expected SysProcAttr")
 	}
 	if !attr.Setpgid {

@@ -3,6 +3,7 @@ package plugin_test
 import (
 	"context"
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 
@@ -70,6 +71,16 @@ const testManifest = `{
   }
 }`
 
+// currentPlatformAssetName builds a release asset name matching runtime.GOOS/GOARCH
+// so that GetPlatformForCurrent() resolves it regardless of the CI platform.
+func currentPlatformAssetName() string {
+	name := "demo-" + runtime.GOOS + "-" + runtime.GOARCH
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return name
+}
+
 func newTestGitHubPluginService(t *testing.T, client usecase.GitHubAPIClient, downloader usecase.PluginBinaryDownloader, cache domainplugin.GitHubCache, storage domainplugin.GitHubRepositoryStorage) *usecase.GitHubPluginService {
 	t.Helper()
 	return usecase.NewGitHubPluginService(client, downloader, nil, nil, cache, nil, storage)
@@ -98,11 +109,16 @@ func TestFetchPluginMetadata_ReturnsMultipleReleases(t *testing.T) {
 }
 
 func TestInstallPluginFromGitHub_UsesSelectedReleaseTag(t *testing.T) {
+	// The asset must match the platform the test runs on: install resolves
+	// GetPlatformForCurrent() before invoking the downloader, so a windows-only
+	// asset list makes the install fail with ErrPlatformNotSupported on Linux CI
+	// and the downloader is never called.
+	asset := currentPlatformAssetName()
 	client := &recordingGitHubClient{
 		manifest: []byte(testManifest),
 		releases: []domainplugin.GitHubRelease{
-			{TagName: "v2.0.0", Assets: []domainplugin.GitHubReleaseAsset{{Name: "demo-windows-amd64.exe"}}},
-			{TagName: "v1.0.0", Assets: []domainplugin.GitHubReleaseAsset{{Name: "demo-windows-amd64.exe"}}},
+			{TagName: "v2.0.0", Assets: []domainplugin.GitHubReleaseAsset{{Name: asset}}},
+			{TagName: "v1.0.0", Assets: []domainplugin.GitHubReleaseAsset{{Name: asset}}},
 		},
 	}
 	downloader := &recordingDownloader{}
