@@ -39,10 +39,6 @@ var (
 	// ErrNetworkDialFailed indicates a permitted net.dial target could not be reached.
 	ErrNetworkDialFailed = errors.New("plugin network dial failed")
 
-	// ErrIncompatibleCore indicates the host core version is below manifest minCoreVersion.
-	// LEGACY: only the deprecated minCoreVersion path uses it; new code uses ErrIncompatibleAPI.
-	ErrIncompatibleCore = errors.New("plugin incompatible with host core version")
-
 	// ErrIncompatibleAPI indicates the host cannot satisfy a plugin's declared pluginApi or
 	// capability version requirement (wrong major, or host minor too low). Maps to RPC -32009.
 	ErrIncompatibleAPI = errors.New("plugin incompatible with host API version")

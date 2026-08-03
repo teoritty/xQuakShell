@@ -190,7 +190,7 @@ func TestDiscoveryRejectsTamperedUserPlugin(t *testing.T) {
 	}
 }
 
-func TestDiscoverySkipsIncompatibleMinCoreVersion(t *testing.T) {
+func TestDiscoverySkipsIncompatiblePluginAPI(t *testing.T) {
 	exeDir := t.TempDir()
 	dir := filepath.Join(exeDir, "plugins", "future")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -200,7 +200,7 @@ func TestDiscoverySkipsIncompatibleMinCoreVersion(t *testing.T) {
 		"id": "com.test.future",
 		"name": "Future",
 		"version": "1.0.0",
-		"minCoreVersion": "99.0.0",
+		"requires": {"pluginApi": "99.0.0"},
 		"engine": {"type": "go-binary", "entry": "p.exe"}
 	}`
 	if err := os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(manifest), 0o644); err != nil {

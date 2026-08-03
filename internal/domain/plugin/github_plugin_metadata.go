@@ -25,7 +25,6 @@ type GitHubPluginMetadata struct {
 	Author            string                 `json:"author,omitempty"`
 	Homepage          string                 `json:"homepage,omitempty"`
 	License           string                 `json:"license,omitempty"`
-	MinCoreVersion    string                 `json:"minCoreVersion,omitempty"`
 	Platforms         []PlatformInfo         `json:"platforms"`
 	AvailableReleases []GitHubReleaseSummary `json:"availableReleases"`
 	Tags              []string               `json:"tags,omitempty"`

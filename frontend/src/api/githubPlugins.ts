@@ -42,7 +42,6 @@ export interface GitHubPluginMetadata {
   prerelease: boolean;
   publishedAt: string;
   readme: string;
-  minCoreVersion: string;
   platformSupported: boolean;
   installed: boolean;
   installedVersion: string;
@@ -63,7 +62,6 @@ export interface GitHubPluginPreview {
   description: string;
   author: string;
   license: string;
-  minCoreVersion: string;
   currentPlatform: string;
   platformSupported: boolean;
   supportedPlatforms: string[];

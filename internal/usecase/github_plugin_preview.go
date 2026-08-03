@@ -17,7 +17,6 @@ type GitHubPluginPreviewDTO struct {
 	Description                  string   `json:"description"`
 	Author                       string   `json:"author"`
 	License                      string   `json:"license"`
-	MinCoreVersion               string   `json:"minCoreVersion"`
 	CurrentPlatform              string   `json:"currentPlatform"`
 	PlatformSupported            bool     `json:"platformSupported"`
 	SupportedPlatforms           []string `json:"supportedPlatforms"`
@@ -108,7 +107,6 @@ func BuildPreviewDTO(metadata *domainplugin.GitHubPluginMetadata, repoTrusted, u
 		Description:                  metadata.Description,
 		Author:                       metadata.Author,
 		License:                      metadata.License,
-		MinCoreVersion:               metadata.MinCoreVersion,
 		CurrentPlatform:              currentPlatform,
 		PlatformSupported:            metadata.SupportsCurrentPlatform(),
 		SupportedPlatforms:           supportedPlatforms,

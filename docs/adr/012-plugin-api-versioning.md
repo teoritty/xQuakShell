@@ -60,6 +60,8 @@ Within a major: only additions (minor bumps / new feature flags). Removal or a b
 - **Remove** a deprecated item: only in the `RemoveIn` major, after the window. Bump the capability's major and regenerate the golden.
 - **Migrate a legacy plugin**: replace `minCoreVersion` with a `requires{}` block. `minCoreVersion < 1.0.0` is rejected (built against the pre-1.0 API); `>= 1.0.0` is migrated with a deprecation warning.
 
+> **Amendment (2026-08):** the `minCoreVersion` migration edges (#8–#10) were removed before 1.0 as inapplicable — no plugin ever shipped against the pre-1.0 API, so there was nothing to migrate. A manifest declaring `minCoreVersion` is now rejected outright with a pointer to `requires{}`. The rest of this ADR stands.
+
 ## Rejected alternatives
 
 - **Single global API semver.** The original problem — an unrelated bump rejects compatible plugins.

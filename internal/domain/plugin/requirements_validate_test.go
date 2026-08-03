@@ -149,33 +149,8 @@ func TestCheckAgainstHostMatrix(t *testing.T) {
 	}
 }
 
-func TestEffectiveRequirementsMigration(t *testing.T) {
-	// Legacy pre-1.0 minCoreVersion is rejected (edge #8).
-	pre := vaultManifest(nil)
-	pre.MinCoreVersion = "0.2.0"
-	if _, _, err := domainplugin.EffectiveRequirements(&pre); !errors.Is(err, domainplugin.ErrIncompatibleAPI) {
-		t.Fatalf("expected ErrIncompatibleAPI for pre-1.0 minCoreVersion, got %v", err)
-	}
-
-	// Legacy >=1.0 minCoreVersion migrates with a deprecation warning (edge #9).
-	legacy := vaultManifest(nil)
-	legacy.MinCoreVersion = "1.0.0"
-	eff, warns, err := domainplugin.EffectiveRequirements(&legacy)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if eff.PluginAPI != "1.0.0" {
-		t.Fatalf("expected migrated pluginApi 1.0.0, got %q", eff.PluginAPI)
-	}
-	if len(warns) == 0 {
-		t.Fatal("expected a deprecation warning")
-	}
-	// Implicit baseline requirement injected for the granted vault capability (edge #3).
-	if _, ok := eff.Capabilities["vault"]; !ok {
-		t.Fatal("expected implicit vault baseline requirement")
-	}
-
-	// No requires + no minCoreVersion defaults to current envelope (edge #1).
+func TestEffectiveRequirementsDefaults(t *testing.T) {
+	// No requires{} defaults to current envelope (edge #1).
 	bare := vaultManifest(nil)
 	effBare, warnsBare, err := domainplugin.EffectiveRequirements(&bare)
 	if err != nil {
@@ -187,16 +162,16 @@ func TestEffectiveRequirementsMigration(t *testing.T) {
 	if len(warnsBare) == 0 {
 		t.Fatal("expected advisory warning for missing requires{}")
 	}
-
-	// requires{} present alongside minCoreVersion: requires wins, warns (edge #10).
-	both := vaultManifest(&domainplugin.RequirementSet{PluginAPI: "1.0.0"})
-	both.MinCoreVersion = "1.0.0"
-	effBoth, warnsBoth, err := domainplugin.EffectiveRequirements(&both)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	// Implicit baseline requirement injected for the granted vault capability (edge #3).
+	if _, ok := effBare.Capabilities["vault"]; !ok {
+		t.Fatal("expected implicit vault baseline requirement")
 	}
-	if effBoth.PluginAPI != "1.0.0" || len(warnsBoth) == 0 {
-		t.Fatalf("expected requires-wins with warning, got api=%q warns=%v", effBoth.PluginAPI, warnsBoth)
+
+	// minCoreVersion is no longer supported: hard rejection.
+	legacy := vaultManifest(nil)
+	legacy.MinCoreVersion = "1.0.0"
+	if _, _, err := domainplugin.EffectiveRequirements(&legacy); !errors.Is(err, domainplugin.ErrInvalidManifest) {
+		t.Fatalf("expected ErrInvalidManifest for minCoreVersion, got %v", err)
 	}
 }
 

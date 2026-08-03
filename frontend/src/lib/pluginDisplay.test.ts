@@ -25,7 +25,6 @@ function plugin(overrides: Partial<GitHubPluginMetadata> = {}): GitHubPluginMeta
     prerelease: false,
     publishedAt: '',
     readme: '',
-    minCoreVersion: '',
     platformSupported: true,
     installed: false,
     installedVersion: '',

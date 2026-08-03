@@ -27,6 +27,8 @@ type Manifest struct {
 	Name             string          `json:"name"`
 	Version          string          `json:"version"`
 	Description      string          `json:"description,omitempty"`
+	// MinCoreVersion is unsupported; kept only so resolvePluginAPI can reject
+	// manifests that still declare it with a clear error.
 	MinCoreVersion   string          `json:"minCoreVersion,omitempty"`
 	Requires         *RequirementSet `json:"requires,omitempty"`
 	Engine           EngineConfig    `json:"engine"`
@@ -253,9 +255,6 @@ func (m *Manifest) Validate() error {
 	}
 	if m.Isolation != "" && m.Isolation != IsolationPerPlugin && m.Isolation != IsolationPerSession {
 		return fmt.Errorf("%w: invalid isolation %q", ErrInvalidManifest, m.Isolation)
-	}
-	if err := ValidateMinCoreVersion(m.MinCoreVersion); err != nil {
-		return err
 	}
 	if err := m.ValidateCapabilitiesAndFields(); err != nil {
 		return err

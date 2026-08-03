@@ -954,7 +954,6 @@ export namespace wails {
 	    prerelease: boolean;
 	    publishedAt: string;
 	    readme: string;
-	    minCoreVersion: string;
 	    platformSupported: boolean;
 	    installed: boolean;
 	    installedVersion: string;
@@ -979,7 +978,6 @@ export namespace wails {
 	        this.prerelease = source["prerelease"];
 	        this.publishedAt = source["publishedAt"];
 	        this.readme = source["readme"];
-	        this.minCoreVersion = source["minCoreVersion"];
 	        this.platformSupported = source["platformSupported"];
 	        this.installed = source["installed"];
 	        this.installedVersion = source["installedVersion"];
@@ -1046,7 +1044,6 @@ export namespace wails {
 	    description: string;
 	    author: string;
 	    license: string;
-	    minCoreVersion: string;
 	    currentPlatform: string;
 	    platformSupported: boolean;
 	    supportedPlatforms: string[];
@@ -1081,7 +1078,6 @@ export namespace wails {
 	        this.description = source["description"];
 	        this.author = source["author"];
 	        this.license = source["license"];
-	        this.minCoreVersion = source["minCoreVersion"];
 	        this.currentPlatform = source["currentPlatform"];
 	        this.platformSupported = source["platformSupported"];
 	        this.supportedPlatforms = source["supportedPlatforms"];

@@ -7,15 +7,12 @@ import (
 )
 
 // EffectiveRequirements resolves a manifest into the concrete RequirementSet the host checks
-// against, applying the legacy minCoreVersion migration and filling implicit capability
-// baselines. It returns any deprecation/advisory warnings (for the caller to log) and an
-// error only for a hard rejection (a plugin built against the pre-1.0 API — ADR-012 edge #8).
+// against, filling implicit capability baselines. It returns any advisory warnings (for the
+// caller to log) and an error for a hard rejection.
 //
-// Resolution rules (ADR-012 edges #1, #8, #9, #10):
-//   - requires{} present        → authoritative; minCoreVersion, if also set, is ignored (warn).
-//   - only minCoreVersion, <1.0 → reject: built against the unstable 0.x API.
-//   - only minCoreVersion, ≥1.0 → migrate to requires{pluginApi: minCoreVersion} (deprecation warn).
-//   - neither                   → default to the current envelope baseline (advisory warn).
+// Resolution rules (ADR-012 edge #1):
+//   - requires{} present → authoritative.
+//   - absent             → default to the current envelope baseline (advisory warn).
 //
 // Regardless of source, every capability the plugin grants but does not explicitly require
 // gets an implicit requirement of the envelope-major baseline (e.g. 1.0.0), because declaring
@@ -49,37 +46,21 @@ func EffectiveRequirements(m *Manifest) (RequirementSet, []string, error) {
 }
 
 // resolvePluginAPI determines the effective pluginApi version string and any warnings/errors
-// from the manifest's requires/minCoreVersion combination.
+// from the manifest's requires declaration.
 func resolvePluginAPI(m *Manifest) (string, []string, error) {
 	var warnings []string
 
 	if m.Requires != nil {
-		// requires{} is authoritative (edge #10).
-		if m.MinCoreVersion != "" {
-			warnings = append(warnings, "minCoreVersion is ignored because requires{} is declared; remove minCoreVersion")
-		}
 		return m.Requires.PluginAPI, warnings, nil
 	}
 
-	if m.MinCoreVersion == "" {
-		// Nothing declared: default to the current envelope baseline (edge #1).
-		warnings = append(warnings, fmt.Sprintf("no requires{} declared; defaulting to pluginApi %s — declare requires{} explicitly", PluginAPIVersion))
-		return PluginAPIVersion, warnings, nil
+	if m.MinCoreVersion != "" {
+		return "", warnings, fmt.Errorf("%w: minCoreVersion is not supported; declare a requires{} block", ErrInvalidManifest)
 	}
 
-	// Legacy minCoreVersion only.
-	v, err := ParseSemver(m.MinCoreVersion)
-	if err != nil {
-		return "", warnings, fmt.Errorf("%w: invalid minCoreVersion %q", ErrInvalidManifest, m.MinCoreVersion)
-	}
-	if v.Major < 1 {
-		// Built against the unstable pre-1.0 API — reject even though 1.0.0 >= 0.x numerically
-		// passes the legacy comparison. We will not load a 0.x plugin into a frozen 1.0 host
-		// (edge #8).
-		return "", warnings, fmt.Errorf("%w: plugin targets pre-1.0 API (minCoreVersion %q); rebuild against pluginApi %s", ErrIncompatibleAPI, m.MinCoreVersion, PluginAPIVersion)
-	}
-	warnings = append(warnings, "minCoreVersion is deprecated; migrate to a requires{} block")
-	return m.MinCoreVersion, warnings, nil
+	// Nothing declared: default to the current envelope baseline (edge #1).
+	warnings = append(warnings, fmt.Sprintf("no requires{} declared; defaulting to pluginApi %s — declare requires{} explicitly", PluginAPIVersion))
+	return PluginAPIVersion, warnings, nil
 }
 
 // majorBaseline returns the "<major>.0.0" baseline string for a version.

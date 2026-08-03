@@ -39,7 +39,7 @@ The gate also applies a version check: a method mapped to an above-baseline capa
 
 ## API version handshake (ADR-012)
 
-Plugin API compatibility is negotiated at `initialize`, not trusted from the static manifest. The host advertises its full API descriptor (envelope version + per-capability versions and feature flags) and re-checks the plugin's `requires` against the **live** registry, failing closed on any skew. The host is the sole authority: a plugin's echoed descriptor is never trusted for enforcement. A plugin built against the pre-1.0 API (`minCoreVersion < 1.0.0`) is rejected. Incompatibilities surface as `-32009` (version) / `-32010` (missing feature) and are logged.
+Plugin API compatibility is negotiated at `initialize`, not trusted from the static manifest. The host advertises its full API descriptor (envelope version + per-capability versions and feature flags) and re-checks the plugin's `requires` against the **live** registry, failing closed on any skew. The host is the sole authority: a plugin's echoed descriptor is never trusted for enforcement. Incompatibilities surface as `-32009` (version) / `-32010` (missing feature) and are logged.
 
 ## Ownership (IDOR)
 

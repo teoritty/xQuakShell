@@ -1269,12 +1269,6 @@
                 <span class="meta-value">{formatPublishedDate(detailsRelease?.publishedAt || selectedGitHubPlugin.publishedAt)}</span>
               </div>
             {/if}
-            {#if selectedGitHubPlugin.minCoreVersion}
-              <div class="meta-item">
-                <span class="meta-label">Min core</span>
-                <span class="meta-value">{selectedGitHubPlugin.minCoreVersion}</span>
-              </div>
-            {/if}
           </div>
 
           {#if detailsRelease?.platforms?.length || selectedGitHubPlugin.platforms?.length}

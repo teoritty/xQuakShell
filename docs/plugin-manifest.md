@@ -10,7 +10,6 @@
 | `name` | string | yes | Display name |
 | `version` | string | yes | Semver string |
 | `description` | string | no | Short description |
-| `minCoreVersion` | string | no | **Deprecated** — use `requires` instead (see below). A value `< 1.0.0` is rejected. |
 | `requires` | object | no | Plugin API / capability version requirements (ADR-012) |
 | `engine` | object | yes | How to launch the plugin |
 | `capabilities` | object | no | Permission declarations |
@@ -43,10 +42,7 @@ plugin is checked against the host at install and again at `initialize`; the hos
 - All versions are strict `MAJOR.MINOR.PATCH` with **no** pre-release suffix.
 - You may only require a capability you also declare in `capabilities{}`. A granted capability with
   no explicit requirement gets an implicit baseline (`<major>.0.0`).
-
-Migration: `minCoreVersion` is deprecated. `>= 1.0.0` is auto-migrated to a `pluginApi` requirement
-(with a warning); `< 1.0.0` (built against the pre-1.0 API) is rejected — rebuild against
-`pluginApi 1.0` and declare `requires`.
+- `minCoreVersion` is not supported: a manifest declaring it is rejected — declare `requires` instead.
 
 ## Engine
 

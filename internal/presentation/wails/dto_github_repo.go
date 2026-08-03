@@ -76,7 +76,6 @@ type GitHubPluginMetadataDTO struct {
 	Prerelease          bool                      `json:"prerelease"`
 	PublishedAt         string                    `json:"publishedAt"`
 	README              string                    `json:"readme"`
-	MinCoreVersion      string                    `json:"minCoreVersion"`
 	PlatformSupported   bool                      `json:"platformSupported"`
 	Installed           bool                      `json:"installed"`
 	InstalledVersion    string                    `json:"installedVersion"`
@@ -100,7 +99,6 @@ type GitHubPluginPreviewResponseDTO struct {
 	Description                  string   `json:"description"`
 	Author                       string   `json:"author"`
 	License                      string   `json:"license"`
-	MinCoreVersion               string   `json:"minCoreVersion"`
 	CurrentPlatform              string   `json:"currentPlatform"`
 	PlatformSupported            bool     `json:"platformSupported"`
 	SupportedPlatforms           []string `json:"supportedPlatforms"`
@@ -144,7 +142,6 @@ func githubPreviewToDTO(p usecase.GitHubPluginPreviewDTO) GitHubPluginPreviewRes
 		Description:                  p.Description,
 		Author:                       p.Author,
 		License:                      p.License,
-		MinCoreVersion:               p.MinCoreVersion,
 		CurrentPlatform:              p.CurrentPlatform,
 		PlatformSupported:            p.PlatformSupported,
 		SupportedPlatforms:           supported,
@@ -186,7 +183,6 @@ func metadataToDTO(metadata *domainplugin.GitHubPluginMetadata, state installedP
 		Prerelease:          metadata.Prerelease,
 		PublishedAt:         metadata.PublishedAt,
 		README:              metadata.README,
-		MinCoreVersion:      metadata.MinCoreVersion,
 		PlatformSupported:   metadata.SupportsCurrentPlatform(),
 		Installed:           state.installed,
 		InstalledVersion:    state.installedVersion,

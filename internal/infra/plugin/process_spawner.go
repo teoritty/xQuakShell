@@ -31,10 +31,6 @@ func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, se
 	if err != nil {
 		return nil, fmt.Errorf("resolve plugin entry: %w", err)
 	}
-	if err := plugin.Manifest.CompatibleWithCore(domainplugin.HostCoreVersion); err != nil {
-		return nil, err
-	}
-
 	// The child process is deliberately NOT tied to the caller's context. exec.CommandContext makes
 	// the passed context own the LIFETIME of the child: cancelling it kills the process. Every caller
 	// of Start passes a short-lived request context (a WithTimeout with a `defer cancel()`), so a
