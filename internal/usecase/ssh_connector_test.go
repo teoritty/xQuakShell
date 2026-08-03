@@ -186,7 +186,7 @@ func passwordSSHConnection() *domain.Connection {
 			ID:       "u1",
 			Username: "root",
 			Auth:     domain.AuthMethodPassword,
-			PassAuth: &domain.PasswordAuthConfig{PasswordID: "p1"},
+			PassAuth: &domain.PasswordAuthConfig{VaultRef: "p1"},
 		}},
 		DefaultUserID: "u1",
 	}
@@ -272,7 +272,7 @@ func TestSSHJumpChainHostKeyUnknown(t *testing.T) {
 		Hops: []domain.JumpHop{{
 			Host: "hop1.example.com", Port: 22, Username: "jump",
 			Auth:     domain.AuthMethodPassword,
-			PassAuth: &domain.PasswordAuthConfig{PasswordID: "p1"},
+			PassAuth: &domain.PasswordAuthConfig{VaultRef: "p1"},
 		}},
 	}
 

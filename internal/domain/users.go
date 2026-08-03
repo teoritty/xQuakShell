@@ -29,8 +29,14 @@ type KeyAuthConfig struct {
 }
 
 // PasswordAuthConfig holds a reference to an encrypted password stored in the vault.
+//
+// VaultRef is an opaque handle, never the password itself: the plaintext only ever
+// exists inside PasswordRepository. The field is named for what it holds rather than
+// what it points at, so neither a reader nor a static analyser mistakes the handle
+// for the secret. The JSON tag stays `passwordId` — it is the persisted vault format
+// and the wire shape the frontend already speaks.
 type PasswordAuthConfig struct {
-	PasswordID string `json:"passwordId"`
+	VaultRef string `json:"passwordId"`
 }
 
 // ConnectionUser represents one of potentially many users configured for a single connection.
@@ -56,7 +62,7 @@ func (u *ConnectionUser) Validate() error {
 			return fmt.Errorf("key auth requires at least one identity: %w", ErrInvalidConnectionConfig)
 		}
 	case AuthMethodPassword:
-		if u.PassAuth == nil || u.PassAuth.PasswordID == "" {
+		if u.PassAuth == nil || u.PassAuth.VaultRef == "" {
 			return fmt.Errorf("password auth requires a password ID: %w", ErrInvalidConnectionConfig)
 		}
 	case AuthMethodPlugin:

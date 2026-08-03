@@ -252,10 +252,10 @@ func (p *PluginVaultInbound) resolveSecret(ctx context.Context, conn *domain.Con
 	user := conn.DefaultUser()
 	switch field {
 	case "password":
-		if user == nil || user.PassAuth == nil || user.PassAuth.PasswordID == "" {
+		if user == nil || user.PassAuth == nil || user.PassAuth.VaultRef == "" {
 			return nil, domainplugin.ErrCapabilityDenied
 		}
-		return p.passwordRepo.Get(ctx, user.PassAuth.PasswordID)
+		return p.passwordRepo.Get(ctx, user.PassAuth.VaultRef)
 	case "privateKey":
 		if user == nil || user.KeyAuth == nil || len(user.KeyAuth.IdentityIDs) == 0 {
 			return nil, domainplugin.ErrCapabilityDenied

@@ -183,7 +183,7 @@ func TestVaultGetSecretDeniedWithoutGrant(t *testing.T) {
 			ID: "c1",
 			Users: []domain.ConnectionUser{{
 				ID: "u1", Username: "u", Auth: domain.AuthMethodPassword,
-				PassAuth: &domain.PasswordAuthConfig{PasswordID: "p1"},
+				PassAuth: &domain.PasswordAuthConfig{VaultRef: "p1"},
 			}},
 			DefaultUserID: "u1",
 		}},
@@ -305,7 +305,7 @@ func TestVaultGetSecretFailsWhenAuditWriteFails(t *testing.T) {
 		ID: "c1",
 		Users: []domain.ConnectionUser{{
 			ID: "u1", Username: "u", Auth: domain.AuthMethodPassword,
-			PassAuth: &domain.PasswordAuthConfig{PasswordID: "p1"},
+			PassAuth: &domain.PasswordAuthConfig{VaultRef: "p1"},
 		}},
 		DefaultUserID: "u1",
 	}
@@ -344,7 +344,7 @@ func TestVaultGetSecretAuditOmitsSecretValue(t *testing.T) {
 		ID: "c1",
 		Users: []domain.ConnectionUser{{
 			ID: "u1", Username: "u", Auth: domain.AuthMethodPassword,
-			PassAuth: &domain.PasswordAuthConfig{PasswordID: "p1"},
+			PassAuth: &domain.PasswordAuthConfig{VaultRef: "p1"},
 		}},
 		DefaultUserID: "u1",
 	}

@@ -32,7 +32,7 @@ func (h *JumpHop) Validate() error {
 			return fmt.Errorf("jump hop key auth requires at least one identity: %w", ErrInvalidConnectionConfig)
 		}
 	case AuthMethodPassword:
-		if h.PassAuth == nil || h.PassAuth.PasswordID == "" {
+		if h.PassAuth == nil || h.PassAuth.VaultRef == "" {
 			return fmt.Errorf("jump hop password auth requires a password ID: %w", ErrInvalidConnectionConfig)
 		}
 	case AuthMethodPlugin:

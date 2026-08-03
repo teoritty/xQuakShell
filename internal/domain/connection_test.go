@@ -105,7 +105,7 @@ func TestConnection_ValidateForConnect_RejectsHopKeyAuthWithoutIdentities(t *tes
 	}
 }
 
-func TestConnection_ValidateForConnect_RejectsHopPasswordAuthWithoutPasswordID(t *testing.T) {
+func TestConnection_ValidateForConnect_RejectsHopPasswordAuthWithoutVaultRef(t *testing.T) {
 	c := sshConnectionReady(t)
 	c.JumpChain = JumpChainConfig{
 		Hops: []JumpHop{
@@ -159,7 +159,7 @@ func TestConnection_ValidateForConnect_AcceptsConfiguredJumpHops(t *testing.T) {
 				Port:     2222,
 				Username: "jump2",
 				Auth:     AuthMethodPassword,
-				PassAuth: &PasswordAuthConfig{PasswordID: "pw-1"},
+				PassAuth: &PasswordAuthConfig{VaultRef: "pw-1"},
 			},
 		},
 	}
@@ -184,7 +184,7 @@ func TestConnection_ValidateForConnect_RejectsDefaultKeyUserWithoutIdentities(t 
 	}
 }
 
-func TestConnection_ValidateForConnect_RejectsDefaultPasswordUserWithoutPasswordID(t *testing.T) {
+func TestConnection_ValidateForConnect_RejectsDefaultPasswordUserWithoutVaultRef(t *testing.T) {
 	c := sshConnectionReady(t)
 	c.Users[0].Auth = AuthMethodPassword
 	c.Users[0].KeyAuth = nil
