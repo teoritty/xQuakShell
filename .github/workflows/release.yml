@@ -5,11 +5,12 @@ on:
     tags:
       - 'v*'
 
+# Build jobs never need write access; only the publish job creates the release.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,19 +25,30 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # Pinned, not @latest: two runs of the same tag must produce the same binary.
+      # Kept equal to the wails/v2 version in go.mod (asserted by test/unit/release).
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+
+      - name: Derive version
+        shell: pwsh
+        run: |
+          # Archive names keep the leading "v"; the version compiled into the binary drops it.
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^v', ''
+          "TAG=$tag"         | Out-File -Append -Encoding ascii $env:GITHUB_ENV
+          "VERSION=$version" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
 
       - name: Build
-        run: wails build -platform windows/amd64 -clean
+        shell: pwsh
+        run: wails build -platform windows/amd64 -clean -ldflags "-X xquakshell/internal/presentation/wails.AppVersion=$env:VERSION"
 
       - name: Package portable (no WebView2)
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}"
-          $zip = "xQuakShell-$version-windows-amd64-portable.zip"
-          Compress-Archive -Path "build/bin/xQuakShell.exe" -DestinationPath $zip
-          echo "ZIP_LITE=$zip" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Compress-Archive -Path "build/bin/xQuakShell.exe" `
+            -DestinationPath "dist/xQuakShell-$env:TAG-windows-amd64-portable.zip"
 
       - name: Download WebView2 Fixed Runtime
         shell: pwsh
@@ -45,21 +57,41 @@ jobs:
       - name: Package portable (with WebView2)
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}"
-          $zip = "xQuakShell-$version-windows-amd64-portable-webview2.zip"
-          # весь build/bin: внутри архива будет xQuakShell.exe + WebView2/
-          Compress-Archive -Path "build/bin/*" -DestinationPath $zip
-          echo "ZIP_FULL=$zip" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
+          # Everything in build/bin: xQuakShell.exe + WebView2/
+          Compress-Archive -Path "build/bin/*" `
+            -DestinationPath "dist/xQuakShell-$env:TAG-windows-amd64-portable-webview2.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-archives
+          path: dist/*.zip
+          if-no-files-found: error
+
+  publish:
+    needs: [windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # No pattern filter: every archive any build job uploaded is published and checksummed,
+      # so a new platform job cannot be added without its files being covered.
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect archives
+        run: |
+          mkdir -p dist
+          find artifacts -type f \( -name '*.zip' -o -name '*.tar.gz' \) -exec mv {} dist/ \;
+          ls -l dist
 
       - name: Checksums
-        shell: pwsh
+        working-directory: dist
         run: |
-          $lines = @()
-          foreach ($zip in @($env:ZIP_LITE, $env:ZIP_FULL)) {
-            $lines += (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() + "  $zip"
-          }
-          $lines | Out-File -Encoding ascii SHA256SUMS
-          Get-Content SHA256SUMS
+          # Runs before SHA256SUMS exists, so the glob cannot include the file being written.
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -68,5 +100,6 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
           files: |
-            xQuakShell-*.zip
-            SHA256SUMS
+            dist/*.zip
+            dist/*.tar.gz
+            dist/SHA256SUMS
