@@ -11,6 +11,8 @@ type memVault struct {
 	data *domain.VaultData
 }
 
+func (m *memVault) Exists() bool                         { return true }
+func (m *memVault) Create(context.Context, string) error { return nil }
 func (m *memVault) Unlock(context.Context, string) error { return nil }
 func (m *memVault) Lock()                                {}
 func (m *memVault) IsUnlocked() bool                     { return true }

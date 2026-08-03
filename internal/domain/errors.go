@@ -17,6 +17,15 @@ var ErrVaultLocked = errors.New("vault is locked")
 // ErrVaultDecryptFailed indicates decryption of the vault failed (wrong master password or corrupted data).
 var ErrVaultDecryptFailed = errors.New("vault decryption failed")
 
+// ErrVaultNotFound indicates no vault file exists yet; the master password must be created first.
+var ErrVaultNotFound = errors.New("vault not found")
+
+// ErrVaultAlreadyExists indicates a vault file is already present and must not be overwritten.
+var ErrVaultAlreadyExists = errors.New("vault already exists")
+
+// ErrMasterPasswordTooShort indicates the proposed master password is below the minimum length policy.
+var ErrMasterPasswordTooShort = errors.New("master password is too short")
+
 // ErrUnsupportedVaultVersion indicates the vault file uses an unsupported schema version.
 var ErrUnsupportedVaultVersion = errors.New("unsupported vault version")
 

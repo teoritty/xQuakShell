@@ -14,8 +14,8 @@ func setupPasswordRepo(t *testing.T) (*persistence.PasswordRepo, context.Context
 	tmpDir := t.TempDir()
 	vaultRepo := persistence.NewVaultRepo(tmpDir)
 	ctx := context.Background()
-	if err := vaultRepo.Unlock(ctx, "test-pass"); err != nil {
-		t.Fatalf("unlock vault: %v", err)
+	if err := vaultRepo.Create(ctx, "test-pass"); err != nil {
+		t.Fatalf("create vault: %v", err)
 	}
 	passwordRepo := persistence.NewPasswordRepo(vaultRepo)
 	return passwordRepo, ctx

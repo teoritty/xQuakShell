@@ -9,7 +9,14 @@ import (
 
 // VaultRepository provides access to the encrypted vault storage.
 // GetData returns a deep snapshot; mutations must go through UpdateData.
+//
+// Create is the only way a vault comes into existence — Unlock never creates
+// one — and it leaves the vault unlocked on success. Exists is an advisory
+// probe for the UI to choose between the create and unlock screens; the
+// authoritative check happens inside Create.
 type VaultRepository interface {
+	Exists() bool
+	Create(ctx context.Context, masterPassword string) error
 	Unlock(ctx context.Context, masterPassword string) error
 	Lock()
 	IsUnlocked() bool
