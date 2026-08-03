@@ -29,6 +29,7 @@ type AppAPI struct {
 	localFS                     *usecase.LocalFSService
 	portableData                domain.PortableDataStore
 	puttyImport                 *usecase.PuTTYImportService
+	sshConfigImport             *usecase.SSHConfigImportService
 	lockout                     domain.LockoutManager
 	pingMgr                     *usecase.PingManager
 	plugins                     *usecase.PluginManager
@@ -66,6 +67,7 @@ func NewAppAPI(
 	trackerFactory domain.CommandLineTrackerFactory,
 	sanitizerFactory domain.AuditInputSanitizerFactory,
 	puttyImporter domain.PuTTYImporter,
+	sshConfigImporter domain.SSHConfigImporter,
 	pluginMgr *usecase.PluginManager,
 	pluginInbound *usecase.PluginSessionInbound,
 	pluginViewInbound *usecase.PluginViewInbound,
@@ -96,15 +98,16 @@ func NewAppAPI(
 		ProtocolLookup: protocolLookup,
 	})
 	api := &AppAPI{
-		vaultRepo:    vaultRepo,
-		vaultSvc:     vaultSvc,
-		portableData: portableData,
-		puttyImport:  usecase.NewPuTTYImportService(connRepo, identRepo, puttyImporter),
-		lockout:      lockoutMgr,
-		pingMgr:      pingMgr,
-		plugins:      pluginMgr,
-		settingsSvc:  usecase.NewSettingsService(vaultRepo, lockoutMgr, pingMgr),
-		logLevel:     logLevel,
+		vaultRepo:       vaultRepo,
+		vaultSvc:        vaultSvc,
+		portableData:    portableData,
+		puttyImport:     usecase.NewPuTTYImportService(connRepo, identRepo, puttyImporter),
+		sshConfigImport: usecase.NewSSHConfigImportService(connRepo, identRepo, sshConfigImporter),
+		lockout:         lockoutMgr,
+		pingMgr:         pingMgr,
+		plugins:         pluginMgr,
+		settingsSvc:     usecase.NewSettingsService(vaultRepo, lockoutMgr, pingMgr),
+		logLevel:        logLevel,
 	}
 
 	smCfg := usecase.SessionManagerConfig{

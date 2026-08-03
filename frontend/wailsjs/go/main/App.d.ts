@@ -79,6 +79,8 @@ export function GetPluginSettings():Promise<wails.PluginSettingsDTO>;
 
 export function GetPortableDataRoot():Promise<string>;
 
+export function GetSSHConfigDefaultPath():Promise<string>;
+
 export function GetSessionState(arg1:string):Promise<wails.SessionDTO>;
 
 export function GetSettings():Promise<wails.AppSettingsDTO>;
@@ -98,6 +100,8 @@ export function ImportPuTTYPPK(arg1:string,arg2:string):Promise<string>;
 export function ImportPuTTYReg(arg1:string):Promise<Array<wails.PuTTYSessionDTO>>;
 
 export function ImportPuTTYRegAsConnections(arg1:string,arg2:string):Promise<Array<wails.ConnectionDTO>>;
+
+export function ImportSSHConfig(arg1:string,arg2:Array<string>,arg3:string,arg4:boolean):Promise<wails.SSHConfigImportResultDTO>;
 
 export function InstallGitHubPlugin(arg1:string,arg2:string,arg3:boolean,arg4:boolean,arg5:boolean,arg6:boolean,arg7:boolean,arg8:boolean):Promise<void>;
 
@@ -144,6 +148,8 @@ export function PreparePluginViewPanel(arg1:string,arg2:string):Promise<string>;
 export function PreviewGitHubPluginInstall(arg1:string,arg2:string):Promise<wails.GitHubPluginPreviewResponseDTO>;
 
 export function PreviewPluginInstall(arg1:string):Promise<wails.PluginInstallPreviewDTO>;
+
+export function PreviewSSHConfig(arg1:string):Promise<wails.SSHConfigPreviewDTO>;
 
 export function RelayPluginViewMessage(arg1:string,arg2:json.RawMessage):Promise<void>;
 

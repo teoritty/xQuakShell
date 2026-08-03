@@ -26,6 +26,9 @@
   import { openSession } from '../actions/sessionActions';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import ImportPuTTYDialog from './ImportPuTTYDialog.svelte';
+  import ImportSSHConfigDialog from './ImportSSHConfigDialog.svelte';
+  import ImportMenu from './remoteTree/ImportMenu.svelte';
+  import type { MenuAnchorRect } from './clampMenuPosition';
   import RemoteTreeContextMenu from './RemoteTreeContextMenu.svelte';
   import { openContextMenu, releaseContextMenu } from './contextMenuManager';
   import { buildTree, countConnectionsInFolder, flattenTree } from './remoteTree/buildTree';
@@ -117,6 +120,8 @@
   let confirmDeleteCritical = false;
   let confirmDeleteChildCount = 0;
   let showImportDialog = false;
+  let showSSHConfigDialog = false;
+  let importMenu: { show: boolean; anchor: MenuAnchorRect | null } = { show: false, anchor: null };
   let confirmActionShow = false;
   let confirmActionMessage = '';
   let pendingAction: { item: DiscoveryMenuItem; menu: DiscoveryMenu } | null = null;
@@ -384,6 +389,7 @@
 
   function handleWindowClick(e: MouseEvent) {
     closeContextMenu();
+    importMenu = { ...importMenu, show: false };
     const target = e.target as HTMLElement | null;
     if (!target) return;
     if (target.closest('.tree-node')) return;
@@ -660,7 +666,8 @@
   <RemoteTreeToolbar
     onNewConnection={() => createNewConnectionInFolder($selectedFolderId)}
     onNewFolder={() => createNewFolderInFolder($selectedFolderId)}
-    onImport={() => (showImportDialog = true)}
+    onImport={(anchor) => (importMenu = { show: true, anchor })}
+    importMenuOpen={importMenu.show}
     onExpandAll={expandAll}
     onCollapseAll={collapseAll}
   />
@@ -757,4 +764,15 @@
   on:cancel={() => (confirmDeleteShow = false)}
 />
 
+<ImportMenu
+  show={importMenu.show}
+  anchor={importMenu.anchor}
+  on:close={() => (importMenu = { ...importMenu, show: false })}
+  on:select={({ detail }) => {
+    if (detail === 'putty') showImportDialog = true;
+    else showSSHConfigDialog = true;
+  }}
+/>
+
 <ImportPuTTYDialog bind:show={showImportDialog} />
+<ImportSSHConfigDialog bind:show={showSSHConfigDialog} />

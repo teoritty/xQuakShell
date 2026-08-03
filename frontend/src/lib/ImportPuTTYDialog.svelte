@@ -3,6 +3,7 @@
   import { importPuTTYPPK, importPuTTYRegPreview, importPuTTYRegAsConnections, type PuTTYSessionPreview } from '../api/credentials';
   import { refreshAllConnections, refreshIdentities } from '../actions/connectionActions';
   import { selectedFolderId } from '../stores/appState';
+  import { bytesToBase64, decodeTextFile } from './importPuTTY/fileEncoding';
   import { KeyRound } from 'lucide-svelte';
 
   export let show = false;
@@ -23,18 +24,21 @@
     importResult = '';
   }
 
+  // Both branches read raw bytes rather than File.text(): that helper always
+  // assumes UTF-8, and neither of these files is reliably UTF-8. See
+  // importPuTTY/fileEncoding.ts.
   async function handleFileSelect(e: Event) {
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
     const name = file.name.toLowerCase();
+    const bytes = new Uint8Array(await file.arrayBuffer());
     if (name.endsWith('.ppk')) {
       fileType = 'ppk';
-      const text = await file.text();
-      ppkBase64 = btoa(text);
+      ppkBase64 = bytesToBase64(bytes);
     } else if (name.endsWith('.reg')) {
       fileType = 'reg';
-      regContent = await file.text();
+      regContent = decodeTextFile(bytes);
       regPreview = await importPuTTYRegPreview(regContent);
     }
     input.value = '';
@@ -90,6 +94,16 @@
         </button>
       {/if}
 
+      {#if fileType === 'reg' && regPreview.length === 0}
+        <!-- Without this the dialog rendered nothing at all for a .reg that
+             yielded no sessions, which reads as the file picker having failed. -->
+        <p class="reg-empty">
+          No saved sessions found in this file. A PuTTY export should contain
+          <code>[…\SimonTatham\PuTTY\Sessions\…]</code> entries with a
+          <code>HostName</code> value.
+        </p>
+      {/if}
+
       {#if fileType === 'reg' && regPreview.length > 0}
         <div class="reg-preview">
           <h4>Found {regPreview.length} session(s)</h4>
@@ -129,6 +143,8 @@
   .drop-zone:hover { border-color: var(--accent); color: var(--text-primary); }
   .field-block { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
   .field-block span { font-size: 11px; color: var(--text-secondary); }
+  .reg-empty { font-size: 12px; color: var(--text-secondary); margin-top: 12px; }
+  .reg-empty code { font-size: 11px; color: var(--text-primary); }
   .reg-preview { margin-top: 16px; }
   .reg-preview h4 { font-size: 12px; margin-bottom: 8px; }
   .preview-list { max-height: 120px; overflow-y: auto; margin-bottom: 12px; font-size: 11px; }

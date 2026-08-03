@@ -32,6 +32,9 @@
     "test:api-folders": "tsx src/api/folders.test.ts",
     "test:api-connections": "tsx src/api/connections.test.ts",
     "test:api-credentials": "tsx src/api/credentials.test.ts",
+    "test:api-sshconfig": "tsx src/api/sshConfig.test.ts",
+    "test:import-selection": "tsx src/lib/importSSHConfig/importSelection.test.ts",
+    "test:putty-encoding": "tsx src/lib/importPuTTY/fileEncoding.test.ts",
     "test:api-knownhosts": "tsx src/api/knownHosts.test.ts",
     "test:api-settings": "tsx src/api/settings.test.ts",
     "test:api-audit": "tsx src/api/audit.test.ts",
@@ -49,7 +52,7 @@
     "test:actions-protocols": "tsx src/actions/protocolActions.test.ts",
     "test:actions-transfers": "tsx src/actions/transferActions.test.ts",
     "test:arch": "tsx src/architecture.test.ts",
-    "test": "npm run test:dnd && npm run test:ping-characterization && npm run test:status-dot && npm run test:discovery-tree && npm run test:discovery-selection && npm run test:discovery-actions && npm run test:discovery-isolation && npm run test:discovery-markup && npm run test:api-discovery && npm run test:discovery-state && npm run test:connection-details && npm run test:tiles && npm run test:transfers && npm run test:transfer-conflict && npm run test:password-strength && npm run test:backend && npm run test:hotkeys && npm run test:terminal && npm run test:events && npm run test:api-remotefs && npm run test:api-localfs && npm run test:api-folders && npm run test:api-connections && npm run test:api-credentials && npm run test:api-knownhosts && npm run test:api-settings && npm run test:api-audit && npm run test:api-plugin-runtime && npm run test:api-plugins && npm run test:api-github-plugins && npm run test:api-vault && npm run test:api-sessions && npm run test:api-terminal && npm run test:actions-sessions && npm run test:actions-vault && npm run test:actions-folders && npm run test:actions-connections && npm run test:actions-settings && npm run test:actions-protocols && npm run test:actions-transfers && npm run test:arch"
+    "test": "npm run test:dnd && npm run test:ping-characterization && npm run test:status-dot && npm run test:discovery-tree && npm run test:discovery-selection && npm run test:discovery-actions && npm run test:discovery-isolation && npm run test:discovery-markup && npm run test:api-discovery && npm run test:discovery-state && npm run test:connection-details && npm run test:tiles && npm run test:transfers && npm run test:transfer-conflict && npm run test:password-strength && npm run test:backend && npm run test:hotkeys && npm run test:terminal && npm run test:events && npm run test:api-remotefs && npm run test:api-localfs && npm run test:api-folders && npm run test:api-connections && npm run test:api-credentials && npm run test:api-sshconfig && npm run test:import-selection && npm run test:putty-encoding && npm run test:api-knownhosts && npm run test:api-settings && npm run test:api-audit && npm run test:api-plugin-runtime && npm run test:api-plugins && npm run test:api-github-plugins && npm run test:api-vault && npm run test:api-sessions && npm run test:api-terminal && npm run test:actions-sessions && npm run test:actions-vault && npm run test:actions-folders && npm run test:actions-connections && npm run test:actions-settings && npm run test:actions-protocols && npm run test:actions-transfers && npm run test:arch"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^1.0.1",

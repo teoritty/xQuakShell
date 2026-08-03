@@ -212,6 +212,18 @@ func (a *App) ImportPuTTYRegAsConnections(regContent, folderID string) ([]presen
 	return a.api.ImportPuTTYRegAsConnections(regContent, folderID)
 }
 
+func (a *App) GetSSHConfigDefaultPath() (string, error) {
+	return a.api.GetSSHConfigDefaultPath()
+}
+
+func (a *App) PreviewSSHConfig(path string) (presentation.SSHConfigPreviewDTO, error) {
+	return a.api.PreviewSSHConfig(path)
+}
+
+func (a *App) ImportSSHConfig(path string, aliases []string, folderID string, importKeys bool) (presentation.SSHConfigImportResultDTO, error) {
+	return a.api.ImportSSHConfig(path, aliases, folderID, importKeys)
+}
+
 func (a *App) OpenSession(connectionID string) (string, error) {
 	return a.api.OpenSession(connectionID)
 }

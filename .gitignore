@@ -6,9 +6,23 @@ AUDIT-*.md
 .superpowers/
 
 # --- Build outputs ---
-build/bin/
-build/appicon.png
 frontend/dist/
+
+# The whole build/ tree is reproducible, so none of it is tracked:
+#   bin/                   build output
+#   appicon.png            Wails asset
+#   windows/icon.ico       copied from images/icon.ico by the preBuildHooks
+#                          in wails.json on every build
+#   windows/info.json      \ Wails writes these from embedded defaults when
+#   windows/*.manifest     / absent (see buildassets.ReadFile); ours are
+#                            byte-identical to those defaults
+#
+# CAUTION: build/windows/info.json and wails.exe.manifest are also the
+# customisation point. The moment you edit one — requesting admin rights via
+# requestedExecutionLevel, adding longPathAware, hard-coding version fields —
+# it must be force-added (`git add -f`) or un-ignored here, or the change will
+# live only on your machine and CI will silently build without it.
+build/
 
 # --- Dependencies ---
 frontend/node_modules/
