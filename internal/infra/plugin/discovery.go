@@ -186,7 +186,7 @@ func detectInstallSource(dir string) domainplugin.InstallSource {
 
 // MarkUserInstalled records that a plugin was installed via the UI.
 func MarkUserInstalled(pluginDir string) error {
-	return os.WriteFile(filepath.Join(pluginDir, UserInstalledMarker), nil, 0644)
+	return os.WriteFile(filepath.Join(pluginDir, UserInstalledMarker), nil, 0600)
 }
 
 func resolveEntryAlternate(dir, entry string) string {
