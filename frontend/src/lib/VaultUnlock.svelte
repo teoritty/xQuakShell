@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { unlockVault } from '../stores/api';
+  import { unlockVault } from '../actions/vaultActions';
   import { Lock } from 'lucide-svelte';
 
   let masterPassword = '';

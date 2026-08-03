@@ -1,6 +1,6 @@
 package main
 
-import "ssh-client/internal/domain"
+import "xquakshell/internal/domain"
 
 // newSessionConnectors returns non-SSH session protocol connectors (composition root only).
 // Built-in connectors were removed; plugins register here later.

@@ -3,185 +3,113 @@ package wails
 import (
 	"context"
 	"fmt"
-	"path"
-	"strings"
-	"unicode"
+	"os"
 
-	gossh "golang.org/x/crypto/ssh"
+	"xquakshell/internal/domain"
 )
 
 // --- SFTP remote operations ---
 
-// runSSHCommand executes a command on the remote host via SSH.
-func (a *AppAPI) runSSHCommand(sessionID, cmd string) (string, error) {
-	sshClient, err := a.sessions.GetSSHClient(sessionID)
-	if err != nil {
-		return "", err
-	}
-	session, err := sshClient.NewSession()
-	if err != nil {
-		return "", err
-	}
-	defer session.Close()
-	out, err := session.CombinedOutput(cmd)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
-}
-
-// isNumeric returns true if s contains only digits.
-func isNumeric(s string) bool {
-	for _, r := range s {
-		if !unicode.IsDigit(r) {
-			return false
-		}
-	}
-	return len(s) > 0
-}
-
-// resolveOwner resolves UID to username via getent passwd; uses cache.
-func (a *AppAPI) resolveOwner(sessionID, uid string) string {
-	if !isNumeric(uid) {
-		return uid
-	}
-	a.ownerCacheMu.Lock()
-	if a.ownerCache[sessionID] == nil {
-		a.ownerCache[sessionID] = make(map[string]string)
-	}
-	if name, ok := a.ownerCache[sessionID][uid]; ok {
-		a.ownerCacheMu.Unlock()
-		return name
-	}
-	a.ownerCacheMu.Unlock()
-	out, err := a.runSSHCommand(sessionID, "getent passwd "+uid)
-	if err != nil {
-		return uid
-	}
-	fields := strings.SplitN(out, ":", 2)
-	name := uid
-	if len(fields) >= 1 && fields[0] != "" {
-		name = fields[0]
-	}
-	a.ownerCacheMu.Lock()
-	a.ownerCache[sessionID][uid] = name
-	a.ownerCacheMu.Unlock()
-	return name
-}
-
-// resolveGroup resolves GID to group name via getent group; uses cache.
-func (a *AppAPI) resolveGroup(sessionID, gid string) string {
-	if !isNumeric(gid) {
-		return gid
-	}
-	a.ownerCacheMu.Lock()
-	if a.groupCache[sessionID] == nil {
-		a.groupCache[sessionID] = make(map[string]string)
-	}
-	if name, ok := a.groupCache[sessionID][gid]; ok {
-		a.ownerCacheMu.Unlock()
-		return name
-	}
-	a.ownerCacheMu.Unlock()
-	out, err := a.runSSHCommand(sessionID, "getent group "+gid)
-	if err != nil {
-		return gid
-	}
-	fields := strings.SplitN(out, ":", 2)
-	name := gid
-	if len(fields) >= 1 && fields[0] != "" {
-		name = fields[0]
-	}
-	a.ownerCacheMu.Lock()
-	a.groupCache[sessionID][gid] = name
-	a.ownerCacheMu.Unlock()
-	return name
-}
-
 // ListPath lists the contents of a remote directory.
 func (a *AppAPI) ListPath(sessionID, dirPath string) ([]RemoteNodeDTO, error) {
-	fs, err := a.sessions.GetRemoteFS(sessionID)
+	if a.remoteFS == nil {
+		return nil, fmt.Errorf("remote file service unavailable")
+	}
+	nodes, err := a.remoteFS.ListPath(sessionID, dirPath)
 	if err != nil {
 		return nil, err
-	}
-	ctx, err := a.sessions.GetSessionContext(sessionID)
-	if err != nil {
-		return nil, err
-	}
-	nodes, err := fs.List(ctx, dirPath)
-	if err != nil {
-		return nil, err
-	}
-	for i := range nodes {
-		if nodes[i].Owner != "" {
-			nodes[i].Owner = a.resolveOwner(sessionID, nodes[i].Owner)
-		}
-		if nodes[i].Group != "" {
-			nodes[i].Group = a.resolveGroup(sessionID, nodes[i].Group)
-		}
 	}
 	return RemoteNodesToDTO(nodes), nil
 }
 
 // RemovePath deletes a remote file or directory (recursively for directories).
+// It runs in the background and streams progress through the transfer/operation
+// event; the call returns as soon as the job is scheduled.
 func (a *AppAPI) RemovePath(sessionID, remotePath string) error {
-	fs, err := a.sessions.GetRemoteFS(sessionID)
-	if err != nil {
-		return err
+	if a.remoteOpSvc == nil {
+		return fmt.Errorf("remote operation service unavailable")
 	}
-	ctx, err := a.sessions.GetSessionContext(sessionID)
-	if err != nil {
-		return err
-	}
-	return fs.RemoveAll(ctx, remotePath)
+	return a.remoteOpSvc.Delete(sessionID, remotePath, a.emitTransferProgress)
 }
 
 // MkdirPath creates a remote directory (and parents if needed).
 func (a *AppAPI) MkdirPath(sessionID, parentPath, name string) error {
-	fs, err := a.sessions.GetRemoteFS(sessionID)
-	if err != nil {
-		return err
+	if a.remoteFS == nil {
+		return fmt.Errorf("remote file service unavailable")
 	}
-	ctx, err := a.sessions.GetSessionContext(sessionID)
-	if err != nil {
-		return err
-	}
-	fullPath := path.Join(parentPath, name)
-	return fs.Mkdir(ctx, fullPath)
+	return a.remoteFS.MkdirPath(sessionID, parentPath, name)
 }
 
 // CreateFilePath creates an empty remote file.
 func (a *AppAPI) CreateFilePath(sessionID, parentPath, name string) error {
-	fs, err := a.sessions.GetRemoteFS(sessionID)
-	if err != nil {
-		return err
+	if a.remoteFS == nil {
+		return fmt.Errorf("remote file service unavailable")
 	}
-	ctx, err := a.sessions.GetSessionContext(sessionID)
-	if err != nil {
-		return err
-	}
-	fullPath := path.Join(parentPath, name)
-	return fs.CreateFile(ctx, fullPath)
+	return a.remoteFS.CreateFilePath(sessionID, parentPath, name)
 }
 
 // RenamePath renames a remote file or directory.
 func (a *AppAPI) RenamePath(sessionID, oldPath, newPath string) error {
-	fs, err := a.sessions.GetRemoteFS(sessionID)
-	if err != nil {
-		return err
+	if a.remoteFS == nil {
+		return fmt.Errorf("remote file service unavailable")
 	}
-	ctx, err := a.sessions.GetSessionContext(sessionID)
-	if err != nil {
-		return err
+	return a.remoteFS.RenamePath(sessionID, oldPath, newPath)
+}
+
+// applyTargetFromString maps the "files"|"dirs"|"both" wire value to domain.ApplyTarget.
+func applyTargetFromString(applyTo string) domain.ApplyTarget {
+	switch applyTo {
+	case "files":
+		return domain.ApplyFilesOnly
+	case "dirs":
+		return domain.ApplyDirsOnly
+	default:
+		return domain.ApplyBoth
 	}
-	return fs.Rename(ctx, oldPath, newPath)
+}
+
+// Chmod sets permission bits on a remote path.
+func (a *AppAPI) Chmod(sessionID, remotePath string, mode uint32) error {
+	if a.remoteFS == nil {
+		return fmt.Errorf("remote file service unavailable")
+	}
+	return a.remoteFS.ChmodPath(sessionID, remotePath, os.FileMode(mode))
+}
+
+// Chown sets the owner uid/gid on a remote path.
+func (a *AppAPI) Chown(sessionID, remotePath string, uid, gid int) error {
+	if a.remoteFS == nil {
+		return fmt.Errorf("remote file service unavailable")
+	}
+	return a.remoteFS.ChownPath(sessionID, remotePath, uid, gid)
+}
+
+// ChmodRecursive applies mode recursively under remotePath, filtered by
+// applyTo ("files", "dirs", or "both"). Runs in the background with progress.
+func (a *AppAPI) ChmodRecursive(sessionID, remotePath string, mode uint32, applyTo string) error {
+	if a.remoteOpSvc == nil {
+		return fmt.Errorf("remote operation service unavailable")
+	}
+	return a.remoteOpSvc.ChmodRecursive(sessionID, remotePath, os.FileMode(mode), applyTargetFromString(applyTo), a.emitTransferProgress)
+}
+
+// ChownRecursive applies uid/gid recursively under remotePath, filtered by
+// applyTo ("files", "dirs", or "both"). Runs in the background with progress.
+func (a *AppAPI) ChownRecursive(sessionID, remotePath string, uid, gid int, applyTo string) error {
+	if a.remoteOpSvc == nil {
+		return fmt.Errorf("remote operation service unavailable")
+	}
+	return a.remoteOpSvc.ChownRecursive(sessionID, remotePath, uid, gid, applyTargetFromString(applyTo), a.emitTransferProgress)
 }
 
 // --- Known Hosts ---
 
 // GetKnownHosts returns all known host entries.
 func (a *AppAPI) GetKnownHosts() ([]KnownHostDTO, error) {
-	entries, err := a.knownHosts.List()
+	if a.hostKeys == nil {
+		return nil, fmt.Errorf("host key service unavailable")
+	}
+	entries, err := a.hostKeys.List()
 	if err != nil {
 		return nil, err
 	}
@@ -190,14 +118,16 @@ func (a *AppAPI) GetKnownHosts() ([]KnownHostDTO, error) {
 
 // AddKnownHost adds a known host entry from an authorized_key formatted string.
 func (a *AppAPI) AddKnownHost(host, authorizedKey string) error {
-	key, _, _, _, err := gossh.ParseAuthorizedKey([]byte(authorizedKey))
-	if err != nil {
-		return fmt.Errorf("parse authorized key: %w", err)
+	if a.hostKeys == nil {
+		return fmt.Errorf("host key service unavailable")
 	}
-	return a.knownHosts.Add(context.Background(), host, key)
+	return a.hostKeys.Add(context.Background(), host, authorizedKey)
 }
 
 // RemoveKnownHost removes a known host entry by host pattern.
 func (a *AppAPI) RemoveKnownHost(host string) error {
-	return a.knownHosts.Remove(context.Background(), host)
+	if a.hostKeys == nil {
+		return fmt.Errorf("host key service unavailable")
+	}
+	return a.hostKeys.Remove(context.Background(), host)
 }

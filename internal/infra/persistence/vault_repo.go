@@ -8,8 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/vault"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/infra/vault"
+	"xquakshell/internal/pkg/safego"
 )
 
 const vaultPersistDebounce = 400 * time.Millisecond
@@ -44,31 +45,23 @@ func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
 		return err
 	}
 
-	if data.Identities == nil {
-		data.Identities = map[string]domain.SSHIdentity{}
-	}
-	if data.KeyBlobs == nil {
-		data.KeyBlobs = map[string]domain.IdentityBlob{}
-	}
-	if data.Passwords == nil {
-		data.Passwords = map[string]domain.PasswordBlob{}
-	}
-	if data.Settings == nil {
-		data.Settings = &domain.AppSettings{
-			Lockout:  domain.DefaultLockoutSettings(),
-			Terminal: domain.DefaultTerminalSettings(),
-			Theme:    "dark",
-		}
-	}
-	if data.Settings.Terminal.FontFamily == "" {
-		data.Settings.Terminal = domain.DefaultTerminalSettings()
-	}
-	if data.Settings.Theme == "" {
-		data.Settings.Theme = "dark"
-	}
+	// ReadVaultFile -> Decrypt runs the same scrypt KDF as Encrypt (see the
+	// SetWorkFactor comment in internal/infra/vault/vault.go) and transiently
+	// allocates ~256 MiB while doing so. Force the Go runtime to release
+	// those pages back to the OS immediately, mirroring the identical
+	// workaround already used after vault writes below in flushNow().
+	// Without this, unlocking the vault produces an RSS spike that can
+	// visibly linger for several minutes before the runtime's background
+	// scavenger reclaims it on its own. Runs in a goroutine so it never
+	// blocks the caller waiting on Unlock's return.
+	safego.GoNamed("vault.unlockGC", func() {
+		runtime.GC()
+		debug.FreeOSMemory()
+	})
 
 	r.passphrase = masterPassword
 	r.data = data
+	r.ensureVaultDataLocked()
 	r.unlocked = true
 	r.dirty = false
 	r.generation = 0
@@ -104,7 +97,7 @@ func (r *VaultRepo) IsUnlocked() bool {
 	return r.unlocked
 }
 
-// GetData returns the current in-memory vault data.
+// GetData returns a deep snapshot of the current in-memory vault data.
 func (r *VaultRepo) GetData() (*domain.VaultData, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -112,22 +105,56 @@ func (r *VaultRepo) GetData() (*domain.VaultData, error) {
 	if !r.unlocked {
 		return nil, domain.ErrVaultLocked
 	}
-	return r.data, nil
+	return domain.CloneVaultData(r.data), nil
 }
 
-// SaveData updates in-memory vault data and schedules a debounced encrypted write.
-func (r *VaultRepo) SaveData(_ context.Context, data *domain.VaultData) error {
+// UpdateData applies a mutation to vault data atomically under the write lock.
+func (r *VaultRepo) UpdateData(_ context.Context, mutate func(*domain.VaultData) error) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if !r.unlocked {
 		return domain.ErrVaultLocked
 	}
-	r.data = data
+	r.ensureVaultDataLocked()
+	if err := mutate(r.data); err != nil {
+		return err
+	}
 	r.dirty = true
 	r.generation++
 	r.scheduleFlushLocked()
 	return nil
+}
+
+func (r *VaultRepo) ensureVaultDataLocked() {
+	if r.data == nil {
+		r.data = domain.NewVaultData()
+	}
+	if r.data.Identities == nil {
+		r.data.Identities = map[string]domain.SSHIdentity{}
+	}
+	if r.data.KeyBlobs == nil {
+		r.data.KeyBlobs = map[string]domain.IdentityBlob{}
+	}
+	if r.data.Passwords == nil {
+		r.data.Passwords = map[string]domain.PasswordBlob{}
+	}
+	if r.data.PluginSecrets == nil {
+		r.data.PluginSecrets = map[string][]byte{}
+	}
+	if r.data.Settings == nil {
+		r.data.Settings = &domain.AppSettings{
+			Lockout:  domain.DefaultLockoutSettings(),
+			Terminal: domain.DefaultTerminalSettings(),
+			Theme:    "dark",
+		}
+	}
+	if r.data.Settings.Terminal.FontFamily == "" {
+		r.data.Settings.Terminal = domain.DefaultTerminalSettings()
+	}
+	if r.data.Settings.Theme == "" {
+		r.data.Settings.Theme = "dark"
+	}
 }
 
 func (r *VaultRepo) scheduleFlushLocked() {
@@ -168,17 +195,25 @@ func (r *VaultRepo) flushGeneration(gen uint64) {
 		r.mu.Unlock()
 		return
 	}
-	data := r.data
+	data := domain.CloneVaultData(r.data)
 	passphrase := r.passphrase
 	dir := r.dir
 	r.mu.Unlock()
 
 	err := vault.WriteVaultFile(dir, passphrase, data)
 
-	go func() {
+	// vault.WriteVaultFile (Encrypt) runs the same scrypt key derivation as
+	// vault.ReadVaultFile (Decrypt) — see the SetWorkFactor comment in
+	// internal/infra/vault/vault.go for why that transiently costs ~256 MiB.
+	// Force an immediate GC pass and release those pages back to the OS here
+	// so the RSS spike collapses right after the save completes instead of
+	// lingering for minutes while the Go runtime's background scavenger gets
+	// around to it on its own schedule. Runs in a goroutine so it never
+	// blocks the caller waiting on this flush.
+	safego.GoNamed("vault.flushGC", func() {
 		runtime.GC()
 		debug.FreeOSMemory()
-	}()
+	})
 
 	r.mu.Lock()
 	if err != nil {

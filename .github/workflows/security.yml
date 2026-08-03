@@ -1,0 +1,163 @@
+name: Security
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  # A CVE against a dependency lands in the vulnerability database without any
+  # commit to this repo, so pushes alone are not enough to find out about it.
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write # required by upload-sarif
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOVULNCHECK_VERSION: v1.6.0
+  GOSEC_VERSION: v2.28.0
+  STATICCHECK_VERSION: v0.7.0
+
+jobs:
+  # All three Go tools type-check the packages, and the root package go:embed's
+  # frontend/dist (gitignored). Keeping them in one job builds the frontend once
+  # instead of three times.
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend (for go:embed)
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      # Reports only vulnerabilities whose vulnerable symbols are actually
+      # reachable from this code, so a finding here is worth acting on.
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }} ./...
+
+      # -no-fail so the SARIF is always written and uploaded; the gate step below
+      # is what fails the build. Every step from here runs even if an earlier one
+      # failed, so one run surfaces all findings instead of one tool at a time.
+      #
+      # Three rules are excluded repo-wide because they do not describe a defect in
+      # an SSH/SFTP client, and per-site annotations would run to ~75 comments that
+      # nobody would read. Everything else is annotated at the call site instead, so
+      # a NEW offending call site still fails the build:
+      #   G104 unhandled errors  - the convention here is deliberate best-effort
+      #                            Close/Remove in cleanup and error paths; this
+      #                            duplicates errcheck, not a security finding.
+      #   G304 file inclusion    - the product IS a file manager; user-chosen paths
+      #                            are the input. Containment is enforced by
+      #                            internal/pkg/pathsafe (UnderRoot) and by the
+      #                            scripts/check-fs-boundaries.ps1 architecture gate.
+      #   G103 unsafe.Pointer    - required to pass syscall arguments to
+      #                            windows.OpenProcess / SetInformationJobObject.
+      - name: gosec
+        if: always()
+        run: >
+          go run github.com/securego/gosec/v2/cmd/gosec@${{ env.GOSEC_VERSION }}
+          -no-fail -fmt sarif -out gosec.sarif
+          -exclude-dir=test/fixtures -exclude-dir=frontend -exclude-dir=build
+          -exclude=G104,G304,G103
+          ./...
+
+      - name: Upload gosec SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gosec.sarif
+          category: gosec
+
+      - name: Gate on gosec findings
+        if: always()
+        run: test "$(jq '[.runs[].results[]] | length' gosec.sarif)" -eq 0
+
+      # `-f sarif` reports findings through the file, not the exit code (unlike the
+      # default text format, which exits 1), so exit 1 is tolerated here and the gate
+      # step below is what fails the build. Anything above that is a real tool failure
+      # and must NOT be swallowed -- the old `|| true` turned a broken run into a
+      # truncated file that then blew up two steps later.
+      #
+      # The jq pass exists because staticcheck omits the "results" key entirely on a
+      # clean run. SARIF 2.1.0 allows that, but upload-sarif rejects it ("Missing
+      # 'results' array in run") and `.runs[].results[]` iterates over null, so
+      # normalise it to an empty array here rather than waiting on upstream.
+      - name: staticcheck
+        if: always()
+        run: |
+          set +e
+          go run honnef.co/go/tools/cmd/staticcheck@${{ env.STATICCHECK_VERSION }} \
+            -f sarif ./... > staticcheck.raw.sarif
+          status=$?
+          set -e
+          if [ "$status" -gt 1 ]; then
+            cat staticcheck.raw.sarif
+            exit "$status"
+          fi
+          jq '.runs |= map(.results = (.results // []))' staticcheck.raw.sarif > staticcheck.sarif
+
+      - name: Upload staticcheck SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: staticcheck.sarif
+          category: staticcheck
+
+      - name: Gate on staticcheck findings
+        if: always()
+        run: test "$(jq '[.runs[].results[]] | length' staticcheck.sarif)" -eq 0
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # Scoped to frontend/ deliberately: frontend/wailsjs/runtime/package.json is
+      # a generated, lockfile-less manifest and must not be audited.
+      #
+      # --omit=dev is a deliberate narrowing, not a way to dodge a red build. The one
+      # high-severity advisory left in devDependencies is GHSA-67mh-4wv8-2f99 in the
+      # esbuild bundled by vite 3: it lets a website talk to the vite DEV SERVER. This
+      # app ships `npm run build` output embedded in the Go binary and never runs the
+      # dev server for users, so it is a local-developer surface only, and clearing it
+      # means migrating vite 3 -> 8 (five majors). Track that separately; do not raise
+      # --audit-level to dodge it.
+      - name: npm audit (production dependencies)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
+      # Non-blocking, so the dev-dependency backlog stays visible in the job log
+      # instead of quietly disappearing behind --omit=dev.
+      - name: npm audit (all dependencies, informational)
+        if: always()
+        continue-on-error: true
+        working-directory: frontend
+        run: npm audit

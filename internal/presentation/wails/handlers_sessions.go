@@ -9,10 +9,9 @@ import (
 	"time"
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
-	gossh "golang.org/x/crypto/ssh"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/auditlog"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/pkg/safego"
 )
 
 // --- Sessions ---
@@ -24,8 +23,17 @@ func (a *AppAPI) OpenSession(connectionID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	pluginID, _ := a.sessions.PluginIDForSession(sessionID)
+	slog.Debug("embed: OpenSession RPC returning sessionId to frontend", "pluginId", pluginID, "sessionId", sessionID, "connectionId", connectionID)
 
-	go a.initSessionPTYAndSFTP(sessionID)
+	if a.plugins != nil {
+		a.plugins.PublishCoreEvent(context.Background(), "core.session.opened", map[string]string{
+			"sessionId":    sessionID,
+			"connectionId": connectionID,
+		})
+	}
+
+	safego.GoNamed("session.initPTY", func() { a.initSessionPTYAndSFTP(sessionID) })
 
 	return sessionID, nil
 }
@@ -36,22 +44,23 @@ func (a *AppAPI) CloseSession(sessionID string) error {
 	if err != nil {
 		return err
 	}
-	a.auditLineTrackersMu.Lock()
-	delete(a.auditLineTrackers, sessionID)
-	a.auditLineTrackersMu.Unlock()
 	if a.auditSvc != nil {
 		a.auditSvc.RemoveSession(sessionID)
 	}
-	a.ownerCacheMu.Lock()
-	delete(a.ownerCache, sessionID)
-	delete(a.groupCache, sessionID)
-	a.ownerCacheMu.Unlock()
+	if a.remoteFS != nil {
+		a.remoteFS.ClearSessionCache(sessionID)
+	}
 	if a.ctx != nil {
 		wailsrt.EventsEmit(a.ctx, EventSessionClosed, map[string]string{"sessionId": sessionID})
 	}
-	go func() {
+	if a.plugins != nil {
+		a.plugins.PublishCoreEvent(context.Background(), "core.session.closed", map[string]string{
+			"sessionId": sessionID,
+		})
+	}
+	safego.GoNamed("session.gc", func() {
 		runtime.GC()
-	}()
+	})
 	return nil
 }
 
@@ -83,7 +92,7 @@ func (a *AppAPI) SendTerminalInput(sessionID, data, commandLine string) error {
 	}
 
 	if a.auditSvc != nil {
-		go a.trackAuditInput(sessionID, data, commandLine)
+		safego.GoNamed("audit.trackInput", func() { a.trackAuditInput(sessionID, data, commandLine) })
 	}
 	return nil
 }
@@ -93,33 +102,14 @@ func (a *AppAPI) trackAuditInput(sessionID, data, commandLine string) {
 		return
 	}
 
-	line := commandLine
-	if line == "" {
-		tracker := a.getLineTracker(sessionID)
-		submitted, ok := tracker.Feed(data)
-		if !ok || submitted == "" {
-			return
-		}
-		line = submitted
-	} else {
-		tracker := a.getLineTracker(sessionID)
-		_, _ = tracker.Feed(data)
+	line, ok := a.auditSvc.ResolveCommandLine(sessionID, data, commandLine)
+	if !ok {
+		return
 	}
 
 	if err := a.auditSvc.RecordCommand(context.Background(), sessionID, line); err != nil {
 		slog.Warn("audit record command failed", "sessionId", sessionID, "err", err)
 	}
-}
-
-func (a *AppAPI) getLineTracker(sessionID string) *auditlog.CommandLineTracker {
-	a.auditLineTrackersMu.Lock()
-	defer a.auditLineTrackersMu.Unlock()
-	tracker, ok := a.auditLineTrackers[sessionID]
-	if !ok {
-		tracker = auditlog.NewCommandLineTracker()
-		a.auditLineTrackers[sessionID] = tracker
-	}
-	return tracker
 }
 
 func containsEnter(data string) bool {
@@ -131,9 +121,25 @@ func containsEnter(data string) bool {
 	return false
 }
 
+// maxPTYDimension bounds a PTY window size. The value arrives from the frontend as a
+// signed int and is widened to uint32 for the SSH window-change request, so an
+// unclamped negative would wrap to ~4.29e9 and be sent to the remote host as a
+// legitimate-looking dimension.
+const maxPTYDimension = 1 << 16
+
 // TerminalResize changes the PTY window size for a session.
 func (a *AppAPI) TerminalResize(sessionID string, cols, rows int) error {
-	return a.sessions.ResizeTerminal(sessionID, uint32(cols), uint32(rows))
+	return a.sessions.ResizeTerminal(sessionID, clampPTYDimension(cols), clampPTYDimension(rows))
+}
+
+func clampPTYDimension(v int) uint32 {
+	if v < 0 {
+		return 0
+	}
+	if v > maxPTYDimension {
+		return maxPTYDimension
+	}
+	return uint32(v)
 }
 
 // --- Host Key ---
@@ -141,34 +147,46 @@ func (a *AppAPI) TerminalResize(sessionID string, cols, rows int) error {
 // ResolveHostKey handles the user's decision on a pending host key verification.
 // action is "add" or "replace"; after resolving, retries the session connection.
 func (a *AppAPI) ResolveHostKey(sessionID, action, host, authorizedKey string) error {
-	key, _, _, _, err := gossh.ParseAuthorizedKey([]byte(authorizedKey))
-	if err != nil {
-		return fmt.Errorf("parse host key: %w", err)
+	if a.hostKeys == nil {
+		return fmt.Errorf("host key service unavailable")
 	}
+	return a.hostKeys.ResolveHostKey(context.Background(), sessionID, action, host, authorizedKey)
+}
 
-	switch action {
-	case "add":
-		if err := a.knownHosts.Add(context.Background(), host, key); err != nil {
-			return fmt.Errorf("add host key: %w", err)
-		}
-	case "replace":
-		if err := a.knownHosts.Replace(context.Background(), host, key); err != nil {
-			return fmt.Errorf("replace host key: %w", err)
-		}
-	default:
-		return fmt.Errorf("unknown host key action %q", action)
+// ReportEmbedViewport forwards pixel dimensions to the plugin process.
+func (a *AppAPI) ReportEmbedViewport(sessionID string, widthPx, heightPx int, devicePixelRatio float64) error {
+	pluginID, _ := a.sessions.PluginIDForSession(sessionID)
+	slog.Debug("embed: frontend reported viewport (embed panel mounted)", "pluginId", pluginID, "sessionId", sessionID, "w", widthPx, "h", heightPx)
+	if a.embedBridge == nil {
+		return nil
 	}
+	return a.embedBridge.ReportViewport(context.Background(), sessionID, widthPx, heightPx, devicePixelRatio, true)
+}
 
-	return a.sessions.RetrySession(context.Background(), sessionID)
+// ReportEmbedActivity updates broker backpressure when the session tab focus changes.
+func (a *AppAPI) ReportEmbedActivity(sessionID string, active bool) error {
+	pluginID, _ := a.sessions.PluginIDForSession(sessionID)
+	slog.Debug("embed: frontend reported activity (embed panel mounted)", "pluginId", pluginID, "sessionId", sessionID, "active", active)
+	if a.embedBridge == nil {
+		return nil
+	}
+	return a.embedBridge.ReportActivity(context.Background(), sessionID, active)
 }
 
 // --- Internal helpers ---
 
 func (a *AppAPI) onSessionStateChange(session domain.ConnectionSession) {
-	if a.ctx == nil {
-		return
+	pluginID, _ := a.sessions.PluginIDForSession(session.SessionID)
+	slog.Debug("embed: emitting SessionStateChanged to frontend", "pluginId", pluginID, "sessionId", session.SessionID, "state", string(session.State), "surface", session.Surface)
+	if a.ctx != nil {
+		wailsrt.EventsEmit(a.ctx, EventSessionStateChanged, SessionToDTO(session))
 	}
-	wailsrt.EventsEmit(a.ctx, EventSessionStateChanged, SessionToDTO(session))
+	if a.plugins != nil {
+		a.plugins.PublishCoreEvent(context.Background(), "core.session.stateChanged", map[string]string{
+			"sessionId": session.SessionID,
+			"state":     string(session.State),
+		})
+	}
 }
 
 func (a *AppAPI) onHostKeyRequest(sessionID string, info domain.HostKeyInfo) {
@@ -199,7 +217,7 @@ func (a *AppAPI) onPassphraseRequest(identityID, comment string) (string, error)
 
 // onStreamReady is called when a plugin stream connector has started the terminal bridge.
 func (a *AppAPI) onStreamReady(sessionID string, outputCh <-chan []byte) {
-	go a.streamTerminalOutput(sessionID, outputCh)
+	safego.GoNamed("session.streamOutput", func() { a.streamTerminalOutput(sessionID, outputCh) })
 	if a.ctx != nil {
 		wailsrt.EventsEmit(a.ctx, EventTerminalReady, map[string]interface{}{"sessionId": sessionID})
 	}
@@ -213,7 +231,7 @@ func (a *AppAPI) initSessionPTYAndSFTP(sessionID string) {
 		return
 	}
 
-	go a.streamTerminalOutput(sessionID, outputCh)
+	safego.GoNamed("session.streamOutput", func() { a.streamTerminalOutput(sessionID, outputCh) })
 
 	if a.ctx != nil {
 		wailsrt.EventsEmit(a.ctx, EventSFTPReady, map[string]interface{}{
@@ -262,9 +280,6 @@ func (a *AppAPI) streamTerminalOutput(sessionID string, outputCh <-chan []byte) 
 				if a.auditSvc != nil {
 					a.auditSvc.RemoveSession(sessionID)
 				}
-				a.auditLineTrackersMu.Lock()
-				delete(a.auditLineTrackers, sessionID)
-				a.auditLineTrackersMu.Unlock()
 				a.sessions.NotifySessionDisconnected(sessionID)
 				return
 			}

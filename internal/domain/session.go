@@ -26,6 +26,8 @@ type ConnectionSession struct {
 	ConnectionName string `json:"connectionName"`
 	// Protocol is the connection protocol (ssh by default; plugin connectors may use other values).
 	Protocol string `json:"protocol,omitempty"`
+	// Surface is the session UI type: "terminal" or "embed" for plugin sessions.
+	Surface string `json:"surface,omitempty"`
 	// State is the current lifecycle state.
 	State SessionState `json:"state"`
 	// ErrorMessage holds a human-readable error when State == SessionError.

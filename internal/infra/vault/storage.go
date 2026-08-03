@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 const (
@@ -15,8 +15,7 @@ const (
 
 // ReadVaultFile reads and decrypts the vault from disk.
 // If the file does not exist, returns a fresh VaultData at the current schema version.
-// After decryption, the data is migrated to the latest schema if needed.
-// The second return value is true when the vault should be persisted (new file or migration).
+// The second return value is true when the vault file should be created on disk.
 func ReadVaultFile(dir, passphrase string) (*domain.VaultData, bool, error) {
 	path := filepath.Join(dir, vaultFileName)
 
@@ -33,11 +32,7 @@ func ReadVaultFile(dir, passphrase string) (*domain.VaultData, bool, error) {
 		return nil, false, err
 	}
 
-	versionBefore := data.Version
-	MigrateVaultData(data)
-	needsPersist := data.Version != versionBefore
-
-	return data, needsPersist, nil
+	return data, false, nil
 }
 
 // WriteVaultFile encrypts and atomically writes the vault to disk.

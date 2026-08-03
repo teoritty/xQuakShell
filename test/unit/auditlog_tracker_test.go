@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/auditlog"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/infra/auditlog"
 )
 
 func TestCommandLineTrackerHtopAfterBackspace(t *testing.T) {

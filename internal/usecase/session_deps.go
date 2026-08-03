@@ -1,6 +1,6 @@
 package usecase
 
-import "ssh-client/internal/domain"
+import "xquakshell/internal/domain"
 
 // SSHSessionDeps groups dependencies for SSH session setup (implementations are wired in main).
 type SSHSessionDeps struct {

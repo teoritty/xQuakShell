@@ -10,7 +10,18 @@ const (
 	AuthMethodKey AuthMethodType = "key"
 	// AuthMethodPassword indicates SSH password authentication.
 	AuthMethodPassword AuthMethodType = "password"
+	// AuthMethodPlugin indicates plugin-provided SSH authentication.
+	AuthMethodPlugin AuthMethodType = "plugin"
 )
+
+// PluginAuthConfig references a plugin-contributed auth method for a
+// Connection or JumpHop. Fields carries non-secret, plugin-manifest-declared
+// values — any actual secret the plugin needs must come from vault.getSecret.
+type PluginAuthConfig struct {
+	PluginID     string            `json:"pluginId"`
+	AuthMethodID string            `json:"authMethodId"`
+	Fields       map[string]string `json:"fields,omitempty"`
+}
 
 // KeyAuthConfig holds references to SSH identity entries for key-based authentication.
 type KeyAuthConfig struct {
@@ -30,6 +41,7 @@ type ConnectionUser struct {
 	Auth     AuthMethodType `json:"authMethod"`
 	KeyAuth  *KeyAuthConfig      `json:"keyAuth,omitempty"`
 	PassAuth *PasswordAuthConfig `json:"passAuth,omitempty"`
+	PluginAuth *PluginAuthConfig `json:"pluginAuth,omitempty"`
 	Label    string         `json:"label,omitempty"`
 }
 
@@ -46,6 +58,10 @@ func (u *ConnectionUser) Validate() error {
 	case AuthMethodPassword:
 		if u.PassAuth == nil || u.PassAuth.PasswordID == "" {
 			return fmt.Errorf("password auth requires a password ID: %w", ErrInvalidConnectionConfig)
+		}
+	case AuthMethodPlugin:
+		if u.PluginAuth == nil || u.PluginAuth.PluginID == "" || u.PluginAuth.AuthMethodID == "" {
+			return fmt.Errorf("plugin auth requires pluginId and authMethodId: %w", ErrInvalidConnectionConfig)
 		}
 	default:
 		return fmt.Errorf("unknown auth method %q: %w", u.Auth, ErrInvalidConnectionConfig)

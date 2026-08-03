@@ -2,6 +2,7 @@ package sftp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -13,7 +14,8 @@ import (
 
 	"github.com/pkg/sftp"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/pkg/pathsafe"
 )
 
 // sanitizeLocalPath normalizes a local path to prevent basic traversal attacks.
@@ -21,12 +23,49 @@ func sanitizeLocalPath(p string) string {
 	return filepath.Clean(p)
 }
 
-const transferChunkSize = 32 * 1024
-
 // RemoteFS implements domain.RemoteFS using an SFTP client.
 type RemoteFS struct {
 	client       *sftp.Client
 	rateLimitKbps int // 0 = unlimited
+
+	// readDirFn is a test seam for downloadRecursive: it defaults to
+	// client.ReadDir but lets tests drive downloadRecursive with a fake
+	// directory listing (including hostile names) without a live SFTP
+	// server. Production code never sets this field directly; it is
+	// resolved lazily via readDir() below.
+	readDirFn func(dir string) ([]os.FileInfo, error)
+}
+
+// readDir returns the configured readDirFn, or fs.client.ReadDir if unset.
+func (fs *RemoteFS) readDir(dir string) ([]os.FileInfo, error) {
+	if fs.readDirFn != nil {
+		return fs.readDirFn(dir)
+	}
+	return fs.client.ReadDir(dir)
+}
+
+// safeEntryName validates a filename taken from a remote directory listing.
+// The SFTP server controls these bytes completely, so a name is accepted only
+// if it is a single, inert path segment. Rejecting here — at the adapter
+// boundary — is what lets every consumer of RemoteFS treat RemoteNode.Name as
+// a trusted component. pkg/sftp already applies path.Base, but path.Base only
+// understands forward slashes: a name like `..\..\evil.exe` reaches us intact
+// and escapes once filepath.Join cleans it on Windows.
+func safeEntryName(name string) bool {
+	if name == "" || name == "." || name == ".." {
+		return false
+	}
+	if strings.ContainsAny(name, `/\`) {
+		return false
+	}
+	// Windows resolves ADS and drive-relative syntax inside a single segment.
+	if strings.ContainsRune(name, ':') {
+		return false
+	}
+	if strings.ContainsRune(name, 0) {
+		return false
+	}
+	return true
 }
 
 // NewRemoteFS wraps an SFTP client to implement domain.RemoteFS.
@@ -70,9 +109,16 @@ func (fs *RemoteFS) List(ctx context.Context, dirPath string) ([]domain.RemoteNo
 		default:
 		}
 
+		name := entry.Name()
+		if !safeEntryName(name) {
+			slog.Warn("sftp: skipping unsafe remote entry name",
+				"dir", dirPath, "name", name)
+			continue
+		}
+
 		node := domain.RemoteNode{
-			Path:    path.Join(dirPath, entry.Name()),
-			Name:    entry.Name(),
+			Path:    path.Join(dirPath, name),
+			Name:    name,
 			IsDir:   entry.IsDir(),
 			Size:    entry.Size(),
 			ModTime: entry.ModTime(),
@@ -112,38 +158,28 @@ func (fs *RemoteFS) Upload(ctx context.Context, localPath, remotePath string, pr
 	}
 	defer remoteFile.Close()
 
-	buf := make([]byte, transferChunkSize)
-	var done int64
-	src := io.Reader(localFile)
+	// Feed the upload through a progress-reporting, cancellable reader. The
+	// throttle (if any) sits underneath so the reported progress reflects the
+	// throttled delivery rate. progressReader exposes Size(), which is what
+	// lets ReadFrom pipeline concurrent writes.
+	var src io.Reader = localFile
 	if fs.rateLimitKbps > 0 {
 		src = newThrottledReader(ctx, localFile, fs.rateLimitKbps)
 	}
+	metered := &progressReader{r: src, ctx: ctx, total: totalSize, progress: progress}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
+	if _, err := remoteFile.ReadFrom(metered); err != nil {
+		// Concurrent writes can leave a file longer than the last contiguously
+		// written byte on error (holes), so the partial upload is never a
+		// valid file — remove it rather than leave corruption behind. Use a
+		// background context so cleanup still runs when ctx is the cause.
+		_ = remoteFile.Close()
+		_ = fs.client.Remove(remotePath)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
 		}
-
-		n, readErr := src.Read(buf)
-		if n > 0 {
-			if _, writeErr := remoteFile.Write(buf[:n]); writeErr != nil {
-				return fmt.Errorf("sftp upload write: %w", writeErr)
-			}
-			done += int64(n)
-			if progress != nil {
-				progress(done, totalSize)
-			}
-		}
-		if readErr == io.EOF {
-			break
-		}
-		if readErr != nil {
-			return fmt.Errorf("sftp upload read: %w", readErr)
-		}
+		return fmt.Errorf("sftp upload %s: %w", remotePath, err)
 	}
-
 	return nil
 }
 
@@ -170,38 +206,21 @@ func (fs *RemoteFS) Download(ctx context.Context, remotePath, localPath string, 
 	}
 	defer localFile.Close()
 
-	buf := make([]byte, transferChunkSize)
-	var done int64
-	src := io.Reader(remoteFile)
+	// WriteTo owns the (concurrent) read side and writes to our writer
+	// sequentially, in offset order, so the destination is the stream we
+	// wrap: progress + cancellation, with the throttle underneath.
+	var dst io.Writer = localFile
 	if fs.rateLimitKbps > 0 {
-		src = newThrottledReader(ctx, remoteFile, fs.rateLimitKbps)
+		dst = newThrottledWriter(ctx, localFile, fs.rateLimitKbps)
 	}
+	metered := &progressWriter{w: dst, ctx: ctx, total: totalSize, progress: progress}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
+	if _, err := remoteFile.WriteTo(metered); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
 		}
-
-		n, readErr := src.Read(buf)
-		if n > 0 {
-			if _, writeErr := localFile.Write(buf[:n]); writeErr != nil {
-				return fmt.Errorf("sftp download write: %w", writeErr)
-			}
-			done += int64(n)
-			if progress != nil {
-				progress(done, totalSize)
-			}
-		}
-		if readErr == io.EOF {
-			break
-		}
-		if readErr != nil {
-			return fmt.Errorf("sftp download read: %w", readErr)
-		}
+		return fmt.Errorf("sftp download %s: %w", remotePath, err)
 	}
-
 	return nil
 }
 
@@ -311,7 +330,11 @@ func (fs *RemoteFS) DownloadRecursive(ctx context.Context, remoteDir, localDir s
 
 func (fs *RemoteFS) downloadRecursive(ctx context.Context, remoteDir, localDir string, totalDone *int64, totalSize int64, progress domain.ProgressFunc) error {
 	remoteDir = sanitizeRemotePath(remoteDir)
-	entries, err := fs.client.ReadDir(remoteDir)
+	absLocalRoot, err := filepath.Abs(localDir)
+	if err != nil {
+		return fmt.Errorf("resolve local dir %s: %w", localDir, err)
+	}
+	entries, err := fs.readDir(remoteDir)
 	if err != nil {
 		return fmt.Errorf("sftp download recursive readdir %s: %w", remoteDir, err)
 	}
@@ -321,9 +344,23 @@ func (fs *RemoteFS) downloadRecursive(ctx context.Context, remoteDir, localDir s
 			return ctx.Err()
 		default:
 		}
-		remotePath := path.Join(remoteDir, entry.Name())
-		localPath := filepath.Join(localDir, entry.Name())
+		name := entry.Name()
+		if !safeEntryName(name) {
+			slog.Warn("sftp: skipping unsafe remote entry name",
+				"dir", remoteDir, "name", name)
+			continue
+		}
+		remotePath := path.Join(remoteDir, name)
+		localPath := filepath.Join(absLocalRoot, name)
+		if !pathsafe.UnderRoot(absLocalRoot, localPath) {
+			slog.Warn("sftp: remote entry escapes download root",
+				"dir", remoteDir, "name", name, "target", localPath)
+			continue
+		}
 		if entry.IsDir() {
+			// #nosec G301 -- mirrors a remote directory into the user's chosen download
+			// location; 0755 is the expected mode for files they will browse. Escape
+			// from the download root is already rejected by pathsafe.UnderRoot above.
 			if err := os.MkdirAll(localPath, 0755); err != nil {
 				return fmt.Errorf("mkdir %s: %w", localPath, err)
 			}
@@ -368,14 +405,19 @@ func (fs *RemoteFS) Remove(ctx context.Context, remotePath string) error {
 }
 
 // RemoveAll recursively deletes a remote path (file or directory with contents).
-func (fs *RemoteFS) RemoveAll(ctx context.Context, remotePath string) error {
+// onEach, if non-nil, is called once per removed entry for progress reporting.
+func (fs *RemoteFS) RemoveAll(ctx context.Context, remotePath string, onEach func()) error {
 	remotePath = sanitizeRemotePath(remotePath)
 	stat, err := fs.client.Stat(remotePath)
 	if err != nil {
 		return fmt.Errorf("sftp removeall stat %s: %w", remotePath, err)
 	}
 	if !stat.IsDir() {
-		return fs.client.Remove(remotePath)
+		if err := fs.client.Remove(remotePath); err != nil {
+			return err
+		}
+		tick(onEach)
+		return nil
 	}
 	entries, err := fs.client.ReadDir(remotePath)
 	if err != nil {
@@ -389,16 +431,44 @@ func (fs *RemoteFS) RemoveAll(ctx context.Context, remotePath string) error {
 		}
 		childPath := path.Join(remotePath, entry.Name())
 		if entry.IsDir() {
-			if err := fs.RemoveAll(ctx, childPath); err != nil {
+			if err := fs.RemoveAll(ctx, childPath, onEach); err != nil {
 				return err
 			}
 		} else {
 			if err := fs.client.Remove(childPath); err != nil {
 				return fmt.Errorf("sftp removeall file %s: %w", childPath, err)
 			}
+			tick(onEach)
 		}
 	}
-	return fs.client.Remove(remotePath)
+	if err := fs.client.Remove(remotePath); err != nil {
+		return err
+	}
+	tick(onEach)
+	return nil
+}
+
+// CountTree counts the entries a recursive operation with the given applyTo
+// filter would act on: it walks like walkApply (skipping symlinked directories'
+// contents to avoid loops) and counts each node the operation's filter matches.
+// Read-only; used to pre-compute a progress total.
+func (fs *RemoteFS) CountTree(ctx context.Context, rootPath string, applyTo domain.ApplyTarget, onEach func()) (int64, error) {
+	var n int64
+	err := fs.walkApply(ctx, rootPath, true, func(_ string, isDir bool) error {
+		if applyTo.Matches(isDir) {
+			n++
+			tick(onEach)
+		}
+		return nil
+	})
+	return n, err
+}
+
+// tick invokes fn if it is non-nil.
+func tick(fn func()) {
+	if fn != nil {
+		fn()
+	}
 }
 
 // Rename moves/renames a remote path.
@@ -406,6 +476,103 @@ func (fs *RemoteFS) Rename(ctx context.Context, oldPath, newPath string) error {
 	oldPath = sanitizeRemotePath(oldPath)
 	newPath = sanitizeRemotePath(newPath)
 	return fs.client.Rename(oldPath, newPath)
+}
+
+// Chmod sets permission bits on a remote path.
+//
+// Note: SFTP has no lchmod equivalent — if remotePath is a symlink, this
+// changes the permissions of its target, not the link itself.
+func (fs *RemoteFS) Chmod(ctx context.Context, remotePath string, mode os.FileMode) error {
+	remotePath = sanitizeRemotePath(remotePath)
+	if err := fs.client.Chmod(remotePath, mode); err != nil {
+		return fmt.Errorf("sftp chmod %s: %w", remotePath, err)
+	}
+	return nil
+}
+
+// Chown sets the owner uid/gid on a remote path.
+//
+// Note: SFTP has no lchown equivalent — if remotePath is a symlink, this
+// changes the owner of its target, not the link itself.
+func (fs *RemoteFS) Chown(ctx context.Context, remotePath string, uid, gid int) error {
+	remotePath = sanitizeRemotePath(remotePath)
+	if err := fs.client.Chown(remotePath, uid, gid); err != nil {
+		return fmt.Errorf("sftp chown %s: %w", remotePath, err)
+	}
+	return nil
+}
+
+// ChmodRecursive applies mode to rootPath and, if it's a directory, to its
+// descendants filtered by applyTo. The root itself is always changed
+// regardless of applyTo (the filter only governs descendants). Continues
+// past per-item errors (best-effort) and returns an aggregate error
+// listing every path that failed, so one locked file doesn't block
+// changing permissions on the rest of a large tree.
+func (fs *RemoteFS) ChmodRecursive(ctx context.Context, rootPath string, mode os.FileMode, applyTo domain.ApplyTarget, onEach func()) error {
+	return fs.walkApply(ctx, rootPath, true, func(p string, isDir bool) error {
+		if !applyTo.Matches(isDir) {
+			return nil
+		}
+		if err := fs.Chmod(ctx, p, mode); err != nil {
+			return err
+		}
+		tick(onEach)
+		return nil
+	})
+}
+
+// ChownRecursive applies uid/gid to rootPath and, if it's a directory, to its
+// descendants filtered by applyTo. Same root/best-effort semantics as ChmodRecursive.
+func (fs *RemoteFS) ChownRecursive(ctx context.Context, rootPath string, uid, gid int, applyTo domain.ApplyTarget, onEach func()) error {
+	return fs.walkApply(ctx, rootPath, true, func(p string, isDir bool) error {
+		if !applyTo.Matches(isDir) {
+			return nil
+		}
+		if err := fs.Chown(ctx, p, uid, gid); err != nil {
+			return err
+		}
+		tick(onEach)
+		return nil
+	})
+}
+
+// walkApply applies fn to rootPath (always) and, if rootPath is a directory,
+// recursively to every descendant, skipping symlinked directories to avoid
+// loops. It collects per-item errors into a joined error rather than
+// aborting on the first failure.
+func (fs *RemoteFS) walkApply(ctx context.Context, rootPath string, isRoot bool, fn func(p string, isDir bool) error) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	rootPath = sanitizeRemotePath(rootPath)
+	stat, err := fs.client.Lstat(rootPath)
+	if err != nil {
+		return fmt.Errorf("sftp stat %s: %w", rootPath, err)
+	}
+	var errs []error
+	isDir := stat.IsDir()
+	isSymlink := stat.Mode()&os.ModeSymlink != 0
+	if isRoot || !isSymlink {
+		if err := fn(rootPath, isDir); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if isDir && (isRoot || !isSymlink) {
+		entries, err := fs.client.ReadDir(rootPath)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("sftp readdir %s: %w", rootPath, err))
+		} else {
+			for _, entry := range entries {
+				childPath := path.Join(rootPath, entry.Name())
+				if err := fs.walkApply(ctx, childPath, false, fn); err != nil {
+					errs = append(errs, err)
+				}
+			}
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // Close releases the underlying SFTP connection.

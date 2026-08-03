@@ -2,68 +2,83 @@ package main
 
 import (
 	"context"
-	"log"
-	"os"
-	"path/filepath"
+	"encoding/json"
+	"net/http"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/infra/auditlog"
-	"ssh-client/internal/infra/persistence"
-	infrasftp "ssh-client/internal/infra/sftp"
-	infrassh "ssh-client/internal/infra/ssh"
-	presentation "ssh-client/internal/presentation/wails"
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/pkg/safego"
+	presentation "xquakshell/internal/presentation/wails"
 )
 
 // App is the main application struct bound to Wails.
 // It delegates all operations to the AppAPI from the presentation layer.
 type App struct {
-	ctx context.Context
-	api *presentation.AppAPI
+	ctx     context.Context
+	api     *presentation.AppAPI
+	plugins *pluginRuntime
 }
 
-// NewApp creates a new App with all dependencies wired together.
-func NewApp() *App {
-	vaultDir := defaultVaultDir()
-
-	vaultRepo := persistence.NewVaultRepo(vaultDir)
-	connRepo := persistence.NewConnectionRepo(vaultRepo)
-	identRepo := persistence.NewIdentityRepo(vaultRepo)
-	passwordRepo := persistence.NewPasswordRepo(vaultRepo)
-	knownHostsRepo := persistence.NewKnownHostsRepo(vaultRepo)
-	sshDialer := infrassh.NewDialer()
-
-	auditLogRepo, err := auditlog.NewSQLiteRepo(vaultDir)
-	if err != nil {
-		log.Printf("WARNING: audit log unavailable: %v", err)
+func (a *App) grantPluginMultiSessionAccess(pluginID string) error {
+	if a.plugins == nil {
+		return nil
 	}
+	return a.plugins.grantMultiSessionAccess(context.Background(), pluginID)
+}
 
-	lockoutMgr := usecase.NewIdleLockoutManager(domain.DefaultLockoutSettings())
-
-	sshSession := usecase.SSHSessionDeps{
-		PassphraseCache:         infrassh.NewPassphraseCache(),
-		HostKeyCallbackBuilder:  infrassh.NewHostKeyCallbackBuilder(),
-		JumpTransportBuilder:    infrassh.NewJumpTransportBuilder(),
-		PrivateKeySignerFactory: infrassh.NewPrivateKeySignerFactory(),
-		PTYBridgeFactory:        infrassh.NewPTYBridgeFactory(),
-		SFTPClientFactory:       infrasftp.NewSFTPClientFactory(),
+func (a *App) grantPluginSecretAccess(pluginID string) error {
+	if a.plugins == nil {
+		return nil
 	}
+	return a.plugins.grantSecretAccess(context.Background(), pluginID)
+}
 
-	api := presentation.NewAppAPI(
-		vaultRepo, connRepo, identRepo, passwordRepo, knownHostsRepo,
-		sshDialer, sshSession, newSessionConnectors(),
-		auditLogRepo, lockoutMgr,
-	)
+func (a *App) grantPluginAuthProviderAccess(pluginID string) error {
+	if a.plugins == nil {
+		return nil
+	}
+	return a.plugins.grantAuthProviderAccess(context.Background(), pluginID)
+}
 
-	return &App{api: api}
+func (a *App) grantPluginTunnelProviderAccess(pluginID string) error {
+	if a.plugins == nil {
+		return nil
+	}
+	return a.plugins.grantTunnelProviderAccess(context.Background(), pluginID)
+}
+
+func (a *App) grantPluginArbitraryNetworkAccess(pluginID string) error {
+	if a.plugins == nil {
+		return nil
+	}
+	return a.plugins.grantArbitraryNetworkAccess(context.Background(), pluginID)
+}
+
+func (a *App) pluginAssetHandler() http.Handler {
+	if a.plugins == nil {
+		return nil
+	}
+	return a.plugins.assetHandler()
 }
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.api.SetContext(ctx)
+	a.api.SetPluginVaultGrant(a.grantPluginSecretAccess)
+	a.api.SetPluginAuthGrant(a.grantPluginAuthProviderAccess)
+	a.api.SetPluginTunnelGrant(a.grantPluginTunnelProviderAccess)
+	a.api.SetPluginMultiSessionGrant(a.grantPluginMultiSessionAccess)
+	a.api.SetPluginArbitraryNetworkGrant(a.grantPluginArbitraryNetworkAccess)
+	if a.plugins != nil && a.plugins.manager != nil {
+		safego.GoNamed("plugin.startupActivate", func() {
+			a.plugins.manager.ActivateStartupPlugins(context.Background())
+		})
+		a.plugins.manager.SetStateChangeHandler(a.api.EmitPluginStateChanged)
+	}
 }
 
 func (a *App) shutdown(_ context.Context) {
+	if a.plugins != nil {
+		a.plugins.shutdown()
+	}
 	a.api.Shutdown()
 }
 
@@ -133,16 +148,16 @@ func (a *App) ResolveHostKey(sessionID, action, host, authorizedKey string) erro
 	return a.api.ResolveHostKey(sessionID, action, host, authorizedKey)
 }
 
-func (a *App) SearchAuditLog(query, sessionID, connectionID string, limit, offset int) ([]presentation.AuditEntryDTO, error) {
-	return a.api.SearchAuditLog(query, sessionID, connectionID, limit, offset)
+func (a *App) SearchAuditLog(query, sessionID, connectionID, category string, limit, offset int) ([]presentation.AuditEntryDTO, error) {
+	return a.api.SearchAuditLog(query, sessionID, connectionID, category, limit, offset)
 }
 
 func (a *App) DeleteAuditEntry(id int64) error {
 	return a.api.DeleteAuditEntry(id)
 }
 
-func (a *App) ClearAuditLog() error {
-	return a.api.ClearAuditLog()
+func (a *App) ClearAuditLog(category string) error {
+	return a.api.ClearAuditLog(category)
 }
 
 func (a *App) GetAuditSessionState() presentation.AuditSessionStateDTO {
@@ -213,6 +228,14 @@ func (a *App) TerminalResize(sessionID string, cols, rows int) error {
 	return a.api.TerminalResize(sessionID, cols, rows)
 }
 
+func (a *App) ReportEmbedViewport(sessionID string, widthPx, heightPx int, devicePixelRatio float64) error {
+	return a.api.ReportEmbedViewport(sessionID, widthPx, heightPx, devicePixelRatio)
+}
+
+func (a *App) ReportEmbedActivity(sessionID string, active bool) error {
+	return a.api.ReportEmbedActivity(sessionID, active)
+}
+
 func (a *App) ListPath(sessionID, path string) ([]presentation.RemoteNodeDTO, error) {
 	return a.api.ListPath(sessionID, path)
 }
@@ -233,6 +256,22 @@ func (a *App) RenamePath(sessionID, oldPath, newPath string) error {
 	return a.api.RenamePath(sessionID, oldPath, newPath)
 }
 
+func (a *App) Chmod(sessionID, remotePath string, mode uint32) error {
+	return a.api.Chmod(sessionID, remotePath, mode)
+}
+
+func (a *App) Chown(sessionID, remotePath string, uid, gid int) error {
+	return a.api.Chown(sessionID, remotePath, uid, gid)
+}
+
+func (a *App) ChmodRecursive(sessionID, remotePath string, mode uint32, applyTo string) error {
+	return a.api.ChmodRecursive(sessionID, remotePath, mode, applyTo)
+}
+
+func (a *App) ChownRecursive(sessionID, remotePath string, uid, gid int, applyTo string) error {
+	return a.api.ChownRecursive(sessionID, remotePath, uid, gid, applyTo)
+}
+
 func (a *App) RemoveLocalPath(localPath string) error {
 	return a.api.RemoveLocalPath(localPath)
 }
@@ -249,12 +288,44 @@ func (a *App) CreateLocalFile(localPath string) error {
 	return a.api.CreateLocalFile(localPath)
 }
 
+func (a *App) CopyLocalPath(srcPath, destDir string) error {
+	return a.api.CopyLocalPath(srcPath, destDir)
+}
+
 func (a *App) Upload(sessionID, localPath, remotePath string) error {
 	return a.api.Upload(sessionID, localPath, remotePath)
 }
 
 func (a *App) Download(sessionID, remotePath, localDir string) error {
 	return a.api.Download(sessionID, remotePath, localDir)
+}
+
+func (a *App) GetVersionInfo() presentation.VersionInfoDTO {
+	return a.api.GetVersionInfo()
+}
+
+func (a *App) PlanUpload(sessionID string, localPaths []string, remoteDir string) (presentation.TransferPlanDTO, error) {
+	return a.api.PlanUpload(sessionID, localPaths, remoteDir)
+}
+
+func (a *App) PlanDownload(sessionID string, remotePaths []string, localDir string) (presentation.TransferPlanDTO, error) {
+	return a.api.PlanDownload(sessionID, remotePaths, localDir)
+}
+
+func (a *App) PlanLocalCopy(srcPaths []string, destDir string) (presentation.TransferPlanDTO, error) {
+	return a.api.PlanLocalCopy(srcPaths, destDir)
+}
+
+func (a *App) ExecuteUpload(sessionID string, req presentation.ExecutePlanDTO) error {
+	return a.api.ExecuteUpload(sessionID, req)
+}
+
+func (a *App) ExecuteDownload(sessionID string, req presentation.ExecutePlanDTO) error {
+	return a.api.ExecuteDownload(sessionID, req)
+}
+
+func (a *App) ExecuteLocalCopy(req presentation.ExecutePlanDTO) error {
+	return a.api.ExecuteLocalCopy(req)
 }
 
 func (a *App) CancelTransfer(transferID string) {
@@ -293,6 +364,10 @@ func (a *App) ListLocalPath(dirPath string, includeHidden bool) ([]presentation.
 	return a.api.ListLocalPath(dirPath, includeHidden)
 }
 
+func (a *App) GetPortableDataRoot() (string, error) {
+	return a.api.GetPortableDataRoot()
+}
+
 func (a *App) GetUserHomeDir() (string, error) {
 	return a.api.GetUserHomeDir()
 }
@@ -317,29 +392,123 @@ func (a *App) SaveSettings(dto presentation.AppSettingsDTO) error {
 	return a.api.SaveSettings(dto)
 }
 
-// defaultVaultDir returns the directory for storing the vault file.
-// Portable mode: if the executable directory is writable, use it (vault.age next to exe).
-// Otherwise use %AppData%\xQuakShell.
-func defaultVaultDir() string {
-	exe, err := os.Executable()
-	if err != nil {
-		return fallbackVaultDir()
-	}
-	exeDir := filepath.Dir(exe)
-	testFile := filepath.Join(exeDir, ".xquakshell-writable")
-	if err := os.WriteFile(testFile, nil, 0600); err != nil {
-		return fallbackVaultDir()
-	}
-	if err := os.Remove(testFile); err != nil {
-		log.Printf("WARNING: failed to remove writable test file %s: %v", testFile, err)
-	}
-	return exeDir
+func (a *App) ListPlugins() ([]presentation.PluginDTO, error) {
+	return a.api.ListPlugins()
 }
 
-func fallbackVaultDir() string {
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		configDir = "."
-	}
-	return filepath.Join(configDir, "xQuakShell")
+// Discovery subtrees (ADR-014). Everything here is addressed by connectionId; the sessionId a
+// plugin is actually reached through is resolved in the backend and never crosses this boundary.
+
+func (a *App) GetDiscoveryTree(connectionId string) (presentation.DiscoverySnapshotDTO, error) {
+	return a.api.GetDiscoveryTree(connectionId)
+}
+
+func (a *App) SetDiscoveryObserved(connectionId string, nodeIds []string) error {
+	return a.api.SetDiscoveryObserved(connectionId, nodeIds)
+}
+
+// InvokeDiscoveryAction names the addressee plugin explicitly: node ids are unique only within one
+// plugin's own subtree.
+func (a *App) InvokeDiscoveryAction(connectionId string, pluginId string, nodeIds []string, actionId string) error {
+	return a.api.InvokeDiscoveryAction(connectionId, pluginId, nodeIds, actionId)
+}
+
+func (a *App) PingPlugin(pluginID string) (presentation.PluginPingResultDTO, error) {
+	return a.api.PingPlugin(pluginID)
+}
+
+func (a *App) StartPlugin(pluginID string) error {
+	return a.api.StartPlugin(pluginID)
+}
+
+func (a *App) SetPluginEnabled(pluginID string, enabled bool) error {
+	return a.api.SetPluginEnabled(pluginID, enabled)
+}
+
+func (a *App) SelectPluginSourceDir() (string, error) {
+	return a.api.SelectPluginSourceDir()
+}
+
+func (a *App) PreviewPluginInstall(sourceDir string) (presentation.PluginInstallPreviewDTO, error) {
+	return a.api.PreviewPluginInstall(sourceDir)
+}
+
+func (a *App) SelectPluginBundleFile() (string, error) {
+	return a.api.SelectPluginBundleFile()
+}
+
+func (a *App) GetPluginSettings() (presentation.PluginSettingsDTO, error) {
+	return a.api.GetPluginSettings()
+}
+
+func (a *App) SavePluginSettings(dto presentation.PluginSettingsDTO) error {
+	return a.api.SavePluginSettings(dto)
+}
+
+func (a *App) GeneratePluginPublisherKeyPair() (presentation.PluginPublisherKeyPairDTO, error) {
+	return a.api.GeneratePluginPublisherKeyPair()
+}
+
+func (a *App) ValidateTrustedPublisherKey(keyB64 string) error {
+	return a.api.ValidateTrustedPublisherKey(keyB64)
+}
+
+func (a *App) InstallPlugin(sourceDir string, grantSecretAccess bool, grantAuthProviderAccess bool, grantTunnelProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool, grantExecAccess bool) (presentation.PluginDTO, error) {
+	return a.api.InstallPlugin(sourceDir, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess)
+}
+
+func (a *App) GetPluginConnectionProtocols() []presentation.ConnectionProtocolDTO {
+	return a.api.GetPluginConnectionProtocols()
+}
+
+func (a *App) GetPluginContributions() presentation.PluginContributionsDTO {
+	return a.api.GetPluginContributions()
+}
+
+func (a *App) ExecutePluginCommand(pluginID, commandID string, args json.RawMessage) (json.RawMessage, error) {
+	return a.api.ExecutePluginCommand(pluginID, commandID, args)
+}
+
+func (a *App) PreparePluginViewPanel(pluginID, panelID string) (string, error) {
+	return a.api.PreparePluginViewPanel(pluginID, panelID)
+}
+
+func (a *App) RelayPluginViewMessage(token string, message json.RawMessage) error {
+	return a.api.RelayPluginViewMessage(token, message)
+}
+
+func (a *App) ReleasePluginViewPanel(token string) {
+	a.api.ReleasePluginViewPanel(token)
+}
+
+func (a *App) ListGitHubRepositories() ([]presentation.GitHubRepositoryDTO, error) {
+	return a.api.ListGitHubRepositories()
+}
+
+func (a *App) AddGitHubRepository(req presentation.AddGitHubRepositoryRequest) error {
+	return a.api.AddGitHubRepository(req)
+}
+
+func (a *App) RemoveGitHubRepository(repoURL string) error {
+	return a.api.RemoveGitHubRepository(repoURL)
+}
+
+func (a *App) SetGitHubRepositoryTrust(req presentation.SetGitHubRepositoryTrustRequest) error {
+	return a.api.SetGitHubRepositoryTrust(req)
+}
+
+func (a *App) FetchGitHubPlugins(req presentation.FetchGitHubPluginsRequest) (*presentation.GitHubPluginListDTO, error) {
+	return a.api.FetchGitHubPlugins(req)
+}
+
+func (a *App) PreviewGitHubPluginInstall(repoURL, releaseTag string) (presentation.GitHubPluginPreviewResponseDTO, error) {
+	return a.api.PreviewGitHubPluginInstall(repoURL, releaseTag)
+}
+
+func (a *App) InstallGitHubPlugin(repoURL, releaseTag string, grantSecretAccess bool, grantAuthProviderAccess bool, grantTunnelProviderAccess bool, grantMultiSessionAccess bool, grantArbitraryNetworkAccess bool, grantExecAccess bool) error {
+	return a.api.InstallGitHubPlugin(repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess)
+}
+
+func (a *App) UninstallGitHubPlugin(pluginID string, removeData bool) error {
+	return a.api.UninstallGitHubPlugin(pluginID, removeData)
 }

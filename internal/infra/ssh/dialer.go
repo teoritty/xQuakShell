@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
 	gossh "golang.org/x/crypto/ssh"
-	"golang.org/x/net/proxy"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/pkg/safego"
 )
 
 const defaultTimeoutSeconds = 15
@@ -41,6 +42,37 @@ func (w *sshClientWrapper) KeepAlive() error {
 	return err
 }
 
+func (w *sshClientWrapper) OpenDirectTCP(ctx context.Context, addr string) (net.Conn, error) {
+	type result struct {
+		conn net.Conn
+		err  error
+	}
+	ch := make(chan result, 1)
+	safego.GoNamed("ssh.openDirectTCP", func() {
+		c, err := w.client.Dial("tcp", addr)
+		ch <- result{c, err}
+	})
+	select {
+	case r := <-ch:
+		return r.conn, r.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (w *sshClientWrapper) ListenTCP(ctx context.Context, remoteAddr string) (net.Listener, error) {
+	host, portStr, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid remote forward address %q: %w", remoteAddr, err)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid remote forward port %q: %w", portStr, err)
+	}
+	_ = ctx
+	return w.client.Listen("tcp", net.JoinHostPort(host, strconv.Itoa(port)))
+}
+
 // Dialer implements domain.SSHClientFactory using golang.org/x/crypto/ssh.
 type Dialer struct{}
 
@@ -67,6 +99,8 @@ func (d *Dialer) Create(ctx context.Context, cfg domain.SSHClientConfig) (domain
 	if cfg.Password != "" {
 		authMethods = append(authMethods, gossh.Password(cfg.Password))
 	}
+	// Plugin-provided methods follow built-in publickey/password so servers prefer cheaper methods first.
+	authMethods = append(authMethods, cfg.ExtraAuthMethods...)
 
 	sshConfig := &gossh.ClientConfig{
 		User:            cfg.User,
@@ -78,22 +112,10 @@ func (d *Dialer) Create(ctx context.Context, cfg domain.SSHClientConfig) (domain
 	var conn net.Conn
 	var err error
 
+	// Outbound dialing is either a pre-established transport (jump chains) or direct TCP.
+	// A future plugin-provided transport would attach via cfg.Transport, not a new branch here.
 	if cfg.Transport != nil {
 		conn = cfg.Transport
-	} else if cfg.Proxy != nil && cfg.Proxy.Host != "" && cfg.Proxy.Port > 0 {
-		var auth *proxy.Auth
-		if cfg.Proxy.Username != "" || cfg.Proxy.Password != "" {
-			auth = &proxy.Auth{User: cfg.Proxy.Username, Password: cfg.Proxy.Password}
-		}
-		proxyAddr := fmt.Sprintf("%s:%d", cfg.Proxy.Host, cfg.Proxy.Port)
-		socksDialer, err := proxy.SOCKS5("tcp", proxyAddr, auth, proxy.Direct)
-		if err != nil {
-			return nil, fmt.Errorf("socks5 proxy %s: %w", proxyAddr, err)
-		}
-		conn, err = socksDialer.Dial("tcp", addr)
-		if err != nil {
-			return nil, fmt.Errorf("ssh via socks %s: %w", addr, err)
-		}
 	} else {
 		dialer := net.Dialer{Timeout: timeout}
 		conn, err = dialer.DialContext(ctx, "tcp", addr)

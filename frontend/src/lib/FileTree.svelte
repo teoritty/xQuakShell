@@ -1,20 +1,28 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import type { RemoteNode } from '../stores/appState';
-  import { listPath, removePath, mkdirPath, createFilePath, renamePath, downloadFile, getTempDir, openFileWithSystem, startFileWatch, getSettings } from '../stores/api';
+  import { listPath, removePath, mkdirPath, createFilePath, renamePath, downloadFile } from '../api/remoteFs';
+  import { startUploadDrop } from '../actions/transferActions';
+  import { getTempDir, openFileWithSystem, startFileWatch } from '../api/localFs';
+  import { getSettings } from '../actions/settingsActions';
+  import { sftpReadyPaths } from '../events/subscribe';
   import { editingFiles, transferCompleted } from '../stores/appState';
+  import { registerOsDropZone, resolveOsDropTarget, isFileDrag, isInternalFileDrag } from './osFileDrop';
+  import { isInvalidMove } from './pathMove';
   import FileTreeNode from './FileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
+  import { openContextMenu, releaseContextMenu } from './contextMenuManager';
   import ConfirmDialog from './ConfirmDialog.svelte';
+  import PermissionsDialog from './PermissionsDialog.svelte';
   import OverflowToolbar from './OverflowToolbar.svelte';
   import { buildFilePanelToolbarItems, cycleSortState, type SortKey } from './filePanelToolbar';
-  import { Loader2, ChevronUp } from 'lucide-svelte';
+  import { refreshesRemotePane, remoteRefreshDirs } from './transferPresentation';
+  import { Loader2, ChevronUp, X } from 'lucide-svelte';
 
   const STORAGE_KEY = 'filetree-show-columns';
   const STORAGE_HIDDEN = 'filetree-show-hidden';
 
   export let sessionId: string;
-  export let onDropUpload: ((localPath: string, remotePath: string) => void) | undefined = undefined;
 
   let tree: Map<string, RemoteNode[]> = new Map();
   let rawTree: Map<string, RemoteNode[]> = new Map();
@@ -30,9 +38,11 @@
   let showHidden = false;
   let editingNewPath: string | null = null;
   let deleteConfirm = { show: false, path: '', name: '', isDir: false, childCount: 0, pathsToDelete: [] as string[] };
+  let permDialog = { show: false, path: '', isDir: false, mode: '' };
   let error = '';
   let ready = false;
-  let eventOff: (() => void) | null = null;
+  let osDropOff: (() => void) | null = null;
+  let rootEl: HTMLDivElement | null = null;
   let dragOverPath: string | null = null;
   type SortDir = 'asc' | 'desc';
   let sortEnabled = false;
@@ -49,25 +59,31 @@
         showDate = !!o.date;
       }
     } catch (_) {}
-    const rt = (window as any).runtime;
-    if (rt) {
-      const handler = (data: { sessionId: string; initialPath?: string }) => {
-        if (data.sessionId === sessionId) {
-          ready = true;
-          if (data.initialPath) {
-            currentPath = data.initialPath;
-          }
-          refresh();
-        }
-      };
-      rt.EventsOn('SFTPReady', handler);
-      eventOff = () => rt.EventsOff('SFTPReady');
-    }
+    if (rootEl) osDropOff = registerOsDropZone({ el: rootEl, onDrop: handleOsFileDrop });
   });
 
+  // Recover SFTP readiness from the app-level latch. This is robust to the
+  // one-shot SFTPReady event firing before this component mounted (fast warm
+  // connections) or to a remount when the tab is dragged between tiles: the
+  // store already holds the ready state and initial path for the session.
+  $: if (!ready && $sftpReadyPaths.has(sessionId)) {
+    ready = true;
+    const initialPath = $sftpReadyPaths.get(sessionId);
+    if (initialPath) currentPath = initialPath;
+    refresh();
+  }
+
   onDestroy(() => {
-    if (eventOff) eventOff();
+    if (osDropOff) osDropOff();
   });
+
+  async function handleOsFileDrop(paths: string[], x: number, y: number) {
+    if (!rootEl) return;
+    const targetDir = resolveOsDropTarget(rootEl, x, y, currentPath);
+    if (targetDir === null) return;
+    await startUploadDrop(sessionId, paths, targetDir);
+    await refreshPreservingState([targetDir, currentPath]);
+  }
 
   async function loadDir(path: string) {
     if (loading.has(path)) return;
@@ -164,11 +180,16 @@
     tree = tree;
   }
 
-  $: if (ready && $transferCompleted?.direction === 'upload' && $transferCompleted?.sessionId === sessionId) {
+  // An operation that touched this session's remote tree finished (or was
+  // partially applied — delete/chmod/chown mutate even on failure, which is why
+  // subscribe.ts signals them on any terminal state). Which directories went
+  // stale is answered entirely by refreshDir, the backend's machine-readable
+  // path; remotePath is a caption ("3 items") and is never parsed.
+  $: if (ready && $transferCompleted
+      && refreshesRemotePane($transferCompleted.kind, $transferCompleted.sessionId, sessionId)) {
     const t = $transferCompleted;
     transferCompleted.set(null);
-    const remoteParent = t.remotePath.replace(/\/[^/]+$/, '') || '/';
-    refreshPreservingState([remoteParent, currentPath]);
+    refreshPreservingState([...remoteRefreshDirs(t.kind, t.refreshDir), currentPath]);
   }
 
   function formatSize(size: number): string {
@@ -229,6 +250,12 @@
   }
 
   function handleDragOverPath(e: DragEvent, path: string) {
+    // External OS file drags are handled by the window-level osFileDrop router
+    // (via Wails). Do not stopPropagation here or the drop never reaches it.
+    if (isFileDrag(e)) return;
+    // Only claim genuine file-pane drags; other internal drags (e.g. a tile tab
+    // dragged over this panel) must bubble to the tile layout for split/move.
+    if (!isInternalFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
@@ -240,6 +267,10 @@
   }
 
   async function handleDrop(e: DragEvent, targetDir: string) {
+    // External OS file drops bubble up to the osFileDrop router; leave them alone.
+    if (isFileDrag(e)) return;
+    // Ignore non-file internal drags (e.g. tile-tab drags) so they reach the tile.
+    if (!isInternalFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     dragOverPath = null;
@@ -262,7 +293,7 @@
       for (const rp of remotes) {
         const base = rp.split('/').filter(Boolean).pop() || 'item';
         const destPath = targetDir === '/' ? `/${base}` : `${targetDir}/${base}`;
-        if (rp !== destPath) {
+        if (!isInvalidMove(rp, targetDir)) {
           try {
             await renamePath(sessionId, rp, destPath);
             const srcParent = rp.replace(/\/[^/]+$/, '') || '/';
@@ -276,12 +307,9 @@
       return;
     }
     const locals = localPaths && localPaths.length > 0 ? localPaths : (localPath ? [localPath] : []);
-    if (locals.length > 0 && onDropUpload) {
-      for (const lp of locals) {
-        const fileName = lp.split(/[\\/]/).pop() || 'file';
-        const remoteDest = targetDir === '/' ? `/${fileName}` : `${targetDir}/${fileName}`;
-        onDropUpload(lp, remoteDest);
-      }
+    if (locals.length > 0) {
+      await startUploadDrop(sessionId, locals, targetDir);
+      await refreshPreservingState([targetDir, currentPath]);
     }
   }
 
@@ -302,9 +330,11 @@
     e.preventDefault();
     e.stopPropagation();
     ctxMenu = { show: true, x: e.clientX, y: e.clientY, path, isDir, isEmptyArea, size };
+    openContextMenu(closeContextMenu);
   }
 
   function closeContextMenu() {
+    releaseContextMenu(closeContextMenu);
     ctxMenu = { ...ctxMenu, show: false };
   }
 
@@ -358,19 +388,18 @@
     const { path, pathsToDelete } = deleteConfirm;
     deleteConfirm = { ...deleteConfirm, show: false };
     const toDelete = (pathsToDelete && pathsToDelete.length > 0) ? pathsToDelete : (path ? [path] : []);
-    const affectedPaths = new Set<string>([currentPath]);
+    // Each delete runs as a background operation with progress in the Transfers
+    // panel; the tree refreshes itself from the operation's terminal event
+    // (see the $transferCompleted reactive block above). We only schedule here.
     for (const p of toDelete) {
       try {
         await removePath(sessionId, p);
-        const parent = p.replace(/\/[^/]+$/, '') || '/';
-        if (parent) affectedPaths.add(parent);
       } catch (e: any) {
         error = e?.message || String(e);
       }
     }
     selectedPaths = new Set();
     lastSelectedPath = null;
-    await refreshPreservingState([...affectedPaths]);
   }
 
   function cancelDelete() {
@@ -446,13 +475,30 @@
     const trimmed = pathInput.trim();
     if (!trimmed) return;
     const normalized = trimmed.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '') || '/';
-    currentPath = normalized.startsWith('/') ? normalized : `/${normalized}`;
-    await loadDir(currentPath);
-    if (!expanded.has(currentPath)) {
-      expanded.add(currentPath);
-      expanded = expanded;
+    const nextPath = normalized.startsWith('/') ? normalized : `/${normalized}`;
+    const prevPath = currentPath;
+    // Fetch first: only commit navigation once the listing succeeds. A
+    // non-existent directory must leave the current view untouched. listPath
+    // normally swallows errors (returns []) and shows a global banner, which
+    // would let navigation proceed into an empty non-existent folder — so we
+    // opt into rethrow and surface the failure inline instead.
+    try {
+      const nodes = await listPath(sessionId, nextPath, { rethrow: true, silence: () => true });
+      rawTree.set(nextPath, nodes);
+      tree.set(nextPath, applySort(nodes));
+      currentPath = nextPath;
+      if (!expanded.has(currentPath)) {
+        expanded.add(currentPath);
+        expanded = expanded;
+      }
+      tree = tree;
+      error = '';
+    } catch (e: any) {
+      error = e?.message || String(e);
+      currentPath = prevPath;
+      pathInput = prevPath;
+      return;
     }
-    tree = tree;
   }
 
   let pathInput = '';
@@ -495,6 +541,25 @@
     tree = tree;
   }
 
+  function handleCtxPermissions() {
+    if (ctxMenu.isEmptyArea || !ctxMenu.path) {
+      closeContextMenu();
+      return;
+    }
+    const node = findNode(ctxMenu.path);
+    permDialog = { show: true, path: ctxMenu.path, isDir: ctxMenu.isDir, mode: node?.mode || '' };
+    closeContextMenu();
+  }
+
+  function handleCtxRename() {
+    if (ctxMenu.isEmptyArea || !ctxMenu.path) {
+      closeContextMenu();
+      return;
+    }
+    editingNewPath = ctxMenu.path;
+    closeContextMenu();
+  }
+
   async function handleRenameConfirm(oldPath: string, newName: string) {
     if (!newName.trim()) {
       editingNewPath = null;
@@ -510,6 +575,7 @@
       await renamePath(sessionId, oldPath, newPath);
     } catch (e: any) {
       error = e?.message || String(e);
+      editingNewPath = null;
       return;
     }
     editingNewPath = null;
@@ -540,7 +606,7 @@
 </script>
 
 <svelte:window on:click={closeContextMenu} />
-<div class="file-tree">
+<div class="file-tree" bind:this={rootEl}>
   <div class="panel-header">
     <span>Remote Files</span>
     <OverflowToolbar items={toolbarItems} />
@@ -561,7 +627,10 @@
   {#if !ready}
     <div class="tree-loading"><Loader2 size={14} /> Connecting SFTP...</div>
   {:else if error}
-    <div class="tree-error">{error}</div>
+    <div class="tree-error">
+      <span class="tree-error-msg">{error}</span>
+      <button class="tree-error-close" title="Dismiss" on:click={() => (error = '')}><X size={12} /></button>
+    </div>
   {/if}
 
   <div
@@ -613,10 +682,22 @@
     show={ctxMenu.show}
     isDir={ctxMenu.isDir}
     isEmptyArea={ctxMenu.isEmptyArea}
+    allowPermissionsMenu={true}
     on:delete={handleCtxDelete}
     on:newFolder={handleCtxNewFolder}
     on:newFile={handleCtxNewFile}
+    on:rename={handleCtxRename}
     on:edit={handleCtxEdit}
+    on:permissions={handleCtxPermissions}
+  />
+
+  <PermissionsDialog
+    show={permDialog.show}
+    {sessionId}
+    path={permDialog.path}
+    isDir={permDialog.isDir}
+    currentMode={permDialog.mode}
+    on:close={() => { permDialog = { ...permDialog, show: false }; refresh(); }}
   />
 
   <ConfirmDialog
@@ -655,11 +736,37 @@
   }
 
   .tree-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     padding: 8px 10px;
     font-size: 11px;
     color: var(--danger);
     background: rgba(211, 47, 47, 0.1);
     border-bottom: 1px solid var(--border-color);
+  }
+
+  .tree-error-msg {
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+  }
+
+  .tree-error-close {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    color: var(--danger);
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+
+  .tree-error-close:hover {
+    background: rgba(211, 47, 47, 0.18);
   }
 
   .path-bar {
@@ -714,5 +821,21 @@
     overflow-y: auto;
     flex: 1;
     padding: 4px 0;
+  }
+
+  /* Drag-over highlight applied by osFileDrop's router while an OS file is
+     dragged over this pane (see registerOsDropZone). */
+  .file-tree:global(.os-drop-active) {
+    outline: 2px dashed var(--accent);
+    outline-offset: -3px;
+    background: rgba(100, 150, 255, 0.08);
+  }
+
+  /* Folder row highlighted when an OS file is dragged directly over it (drop
+     targets that folder rather than the current directory). */
+  :global(.node-row.os-drop-active) {
+    background: rgba(100, 150, 255, 0.22);
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
   }
 </style>

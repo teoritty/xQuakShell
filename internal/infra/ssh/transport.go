@@ -7,7 +7,7 @@ import (
 
 	gossh "golang.org/x/crypto/ssh"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // DirectDialer establishes direct TCP connections.
@@ -45,7 +45,6 @@ func (b *BastionDialer) DialContext(_ context.Context, _, address string) (net.C
 // chain[0] is the first bastion, chain[len-1] is the last bastion before the target.
 // The caller should use the returned net.Conn as SSHClientConfig.Transport for the final target.
 // timeoutSeconds is used for each hop's TCP/SSH handshake (0 = default 15).
-// proxyAuth, when non-nil, routes the first hop's TCP through SOCKS.
 // Prefer JumpTransportBuilder.BuildChain from higher layers; this function is the implementation.
 func BuildTransportChain(
 	ctx context.Context,
@@ -53,7 +52,6 @@ func BuildTransportChain(
 	targetHost string,
 	targetPort int,
 	timeoutSeconds int,
-	proxyAuth *domain.ProxyAuth,
 	sshFactory domain.SSHClientFactory,
 	hostKeyCallback gossh.HostKeyCallback,
 	resolveHopAuth domain.JumpHopAuthResolver,
@@ -68,7 +66,7 @@ func BuildTransportChain(
 	var transport net.Conn
 
 	for i, hop := range hops {
-		signers, password, err := resolveHopAuth(hop)
+		signers, password, extraAuth, releaseAuth, err := resolveHopAuth(hop)
 		if err != nil {
 			cleanup()
 			return nil, nil, fmt.Errorf("hop %d auth: %w", i, err)
@@ -79,20 +77,21 @@ func BuildTransportChain(
 			hopTimeout = 15
 		}
 		cfg := domain.SSHClientConfig{
-			Host:            hop.Host,
-			Port:            hop.Port,
-			User:            hop.Username,
-			Signers:         signers,
-			Password:        password,
-			HostKeyCallback: hostKeyCallback,
-			TimeoutSeconds:  hopTimeout,
-			Transport:       transport,
-		}
-		if i == 0 && proxyAuth != nil && proxyAuth.Host != "" && proxyAuth.Port > 0 {
-			cfg.Proxy = proxyAuth
+			Host:             hop.Host,
+			Port:             hop.Port,
+			User:             hop.Username,
+			Signers:          signers,
+			Password:         password,
+			ExtraAuthMethods: extraAuth,
+			HostKeyCallback:  hostKeyCallback,
+			TimeoutSeconds:   hopTimeout,
+			Transport:        transport,
 		}
 
 		client, err := sshFactory.Create(ctx, cfg)
+		if releaseAuth != nil {
+			releaseAuth()
+		}
 		if err != nil {
 			cleanup()
 			return nil, nil, fmt.Errorf("hop %d (%s:%d) connect: %w", i, hop.Host, hop.Port, err)
@@ -127,10 +126,9 @@ func (jumpTransportBuilder) BuildChain(
 	targetHost string,
 	targetPort int,
 	timeoutSeconds int,
-	proxyAuth *domain.ProxyAuth,
 	factory domain.SSHClientFactory,
 	hostKeyCallback gossh.HostKeyCallback,
 	resolveHopAuth domain.JumpHopAuthResolver,
 ) (net.Conn, func(), error) {
-	return BuildTransportChain(ctx, hops, targetHost, targetPort, timeoutSeconds, proxyAuth, factory, hostKeyCallback, resolveHopAuth)
+	return BuildTransportChain(ctx, hops, targetHost, targetPort, timeoutSeconds, factory, hostKeyCallback, resolveHopAuth)
 }

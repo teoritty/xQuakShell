@@ -5,6 +5,7 @@ export type SettingsTabId =
   | 'files'
   | 'hotkeys'
   | 'network'
+  | 'plugins'
   | 'security'
   | 'terminal';
 
@@ -20,6 +21,11 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
     tabId: 'about',
     sectionId: 'info',
     terms: ['About', 'SSH Client', 'Version', 'Check for Updates', 'Report an Issue'],
+  },
+  {
+    tabId: 'about',
+    sectionId: 'developer',
+    terms: ['Developer', 'Debug log', 'Debug log window', 'Open debug log window', 'logs', 'console'],
   },
   {
     tabId: 'appearance',
@@ -57,6 +63,20 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
     terms: ['Files', 'External Editor', 'Edit on the fly', 'Editor path'],
   },
   {
+    tabId: 'files',
+    sectionId: 'conflicts',
+    terms: [
+      'Files',
+      'When a file already exists',
+      'Ask every time',
+      'Conflict',
+      'Overwrite',
+      'Rename',
+      'Skip',
+      'default action',
+    ],
+  },
+  {
     tabId: 'hotkeys',
     sectionId: 'session',
     terms: [
@@ -78,6 +98,11 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
     tabId: 'network',
     sectionId: 'transfer',
     terms: ['File Transfer', 'Speed limit', 'Connection timeout', 'Max concurrent transfers'],
+  },
+  {
+    tabId: 'plugins',
+    sectionId: 'manage',
+    terms: ['Plugins', 'Install plugin', 'Extension', 'Verified', 'Permissions'],
   },
   {
     tabId: 'security',
@@ -104,6 +129,7 @@ export const SETTINGS_TAB_LABELS: Record<SettingsTabId, string> = {
   files: 'Files',
   hotkeys: 'Hotkeys',
   network: 'Network',
+  plugins: 'Plugins',
   security: 'Security',
   terminal: 'Terminal',
 };

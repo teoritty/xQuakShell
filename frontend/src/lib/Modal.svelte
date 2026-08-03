@@ -67,6 +67,21 @@
     max-width: 620px;
   }
 
+  .modal-content:global(.plugin-details-modal) {
+    width: min(1400px, 94vw);
+    max-width: min(1400px, 94vw);
+    min-width: min(1000px, 94vw);
+    max-height: 90vh;
+  }
+
+  .modal-content:global(.plugin-details-modal) .modal-body {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+  }
+
   .modal-header {
     display: flex;
     align-items: center;

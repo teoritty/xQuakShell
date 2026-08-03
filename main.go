@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -9,13 +10,26 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
+
+	"xquakshell/internal/presentation/logwindow"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// buildMarker is a conspicuous, impossible-to-miss startup log line used
+// solely to confirm which binary is actually running while debugging the
+// channel.open hang for xqs-plugin-vnc.
+const buildMarker = "BUILD-MARKER-CHANNEL-OPEN-TRACE-20260718"
+
 func main() {
-	app := NewApp()
+	if logwindow.IsViewerMode(os.Args) {
+		logwindow.RunViewerApp(os.Args, assets)
+		return
+	}
+
+	app := composeApp()
+	slog.Debug(buildMarker)
 
 	windowsOpts := &windows.Options{
 		WebviewIsTransparent:              true,
@@ -32,11 +46,15 @@ func main() {
 		MinWidth:  900,
 		MinHeight: 600,
 		AssetServer: &assetserver.Options{
-			Assets: assets,
+			Assets:  assets,
+			Handler: app.pluginAssetHandler(),
 		},
 		BackgroundColour: &options.RGBA{R: 30, G: 30, B: 30, A: 255},
-		OnStartup:        app.startup,
-		OnShutdown:       app.shutdown,
+		DragAndDrop: &options.DragAndDrop{
+			EnableFileDrop: true,
+		},
+		OnStartup:  app.startup,
+		OnShutdown: app.shutdown,
 		Bind: []interface{}{
 			app,
 		},

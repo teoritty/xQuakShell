@@ -1,19 +1,31 @@
 <script lang="ts">
   import Terminal from './Terminal.svelte';
+  import SessionEmbedPanel from './SessionEmbedPanel.svelte';
   import FileTree from './FileTree.svelte';
   import LocalFileTree from './LocalFileTree.svelte';
   import TransferPanel from './TransferPanel.svelte';
   import type { Session } from '../stores/appState';
-  import { closeSession, openSession, uploadFile, downloadFile } from '../stores/api';
+  import { closeSession, openSession } from '../actions/sessionActions';
+  import { connectionProtocols } from '../actions/protocolActions';
+  import { hasFilePanel } from './filePanelCapability';
   import { Loader2, XCircle, Circle } from 'lucide-svelte';
 
   export let session: Session;
   export let active: boolean = false;
+  /** When true, the tile has collapsed its file browser column. */
+  export let filesCollapsed: boolean = false;
 
   let splitRatio = 70;
   let isDragging = false;
   let fileSplitRatio = 50;
   let fileDragging = false;
+
+  $: protocols = $connectionProtocols;
+  // Session supports a remote file browser (capability).
+  $: showFilePanel = hasFilePanel(session, protocols);
+  // Whether the file column is actually shown right now (capability minus the
+  // per-tile collapse). The Transfers bar stays tied to the capability below.
+  $: filesVisible = showFilePanel && !filesCollapsed;
 
   function startHResize(e: MouseEvent) {
     isDragging = true;
@@ -63,14 +75,6 @@
     window.addEventListener('mouseup', onMouseUp);
   }
 
-  function handleUpload(localPath: string, remotePath: string) {
-    uploadFile(session.sessionId, localPath, remotePath);
-  }
-
-  function handleDownload(remotePath: string, sessionId: string, localDir: string) {
-    downloadFile(sessionId, remotePath, localDir);
-  }
-
   async function handleReconnect() {
     const connId = session.connectionId;
     await closeSession(session.sessionId);
@@ -79,12 +83,7 @@
 </script>
 
 <div class="session-view" class:visible={active}>
-  {#if session.state === 'connecting'}
-    <div class="session-status">
-      <div class="status-icon spinning"><Loader2 size={28} /></div>
-      <div class="status-text">Connecting to {session.connectionName}...</div>
-    </div>
-  {:else if session.state === 'error'}
+  {#if session.state === 'error'}
     <div class="session-status error">
       <div class="status-icon"><XCircle size={28} /></div>
       <div class="status-text">Connection error: {session.errorMessage}</div>
@@ -93,13 +92,34 @@
         <button class="secondary" on:click={() => closeSession(session.sessionId)}>Close</button>
       </div>
     </div>
+  {:else if session.surface === 'embed' && session.embed}
+    <!--
+      An embed session becomes interactive at session.registerEmbed, while it is
+      still 'connecting': the iframe must mount now so the plugin's browser-facing
+      handshake (rfb Frontshake over the embed-stream channel) can complete and
+      drive the session to 'ready'. Gating the panel on state === 'ready' deadlocks
+      — the plugin only reaches 'ready' after that handshake, which needs the very
+      browser this panel hosts. Error takes precedence above; everything else falls
+      through to the terminal/connecting states below.
+    -->
+    <div class="session-content">
+      <div class="embed-area" style="flex: 100">
+        <SessionEmbedPanel {session} {active} />
+      </div>
+    </div>
+  {:else if session.state === 'connecting'}
+    <div class="session-status">
+      <div class="status-icon spinning"><Loader2 size={28} /></div>
+      <div class="status-text">Connecting to {session.connectionName}...</div>
+    </div>
   {:else if session.state === 'ready'}
-    <div class="session-content" class:no-select={isDragging || fileDragging}>
-      <div class="terminal-area" style="flex: {splitRatio}">
+    <div class="session-content" class:no-select={isDragging || fileDragging} class:terminal-only={!filesVisible}>
+      <div class="terminal-area" style="flex: {filesVisible ? splitRatio : 100}">
         {#key session.sessionId}
           <Terminal sessionId={session.sessionId} {active} />
         {/key}
       </div>
+      {#if filesVisible}
       <div
         class="split-handle-h"
         on:mousedown={startHResize}
@@ -108,7 +128,7 @@
       ></div>
       <div class="files-column" style="flex: {100 - splitRatio}">
         <div class="remote-files" style="flex: {fileSplitRatio}">
-          <FileTree sessionId={session.sessionId} onDropUpload={handleUpload} />
+          <FileTree sessionId={session.sessionId} />
         </div>
         <div
           class="split-handle-v"
@@ -117,11 +137,14 @@
           aria-orientation="horizontal"
         ></div>
         <div class="local-files" style="flex: {100 - fileSplitRatio}">
-          <LocalFileTree onDropDownload={handleDownload} />
+          <LocalFileTree />
         </div>
       </div>
+      {/if}
     </div>
+    {#if showFilePanel}
     <TransferPanel sessionId={session.sessionId} />
+    {/if}
   {:else}
     <div class="session-status">
       <div class="status-icon"><Circle size={28} /></div>
@@ -200,6 +223,15 @@
   }
 
   .terminal-area {
+    display: flex;
+    flex-direction: column;
+    min-width: 200px;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .embed-area {
     display: flex;
     flex-direction: column;
     min-width: 200px;

@@ -4,14 +4,19 @@
   import { FitAddon } from '@xterm/addon-fit';
   import { LigaturesAddon } from '@xterm/addon-ligatures';
   import { WebLinksAddon } from '@xterm/addon-web-links';
-  import { sendTerminalInput, terminalResize, getSettings } from '../stores/api';
+  import { sendTerminalInput, terminalResize } from '../api/terminal';
+  import { getSettings } from '../actions/settingsActions';
+  import { takePendingTerminalOutput, registerTerminalOutputConsumer, clearPendingTerminalOutput } from '../terminal/outputBuffer';
   import { getUiScaleFactor } from './uiScale';
   import { dataHasEnter, extractCommandLine } from './terminalCommandLine';
+  import { getPooledTerminal, setPooledTerminal } from './terminalPool';
 
   export let sessionId: string;
   export let active: boolean = false;
 
   let containerEl: HTMLDivElement;
+  /** The element xterm is opened on; lives in the pool and moves between mounts. */
+  let host: HTMLDivElement | null = null;
   let term: Terminal | null = null;
   let fitAddon: FitAddon | null = null;
   let resizeObserver: ResizeObserver | null = null;
@@ -19,8 +24,9 @@
   let dataDisposable: { dispose: () => void } | null = null;
   let resizeDisposable: { dispose: () => void } | null = null;
   let initDone = false;
-  /** Drops TerminalOutput until subscription is installed (avoids stale lines). */
+  /** Drops live TerminalOutput until subscription is installed. */
   let acceptOutput = false;
+  let unregisterOutputConsumer: (() => void) | null = null;
   const mountSessionId = sessionId;
   /** Captured on Enter keydown before xterm/PTY consume the line. */
   let pendingCommandLine = '';
@@ -37,6 +43,23 @@
     term.options.fontSize = next;
     term.refresh(0, term.rows - 1);
     scheduleRefit();
+  }
+
+  function writeBytesToTerm(bytes: Uint8Array, scroll = true) {
+    if (!term || bytes.length === 0) return;
+    term.write(bytes, scroll ? () => term?.scrollToBottom() : undefined);
+  }
+
+  function writeTerminalPayload(output: string, scroll = true) {
+    writeBytesToTerm(decodeTerminalOutput(output), scroll);
+  }
+
+  function decodeTerminalOutput(output: string): Uint8Array {
+    try {
+      return Uint8Array.from(atob(output), (c) => c.charCodeAt(0));
+    } catch {
+      return new TextEncoder().encode(output);
+    }
   }
 
   const onUiScaleChanged = () => applyTerminalFontSize();
@@ -144,7 +167,7 @@
 
   function scheduleRefit() {
     if (refitRaf) cancelAnimationFrame(refitRaf);
-    refitRaf = requestAnimationFrame(refit);
+    refitRaf = requestAnimationFrame(() => refit());
   }
 
   async function pasteFromClipboard() {
@@ -155,51 +178,70 @@
   }
 
   onMount(async () => {
-    const settings = await getSettings();
-    baseTerminalFontSize = settings?.terminalFontSize ?? 14;
-    const fontSize = scaledTerminalFontSize();
-    const fontFamily = settings?.terminalFontFamily || 'Cascadia Code, Consolas, Courier New, monospace';
-    const fontColor = settings?.terminalFontColor || '#cccccc';
-    const theme = { ...defaultTheme, foreground: fontColor };
+    // Reuse a live terminal from the pool when this component is remounting for a
+    // session that already has one (e.g. the tab was moved to another tile). This
+    // preserves the full scrollback, cursor and PTY wiring across layout changes.
+    const pooled = getPooledTerminal(mountSessionId);
+    if (pooled) {
+      term = pooled.term;
+      fitAddon = pooled.fitAddon;
+      host = pooled.host;
+      baseTerminalFontSize = pooled.baseFontSize;
+      containerEl.appendChild(host);
+      initDone = true;
+    } else {
+      const settings = await getSettings();
+      baseTerminalFontSize = settings?.terminalFontSize ?? 14;
+      const fontSize = scaledTerminalFontSize();
+      const fontFamily = settings?.terminalFontFamily || 'Cascadia Code, Consolas, Courier New, monospace';
+      const fontColor = settings?.terminalFontColor || '#cccccc';
+      const theme = { ...defaultTheme, foreground: fontColor };
 
-    term = new Terminal({
-      cursorBlink: true,
-      fontSize,
-      fontFamily,
-      theme,
-      scrollback: 5000,
-      convertEol: false,
-      allowProposedApi: true,
-    });
+      term = new Terminal({
+        cursorBlink: true,
+        fontSize,
+        fontFamily,
+        theme,
+        scrollback: 5000,
+        convertEol: false,
+        allowProposedApi: true,
+      });
 
-    fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
+      fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
 
-    // Load the real font before open() so xterm measures correct glyph metrics.
-    try {
-      await (document as any).fonts?.load?.(`${fontSize}px "Cascadia Code"`);
-    } catch {}
-    try {
-      await (document as any).fonts?.ready;
-    } catch {}
+      // Load the real font before open() so xterm measures correct glyph metrics.
+      try {
+        await (document as any).fonts?.load?.(`${fontSize}px "Cascadia Code"`);
+      } catch {}
+      try {
+        await (document as any).fonts?.ready;
+      } catch {}
 
-    term.open(containerEl);
-    await tick();
+      // xterm is opened once on its own host element; the host (with all its DOM,
+      // including scrollback) is what moves between containers across remounts.
+      host = document.createElement('div');
+      host.className = 'terminal-host';
+      containerEl.appendChild(host);
+      term.open(host);
+      await tick();
 
-    // NOTE: we intentionally do NOT use @xterm/addon-webgl. In WebView2 at
-    // devicePixelRatio > 1 the WebGL renderer paints its canvas at the wrong
-    // scale (terminal visually fills only a fraction of the container while the
-    // grid size is correct), and only a window resize forces it to recover.
-    // The default DOM renderer sizes correctly under HiDPI and also renders
-    // ligatures more reliably.
+      // NOTE: we intentionally do NOT use @xterm/addon-webgl. In WebView2 at
+      // devicePixelRatio > 1 the WebGL renderer paints its canvas at the wrong
+      // scale (terminal visually fills only a fraction of the container while the
+      // grid size is correct), and only a window resize forces it to recover.
+      // The default DOM renderer sizes correctly under HiDPI and also renders
+      // ligatures more reliably.
 
-    // Programming ligatures (fallback set in non-Node environments like WebView2).
-    try { term.loadAddon(new LigaturesAddon()); } catch {}
+      // Programming ligatures (fallback set in non-Node environments like WebView2).
+      try { term.loadAddon(new LigaturesAddon()); } catch {}
 
-    // Clickable URLs.
-    try { term.loadAddon(new WebLinksAddon()); } catch {}
+      // Clickable URLs.
+      try { term.loadAddon(new WebLinksAddon()); } catch {}
 
-    initDone = true;
+      setPooledTerminal(mountSessionId, { term, fitAddon, host, baseFontSize: baseTerminalFontSize });
+      initDone = true;
+    }
 
     dataDisposable = term.onData((data) => {
       const commandLine = dataHasEnter(data) ? pendingCommandLine : '';
@@ -262,18 +304,21 @@
 
     const rt = (window as any).runtime;
     if (rt) {
+      for (const chunk of takePendingTerminalOutput(mountSessionId)) {
+        writeBytesToTerm(chunk);
+      }
+
       const handler = (data: { sessionId: string; output: string }) => {
         if (!acceptOutput || data.sessionId !== mountSessionId || !term) return;
-        try {
-          const bytes = Uint8Array.from(atob(data.output), (c) => c.charCodeAt(0));
-          term.write(bytes, () => term?.scrollToBottom());
-        } catch {
-          term.write(data.output);
-        }
+        writeTerminalPayload(data.output);
       };
       const unsubscribe = rt.EventsOn('TerminalOutput', handler);
       eventOff = unsubscribe;
       acceptOutput = true;
+      unregisterOutputConsumer = registerTerminalOutputConsumer(mountSessionId);
+      for (const chunk of takePendingTerminalOutput(mountSessionId)) {
+        writeBytesToTerm(chunk);
+      }
     }
   });
 
@@ -283,9 +328,17 @@
     window.removeEventListener('ui-scale-changed', onUiScaleChanged);
     if (resizeObserver) resizeObserver.disconnect();
     if (eventOff) eventOff();
+    if (unregisterOutputConsumer) unregisterOutputConsumer();
+    clearPendingTerminalOutput(mountSessionId);
     dataDisposable?.dispose();
     resizeDisposable?.dispose();
-    if (term) term.dispose();
+    // Detach the live terminal so it can be re-attached on the next mount (tile
+    // rearrangement). The terminal is disposed only when the session actually
+    // closes, via disposeTerminal() in the session lifecycle (stores/api).
+    // Guard on ownership: when a session moves between tiles the new component
+    // may re-attach the shared host before this one is destroyed, so only detach
+    // the host while it still sits in OUR container.
+    if (host && host.parentNode === containerEl) containerEl.removeChild(host);
   });
 
   $: if (active && term && initDone) {
@@ -306,6 +359,11 @@
     overflow: hidden;
     background: #1e1e1e;
     box-sizing: border-box;
+  }
+
+  .terminal-container :global(.terminal-host) {
+    width: 100%;
+    height: 100%;
   }
 
   .terminal-container :global(.xterm) {

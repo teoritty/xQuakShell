@@ -1,22 +1,48 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import { FolderPlus, Trash2, FilePlus, Pencil } from 'lucide-svelte';
+  import { createEventDispatcher, tick } from 'svelte';
+  import { FolderPlus, Trash2, FilePlus, Pencil, Shield } from 'lucide-svelte';
 
   export let x = 0;
   export let y = 0;
   export let show = false;
   export let isDir = false;
   export let isEmptyArea = false;
+  export let allowPermissionsMenu = false;
+
+  const MARGIN = 4;
+  let menuEl: HTMLDivElement | undefined;
+  let posX = x;
+  let posY = y;
+
+  // Keep the menu fully inside the viewport: once it has rendered we know its
+  // size, so clamp the requested (x, y) against the window bounds.
+  $: if (show) clampToViewport(x, y);
+
+  async function clampToViewport(px: number, py: number) {
+    posX = px;
+    posY = py;
+    await tick();
+    if (!menuEl) return;
+    const { width, height } = menuEl.getBoundingClientRect();
+    posX = Math.max(MARGIN, Math.min(px, window.innerWidth - width - MARGIN));
+    posY = Math.max(MARGIN, Math.min(py, window.innerHeight - height - MARGIN));
+  }
 
   const dispatch = createEventDispatcher<{
     delete: void;
     newFolder: void;
     newFile: void;
     edit: void;
+    rename: void;
+    permissions: void;
   }>();
 
   function handleDelete() {
     dispatch('delete');
+  }
+
+  function handleRename() {
+    dispatch('rename');
   }
 
   function handleNewFolder() {
@@ -30,16 +56,25 @@
   function handleEdit() {
     dispatch('edit');
   }
+
+  function handlePermissions() {
+    dispatch('permissions');
+  }
 </script>
 
 {#if show}
   <div
+    bind:this={menuEl}
     class="context-menu"
-    style="left: {x}px; top: {y}px"
+    style="left: {posX}px; top: {posY}px"
     role="menu"
     on:click|stopPropagation
   >
     {#if !isEmptyArea}
+      <button class="menu-item" on:click={handleRename} role="menuitem">
+        <Pencil size={12} />
+        <span>Rename</span>
+      </button>
       <button class="menu-item danger" on:click={handleDelete} role="menuitem">
         <Trash2 size={12} />
         <span>Delete</span>
@@ -48,6 +83,12 @@
         <button class="menu-item" on:click={handleEdit} role="menuitem">
           <Pencil size={12} />
           <span>Edit</span>
+        </button>
+      {/if}
+      {#if allowPermissionsMenu}
+        <button class="menu-item" on:click={handlePermissions} role="menuitem">
+          <Shield size={12} />
+          <span>Permissions…</span>
         </button>
       {/if}
     {/if}

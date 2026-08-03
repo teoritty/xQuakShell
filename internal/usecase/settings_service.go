@@ -5,18 +5,15 @@ import (
 	"strings"
 	"time"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
-// SettingsService orchestrates reading and persisting application settings.
-// It applies defaults and normalization so presentation handlers stay thin.
 type SettingsService struct {
 	vaultRepo domain.VaultRepository
 	lockout   domain.LockoutManager
 	pingMgr   *PingManager
 }
 
-// NewSettingsService creates a SettingsService with the provided dependencies.
 func NewSettingsService(vault domain.VaultRepository, lockout domain.LockoutManager, ping *PingManager) *SettingsService {
 	return &SettingsService{vaultRepo: vault, lockout: lockout, pingMgr: ping}
 }
@@ -37,18 +34,14 @@ func (s *SettingsService) GetSettings() (domain.AppSettings, error) {
 // lockout and ping manager updates. Ping restart (with event callback) must be
 // triggered by the caller after this method returns.
 func (s *SettingsService) SaveSettings(ctx context.Context, settings domain.AppSettings) error {
-	data, err := s.vaultRepo.GetData()
-	if err != nil {
-		return err
-	}
-	if data.Settings == nil {
-		data.Settings = &domain.AppSettings{}
-	}
-
 	normalized := normalizeSettings(settings)
-	*data.Settings = normalized
-
-	if err := s.vaultRepo.SaveData(ctx, data); err != nil {
+	if err := s.vaultRepo.UpdateData(ctx, func(data *domain.VaultData) error {
+		if data.Settings == nil {
+			data.Settings = &domain.AppSettings{}
+		}
+		*data.Settings = normalized
+		return nil
+	}); err != nil {
 		return err
 	}
 
@@ -81,6 +74,7 @@ func defaultAppSettings() domain.AppSettings {
 		SessionHotkeys: hotkeys,
 		AuditLog:       domain.DefaultAuditLogSettings(),
 		UIScalePercent: 100,
+		Debug:          domain.DefaultDebugSettings(),
 	}
 }
 
@@ -112,6 +106,12 @@ func normalizeSettings(s domain.AppSettings) domain.AppSettings {
 	}
 	if s.Ping.IntervalSeconds < 1 {
 		s.Ping.IntervalSeconds = 5
+	}
+	if s.Ping.MaxConcurrent <= 0 {
+		s.Ping.MaxConcurrent = 16
+	}
+	if s.Ping.MaxConcurrent > 64 {
+		s.Ping.MaxConcurrent = 64
 	}
 
 	if s.Lockout.IdleTimeout < time.Minute {

@@ -2,158 +2,129 @@ package wails
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
-	"sort"
-	"strings"
-	"time"
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// sanitizeLocalPath normalizes a local path to prevent basic traversal attacks.
-func sanitizeLocalPath(p string) string {
-	return filepath.Clean(p)
-}
+// Local filesystem Wails handlers — routing map (single source of truth):
+//
+//	| Method                                                                 | Port         | Zone              |
+//	|------------------------------------------------------------------------|--------------|-------------------|
+//	| ListLocalPath, RemoveLocalPath, MkdirLocalPath, RenameLocalPath,     | localFS      | Host user FS      |
+//	| CreateLocalFile, CopyLocalPath, OpenFileWithSystem, StartFileWatch,    |              | (ADR-007)         |
+//	| SelectLocalFile, SelectLocalDirectory                                  |              |                   |
+//	| GetUserHomeDir                                                         | localFS      | Host user FS      |
+//	| GetPortableDataRoot                                                    | portableData | Portable app data |
+//	| GetTempDir                                                             | portableData | Portable app data |
 
 // ListLocalPath returns directory entries for a local path.
 // includeHidden when false filters out hidden files (name starts with . on Unix, HIDDEN attribute on Windows).
 func (a *AppAPI) ListLocalPath(dirPath string, includeHidden bool) ([]LocalNodeDTO, error) {
-	if dirPath == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, err
-		}
-		dirPath = home
+	if a.localFS == nil {
+		return nil, fmt.Errorf("local file service unavailable")
 	}
-	dirPath = sanitizeLocalPath(dirPath)
-	entries, err := os.ReadDir(dirPath)
+	nodes, err := a.localFS.List(dirPath, includeHidden)
 	if err != nil {
 		return nil, err
 	}
-	var result []LocalNodeDTO
-	for _, e := range entries {
-		if !includeHidden && isHiddenLocal(filepath.Join(dirPath, e.Name()), e.Name()) {
-			continue
-		}
-		info, err := e.Info()
-		if err != nil {
-			continue
-		}
-		fullPath := filepath.Join(dirPath, e.Name())
-		dto := LocalNodeDTO{
-			Name:    e.Name(),
-			Path:    fullPath,
-			IsDir:   e.IsDir(),
-			Size:    info.Size(),
-			ModTime: info.ModTime().Format("2006-01-02 15:04:05"),
-			Mode:    info.Mode().String(),
-		}
-		dto.Owner = getLocalFileOwner(info, fullPath)
-		result = append(result, dto)
+	result := make([]LocalNodeDTO, 0, len(nodes))
+	for _, node := range nodes {
+		result = append(result, LocalNodeDTO{
+			Name:    node.Name,
+			Path:    node.Path,
+			IsDir:   node.IsDir,
+			Size:    node.Size,
+			ModTime: node.ModTime,
+			Mode:    node.Mode,
+			Owner:   node.Owner,
+		})
 	}
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].IsDir != result[j].IsDir {
-			return result[i].IsDir
-		}
-		return result[i].Name < result[j].Name
-	})
 	return result, nil
 }
 
 // RemoveLocalPath deletes a local file or directory (recursively for directories).
 func (a *AppAPI) RemoveLocalPath(localPath string) error {
-	return os.RemoveAll(sanitizeLocalPath(localPath))
+	if a.localFS == nil {
+		return fmt.Errorf("local file service unavailable")
+	}
+	return a.localFS.Remove(localPath)
 }
 
 // MkdirLocalPath creates a local directory (and parents if needed).
 func (a *AppAPI) MkdirLocalPath(dirPath string) error {
-	return os.MkdirAll(sanitizeLocalPath(dirPath), 0o755)
+	if a.localFS == nil {
+		return fmt.Errorf("local file service unavailable")
+	}
+	return a.localFS.Mkdir(dirPath)
 }
 
 // RenameLocalPath renames a local file or directory.
 func (a *AppAPI) RenameLocalPath(oldPath, newPath string) error {
-	return os.Rename(sanitizeLocalPath(oldPath), sanitizeLocalPath(newPath))
+	if a.localFS == nil {
+		return fmt.Errorf("local file service unavailable")
+	}
+	return a.localFS.Rename(oldPath, newPath)
 }
 
 // CreateLocalFile creates an empty local file.
 func (a *AppAPI) CreateLocalFile(localPath string) error {
-	f, err := os.Create(sanitizeLocalPath(localPath))
-	if err != nil {
-		return err
+	if a.localFS == nil {
+		return fmt.Errorf("local file service unavailable")
 	}
-	return f.Close()
+	return a.localFS.CreateFile(localPath)
 }
 
-// GetUserHomeDir returns the current user's home directory.
+// CopyLocalPath copies a local file or directory (recursively) into destDir,
+// keeping its base name. Used for OS drag-and-drop into the local file browser.
+func (a *AppAPI) CopyLocalPath(srcPath, destDir string) error {
+	if a.localFS == nil {
+		return fmt.Errorf("local file service unavailable")
+	}
+	return a.localFS.Copy(srcPath, destDir)
+}
+
+// GetPortableDataRoot returns the portable data root (<exe>/data) for settings and plugin layout.
+func (a *AppAPI) GetPortableDataRoot() (string, error) {
+	if a.portableData == nil {
+		return "", fmt.Errorf("portable data store unavailable")
+	}
+	return a.portableData.DataRoot(), nil
+}
+
+// GetUserHomeDir returns the user's home directory for the local file browser default path.
 func (a *AppAPI) GetUserHomeDir() (string, error) {
-	return os.UserHomeDir()
+	if a.localFS == nil {
+		return "", fmt.Errorf("local file service unavailable")
+	}
+	return a.localFS.DefaultPath()
 }
 
-// GetTempDir returns the system temp directory.
+// GetTempDir returns the portable temp directory under <exe>/data/tmp.
 func (a *AppAPI) GetTempDir() (string, error) {
-	return os.TempDir(), nil
+	if a.portableData == nil {
+		return "", fmt.Errorf("portable data store unavailable")
+	}
+	return a.portableData.EnsureTempDir()
 }
 
 // StartFileWatch watches a local file for changes and emits FileEdited when mtime changes.
-// Polls every 500ms; stops after first change or after 1 hour.
 func (a *AppAPI) StartFileWatch(localPath string) {
-	abs, err := filepath.Abs(localPath)
-	if err != nil {
+	if a.localFS == nil {
 		return
 	}
-	info, err := os.Stat(abs)
-	if err != nil {
-		return
-	}
-	initialMod := info.ModTime()
-	go func() {
-		ticker := time.NewTicker(500 * time.Millisecond)
-		defer ticker.Stop()
-		timeout := time.After(time.Hour)
-		for {
-			select {
-			case <-timeout:
-				return
-			case <-ticker.C:
-				info, err := os.Stat(abs)
-				if err != nil {
-					return
-				}
-				if info.ModTime().After(initialMod) {
-					if a.ctx != nil {
-						wailsrt.EventsEmit(a.ctx, EventFileEdited, map[string]string{"localPath": localPath})
-					}
-					return
-				}
-			}
+	a.localFS.StartFileWatch(localPath, func() {
+		if a.ctx != nil {
+			wailsrt.EventsEmit(a.ctx, EventFileEdited, map[string]string{"localPath": localPath})
 		}
-	}()
+	})
 }
 
 // OpenFileWithSystem opens a local file with the system's default application or the specified editor.
-// If editorPath is non-empty, runs editorPath with localPath as argument; otherwise uses system default.
 func (a *AppAPI) OpenFileWithSystem(localPath, editorPath string) error {
-	abs, err := filepath.Abs(sanitizeLocalPath(localPath))
-	if err != nil {
-		return err
+	if a.localFS == nil {
+		return fmt.Errorf("local file service unavailable")
 	}
-	if editorPath != "" {
-		editorPath = strings.TrimSpace(editorPath)
-		if editorPath != "" {
-			return exec.Command(editorPath, abs).Start()
-		}
-	}
-	switch runtime.GOOS {
-	case "windows":
-		return exec.Command("cmd", "/C", "start", "", abs).Start()
-	case "darwin":
-		return exec.Command("open", abs).Start()
-	default:
-		return exec.Command("xdg-open", abs).Start()
-	}
+	return a.localFS.OpenWithSystem(localPath, editorPath)
 }
 
 // --- File Dialogs ---
@@ -163,9 +134,13 @@ func (a *AppAPI) SelectLocalFile() (string, error) {
 	if a.ctx == nil {
 		return "", fmt.Errorf("no wails context")
 	}
-	return wailsrt.OpenFileDialog(a.ctx, wailsrt.OpenDialogOptions{
+	path, err := wailsrt.OpenFileDialog(a.ctx, wailsrt.OpenDialogOptions{
 		Title: "Select File",
 	})
+	if err != nil || path == "" {
+		return path, err
+	}
+	return a.resolveHostLocalPath(path)
 }
 
 // SelectLocalDirectory opens a native directory picker.
@@ -173,7 +148,18 @@ func (a *AppAPI) SelectLocalDirectory() (string, error) {
 	if a.ctx == nil {
 		return "", fmt.Errorf("no wails context")
 	}
-	return wailsrt.OpenDirectoryDialog(a.ctx, wailsrt.OpenDialogOptions{
+	path, err := wailsrt.OpenDirectoryDialog(a.ctx, wailsrt.OpenDialogOptions{
 		Title: "Select Directory",
 	})
+	if err != nil || path == "" {
+		return path, err
+	}
+	return a.resolveHostLocalPath(path)
+}
+
+func (a *AppAPI) resolveHostLocalPath(path string) (string, error) {
+	if a.localFS == nil {
+		return "", fmt.Errorf("local file service unavailable")
+	}
+	return a.localFS.ResolvePath(path)
 }

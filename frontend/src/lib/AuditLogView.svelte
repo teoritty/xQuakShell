@@ -1,7 +1,10 @@
 <script lang="ts">
   import Modal from './Modal.svelte';
   import { activeSessionId } from '../stores/appState';
-  import { sendTerminalInput, getSettings, searchAuditLog, deleteAuditEntry, clearAuditLog, type AuditEntry } from '../stores/api';
+  import { sendTerminalInput } from '../api/terminal';
+  import { getSettings } from '../actions/settingsActions';
+  import { searchAuditLog, deleteAuditEntry, clearAuditLog } from '../api/audit';
+  import type { AuditEntry } from '../api/settings';
   import { Search, RotateCcw, Copy, Loader2, FileText, Trash2, Trash, XCircle } from 'lucide-svelte';
   import { createEventDispatcher } from 'svelte';
 
@@ -9,6 +12,9 @@
 
   const dispatch = createEventDispatcher<{ openSettings: { tab: string } }>();
 
+  type AuditTab = 'command' | 'system';
+
+  let activeTab: AuditTab = 'command';
   let query = '';
   let results: AuditEntry[] = [];
   let loading = false;
@@ -34,15 +40,29 @@
     }
   }
 
+  async function switchTab(tab: AuditTab) {
+    if (tab === activeTab) return;
+    activeTab = tab;
+    query = '';
+    sessionFilter = '';
+    connectionFilter = '';
+    clearConfirmShow = false;
+    await search();
+  }
+
   async function search() {
     if (!auditEnabled) return;
     loading = true;
     try {
-      results = await searchAuditLog(query, sessionFilter, connectionFilter, 200, 0);
+      results = await searchAuditLog(query, sessionFilter, connectionFilter, activeTab, 200, 0);
     } catch {
       results = [];
     }
     loading = false;
+  }
+
+  function isDenied(entry: AuditEntry): boolean {
+    return entry.input.includes('result=denied');
   }
 
   function formatTs(ts: string): string {
@@ -77,7 +97,7 @@
   }
 
   async function clearAll() {
-    await clearAuditLog();
+    await clearAuditLog('command');
     clearConfirmShow = false;
     await search();
   }
@@ -107,13 +127,38 @@
           <button class="primary" on:click={openAuditSettings}>Open Audit Log settings</button>
         </div>
       {:else}
+        <div class="tabs" role="tablist">
+          <button
+            class="tab"
+            class:active={activeTab === 'command'}
+            role="tab"
+            aria-selected={activeTab === 'command'}
+            on:click={() => switchTab('command')}
+          >
+            Command history
+          </button>
+          <button
+            class="tab"
+            class:active={activeTab === 'system'}
+            role="tab"
+            aria-selected={activeTab === 'system'}
+            on:click={() => switchTab('system')}
+          >
+            Program audit
+          </button>
+        </div>
+
+        {#if activeTab === 'system'}
+          <p class="tab-hint">Durable, read-only record of the app's own security-relevant behavior (plugin grants, denials, session binds), kept for investigation. This is separate from the live Debug Log window.</p>
+        {/if}
+
         <div class="search-bar">
           <div class="search-input-wrap">
             <Search size={13} />
             <input
               type="text"
               bind:value={query}
-              placeholder="Search commands..."
+              placeholder={activeTab === 'command' ? 'Search commands...' : 'Search audit events...'}
               on:keydown={handleKeydown}
               class="search-input"
             />
@@ -122,10 +167,12 @@
             {#if loading}<Loader2 size={13} />{:else}<Search size={13} />{/if}
             {loading ? 'Searching...' : 'Search'}
           </button>
-          <button class="danger search-btn" on:click={() => clearConfirmShow = true} disabled={loading || results.length === 0} title="Clear all">
-            <Trash size={13} />
-            Clear all
-          </button>
+          {#if activeTab === 'command'}
+            <button class="danger search-btn" on:click={() => clearConfirmShow = true} disabled={loading || results.length === 0} title="Clear all">
+              <Trash size={13} />
+              Clear all
+            </button>
+          {/if}
         </div>
 
         {#if clearConfirmShow}
@@ -140,10 +187,12 @@
           </div>
         {/if}
 
-        <div class="filters">
-          <input type="text" bind:value={sessionFilter} placeholder="Session ID filter" class="filter-input" />
-          <input type="text" bind:value={connectionFilter} placeholder="Connection ID filter" class="filter-input" />
-        </div>
+        {#if activeTab === 'command'}
+          <div class="filters">
+            <input type="text" bind:value={sessionFilter} placeholder="Session ID filter" class="filter-input" />
+            <input type="text" bind:value={connectionFilter} placeholder="Connection ID filter" class="filter-input" />
+          </div>
+        {/if}
 
         <div class="results">
           {#if results.length === 0 && !loading}
@@ -165,33 +214,38 @@
                 {#if entry.redacted}
                   <span class="redacted-badge">REDACTED</span>
                 {/if}
-                <div class="entry-actions">
-                  <button
-                    class="entry-btn"
-                    on:click={() => copyCommand(entry)}
-                    title="Copy command"
-                  >
-                    <Copy size={11} />
-                    {#if copiedId === entry.id}<span class="copied-label">Copied</span>{/if}
-                  </button>
-                  <button
-                    class="entry-btn danger"
-                    on:click={() => deleteEntry(entry)}
-                    title="Delete"
-                  >
-                    <Trash2 size={11} />
-                  </button>
-                  {#if $activeSessionId && !entry.redacted}
+                {#if activeTab === 'system' && isDenied(entry)}
+                  <span class="denied-badge">DENIED</span>
+                {/if}
+                {#if activeTab === 'command'}
+                  <div class="entry-actions">
                     <button
-                      class="entry-btn rerun"
-                      on:click={() => rerunCommand(entry)}
-                      title="Re-run in active session"
+                      class="entry-btn"
+                      on:click={() => copyCommand(entry)}
+                      title="Copy command"
                     >
-                      <RotateCcw size={11} />
-                      Re-run
+                      <Copy size={11} />
+                      {#if copiedId === entry.id}<span class="copied-label">Copied</span>{/if}
                     </button>
-                  {/if}
-                </div>
+                    <button
+                      class="entry-btn danger"
+                      on:click={() => deleteEntry(entry)}
+                      title="Delete"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                    {#if $activeSessionId && !entry.redacted}
+                      <button
+                        class="entry-btn rerun"
+                        on:click={() => rerunCommand(entry)}
+                        title="Re-run in active session"
+                      >
+                        <RotateCcw size={11} />
+                        Re-run
+                      </button>
+                    {/if}
+                  </div>
+                {/if}
               </div>
               <div class="entry-input">{entry.input}</div>
             </div>
@@ -203,11 +257,13 @@
 {/if}
 
 <style>
+  /* Fixed width + height so the window is identical on both tabs and never
+     resizes with content. 520px fits inside Modal's 560px max-width (minus body
+     padding); the results list flexes to absorb the filters/hint difference. */
   .audit-log {
     position: relative;
-    min-width: 500px;
-    max-width: 700px;
-    max-height: 70vh;
+    width: 520px;
+    height: 62vh;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -238,6 +294,44 @@
     margin: 0;
     font-size: 12px;
     max-width: 320px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    padding: 6px 12px;
+    cursor: pointer;
+    margin-bottom: -1px;
+  }
+  .tab:hover {
+    color: var(--text-primary);
+  }
+  .tab.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--accent);
+  }
+
+  .tab-hint {
+    margin: 0;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .denied-badge {
+    font-size: 9px;
+    padding: 0 4px;
+    background: var(--danger);
+    color: #fff;
+    border-radius: 3px;
   }
 
   .search-bar {
@@ -294,7 +388,6 @@
     overflow-y: auto;
     flex: 1;
     min-height: 0;
-    max-height: 50vh;
     display: flex;
     flex-direction: column;
     gap: 4px;

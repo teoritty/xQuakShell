@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
 
-	"ssh-client/internal/domain"
+	"xquakshell/internal/domain"
 )
 
 // SQLiteRepo implements domain.AuditLogRepository using SQLite with FTS5.
@@ -40,8 +39,11 @@ func initSchema(db *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS audit_events (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		ts TEXT NOT NULL,
+		category TEXT NOT NULL DEFAULT 'command',
 		session_id TEXT NOT NULL,
 		connection_id TEXT NOT NULL,
+		connection_name TEXT NOT NULL DEFAULT '',
+		host TEXT NOT NULL DEFAULT '',
 		username TEXT NOT NULL DEFAULT '',
 		input TEXT NOT NULL,
 		redacted INTEGER NOT NULL DEFAULT 0
@@ -68,27 +70,7 @@ func initSchema(db *sql.DB) error {
 	if _, err := db.Exec(ddl); err != nil {
 		return fmt.Errorf("audit init schema: %w", err)
 	}
-	return migrateSchema(db)
-}
-
-func migrateSchema(db *sql.DB) error {
-	cols := []string{"connection_name", "host"}
-	for _, col := range cols {
-		if _, err := db.Exec(`ALTER TABLE audit_events ADD COLUMN ` + col + ` TEXT NOT NULL DEFAULT ''`); err != nil {
-			if !isDuplicateColumnErr(err) {
-				return fmt.Errorf("audit migrate %s: %w", col, err)
-			}
-		}
-	}
 	return nil
-}
-
-func isDuplicateColumnErr(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "duplicate column") || strings.Contains(msg, "already exists")
 }
 
 // Append writes a new audit entry to the log.
@@ -98,10 +80,14 @@ func (r *SQLiteRepo) Append(_ context.Context, entry domain.AuditEntry) error {
 	if entry.Redacted {
 		redacted = 1
 	}
+	category := entry.Category
+	if category == "" {
+		category = domain.AuditCategoryCommand
+	}
 	_, err := r.db.Exec(
-		`INSERT INTO audit_events (ts, session_id, connection_id, connection_name, host, username, input, redacted)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		ts, entry.SessionID, entry.ConnectionID, entry.ConnectionName, entry.Host, entry.Username, entry.Input, redacted,
+		`INSERT INTO audit_events (ts, category, session_id, connection_id, connection_name, host, username, input, redacted)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		ts, category, entry.SessionID, entry.ConnectionID, entry.ConnectionName, entry.Host, entry.Username, entry.Input, redacted,
 	)
 	if err != nil {
 		return fmt.Errorf("audit append: %w", err)
@@ -114,7 +100,7 @@ func (r *SQLiteRepo) Search(_ context.Context, query string, filter domain.Audit
 	var args []interface{}
 	var whereClauses []string
 
-	baseQuery := `SELECT e.id, e.ts, e.session_id, e.connection_id, e.connection_name, e.host, e.username, e.input, e.redacted
+	baseQuery := `SELECT e.id, e.ts, e.category, e.session_id, e.connection_id, e.connection_name, e.host, e.username, e.input, e.redacted
 		FROM audit_events e`
 
 	if query != "" {
@@ -123,6 +109,10 @@ func (r *SQLiteRepo) Search(_ context.Context, query string, filter domain.Audit
 		args = append(args, query)
 	}
 
+	if filter.Category != "" {
+		whereClauses = append(whereClauses, `e.category = ?`)
+		args = append(args, filter.Category)
+	}
 	if filter.SessionID != "" {
 		whereClauses = append(whereClauses, `e.session_id = ?`)
 		args = append(args, filter.SessionID)
@@ -156,8 +146,12 @@ func (r *SQLiteRepo) Search(_ context.Context, query string, filter domain.Audit
 	if limit <= 0 {
 		limit = 100
 	}
+	// #nosec G202 -- LIMIT/OFFSET cannot be bound as parameters on every driver, and
+	// %d on an int renders digits only, so no operand here can carry SQL. Every value
+	// that originates from a user string goes through args and the placeholders above.
 	baseQuery += fmt.Sprintf(` LIMIT %d`, limit)
 	if filter.Offset > 0 {
+		// #nosec G202 -- same as LIMIT above: %d on an int cannot carry SQL.
 		baseQuery += fmt.Sprintf(` OFFSET %d`, filter.Offset)
 	}
 
@@ -172,7 +166,7 @@ func (r *SQLiteRepo) Search(_ context.Context, query string, filter domain.Audit
 		var e domain.AuditEntry
 		var tsStr string
 		var redacted int
-		if err := rows.Scan(&e.ID, &tsStr, &e.SessionID, &e.ConnectionID, &e.ConnectionName, &e.Host, &e.Username, &e.Input, &redacted); err != nil {
+		if err := rows.Scan(&e.ID, &tsStr, &e.Category, &e.SessionID, &e.ConnectionID, &e.ConnectionName, &e.Host, &e.Username, &e.Input, &redacted); err != nil {
 			return nil, fmt.Errorf("audit scan: %w", err)
 		}
 		ts, parseErr := time.Parse(time.RFC3339Nano, tsStr)
@@ -193,9 +187,14 @@ func (r *SQLiteRepo) DeleteByID(ctx context.Context, id int64) error {
 	return err
 }
 
-// ClearAll removes all audit entries.
-func (r *SQLiteRepo) ClearAll(ctx context.Context) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM audit_events`)
+// ClearAll removes audit entries. An empty category clears all entries;
+// a non-empty category clears only entries of that category.
+func (r *SQLiteRepo) ClearAll(ctx context.Context, category string) error {
+	if category == "" {
+		_, err := r.db.ExecContext(ctx, `DELETE FROM audit_events`)
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `DELETE FROM audit_events WHERE category = ?`, category)
 	return err
 }
 
@@ -238,7 +237,7 @@ func (r *SQLiteRepo) Close() error {
 	return r.db.Close()
 }
 
-// PurgeOlderThanDuration is a legacy helper for tests/shutdown hooks.
-func (r *SQLiteRepo) PurgeOlderThanDuration(d time.Duration) error {
+// PurgeOlderThanNow deletes audit entries older than the given duration from now.
+func (r *SQLiteRepo) PurgeOlderThanNow(d time.Duration) error {
 	return r.PurgeOlderThan(context.Background(), time.Now().Add(-d))
 }

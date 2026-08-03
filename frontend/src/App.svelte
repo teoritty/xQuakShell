@@ -1,22 +1,28 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Sidebar from './lib/Sidebar.svelte';
-  import TabBar from './lib/TabBar.svelte';
-  import SessionView from './lib/SessionView.svelte';
+  import TileGrid from './lib/tiles/TileGrid.svelte';
   import VaultUnlock from './lib/VaultUnlock.svelte';
   import KnownHostsManager from './lib/KnownHostsManager.svelte';
   import HostKeyDialog from './lib/HostKeyDialog.svelte';
   import AuditLogView from './lib/AuditLogView.svelte';
   import ErrorDialog from './lib/ErrorDialog.svelte';
+  import ConflictDialog from './lib/ConflictDialog.svelte';
   import SettingsDialog from './lib/SettingsDialog.svelte';
   import type { SettingsTabId } from './lib/settingsSearch';
   import ScriptsDialog from './lib/ScriptsDialog.svelte';
+  import PluginCommandPalette from './lib/PluginCommandPalette.svelte';
+  import { pluginContributions, initPluginContributionEvents, initPluginViewMessageEvents, refreshPluginContributions } from './stores/pluginState';
   import { sessions, activeSessionId, vaultUnlocked, pendingHostKey, connections } from './stores/appState';
+  import { subscribeToEvents } from './events/subscribe';
+  import { resolveHostKeyRpc as resolveHostKey } from './api/sessions';
+  import { createNewConnectionInFolder } from './actions/connectionActions';
   import {
-    subscribeToEvents, resolveHostKey, createNewConnectionInFolder,
     createSessionFromSelection, focusNextSessionTab, focusPrevSessionTab, closeActiveSession,
-    getSettings, parseHotkeyEvent, DEFAULT_SESSION_HOTKEYS, applyAppearanceSettings,
-  } from './stores/api';
+  } from './actions/sessionActions';
+  import { getSettings, applyAppearanceSettings } from './actions/settingsActions';
+  import { parseHotkeyEvent } from './hotkeys/hotkeys';
+  import { DEFAULT_SESSION_HOTKEYS } from './api/settings';
   import { Settings, FileText, Shield, MonitorDot, Terminal } from 'lucide-svelte';
 
   let showKnownHosts = false;
@@ -24,6 +30,7 @@
   let showSettings = false;
   let settingsInitialTab: SettingsTabId = 'about';
   let showScripts = false;
+  let commandPalette: PluginCommandPalette;
 
   function openSettings(tab: SettingsTabId = 'about') {
     settingsInitialTab = tab;
@@ -98,6 +105,9 @@
 
   onMount(() => {
     subscribeToEvents();
+    initPluginContributionEvents();
+    initPluginViewMessageEvents();
+    void refreshPluginContributions();
     if ($vaultUnlocked) {
       loadHotkeysFromSettings();
       void applyAppearanceSettings();
@@ -132,6 +142,12 @@
         e.preventDefault();
         e.stopPropagation();
         await closeActiveSession();
+        return;
+      }
+      if (combo === 'Ctrl+Shift+P') {
+        e.preventDefault();
+        e.stopPropagation();
+        commandPalette?.openPalette();
       }
     };
     window.addEventListener('keydown', hotkeyHandler, true);
@@ -155,6 +171,10 @@
     };
   });
 
+  $: statusBarItems = [...($pluginContributions.statusBar || [])].sort(
+    (a, b) => (a.priority ?? 0) - (b.priority ?? 0)
+  );
+
   $: if ($vaultUnlocked) {
     loadHotkeysFromSettings();
     void applyAppearanceSettings();
@@ -165,11 +185,12 @@
 {#if !$vaultUnlocked}
   <VaultUnlock />
 {:else}
+  <div class="app-shell">
   <div class="app-layout">
     <Sidebar />
     <div class="main-area">
       <div class="top-bar">
-        <TabBar />
+        <div class="top-bar-spacer"></div>
         <div class="top-bar-actions">
           <button class="ghost top-btn" on:click={() => showScripts = true} title="Scripts">
             <Terminal size={14} />
@@ -209,17 +230,23 @@
               <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.next)}</span> Next session tab</div>
               <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.prev)}</span> Previous session tab</div>
               <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.close)}</span> Close active session</div>
+              <div class="hint"><span class="hint-key">Ctrl+Shift+P</span> Command palette</div>
             </div>
           </div>
+        {:else}
+          <TileGrid />
         {/if}
-        {#each $sessions as session (session.sessionId)}
-          <SessionView
-            {session}
-            active={session.sessionId === $activeSessionId}
-          />
-        {/each}
       </div>
     </div>
+  </div>
+
+  {#if statusBarItems.length > 0}
+    <div class="plugin-status-bar">
+      {#each statusBarItems as item (item.pluginId + '.' + item.id)}
+        <span class="status-item" title={item.tooltip || item.text}>{item.text}</span>
+      {/each}
+    </div>
+  {/if}
   </div>
 
   <KnownHostsManager bind:show={showKnownHosts} />
@@ -229,6 +256,7 @@
   />
   <SettingsDialog bind:show={showSettings} initialTab={settingsInitialTab} />
   <ScriptsDialog bind:show={showScripts} />
+  <PluginCommandPalette bind:this={commandPalette} />
   {#if showHostKeyDialog}
     <HostKeyDialog
       show={showHostKeyDialog}
@@ -244,12 +272,20 @@
 {/if}
 
 <ErrorDialog />
+<ConflictDialog />
 
 <style>
+  .app-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
   .app-layout {
     display: flex;
     flex: 1;
-    height: 100vh;
+    min-height: 0;
     overflow: hidden;
   }
 
@@ -259,6 +295,23 @@
     flex: 1;
     min-width: 0;
     overflow: hidden;
+  }
+
+  .plugin-status-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 2px 10px;
+    font-size: 10px;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    min-height: 20px;
+    flex-shrink: 0;
+  }
+
+  .status-item {
+    white-space: nowrap;
   }
 
   .top-bar {
@@ -273,6 +326,10 @@
     border-bottom: none;
   }
 
+  .top-bar-spacer {
+    flex: 1;
+    min-width: 0;
+  }
   .top-bar-actions {
     display: flex;
     align-items: center;

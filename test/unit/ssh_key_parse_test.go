@@ -13,8 +13,8 @@ import (
 
 	gossh "golang.org/x/crypto/ssh"
 
-	"ssh-client/internal/domain"
-	infrassh "ssh-client/internal/infra/ssh"
+	"xquakshell/internal/domain"
+	infrassh "xquakshell/internal/infra/ssh"
 )
 
 func generateRSAPEM(t *testing.T) []byte {

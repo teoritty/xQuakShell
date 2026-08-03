@@ -3,7 +3,7 @@
   import type { Folder } from '../stores/appState';
   import { writable } from 'svelte/store';
   const selectedFolderId = writable<string>('');
-  import { saveFolder, deleteFolder } from '../stores/api';
+  import { saveFolder, deleteFolder } from '../actions/folderActions';
 
   let newFolderName = '';
   let editingId: string | null = null;
@@ -44,7 +44,7 @@
     const data = e.dataTransfer?.getData('text/plain');
     if (data) {
       const connectionIds = JSON.parse(data) as string[];
-      import('../stores/api').then(api => api.moveConnections(connectionIds, folderId));
+      import('../actions/connectionActions').then(api => api.moveConnections(connectionIds, folderId));
     }
   }
 

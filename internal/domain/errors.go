@@ -17,6 +17,9 @@ var ErrVaultLocked = errors.New("vault is locked")
 // ErrVaultDecryptFailed indicates decryption of the vault failed (wrong master password or corrupted data).
 var ErrVaultDecryptFailed = errors.New("vault decryption failed")
 
+// ErrUnsupportedVaultVersion indicates the vault file uses an unsupported schema version.
+var ErrUnsupportedVaultVersion = errors.New("unsupported vault version")
+
 // ErrSessionNotFound indicates no active session exists with the given ID.
 var ErrSessionNotFound = errors.New("session not found")
 
@@ -43,6 +46,9 @@ var ErrCircularFolder = errors.New("circular folder hierarchy detected")
 
 // ErrConnectionNotFound indicates no connection exists with the given ID.
 var ErrConnectionNotFound = errors.New("connection not found")
+
+// ErrForwardRuleNotFound indicates the requested forward rule does not exist on the connection.
+var ErrForwardRuleNotFound = errors.New("forward rule not found")
 
 // ErrAuditLogWrite indicates an audit log entry could not be persisted.
 var ErrAuditLogWrite = errors.New("failed to write audit log entry")

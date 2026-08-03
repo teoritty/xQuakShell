@@ -1,11 +1,13 @@
 <script lang="ts">
   import RemoteTree from './RemoteTree.svelte';
   import ConnectionDetails from './ConnectionDetails.svelte';
+  import ContributionHost from './ContributionHost.svelte';
 </script>
 
 <div class="sidebar">
   <RemoteTree />
   <ConnectionDetails />
+  <ContributionHost />
 </div>
 
 <style>

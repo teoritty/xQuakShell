@@ -1,0 +1,68 @@
+{
+  "pluginApi": "1.0.0",
+  "capabilities": {
+    "auth": {
+      "version": "1.0.0",
+      "features": [
+        "provider"
+      ]
+    },
+    "channel": {
+      "version": "1.0.0",
+      "features": [
+        "open"
+      ]
+    },
+    "discovery": {
+      "version": "1.0.0",
+      "features": [
+        "publish",
+        "invoke"
+      ]
+    },
+    "events": {
+      "version": "1.0.0",
+      "features": [
+        "publish",
+        "subscribe"
+      ]
+    },
+    "filesystem": {
+      "version": "1.0.0",
+      "features": [
+        "read",
+        "write"
+      ]
+    },
+    "network": {
+      "version": "1.0.0",
+      "features": [
+        "dial"
+      ]
+    },
+    "session": {
+      "version": "1.0.0",
+      "features": [
+        "embed",
+        "localEmbedServer",
+        "terminal",
+        "tunnel",
+        "updateState"
+      ]
+    },
+    "tunnel": {
+      "version": "1.0.0",
+      "features": [
+        "bind",
+        "dial"
+      ]
+    },
+    "vault": {
+      "version": "1.0.0",
+      "features": [
+        "getConnection",
+        "getSecret"
+      ]
+    }
+  }
+}

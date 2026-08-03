@@ -2,7 +2,8 @@
   import { connections, selectedConnectionId } from '../stores/appState';
   import type { Connection } from '../stores/appState';
   const filteredConnections = connections;
-  import { openSession } from '../stores/api';
+  import { openSession } from '../actions/sessionActions';
+  import { connectionDisplayUsername } from './connectionDisplay';
 
   function selectConnection(id: string) {
     selectedConnectionId.set(id);
@@ -45,7 +46,7 @@
         <span class="conn-icon">🖥️</span>
         <div class="conn-info">
           <div class="conn-name">{conn.name || 'Unnamed'}</div>
-          <div class="conn-host">{conn.user}@{conn.host}:{conn.port}</div>
+          <div class="conn-host">{connectionDisplayUsername(conn)}@{conn.host}:{conn.port}</div>
         </div>
       </div>
     {/each}

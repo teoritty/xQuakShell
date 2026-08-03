@@ -1,0 +1,24 @@
+{
+  "id": "com.xquakshell.fixture-discovery-fake",
+  "name": "Fake Discovery",
+  "version": "0.1.0",
+  "engine": {
+    "type": "go-binary",
+    "entry": "plugin-discovery-fake"
+  },
+  "activationEvents": [
+    "onStartup"
+  ],
+  "capabilities": {
+    "discovery": {
+      "parentProtocols": ["ssh"]
+    }
+  },
+  "contributions": {
+    "discoveryIcons": [
+      { "id": "root", "asset": "ui/icons/root.svg" },
+      { "id": "left", "asset": "ui/icons/left.svg" },
+      { "id": "right", "asset": "ui/icons/right.svg" }
+    ]
+  }
+}

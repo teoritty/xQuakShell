@@ -1,18 +1,22 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { listLocalPath, getUserHomeDir, removeLocalPath, mkdirLocalPath, createLocalFile, renameLocalPath, openFileWithSystem, type LocalNode } from '../stores/api';
+  import { onMount, onDestroy } from 'svelte';
+  import { listLocalPath, getUserHomeDir, removeLocalPath, mkdirLocalPath, createLocalFile, renameLocalPath, openFileWithSystem, type LocalNode } from '../api/localFs';
+  import { startDownloadDrop, startLocalCopyDrop } from '../actions/transferActions';
   import { transferCompleted } from '../stores/appState';
+  import { registerOsDropZone, resolveOsDropTarget, isFileDrag, isInternalFileDrag } from './osFileDrop';
+  import { isInvalidMove } from './pathMove';
   import LocalFileTreeNode from './LocalFileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
+  import { openContextMenu, releaseContextMenu } from './contextMenuManager';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import OverflowToolbar from './OverflowToolbar.svelte';
   import { buildFilePanelToolbarItems, cycleSortState, type SortKey } from './filePanelToolbar';
-  import { ChevronUp } from 'lucide-svelte';
+  import { refreshesLocalPane } from './transferPresentation';
+  import { ChevronUp, X } from 'lucide-svelte';
 
   const STORAGE_KEY = 'localfiletree-show-columns';
   const STORAGE_HIDDEN = 'localfiletree-show-hidden';
 
-  export let onDropDownload: ((remotePath: string, sessionId: string, localDir: string) => void) | undefined = undefined;
 
   let tree: Map<string, LocalNode[]> = new Map();
   let rawTree: Map<string, LocalNode[]> = new Map();
@@ -20,6 +24,7 @@
   let expanded: Set<string> = new Set();
   let loading: Set<string> = new Set();
   let currentPath = '';
+  let homeDir = '';
   let selectedPaths: Set<string> = new Set();
   let lastSelectedPath: string | null = null;
   let showPermissions = false;
@@ -29,6 +34,8 @@
   let editingNewPath: string | null = null;
   let deleteConfirm = { show: false, path: '', name: '', isDir: false, childCount: 0, pathsToDelete: [] as string[] };
   let dragOverPath: string | null = null;
+  let osDropOff: (() => void) | null = null;
+  let rootEl: HTMLDivElement | null = null;
   type SortDir = 'asc' | 'desc';
   let sortEnabled = false;
   let sortKey: SortKey | null = null;
@@ -83,7 +90,7 @@
         await removeLocalPath(p);
         const sep = p.includes('\\') ? '\\' : '/';
         const idx = p.lastIndexOf(sep);
-        const parent = idx > 0 ? p.slice(0, idx) : (sep === '\\' ? 'C:\\' : '/');
+        const parent = idx > 0 ? p.slice(0, idx) : homeDir;
         if (parent) affectedPaths.add(parent);
       } catch (e: any) {
         error = e?.message || String(e);
@@ -113,10 +120,24 @@
       }
       showHidden = localStorage.getItem(STORAGE_HIDDEN) === '1';
     } catch (_) {}
-    currentPath = await getUserHomeDir() || 'C:\\';
+    homeDir = (await getUserHomeDir()) || '';
+    currentPath = homeDir;
     await loadDir(currentPath);
     expanded.add(currentPath);
+    if (rootEl) osDropOff = registerOsDropZone({ el: rootEl, onDrop: handleOsFileDrop });
   });
+
+  onDestroy(() => {
+    if (osDropOff) osDropOff();
+  });
+
+  async function handleOsFileDrop(paths: string[], x: number, y: number) {
+    if (!rootEl) return;
+    const targetDir = resolveOsDropTarget(rootEl, x, y, currentPath);
+    if (targetDir === null) return;
+    await startLocalCopyDrop(paths, targetDir);
+    await refreshPreservingState([targetDir, currentPath]);
+  }
 
   async function loadDir(path: string) {
     if (loading.has(path)) return;
@@ -187,8 +208,11 @@
     if (!trimmed) return;
     const nextPath = normalizePathInput(trimmed);
     const prevPath = currentPath;
+    // listLocalPath normally swallows errors (returns []) and shows a global
+    // banner; opt into rethrow so a non-existent path is caught here and the
+    // view is reverted instead of navigating into an empty folder.
     try {
-      const nodes = await listLocalPath(nextPath, showHidden);
+      const nodes = await listLocalPath(nextPath, showHidden, { rethrow: true, silence: () => true });
       rawTree.set(nextPath, nodes);
       tree.set(nextPath, applySort(nodes));
       currentPath = nextPath;
@@ -210,8 +234,28 @@
     pathInput = currentPath;
   }
 
+  function isAtFilesystemRoot(path: string): boolean {
+    const trimmed = path.replace(/[\\/]+$/, '');
+    if (!trimmed || trimmed === '/') return true;
+    if (/^[a-zA-Z]:\\?$/i.test(trimmed)) return true;
+    return false;
+  }
+
+  function parentDirectory(path: string): string {
+    if (isAtFilesystemRoot(path)) return path;
+    const trimmed = path.replace(/[\\/]+$/, '');
+    const idx = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'));
+    if (/^[a-zA-Z]:/.test(trimmed)) {
+      if (idx <= 2) return `${trimmed.slice(0, 2)}\\`;
+      return trimmed.slice(0, idx);
+    }
+    if (idx <= 0) return '/';
+    return trimmed.slice(0, idx);
+  }
+
   async function goUp() {
-    const parent = currentPath.replace(/[\\/][^\\/]+$/, '') || (currentPath.includes('\\') ? currentPath.substring(0, 3) : '/');
+    if (isAtFilesystemRoot(currentPath)) return;
+    const parent = parentDirectory(currentPath);
     if (!parent || parent === currentPath) return;
     currentPath = parent;
     await loadDir(currentPath);
@@ -240,12 +284,14 @@
     tree = tree;
   }
 
-  $: if ($transferCompleted?.direction === 'download') {
+  // Downloads land here, and so do local copies (an Explorer drop). Both are
+  // recognised by their own honest kind. The directory to reload comes from
+  // refreshDir, which every emitter fills with a real host path — single
+  // downloads included, so nothing is derived from localPath any more.
+  $: if ($transferCompleted && refreshesLocalPane($transferCompleted.kind)) {
     const t = $transferCompleted;
     transferCompleted.set(null);
-    const sep = t.localPath.includes('\\') ? '\\' : '/';
-    const localParent = t.localPath.split(sep).slice(0, -1).join(sep) || sep;
-    refreshPreservingState([localParent, currentPath]);
+    refreshPreservingState([t.refreshDir, currentPath]);
   }
 
   function formatSize(size: number): string {
@@ -262,7 +308,7 @@
       if (/^[a-zA-Z]:$/.test(normalized)) return `${normalized}\\`;
       if (/^[a-zA-Z]:\\$/.test(normalized)) return normalized;
       normalized = normalized.replace(/\\+$/, '');
-      return normalized || 'C:\\';
+      return normalized || homeDir || '';
     }
     const normalized = input.replace(/\/{2,}/g, '/').replace(/\/+$/, '');
     return normalized || '/';
@@ -320,6 +366,12 @@
   }
 
   function handleDragOverPath(e: DragEvent, path: string) {
+    // External OS file drags are handled by the window-level osFileDrop router
+    // (via Wails). Do not stopPropagation here or the drop never reaches it.
+    if (isFileDrag(e)) return;
+    // Only claim genuine file-pane drags; other internal drags (e.g. a tile tab
+    // dragged over this panel) must bubble to the tile layout for split/move.
+    if (!isInternalFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
@@ -331,6 +383,10 @@
   }
 
   async function handleDrop(e: DragEvent, targetDir: string) {
+    // External OS file drops bubble up to the osFileDrop router; leave them alone.
+    if (isFileDrag(e)) return;
+    // Ignore non-file internal drags (e.g. tile-tab drags) so they reach the tile.
+    if (!isInternalFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     dragOverPath = null;
@@ -354,7 +410,7 @@
       for (const lp of locals) {
         const base = lp.split(/[\\/]/).pop() || 'item';
         const destPath = targetDir.endsWith(sep) ? targetDir + base : targetDir + sep + base;
-        if (lp !== destPath) {
+        if (!isInvalidMove(lp, targetDir)) {
           try {
             await renameLocalPath(lp, destPath);
             const srcSep = lp.includes('\\') ? '\\' : '/';
@@ -369,10 +425,9 @@
       return;
     }
     const remotes = remotePaths && remotePaths.length > 0 ? remotePaths : (remotePath ? [remotePath] : []);
-    if (remotes.length > 0 && dropSessionId && onDropDownload) {
-      for (const rp of remotes) {
-        onDropDownload(rp, dropSessionId, targetDir);
-      }
+    if (remotes.length > 0 && dropSessionId) {
+      await startDownloadDrop(dropSessionId, remotes, targetDir);
+      await refreshPreservingState([targetDir, currentPath]);
     }
   }
 
@@ -392,9 +447,11 @@
     e.preventDefault();
     e.stopPropagation();
     ctxMenu = { show: true, x: e.clientX, y: e.clientY, path, isDir, isEmptyArea };
+    openContextMenu(closeContextMenu);
   }
 
   function closeContextMenu() {
+    releaseContextMenu(closeContextMenu);
     ctxMenu = { ...ctxMenu, show: false };
   }
 
@@ -483,6 +540,15 @@
     tree = tree;
   }
 
+  function handleCtxRename() {
+    if (ctxMenu.isEmptyArea || !ctxMenu.path) {
+      closeContextMenu();
+      return;
+    }
+    editingNewPath = ctxMenu.path;
+    closeContextMenu();
+  }
+
   async function handleRenameConfirm(oldPath: string, newName: string) {
     if (!newName.trim()) {
       editingNewPath = null;
@@ -490,7 +556,7 @@
     }
     const sep = oldPath.includes('\\') ? '\\' : '/';
     const lastSep = Math.max(oldPath.lastIndexOf(sep), oldPath.lastIndexOf('/'));
-    const parent = lastSep > 0 ? oldPath.substring(0, lastSep) : (sep === '\\' ? 'C:\\' : '/');
+    const parent = lastSep > 0 ? oldPath.substring(0, lastSep) : homeDir;
     const newFullPath = (parent.endsWith(sep) ? parent : parent + sep) + newName.trim();
     if (newFullPath === oldPath) {
       editingNewPath = null;
@@ -500,6 +566,7 @@
       await renameLocalPath(oldPath, newFullPath);
     } catch (e: any) {
       error = e?.message || String(e);
+      editingNewPath = null;
       return;
     }
     editingNewPath = null;
@@ -529,7 +596,7 @@
 </script>
 
 <svelte:window on:click={closeContextMenu} />
-<div class="file-tree">
+<div class="file-tree" bind:this={rootEl}>
   <div class="panel-header">
     <span>Local Files</span>
     <OverflowToolbar items={toolbarItems} />
@@ -545,7 +612,10 @@
   </div>
 
   {#if error}
-    <div class="tree-error">{error}</div>
+    <div class="tree-error">
+      <span class="tree-error-msg">{error}</span>
+      <button class="tree-error-close" title="Dismiss" on:click={() => (error = '')}><X size={12} /></button>
+    </div>
   {/if}
 
   <div
@@ -558,7 +628,7 @@
     role="tree"
     tabindex="0"
   >
-    {#if currentPath && currentPath !== 'C:\\' && currentPath !== 'C:/' && currentPath.length > 3}
+    {#if currentPath && !isAtFilesystemRoot(currentPath)}
       <div class="parent-node" on:click={goUp} on:keydown={(e) => e.key === 'Enter' && goUp()} role="button" tabindex="0">
         <span class="node-icon"><ChevronUp size={12} /></span>
         <span class="node-name">..</span>
@@ -599,6 +669,7 @@
     on:delete={handleCtxDelete}
     on:newFolder={handleCtxNewFolder}
     on:newFile={handleCtxNewFile}
+    on:rename={handleCtxRename}
     on:edit={handleCtxEdit}
   />
 
@@ -677,6 +748,9 @@
   }
 
   .tree-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     padding: 8px 10px;
     font-size: 11px;
     color: var(--danger);
@@ -684,10 +758,49 @@
     border-bottom: 1px solid var(--border-color);
   }
 
+  .tree-error-msg {
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+  }
+
+  .tree-error-close {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    color: var(--danger);
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+
+  .tree-error-close:hover {
+    background: rgba(211, 47, 47, 0.18);
+  }
+
   .tree-body {
     overflow-y: auto;
     flex: 1;
     padding: 4px 0;
+  }
+
+  /* Drag-over highlight applied by osFileDrop's router while an OS file is
+     dragged over this pane (see registerOsDropZone). */
+  .file-tree:global(.os-drop-active) {
+    outline: 2px dashed var(--accent);
+    outline-offset: -3px;
+    background: rgba(100, 150, 255, 0.08);
+  }
+
+  /* Folder row highlighted when an OS file is dragged directly over it (drop
+     targets that folder rather than the current directory). */
+  :global(.node-row.os-drop-active) {
+    background: rgba(100, 150, 255, 0.22);
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
   }
 
 </style>

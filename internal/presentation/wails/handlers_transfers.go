@@ -2,321 +2,145 @@ package wails
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
+	"errors"
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"xquakshell/internal/usecase"
 )
 
-// acquireTransferSlot blocks until a transfer slot is available. Call releaseTransferSlot when done.
-func (a *AppAPI) acquireTransferSlot(ctx context.Context) error {
-	limit := 4
-	if data, err := a.vaultRepo.GetData(); err == nil && data.Settings != nil && data.Settings.Transfer.MaxConcurrent > 0 {
-		limit = data.Settings.Transfer.MaxConcurrent
+func (a *AppAPI) emitTransferProgress(p usecase.TransferProgress) {
+	if a.ctx == nil {
+		return
 	}
-	done := make(chan struct{})
-	defer close(done)
-	go func() {
-		select {
-		case <-ctx.Done():
-			a.transferCond.Broadcast()
-		case <-done:
-		}
-	}()
-	a.transferCond.L.Lock()
-	for a.transferActive >= limit {
-		a.transferCond.Wait()
-		if ctx.Err() != nil {
-			a.transferCond.L.Unlock()
-			return ctx.Err()
-		}
-	}
-	a.transferActive++
-	a.transferCond.L.Unlock()
-	return nil
-}
-
-func (a *AppAPI) releaseTransferSlot() {
-	a.transferCond.L.Lock()
-	a.transferActive--
-	a.transferCond.Signal()
-	a.transferCond.L.Unlock()
+	wailsrt.EventsEmit(a.ctx, EventTransferProgress, TransferProgressPayload{
+		ID:         p.ID,
+		SessionID:  p.SessionID,
+		Kind:       p.Kind,
+		LocalPath:  p.LocalPath,
+		RemotePath: p.RemotePath,
+		RefreshDir: p.RefreshDir,
+		Done:       p.Done,
+		Total:      p.Total,
+		State:      p.State,
+	})
 }
 
 // Upload copies a local file or directory to the remote path (recursive for directories).
 func (a *AppAPI) Upload(sessionID, localPath, remotePath string) error {
-	localPath = sanitizeLocalPath(localPath)
-	info, err := os.Stat(localPath)
-	if err != nil {
-		return err
-	}
-	if info.IsDir() {
-		return a.uploadRecursive(sessionID, localPath, remotePath)
-	}
-	return a.uploadFile(sessionID, localPath, remotePath)
-}
-
-func (a *AppAPI) uploadFile(sessionID, localPath, remotePath string) error {
-	fs, err := a.sessions.GetRemoteFS(sessionID)
-	if err != nil {
-		return err
+	if a.transferSvc == nil {
+		return nil
 	}
 	parentCtx, err := a.sessions.GetSessionContext(sessionID)
 	if err != nil {
 		return err
 	}
-	if err := a.acquireTransferSlot(parentCtx); err != nil {
-		return err
-	}
-	defer a.releaseTransferSlot()
-	ctx, cancel := context.WithCancel(parentCtx)
-	transferID := fmt.Sprintf("upload-%s-%s", sessionID, filepath.Base(localPath))
-	a.transferCancelsMu.Lock()
-	a.transferCancels[transferID] = cancel
-	a.transferCancelsMu.Unlock()
-	defer func() {
-		a.transferCancelsMu.Lock()
-		delete(a.transferCancels, transferID)
-		a.transferCancelsMu.Unlock()
-	}()
-
-	progress := func(done, total int64) {
-		if a.ctx != nil {
-			wailsrt.EventsEmit(a.ctx, EventTransferProgress, TransferProgressPayload{
-				ID: transferID, SessionID: sessionID, Direction: "upload",
-				LocalPath: localPath, RemotePath: remotePath,
-				Done: done, Total: total, State: "active",
-			})
-		}
-	}
-
-	doneCh := make(chan error, 1)
-	go func() {
-		doneCh <- fs.Upload(ctx, localPath, remotePath, progress)
-	}()
-	err = <-doneCh
-
-	state := "completed"
-	if err != nil {
-		if ctx.Err() == context.Canceled {
-			state = "cancelled"
-			_ = fs.Remove(context.Background(), remotePath)
-		} else {
-			state = "failed"
-		}
-	}
-	if a.ctx != nil {
-		wailsrt.EventsEmit(a.ctx, EventTransferProgress, TransferProgressPayload{
-			ID: transferID, SessionID: sessionID, Direction: "upload",
-			LocalPath: localPath, RemotePath: remotePath,
-			Done: 0, Total: 0, State: state,
-		})
-	}
-	return err
-}
-
-func (a *AppAPI) uploadRecursive(sessionID, localDir, remoteDir string) error {
-	fs, err := a.sessions.GetRemoteFS(sessionID)
-	if err != nil {
-		return err
-	}
-	parentCtx, err := a.sessions.GetSessionContext(sessionID)
-	if err != nil {
-		return err
-	}
-	if err := a.acquireTransferSlot(parentCtx); err != nil {
-		return err
-	}
-	defer a.releaseTransferSlot()
-	ctx, cancel := context.WithCancel(parentCtx)
-	transferID := fmt.Sprintf("upload-%s-%s", sessionID, filepath.Base(localDir))
-	a.transferCancelsMu.Lock()
-	a.transferCancels[transferID] = cancel
-	a.transferCancelsMu.Unlock()
-	defer func() {
-		a.transferCancelsMu.Lock()
-		delete(a.transferCancels, transferID)
-		a.transferCancelsMu.Unlock()
-	}()
-
-	progress := func(done, total int64) {
-		if a.ctx != nil {
-			wailsrt.EventsEmit(a.ctx, EventTransferProgress, TransferProgressPayload{
-				ID: transferID, SessionID: sessionID, Direction: "upload",
-				LocalPath: localDir, RemotePath: remoteDir,
-				Done: done, Total: total, State: "active",
-			})
-		}
-	}
-
-	doneCh := make(chan error, 1)
-	go func() {
-		doneCh <- fs.UploadRecursive(ctx, localDir, remoteDir, progress)
-	}()
-	err = <-doneCh
-	state := "completed"
-	if err != nil {
-		if ctx.Err() == context.Canceled {
-			state = "cancelled"
-		} else {
-			state = "failed"
-		}
-	}
-	if a.ctx != nil {
-		wailsrt.EventsEmit(a.ctx, EventTransferProgress, TransferProgressPayload{
-			ID: transferID, SessionID: sessionID, Direction: "upload",
-			LocalPath: localDir, RemotePath: remoteDir,
-			Done: 0, Total: 0, State: state,
-		})
-	}
-	return err
+	return a.transferSvc.Upload(parentCtx, sessionID, localPath, remotePath, a.emitTransferProgress)
 }
 
 // Download copies a remote file or directory to the local path (recursive for directories).
 func (a *AppAPI) Download(sessionID, remotePath, localDir string) error {
-	fs, err := a.sessions.GetRemoteFS(sessionID)
-	if err != nil {
-		return err
-	}
-	ctx, err := a.sessions.GetSessionContext(sessionID)
-	if err != nil {
-		return err
-	}
-	_, listErr := fs.List(ctx, remotePath)
-	if listErr == nil {
-		localTarget := filepath.Join(localDir, filepath.Base(remotePath))
-		if err := os.MkdirAll(localTarget, 0755); err != nil {
-			return err
-		}
-		return a.downloadRecursive(sessionID, remotePath, localTarget)
-	}
-	return a.downloadFile(sessionID, remotePath, localDir)
-}
-
-func (a *AppAPI) downloadRecursive(sessionID, remoteDir, localDir string) error {
-	fs, err := a.sessions.GetRemoteFS(sessionID)
-	if err != nil {
-		return err
+	if a.transferSvc == nil {
+		return nil
 	}
 	parentCtx, err := a.sessions.GetSessionContext(sessionID)
 	if err != nil {
 		return err
 	}
-	if err := a.acquireTransferSlot(parentCtx); err != nil {
-		return err
-	}
-	defer a.releaseTransferSlot()
-	ctx, cancel := context.WithCancel(parentCtx)
-	transferID := fmt.Sprintf("download-%s-%s", sessionID, filepath.Base(remoteDir))
-	a.transferCancelsMu.Lock()
-	a.transferCancels[transferID] = cancel
-	a.transferCancelsMu.Unlock()
-	defer func() {
-		a.transferCancelsMu.Lock()
-		delete(a.transferCancels, transferID)
-		a.transferCancelsMu.Unlock()
-	}()
+	return a.transferSvc.Download(parentCtx, sessionID, remotePath, localDir, a.emitTransferProgress)
+}
 
-	progress := func(done, total int64) {
-		if a.ctx != nil {
-			wailsrt.EventsEmit(a.ctx, EventTransferProgress, TransferProgressPayload{
-				ID: transferID, SessionID: sessionID, Direction: "download",
-				LocalPath: localDir, RemotePath: remoteDir,
-				Done: done, Total: total, State: "active",
-			})
-		}
+// PlanUpload enumerates uploading localPaths into remoteDir, detecting conflicts
+// at the destination without transferring anything.
+func (a *AppAPI) PlanUpload(sessionID string, localPaths []string, remoteDir string) (TransferPlanDTO, error) {
+	if a.transferPlanner == nil {
+		return TransferPlanDTO{}, nil
 	}
-
-	doneCh := make(chan error, 1)
-	go func() {
-		doneCh <- fs.DownloadRecursive(ctx, remoteDir, localDir, progress)
-	}()
-	err = <-doneCh
-	state := "completed"
+	plan, err := a.transferPlanner.PlanUpload(sessionID, localPaths, remoteDir, a.emitTransferProgress)
 	if err != nil {
-		if ctx.Err() == context.Canceled {
-			state = "cancelled"
-		} else {
-			state = "failed"
-		}
+		return TransferPlanDTO{}, err
 	}
-	if a.ctx != nil {
-		wailsrt.EventsEmit(a.ctx, EventTransferProgress, TransferProgressPayload{
-			ID: transferID, SessionID: sessionID, Direction: "download",
-			LocalPath: localDir, RemotePath: remoteDir,
-			Done: 0, Total: 0, State: state,
-		})
+	return transferPlanToDTO(plan), nil
+}
+
+// PlanDownload enumerates downloading remotePaths into localDir, detecting
+// conflicts at the destination.
+func (a *AppAPI) PlanDownload(sessionID string, remotePaths []string, localDir string) (TransferPlanDTO, error) {
+	if a.transferPlanner == nil {
+		return TransferPlanDTO{}, nil
+	}
+	plan, err := a.transferPlanner.PlanDownload(sessionID, remotePaths, localDir, a.emitTransferProgress)
+	if err != nil {
+		return TransferPlanDTO{}, err
+	}
+	return transferPlanToDTO(plan), nil
+}
+
+// PlanLocalCopy enumerates copying srcPaths into destDir on the local
+// filesystem (OS Explorer drop), detecting conflicts.
+func (a *AppAPI) PlanLocalCopy(srcPaths []string, destDir string) (TransferPlanDTO, error) {
+	if a.transferPlanner == nil {
+		return TransferPlanDTO{}, nil
+	}
+	plan, err := a.transferPlanner.PlanLocalCopy(srcPaths, destDir, a.emitTransferProgress)
+	if err != nil {
+		return TransferPlanDTO{}, err
+	}
+	return transferPlanToDTO(plan), nil
+}
+
+// execPlan runs a resolved plan and absorbs the one outcome that is not a
+// failure: the user cancelled the panel item while the conflict dialog was open,
+// so the operation's terminal event is already out and nothing transferred. The
+// frontend turns every rejected RPC into an error banner, and "you cancelled
+// this, here is an error" is the wrong thing to tell someone who cancelled.
+// Every other error still propagates.
+func (a *AppAPI) execPlan(parentCtx context.Context, sessionID string, req ExecutePlanDTO) error {
+	err := a.transferSvc.ExecutePlan(parentCtx, sessionID, dtoToTransferPlan(req.Plan), dtoToResolutions(req.Resolutions), a.emitTransferProgress)
+	if errors.Is(err, usecase.ErrOperationCancelled) {
+		return nil
 	}
 	return err
 }
 
-func (a *AppAPI) downloadFile(sessionID, remotePath, localDir string) error {
-	fs, err := a.sessions.GetRemoteFS(sessionID)
-	if err != nil {
-		return err
+// ExecuteUpload runs a resolved upload plan.
+func (a *AppAPI) ExecuteUpload(sessionID string, req ExecutePlanDTO) error {
+	if a.transferSvc == nil {
+		return nil
 	}
 	parentCtx, err := a.sessions.GetSessionContext(sessionID)
 	if err != nil {
 		return err
 	}
-	if err := a.acquireTransferSlot(parentCtx); err != nil {
-		return err
-	}
-	defer a.releaseTransferSlot()
-	ctx, cancel := context.WithCancel(parentCtx)
-	localPath := filepath.Join(localDir, filepath.Base(remotePath))
-	transferID := fmt.Sprintf("download-%s-%s", sessionID, filepath.Base(remotePath))
-	a.transferCancelsMu.Lock()
-	a.transferCancels[transferID] = cancel
-	a.transferCancelsMu.Unlock()
-	defer func() {
-		a.transferCancelsMu.Lock()
-		delete(a.transferCancels, transferID)
-		a.transferCancelsMu.Unlock()
-	}()
-
-	progress := func(done, total int64) {
-		if a.ctx != nil {
-			wailsrt.EventsEmit(a.ctx, EventTransferProgress, TransferProgressPayload{
-				ID: transferID, SessionID: sessionID, Direction: "download",
-				LocalPath: localPath, RemotePath: remotePath,
-				Done: done, Total: total, State: "active",
-			})
-		}
-	}
-
-	doneCh := make(chan error, 1)
-	go func() {
-		doneCh <- fs.Download(ctx, remotePath, localPath, progress)
-	}()
-	err = <-doneCh
-	state := "completed"
-	if err != nil {
-		if ctx.Err() == context.Canceled {
-			state = "cancelled"
-			_ = os.Remove(localPath)
-		} else {
-			state = "failed"
-		}
-	}
-	if a.ctx != nil {
-		wailsrt.EventsEmit(a.ctx, EventTransferProgress, TransferProgressPayload{
-			ID: transferID, SessionID: sessionID, Direction: "download",
-			LocalPath: localPath, RemotePath: remotePath,
-			Done: 0, Total: 0, State: state,
-		})
-	}
-	return err
+	return a.execPlan(parentCtx, sessionID, req)
 }
 
-// CancelTransfer cancels an active transfer by ID.
-func (a *AppAPI) CancelTransfer(transferID string) {
-	a.transferCancelsMu.Lock()
-	cancel, ok := a.transferCancels[transferID]
-	delete(a.transferCancels, transferID)
-	a.transferCancelsMu.Unlock()
-	if ok && cancel != nil {
-		cancel()
+// ExecuteDownload runs a resolved download plan.
+func (a *AppAPI) ExecuteDownload(sessionID string, req ExecutePlanDTO) error {
+	if a.transferSvc == nil {
+		return nil
+	}
+	parentCtx, err := a.sessions.GetSessionContext(sessionID)
+	if err != nil {
+		return err
+	}
+	return a.execPlan(parentCtx, sessionID, req)
+}
+
+// ExecuteLocalCopy runs a resolved local-copy plan (OS Explorer drop). It is not
+// tied to a session, so it uses a background context.
+func (a *AppAPI) ExecuteLocalCopy(req ExecutePlanDTO) error {
+	if a.transferSvc == nil {
+		return nil
+	}
+	return a.execPlan(context.Background(), "", req)
+}
+
+// CancelTransfer cancels an active transfer, a scanning drop or a remote
+// operation by ID. Every phase of every cancellable operation registers in the
+// one shared registry, so a single lookup covers them all.
+func (a *AppAPI) CancelTransfer(operationID string) {
+	if a.cancels != nil {
+		a.cancels.Cancel(operationID)
 	}
 }

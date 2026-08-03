@@ -1,16 +1,18 @@
 <script lang="ts">
+  import { onDestroy, onMount } from 'svelte';
   import Modal from './Modal.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
+  import PluginSettingsPanel from './PluginSettingsPanel.svelte';
+  import { CONFLICT_ACTIONS } from './transfer/conflictActions';
+  import { getSettings, saveSettings } from '../actions/settingsActions';
+  import { fetchVersionInfo } from '../api/settings';
+  import { parseHotkeyEvent, normalizeHotkey } from '../hotkeys/hotkeys';
+  import { DEFAULT_SESSION_HOTKEYS } from '../api/settings';
   import {
-    getSettings,
-    saveSettings,
-    parseHotkeyEvent,
-    normalizeHotkey,
-    DEFAULT_SESSION_HOTKEYS,
     getAuditSessionState,
     enableAuditSecretLogging,
     disableAuditSecretLogging,
-  } from '../stores/api';
+  } from '../api/audit';
   import {
     SETTINGS_TAB_LABELS,
     tabHasSearchMatches,
@@ -36,6 +38,7 @@
     Keyboard,
     FileText,
     Search,
+    Puzzle,
   } from 'lucide-svelte';
 
   export let show = false;
@@ -76,9 +79,12 @@
   let pingEnabled = true;
   let pingMode = 'interval';
   let pingIntervalSeconds = 5;
+  let maxConcurrentPings = 16;
   let transferSpeedLimitKbps = 0;
   let connectionTimeoutSeconds = 15;
   let maxConcurrentTransfers = 4;
+  let defaultUploadExistsAction = 'ask';
+  let defaultDownloadExistsAction = 'ask';
   let sessionHotkeyCreate = DEFAULT_SESSION_HOTKEYS.create;
   let sessionHotkeyNext = DEFAULT_SESSION_HOTKEYS.next;
   let sessionHotkeyPrev = DEFAULT_SESSION_HOTKEYS.prev;
@@ -93,6 +99,21 @@
   let auditShowConnection = false;
   let auditLogSecrets = false;
   let auditSecretsConfirmShow = false;
+  let debugLogWindowEnabled = false;
+  let debugLogLevel = 'debug';
+
+  onMount(() => {
+    const rt = (window as any).runtime;
+    if (!rt?.EventsOn) return;
+    return rt.EventsOn('DebugLogWindowChanged', (data: { enabled?: boolean }) => {
+      debugLogWindowEnabled = data?.enabled ?? false;
+    });
+  });
+
+  onDestroy(() => {
+    const rt = (window as any).runtime;
+    if (rt?.EventsOff) rt.EventsOff('DebugLogWindowChanged');
+  });
 
   const tabs: { id: SettingsTabId; label: string; icon: typeof Shield }[] = [
     { id: 'about', label: 'About', icon: Info },
@@ -101,6 +122,7 @@
     { id: 'files', label: 'Files', icon: FileEdit },
     { id: 'hotkeys', label: 'Hotkeys', icon: Keyboard },
     { id: 'network', label: 'Network', icon: Wifi },
+    { id: 'plugins', label: 'Plugins', icon: Puzzle },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'terminal', label: 'Terminal', icon: Terminal },
   ];
@@ -110,7 +132,9 @@
   $: visibleTabs = isSearching
     ? tabs.filter((tab) => tabHasSearchMatches(tab.id, searchQuery))
     : tabs;
-  $: showSaveButton = !(!isSearching && activeTab === 'about');
+  $: showSaveButton = !(!isSearching && activeTab === 'plugins');
+
+  let pluginsAdvancedMode = false;
 
   let settingsWasOpen = false;
   $: if (show && !settingsWasOpen) {
@@ -165,9 +189,12 @@
       pingEnabled = s.pingEnabled ?? true;
       pingMode = s.pingMode ?? 'interval';
       pingIntervalSeconds = s.pingIntervalSeconds ?? 5;
+      maxConcurrentPings = s.maxConcurrentPings ?? 16;
       transferSpeedLimitKbps = s.transferSpeedLimitKbps ?? 0;
       connectionTimeoutSeconds = s.connectionTimeoutSeconds ?? 15;
       maxConcurrentTransfers = s.maxConcurrentTransfers ?? 4;
+      defaultUploadExistsAction = s.defaultUploadExistsAction || 'ask';
+      defaultDownloadExistsAction = s.defaultDownloadExistsAction || 'ask';
       sessionHotkeyCreate = normalizeHotkey(s.sessionHotkeyCreate || DEFAULT_SESSION_HOTKEYS.create);
       sessionHotkeyNext = normalizeHotkey(s.sessionHotkeyNext || DEFAULT_SESSION_HOTKEYS.next);
       sessionHotkeyPrev = normalizeHotkey(s.sessionHotkeyPrev || DEFAULT_SESSION_HOTKEYS.prev);
@@ -178,9 +205,17 @@
       auditRetentionCount = s.auditRetentionCount ?? 100;
       auditShowUsername = s.auditShowUsername ?? false;
       auditShowConnection = s.auditShowConnection ?? false;
+      debugLogWindowEnabled = s.debugLogWindowEnabled ?? false;
+      debugLogLevel = s.debugLogLevel || 'debug';
     }
     const sessionState = await getAuditSessionState();
     auditLogSecrets = sessionState?.logSecretsEnabled ?? false;
+    const version = await fetchVersionInfo();
+    if (version) {
+      appVersion = version.appVersion;
+      coreVersion = version.coreVersion;
+      pluginApiVersion = version.pluginApiVersion;
+    }
     hotkeyConflict = '';
     loading = false;
   }
@@ -251,6 +286,7 @@
 
   function closeSettings() {
     applyUiScalePercent(uiScaleAtOpen);
+    pluginsAdvancedMode = false;
     show = false;
   }
 
@@ -271,9 +307,12 @@
       pingEnabled,
       pingMode,
       pingIntervalSeconds,
+      maxConcurrentPings,
       transferSpeedLimitKbps,
       connectionTimeoutSeconds,
       maxConcurrentTransfers,
+      defaultUploadExistsAction,
+      defaultDownloadExistsAction,
       sessionHotkeyCreate: normalizeHotkey(sessionHotkeyCreate),
       sessionHotkeyNext: normalizeHotkey(sessionHotkeyNext),
       sessionHotkeyPrev: normalizeHotkey(sessionHotkeyPrev),
@@ -284,6 +323,8 @@
       auditRetentionCount,
       auditShowUsername,
       auditShowConnection,
+      debugLogWindowEnabled,
+      debugLogLevel,
     });
     window.dispatchEvent(new CustomEvent('app-settings-updated'));
     uiScaleAtOpen = uiScalePercent;
@@ -291,7 +332,9 @@
     show = false;
   }
 
-  const appVersion = '2.0.0';
+  let appVersion = '';
+  let coreVersion = '';
+  let pluginApiVersion = '';
 </script>
 
 {#if show}
@@ -335,7 +378,8 @@
             {/if}
             <div class="section">
               <h4>SSH Client</h4>
-              <p class="version-text">Version {appVersion}</p>
+              <p class="version-text">Version {appVersion || '—'}</p>
+              <p class="version-text">Core {coreVersion || '—'} · Plugin API {pluginApiVersion || '—'}</p>
               <div class="about-links">
                 <button class="secondary about-link" on:click={() => window.open('https://github.com/teoritty/xQuakShell/releases/', '_blank')}>
                   <ExternalLink size={13} />
@@ -346,6 +390,29 @@
                   Report an Issue
                 </button>
               </div>
+            </div>
+          {/if}
+
+          {#if isSearching ? shouldShowSettingsSection('about', 'developer', searchViewState) : activeTab === 'about'}
+            {#if sectionTabLabel('about', 'developer')}
+              <div class="section-tab-label">{SETTINGS_TAB_LABELS.about}</div>
+            {/if}
+            <div class="section">
+              <h4>Developer</h4>
+              <p class="section-desc">Opens a separate window with live logs from the application core and installed plugins. The window closes when the app exits.</p>
+              <label class="checkbox-row">
+                <input type="checkbox" bind:checked={debugLogWindowEnabled} />
+                Open debug log window
+              </label>
+              <label class="field-block">
+                <span>Minimum log level</span>
+                <select bind:value={debugLogLevel}>
+                  <option value="debug">Debug (most verbose)</option>
+                  <option value="info">Info</option>
+                  <option value="warn">Warning</option>
+                  <option value="error">Error</option>
+                </select>
+              </label>
             </div>
           {/if}
 
@@ -474,6 +541,34 @@
             </div>
           {/if}
 
+          {#if isSearching ? shouldShowSettingsSection('files', 'conflicts', searchViewState) : activeTab === 'files'}
+            {#if sectionTabLabel('files', 'conflicts')}
+              <div class="section-tab-label">{SETTINGS_TAB_LABELS.files}</div>
+            {/if}
+            <div class="section">
+              <h4>When a file already exists</h4>
+              <p class="section-desc">What to do when a transferred file already exists at the destination. "Ask every time" shows the conflict dialog; any other choice applies silently. Choosing an action in that dialog without "Apply to current queue only" also sets these.</p>
+              <label class="field-block">
+                <span>Uploads and local copies</span>
+                <select bind:value={defaultUploadExistsAction}>
+                  <option value="ask">Ask every time</option>
+                  {#each CONFLICT_ACTIONS as a}
+                    <option value={a.value}>{a.label}</option>
+                  {/each}
+                </select>
+              </label>
+              <label class="field-block">
+                <span>Downloads</span>
+                <select bind:value={defaultDownloadExistsAction}>
+                  <option value="ask">Ask every time</option>
+                  {#each CONFLICT_ACTIONS as a}
+                    <option value={a.value}>{a.label}</option>
+                  {/each}
+                </select>
+              </label>
+            </div>
+          {/if}
+
           {#if isSearching ? shouldShowSettingsSection('hotkeys', 'session', searchViewState) : activeTab === 'hotkeys'}
             {#if sectionTabLabel('hotkeys', 'session')}
               <div class="section-tab-label">{SETTINGS_TAB_LABELS.hotkeys}</div>
@@ -532,6 +627,16 @@
                   min="5"
                   max="300"
                   disabled={pingMode !== 'interval' || !pingEnabled}
+                />
+              </label>
+              <label class="field-inline">
+                <span>Max concurrent pings</span>
+                <input
+                  type="number"
+                  bind:value={maxConcurrentPings}
+                  min="1"
+                  max="64"
+                  disabled={!pingEnabled}
                 />
               </label>
             </div>
@@ -617,18 +722,35 @@
               </div>
             </div>
           {/if}
+
+          {#if isSearching ? shouldShowSettingsSection('plugins', 'manage', searchViewState) : activeTab === 'plugins'}
+            {#if sectionTabLabel('plugins', 'manage')}
+              <div class="section-tab-label">{SETTINGS_TAB_LABELS.plugins}</div>
+            {/if}
+            <PluginSettingsPanel showAdvanced={pluginsAdvancedMode} />
+          {/if}
         {/if}
       </div>
     </div>
 
     <div class="settings-footer">
-      <button class="secondary" on:click={closeSettings}>Cancel</button>
-      {#if showSaveButton}
-        <button class="primary" on:click={handleSave} disabled={saving}>
-          <Save size={13} />
-          {saving ? 'Saving...' : 'Save'}
-        </button>
-      {/if}
+      <div class="settings-footer-left">
+        {#if !isSearching && activeTab === 'plugins'}
+          <label class="advanced-toggle">
+            <input type="checkbox" bind:checked={pluginsAdvancedMode} />
+            Advanced
+          </label>
+        {/if}
+      </div>
+      <div class="settings-footer-actions">
+        <button class="secondary" on:click={closeSettings}>Cancel</button>
+        {#if showSaveButton}
+          <button class="primary" on:click={handleSave} disabled={saving}>
+            <Save size={13} />
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        {/if}
+      </div>
     </div>
   </Modal>
 {/if}
@@ -887,11 +1009,30 @@
 
   .settings-footer {
     display: flex;
-    justify-content: flex-end;
-    gap: 6px;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
     padding-top: 12px;
     border-top: 1px solid var(--border-color);
     margin-top: 12px;
+  }
+  .settings-footer-left {
+    min-width: 0;
+  }
+  .settings-footer-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-left: auto;
+  }
+  .advanced-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
   }
   .settings-footer button {
     padding: 5px 14px;

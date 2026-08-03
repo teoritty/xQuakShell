@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"ssh-client/internal/domain"
-	"ssh-client/internal/usecase"
+	"xquakshell/internal/domain"
+	"xquakshell/internal/usecase"
 )
 
 func TestLockoutTriggersOnIdle(t *testing.T) {

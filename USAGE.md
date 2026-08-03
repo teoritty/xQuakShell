@@ -11,14 +11,13 @@ This guide explains how to use xQuakShell for managing remote connections, organ
 3. [SSH Connections](#ssh-connections)
 4. [Authentication](#authentication)
 5. [Jump Chains (Bastion)](#jump-chains-bastion)
-6. [Proxy](#proxy)
-7. [Folders and Organization](#folders-and-organization)
-8. [Sessions and Tabs](#sessions-and-tabs)
-9. [Terminal](#terminal)
-10. [SFTP File Transfer](#sftp-file-transfer)
-11. [Known Hosts](#known-hosts)
-12. [Audit Log](#audit-log)
-13. [Settings and Lockout](#settings-and-lockout)
+6. [Folders and Organization](#folders-and-organization)
+7. [Sessions and Tabs](#sessions-and-tabs)
+8. [Terminal](#terminal)
+9. [SFTP File Transfer](#sftp-file-transfer)
+10. [Known Hosts](#known-hosts)
+11. [Audit Log](#audit-log)
+12. [Settings and Lockout](#settings-and-lockout)
 
 ---
 
@@ -31,10 +30,21 @@ All data—connections, SSH keys, passwords, known hosts—is stored in a single
 - Enter any password to **create** a new vault. This password becomes your master password.
 - On subsequent launches, enter the same password to **unlock** the vault.
 
-### Where is the vault stored?
+### Where is data stored?
 
-- **Portable mode:** If the executable directory is writable (e.g. you run from a USB stick or a folder on your Desktop), `vault.age` is created **next to the exe**.
-- **Otherwise:** `%AppData%\xQuakShell\` (e.g. `C:\Users\<you>\AppData\Roaming\xQuakShell\`).
+xQuakShell is **fully portable**. All application data lives **next to the executable**:
+
+```
+xQuakShell.exe
+vault.age              # encrypted vault
+audit.db               # audit log (if enabled)
+plugins/               # bundled and user-installed plugins
+  example-echo/
+  com.example.myplugin/
+    data/              # plugin runtime data
+```
+
+Copy the entire folder to a USB stick or another PC — settings, vault, and plugins move with it.
 
 ### Important
 
@@ -62,7 +72,6 @@ All data—connections, SSH keys, passwords, known hosts—is stored in a single
 | **Default user** | The user used when connecting. |
 | **Tags** | Optional tags for filtering (e.g., "prod", "backup"). |
 | **Jump chain** | Bastion hops (see [Jump Chains](#jump-chains-bastion)). |
-| **Proxy** | SOCKS4/SOCKS5 proxy (optional). |
 
 ### Editing and deleting
 
@@ -78,7 +87,7 @@ xQuakShell is **SSH-first**: every connection uses SSH for terminal and SFTP fil
 
 - Host, port (default 22), username.
 - Auth: SSH key or password (stored encrypted in vault).
-- Supports PTY terminal, SFTP, jump chains, SOCKS proxy.
+- Supports PTY terminal, SFTP, jump chains.
 
 Additional session protocols can be added later via the plugin seam (`SessionConnector`); the core ships without built-in non-SSH connectors.
 
@@ -129,17 +138,6 @@ You → Bastion1 → Bastion2 → Target
 - **Hop 1:** `bastion.company.com`, port 22, user `jump`, key `~/.ssh/jump_key`
 - **Hop 2:** `inner-gw.internal`, port 22, user `admin`, password
 - **Target:** Your final SSH host (from the main connection fields).
-
----
-
-## Proxy
-
-### SOCKS proxy
-
-- Enable **Proxy** for a connection.
-- Type: SOCKS4 or SOCKS5.
-- Host, port, optional username/password.
-- Outbound SSH (and optionally other traffic) goes through the proxy.
 
 ---
 
@@ -286,7 +284,7 @@ Available for **SSH** sessions.
 
 ### "Connection refused" / "Network unreachable"
 
-- Check host, port, firewall, and proxy settings.
+- Check host, port, and firewall.
 - For jump chains, ensure each hop is reachable from the previous one.
 
 ### App won't start (WebView2 error)

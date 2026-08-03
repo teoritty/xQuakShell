@@ -1,0 +1,28 @@
+{
+  "id": "com.xquakshell.demo-terminal",
+  "name": "Demo Terminal",
+  "version": "0.1.0",
+  "engine": {
+    "type": "go-binary",
+    "entry": "plugin-demo-terminal"
+  },
+  "isolation": "per-session",
+  "activationEvents": [
+    "onProtocol:demo-terminal"
+  ],
+  "capabilities": {
+    "session": {
+      "terminal": true,
+      "connectProtocols": ["demo-terminal"]
+    }
+  },
+  "contributions": {
+    "connectionProtocols": [
+      {
+        "id": "demo-terminal",
+        "label": "Demo Terminal",
+        "defaultPort": 9999
+      }
+    ]
+  }
+}

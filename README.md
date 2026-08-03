@@ -5,63 +5,79 @@
 </p>
 
 <p align="center">
-  <strong>Portable and secure SSH-first remote connection manager.</strong><br/>
+  <strong>Portable, secure remote-access platform, extensible via out-of-process plugins.</strong>
 </p>
 
 <p align="center">
-  <a href="#scope">Scope</a> •
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-blue.svg" alt="License: GPLv3"></a>
+  <img src="https://img.shields.io/badge/go-1.25.0-00ADD8?logo=go&logoColor=white" alt="Go 1.25.0">
+  <img src="https://img.shields.io/badge/Wails-v2.12.0-DF0000?logo=wails&logoColor=white" alt="Wails v2.12.0">
+  <!-- <img src="https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white" alt="Windows"> -->
+  <a href="https://t.me/xQuakShell"><img src="https://img.shields.io/badge/Telegram-Join%20chat-26A5E4?logo=telegram&logoColor=white" alt="Telegram"></a>
+</p>
+
+<p align="center">
+  <a href="#why-xquakshell">Why</a> •
   <a href="#features">Features</a> •
   <a href="#screenshots">Screenshots</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#building">Building</a> •
-  <a href="#documentation">Documentation</a>
+  <a href="#documentation">Documentation</a> •
+  <a href="#community">Community</a>
 </p>
 
 ---
 
-## Scope
+## Why xQuakShell
 
-xQuakShell is an **SSH-first** remote connection manager: terminal, SFTP, jump hosts, and host key verification are built on SSH.
+Most SSH clients force a choice: either you get a polished terminal with no real extensibility, or you get "plugins" that are just DLLs running with full access to your process, your vault, and your filesystem.
 
-**Current support:** only **SSH** is implemented in the shipped core. Other session protocols are not available yet.
+xQuakShell doesn't make you choose:
 
-**Extensibility:** the core is designed to be extended—custom session protocols via the `SessionConnector` plugin seam, and integrations through documented Go and Wails API entry points (vault, sessions, transfers). See [Architecture](./docs/architecture.md) and [Contributing](./CONTRIBUTING.md).
+- **Portable by design.** No installer, no registry, no system-wide state. The vault, audit log, and every installed plugin live next to the executable file. Copy the folder to a USB stick and your whole setup — connections, keys, plugins — moves with it.
+- **A plugin system you can actually trust.** Every plugin is a separate OS process, sandboxed with memory/handle limits (Job Objects on Windows, rlimits on Linux/macOS), talking to the core only through a capability-gated JSON-RPC channel. A plugin declares in its manifest exactly which files, hosts, and vault fields it needs — anything outside that is rejected before it ever executes, and denied calls are audit-logged. See [Security Model](./docs/security-model.md).
+- **Protocols are contributions, not core features.** SSH ships in the core. Everything else — VNC, Telnet, RDP, Discovery plugins, whatever you need next — is a `SessionConnector` implementation registered through a plugin manifest. You're not waiting on a roadmap to add a protocol; you can build it.
+- **Nothing silently trusts the network.** Strict host-key verification with no auto-accept, an encrypted vault (age + scrypt) instead of plaintext config, and a local audit log that records actions without ever recording secrets.
+
+If you manage servers from a laptop that leaves the office, or you need a remote-access tool you can extend without giving every plugin the keys to the whole app, this is the tradeoff xQuakShell is built around.
 
 ---
 
 ## Features
 
-- Encrypted vault (`vault.age`) for connections, keys, credentials, known hosts.
-- SSH-first core: integrated terminal + SFTP file manager (upload/download/rename/delete/create).
-- Multi-tab SSH session workflow with independent lifecycle.
-- Strict SSH host key verification, jump hosts, SOCKS proxy.
-- Portable Windows build with bundled WebView2 runtime (`make portable`).
+- Encrypted vault (`vault.age`) for connections, keys, credentials, known hosts — protected by a master password (age + scrypt), with no password recovery by design (nothing to leak).
+- SSH terminal + SFTP file manager (upload/download/rename/delete/create), multi-tab sessions with independent lifecycle.
+- Jump hosts and strict host key verification (no silent auto-accept).
+- Local/remote/dynamic port forwarding.
+- Out-of-process plugin system: sandboxed, capability-gated, versioned IPC handshake, resource-limited, extensible to new connection protocols — installable straight from GitHub or as signed `.xqsp` bundles.
+- Local audit log and session lockout, with secret redaction at the IPC boundary.
+- Portable Windows build with bundled WebView2 runtime (`make portable`) — works on clean/offline machines.
+
+## Official plugins
+
+Protocols beyond SSH are provided by sandboxed, out-of-process plugins installed
+from GitHub through the in-app plugin manager. The officially maintained ones:
+
+| Plugin | Protocol | Links |
+|--------|----------|-------|
+| **VNC** — remote desktop in an embedded noVNC viewer (fit-to-window, quality/bandwidth controls, auto-reconnect) | `vnc` | [Releases](https://github.com/teoritty/xqs-plugin-vnc/releases) · [Source](https://github.com/teoritty/xqs-plugin-vnc) |
+| **Telnet** — plaintext terminal sessions, optional auto-login | `telnet` | [Releases](https://github.com/teoritty/xqs-plugin-telnet/releases) · [Source](https://github.com/teoritty/xqs-plugin-telnet) |
+
+Want to build your own? Start with the [Plugin API Reference](./docs/plugin-api.md) and [Plugin Manifest schema](./docs/plugin-manifest.md).
 
 ## Screenshots
 
 ### Main workspace
 
-![Main workspace](./images/common_view.jpg)
+![Main workspace](./images/common_2.png)
 
-### Default screen
+### Plugins
 
-![Default screen](./images/default_screen.jpg)
+![Settings](./images/plugins_1.png)
 
-### Settings
+### Tiles
 
-![Settings](./images/settings_example.jpg)
-
-### Audit log
-
-![Audit log](./images/audit_log.jpg)
-
-### Connection lost dialog
-
-![Connection lost](./images/connection_lost_example.jpg)
-
-### Scripts builder
-
-![Scripts builder](./images/bash_scripts_builder.jpg)
+![Audit log](./images/tiles_1.png)
 
 ---
 
@@ -69,7 +85,7 @@ xQuakShell is an **SSH-first** remote connection manager: terminal, SFTP, jump h
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.25.0+
 - Node.js 18+
 - Wails CLI v2 (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`)
 
@@ -110,27 +126,20 @@ Bundles WebView2 Fixed Runtime into `build/bin/WebView2/`.
 
 ## Security
 
-- Master password protects vault using age + scrypt.
-- Strict host key checks (no silent auto-accept).
-- Sensitive data is not stored in plaintext config files.
-- Session lockout and local audit log are included.
+xQuakShell's plugin sandbox is enforced at multiple layers, not just "trust the manifest":
 
----
+| Layer | What it enforces |
+|-------|-------------------|
+| **Process isolation** | Each plugin runs as its own OS process; per-plugin or per-session isolation modes; killed on host shutdown or crash, restarted with backoff. |
+| **Capability gate** | Every plugin→core call (`fs.*`, `net.dial`, `vault.getSecret`, …) is checked against the plugin's declared manifest capabilities; unmatched calls are denied and logged, never silently allowed. |
+| **API version handshake** | The core, not the plugin, is the authority on compatibility — a plugin's echoed version is never trusted for enforcement. |
+| **Resource limits** | Memory/handle caps via Job Objects (Windows) or rlimits (Linux/macOS/BSD); oversized IPC frames and file reads/writes are rejected. |
+| **Ownership checks (IDOR)** | Vault and session access is scoped to the plugin that owns the active session — a plugin can't reach another plugin's or another session's data. |
+| **Secrets** | Vault contents are encrypted at rest (age + scrypt); secret field values never round-trip to plugin logs, audit logs, or the frontend after save. |
 
-## Project Structure
+Full write-up in [Security Model](./docs/security-model.md) and the [ADRs](./docs/adr/).
 
-```text
-xQuakShell/
-  app.go
-  main.go
-  frontend/src/
-  internal/
-    domain/
-    usecase/
-    infra/
-    presentation/wails/
-  test/unit/
-```
+If you find a vulnerability, please follow the process in [SECURITY.md](./SECURITY.md) rather than opening a public issue.
 
 ---
 
@@ -138,12 +147,20 @@ xQuakShell/
 
 - [Usage Guide](./USAGE.md)
 - [Architecture & extensibility](./docs/architecture.md)
+- [Plugin API Reference](./docs/plugin-api.md)
+- [Plugin Manifest schema](./docs/plugin-manifest.md)
+- [Security Model](./docs/security-model.md)
 - [Contributing](./CONTRIBUTING.md)
 - [Security Policy](./SECURITY.md)
 
 ---
 
+## Community
+
+Questions, feedback, or just want to follow development? Join the Telegram channel: **[t.me/xQuakShell](https://t.me/xQuakShell)**
+
+---
+
 ## License
 
-See [LICENSE](./LICENSE).
-
+See [LICENSE](./LICENSE) (GPLv3).
