@@ -50,6 +50,10 @@ export function CreateLocalFile(arg1) {
   return window['go']['main']['App']['CreateLocalFile'](arg1);
 }
 
+export function CreateVault(arg1) {
+  return window['go']['main']['App']['CreateVault'](arg1);
+}
+
 export function DeleteAuditEntry(arg1) {
   return window['go']['main']['App']['DeleteAuditEntry'](arg1);
 }
@@ -424,4 +428,8 @@ export function Upload(arg1, arg2, arg3) {
 
 export function ValidateTrustedPublisherKey(arg1) {
   return window['go']['main']['App']['ValidateTrustedPublisherKey'](arg1);
+}
+
+export function VaultExists() {
+  return window['go']['main']['App']['VaultExists']();
 }
