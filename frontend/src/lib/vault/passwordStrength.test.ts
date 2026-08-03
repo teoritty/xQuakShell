@@ -23,8 +23,41 @@ function run() {
   }
 
   {
-    const r = evaluatePasswordStrength('summer-day');
-    assert(r.label === 'medium', 'a mid-entropy passphrase lands in the medium band');
+    const r = evaluatePasswordStrength('kestrelzu9');
+    assert(r.label === 'medium', 'a mid-entropy two-class password lands in the medium band');
+  }
+
+  // --- character classes cap the verdict -----------------------------------
+
+  {
+    // Length alone must not buy a verdict: a digit-only password is what mask
+    // attacks target first, so it is held down however long it gets.
+    const digits = [
+      { pw: '9382716450', expected: 'weak' },
+      { pw: '93827164503948572610', expected: 'medium' },
+      { pw: '9382716450394857261049382716', expected: 'medium' },
+    ];
+    for (const { pw, expected } of digits) {
+      const r = evaluatePasswordStrength(pw);
+      assert(r.label === expected, `${pw.length} digits is ${expected}, got ${r.label}`);
+    }
+    assert(
+      evaluatePasswordStrength('9382716450394857261049382716').warnings.some((w) => w.includes('one kind')),
+      'a digit-only password says why it is held back',
+    );
+  }
+
+  {
+    // Two classes need real length before they reach strong.
+    assert(evaluatePasswordStrength('kestrelzulu9382').label === 'medium', 'fifteen characters of two classes stays medium');
+    assert(evaluatePasswordStrength('kestrelzulu93827').label === 'strong', 'sixteen characters of two classes may be strong');
+  }
+
+  {
+    // A same-length password using more classes always rates at least as well.
+    const one = evaluatePasswordStrength('kestrelzuluxray');
+    const three = evaluatePasswordStrength('Kestrelzulu9382');
+    assert(three.entropyBits > one.entropyBits, 'more character classes means more estimated entropy');
   }
 
   {
@@ -103,6 +136,19 @@ function run() {
     assert(
       single.entropyBits < evaluatePasswordStrength('bqxmvzkW').entropyBits,
       'adding a second character class raises the estimate',
+    );
+  }
+
+  {
+    // Three-key walks such as "tre" turn up inside ordinary words; charging
+    // them would flag perfectly good passwords.
+    assert(
+      !evaluatePasswordStrength('kestrelzu9').warnings.some((w) => w.includes('keyboard')),
+      'a three-key walk inside a word is not called a keyboard pattern',
+    );
+    assert(
+      evaluatePasswordStrength('poiuytrewq').warnings.some((w) => w.includes('keyboard')),
+      'a long keyboard walk still is',
     );
   }
 

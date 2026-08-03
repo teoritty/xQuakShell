@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { KeyRound, TriangleAlert } from 'lucide-svelte';
+  import { KeyRound } from 'lucide-svelte';
   import { createVault } from '../../actions/vaultActions';
   import {
     evaluatePasswordStrength,
@@ -15,7 +15,9 @@
   let error = '';
   let loading = false;
 
-  $: strength = evaluatePasswordStrength(password);
+  // null while empty so the meter renders neutral rather than shouting "Weak"
+  // at a field the user has not touched yet.
+  $: strength = password ? evaluatePasswordStrength(password) : null;
   $: checklist = checkPasswordRequirements(password);
   $: mismatch = confirmation.length > 0 && confirmation !== password;
   $: canSubmit = checklist.minLength && password === confirmation && !loading;
@@ -51,10 +53,14 @@
       autofocus
     />
 
-    {#if password}
-      <PasswordStrengthMeter result={strength} />
-      <PasswordRequirements {checklist} />
-    {/if}
+    <!--
+      The meter and the checklist are always mounted, and the messages below
+      them keep their line whether or not they have anything to say. Revealing
+      them per keystroke would shove every field underneath up and down while
+      the user is typing into one of them.
+    -->
+    <PasswordStrengthMeter result={strength} />
+    <PasswordRequirements {checklist} />
 
     <PasswordField
       bind:value={confirmation}
@@ -63,21 +69,17 @@
       disabled={loading}
     />
 
-    {#if mismatch}
-      <p class="mismatch" role="alert">The two passwords do not match.</p>
-    {/if}
-
-    <div class="no-recovery">
-      <TriangleAlert size={15} strokeWidth={1.8} />
-      <p>
-        There is no recovery. Nobody, including xQuakShell, can reset this
-        password &mdash; forget it and the vault is gone for good.
-      </p>
-    </div>
+    <p class="mismatch" role="alert">
+      {mismatch ? 'The two passwords do not match.' : ''}
+    </p>
 
     <button type="submit" class="primary" disabled={!canSubmit}>
       {loading ? 'Creating vault...' : 'Create vault'}
     </button>
+
+    <p class="no-recovery">
+      There is no recovery. Forget this password and the vault is gone for good.
+    </p>
   </form>
 </VaultCard>
 
@@ -96,31 +98,17 @@
 
   .mismatch {
     margin: 0;
+    /* Holds its line while empty so the button below never jumps. */
+    min-height: 15px;
     font-size: 11px;
     color: var(--danger);
   }
 
   .no-recovery {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 8px 10px;
-    border: 1px solid var(--warning);
-    border-radius: 4px;
-    background: rgba(196, 144, 64, 0.12);
-    color: var(--warning);
-  }
-
-  /* The card centres its children; this block reads as prose, so opt out. */
-  .no-recovery :global(svg) {
-    flex-shrink: 0;
-    margin-top: 1px;
-  }
-
-  .no-recovery p {
     margin: 0;
-    font-size: 11px;
-    line-height: 1.45;
-    text-align: left;
+    font-size: 10px;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    text-align: center;
   }
 </style>

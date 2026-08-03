@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { StrengthResult } from './passwordStrength';
 
-  export let result: StrengthResult;
+  /** `null` while the field is still empty: the meter shows, but stays neutral. */
+  export let result: StrengthResult | null;
 
   const LABELS: Record<StrengthResult['label'], string> = {
     weak: 'Weak',
@@ -15,27 +16,27 @@
     strong: 3,
   };
 
-  $: filled = SEGMENTS[result.label];
+  $: filled = result ? SEGMENTS[result.label] : 0;
+  $: tone = result ? result.label : 'idle';
+  // Only the leading warning: the rest are usually restatements of the same
+  // problem, and a list that grows and shrinks per keystroke moves the fields
+  // underneath it.
+  $: hint = result?.warnings[0] ?? '';
 </script>
 
 <div class="strength">
   <div class="bar" aria-hidden="true">
     {#each [1, 2, 3] as segment}
-      <span class="segment {segment <= filled ? result.label : ''}"></span>
+      <span class="segment {segment <= filled ? tone : ''}"></span>
     {/each}
   </div>
 
-  <p class="verdict {result.label}" aria-live="polite">
-    Password strength: {LABELS[result.label]}
+  <p class="verdict {tone}" aria-live="polite">
+    {result ? `Password strength: ${LABELS[result.label]}` : 'Password strength'}
   </p>
 
-  {#if result.warnings.length > 0}
-    <ul class="warnings">
-      {#each result.warnings as warning}
-        <li>{warning}</li>
-      {/each}
-    </ul>
-  {/if}
+  <!-- Reserved whether or not there is a hint, so the form never shifts. -->
+  <p class="hint">{hint}</p>
 </div>
 
 <style>
@@ -66,15 +67,16 @@
   .verdict {
     margin: 0;
     font-size: 11px;
+    color: var(--text-secondary);
   }
 
   .verdict.weak { color: var(--danger); }
   .verdict.medium { color: var(--warning); }
   .verdict.strong { color: var(--success); }
 
-  .warnings {
+  .hint {
     margin: 0;
-    padding-left: 16px;
+    min-height: 15px;
     font-size: 11px;
     color: var(--text-secondary);
   }

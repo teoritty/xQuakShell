@@ -30,6 +30,15 @@ const FULL_BAR_BITS = 80;
 const MEDIUM_BITS = 36;
 const STRONG_BITS = 60;
 
+/**
+ * Entropy multiplier by number of character classes, indexed 0..4.
+ *
+ * A narrow alphabet is worth less per character than the pool size alone
+ * suggests, because that is precisely the search space an attacker restricts
+ * themselves to first.
+ */
+const CLASS_FACTOR = [0, 0.55, 0.8, 0.95, 1];
+
 export type StrengthLabel = 'weak' | 'medium' | 'strong';
 
 export interface StrengthResult {
@@ -177,8 +186,11 @@ export function evaluatePasswordStrength(password: string): StrengthResult {
     warnings.push('Ends with a year, which attackers try first.');
   }
 
-  if (countClasses(password) === 1 && chars.length < RECOMMENDED_MASTER_PASSWORD_LENGTH) {
-    bits *= 0.85;
+  const classes = countClasses(password);
+  bits *= CLASS_FACTOR[classes];
+  // Anything short of a single alphabet is left to the checklist below the
+  // meter, which already spells out which kinds of character are missing.
+  if (classes === 1) {
     warnings.push('Uses only one kind of character.');
   }
 
@@ -187,7 +199,7 @@ export function evaluatePasswordStrength(password: string): StrengthResult {
   return {
     entropyBits: bits,
     score: clamp(Math.round((bits / FULL_BAR_BITS) * 100), 0, 100),
-    label: bandFor(bits, chars.length),
+    label: weakest(bandFor(bits, chars.length), ceilingFor(classes, chars.length)),
     warnings,
   };
 }
@@ -199,6 +211,28 @@ function bandFor(bits: number, length: number): StrengthLabel {
   if (bits < MEDIUM_BITS) return 'weak';
   if (bits < STRONG_BITS) return 'medium';
   return 'strong';
+}
+
+/**
+ * The best verdict a password may reach given how many character classes it
+ * uses.
+ *
+ * Raw entropy rewards length alone, so a long enough string of digits would
+ * otherwise read as strong — which is exactly the advice people should not be
+ * given. Narrow alphabets are also what wordlist and mask attacks target first.
+ * Length still buys its way up, it just has to buy more.
+ */
+function ceilingFor(classes: number, length: number): StrengthLabel {
+  if (classes >= 3) return 'strong';
+  if (classes === 2) return length >= 16 ? 'strong' : 'medium';
+  if (length >= 24) return 'strong';
+  return length >= 14 ? 'medium' : 'weak';
+}
+
+const ORDER: StrengthLabel[] = ['weak', 'medium', 'strong'];
+
+function weakest(a: StrengthLabel, b: StrengthLabel): StrengthLabel {
+  return ORDER.indexOf(a) <= ORDER.indexOf(b) ? a : b;
 }
 
 function characterPoolSize(password: string): number {
@@ -263,14 +297,16 @@ function repeatedBlock(password: string): { unit: string; times: number } | null
 }
 
 function sequencePenalty(chars: string[], bitsPerChar: number, covered: boolean[]): number {
-  return runPenalty(chars, bitsPerChar, covered, (a, b) => {
+  return runPenalty(chars, bitsPerChar, covered, 3, (a, b) => {
     const delta = b.codePointAt(0)! - a.codePointAt(0)!;
     return delta === 1 || delta === -1 ? delta : null;
   });
 }
 
+// Four keys, not three: three-key walks such as "tre" or "asd" turn up inside
+// ordinary words often enough that charging them would flag good passwords.
 function keyboardPenalty(chars: string[], bitsPerChar: number, covered: boolean[]): number {
-  return runPenalty(chars, bitsPerChar, covered, (a, b) => {
+  return runPenalty(chars, bitsPerChar, covered, 4, (a, b) => {
     const from = KEY_POSITIONS.get(a.toLowerCase());
     const to = KEY_POSITIONS.get(b.toLowerCase());
     if (!from || !to || from.row !== to.row) return null;
@@ -280,7 +316,7 @@ function keyboardPenalty(chars: string[], bitsPerChar: number, covered: boolean[
 }
 
 /**
- * Charges runs of three or more characters that step by a constant ±1 under
+ * Charges runs of `minRun` or more characters that step by a constant ±1 under
  * `step`. Indices already charged by an earlier pass are skipped so a run is
  * never penalised twice.
  */
@@ -288,6 +324,7 @@ function runPenalty(
   chars: string[],
   bitsPerChar: number,
   covered: boolean[],
+  minRun: number,
   step: (a: string, b: string) => number | null,
 ): number {
   let penalty = 0;
@@ -296,7 +333,7 @@ function runPenalty(
 
   const flush = (end: number) => {
     const length = end - start;
-    if (direction !== null && length >= 3 && !covered.slice(start, end).some(Boolean)) {
+    if (direction !== null && length >= minRun && !covered.slice(start, end).some(Boolean)) {
       penalty += 0.75 * bitsPerChar * (length - 1);
       for (let i = start; i < end; i++) covered[i] = true;
     }
