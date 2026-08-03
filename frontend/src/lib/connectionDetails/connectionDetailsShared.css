@@ -13,7 +13,16 @@
   font-weight: 500;
 }
 
-.connection-detail-field input,
+/* Stretches the text-entry controls of a field, not every input inside it.
+   Checkboxes and radios are excluded on purpose: they have no content of their own and take
+   their box from style.css, which sets it at the specificity of a bare `input` (0,0,1) so
+   components can still override it. A descendant selector like this one scores (0,1,1) and wins,
+   so without the exclusion a radio here was stretched to the full width of its row — inside the
+   users list that left no room for the "Default" text beside it, which was flexed down to zero
+   width and, being nowrap, spilled out over the delete button.
+   The exclusion lives inside :where() so it costs no specificity and the rule keeps behaving
+   exactly as before for text fields. */
+.connection-detail-field input:where(:not([type="checkbox"]):not([type="radio"])),
 .connection-detail-field select,
 .connection-detail-field textarea {
   width: 100%;
@@ -42,12 +51,6 @@
   font-size: 11px;
   color: var(--text-primary);
   cursor: pointer;
-}
-
-.connection-detail-checkbox input {
-  margin: 0;
-  width: auto;
-  flex-shrink: 0;
 }
 
 .connection-detail-field-error {

@@ -166,26 +166,37 @@
     min-width: 0;
   }
 
+  /* wrap is the last-resort guard: if the row genuinely cannot fit even after the select has
+     given up all the width it can, the meta slot moves to its own line instead of its content
+     being painted over the delete button. */
   .auth-entry-toolbar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 4px;
     margin-bottom: 4px;
     min-width: 0;
   }
 
+  /* 88px is a preferred width, not a floor: this is the element that yields when the panel is
+     narrow. It holds one short word ("Key", "Password", "Plugin") and stays legible when
+     squeezed, whereas the meta slot next to it holds a label that must be read in full. */
   .auth-select {
     width: 88px;
     font-size: 11px;
-    flex-shrink: 0;
+    flex: 0 1 auto;
+    min-width: 0;
   }
 
+  /* flex-basis auto, not 0: the slot's starting width is its content, so the label it holds is
+     never squeezed out. An earlier attempt clipped this slot instead, which did stop the overlap
+     but hid the label entirely once the slot fell below the label's width — the row has to be
+     made to fit, not have its overflow hidden. */
   .auth-entry-meta {
     display: flex;
     align-items: center;
     gap: 4px;
-    flex: 1;
-    min-width: 0;
+    flex: 1 1 auto;
     justify-content: flex-end;
   }
 
