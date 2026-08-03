@@ -12,12 +12,13 @@ This guide explains how to use xQuakShell for managing remote connections, organ
 4. [Authentication](#authentication)
 5. [Jump Chains (Bastion)](#jump-chains-bastion)
 6. [Folders and Organization](#folders-and-organization)
-7. [Sessions and Tabs](#sessions-and-tabs)
-8. [Terminal](#terminal)
-9. [SFTP File Transfer](#sftp-file-transfer)
-10. [Known Hosts](#known-hosts)
-11. [Audit Log](#audit-log)
-12. [Settings and Lockout](#settings-and-lockout)
+7. [Importing Connections](#importing-connections)
+8. [Sessions and Tabs](#sessions-and-tabs)
+9. [Terminal](#terminal)
+10. [SFTP File Transfer](#sftp-file-transfer)
+11. [Known Hosts](#known-hosts)
+12. [Audit Log](#audit-log)
+13. [Settings and Lockout](#settings-and-lockout)
 
 ---
 
@@ -158,6 +159,37 @@ You → Bastion1 → Bastion2 → Target
 ### Favorites
 
 - Mark connections as favorites for quick access in the sidebar.
+
+---
+
+## Importing Connections
+
+The **Import** button in the sidebar toolbar (download icon) opens a menu with two sources.
+
+### From SSH config
+
+Imports hosts from an OpenSSH client config (`~/.ssh/config`).
+
+1. Click **Import → From SSH config…**. The file at `~/.ssh/config` is detected automatically; use **Browse…** to pick a different one.
+2. Review the parsed hosts. Each row shows the alias, `user@host:port`, and badges for referenced keys and jump chains.
+3. Tick the hosts to import, choose the destination folder (or create a new one), and confirm.
+
+**What is understood:** `Host`, `HostName`, `User`, `Port`, `IdentityFile`, `ProxyJump` and `Include`. Wildcard blocks such as `Host *` are applied as defaults to the concrete hosts rather than imported as connections. `ProxyJump` becomes a [jump chain](#jump-chains-bastion), with each hop resolved through its own `Host` block.
+
+**Precedence** follows ssh(1): the *first* value obtained for a setting wins. If you keep a `Host *` block at the top of your config, its values override the specific blocks below it — the import behaves the same way your `ssh` command does.
+
+**Duplicates:** a host that matches an existing connection by host, port and user is marked *Already in vault* and starts unticked. Nothing is ever overwritten; ticking one creates a second connection.
+
+**Keys:** private keys named by `IdentityFile` are imported only if you tick **Also import the referenced private keys**. Keys are stored in the vault as-is — an encrypted key stays encrypted, and you are asked for its passphrase when you first connect, not at import time. A key shared by several hosts is stored once.
+
+**Not imported:** `Match` blocks (their conditions can only be evaluated while connecting) and `ProxyCommand` (no jump-chain equivalent). Anything skipped is listed in the warnings panel at the bottom of the dialog.
+
+### From PuTTY
+
+- **`.ppk`** — imports a PuTTY private key as an identity. Enter the passphrase if the key is encrypted.
+- **`.reg`** — imports saved sessions from a registry export into the currently selected folder.
+
+To produce a `.reg` file, run: `regedit /e putty-sessions.reg HKEY_CURRENT_USER\Software\SimonTatham\PuTTY\Sessions`
 
 ---
 
