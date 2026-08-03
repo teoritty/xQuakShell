@@ -157,6 +157,14 @@ export const selectedFolderId = writable<string>('');
 export const sessions = writable<Session[]>([]);
 export const activeSessionId = writable<string>('');
 export const vaultUnlocked = writable<boolean>(false);
+/**
+ * Whether a vault file exists on disk, deciding between the create-master-password
+ * and the unlock screen. `null` means the probe has not answered yet, so the gate
+ * renders neither screen and the user never sees the wrong one flash.
+ *
+ * Locking does not reset this: a locked vault still exists.
+ */
+export const vaultExists = writable<boolean | null>(null);
 export const transfers = writable<TransferItem[]>([]);
 
 /**

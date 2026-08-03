@@ -15,6 +15,22 @@ export async function unlockVaultRpc(masterPassword: string): Promise<void> {
   await app.UnlockVault(masterPassword);
 }
 
+export async function createVaultRpc(masterPassword: string): Promise<void> {
+  const app = getGateway();
+  if (!app) return;
+  await app.CreateVault(masterPassword);
+}
+
+// Returns false when the gateway is missing, matching the "do nothing
+// observable" contract of the wrappers above. The create screen is the safe
+// default for a backendless (browser dev) run; actions/vaultActions owns the
+// real decision.
+export async function vaultExistsRpc(): Promise<boolean> {
+  const app = getGateway();
+  if (!app) return false;
+  return await app.VaultExists();
+}
+
 export async function lockVaultRpc(): Promise<void> {
   const app = getGateway();
   if (!app) return;
