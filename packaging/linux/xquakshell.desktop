@@ -1,0 +1,25 @@
+[Desktop Entry]
+# Desktop entry template for the portable Linux archive.
+#
+# A bare ELF carries no icon in a Linux file manager or application menu — that
+# association comes from a .desktop entry, which is what this file provides.
+#
+# The archive is portable and can be unpacked anywhere, so the absolute paths are
+# not known until then. The install step substitutes %%INSTALL_DIR%% with the
+# directory the archive was unpacked into and copies the result to
+# ~/.local/share/applications/. Until the Linux archive work lands, this file is
+# inert: nothing reads it yet.
+#
+# StartupWMClass must match the GTK window class Wails sets from the binary name,
+# otherwise the running window is not associated with this entry and the taskbar
+# falls back to a generic icon even though the launcher shows the right one.
+Type=Application
+Name=xQuakShell
+GenericName=SSH Client
+Comment=Portable SSH client with encrypted vault, terminal, SFTP, bastion chains and audit logging
+Exec=%%INSTALL_DIR%%/xquakshell.sh
+Icon=%%INSTALL_DIR%%/icon.png
+StartupWMClass=xQuakShell
+Terminal=false
+Categories=Network;RemoteAccess;
+Keywords=SSH;SFTP;Terminal;Remote;
