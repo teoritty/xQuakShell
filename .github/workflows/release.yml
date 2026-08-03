@@ -51,13 +51,22 @@ jobs:
         shell: pwsh
         run: wails build -platform windows/amd64 -clean -ldflags "-X xquakshell/internal/presentation/wails.AppVersion=$env:VERSION"
 
+      # Both archives unpack into one folder named after themselves rather than scattering an exe
+      # and a 250 MB runtime folder into whatever directory they were opened in. The app keeps its
+      # vault, audit log and plugins in data\ next to the executable, so that folder is the
+      # installation and has to stay together.
       - name: Package portable (no WebView2)
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path dist -Force | Out-Null
-          Compress-Archive -Path "build/bin/xQuakShell.exe" `
-            -DestinationPath "dist/xQuakShell-$env:TAG-windows-amd64-portable.zip"
+          $name = "xQuakShell-$env:TAG-windows-amd64-portable"
+          New-Item -ItemType Directory -Path dist, "stage/$name" -Force | Out-Null
+          Copy-Item "build/bin/xQuakShell.exe" "stage/$name/"
+          Copy-Item "packaging/windows/README.md" "stage/$name/README.md"
+          Copy-Item "LICENSE" "stage/$name/"
+          Compress-Archive -Path "stage/$name" -DestinationPath "dist/$name.zip"
 
+      # Fetches the x64 fixed runtime, verifies it is the architecture this build needs and that
+      # Microsoft signed it, and fails the release if either is not true.
       - name: Download WebView2 Fixed Runtime
         shell: pwsh
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/download_webview2.ps1
@@ -65,9 +74,18 @@ jobs:
       - name: Package portable (with WebView2)
         shell: pwsh
         run: |
-          # Everything in build/bin: xQuakShell.exe + WebView2/
-          Compress-Archive -Path "build/bin/*" `
-            -DestinationPath "dist/xQuakShell-$env:TAG-windows-amd64-portable-webview2.zip"
+          $name = "xQuakShell-$env:TAG-windows-amd64-portable-webview2"
+          New-Item -ItemType Directory -Path "stage/$name" -Force | Out-Null
+          Copy-Item "build/bin/xQuakShell.exe" "stage/$name/"
+          Copy-Item "build/bin/WebView2" "stage/$name/WebView2" -Recurse
+          Copy-Item "packaging/windows/README.md" "stage/$name/README.md"
+          Copy-Item "LICENSE" "stage/$name/"
+          # The file Wails resolves at startup. If it is missing the app exits without a window,
+          # which is exactly the failure this archive exists to prevent — so the release stops here
+          # rather than shipping it.
+          $clientDll = "stage/$name/WebView2/EBWebView/x64/EmbeddedBrowserWebView.dll"
+          if (-not (Test-Path $clientDll)) { throw "Bundled runtime is missing $clientDll" }
+          Compress-Archive -Path "stage/$name" -DestinationPath "dist/$name.zip"
 
       - uses: actions/upload-artifact@v4
         with:

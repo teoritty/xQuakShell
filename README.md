@@ -93,6 +93,10 @@ Every release publishes portable archives — unpack and run, no installer, no s
 | Linux | `…-linux-amd64-webkit4.1.tar.gz` | Ubuntu 22.04+, Debian 12+, Fedora 40+, Arch — start here |
 | Linux | `…-linux-amd64-webkit4.0.tar.gz` | Older systems still carrying the webkit2gtk-4.0 runtime |
 
+Each archive unpacks into a folder of its own and carries a README. Windows will show
+"Windows protected your PC" on first run — the binaries are not code-signed, so SmartScreen has no
+publisher to check; **More info → Run anyway**, or verify the archive against `SHA256SUMS` first.
+
 WebKitGTK is part of the Linux system and cannot be bundled the way WebView2 is on Windows, and its
 4.0 and 4.1 ABIs are not interchangeable — hence two archives. Both are built against glibc 2.35
 and require it or newer. If the wrong one is unpacked, the launcher says so and names the package
