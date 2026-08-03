@@ -73,7 +73,7 @@
 
     <button
       type="button"
-      class="ghost reveal"
+      class="reveal"
       aria-label={revealed ? 'Hide password' : 'Show password'}
       aria-pressed={revealed}
       tabindex="-1"
@@ -127,17 +127,42 @@
   /*
     Stretched rather than given a height: the input's height comes from its font
     size, padding and --ui-scale, so any fixed number here would drift out of
-    alignment the moment one of those changes.
+    alignment the moment one of those changes. Inset by the input's 1px border
+    so it sits inside the field and never paints over the focus outline.
+
+    The icon is the whole control: no box, no fill, in any state. Every global
+    button style that would draw one is turned off here rather than inherited
+    and fought with later.
   */
   .reveal {
     position: absolute;
-    top: 0;
-    bottom: 0;
-    right: 0;
+    top: 1px;
+    bottom: 1px;
+    right: 1px;
     display: flex;
     align-items: center;
     padding: 0 9px;
-    border-radius: 0 2px 2px 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+    color: var(--text-secondary);
+    transition: color 0.12s;
+  }
+
+  .reveal:hover,
+  .reveal:focus,
+  .reveal:active,
+  .reveal:disabled {
+    background: none;
+    border: none;
+  }
+
+  .reveal:hover {
+    color: var(--text-bright);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal { transition: none; }
   }
 
   .caps-lock {
