@@ -24,7 +24,12 @@ type identityTokens struct {
 // line commonly names a key that lives on another machine, and importing a
 // dangling reference would produce a connection that fails at authentication
 // time with no explanation. The user is told through a notice instead.
-func (r *resolver) resolveIdentityFiles(raw []string, tokens identityTokens, subject string) []string {
+//
+// A missing key is reported by file name, not by the host that referenced it.
+// A wildcard block naming one absent key would otherwise emit one notice per
+// matching host — hundreds of identical lines burying the findings the user
+// can actually act on — and the file name is the more useful fact anyway.
+func (r *resolver) resolveIdentityFiles(raw []string, tokens identityTokens) []string {
 	var (
 		out  []string
 		seen = map[string]bool{}
@@ -39,7 +44,7 @@ func (r *resolver) resolveIdentityFiles(raw []string, tokens identityTokens, sub
 		}
 		seen[path] = true
 		if !isReadableRegularFile(path) {
-			r.notices.add(domain.SSHConfigNoticeIdentityFileMissing, subject)
+			r.notices.add(domain.SSHConfigNoticeIdentityFileMissing, filepath.Base(path))
 			continue
 		}
 		out = append(out, path)

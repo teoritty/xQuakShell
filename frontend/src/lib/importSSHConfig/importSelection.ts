@@ -72,7 +72,7 @@ export function describeNotice(notice: SSHConfigNotice): string {
     case 'includeUnreadable':
       return `An included file could not be read${target}.`;
     case 'identityFileMissing':
-      return `A referenced key file does not exist${target}. The connection was imported without it.`;
+      return `A referenced key file was not found${target}. Connections using it are imported without it.`;
     case 'jumpHostUnresolved':
       return `A ProxyJump entry could not be resolved${target}. Its jump chain may be incomplete.`;
     case 'limitReached':

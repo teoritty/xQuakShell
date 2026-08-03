@@ -91,7 +91,7 @@ func (r *resolver) hopFrom(parsed jumpSpec, settings hostSettings) domain.SSHCon
 		hostName: hop.HostName,
 		alias:    parsed.alias,
 		user:     hop.User,
-	}, parsed.alias)
+	})
 	return hop
 }
 

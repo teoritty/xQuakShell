@@ -111,7 +111,7 @@ func (r *resolver) buildHost(alias string) domain.SSHConfigHost {
 			hostName: hostName,
 			alias:    alias,
 			user:     s.user,
-		}, alias),
+		}),
 	}
 	host.JumpHops = r.resolveJumpChain(alias, s)
 	if s.proxyJump == "" && s.hasProxyCommand {

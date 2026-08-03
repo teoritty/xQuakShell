@@ -73,8 +73,39 @@ func TestParseDropsMissingIdentityFile(t *testing.T) {
 	if got := hostByAlias(t, result, "web").IdentityFiles; len(got) != 0 {
 		t.Errorf("IdentityFiles = %v, want none — a dangling reference must not be imported", got)
 	}
-	if !hasNotice(result, domain.SSHConfigNoticeIdentityFileMissing, "web") {
-		t.Errorf("a missing key must be reported; notices = %+v", result.Notices)
+	if !hasNotice(result, domain.SSHConfigNoticeIdentityFileMissing, "absent_key") {
+		t.Errorf("a missing key must be reported by file name; notices = %+v", result.Notices)
+	}
+}
+
+// A wildcard block naming one absent key must produce one notice, not one per
+// matching host: a real config with 400 web hosts behind `Host web-*` would
+// otherwise bury every other finding under 400 identical lines.
+func TestParseReportsAMissingSharedKeyOnce(t *testing.T) {
+	fakeHome(t)
+	var sb strings.Builder
+	sb.WriteString("Host web-*\n  IdentityFile ~/.ssh/id_shared_missing\n\n")
+	for i := 0; i < 50; i++ {
+		sb.WriteString("Host web-" + itoa(i) + "\n")
+	}
+	path := writeFile(t, t.TempDir(), "config", sb.String())
+
+	result, err := Parse(path)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	missing := 0
+	for _, n := range result.Notices {
+		if n.Kind == domain.SSHConfigNoticeIdentityFileMissing {
+			missing++
+		}
+	}
+	if missing != 1 {
+		t.Errorf("got %d missing-key notices, want 1 for the one absent file", missing)
+	}
+	if !hasNotice(result, domain.SSHConfigNoticeIdentityFileMissing, "id_shared_missing") {
+		t.Errorf("the notice must name the key file; notices = %+v", result.Notices)
 	}
 }
 
