@@ -44,11 +44,25 @@ const HTML_TAG_RE = /\{@html\b/;
 
 // The comments in these files talk ABOUT {@html} and innerHTML; strip them so
 // the prose explaining the rule does not trip the rule.
+//
+// Each delimited-comment strip runs to a fixpoint, not once. Removing a match
+// splices its neighbours together, and those neighbours can form a fresh
+// opening delimiter (`<!` + `--` -> `<!--`), which a single pass would leave
+// behind — the same defect class as an incomplete sanitizer.
+function stripToFixpoint(src: string, re: RegExp): string {
+  let prev: string;
+  do {
+    prev = src;
+    src = src.replace(re, '');
+  } while (src !== prev);
+  return src;
+}
+
 function stripComments(src: string): string {
-  return src
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+  let out = stripToFixpoint(src, /<!--[\s\S]*?-->/g);
+  out = stripToFixpoint(out, /\/\*[\s\S]*?\*\//g);
+  // Line comments are anchored to a line end, so removal cannot re-form one.
+  return out.replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
 for (const file of DISCOVERY_FILES) {

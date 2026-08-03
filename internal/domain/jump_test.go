@@ -21,7 +21,7 @@ func TestJumpHop_Validate_RejectsMissingKeyIdentities(t *testing.T) {
 	}
 }
 
-func TestJumpHop_Validate_RejectsMissingPasswordID(t *testing.T) {
+func TestJumpHop_Validate_RejectsMissingVaultRef(t *testing.T) {
 	h := JumpHop{
 		Host:     "bastion",
 		Port:     22,
@@ -52,7 +52,7 @@ func TestJumpHop_Validate_AcceptsPasswordAuth(t *testing.T) {
 		Port:     22,
 		Username: "jump",
 		Auth:     AuthMethodPassword,
-		PassAuth: &PasswordAuthConfig{PasswordID: "pw-1"},
+		PassAuth: &PasswordAuthConfig{VaultRef: "pw-1"},
 	}
 	if err := h.Validate(); err != nil {
 		t.Fatalf("expected valid hop: %v", err)

@@ -34,8 +34,10 @@ type KeyAuthConfigDTO struct {
 	IdentityIDs []string `json:"identityIds"`
 }
 
+// PassAuthConfigDTO carries the vault handle for password auth, never the password.
+// See domain.PasswordAuthConfig for why the field is VaultRef and the tag is not.
 type PassAuthConfigDTO struct {
-	PasswordID string `json:"passwordId"`
+	VaultRef string `json:"passwordId"`
 }
 
 type JumpHopDTO struct {
@@ -224,7 +226,7 @@ func passAuthToDTO(in *domain.PasswordAuthConfig) *PassAuthConfigDTO {
 	if in == nil {
 		return nil
 	}
-	return &PassAuthConfigDTO{PasswordID: in.PasswordID}
+	return &PassAuthConfigDTO{VaultRef: in.VaultRef}
 }
 
 func keyAuthFromDTO(in *KeyAuthConfigDTO) *domain.KeyAuthConfig {
@@ -238,7 +240,7 @@ func passAuthFromDTO(in *PassAuthConfigDTO) *domain.PasswordAuthConfig {
 	if in == nil {
 		return nil
 	}
-	return &domain.PasswordAuthConfig{PasswordID: in.PasswordID}
+	return &domain.PasswordAuthConfig{VaultRef: in.VaultRef}
 }
 
 func pluginAuthFromDTO(in *PluginAuthConfigDTO) *domain.PluginAuthConfig {

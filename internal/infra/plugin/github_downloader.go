@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,11 +16,16 @@ import (
 
 	domainplugin "xquakshell/internal/domain/plugin"
 	infragithub "xquakshell/internal/infra/github"
+	"xquakshell/internal/pkg/pathsafe"
 )
 
 // ErrReleaseTooLarge is returned when a downloaded release asset, or the archive it
 // expands to, exceeds the domainplugin.MaxRelease* limits.
 var ErrReleaseTooLarge = fmt.Errorf("release asset too large")
+
+// errSkipEntry marks an archive entry that is harmless but has nothing to extract
+// (the archive-root "./" entry). Callers skip it; it is never a failure.
+var errSkipEntry = errors.New("archive entry skipped")
 
 // releaseBudget bounds one extraction run: entry count, per-entry size, and running
 // total. It mirrors the extractBudget used for .xqsp bundles — same threat (a zip/tar
@@ -198,6 +204,9 @@ func (d *BinaryDownloader) extractZIP(archivePath, destDir string) error {
 	budget := releaseBudget{}
 	for _, file := range reader.File {
 		path, err := safeExtractPath(destDir, file.Name)
+		if errors.Is(err, errSkipEntry) {
+			continue
+		}
 		if err != nil {
 			return err
 		}
@@ -264,6 +273,9 @@ func (d *BinaryDownloader) extractTAR(archivePath, destDir string) error {
 			return err
 		}
 		path, err := safeExtractPath(destDir, header.Name)
+		if errors.Is(err, errSkipEntry) {
+			continue
+		}
 		if err != nil {
 			return err
 		}
@@ -321,15 +333,50 @@ func (d *BinaryDownloader) findExecutable(dir string) (string, error) {
 	return executable, nil
 }
 
+// safeExtractPath resolves an archive entry name to an absolute path inside destDir,
+// or fails. It mirrors the containment logic in plugin/bundle.extractZipFile: reject
+// the name outright when it is absolute or walks up, then verify the *resolved*
+// path — the value the caller actually opens — still sits under the destination.
+//
+// Checking only the entry name, or only an intermediate like filepath.Rel's result,
+// is what lets a zip-slip through: the guard has to hold on the string handed to
+// os.OpenFile/os.MkdirAll.
 func safeExtractPath(destDir, name string) (string, error) {
+	invalid := fmt.Errorf("invalid archive path: %s", name)
+
 	clean := filepath.Clean(filepath.FromSlash(name))
-	if strings.HasPrefix(clean, "..") {
-		return "", fmt.Errorf("invalid archive path: %s", name)
+	if clean == "." {
+		// `tar -czf x.tgz .` emits a "./" entry for the archive root. It is not an
+		// escape and rejecting it would fail otherwise-valid release tarballs, but
+		// it resolves to destDir itself, which the containment check below (rightly)
+		// treats as "not under destDir". Skip it instead.
+		return "", errSkipEntry
 	}
-	full := filepath.Join(destDir, clean)
-	rel, err := filepath.Rel(destDir, full)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return "", fmt.Errorf("invalid archive path: %s", name)
+	if filepath.IsAbs(clean) || clean == ".." ||
+		strings.HasPrefix(clean, ".."+string(filepath.Separator)) ||
+		strings.Contains(clean, string(filepath.Separator)+"..") {
+		return "", invalid
+	}
+	// Two Windows-only shapes that filepath.IsAbs does not catch, both of which
+	// are absolute on the platform the archive was most likely built on:
+	//   "C:foo"       - volume-relative
+	//   "\etc\passwd" - root-relative (a POSIX "/etc/passwd" after FromSlash)
+	if filepath.VolumeName(clean) != "" || strings.HasPrefix(clean, string(filepath.Separator)) {
+		return "", invalid
+	}
+
+	root, err := filepath.Abs(destDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve dest dir: %w", err)
+	}
+	root = filepath.Clean(root)
+
+	full := filepath.Clean(filepath.Join(root, clean))
+	if !strings.HasPrefix(full, root+string(filepath.Separator)) {
+		return "", invalid
+	}
+	if !pathsafe.UnderRoot(root, full) {
+		return "", invalid
 	}
 	return full, nil
 }

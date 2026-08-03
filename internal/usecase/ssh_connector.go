@@ -186,10 +186,10 @@ func (c *SSHConnector) resolveHopAuthWithCtx(ctx context.Context, connectionID s
 		signers, err := c.loadSigners(ctx, hop.KeyAuth.IdentityIDs)
 		return signers, "", nil, nil, err
 	case domain.AuthMethodPassword:
-		if hop.PassAuth == nil || hop.PassAuth.PasswordID == "" {
+		if hop.PassAuth == nil || hop.PassAuth.VaultRef == "" {
 			return nil, "", nil, nil, fmt.Errorf("hop password auth but no password ID")
 		}
-		pw, err := c.passwordRepo.Get(ctx, hop.PassAuth.PasswordID)
+		pw, err := c.passwordRepo.Get(ctx, hop.PassAuth.VaultRef)
 		if err != nil {
 			return nil, "", nil, nil, err
 		}
@@ -225,10 +225,10 @@ func (c *SSHConnector) resolveAuth(ctx context.Context, conn *domain.Connection)
 		return signers, "", nil, "", err
 
 	case domain.AuthMethodPassword:
-		if defaultUser.PassAuth == nil || defaultUser.PassAuth.PasswordID == "" {
+		if defaultUser.PassAuth == nil || defaultUser.PassAuth.VaultRef == "" {
 			return nil, "", nil, "", fmt.Errorf("password auth configured but no password ID set")
 		}
-		passwordBytes, err := c.passwordRepo.Get(ctx, defaultUser.PassAuth.PasswordID)
+		passwordBytes, err := c.passwordRepo.Get(ctx, defaultUser.PassAuth.VaultRef)
 		if err != nil {
 			return nil, "", nil, "", fmt.Errorf("load password: %w", err)
 		}
