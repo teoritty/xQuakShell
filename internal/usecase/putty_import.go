@@ -2,8 +2,6 @@ package usecase
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 
 	"xquakshell/internal/domain"
@@ -116,12 +114,4 @@ func puttySessionToConnection(s domain.PuTTYSession, folderID string, order int)
 		conn.DefaultUserID = uid
 	}
 	return conn
-}
-
-func randomHex(n int) string {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		return "00000000"
-	}
-	return hex.EncodeToString(b)
 }
