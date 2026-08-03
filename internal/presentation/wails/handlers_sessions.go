@@ -121,9 +121,25 @@ func containsEnter(data string) bool {
 	return false
 }
 
+// maxPTYDimension bounds a PTY window size. The value arrives from the frontend as a
+// signed int and is widened to uint32 for the SSH window-change request, so an
+// unclamped negative would wrap to ~4.29e9 and be sent to the remote host as a
+// legitimate-looking dimension.
+const maxPTYDimension = 1 << 16
+
 // TerminalResize changes the PTY window size for a session.
 func (a *AppAPI) TerminalResize(sessionID string, cols, rows int) error {
-	return a.sessions.ResizeTerminal(sessionID, uint32(cols), uint32(rows))
+	return a.sessions.ResizeTerminal(sessionID, clampPTYDimension(cols), clampPTYDimension(rows))
+}
+
+func clampPTYDimension(v int) uint32 {
+	if v < 0 {
+		return 0
+	}
+	if v > maxPTYDimension {
+		return maxPTYDimension
+	}
+	return uint32(v)
 }
 
 // --- Host Key ---
