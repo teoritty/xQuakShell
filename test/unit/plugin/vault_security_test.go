@@ -205,7 +205,9 @@ type memoryPassphraseCache struct {
 	values map[string]string
 }
 
-func (c memoryPassphraseCache) Get(identityID string) (string, bool) {
+// Pointer receivers: with value receivers Clear() nils out a copy and does nothing,
+// so the double would keep handing out a passphrase the code under test had cleared.
+func (c *memoryPassphraseCache) Get(identityID string) (string, bool) {
 	if c.values == nil {
 		return "", false
 	}
@@ -213,14 +215,14 @@ func (c memoryPassphraseCache) Get(identityID string) (string, bool) {
 	return v, ok
 }
 
-func (c memoryPassphraseCache) Set(identityID, passphrase string) {
+func (c *memoryPassphraseCache) Set(identityID, passphrase string) {
 	if c.values == nil {
 		c.values = make(map[string]string)
 	}
 	c.values[identityID] = passphrase
 }
 
-func (c memoryPassphraseCache) Clear() { c.values = nil }
+func (c *memoryPassphraseCache) Clear() { c.values = nil }
 
 type passphraseIdentRepo struct {
 	idents []domain.SSHIdentity
@@ -264,7 +266,7 @@ func TestVaultPassphraseRequiresCache(t *testing.T) {
 		vaultPasswordRepo{},
 		passphraseIdentRepo{idents: []domain.SSHIdentity{{ID: "id1", Encrypted: true}}},
 		vaultSettingsReader{granted: true},
-		memoryPassphraseCache{values: map[string]string{"id1": "secret-pass"}},
+		&memoryPassphraseCache{values: map[string]string{"id1": "secret-pass"}},
 	)
 	inbound.SetAuthorizer(vaultAuthorizer{owns: map[string]bool{"com.test.vault:c1": true}})
 	inbound.SetAuditLogger(&recordingVaultAudit{})
