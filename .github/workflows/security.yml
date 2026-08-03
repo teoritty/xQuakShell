@@ -90,11 +90,29 @@ jobs:
         if: always()
         run: test "$(jq '[.runs[].results[]] | length' gosec.sarif)" -eq 0
 
+      # `-f sarif` reports findings through the file, not the exit code (unlike the
+      # default text format, which exits 1), so exit 1 is tolerated here and the gate
+      # step below is what fails the build. Anything above that is a real tool failure
+      # and must NOT be swallowed -- the old `|| true` turned a broken run into a
+      # truncated file that then blew up two steps later.
+      #
+      # The jq pass exists because staticcheck omits the "results" key entirely on a
+      # clean run. SARIF 2.1.0 allows that, but upload-sarif rejects it ("Missing
+      # 'results' array in run") and `.runs[].results[]` iterates over null, so
+      # normalise it to an empty array here rather than waiting on upstream.
       - name: staticcheck
         if: always()
-        run: >
-          go run honnef.co/go/tools/cmd/staticcheck@${{ env.STATICCHECK_VERSION }}
-          -f sarif ./... > staticcheck.sarif || true
+        run: |
+          set +e
+          go run honnef.co/go/tools/cmd/staticcheck@${{ env.STATICCHECK_VERSION }} \
+            -f sarif ./... > staticcheck.raw.sarif
+          status=$?
+          set -e
+          if [ "$status" -gt 1 ]; then
+            cat staticcheck.raw.sarif
+            exit "$status"
+          fi
+          jq '.runs |= map(.results = (.results // []))' staticcheck.raw.sarif > staticcheck.sarif
 
       - name: Upload staticcheck SARIF
         if: always()
