@@ -43,6 +43,7 @@ func assignProcessToJob(cmd *exec.Cmd) {
 	if jobHandle == 0 || cmd.Process == nil {
 		return
 	}
+	// #nosec G115 -- Windows PIDs are DWORDs; a wrapped value simply fails OpenProcess.
 	h, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE, false, uint32(cmd.Process.Pid))
 	if err != nil {
 		return

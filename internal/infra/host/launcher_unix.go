@@ -15,8 +15,11 @@ import (
 func (l *AppLauncher) OpenDefault(path string) error {
 	switch runtime.GOOS {
 	case "darwin":
+		// #nosec G204 -- fixed command name; path is an argument, and exec.Command
+		// does not go through a shell, so it cannot expand into another command.
 		return exec.Command("open", path).Start()
 	default:
+		// #nosec G204 -- fixed command name; see above.
 		return exec.Command("xdg-open", path).Start()
 	}
 }
@@ -27,6 +30,8 @@ func (l *AppLauncher) OpenWith(appPath, filePath string) error {
 	if err != nil {
 		return err
 	}
+	// #nosec G204 -- opening a file in a user-chosen editor is the feature. execPath
+	// has passed validateExternalEditor, and filePath is an argument, not a shell word.
 	return exec.Command(execPath, filePath).Start()
 }
 

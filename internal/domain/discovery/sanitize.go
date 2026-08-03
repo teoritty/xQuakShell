@@ -1,3 +1,5 @@
+// #nosec G116 -- this file is the bidi filter itself: the code points listed in
+// bidiOverrideRunes have to appear literally in order to be stripped from plugin text.
 package discovery
 
 import (

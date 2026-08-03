@@ -8,6 +8,7 @@ import (
 
 func waitProcessExit(pid int) bool {
 	const synchronize = 0x00100000
+	// #nosec G115 -- Windows PIDs are DWORDs; a wrapped value simply fails OpenProcess.
 	h, err := windows.OpenProcess(synchronize, false, uint32(pid))
 	if err != nil {
 		return false
@@ -18,6 +19,7 @@ func waitProcessExit(pid int) bool {
 }
 
 func windowsProcessAlive(pid int) bool {
+	// #nosec G115 -- Windows PIDs are DWORDs; a wrapped value simply fails OpenProcess.
 	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
 	if err != nil {
 		return false

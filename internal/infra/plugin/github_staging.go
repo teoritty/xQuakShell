@@ -36,6 +36,8 @@ func stageGitHubPlugin(tempBase string, binaryPath string, manifest domainplugin
 		cleanup()
 		return "", noop, fmt.Errorf("copy binary: %w", err)
 	}
+	// #nosec G302 -- the plugin entry point must be executable; 0700 is already the
+	// narrowest mode that allows the host to exec it, and the staging dir is 0700.
 	if err := os.Chmod(destBinary, 0o700); err != nil {
 		cleanup()
 		return "", noop, err
@@ -70,6 +72,8 @@ func copyFileTo(src, dest string) error {
 	}
 	defer in.Close()
 
+	// #nosec G302 -- copyFileTo is only used to stage the plugin entry binary, which
+	// must carry the execute bit; 0700 keeps it owner-only.
 	out, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o700)
 	if err != nil {
 		return err

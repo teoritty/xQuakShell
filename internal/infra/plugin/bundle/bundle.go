@@ -341,6 +341,7 @@ func addZipBytes(zw *zip.Writer, name string, data []byte) error {
 }
 
 func extractZipFile(f *zip.File, destDir string, budget *extractBudget) error {
+	// #nosec G115 -- a uint64 above MaxInt64 wraps to a negative, which addEntry rejects.
 	uncompressed := int64(f.UncompressedSize64)
 	if err := budget.addEntry(uncompressed); err != nil {
 		return err

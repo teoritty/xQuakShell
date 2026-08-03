@@ -16,6 +16,7 @@ func init() {
 }
 
 func SetLevel(level slog.Level) {
+	// #nosec G115 -- slog.Level is a small int constant set (Debug=-4 … Error=8).
 	currentLevel.Store(int32(level))
 }
 

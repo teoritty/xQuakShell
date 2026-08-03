@@ -24,6 +24,9 @@ func (l *AppLauncher) OpenWith(appPath, filePath string) error {
 	if err != nil {
 		return err
 	}
+	// #nosec G204 -- opening a file in a user-chosen editor is the feature. execPath
+	// has passed validateExternalEditor, and filePath is an argument, not a shell word:
+	// exec.Command does not go through a shell, so it cannot break out into a command.
 	return exec.Command(execPath, filePath).Start()
 }
 

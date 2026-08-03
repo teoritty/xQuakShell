@@ -44,6 +44,7 @@ func assignProcessToJob(job pluginJob, pid int) error {
 	if job.handle == 0 || pid <= 0 {
 		return fmt.Errorf("plugin job object unavailable")
 	}
+	// #nosec G115 -- pid > 0 is checked above and Windows PIDs are DWORDs.
 	ph, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE, false, uint32(pid))
 	if err != nil {
 		return fmt.Errorf("open plugin process for job assignment: %w", err)

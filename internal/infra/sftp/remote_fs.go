@@ -358,6 +358,9 @@ func (fs *RemoteFS) downloadRecursive(ctx context.Context, remoteDir, localDir s
 			continue
 		}
 		if entry.IsDir() {
+			// #nosec G301 -- mirrors a remote directory into the user's chosen download
+			// location; 0755 is the expected mode for files they will browse. Escape
+			// from the download root is already rejected by pathsafe.UnderRoot above.
 			if err := os.MkdirAll(localPath, 0755); err != nil {
 				return fmt.Errorf("mkdir %s: %w", localPath, err)
 			}

@@ -146,8 +146,12 @@ func (r *SQLiteRepo) Search(_ context.Context, query string, filter domain.Audit
 	if limit <= 0 {
 		limit = 100
 	}
+	// #nosec G202 -- LIMIT/OFFSET cannot be bound as parameters on every driver, and
+	// %d on an int renders digits only, so no operand here can carry SQL. Every value
+	// that originates from a user string goes through args and the placeholders above.
 	baseQuery += fmt.Sprintf(` LIMIT %d`, limit)
 	if filter.Offset > 0 {
+		// #nosec G202 -- same as LIMIT above: %d on an int cannot carry SQL.
 		baseQuery += fmt.Sprintf(` OFFSET %d`, filter.Offset)
 	}
 

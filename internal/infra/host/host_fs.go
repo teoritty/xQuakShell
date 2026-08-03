@@ -125,6 +125,9 @@ func (fs *HostFS) Mkdir(dirPath string) error {
 	if err != nil {
 		return err
 	}
+	// #nosec G301 -- this is the user's own file manager creating a directory they
+	// asked for in their own filesystem; 0755 is the mode they expect, and the
+	// process umask still applies. Containment is enforced by fs.ResolvePath.
 	return os.MkdirAll(path, 0o755)
 }
 
@@ -147,6 +150,7 @@ func (fs *HostFS) CreateFile(localPath string) error {
 	if err != nil {
 		return err
 	}
+	// #nosec G301 -- ordinary user-visible parent directory; see Mkdir above.
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -199,6 +203,7 @@ func copyDirRecursive(srcDir, destDir string) error {
 	if err != nil {
 		return err
 	}
+	// #nosec G301 -- user-initiated copy into a user-visible destination; see Mkdir above.
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return err
 	}

@@ -46,6 +46,9 @@ func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, se
 	// context and its watchdog goroutine are released when the process is gone.
 	procCtx, procCancel := context.WithCancel(context.Background())
 
+	// #nosec G204 -- launching a plugin binary is this package's entire purpose. entryPath
+	// is resolved from the plugin directory and checksum-verified at install time; there
+	// are no arguments and no shell, so the path cannot expand into another command.
 	cmd := exec.CommandContext(procCtx, entryPath)
 	cmd.Env = PluginProcessEnv(dataRoot, plugin.Manifest.ID, sessionID)
 	stderrLog := NewRedactingStderrWriter(plugin.Manifest.ID)

@@ -95,6 +95,8 @@ func (m *Manager) startLocked(ctx context.Context) {
 		flagAddr + addr,
 		fmt.Sprintf("%s%d", flagParentPID, os.Getpid()),
 	}
+	// #nosec G204 -- exe is this program's own os.Executable() path, re-launched with
+	// internal flags to open the log viewer window; args are all built here.
 	cmd := exec.Command(exe, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{}
 	if err := cmd.Start(); err != nil {
