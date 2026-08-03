@@ -125,6 +125,60 @@ jobs:
         if: always()
         run: test "$(jq '[.runs[].results[]] | length' staticcheck.sarif)" -eq 0
 
+  # CodeQL's own engine, separate from the gosec/staticcheck SARIF uploads above.
+  # Go uses build-mode: manual because go:embed needs frontend/dist built first,
+  # so autobuild's guessed build command would fail. JS/TS uses build-mode: none
+  # since CodeQL parses those sources directly without compiling.
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: go
+            build-mode: manual
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        if: matrix.language == 'go'
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend (for go:embed)
+        if: matrix.language == 'go'
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/setup-go@v5
+        if: matrix.language == 'go'
+        with:
+          go-version: '1.25'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Build Go
+        if: matrix.language == 'go'
+        run: go build ./...
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
+
   frontend:
     runs-on: ubuntu-latest
     steps:
