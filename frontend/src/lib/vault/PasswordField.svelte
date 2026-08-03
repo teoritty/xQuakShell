@@ -12,6 +12,14 @@
   let capsLock = false;
   let input: HTMLInputElement | undefined;
 
+  // The type is driven imperatively, and the value flows through an explicit
+  // input handler rather than bind:value, because Svelte rejects a dynamic
+  // `type` on a two-way-bound input. Doing it this way keeps ONE input element:
+  // duplicating it per state would mean keeping two copies of every attribute
+  // in sync, and would tear down and rebuild the element on every toggle,
+  // losing focus and caret position with it.
+  $: if (input) input.type = revealed ? 'text' : 'password';
+
   // Deferred to the next microtask for the same reason as lib/focusSelect.ts:
   // WebView2 occasionally drops a focus() issued in the same tick as mount.
   function autofocusIf(node: HTMLInputElement, enabled: boolean) {
@@ -24,36 +32,29 @@
     capsLock = event.getModifierState('CapsLock');
   }
 
-  // Swapping the input type swaps the element, so focus has to be handed back
-  // deliberately or the eye button would steal it mid-typing.
+  // Clicking the eye moves focus to the button and drops the caret, so both are
+  // captured and put back once the reactive type change has landed. Without
+  // this, revealing mid-word sends the next keystroke to the start of the field.
   async function toggleReveal() {
+    const start = input?.selectionStart ?? null;
+    const end = input?.selectionEnd ?? null;
+
     revealed = !revealed;
     await tick();
+
     input?.focus();
+    if (input && start !== null && end !== null) {
+      input.setSelectionRange(start, end);
+    }
   }
 </script>
 
 <div class="password-field">
   <!--
-    Two inputs rather than one with a bound `type`: Svelte refuses a dynamic
-    type attribute on an input that also uses two-way binding.
+    The row exists so the reveal button can stretch to exactly the input's
+    height. The Caps Lock note sits outside it, clear of that stretch.
   -->
-  {#if revealed}
-    <input
-      type="text"
-      autocomplete="off"
-      spellcheck="false"
-      aria-label={ariaLabel}
-      {placeholder}
-      {disabled}
-      bind:value
-      bind:this={input}
-      use:autofocusIf={autofocus}
-      on:keydown={trackModifiers}
-      on:keyup={trackModifiers}
-      on:blur={() => (capsLock = false)}
-    />
-  {:else}
+  <div class="input-row">
     <input
       type="password"
       autocomplete="off"
@@ -61,30 +62,31 @@
       aria-label={ariaLabel}
       {placeholder}
       {disabled}
-      bind:value
+      {value}
       bind:this={input}
       use:autofocusIf={autofocus}
+      on:input={(e) => (value = e.currentTarget.value)}
       on:keydown={trackModifiers}
       on:keyup={trackModifiers}
       on:blur={() => (capsLock = false)}
     />
-  {/if}
 
-  <button
-    type="button"
-    class="ghost reveal"
-    aria-label={revealed ? 'Hide password' : 'Show password'}
-    aria-pressed={revealed}
-    tabindex="-1"
-    {disabled}
-    on:click={toggleReveal}
-  >
-    {#if revealed}
-      <EyeOff size={15} />
-    {:else}
-      <Eye size={15} />
-    {/if}
-  </button>
+    <button
+      type="button"
+      class="ghost reveal"
+      aria-label={revealed ? 'Hide password' : 'Show password'}
+      aria-pressed={revealed}
+      tabindex="-1"
+      {disabled}
+      on:click={toggleReveal}
+    >
+      {#if revealed}
+        <EyeOff size={15} />
+      {:else}
+        <Eye size={15} />
+      {/if}
+    </button>
+  </div>
 
   {#if capsLock}
     <span class="caps-lock" role="status">Caps Lock is on</span>
@@ -93,8 +95,12 @@
 
 <style>
   .password-field {
-    position: relative;
     width: 100%;
+  }
+
+  .input-row {
+    position: relative;
+    display: flex;
   }
 
   input {
@@ -103,11 +109,31 @@
     font-size: 14px;
   }
 
+  /*
+    WebView2 and Edge draw their own reveal control inside password inputs. Left
+    alone it sits beside ours and the field shows two eyes that disagree about
+    what they are toggling. The WebKit variants are suppressed for the same
+    reason.
+  */
+  input::-ms-reveal,
+  input::-ms-clear,
+  input::-webkit-credentials-auto-fill-button,
+  input::-webkit-strong-password-auto-fill-button {
+    display: none !important;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /*
+    Stretched rather than given a height: the input's height comes from its font
+    size, padding and --ui-scale, so any fixed number here would drift out of
+    alignment the moment one of those changes.
+  */
   .reveal {
     position: absolute;
     top: 0;
+    bottom: 0;
     right: 0;
-    height: 30px;
     display: flex;
     align-items: center;
     padding: 0 9px;
