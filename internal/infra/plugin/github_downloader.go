@@ -13,8 +13,55 @@ import (
 	"path/filepath"
 	"strings"
 
+	domainplugin "xquakshell/internal/domain/plugin"
 	infragithub "xquakshell/internal/infra/github"
 )
+
+// ErrReleaseTooLarge is returned when a downloaded release asset, or the archive it
+// expands to, exceeds the domainplugin.MaxRelease* limits.
+var ErrReleaseTooLarge = fmt.Errorf("release asset too large")
+
+// releaseBudget bounds one extraction run: entry count, per-entry size, and running
+// total. It mirrors the extractBudget used for .xqsp bundles — same threat (a zip/tar
+// bomb from a release we do not control), different limits.
+type releaseBudget struct {
+	entries int
+	bytes   int64
+}
+
+// addEntry charges an entry of the given uncompressed size against the budget. The size
+// comes from the archive header, which the archive author controls, so it is only a
+// first gate; the copy itself is separately bounded by copyBounded.
+func (b *releaseBudget) addEntry(uncompressed int64) error {
+	b.entries++
+	if b.entries > domainplugin.MaxReleaseEntryCount {
+		return fmt.Errorf("%w: too many entries", ErrReleaseTooLarge)
+	}
+	if uncompressed < 0 {
+		return fmt.Errorf("%w: invalid entry size", ErrReleaseTooLarge)
+	}
+	if uncompressed > domainplugin.MaxReleaseEntryBytes {
+		return fmt.Errorf("%w: entry exceeds %d bytes", ErrReleaseTooLarge, domainplugin.MaxReleaseEntryBytes)
+	}
+	b.bytes += uncompressed
+	if b.bytes > domainplugin.MaxReleaseUncompressedBytes {
+		return fmt.Errorf("%w: total uncompressed size exceeds %d bytes", ErrReleaseTooLarge, domainplugin.MaxReleaseUncompressedBytes)
+	}
+	return nil
+}
+
+// copyBounded copies at most limit bytes from src to dst and fails if src has more,
+// so a lying archive header cannot buy an unbounded write.
+func copyBounded(dst io.Writer, src io.Reader, limit int64) error {
+	n, err := io.Copy(dst, io.LimitReader(src, limit+1))
+	if err != nil {
+		return err
+	}
+	if n > limit {
+		return fmt.Errorf("%w: entry exceeds %d bytes", ErrReleaseTooLarge, limit)
+	}
+	return nil
+}
 
 // BinaryDownloader downloads and verifies plugin binaries from GitHub Releases.
 type BinaryDownloader struct {
@@ -78,7 +125,7 @@ func (d *BinaryDownloader) DownloadBinary(
 
 	hasher := sha256.New()
 	writer := io.MultiWriter(outFile, hasher)
-	if _, err := io.Copy(writer, reader); err != nil {
+	if err := copyBounded(writer, reader, domainplugin.MaxReleaseAssetBytes); err != nil {
 		outFile.Close()
 		cleanup()
 		return "", noop, err
@@ -144,22 +191,29 @@ func (d *BinaryDownloader) extractZIP(archivePath, destDir string) error {
 	}
 	defer reader.Close()
 
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
+	if err := os.MkdirAll(destDir, 0o700); err != nil {
 		return err
 	}
 
+	budget := releaseBudget{}
 	for _, file := range reader.File {
 		path, err := safeExtractPath(destDir, file.Name)
 		if err != nil {
 			return err
 		}
 		if file.FileInfo().IsDir() {
-			if err := os.MkdirAll(path, 0o755); err != nil {
+			if err := os.MkdirAll(path, 0o700); err != nil {
 				return err
 			}
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		// UncompressedSize64 is attacker-controlled metadata; charging it first rejects
+		// an obvious bomb cheaply, and copyBounded below catches a header that lies.
+		// #nosec G115 -- a uint64 above MaxInt64 wraps to a negative, which addEntry rejects.
+		if err := budget.addEntry(int64(file.UncompressedSize64)); err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			return err
 		}
 		srcFile, err := file.Open()
@@ -172,7 +226,7 @@ func (d *BinaryDownloader) extractZIP(archivePath, destDir string) error {
 			srcFile.Close()
 			return err
 		}
-		_, err = io.Copy(dstFile, srcFile)
+		err = copyBounded(dstFile, srcFile, domainplugin.MaxReleaseEntryBytes)
 		srcFile.Close()
 		dstFile.Close()
 		if err != nil {
@@ -196,10 +250,11 @@ func (d *BinaryDownloader) extractTAR(archivePath, destDir string) error {
 	defer gz.Close()
 
 	tr := tar.NewReader(gz)
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
+	if err := os.MkdirAll(destDir, 0o700); err != nil {
 		return err
 	}
 
+	budget := releaseBudget{}
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -214,19 +269,24 @@ func (d *BinaryDownloader) extractTAR(archivePath, destDir string) error {
 		}
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(path, 0o755); err != nil {
+			if err := os.MkdirAll(path, 0o700); err != nil {
 				return err
 			}
 		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			// header.Size is attacker-controlled; copyBounded below is the real bound.
+			if err := budget.addEntry(header.Size); err != nil {
 				return err
 			}
-			mode := os.FileMode(header.Mode) | 0o100
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				return err
+			}
+			// #nosec G115 -- header.Mode is masked to permission bits by os.FileMode below.
+			mode := os.FileMode(header.Mode&0o777) | 0o100
 			out, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 			if err != nil {
 				return err
 			}
-			if _, err := io.Copy(out, tr); err != nil {
+			if err := copyBounded(out, tr, domainplugin.MaxReleaseEntryBytes); err != nil {
 				out.Close()
 				return err
 			}
