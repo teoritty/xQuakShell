@@ -8,6 +8,10 @@ import (
 	"xquakshell/internal/domain"
 )
 
+// TODO(test-hooks): these hooks ship in the release binary because the external package
+// test/unit/plugin (tunnel_idor_test.go) calls them; moving them to export_test.go requires
+// reworking that test harness first. Same situation as BindPluginSessionForTest.
+
 // StartDynamicForwardSessionForTest activates dynamic forward rules in integration tests.
 func (c *DynamicForwardCoordinator) StartDynamicForwardSessionForTest(ctx context.Context, sessionID string, dialer domain.TunnelChannelDialer, rules []domain.ForwardRule) {
 	if c == nil {

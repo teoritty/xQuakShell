@@ -18,6 +18,8 @@ func (m *SessionManager) PluginOwnsSession(pluginID, sessionID string) bool {
 	return m.plugins.PluginOwnsSession(pluginID, sessionID)
 }
 
+// TODO(test-hooks): ships in the release binary because external test/unit/plugin packages
+// (IDOR tests) call it; removing it needs a rework of that test harness.
 func (m *SessionManager) BindPluginSessionForTest(sessionID, pluginID string, outputBuffer ...int) error {
 	return m.plugins.BindPluginSessionForTest(sessionID, pluginID, outputBuffer...)
 }
