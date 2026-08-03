@@ -81,6 +81,26 @@ Want to build your own? Start with the [Plugin API Reference](./docs/plugin-api.
 
 ---
 
+## Download
+
+Every release publishes portable archives — unpack and run, no installer, no system-wide state.
+`SHA256SUMS` covers every archive: `sha256sum -c SHA256SUMS --ignore-missing`.
+
+| Platform | Archive | Pick this one when |
+|----------|---------|--------------------|
+| Windows | `…-windows-amd64-portable.zip` | The machine already has the WebView2 runtime (Windows 11, and most Windows 10 installs) |
+| Windows | `…-windows-amd64-portable-webview2.zip` | Clean or offline machines — WebView2 Fixed Runtime is bundled |
+| Linux | `…-linux-amd64-webkit4.1.tar.gz` | Ubuntu 22.04+, Debian 12+, Fedora 40+, Arch — start here |
+| Linux | `…-linux-amd64-webkit4.0.tar.gz` | Older systems still carrying the webkit2gtk-4.0 runtime |
+
+WebKitGTK is part of the Linux system and cannot be bundled the way WebView2 is on Windows, and its
+4.0 and 4.1 ABIs are not interchangeable — hence two archives. Both are built against glibc 2.35
+and require it or newer. If the wrong one is unpacked, the launcher says so and names the package
+to install. The Linux archive carries a launcher, a desktop entry and its own README; run
+`./install-desktop-entry.sh` to add it to the application menu.
+
+---
+
 ## Quick Start
 
 ### Prerequisites
@@ -105,6 +125,16 @@ make portable
 ```
 
 Bundles WebView2 Fixed Runtime into `build/bin/WebView2/`.
+
+### Linux build
+
+```bash
+sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev   # 4.0-dev on older distributions
+wails build -platform linux/amd64 -tags webkit2_41    # drop the tag to link webkit2gtk-4.0
+```
+
+The release archives are assembled by `.github/workflows/release.yml`, which adds the launcher,
+desktop entry and icon from `packaging/linux/`.
 
 ---
 
