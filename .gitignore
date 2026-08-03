@@ -10,6 +10,16 @@ build/bin/
 build/appicon.png
 frontend/dist/
 
+# Copied from images/icon.ico by the preBuildHooks in wails.json on every
+# build, so tracking it here just duplicates the source of truth.
+#
+# The rest of build/windows/ is NOT ignored on purpose: info.json and
+# wails.exe.manifest are build *inputs* Wails reads to embed the version
+# resource and the application manifest (per-monitor DPI awareness, common
+# controls). Ignore them and a fresh clone silently builds against Wails'
+# generated defaults instead of ours.
+build/windows/icon.ico
+
 # --- Dependencies ---
 frontend/node_modules/
 
