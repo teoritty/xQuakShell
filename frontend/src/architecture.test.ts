@@ -108,9 +108,18 @@ function stripComments(src: string): string {
   // Strip /* ... */ block comments and // line comments so comment-only mentions
   // (e.g. backend/gateway.ts's header referencing `window.go.main.App`) don't
   // false-positive the scan.
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+  //
+  // The block strip runs to a fixpoint: removing one match splices its
+  // neighbours together, and `/` + `*` on either side of the removal re-forms
+  // an opening delimiter a single pass would miss. Line comments are anchored
+  // to a line end and cannot re-form, so one pass is enough there.
+  let prev: string;
+  let out = src;
+  do {
+    prev = out;
+    out = out.replace(/\/\*[\s\S]*?\*\//g, '');
+  } while (out !== prev);
+  return out.replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
 const WINDOW_BRIDGE_RE = /\(window\s+as\s+any\)\s*\.\s*(go|runtime)\b|\bwindow\.(go|runtime)\b/;
