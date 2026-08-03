@@ -5,6 +5,7 @@
   import CodeMirrorEditor from './CodeMirrorEditor.svelte';
   import { sendTerminalInput } from '../api/terminal';
   import { scalePx } from './uiScale';
+  import { newLocalId } from './localId';
   import { activeSessionId, sessions } from '../stores/appState';
   import { Terminal, Play, Plus, BookOpen, Pencil, Trash2 } from 'lucide-svelte';
 
@@ -31,7 +32,7 @@
         if (Array.isArray(arr) && arr.length > 0) return arr;
       }
     } catch {}
-    const initial = DEFAULT_PRESETS.map((p) => ({ ...p, id: 'p' + Date.now() + '-' + Math.random().toString(36).slice(2) }));
+    const initial = DEFAULT_PRESETS.map((p) => ({ ...p, id: newLocalId('p') }));
     savePresets(initial);
     return initial;
   }
@@ -107,7 +108,7 @@
   function addPreset() {
     const content = cmEditor?.getValue?.() ?? customContent;
     if (!content.trim()) return;
-    const id = 'p' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    const id = newLocalId('p');
     presets = [...presets, { id, name: 'New preset', content: content.trim(), hint: '', hotkey: '' }];
     savePresets(presets);
     editPresetId = id;

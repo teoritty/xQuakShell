@@ -35,6 +35,7 @@ import {
   reorderConnectionsIn,
 } from '../api/connections';
 import { fetchIdentities } from '../api/credentials';
+import { newLocalId } from '../lib/localId';
 import {
   connections, identities,
   selectedConnectionId, detailsConnectionId,
@@ -62,7 +63,7 @@ export async function saveConnection(c: Partial<Connection>): Promise<Connection
 }
 
 export async function createNewConnectionInFolder(folderId: string): Promise<Connection | null> {
-  const uid = `u-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const uid = newLocalId('u-');
   const saved = await saveConnection({
     name: 'New connection',
     host: '',
