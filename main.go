@@ -9,6 +9,7 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 
 	"xquakshell/internal/presentation/logwindow"
@@ -16,6 +17,15 @@ import (
 
 //go:embed all:frontend/dist
 var assets embed.FS
+
+// appIcon is the window/taskbar icon for Linux. Wails only sets the GTK window icon when the app
+// passes it explicitly via linux.Options.Icon; it does not read build/appicon.png on its own.
+// The source lives in images/ rather than build/ because the whole build/ tree is gitignored, so
+// embedding from there would compile locally and fail in CI. Windows takes its icon from the
+// resource compiled in via build/windows/icon.ico (see the preBuildHook in wails.json).
+//
+//go:embed images/icon.png
+var appIcon []byte
 
 // buildMarker is a conspicuous, impossible-to-miss startup log line used
 // solely to confirm which binary is actually running while debugging the
@@ -59,6 +69,9 @@ func main() {
 			app,
 		},
 		Windows: windowsOpts,
+		Linux: &linux.Options{
+			Icon: appIcon,
+		},
 	})
 
 	if err != nil {
