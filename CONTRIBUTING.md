@@ -94,6 +94,24 @@ The plugin API is versioned and frozen (**[docs/adr/012-plugin-api-versioning.md
 - Use domain errors for user-facing messages; wrap low-level errors with `%w`.
 - Security-sensitive changes may require additional review.
 
+### Security scanning
+
+The `Security` workflow ([.github/workflows/security.yml](.github/workflows/security.yml)) gates every PR and also runs weekly on a cron — a CVE against a dependency lands in the vulnerability database without any commit here, so pushes alone are not enough to notice it. All four checks are blocking. Run them locally before you push:
+
+- `make sec` — **govulncheck** (dependency and stdlib CVEs, filtered to the ones actually reachable from our call graph) and **gosec** (security patterns).
+- `make lint` — **staticcheck**, configured by [staticcheck.conf](staticcheck.conf).
+- `cd frontend && npm audit --omit=dev --audit-level=high` — frontend dependencies that ship in the binary.
+
+Both `make` targets type-check the whole module, which needs `frontend/dist` for the `go:embed` in `main.go`; run `cd frontend && npm run build` first on a clean tree. Tool versions are pinned identically in the Makefile and the workflow — bump them together, or local and CI results will drift.
+
+gosec and staticcheck results are also uploaded as SARIF to the repository's **Security → Code scanning** tab, so findings get in-diff PR annotations and can be dismissed with a reason.
+
+When gosec flags code you believe is correct:
+
+1. Fix it if it is real.
+2. Otherwise annotate the specific line with `// #nosec Gxxx -- <why>`. A bare `#nosec` with no rule and no reason will not survive review.
+3. Repo-wide `-exclude` in the workflow is a last resort, reserved for rules that do not describe a defect anywhere in this codebase (currently G104, G304, G103 — each with a rationale in the workflow). Do not add to that list to make your branch green; the point of a per-site annotation is that a *new* offending call site still fails the build.
+
 ## Questions
 
 Open an issue or discussion if you have questions. We're happy to help.

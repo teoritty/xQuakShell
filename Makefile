@@ -6,8 +6,26 @@
 #   make rebuild        - clean + build
 #   make portable       - build + download WebView2 for Windows portable
 #   make install        - install frontend deps
+#   make lint           - staticcheck (correctness/simplification)
+#   make sec            - govulncheck + gosec (security)
 
-.PHONY: build dev clean rebuild portable install check check-imports check-composition-root check-fs-boundaries check-goroutines check-file-size check-session-manager-boundaries
+.PHONY: build dev clean rebuild portable install check check-imports check-composition-root check-fs-boundaries check-goroutines check-file-size check-session-manager-boundaries lint sec
+
+# Versions are pinned (never @latest) so local runs and CI agree.
+# Keep in sync with .github/workflows/security.yml.
+GOVULNCHECK_VERSION := v1.6.0
+GOSEC_VERSION       := v2.28.0
+STATICCHECK_VERSION := v0.7.0
+
+# Both targets type-check the whole module, which needs frontend/dist to exist
+# for the go:embed in main.go. Run `make install && cd frontend && npm run build`
+# (or `make build`) first on a clean tree.
+lint:
+	go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) ./...
+
+sec:
+	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
+	go run github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION) -exclude-dir=test/fixtures -exclude-dir=frontend -exclude-dir=build -exclude=G104,G304,G103 ./...
 
 check: check-imports check-composition-root check-fs-boundaries check-goroutines check-file-size check-session-manager-boundaries
 
