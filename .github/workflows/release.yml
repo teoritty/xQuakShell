@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - 'v*'
+  # A tag is permanent and a published release is public, so there has to be a way to prove the
+  # build works before creating either. Run manually to build every archive and keep them as
+  # workflow artifacts; the publish job below refuses to run outside a tag, so a manual run can
+  # never create a release.
+  workflow_dispatch:
 
 # Build jobs never need write access; only the publish job creates the release.
 permissions:
@@ -34,7 +39,10 @@ jobs:
         shell: pwsh
         run: |
           # Archive names keep the leading "v"; the version compiled into the binary drops it.
+          # On a manual run there is no tag, and ref_name would be the branch: name those archives
+          # so they cannot be mistaken for a build of a release.
           $tag = "${{ github.ref_name }}"
+          if ("${{ github.ref_type }}" -ne "tag") { $tag = "dryrun-" + "${{ github.sha }}".Substring(0, 7) }
           $version = $tag -replace '^v', ''
           "TAG=$tag"         | Out-File -Append -Encoding ascii $env:GITHUB_ENV
           "VERSION=$version" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
@@ -118,7 +126,10 @@ jobs:
       - name: Derive version
         run: |
           # Archive names keep the leading "v"; the version compiled into the binary drops it.
+          # On a manual run there is no tag, and ref_name would be the branch: name those archives
+          # so they cannot be mistaken for a build of a release.
           TAG="${{ github.ref_name }}"
+          if [ "${{ github.ref_type }}" != "tag" ]; then TAG="dryrun-$(echo "${{ github.sha }}" | cut -c1-7)"; fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
           echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
           echo "NAME=xQuakShell-$TAG-linux-amd64-webkit${{ matrix.webkit }}" >> "$GITHUB_ENV"
@@ -156,6 +167,9 @@ jobs:
 
   publish:
     needs: [windows, linux]
+    # The only guard between a manual build check and a public release. Without it a
+    # workflow_dispatch run would publish a release named after a branch.
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
       contents: write
