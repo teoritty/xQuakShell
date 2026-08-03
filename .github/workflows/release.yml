@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - 'v*'
+  # A tag is permanent and a published release is public, so there has to be a way to prove the
+  # build works before creating either. Run manually to build every archive and keep them as
+  # workflow artifacts; the publish job below refuses to run outside a tag, so a manual run can
+  # never create a release.
+  workflow_dispatch:
 
 # Build jobs never need write access; only the publish job creates the release.
 permissions:
@@ -34,7 +39,10 @@ jobs:
         shell: pwsh
         run: |
           # Archive names keep the leading "v"; the version compiled into the binary drops it.
+          # On a manual run there is no tag, and ref_name would be the branch: name those archives
+          # so they cannot be mistaken for a build of a release.
           $tag = "${{ github.ref_name }}"
+          if ("${{ github.ref_type }}" -ne "tag") { $tag = "dryrun-" + "${{ github.sha }}".Substring(0, 7) }
           $version = $tag -replace '^v', ''
           "TAG=$tag"         | Out-File -Append -Encoding ascii $env:GITHUB_ENV
           "VERSION=$version" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
@@ -67,8 +75,101 @@ jobs:
           path: dist/*.zip
           if-no-files-found: error
 
+  # WebKitGTK is linked from the system and cannot be bundled the way WebView2 is on Windows, and
+  # the 4.0 and 4.1 ABIs are not interchangeable: a binary built against one does not start against
+  # the other. So the Linux side ships one archive per ABI rather than one archive that fails on
+  # half the distributions.
+  #
+  # Both build on ubuntu-22.04, the oldest image still offered. The runner decides the glibc floor
+  # of what it produces (2.35 here), and a binary built against a newer glibc will not run on an
+  # older system — building the 4.1 variant on a newer image would raise that floor for no gain,
+  # since 4.1 is available on 22.04 too. This image is deprecated from 2026-09-17 and unsupported
+  # from 2027-04-17; when it goes, move to the oldest image then available and expect the 4.0
+  # variant to go with it, as upstream retired that ABI in March 2026.
+  linux:
+    runs-on: ubuntu-22.04
+    strategy:
+      # One ABI failing must not cancel the other: a half-built release is easier to see than a
+      # cancelled one.
+      fail-fast: false
+      matrix:
+        include:
+          - webkit: '4.0'
+            dev_package: libwebkit2gtk-4.0-dev
+            build_tags: ''
+          - webkit: '4.1'
+            dev_package: libwebkit2gtk-4.1-dev
+            # Without this tag Wails links 4.0 regardless of what is installed.
+            build_tags: '-tags webkit2_41'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev ${{ matrix.dev_package }}
+
+      # Pinned for the same reason as the Windows job: two runs of the same tag must agree.
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+
+      - name: Derive version
+        run: |
+          # Archive names keep the leading "v"; the version compiled into the binary drops it.
+          # On a manual run there is no tag, and ref_name would be the branch: name those archives
+          # so they cannot be mistaken for a build of a release.
+          TAG="${{ github.ref_name }}"
+          if [ "${{ github.ref_type }}" != "tag" ]; then TAG="dryrun-$(echo "${{ github.sha }}" | cut -c1-7)"; fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
+          echo "NAME=xQuakShell-$TAG-linux-amd64-webkit${{ matrix.webkit }}" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: |
+          wails build -platform linux/amd64 -clean ${{ matrix.build_tags }} \
+            -ldflags "-X xquakshell/internal/presentation/wails.AppVersion=$VERSION"
+
+      # An ELF on its own has no icon, no menu entry and no explanation of which WebKitGTK it needs.
+      # The archive carries the launcher, the desktop entry and the instructions with it.
+      - name: Assemble archive
+        run: |
+          mkdir -p dist "stage/$NAME"
+          cp build/bin/xQuakShell "stage/$NAME/"
+          cp packaging/linux/xquakshell.sh "stage/$NAME/"
+          cp packaging/linux/install-desktop-entry.sh "stage/$NAME/"
+          cp packaging/linux/xquakshell.desktop "stage/$NAME/"
+          cp packaging/linux/README.md "stage/$NAME/README.md"
+          cp images/icon.png "stage/$NAME/icon.png"
+          cp LICENSE "stage/$NAME/"
+          # core.filemode is false in this repository and the scripts are tracked 0644, so the
+          # executable bit does not survive checkout; tar would record exactly that.
+          chmod +x "stage/$NAME/xQuakShell" "stage/$NAME/xquakshell.sh" "stage/$NAME/install-desktop-entry.sh"
+          # -C keeps the staging path out of the archive: it unpacks into one directory named
+          # after itself, never into the current one.
+          tar -czf "dist/$NAME.tar.gz" -C stage "$NAME"
+          tar -tzf "dist/$NAME.tar.gz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-archives-webkit${{ matrix.webkit }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
   publish:
-    needs: [windows]
+    needs: [windows, linux]
+    # The only guard between a manual build check and a public release. Without it a
+    # workflow_dispatch run would publish a release named after a branch.
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
       contents: write
