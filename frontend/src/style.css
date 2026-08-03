@@ -135,10 +135,20 @@ button.ghost:hover {
   background: var(--bg-hover);
 }
 
-input, select, textarea {
+/* Checkboxes and radios are deliberately excluded from this reset: appearance:none
+   erases them entirely (they have no content of their own to fall back on). They
+   are normalised separately below.
+
+   The reset itself is what makes theming work off Chromium. Setting a background
+   is enough to stop Blink drawing the native widget, but WebKitGTK keeps drawing
+   the GTK control and ignores our colours, which is why selects rendered as white
+   system widgets on Linux. Asking for appearance:none says so explicitly. */
+input:not([type="checkbox"]):not([type="radio"]), select, textarea {
   font-family: var(--font-ui);
   font-size: 12px;
-  background: var(--bg-input);
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--bg-input);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
   border-radius: 2px;
@@ -149,6 +159,26 @@ input, select, textarea {
 
 input:focus, select:focus, textarea:focus {
   border-color: var(--border-focus);
+}
+
+/* appearance:none also removes the drop-down arrow, so draw our own. Inline SVG
+   data URI rather than an asset: it cannot 404 and needs no build step. */
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%23cccccc' d='M0 0h8L4 5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  padding-right: 22px;
+}
+
+/* Pin the size Blink happens to use. GTK's native checkbox and radio are larger
+   and carry internal padding, which grew the flex rows they sit in and made the
+   "Default" radio collide with the delete button in the connection users list. */
+input[type="checkbox"], input[type="radio"] {
+  accent-color: var(--accent);
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  margin: 0;
 }
 
 /* Theme the native dropdown popup so it matches the app palette instead of

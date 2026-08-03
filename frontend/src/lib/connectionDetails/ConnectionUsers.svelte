@@ -122,5 +122,4 @@
     cursor: pointer; white-space: nowrap;
     flex-shrink: 0;
   }
-  .default-radio input { margin: 0; }
 </style>
