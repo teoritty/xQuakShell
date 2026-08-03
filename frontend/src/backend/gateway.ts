@@ -135,6 +135,17 @@ export interface AppGateway {
 
   ImportPuTTYRegAsConnections(arg1: string, arg2: string): Promise<Array<wails.ConnectionDTO>>;
 
+  GetSSHConfigDefaultPath(): Promise<string>;
+
+  PreviewSSHConfig(arg1: string): Promise<wails.SSHConfigPreviewDTO>;
+
+  ImportSSHConfig(
+    arg1: string,
+    arg2: Array<string>,
+    arg3: string,
+    arg4: boolean
+  ): Promise<wails.SSHConfigImportResultDTO>;
+
   InstallGitHubPlugin?(
     arg1: string,
     arg2: string,

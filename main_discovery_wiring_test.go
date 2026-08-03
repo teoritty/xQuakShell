@@ -36,7 +36,7 @@ func composeDiscoveryRuntime(t *testing.T) (*presentation.AppAPI, *pluginRuntime
 		vaultRepo, connRepo, identRepo, passwordRepo, knownHosts,
 		nil, usecase.SSHSessionDeps{}, nil,
 		nil, nil, nil, nil, nil, nil,
-		nil, nil, nil,
+		nil, nil, nil, nil,
 		nil, nil, nil, nil,
 		loghub.Default(), nil,
 		conlimit.New(4), conlimit.New(4),

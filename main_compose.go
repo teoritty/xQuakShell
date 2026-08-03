@@ -8,12 +8,13 @@ import (
 	"xquakshell/internal/infra/auditlog"
 	"xquakshell/internal/infra/host"
 	"xquakshell/internal/infra/loghub"
-	infrapinger "xquakshell/internal/infra/pinger"
 	"xquakshell/internal/infra/persistence"
+	infrapinger "xquakshell/internal/infra/pinger"
 	"xquakshell/internal/infra/portable"
 	infraputty "xquakshell/internal/infra/putty"
 	infrasftp "xquakshell/internal/infra/sftp"
 	infrassh "xquakshell/internal/infra/ssh"
+	infrasshconfig "xquakshell/internal/infra/sshconfig"
 	"xquakshell/internal/pkg/conlimit"
 	presentation "xquakshell/internal/presentation/wails"
 	"xquakshell/internal/usecase"
@@ -85,6 +86,7 @@ func composeApp() *App {
 		auditlog.NewCommandLineTrackerFactory(),
 		auditlog.SanitizerFactory(),
 		infraputty.PortAdapter{},
+		infrasshconfig.PortAdapter{},
 		pluginRuntime.manager, pluginRuntime.inbound, pluginRuntime.viewInbound,
 		pluginRuntime.vaultInbound,
 		logStream, pluginSessionAudit,

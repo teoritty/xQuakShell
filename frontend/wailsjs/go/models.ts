@@ -1524,6 +1524,116 @@ export namespace wails {
 	    }
 	}
 	
+	export class SSHConfigHostDTO {
+	    alias: string;
+	    hostName: string;
+	    port: number;
+	    user: string;
+	    keyCount: number;
+	    jumpAliases: string[];
+	    duplicate: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SSHConfigHostDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.alias = source["alias"];
+	        this.hostName = source["hostName"];
+	        this.port = source["port"];
+	        this.user = source["user"];
+	        this.keyCount = source["keyCount"];
+	        this.jumpAliases = source["jumpAliases"];
+	        this.duplicate = source["duplicate"];
+	    }
+	}
+	export class SSHConfigImportResultDTO {
+	    connections: ConnectionDTO[];
+	    importedKeys: number;
+	    failedKeys: number;
+	    skippedAliases: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SSHConfigImportResultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.connections = this.convertValues(source["connections"], ConnectionDTO);
+	        this.importedKeys = source["importedKeys"];
+	        this.failedKeys = source["failedKeys"];
+	        this.skippedAliases = source["skippedAliases"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SSHConfigNoticeDTO {
+	    kind: string;
+	    target: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SSHConfigNoticeDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.target = source["target"];
+	    }
+	}
+	export class SSHConfigPreviewDTO {
+	    path: string;
+	    hosts: SSHConfigHostDTO[];
+	    keyFileCount: number;
+	    notices: SSHConfigNoticeDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SSHConfigPreviewDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.hosts = this.convertValues(source["hosts"], SSHConfigHostDTO);
+	        this.keyFileCount = source["keyFileCount"];
+	        this.notices = this.convertValues(source["notices"], SSHConfigNoticeDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class SessionEmbedDTO {
 	    uiUrl: string;
 	    tunnelUrl: string;

@@ -154,6 +154,10 @@ export function GetPortableDataRoot() {
   return window['go']['main']['App']['GetPortableDataRoot']();
 }
 
+export function GetSSHConfigDefaultPath() {
+  return window['go']['main']['App']['GetSSHConfigDefaultPath']();
+}
+
 export function GetSessionState(arg1) {
   return window['go']['main']['App']['GetSessionState'](arg1);
 }
@@ -192,6 +196,10 @@ export function ImportPuTTYReg(arg1) {
 
 export function ImportPuTTYRegAsConnections(arg1, arg2) {
   return window['go']['main']['App']['ImportPuTTYRegAsConnections'](arg1, arg2);
+}
+
+export function ImportSSHConfig(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['ImportSSHConfig'](arg1, arg2, arg3, arg4);
 }
 
 export function InstallGitHubPlugin(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
@@ -284,6 +292,10 @@ export function PreviewGitHubPluginInstall(arg1, arg2) {
 
 export function PreviewPluginInstall(arg1) {
   return window['go']['main']['App']['PreviewPluginInstall'](arg1);
+}
+
+export function PreviewSSHConfig(arg1) {
+  return window['go']['main']['App']['PreviewSSHConfig'](arg1);
 }
 
 export function RelayPluginViewMessage(arg1, arg2) {
