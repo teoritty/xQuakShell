@@ -27,6 +27,8 @@ export function CreateFilePath(arg1:string,arg2:string,arg3:string):Promise<void
 
 export function CreateLocalFile(arg1:string):Promise<void>;
 
+export function CreateVault(arg1:string):Promise<void>;
+
 export function DeleteAuditEntry(arg1:number):Promise<void>;
 
 export function DeleteConnection(arg1:string):Promise<void>;
@@ -214,3 +216,5 @@ export function UnlockVault(arg1:string):Promise<void>;
 export function Upload(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function ValidateTrustedPublisherKey(arg1:string):Promise<void>;
+
+export function VaultExists():Promise<boolean>;

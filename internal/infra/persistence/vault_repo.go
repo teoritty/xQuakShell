@@ -34,13 +34,86 @@ func NewVaultRepo(dir string) *VaultRepo {
 	return &VaultRepo{dir: dir}
 }
 
+// Exists reports whether a vault file is present on disk.
+//
+// This is advisory only: the answer can change between the call and any
+// follow-up action. The authoritative existence check lives inside Create,
+// where it runs under the same write lock as the write itself.
+func (r *VaultRepo) Exists() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return vault.Exists(r.dir)
+}
+
+// Create writes a brand-new empty vault encrypted with masterPassword and
+// leaves the repository unlocked, so creating a master password immediately
+// opens the app.
+//
+// It returns domain.ErrMasterPasswordTooShort for a password below
+// domain.MinMasterPasswordLength and domain.ErrVaultAlreadyExists rather than
+// overwriting an existing vault.
+//
+// The write is synchronous and deliberately bypasses the debounced flush path
+// used by UpdateData. A debounced create would leave a vaultPersistDebounce-wide
+// window in which the user believes a master password is set while nothing is on
+// disk yet, and flushGeneration only logs write failures where the caller needs
+// a real error.
+//
+// The existence check and the write are covered by a single r.mu write lock, so
+// two concurrent Creates serialize and the loser sees the winner's file. That
+// guarantee is process-local: WriteVaultFile writes a temp file and renames, so
+// it cannot use O_EXCL on the final path, and a second xQuakShell process
+// pointed at the same vault directory could still race. Accepted deliberately
+// for a single-instance desktop app; a cross-process guard would need a lock
+// file.
+func (r *VaultRepo) Create(_ context.Context, masterPassword string) error {
+	// Validate before taking the lock so a rejected password never touches the
+	// mutex or the disk.
+	if len([]rune(masterPassword)) < domain.MinMasterPasswordLength {
+		return domain.ErrMasterPasswordTooShort
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if vault.Exists(r.dir) {
+		return domain.ErrVaultAlreadyExists
+	}
+
+	r.data = domain.NewVaultData()
+	r.ensureVaultDataLocked()
+	snapshot := domain.CloneVaultData(r.data)
+
+	if err := vault.WriteVaultFile(r.dir, masterPassword, snapshot); err != nil {
+		r.data = nil
+		return err
+	}
+
+	// Same ~256 MiB transient scrypt allocation as Unlock and flushGeneration —
+	// see the SetWorkFactor comment in internal/infra/vault/vault.go.
+	safego.GoNamed("vault.createGC", func() {
+		runtime.GC()
+		debug.FreeOSMemory()
+	})
+
+	r.passphrase = masterPassword
+	r.unlocked = true
+	r.dirty = false
+	r.generation = 0
+
+	return nil
+}
+
 // Unlock decrypts the vault with the given master password.
-// If the vault file does not exist, a new empty vault is created and saved.
+// It never creates a vault: a missing file yields domain.ErrVaultNotFound, and
+// callers must go through Create instead. The minimum-length policy is also
+// deliberately not applied here — an existing vault stays openable with
+// whatever password created it.
 func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	data, needsPersist, err := vault.ReadVaultFile(r.dir, masterPassword)
+	data, err := vault.ReadVaultFile(r.dir, masterPassword)
 	if err != nil {
 		return err
 	}
@@ -65,12 +138,6 @@ func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
 	r.unlocked = true
 	r.dirty = false
 	r.generation = 0
-
-	if needsPersist {
-		r.dirty = true
-		r.generation = 1
-		r.scheduleFlushLocked()
-	}
 
 	return nil
 }

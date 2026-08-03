@@ -88,6 +88,17 @@ Background goroutines in production code must use [`internal/pkg/safego`](../int
 
 Run `make check-goroutines` (or `powershell -File scripts/check-goroutines.ps1`) to enforce this rule.
 
+## Master password lifecycle
+
+A vault comes into existence in exactly one place: `VaultRepository.Create`. `Unlock` never creates one — a missing `vault.age` returns `domain.ErrVaultNotFound` — because a read that silently synthesizes a vault makes a typo on the unlock screen indistinguishable from deliberately choosing a new master password.
+
+- **Length policy.** `domain.MinMasterPasswordLength` (8 runes) is enforced in `Create` only. An existing vault stays openable with whatever password created it, including one from before the policy. The frontend duplicates the constant in `frontend/src/lib/vault/passwordStrength.ts` to disable the submit button early; there is no Go-to-TypeScript constant generation, so the two change together.
+- **Strength meter.** `evaluatePasswordStrength` is an entropy approximation with pattern penalties, computed in the renderer with no dependencies and no I/O. Character-class diversity both scales the estimate and caps the verdict, so length alone cannot buy a "strong" rating — a digit-only password is held to "medium" until it is very long indeed, because a narrow alphabet is what mask attacks try first. It is **advisory**: a weak-but-long-enough password still creates a vault, with a warning. Only the length floor blocks.
+- **Durability.** `Create` writes synchronously instead of going through the 400 ms debounced flush used by `UpdateData`, so `Exists()` is true the moment it returns and a crash cannot discard a password the user believes is set. It also reports write failures to the caller, which the debounced path only logs.
+- **Concurrency.** The existence check and the write share one `r.mu` write lock, so concurrent `Create` calls serialize and all but one get `ErrVaultAlreadyExists`. The guarantee is process-local; `Exists()` on its own is advisory.
+- **After opening.** `AppAPI.afterVaultOpened` applies persisted settings to the lockout, ping and log-level managers. Both `UnlockVault` and `CreateVault` call it, so a freshly created vault is not left without an idle-lock timer until the next restart.
+- **No recovery.** There is no reset, no escrow and no re-key path. The create screen says so explicitly.
+
 ## SSH types in domain
 
 The project uses a **thin domain** over `golang.org/x/crypto/ssh`: interfaces such as `SSHClient`, `SSHClientConfig`, and `KnownHostsRepository` use `ssh` types in signatures. New domain ports should not introduce unrelated third-party types; keep SSH as the single external crypto dependency in `domain`.

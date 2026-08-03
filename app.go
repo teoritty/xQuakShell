@@ -84,6 +84,14 @@ func (a *App) shutdown(_ context.Context) {
 
 // --- Wails-bound methods (delegated to AppAPI) ---
 
+func (a *App) VaultExists() bool {
+	return a.api.VaultExists()
+}
+
+func (a *App) CreateVault(masterPassword string) error {
+	return a.api.CreateVault(masterPassword)
+}
+
 func (a *App) UnlockVault(masterPassword string) error {
 	return a.api.UnlockVault(masterPassword)
 }

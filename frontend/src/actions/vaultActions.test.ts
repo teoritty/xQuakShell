@@ -1,8 +1,8 @@
 import { setGateway } from '../backend/context';
 import { createFakeGateway } from '../backend/fakeGateway';
-import { unlockVault, lockVault } from './vaultActions';
+import { unlockVault, lockVault, createVault, initVaultGate } from './vaultActions';
 import {
-  folders, connections, sessions, identities, vaultUnlocked,
+  folders, connections, sessions, identities, vaultUnlocked, vaultExists,
   lastError,
   type Folder, type Connection,
 } from '../stores/appState';
@@ -18,6 +18,7 @@ function reset() {
   sessions.set([]);
   identities.set([]);
   vaultUnlocked.set(false);
+  vaultExists.set(null);
   lastError.set(null);
 }
 
@@ -74,6 +75,92 @@ async function run() {
     assert(get(lastError) === null, 'unlockVault does not set lastError when gateway is missing');
   }
 
+  // --- createVault -------------------------------------------------------
+
+  // Success: same warmup as unlockVault, in the same order, because both share
+  // warmupAfterVaultOpened. CreateVault simply takes UnlockVault's place.
+  {
+    reset();
+    const fake = createFakeGateway();
+    fake.program('CreateVault', undefined);
+    fake.program('GetPlatform', 'linux');
+    fake.program('GetFolders', [] as Folder[]);
+    fake.program('GetAllConnections', [] as Connection[]);
+    fake.program('GetIdentities', []);
+    fake.program('GetPluginConnectionProtocols', []);
+    setGateway(fake);
+
+    await createVault('a-good-master-password');
+
+    assert(get(vaultUnlocked) === true, 'createVault sets vaultUnlocked to true');
+    assert(get(vaultExists) === true, 'createVault marks the vault as existing');
+
+    const methods = fake.calls.map((c) => c.method);
+    assert(methods[0] === 'CreateVault', 'CreateVault is the first RPC call');
+    assert(methods[1] === 'GetPlatform', 'GetPlatform is the second RPC call');
+    for (const m of ['GetFolders', 'GetAllConnections', 'GetIdentities', 'GetPluginConnectionProtocols', 'GetSettings']) {
+      assert(methods.includes(m), `createVault RPC sequence includes ${m}`);
+    }
+    assert(methods.indexOf('GetFolders') < methods.indexOf('GetAllConnections'), 'GetFolders happens before GetAllConnections');
+    assert(methods.indexOf('GetAllConnections') < methods.indexOf('GetIdentities'), 'GetAllConnections happens before GetIdentities');
+    assert(methods.indexOf('GetIdentities') < methods.indexOf('GetPluginConnectionProtocols'), 'GetIdentities happens before protocol refresh');
+
+    const call = fake.calls.find((c) => c.method === 'CreateVault');
+    assert(!!call && call.args[0] === 'a-good-master-password', 'createVault forwards the master password');
+  }
+
+  // The RPC error propagates so the create screen can show it next to the field.
+  {
+    reset();
+    const fake = createFakeGateway();
+    fake.program('CreateVault', () => {
+      throw new Error('vault already exists');
+    });
+    setGateway(fake);
+
+    let threw: unknown = null;
+    try { await createVault('a-good-master-password'); } catch (e) { threw = e; }
+
+    assert(threw instanceof Error && threw.message === 'vault already exists', 'createVault propagates the RPC error');
+    assert(get(vaultUnlocked) === false, 'a failed createVault leaves vaultUnlocked alone');
+    assert(get(vaultExists) === null, 'a failed createVault leaves vaultExists unanswered');
+  }
+
+  // Missing gateway: same silent guard as unlockVault.
+  {
+    reset();
+    setGateway(null);
+
+    await createVault('a-good-master-password');
+
+    assert(get(vaultUnlocked) === false, 'createVault does not touch vaultUnlocked when gateway is missing');
+    assert(get(vaultExists) === null, 'createVault does not touch vaultExists when gateway is missing');
+    assert(get(lastError) === null, 'createVault does not set lastError when gateway is missing');
+  }
+
+  // --- initVaultGate -----------------------------------------------------
+
+  for (const exists of [true, false]) {
+    reset();
+    const fake = createFakeGateway();
+    fake.program('VaultExists', exists);
+    setGateway(fake);
+
+    await initVaultGate();
+
+    assert(get(vaultExists) === exists, `initVaultGate reports VaultExists === ${exists}`);
+  }
+
+  // Missing gateway: the create screen is the safe default for a backendless run.
+  {
+    reset();
+    setGateway(null);
+
+    await initVaultGate();
+
+    assert(get(vaultExists) === false, 'initVaultGate falls back to false when gateway is missing');
+  }
+
   // --- lockVault ---------------------------------------------------------
 
   // LockVault RPC error is swallowed (via handleError) but folders/
@@ -85,6 +172,7 @@ async function run() {
     sessions.set([{ sessionId: 's1', connectionId: 'c1', connectionName: 'C', state: 'ready', errorMessage: '' } as any]);
     identities.set([{ id: 'i1', comment: '', keyType: 'ed25519' } as any]);
     vaultUnlocked.set(true);
+    vaultExists.set(true);
 
     const fake = createFakeGateway();
     fake.program('LockVault', () => {
@@ -99,6 +187,7 @@ async function run() {
     assert(get(sessions).length === 0, 'lockVault empties sessions even when LockVault RPC throws');
     assert(get(identities).length === 0, 'lockVault empties identities even when LockVault RPC throws');
     assert(get(vaultUnlocked) === false, 'lockVault sets vaultUnlocked to false even when LockVault RPC throws');
+    assert(get(vaultExists) === true, 'lockVault leaves vaultExists alone: a locked vault still exists');
     const err = get(lastError);
     assert(err !== null && err.message === 'Lock vault: lock rpc failed', 'lockVault surfaces the LockVault RPC error via handleError instead of propagating it');
   }

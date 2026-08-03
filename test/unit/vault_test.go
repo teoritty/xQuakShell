@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -94,12 +95,9 @@ func TestVaultFileRoundtrip(t *testing.T) {
 		t.Fatal("temporary file should be cleaned up after atomic write")
 	}
 
-	read, needsPersist, err := vault.ReadVaultFile(dir, passphrase)
+	read, err := vault.ReadVaultFile(dir, passphrase)
 	if err != nil {
 		t.Fatalf("read vault file: %v", err)
-	}
-	if needsPersist {
-		t.Error("expected needsPersist false for current-version vault file")
 	}
 
 	if len(read.Connections) != 1 || read.Connections[0].Host != "10.0.0.1" {
@@ -107,21 +105,36 @@ func TestVaultFileRoundtrip(t *testing.T) {
 	}
 }
 
-func TestVaultReadNonExistentReturnsEmpty(t *testing.T) {
+func TestVaultReadNonExistentReturnsErrVaultNotFound(t *testing.T) {
 	dir := t.TempDir()
 
-	data, needsPersist, err := vault.ReadVaultFile(dir, "any-password")
-	if err != nil {
-		t.Fatalf("expected nil error for non-existent file, got: %v", err)
+	data, err := vault.ReadVaultFile(dir, "any-password")
+	if !errors.Is(err, domain.ErrVaultNotFound) {
+		t.Fatalf("expected ErrVaultNotFound, got: %v", err)
 	}
-	if !needsPersist {
-		t.Error("expected needsPersist true for new vault")
+	if data != nil {
+		t.Error("expected nil data when no vault file exists")
 	}
-	if data.Version != domain.CurrentVaultVersion {
-		t.Errorf("expected version %d, got %d", domain.CurrentVaultVersion, data.Version)
+
+	// Reading must never bring a vault into existence; only Create may.
+	if _, statErr := os.Stat(filepath.Join(dir, "vault.age")); !os.IsNotExist(statErr) {
+		t.Error("read must not create vault.age")
 	}
-	if len(data.Connections) != 0 {
-		t.Errorf("expected empty connections, got %d", len(data.Connections))
+}
+
+func TestVaultExists(t *testing.T) {
+	dir := t.TempDir()
+
+	if vault.Exists(dir) {
+		t.Error("expected Exists false on an empty directory")
+	}
+
+	if err := vault.WriteVaultFile(dir, "correct-horse-battery", domain.NewVaultData()); err != nil {
+		t.Fatalf("write vault file: %v", err)
+	}
+
+	if !vault.Exists(dir) {
+		t.Error("expected Exists true after WriteVaultFile")
 	}
 }
 

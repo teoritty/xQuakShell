@@ -71,6 +71,8 @@ export interface AppGateway {
 
   CreateLocalFile(arg1: string): Promise<void>;
 
+  CreateVault(arg1: string): Promise<void>;
+
   DeleteAuditEntry?(arg1: number): Promise<void>;
 
   DeleteConnection(arg1: string): Promise<void>;
@@ -289,6 +291,8 @@ export interface AppGateway {
   Upload(arg1: string, arg2: string, arg3: string): Promise<void>;
 
   ValidateTrustedPublisherKey(arg1: string): Promise<void>;
+
+  VaultExists(): Promise<boolean>;
 }
 
 export interface RuntimeGateway {

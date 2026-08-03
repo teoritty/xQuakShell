@@ -13,26 +13,29 @@ const (
 	vaultTmpName  = "vault.age.tmp"
 )
 
+// Exists reports whether a vault file is present in dir.
+func Exists(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, vaultFileName))
+	return err == nil
+}
+
 // ReadVaultFile reads and decrypts the vault from disk.
-// If the file does not exist, returns a fresh VaultData at the current schema version.
-// The second return value is true when the vault file should be created on disk.
-func ReadVaultFile(dir, passphrase string) (*domain.VaultData, bool, error) {
+// It returns domain.ErrVaultNotFound when no vault file exists: bringing a vault
+// into existence is the explicit job of VaultRepo.Create, never a side effect of
+// a read. Synthesizing an empty vault here would make a typo on the unlock
+// screen indistinguishable from deliberately choosing a new master password.
+func ReadVaultFile(dir, passphrase string) (*domain.VaultData, error) {
 	path := filepath.Join(dir, vaultFileName)
 
 	ciphertext, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return domain.NewVaultData(), true, nil
+			return nil, domain.ErrVaultNotFound
 		}
-		return nil, false, fmt.Errorf("vault read file %s: %w", path, err)
+		return nil, fmt.Errorf("vault read file %s: %w", path, err)
 	}
 
-	data, err := Decrypt(ciphertext, passphrase)
-	if err != nil {
-		return nil, false, err
-	}
-
-	return data, false, nil
+	return Decrypt(ciphertext, passphrase)
 }
 
 // WriteVaultFile encrypts and atomically writes the vault to disk.

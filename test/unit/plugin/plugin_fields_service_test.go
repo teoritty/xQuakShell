@@ -13,7 +13,7 @@ import (
 func TestPluginFieldsServiceSaveAndResolve(t *testing.T) {
 	ctx := context.Background()
 	vaultRepo := persistence.NewVaultRepo(t.TempDir())
-	if err := vaultRepo.Unlock(ctx, "test-pass"); err != nil {
+	if err := vaultRepo.Create(ctx, "test-pass"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -82,7 +82,7 @@ func TestPluginFieldsServiceSaveAndResolve(t *testing.T) {
 func TestPluginFieldsServiceClearsEmptySecret(t *testing.T) {
 	ctx := context.Background()
 	vaultRepo := persistence.NewVaultRepo(t.TempDir())
-	if err := vaultRepo.Unlock(ctx, "test-pass"); err != nil {
+	if err := vaultRepo.Create(ctx, "test-pass"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -205,7 +205,7 @@ func authMethodManifest() domainplugin.Manifest {
 func TestPluginFieldsServiceClearsHiddenSecretOnAuthTypeChange(t *testing.T) {
 	ctx := context.Background()
 	vaultRepo := persistence.NewVaultRepo(t.TempDir())
-	if err := vaultRepo.Unlock(ctx, "test-pass"); err != nil {
+	if err := vaultRepo.Create(ctx, "test-pass"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -270,7 +270,7 @@ func TestPluginFieldsServiceClearsHiddenSecretOnAuthTypeChange(t *testing.T) {
 func TestPluginFieldsServiceSkipsRequiredWhenHidden(t *testing.T) {
 	ctx := context.Background()
 	vaultRepo := persistence.NewVaultRepo(t.TempDir())
-	if err := vaultRepo.Unlock(ctx, "test-pass"); err != nil {
+	if err := vaultRepo.Create(ctx, "test-pass"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -347,7 +347,7 @@ func TestPluginFieldsServiceSkipsRequiredWhenHidden(t *testing.T) {
 func TestPluginFieldsServiceRejectsEmptyVisibleRequired(t *testing.T) {
 	ctx := context.Background()
 	vaultRepo := persistence.NewVaultRepo(t.TempDir())
-	if err := vaultRepo.Unlock(ctx, "test-pass"); err != nil {
+	if err := vaultRepo.Create(ctx, "test-pass"); err != nil {
 		t.Fatal(err)
 	}
 

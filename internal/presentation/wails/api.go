@@ -325,13 +325,41 @@ func (a *AppAPI) onLockoutTriggered() {
 
 // --- Vault ---
 
+// VaultExists reports whether a vault file already exists, so the frontend can
+// choose between the create-master-password and the unlock screen.
+func (a *AppAPI) VaultExists() bool {
+	return a.vaultRepo.Exists()
+}
+
+// CreateVault creates a new vault protected by masterPassword and leaves it unlocked.
+// It fails rather than overwriting an existing vault.
+func (a *AppAPI) CreateVault(masterPassword string) error {
+	if err := a.vaultRepo.Create(context.Background(), masterPassword); err != nil {
+		return err
+	}
+	a.afterVaultOpened()
+	return nil
+}
+
 // UnlockVault decrypts the vault with the given master password.
 // After unlocking, applies persisted settings (e.g. lockout) to the running managers.
 func (a *AppAPI) UnlockVault(masterPassword string) error {
 	if err := a.vaultRepo.Unlock(context.Background(), masterPassword); err != nil {
 		return err
 	}
+	a.afterVaultOpened()
+	return nil
+}
 
+// afterVaultOpened applies persisted settings to the running managers and runs
+// the post-open audit bookkeeping.
+//
+// Shared by UnlockVault and CreateVault: both leave the vault unlocked and the
+// frontend proceeds straight into the app, so a freshly created vault must get
+// its lockout timer, ping manager and log level right away rather than on the
+// next restart. Keeping it in one place is what stops the two entry points from
+// drifting apart.
+func (a *AppAPI) afterVaultOpened() {
 	data, err := a.vaultRepo.GetData()
 	if err == nil && data.Settings != nil {
 		if a.lockout != nil {
@@ -359,8 +387,6 @@ func (a *AppAPI) UnlockVault(masterPassword string) error {
 		a.auditSvc.OnVaultLocked()
 		_ = a.auditSvc.EnforceRetention(context.Background())
 	}
-
-	return nil
 }
 
 // LockVault re-locks the vault and clears sensitive data from memory.
