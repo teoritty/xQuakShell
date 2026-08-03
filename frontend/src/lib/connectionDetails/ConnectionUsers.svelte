@@ -117,10 +117,13 @@
 
 <style>
   .user-input { flex: 1; font-size: 11px; min-width: 0; width: 100%; }
+  /* Deliberately not shrinkable: the label must read "Default" in full or the control is
+     meaningless. What is left of the row after the label is taken care of in AuthEntryCard —
+     the method select yields its width first, and the toolbar wraps as a last resort — so this
+     label is never squeezed into painting its text over the delete button. */
   .default-radio {
     font-size: 10px; color: var(--text-secondary); display: flex; align-items: center; gap: 2px;
     cursor: pointer; white-space: nowrap;
     flex-shrink: 0;
   }
-  .default-radio input { margin: 0; }
 </style>

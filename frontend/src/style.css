@@ -23,6 +23,12 @@
   --scrollbar-thumb: #424242;
   --scrollbar-track: #1e1e1e;
   --indent-guide: rgba(255, 255, 255, 0.10);
+  /* Height of a single-line form control. appearance:none removes the native widget's own
+     minimum height, and each engine's was different — GTK's entry is far taller than Blink's —
+     so the height has to be stated here or fields collapse to their text on Linux while staying
+     put on Windows. 24px matches the default button (12px text + 3px padding + 1px border),
+     which is what keeps fields and buttons level on the same row. Change it here only. */
+  --control-height: 24px;
   --font-ui: "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", "Oxygen", "Ubuntu", sans-serif;
   --font-mono: "Cascadia Code", "Consolas", "Courier New", monospace;
 }
@@ -135,10 +141,28 @@ button.ghost:hover {
   background: var(--bg-hover);
 }
 
-input, select, textarea {
+/* The :where() wrapper is not decoration — it keeps this rule at the specificity of a bare
+   `input` (0,0,1). Svelte compiles a component's `input { … }` to `input.svelte-hash` (0,1,1),
+   so a plain :not() chain here would score (0,3,1) and silently beat every component that
+   styles its own fields — which is exactly how the vault password field lost its padding and
+   went thin. Any selector added to this block must stay inside :where().
+
+   Checkboxes and radios are deliberately excluded from this reset: appearance:none
+   erases them entirely (they have no content of their own to fall back on). They
+   are normalised separately below. Colour inputs are excluded too — they render a
+   swatch rather than a themed widget, so there is nothing to correct, and resetting
+   them risks the swatch itself on engines with thin colour-input support.
+
+   The reset itself is what makes theming work off Chromium. Setting a background
+   is enough to stop Blink drawing the native widget, but WebKitGTK keeps drawing
+   the GTK control and ignores our colours, which is why selects rendered as white
+   system widgets on Linux. Asking for appearance:none says so explicitly. */
+input:where(:not([type="checkbox"]):not([type="radio"]):not([type="color"])), select, textarea {
   font-family: var(--font-ui);
   font-size: 12px;
-  background: var(--bg-input);
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--bg-input);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
   border-radius: 2px;
@@ -149,6 +173,37 @@ input, select, textarea {
 
 input:focus, select:focus, textarea:focus {
   border-color: var(--border-focus);
+}
+
+/* Restores the vertical size the native widgets used to impose, uniformly. Textarea is left out
+   on purpose: its height comes from its rows. min-height rather than height so a component may
+   still make a field taller, and box-sizing is border-box globally, so this is the outer height. */
+input:where(:not([type="checkbox"]):not([type="radio"]):not([type="color"])), select {
+  min-height: var(--control-height);
+}
+
+/* appearance:none also removes the drop-down arrow, so draw our own. Inline SVG
+   data URI rather than an asset: it cannot 404 and needs no build step. */
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%23cccccc' d='M0 0h8L4 5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  padding-right: 22px;
+}
+
+/* Pin the size Blink happens to use: GTK's native checkbox and radio are larger and carry
+   internal padding, so without this the same row is a different height per engine.
+   These two have no content of their own, so this width is the whole box — any rule that
+   outweighs it resizes the widget itself. It is stated at the specificity of a bare `input`
+   (:where() costs nothing) so a component can still override it deliberately; the flip side is
+   that a stray `.wrapper input { width: … }` overrides it by accident, which
+   sharedControlWidth.test.ts exists to catch. */
+input:where([type="checkbox"], [type="radio"]) {
+  accent-color: var(--accent);
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  margin: 0;
 }
 
 /* Theme the native dropdown popup so it matches the app palette instead of

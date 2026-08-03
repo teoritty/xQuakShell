@@ -4,6 +4,7 @@
   import { startDownloadDrop, startLocalCopyDrop } from '../actions/transferActions';
   import { transferCompleted } from '../stores/appState';
   import { registerOsDropZone, resolveOsDropTarget, isFileDrag, isInternalFileDrag } from './osFileDrop';
+  import { internalDragHighlight } from './dragHighlight';
   import { isInvalidMove } from './pathMove';
   import LocalFileTreeNode from './LocalFileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
@@ -596,7 +597,11 @@
 </script>
 
 <svelte:window on:click={closeContextMenu} />
-<div class="file-tree" bind:this={rootEl}>
+<div
+  class="file-tree"
+  class:internal-drop-active={internalDragHighlight(dragOverPath, currentPath) === 'pane'}
+  bind:this={rootEl}
+>
   <div class="panel-header">
     <span>Local Files</span>
     <OverflowToolbar items={toolbarItems} />
@@ -790,6 +795,16 @@
   /* Drag-over highlight applied by osFileDrop's router while an OS file is
      dragged over this pane (see registerOsDropZone). */
   .file-tree:global(.os-drop-active) {
+    outline: 2px dashed var(--accent);
+    outline-offset: -3px;
+    background: rgba(100, 150, 255, 0.08);
+  }
+
+  /* Same fill for an internal pane-to-pane drag whose drop would land in this
+     pane's current directory (cursor over a file row or empty space). Driven by
+     our own drag state rather than the OS router, which only sees drags carrying
+     real OS files — a distinction WebView2 blurred and WebKitGTK does not. */
+  .file-tree.internal-drop-active {
     outline: 2px dashed var(--accent);
     outline-offset: -3px;
     background: rgba(100, 150, 255, 0.08);
