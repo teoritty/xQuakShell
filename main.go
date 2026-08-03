@@ -4,7 +4,6 @@ import (
 	"embed"
 	"log/slog"
 	"os"
-	"path/filepath"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -47,6 +46,7 @@ func main() {
 		DisableFramelessWindowDecorations: false,
 		Theme:                             windows.Dark,
 		WebviewBrowserPath:                findLocalWebView2Runtime(),
+		Messages:                          webview2Messages(),
 	}
 
 	err := wails.Run(&options.App{
@@ -75,30 +75,6 @@ func main() {
 	})
 
 	if err != nil {
-		println("Error:", err.Error())
+		reportStartupFailure(err)
 	}
-}
-
-// findLocalWebView2Runtime checks for a local WebView2 runtime directory
-// next to the executable (for offline/portable mode).
-// If not found, returns empty string to use the system-installed runtime.
-func findLocalWebView2Runtime() string {
-	exe, err := os.Executable()
-	if err != nil {
-		return ""
-	}
-	exeDir := filepath.Dir(exe)
-
-	candidates := []string{
-		filepath.Join(exeDir, "WebView2"),
-		filepath.Join(exeDir, "webview2"),
-		filepath.Join(exeDir, "runtime", "WebView2"),
-	}
-
-	for _, dir := range candidates {
-		if info, err := os.Stat(dir); err == nil && info.IsDir() {
-			return dir
-		}
-	}
-	return ""
 }
