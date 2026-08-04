@@ -6,6 +6,7 @@ import {
   saveConnection,
   createNewConnectionInFolder,
   deleteConnection,
+  deleteConnections,
   moveConnections,
   reorderConnections,
 } from './connectionActions';
@@ -189,6 +190,36 @@ async function run() {
 
     await deleteConnection('c1');
     assert(get(lastError) === null, 'deleteConnection does not set lastError when gateway is missing');
+  }
+
+  // --- deleteConnections -------------------------------------------------
+
+  {
+    reset();
+    const fake = createFakeGateway();
+    fake.program('DeleteConnection', undefined);
+    fake.program('GetAllConnections', []);
+    setGateway(fake);
+
+    await deleteConnections(['c1', 'c2', 'c3']);
+    const methods = fake.calls.map(c => c.method);
+    const deleteCalls = fake.calls.filter(c => c.method === 'DeleteConnection');
+    assert(deleteCalls.length === 3, 'deleteConnections calls DeleteConnection once per id');
+    assert(deleteCalls.map(c => c.args[0]).join(',') === 'c1,c2,c3', 'deleteConnections deletes each id in the given order');
+    assert(
+      methods.filter(m => m === 'GetAllConnections').length === 1,
+      'deleteConnections refreshes once after the loop, not once per connection',
+    );
+  }
+
+  {
+    reset();
+    const fake = createFakeGateway();
+    fake.program('DeleteConnection', undefined);
+    setGateway(fake);
+
+    await deleteConnections([]);
+    assert(fake.calls.length === 0, 'deleteConnections with an empty id list makes no RPC calls');
   }
 
   // --- moveConnections ---------------------------------------------------

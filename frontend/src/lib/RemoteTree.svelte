@@ -1,13 +1,13 @@
 <script lang="ts">
   import {
     connections,
+    creationTargetFolderId,
     detailsConnectionId,
     expandedFolderIds,
     favorites,
     folders,
     selectedConnectionId,
     selectedConnectionIds,
-    selectedFolderId,
     sessions,
     pingResults,
     type Connection,
@@ -15,12 +15,12 @@
   } from '../stores/appState';
   import {
     createNewFolderInFolder,
-    deleteFolder,
+    deleteFolders,
     saveFolder,
   } from '../actions/folderActions';
   import {
     createNewConnectionInFolder,
-    deleteConnection,
+    deleteConnections,
     saveConnection,
   } from '../actions/connectionActions';
   import { openSession } from '../actions/sessionActions';
@@ -31,7 +31,8 @@
   import type { MenuAnchorRect } from './clampMenuPosition';
   import RemoteTreeContextMenu from './RemoteTreeContextMenu.svelte';
   import { openContextMenu, releaseContextMenu } from './contextMenuManager';
-  import { buildTree, countConnectionsInFolder, flattenTree } from './remoteTree/buildTree';
+  import { buildTree, flattenTree } from './remoteTree/buildTree';
+  import { describeDeleteTargets } from './remoteTree/deletePrompt';
   import { buildSessionStatusMap } from './remoteTree/connectionDisplay';
   import {
     computeDropZone,
@@ -49,12 +50,16 @@
   import RemoteTreeToolbar from './remoteTree/RemoteTreeToolbar.svelte';
   import {
     clearTreeSelection,
-    connectionIdsForDelete,
     connectionIdsInSelection,
+    deleteTargetCount,
+    deleteTargets,
     folderIdsInSelection,
     prepareContextMenuSelection,
+    selectionDeleteTargets,
     selectTreeNode,
+    shouldClearTreeSelection,
     syncSelectionStores,
+    type DeleteTargets,
     type SelectionStores,
   } from './remoteTree/selection';
   import { discoveryNodeId, emptyDragVisualState, type DragPayload, type DragVisualState, type DiscoveryRow, type TreeNode } from './remoteTree/types';
@@ -93,7 +98,7 @@
   const selectionStores: SelectionStores = {
     selectedConnectionId,
     selectedConnectionIds,
-    selectedFolderId,
+    creationTargetFolderId,
   };
 
   let searchQuery = '';
@@ -113,12 +118,11 @@
     discoveryMenu: null as DiscoveryMenu | null,
   };
   let confirmDeleteShow = false;
-  let confirmDeleteType: 'connection' | 'folder' = 'connection';
-  let confirmDeleteId = '';
-  let confirmDeleteIds: string[] = [];
-  let confirmDeleteName = '';
+  let confirmDeleteTargets: DeleteTargets = { folderIds: [], connectionIds: [] };
+  let confirmDeleteTitle = '';
+  let confirmDeleteMessage = '';
   let confirmDeleteCritical = false;
-  let confirmDeleteChildCount = 0;
+  let confirmDeleteCheckboxLabel = '';
   let showImportDialog = false;
   let showSSHConfigDialog = false;
   let importMenu: { show: boolean; anchor: MenuAnchorRect | null } = { show: false, anchor: null };
@@ -240,23 +244,15 @@
     editingConnId = null;
   }
 
-  function requestDeleteConnections(ids: string[]) {
-    confirmDeleteType = 'connection';
-    confirmDeleteIds = ids;
-    confirmDeleteId = ids[0] || '';
-    confirmDeleteName = ids.length === 1 ? ($connections.find((x) => x.id === ids[0])?.name ?? '') : '';
-    confirmDeleteCritical = ids.length > 1;
-    confirmDeleteChildCount = ids.length;
-    confirmDeleteShow = true;
-  }
-
-  function requestDeleteFolder(f: Folder) {
-    const childCount = countConnectionsInFolder(f.id, $folders, $connections);
-    confirmDeleteType = 'folder';
-    confirmDeleteId = f.id;
-    confirmDeleteName = f.name;
-    confirmDeleteCritical = childCount > 0;
-    confirmDeleteChildCount = childCount;
+  /** Single entry point for every delete verb — context menu, row button, Delete key. */
+  function requestDelete(targets: DeleteTargets) {
+    if (deleteTargetCount(targets) === 0) return;
+    const prompt = describeDeleteTargets(targets, $folders, $connections);
+    confirmDeleteTargets = targets;
+    confirmDeleteTitle = prompt.title;
+    confirmDeleteMessage = prompt.message;
+    confirmDeleteCritical = prompt.critical;
+    confirmDeleteCheckboxLabel = prompt.checkboxLabel;
     confirmDeleteShow = true;
   }
 
@@ -391,9 +387,7 @@
     closeContextMenu();
     importMenu = { ...importMenu, show: false };
     const target = e.target as HTMLElement | null;
-    if (!target) return;
-    if (target.closest('.tree-node')) return;
-    if (target.closest('.context-menu')) return;
+    if (!shouldClearTreeSelection(target)) return;
     clearDiscoverySelection();
     if (selectedPaths.size === 0) return;
     selectedPaths = clearTreeSelection(selectionStores);
@@ -412,12 +406,9 @@
 
   async function handleCtxDelete() {
     if (!ctxMenu.node) return;
+    const node = ctxMenu.node;
     closeContextMenu();
-    if (ctxMenu.node.type === 'connection') {
-      requestDeleteConnections(connectionIdsForDelete(ctxMenu.node.id, selectedPaths, $connections));
-    } else if (ctxMenu.node.folder) {
-      requestDeleteFolder(ctxMenu.node.folder);
-    }
+    requestDelete(deleteTargets(node.id, selectedPaths, $connections, $folders));
   }
 
   async function handleCtxNewConnection() {
@@ -445,17 +436,18 @@
 
   async function handleConfirmDelete() {
     confirmDeleteShow = false;
-    if (confirmDeleteType === 'connection') {
-      for (const id of confirmDeleteIds) await deleteConnection(id);
-      selectedPaths = new Set();
-      syncSelectionStores(selectedPaths, $connections, $folders, selectionStores);
-      if (confirmDeleteIds.includes($selectedConnectionId)) selectedConnectionId.set('');
-      if (confirmDeleteIds.includes($detailsConnectionId)) detailsConnectionId.set('');
-    } else {
-      await deleteFolder(confirmDeleteId);
-      selectedPaths = new Set([...selectedPaths].filter((id) => id !== confirmDeleteId));
-      syncSelectionStores(selectedPaths, $connections, $folders, selectionStores);
-    }
+    const { folderIds, connectionIds } = confirmDeleteTargets;
+    // Folders first: their cascade takes nested connections with it, so the
+    // connection batch that follows only names rows that outlived it.
+    await deleteFolders(folderIds);
+    await deleteConnections(connectionIds);
+    // Rebuilt from the refreshed stores rather than from the requested ids: a
+    // deleted folder also took away rows nobody named explicitly.
+    const alive = new Set([...$connections.map((c) => c.id), ...$folders.map((f) => f.id)]);
+    selectedPaths = new Set([...selectedPaths].filter((id) => alive.has(id)));
+    syncSelectionStores(selectedPaths, $connections, $folders, selectionStores);
+    if (!alive.has($selectedConnectionId)) selectedConnectionId.set('');
+    if (!alive.has($detailsConnectionId)) detailsConnectionId.set('');
   }
 
   function handleDragOver(e: DragEvent) {
@@ -552,10 +544,10 @@
     const tag = target?.tagName ?? '';
     if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
     if (ev.key !== 'Delete') return;
-    const ids = connectionIdsInSelection(selectedPaths, $connections);
-    if (ids.length > 0) {
+    const targets = selectionDeleteTargets(selectedPaths, $connections, $folders);
+    if (deleteTargetCount(targets) > 0) {
       ev.preventDefault();
-      requestDeleteConnections(ids);
+      requestDelete(targets);
     }
   }
 
@@ -643,8 +635,8 @@
 
   function handleDeleteConnection(e: CustomEvent<{ connection?: Connection; multi?: boolean }>) {
     if (!e.detail.connection) return;
-    if (e.detail.multi) requestDeleteConnections(connectionIdsInSelection(selectedPaths, $connections));
-    else requestDeleteConnections([e.detail.connection.id]);
+    if (e.detail.multi) requestDelete(selectionDeleteTargets(selectedPaths, $connections, $folders));
+    else requestDelete({ folderIds: [], connectionIds: [e.detail.connection.id] });
   }
 
   function handleRootDragEnter() {
@@ -664,8 +656,8 @@
 >
   <RemoteTreeSearch bind:value={searchQuery} onFocus={handleSearchFocus} />
   <RemoteTreeToolbar
-    onNewConnection={() => createNewConnectionInFolder($selectedFolderId)}
-    onNewFolder={() => createNewFolderInFolder($selectedFolderId)}
+    onNewConnection={() => createNewConnectionInFolder($creationTargetFolderId)}
+    onNewFolder={() => createNewFolderInFolder($creationTargetFolderId)}
     onImport={(anchor) => (importMenu = { show: true, anchor })}
     importMenuOpen={importMenu.show}
     onExpandAll={expandAll}
@@ -709,7 +701,8 @@
     on:cancelRenameConnection={() => (editingConnId = null)}
     on:newSubfolder={({ detail }) => createNewFolderInFolder(detail.folderId)}
     on:startRenameFolder={({ detail }) => detail.folder && startRenameFolder(detail.folder)}
-    on:deleteFolder={({ detail }) => detail.folder && requestDeleteFolder(detail.folder)}
+    on:deleteFolder={({ detail }) =>
+      detail.folder && requestDelete(deleteTargets(detail.folder.id, selectedPaths, $connections, $folders))}
     on:startRenameConnection={({ detail }) => detail.connection && startRenameConnection(detail.connection)}
     on:deleteConnection={handleDeleteConnection}
     on:toggleDiscoveryRoot={({ detail }) => toggleDiscoveryRoot(detail.connectionId)}
@@ -747,19 +740,11 @@
 
 <ConfirmDialog
   show={confirmDeleteShow}
-  title={confirmDeleteType === 'folder' && confirmDeleteCritical
-    ? 'Warning: Folder Contains Connections'
-    : confirmDeleteType === 'connection' && confirmDeleteIds.length > 1
-      ? 'Delete Multiple Connections'
-      : `Delete ${confirmDeleteType === 'folder' ? 'Folder' : 'Connection'}`}
-  message={confirmDeleteType === 'folder' && confirmDeleteCritical
-    ? `You are about to delete folder "${confirmDeleteName}" which contains ${confirmDeleteChildCount} connection(s). This action cannot be undone!`
-    : confirmDeleteType === 'connection' && confirmDeleteIds.length > 1
-      ? `You are about to delete ${confirmDeleteIds.length} connection(s). This action cannot be undone!`
-      : `Are you sure you want to delete "${confirmDeleteName}"?`}
+  title={confirmDeleteTitle}
+  message={confirmDeleteMessage}
   critical={confirmDeleteCritical}
   requireCheckbox={confirmDeleteCritical}
-  checkboxLabel="I understand this will permanently delete all connections inside this folder"
+  checkboxLabel={confirmDeleteCheckboxLabel}
   on:confirm={handleConfirmDelete}
   on:cancel={() => (confirmDeleteShow = false)}
 />

@@ -1,5 +1,6 @@
 import type { Connection, Folder } from '../../stores/appState';
 import type { Writable } from 'svelte/store';
+import { isFolderAncestor } from './dndGuards';
 import { isDiscoveryNodeId, type TreeNode } from './types';
 
 /**
@@ -36,7 +37,7 @@ function withoutDiscoveryIds(selectedPaths: Set<string>): Set<string> {
 export interface SelectionStores {
   selectedConnectionId: Writable<string>;
   selectedConnectionIds: Writable<Set<string>>;
-  selectedFolderId: Writable<string>;
+  creationTargetFolderId: Writable<string>;
 }
 
 export interface SelectNodeResult {
@@ -81,6 +82,37 @@ export function selectTreeNode(
   return { selectedPaths: new Set([id]), lastSelectedPath: id };
 }
 
+/**
+ * The single place that answers "where does a new folder or connection go?".
+ *
+ * A selected folder means "inside it". A selected connection means "next to
+ * it" — i.e. into the folder that holds it, which is what the user sees: the
+ * highlighted row lives three folders deep, so the new sibling belongs there
+ * too, not at the root. Anything ambiguous (nothing selected, folders and
+ * connections at once, connections spread over several folders) has no single
+ * honest answer, so it falls back to the root rather than guessing one of them.
+ *
+ * Derived from `selectedPaths` alone. That is the whole point: the target is a
+ * function of what is highlighted, so no action can move it as a side effect.
+ */
+export function creationTargetFolderId(
+  selectedPaths: Set<string>,
+  connections: Connection[],
+  folders: Folder[]
+): string {
+  const folderIds = folderIdsInSelection(selectedPaths, folders);
+  const connIds = connectionIdsInSelection(selectedPaths, connections);
+  if (folderIds.length === 1 && connIds.length === 0) return folderIds[0];
+  if (folderIds.length === 0 && connIds.length > 0) {
+    const selected = new Set(connIds);
+    const parents = new Set(
+      connections.filter((c) => selected.has(c.id)).map((c) => c.folderId || '')
+    );
+    if (parents.size === 1) return [...parents][0];
+  }
+  return '';
+}
+
 export function syncSelectionStores(
   selectedPaths: Set<string>,
   connections: Connection[],
@@ -89,17 +121,31 @@ export function syncSelectionStores(
 ): void {
   const paths = withoutDiscoveryIds(selectedPaths);
   const connIds = connections.filter((c) => paths.has(c.id)).map((c) => c.id);
-  const folderIds = folders.filter((f) => paths.has(f.id)).map((f) => f.id);
   stores.selectedConnectionIds.set(new Set(connIds));
   stores.selectedConnectionId.set(connIds.length === 1 ? connIds[0] : '');
-  stores.selectedFolderId.set(folderIds.length === 1 ? folderIds[0] : '');
+  stores.creationTargetFolderId.set(creationTargetFolderId(paths, connections, folders));
 }
 
 export function clearTreeSelection(stores: SelectionStores): Set<string> {
   stores.selectedConnectionId.set('');
   stores.selectedConnectionIds.set(new Set());
-  stores.selectedFolderId.set('');
+  stores.creationTargetFolderId.set('');
   return new Set();
+}
+
+/**
+ * Whether a click that reached the window should drop the tree selection.
+ *
+ * Only genuinely empty space counts. The toolbar is chrome of the tree, not
+ * "outside" it: its buttons are commands that act ON the selection, so letting
+ * their own click clear it made "New connection" land in the selected folder
+ * the first time and in the root the second. Expressed as one predicate rather
+ * than a `stopPropagation` on each button, so a button added later cannot
+ * reintroduce that by forgetting the modifier.
+ */
+export function shouldClearTreeSelection(target: Element | null): boolean {
+  if (!target) return false;
+  return !target.closest('.tree-node, .context-menu, .tree-toolbar, .import-menu');
 }
 
 /** Right-click on unselected item → solo select (file-manager style). */
@@ -122,17 +168,91 @@ export function folderIdsInSelection(selectedPaths: Set<string>, folders: Folder
   return folders.filter((f) => paths.has(f.id)).map((f) => f.id);
 }
 
-export function connectionIdsForDelete(
+export interface DeleteTargets {
+  folderIds: string[];
+  connectionIds: string[];
+}
+
+export function deleteTargetCount(targets: DeleteTargets): number {
+  return targets.folderIds.length + targets.connectionIds.length;
+}
+
+/**
+ * What a delete aimed at `nodeId` actually removes.
+ *
+ * Folders and connections are resolved by ONE rule, deliberately: they used to
+ * have two, and the folder half simply ignored the selection, so selecting five
+ * folders and hitting Delete removed one of them. Whatever the delete verb is
+ * (context menu, row button, Delete key), it acts on the same set.
+ *
+ * The rule is the file-manager one: acting on a row that is part of the
+ * selection acts on the whole selection; acting on a row outside it acts on
+ * that row alone (right-click already solo-selects it, see
+ * prepareContextMenuSelection).
+ */
+export function deleteTargets(
   nodeId: string,
   selectedPaths: Set<string>,
-  connections: Connection[]
-): string[] {
-  // Load-bearing, and provably so: nodeId is returned UNCHECKED on the single-row
-  // path below — it is never validated against `connections` — so without this
-  // line a delete aimed at a discovery row would hand that row's id straight to
-  // deleteConnection. Removing it fails discoveryIsolation.test.ts.
-  if (isDiscoveryNodeId(nodeId)) return [];
-  const connIds = connectionIdsInSelection(selectedPaths, connections);
-  if (selectedPaths.has(nodeId) && connIds.length > 1) return connIds;
-  return [nodeId];
+  connections: Connection[],
+  folders: Folder[]
+): DeleteTargets {
+  // Load-bearing, and provably so: nodeId is used UNCHECKED on the single-row
+  // path below — it is never validated against `connections`/`folders` — so
+  // without this line a delete aimed at a discovery row would hand that row's
+  // id straight to the delete RPCs. Removing it fails discoveryIsolation.test.ts.
+  if (isDiscoveryNodeId(nodeId)) return { folderIds: [], connectionIds: [] };
+  const selectionSize = withoutDiscoveryIds(selectedPaths).size;
+  if (selectedPaths.has(nodeId) && selectionSize > 1) {
+    return selectionDeleteTargets(selectedPaths, connections, folders);
+  }
+  if (folders.some((f) => f.id === nodeId)) return { folderIds: [nodeId], connectionIds: [] };
+  return { folderIds: [], connectionIds: [nodeId] };
+}
+
+/**
+ * Everything the current selection would delete. Used by the Delete key, which
+ * has no clicked row to aim at — it acts on the selection as a whole, and it
+ * covers folders for the same reason the menu does.
+ */
+export function selectionDeleteTargets(
+  selectedPaths: Set<string>,
+  connections: Connection[],
+  folders: Folder[]
+): DeleteTargets {
+  return collapseCascadedTargets(
+    {
+      folderIds: folderIdsInSelection(selectedPaths, folders),
+      connectionIds: connectionIdsInSelection(selectedPaths, connections),
+    },
+    connections,
+    folders
+  );
+}
+
+/**
+ * Drops everything the backend is going to delete anyway.
+ *
+ * DeleteFolder removes the folder's whole subtree — nested folders and every
+ * connection in them (internal/infra/persistence/connection_repo.go). So a
+ * selection spanning a folder and something inside it must not ask twice: the
+ * second call would name an id that no longer exists and surface as an error
+ * on a delete that in fact succeeded.
+ */
+function collapseCascadedTargets(
+  targets: DeleteTargets,
+  connections: Connection[],
+  folders: Folder[]
+): DeleteTargets {
+  const roots = targets.folderIds.filter(
+    (id) => !targets.folderIds.some((other) => other !== id && isFolderAncestor(folders, other, id))
+  );
+  // isFolderAncestor treats a folder as an ancestor of itself, so this covers
+  // both "the connection sits directly in a doomed folder" and "somewhere below
+  // it" in one test.
+  const connectionIds = targets.connectionIds.filter((id) => {
+    const parentId = connections.find((c) => c.id === id)?.folderId || '';
+    if (!parentId) return true;
+    return !roots.some((rootId) => isFolderAncestor(folders, rootId, parentId));
+  });
+  return { folderIds: roots, connectionIds };
 }

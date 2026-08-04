@@ -11,8 +11,9 @@ import type { DiscoverySnapshot } from '../../api/discovery';
 import { buildTree, flattenTree } from './buildTree';
 import { computeDropZone, isNodeEditing, isNoOpDragOver, resolveDragPayload, shouldShowDropIndicator } from './dndGuards';
 import {
-  connectionIdsForDelete,
   connectionIdsInSelection,
+  deleteTargetCount,
+  deleteTargets,
   folderIdsInSelection,
   prepareContextMenuSelection,
   selectTreeNode,
@@ -132,22 +133,28 @@ for (const rowNode of discoveryRows) {
   connectionIdsInSelection(new Set(['c1', 'c2']), connections);
   assert(warnings.length === 0, 'a clean selection is silent — the warning is a signal, not noise');
 
-  const toDelete = connectionIdsForDelete('c1', poisoned, connections);
-  assert(toDelete.join(',') === 'c1', `delete acts on exactly one connection, got "${toDelete.join(',')}"`);
+  const toDelete = deleteTargets('c1', poisoned, connections, folders);
   assert(
-    connectionIdsForDelete(discoveryRows[0].id, poisoned, connections).length === 0,
+    toDelete.connectionIds.join(',') === 'c1' && toDelete.folderIds.length === 0,
+    `delete acts on exactly one connection, got "${toDelete.connectionIds.join(',')}"`
+  );
+  assert(
+    deleteTargetCount(deleteTargets(discoveryRows[0].id, poisoned, connections, folders)) === 0,
     'a delete aimed at a discovery row deletes nothing'
   );
 
   const stores = {
     selectedConnectionId: writable(''),
     selectedConnectionIds: writable(new Set<string>()),
-    selectedFolderId: writable(''),
+    creationTargetFolderId: writable(''),
   };
   syncSelectionStores(poisoned, connections, folders, stores);
   console.warn = realWarn;
   assert(get(stores.selectedConnectionIds).size === 1, 'the store never sees a discovery id');
-  assert(get(stores.selectedFolderId) === '', 'nor does the folder store');
+  assert(
+    get(stores.creationTargetFolderId) === 'f1',
+    'the creation target follows the real connection in the selection, never a discovery id'
+  );
 }
 
 // --- the context menu never solo-selects a discovery row into this selection ---

@@ -5,13 +5,14 @@ import {
   saveFolder,
   createNewFolderInFolder,
   deleteFolder,
+  deleteFolders,
   moveFolder,
   moveFolders,
   reorderFolders,
 } from './folderActions';
 import {
   folders, connections,
-  selectedFolderId,
+  creationTargetFolderId,
   lastError,
   type Folder,
 } from '../stores/appState';
@@ -24,7 +25,7 @@ function assert(c: boolean, m: string) {
 function reset() {
   folders.set([]);
   connections.set([]);
-  selectedFolderId.set('');
+  creationTargetFolderId.set('');
   lastError.set(null);
 }
 
@@ -103,22 +104,54 @@ async function run() {
     fake.program('GetFolders', []);
     setGateway(fake);
 
-    await createNewFolderInFolder('parent-1');
+    creationTargetFolderId.set('parent-1');
+    const saved = await createNewFolderInFolder('parent-1');
     const call = fake.calls.find(c => c.method === 'SaveFolder');
     const payload = call?.args[0] as Folder;
     assert(payload.name === 'New folder', 'createNewFolderInFolder always names the new folder "New folder"');
     assert(payload.parentId === 'parent-1', 'createNewFolderInFolder nests the new folder under the given parentId');
-    assert(get(selectedFolderId) === 'newfolder-1', 'createNewFolderInFolder sets selectedFolderId to the id returned by SaveFolder');
+    assert(saved?.id === 'newfolder-1', 'createNewFolderInFolder returns the folder returned by SaveFolder');
+    // THE regression test for "New folder" building a folder inside a folder
+    // inside a folder: creating must not repoint the creation target at what it
+    // just made, or every further click nests one level deeper. The target is a
+    // projection of the tree selection and only selection.ts may write it.
+    assert(
+      get(creationTargetFolderId) === 'parent-1',
+      'createNewFolderInFolder leaves the creation target where the selection put it'
+    );
+  }
+
+  // Two creations in a row land as siblings, not as parent and child — the
+  // second call still sees the target the first one started from.
+  {
+    reset();
+    const fake = createFakeGateway();
+    let n = 0;
+    fake.program('SaveFolder', (payload: unknown) => ({ ...(payload as Folder), id: `newfolder-${++n}` }));
+    fake.program('GetFolders', []);
+    setGateway(fake);
+
+    creationTargetFolderId.set('parent-1');
+    await createNewFolderInFolder(get(creationTargetFolderId));
+    await createNewFolderInFolder(get(creationTargetFolderId));
+    const parents = fake.calls
+      .filter(c => c.method === 'SaveFolder')
+      .map(c => (c.args[0] as Folder).parentId);
+    assert(
+      parents.join(',') === 'parent-1,parent-1',
+      `back-to-back folder creations stay siblings, got parents "${parents.join(',')}"`
+    );
   }
 
   // createNewFolderInFolder: when saveFolder resolves to null (app absent),
-  // selectedFolderId is left untouched.
+  // nothing is created and no store is touched.
   {
     reset();
-    selectedFolderId.set('previous');
+    creationTargetFolderId.set('previous');
     setGateway(null);
-    await createNewFolderInFolder('parent-1');
-    assert(get(selectedFolderId) === 'previous', 'createNewFolderInFolder leaves selectedFolderId unchanged when saveFolder returns null');
+    const saved = await createNewFolderInFolder('parent-1');
+    assert(saved === null, 'createNewFolderInFolder returns null when saveFolder returns null');
+    assert(get(creationTargetFolderId) === 'previous', 'createNewFolderInFolder leaves the creation target unchanged when saveFolder returns null');
   }
 
   // --- deleteFolder ----------------------------------------------------------
@@ -157,6 +190,40 @@ async function run() {
     setGateway(null);
     await deleteFolder('f1');
     assert(get(lastError) === null, 'deleteFolder does not set lastError when gateway is missing');
+  }
+
+  // --- deleteFolders ---------------------------------------------------------
+
+  {
+    reset();
+    const fake = createFakeGateway();
+    fake.program('DeleteFolder', undefined);
+    fake.program('GetFolders', []);
+    fake.program('GetAllConnections', []);
+    setGateway(fake);
+
+    await deleteFolders(['f1', 'f2', 'f3']);
+    const methods = fake.calls.map(c => c.method);
+    const deleteCalls = fake.calls.filter(c => c.method === 'DeleteFolder');
+    assert(deleteCalls.length === 3, 'deleteFolders calls DeleteFolder once per folder id');
+    assert(
+      deleteCalls.map(c => c.args[0]).join(',') === 'f1,f2,f3',
+      'deleteFolders deletes each id in the given order',
+    );
+    assert(
+      methods.filter(m => m === 'GetFolders').length === 1 && methods.filter(m => m === 'GetAllConnections').length === 1,
+      'deleteFolders refreshes once after the loop, not once per folder',
+    );
+  }
+
+  {
+    reset();
+    const fake = createFakeGateway();
+    fake.program('DeleteFolder', undefined);
+    setGateway(fake);
+
+    await deleteFolders([]);
+    assert(fake.calls.length === 0, 'deleteFolders with an empty id list makes no RPC calls');
   }
 
   // --- moveFolder --------------------------------------------------------
