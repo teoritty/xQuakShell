@@ -37,7 +37,7 @@ jobs:
         run: go test ./... -race -count=1
 
       - name: Plugin coverage gates
-        run: bash scripts/check-plugin-coverage.sh
+        run: go run ./scripts/coverage
 
       - name: Benchmark smoke
         run: go test ./test/bench/... -bench=. -benchtime=100ms

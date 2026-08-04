@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build dev clean rebuild portable install check test test-go test-frontend coverage lint sec deps-linux require-wails require-bash
+.PHONY: help build dev clean rebuild portable install check test test-go test-frontend coverage lint sec deps-linux require-wails
 
 # ---------------------------------------------------------------------------
 # Host detection
@@ -32,14 +32,14 @@ else
 endif
 
 # detect returns the path to a binary, or empty if it is not on PATH.
+# `where` prints every match, so keep only the first one.
 ifeq ($(HOST_SHELL),cmd)
-    detect = $(shell where $(1) 2>NUL)
+    detect = $(firstword $(shell where $(1) 2>NUL))
 else
-    detect = $(shell command -v $(1) 2>/dev/null)
+    detect = $(firstword $(shell command -v $(1) 2>/dev/null))
 endif
 
 WAILS_BIN := $(call detect,wails)
-BASH_BIN  := $(call detect,bash)
 
 # Pinned to the Wails CLI version the release workflow installs.
 WAILS_VERSION := v2.12.0
@@ -91,13 +91,6 @@ require-wails:
 ifeq ($(WAILS_BIN),)
 	@echo ERROR: the wails CLI was not found on PATH.
 	@echo Install it with: go install github.com/wailsapp/wails/v2/cmd/wails@$(WAILS_VERSION)
-	@exit 1
-endif
-
-require-bash:
-ifeq ($(BASH_BIN),)
-	@echo ERROR: bash was not found on PATH.
-	@echo On Windows it ships with Git for Windows, in the Git usr/bin directory.
 	@exit 1
 endif
 
@@ -154,8 +147,8 @@ test-go:
 test-frontend:
 	cd frontend && npm test
 
-coverage: require-bash
-	bash scripts/check-plugin-coverage.sh
+coverage:
+	go run ./scripts/coverage
 
 # Both targets type-check the whole module, which needs frontend/dist to exist
 # for the go:embed in main.go. Run `make install && cd frontend && npm run build`
