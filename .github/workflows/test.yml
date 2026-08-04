@@ -15,17 +15,11 @@ jobs:
         with:
           go-version: '1.25'
 
-      - name: Layer import check
-        shell: pwsh
-        run: ./scripts/check-imports.ps1
-
-      - name: Filesystem boundary check
-        shell: pwsh
-        run: ./scripts/check-fs-boundaries.ps1
-
-      - name: Session manager boundary check
-        shell: pwsh
-        run: ./scripts/check-session-manager-boundaries.ps1
+      # Layer imports, composition root, filesystem boundaries, goroutine
+      # launches, file budgets and the session manager decomposition. This
+      # package does not import main, so it needs no frontend/dist.
+      - name: Architecture checks
+        run: go test ./test/unit/architecture/... -count=1
 
       - uses: actions/setup-node@v4
         with:

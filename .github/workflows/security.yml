@@ -67,7 +67,7 @@ jobs:
       #   G304 file inclusion    - the product IS a file manager; user-chosen paths
       #                            are the input. Containment is enforced by
       #                            internal/pkg/pathsafe (UnderRoot) and by the
-      #                            scripts/check-fs-boundaries.ps1 architecture gate.
+      #                            test/unit/architecture/fs_boundaries.go gate.
       #   G103 unsafe.Pointer    - required to pass syscall arguments to
       #                            windows.OpenProcess / SetInformationJobObject.
       - name: gosec
