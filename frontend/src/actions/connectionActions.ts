@@ -17,7 +17,8 @@
 // - createNewConnectionInFolder: original had NO explicit guard; relies on
 //   saveConnection (which relies on putConnection) returning null. No guard
 //   needed.
-// - deleteConnection / moveConnections / reorderConnections: original
+// - deleteConnection / deleteConnections / moveConnections /
+//   reorderConnections: original
 //   guarded with `getApp()` before calling the mutation RPC at all. The
 //   atomic deleteConnectionById / moveConnectionsTo / reorderConnectionsIn
 //   wrappers call `getGateway()` internally and return their fallback
@@ -25,7 +26,8 @@
 //   meaning without an explicit guard the surrounding try/catch here would
 //   proceed straight into the dependent refresh (e.g. `refreshAllConnections`)
 //   even though nothing was mutated — a regression. The guard is reproduced
-//   explicitly below for all three.
+//   explicitly below for all three. `deleteConnection` is now a one-element
+//   `deleteConnections` so the guard exists in exactly one place.
 import { getGateway } from '../backend/context';
 import {
   fetchConnections,
@@ -80,9 +82,20 @@ export async function createNewConnectionInFolder(folderId: string): Promise<Con
 }
 
 export async function deleteConnection(id: string): Promise<void> {
-  if (!getGateway()) return;
+  await deleteConnections([id]);
+}
+
+/**
+ * One refresh for the whole batch, matching moveConnections: deleting a
+ * multi-selection through the single-id function meant a full connection
+ * reload per item.
+ */
+export async function deleteConnections(ids: string[]): Promise<void> {
+  if (!getGateway() || ids.length === 0) return;
   try {
-    await deleteConnectionById(id);
+    for (const id of ids) {
+      await deleteConnectionById(id);
+    }
     await refreshAllConnections();
   } catch {
     // Error already reported by deleteConnectionById via showError; skip refresh.

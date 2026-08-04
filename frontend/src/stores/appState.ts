@@ -153,7 +153,19 @@ export const connections = writable<Connection[]>([]);
 export const identities = writable<SSHIdentityMeta[]>([]);
 export const selectedConnectionId = writable<string>('');
 export const selectedConnectionIds = writable<Set<string>>(new Set());
-export const selectedFolderId = writable<string>('');
+/**
+ * Where the next new folder or connection is created — "the folder the user is
+ * currently pointing at", not "the folder row that is highlighted".
+ *
+ * INVARIANT: this store is a pure projection of the tree selection. Its only
+ * writers are `syncSelectionStores` and `clearTreeSelection`
+ * (lib/remoteTree/selection.ts), which both derive it through
+ * `creationTargetFolderId`. Creating something must NEVER write here: a create
+ * action that points the target at whatever it just made turns each click into
+ * a child of the previous one, which is exactly how "New folder" used to build
+ * a folder inside a folder inside a folder.
+ */
+export const creationTargetFolderId = writable<string>('');
 export const sessions = writable<Session[]>([]);
 export const activeSessionId = writable<string>('');
 export const vaultUnlocked = writable<boolean>(false);

@@ -2,7 +2,7 @@
   import Modal from './Modal.svelte';
   import { importPuTTYPPK, importPuTTYRegPreview, importPuTTYRegAsConnections, type PuTTYSessionPreview } from '../api/credentials';
   import { refreshAllConnections, refreshIdentities } from '../actions/connectionActions';
-  import { selectedFolderId } from '../stores/appState';
+  import { creationTargetFolderId } from '../stores/appState';
   import { bytesToBase64, decodeTextFile } from './importPuTTY/fileEncoding';
   import { KeyRound } from 'lucide-svelte';
 
@@ -62,7 +62,7 @@
     if (!regContent) return;
     importing = true;
     try {
-      const folderId = $selectedFolderId || '';
+      const folderId = $creationTargetFolderId || '';
       const conns = await importPuTTYRegAsConnections(regContent, folderId);
       importResult = `Imported ${conns.length} connection(s).`;
       await refreshAllConnections();

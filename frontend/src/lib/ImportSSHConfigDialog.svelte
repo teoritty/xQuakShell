@@ -32,7 +32,7 @@
   import { selectLocalFile } from '../api/localFs';
   import { refreshAllConnections, refreshIdentities } from '../actions/connectionActions';
   import { refreshFolders, saveFolder } from '../actions/folderActions';
-  import { folders, selectedFolderId } from '../stores/appState';
+  import { creationTargetFolderId, folders } from '../stores/appState';
 
   export let show = false;
 
@@ -53,7 +53,7 @@
   async function openDialog() {
     initialized = true;
     resetState();
-    folderId = $selectedFolderId || '';
+    folderId = $creationTargetFolderId || '';
     busy = true;
     try {
       const detected = await fetchSSHConfigDefaultPath();

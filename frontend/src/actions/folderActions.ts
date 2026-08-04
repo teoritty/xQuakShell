@@ -15,7 +15,7 @@
 //   refresh. No guard needed here either.
 // - createNewFolderInFolder: original had NO explicit guard; relies on
 //   saveFolder (which relies on putFolder) returning null. No guard needed.
-// - deleteFolder / moveFolder / moveFolders / reorderFolders: original
+// - deleteFolder / deleteFolders / moveFolder / moveFolders / reorderFolders: original
 //   guarded with `getApp()` before calling the mutation RPC at all. The
 //   atomic deleteFolderById / moveFolderTo / reorderFoldersIn wrappers call
 //   `getGateway()` internally and return their fallback *before* the
@@ -23,8 +23,9 @@
 //   without an explicit guard the surrounding try/catch here would proceed
 //   straight into the dependent refresh (e.g. `refreshFolders`) even though
 //   nothing was mutated — a regression. The guard is reproduced explicitly
-//   below for all four. `moveFolders` additionally preserves the original
-//   empty-array no-op short-circuit.
+//   below for all four. `moveFolders` and `deleteFolders` additionally
+//   short-circuit on an empty array. `deleteFolder` is now a one-element
+//   `deleteFolders` so the guard exists in exactly one place.
 import { getGateway } from '../backend/context';
 import {
   fetchFolders,
@@ -33,7 +34,7 @@ import {
   moveFolderTo,
   reorderFoldersIn,
 } from '../api/folders';
-import { folders, selectedFolderId, type Folder } from '../stores/appState';
+import { folders, type Folder } from '../stores/appState';
 import { refreshAllConnections } from './connectionActions';
 
 export async function refreshFolders(): Promise<void> {
@@ -50,20 +51,35 @@ export async function saveFolder(f: Partial<Folder>): Promise<Folder | null> {
   return saved;
 }
 
-export async function createNewFolderInFolder(parentId: string): Promise<void> {
-  const saved = await saveFolder({
+/**
+ * Deliberately touches no selection store. Pointing the creation target at the
+ * folder it just made turned every click on "New folder" into a child of the
+ * previous one; the target now derives from the tree selection alone
+ * (creationTargetFolderId in lib/remoteTree/selection.ts), which also removes
+ * the race where the nesting depth depended on how fast the user clicked.
+ */
+export async function createNewFolderInFolder(parentId: string): Promise<Folder | null> {
+  return saveFolder({
     name: 'New folder',
     parentId,
   });
-  if (saved) {
-    selectedFolderId.set(saved.id);
-  }
 }
 
 export async function deleteFolder(id: string): Promise<void> {
-  if (!getGateway()) return;
+  await deleteFolders([id]);
+}
+
+/**
+ * One refresh for the whole batch, matching moveFolders: deleting a
+ * multi-selection through the single-id function meant a full folder AND
+ * connection reload per item.
+ */
+export async function deleteFolders(ids: string[]): Promise<void> {
+  if (!getGateway() || ids.length === 0) return;
   try {
-    await deleteFolderById(id);
+    for (const id of ids) {
+      await deleteFolderById(id);
+    }
     await refreshFolders();
     await refreshAllConnections();
   } catch {
