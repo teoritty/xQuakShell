@@ -30,7 +30,7 @@ Local Files browser defaults to `os.UserHomeDir()`.
 - Portable vault, plugin data, and temp dirs remain jailed under `<exe>/data`.
 - Plugin isolation is unchanged.
 - `AppAPI` holds two fields (`hostFS`, `portableData`); no mode flags on a shared adapter.
-- `scripts/check-fs-boundaries.ps1` guards against mixing zones in CI.
+- `test/unit/architecture/fs_boundaries.go` guards against mixing zones in CI.
 
 ## Alternatives considered
 

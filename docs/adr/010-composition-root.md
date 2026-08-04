@@ -31,7 +31,7 @@ The composition root is **`package main`**, limited to:
 ## Consequences
 
 - Adding a new infra adapter or cross-layer port requires a change in the appropriate `main_*.go` file, not `app.go`.
-- CI enforces the policy via `scripts/check-composition-root.ps1` and `test/unit/architecture/composition_root_test.go`.
+- CI enforces the policy via `test/unit/architecture/composition_root_test.go`, run by `make check`.
 - `app.go` remains `LayerMain` for layer-import rules in `rules.go`, but a separate guard blocks infra imports in the facade.
 - ADR-009 references to wiring in `app.go` are superseded by this ADR for composition concerns.
 

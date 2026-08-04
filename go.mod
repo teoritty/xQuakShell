@@ -1,6 +1,6 @@
 module xquakshell
 
-go 1.25.0
+go 1.25.12
 
 require (
 	filippo.io/age v1.3.1

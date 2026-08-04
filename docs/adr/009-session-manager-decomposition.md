@@ -24,7 +24,7 @@ Decompose `SessionManager` into single-responsibility components with a thin fac
 | `SessionLifecycleService` | Orchestrates Open/Close/Retry/NotifyDisconnected |
 | `SessionManager` (facade) | One-line delegates only; ≤120 lines |
 
-**Invariants enforced in CI** (`scripts/check-session-manager-boundaries.ps1`):
+**Invariants enforced in CI** (`test/unit/architecture/session_manager.go`):
 
 - Only `session_registry.go` may touch the sessions map/mutex directly.
 - `session_manager.go` stays delegate-only.
