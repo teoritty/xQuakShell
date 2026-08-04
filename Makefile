@@ -70,7 +70,7 @@ help:
 	@echo xQuakShell make targets - host $(HOST_OS)/$(HOST_SHELL)
 	@echo build - full Wails build, frontend + Go to a binary
 	@echo dev - run in dev mode with hot reload
-	@echo clean - remove build/ and frontend/dist, see the note below
+	@echo clean - remove build/ and frontend/dist, asks for confirmation
 	@echo rebuild - clean + build
 	@echo portable - build + bundle the WebView2 runtime, Windows only
 	@echo install - install frontend dependencies
@@ -81,8 +81,9 @@ help:
 	@echo sec - govulncheck + gosec
 	@echo deps-linux - print the system packages a Linux build needs
 	@echo WEBKIT=4.1 - build against libwebkit2gtk-4.1 on Linux
-	@echo NOTE - clean deletes all of build/, including a local build/bin/data
-	@echo vault or audit database. Back that up first if you rely on it.
+	@echo NOTE - clean and rebuild delete all of build/, including the portable
+	@echo data directory build/bin/data with its vault, audit db and plugins.
+	@echo Both prompt before deleting. FORCE=1 skips the prompt.
 
 # ---------------------------------------------------------------------------
 # Tool guards - fail with an actionable message instead of "command not found"
@@ -109,14 +110,11 @@ rebuild: clean build
 install:
 	cd frontend && npm install
 
+# Deliberately not a plain rm: build/bin/data holds the portable-mode vault,
+# audit database and installed plugins, so this prompts for an explicit "yes".
+# FORCE=1 skips the prompt for non-interactive use.
 clean:
-ifeq ($(HOST_SHELL),cmd)
-	@if exist build rmdir /s /q build
-	@if exist frontend\dist rmdir /s /q frontend\dist
-else
-	@rm -rf build frontend/dist
-endif
-	@echo Cleaned build and frontend/dist.
+	@go run ./scripts/clean $(if $(FORCE),--force,)
 
 # WebView2 is a Windows-only runtime; on Linux WebKit comes from the system.
 portable:
