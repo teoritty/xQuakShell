@@ -39,7 +39,7 @@ Three trust boundaries — do not mix:
 | Portable app data | `PortableDataStore` | `internal/infra/portable/data_store.go` | Jailed to `<exe>/data` | `ResolvePath`, `Remove`, `ReadFile`, `EnsureTempDir` — used by plugin install/uninstall and GitHub staging temp |
 | Plugin sandbox | (IPC only) | `internal/infra/plugin/capability/fs_proxy.go` | Manifest roots + symlink checks | `fs.*` RPC only |
 
-Run `powershell -File scripts/check-fs-boundaries.ps1` to verify zone separation.
+Run `make check` to verify zone separation. Canonical rules: [`test/unit/architecture/fs_boundaries.go`](../test/unit/architecture/fs_boundaries.go).
 See [adr/007-host-filesystem-trust.md](adr/007-host-filesystem-trust.md).
 
 ## Import rules (summary)
@@ -52,7 +52,7 @@ See [adr/007-host-filesystem-trust.md](adr/007-host-filesystem-trust.md).
 | `internal/presentation/*` | `internal/domain`, `internal/usecase`, `internal/presentation/*`, `internal/pkg/safego`, stdlib, `github.com/wailsapp/wails/v2/*`, `golang.org/x/sys/*` — **not** `internal/infra/*`, other `internal/pkg/*`, other third-party |
 | `main` | all internal packages as needed for composition |
 
-Run `powershell -File scripts/check-imports.ps1` (or `go test ./test/unit/architecture/...`) to verify layer imports. Canonical rules: [`test/unit/architecture/rules.go`](../test/unit/architecture/rules.go).
+Run `make check` (or `go test ./test/unit/architecture/...`) to verify layer imports. Canonical rules: [`test/unit/architecture/rules.go`](../test/unit/architecture/rules.go).
 
 ## Concurrency limiting port
 
@@ -86,7 +86,7 @@ Background goroutines in production code must use [`internal/pkg/safego`](../int
 - Panics in background goroutines are recovered and logged via `slog.Error`; they must not crash the process.
 - Cleanup (`defer`, `WaitGroup.Done`, context cancellation) remains the caller's responsibility inside `fn`.
 
-Run `make check-goroutines` (or `powershell -File scripts/check-goroutines.ps1`) to enforce this rule.
+Run `make check` to enforce this rule. Canonical rules: [`test/unit/architecture/goroutines.go`](../test/unit/architecture/goroutines.go).
 
 ## Master password lifecycle
 
@@ -165,7 +165,7 @@ One type (`ProcessHost`), one file per reason to change.
 | `process_host_stop.go` | Stop and StopAll |
 | `process_host_rpc.go` | Call and Notify |
 
-**SRP rules (enforced in CI):** new concern → new file; `internal/usecase` must not import `internal/infra`; `make check` includes `check-file-size` (300 lines for concern files, 100 for facades).
+**SRP rules (enforced in CI):** new concern → new file; `internal/usecase` must not import `internal/infra`; `make check` includes the file budgets in [`test/unit/architecture/file_size.go`](../test/unit/architecture/file_size.go) (300 non-blank lines for concern files, 100 for facades).
 
 ## Session embed data flow
 

@@ -73,7 +73,7 @@ The plugin API is versioned and frozen (**[docs/adr/012-plugin-api-versioning.md
 - Cover **everything that is reasonable to automate**: domain logic, use-case orchestration, adapters without heavy I/O, and critical error paths.
 - Before you commit, run tests for the packages you changed (`go test ./...` or a narrower path). Do not leave failing tests in touched areas.
 - **Exceptions:** Wails UI, some native OS calls, or rare glue may rely on manual or integration checks; call that out in the PR when a line of code is hard to unit-test behind an interface.
-- Layer boundary checks: `make check-imports` verifies **all layer import rules** (domain, usecase, infra, presentation) via the Go AST checker in `test/unit/architecture/`; `make check-goroutines` verifies background goroutines use `safego`.
+- Architecture gates: `make check` runs the AST checkers in `test/unit/architecture/`, covering **all layer import rules** (domain, usecase, infra, presentation), the composition root, filesystem trust boundaries, per-file line budgets, and the rule that background goroutines go through `safego`.
 
 ### Comments and style
 
