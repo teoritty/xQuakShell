@@ -6,6 +6,7 @@
   import { registerOsDropZone, resolveOsDropTarget, isFileDrag, isInternalFileDrag } from './osFileDrop';
   import { internalDragHighlight } from './dragHighlight';
   import { isInvalidMove } from './pathMove';
+  import { keepsPaneSelection } from './paneSelection';
   import LocalFileTreeNode from './LocalFileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
   import { openContextMenu, releaseContextMenu } from './contextMenuManager';
@@ -190,6 +191,17 @@
       selectedPaths = new Set([path]);
       lastSelectedPath = path;
     }
+  }
+
+  // This pane owns its selection only while the pointer keeps landing on its own
+  // rows. Any other pointerdown — empty space here, the other pane, anywhere else
+  // in the window — releases it (see paneSelection.ts).
+  function dismissSelection(e: PointerEvent) {
+    if (selectedPaths.size === 0) return;
+    const target = e.target instanceof Element ? e.target : null;
+    if (keepsPaneSelection(target, rootEl)) return;
+    selectedPaths = new Set();
+    lastSelectedPath = null;
   }
 
   async function navigateInto(path: string) {
@@ -596,7 +608,7 @@
   });
 </script>
 
-<svelte:window on:click={closeContextMenu} />
+<svelte:window on:click={closeContextMenu} on:pointerdown={dismissSelection} />
 <div
   class="file-tree"
   class:internal-drop-active={internalDragHighlight(dragOverPath, currentPath) === 'pane'}
