@@ -14,6 +14,11 @@
   $: io = surfaceTerminalIO(surface.surfaceId);
 </script>
 
+<!-- The state is a banner over the viewer, never a replacement for it. Nothing in the protocol
+     obliges a plugin to report `ready`, so a viewer that waited for it left a plugin that simply
+     opened a tab and started writing with a spinner and a discarded stream; and unmounting on a
+     momentary `error` threw away the log the user had accumulated. The viewer's lifetime is the
+     surface's (ADR-015 §1). -->
 <div class="surface-view">
   {#if surface.state === 'error'}
     <div class="surface-status error">
@@ -25,15 +30,15 @@
       <Loader2 size={16} />
       <span>Starting…</span>
     </div>
-  {:else if surface.kind === 'terminal'}
-    {#key surface.surfaceId}
-      <Terminal {io} {active} />
-    {/key}
-  {:else}
-    {#key surface.surfaceId}
-      <LogSurfaceView surfaceId={surface.surfaceId} title={surface.title} />
-    {/key}
   {/if}
+
+  {#key surface.surfaceId}
+    {#if surface.kind === 'terminal'}
+      <Terminal {io} {active} />
+    {:else}
+      <LogSurfaceView surfaceId={surface.surfaceId} title={surface.title} />
+    {/if}
+  {/key}
 </div>
 
 <style>
@@ -49,9 +54,12 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 12px;
+    padding: 6px 12px;
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    flex-shrink: 0;
   }
 
   .surface-status.error {
