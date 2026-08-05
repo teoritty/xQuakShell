@@ -1,0 +1,31 @@
+{
+  "id": "com.xquakshell.fixture-ui-fake",
+  "name": "UI Fixture",
+  "version": "1.0.0",
+  "description": "Exercises the ui capability end to end: surfaces, dialogs and node details.",
+  "requires": {
+    "pluginApi": "1.0.0",
+    "capabilities": {
+      "discovery": { "min": "1.0.0", "features": ["publish", "invoke"] },
+      "ui": {
+        "min": "1.0.0",
+        "features": ["surfaceTerminal", "surfaceLog", "dialogs", "nodeDetails"]
+      }
+    }
+  },
+  "engine": {
+    "type": "go-binary",
+    "entry": "plugin-ui-fake"
+  },
+  "isolation": "per-plugin",
+  "activationEvents": ["onStartup"],
+  "capabilities": {
+    "discovery": { "parentProtocols": ["ssh"] },
+    "ui": {
+      "surfaces": ["terminal", "log"],
+      "dialogs": true,
+      "nodeDetails": true,
+      "maxSurfaces": 4
+    }
+  }
+}

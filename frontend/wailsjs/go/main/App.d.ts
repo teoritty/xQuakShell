@@ -7,6 +7,10 @@ export function AddGitHubRepository(arg1:wails.AddGitHubRepositoryRequest):Promi
 
 export function AddKnownHost(arg1:string,arg2:string):Promise<void>;
 
+export function ApplyDiscoveryNodeDetails(arg1:string,arg2:string,arg3:string,arg4:Record<string, string>):Promise<void>;
+
+export function CancelPluginDialog(arg1:string):Promise<void>;
+
 export function CancelTransfer(arg1:string):Promise<void>;
 
 export function Chmod(arg1:string,arg2:string,arg3:number):Promise<void>;
@@ -20,6 +24,8 @@ export function ChownRecursive(arg1:string,arg2:string,arg3:number,arg4:number,a
 export function ClearAuditLog(arg1:string):Promise<void>;
 
 export function CloseSession(arg1:string):Promise<void>;
+
+export function CloseSurface(arg1:string):Promise<void>;
 
 export function CopyLocalPath(arg1:string,arg2:string):Promise<void>;
 
@@ -36,6 +42,8 @@ export function DeleteConnection(arg1:string):Promise<void>;
 export function DeleteFolder(arg1:string):Promise<void>;
 
 export function DeletePassword(arg1:string):Promise<void>;
+
+export function DescribeDiscoveryNode(arg1:string,arg2:string,arg3:string):Promise<wails.NodeDetailsDTO>;
 
 export function DisableAuditSecretLogging():Promise<void>;
 
@@ -181,6 +189,8 @@ export function ReportMinimized():Promise<void>;
 
 export function ReportRestored():Promise<void>;
 
+export function ResizeSurface(arg1:string,arg2:number,arg3:number):Promise<void>;
+
 export function ResolveHostKey(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
 export function SaveConnection(arg1:wails.ConnectionDTO):Promise<wails.ConnectionDTO>;
@@ -201,6 +211,8 @@ export function SelectPluginBundleFile():Promise<string>;
 
 export function SelectPluginSourceDir():Promise<string>;
 
+export function SendSurfaceInput(arg1:string,arg2:string):Promise<void>;
+
 export function SendTerminalInput(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function SetDiscoveryObserved(arg1:string,arg2:Array<string>):Promise<void>;
@@ -212,6 +224,8 @@ export function SetPluginEnabled(arg1:string,arg2:boolean):Promise<void>;
 export function StartFileWatch(arg1:string):Promise<void>;
 
 export function StartPlugin(arg1:string):Promise<void>;
+
+export function SubmitPluginDialog(arg1:string,arg2:Record<string, string>):Promise<void>;
 
 export function TerminalResize(arg1:string,arg2:number,arg3:number):Promise<void>;
 
