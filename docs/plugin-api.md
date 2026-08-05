@@ -453,7 +453,15 @@ shows one `PermissionSummary` line: "Show its own tabs, dialogs and node details
 - **Ownership**: every verb after `open` names a `surfaceId`. One belonging to another plugin
   returns the same `-32001` as one that never existed, so ids cannot be probed.
 - An open surface counts as "in use": the idle sweeper will not reclaim a plugin that owns one.
-- `surface.write` returns `-32003` when the UI consumer cannot keep up.
+- **State is an indicator, not a precondition.** The host mints a surface as `connecting`; the tab
+  shows its viewer immediately and displays the state as a banner above it. A plugin that opens a
+  tab and starts writing loses nothing by never reporting `ready`, and an `error` does not discard
+  what a log has already collected.
+- **Backpressure**: output is queued per surface (1 MiB) and flushed by a pump that batches on a
+  50 ms tick, separately per stream. `surface.write` returns `-32003` once the queue has stayed
+  full for 2 s — the `session.writeTerminal` allowance. It is a pause, not a refusal: writing
+  resumes as soon as the consumer catches up. A `dataBase64` that does not decode is refused
+  outright rather than displayed as its own text.
 
 ### Dialogs - a structured question
 
@@ -475,11 +483,19 @@ shows one `PermissionSummary` line: "Show its own tabs, dialogs and node details
   `code` types. **`secret: true` is refused**: a dialog has no connection and no vault, so a secret
   field would be a plaintext string wearing a lock icon. Use `vault.getSecret` under its existing
   consent instead.
+- The schema is validated as a manifest's is: unknown types, duplicate ids, a `select` with no
+  options, a `dependsOn` naming nothing and an unsafe or uncompilable `validation.pattern` are all
+  refused **at open**, so a modal that could never be answered never appears.
+- A field whose `dependsOn` is off is not part of the answer: its value is dropped and its
+  `required` does not apply. The host, the renderer and the connection editor all follow that one
+  rule.
 - `kind: "detail"` has only a close button and never submits.
 - One open dialog per plugin; a second `dialog.open` returns `-32003`.
 - Submitted values are validated against the plugin's own declarations before they are forwarded:
   an undeclared key is dropped, a declared field with an invalid value is refused, and a required
-  field left empty is refused.
+  **visible** field left empty is refused.
+- A submit is audit-logged with the plugin, the dialog and **which fields were answered** — never
+  their values. A refused submit is logged as denied.
 
 ### Node details - the panel a discovered node has
 
@@ -498,8 +514,9 @@ shows one `PermissionSummary` line: "Show its own tabs, dialogs and node details
   node with `editable: false` refuses the save.
 - `describeNode` / `applyDetails` ack within **5 s**, like `invokeAction`; report the real outcome
   by republishing.
-- `publishDetails` requires **both** `discovery` and `ui.nodeDetails`, and its `sessionId` is
-  authorized on the same path `discovery.publish` takes.
+- `publishDetails` requires **both** `discovery` and `ui.nodeDetails`, its `sessionId` is authorized
+  on the same path `discovery.publish` takes, and it is metered on the same budget — 20/s per
+  (plugin, connection), shared with `publish` rather than granted again.
 
 ### Limits (ADR-015)
 

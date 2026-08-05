@@ -96,10 +96,19 @@ synchronously, in the same step of the session close sequence that already close
 plugin process exits, its surfaces close unconditionally. Closing a surface never affects the
 parent session or its siblings. Close is idempotent from either side.
 
-**Backpressure, not buffering.** `surface.write` returns `-32003` when the consumer is not keeping
-up, on the same rule and the same 2 s allowance as `session.writeTerminal`. A `log` surface holds a
-bounded ring buffer and states plainly in the UI when it has dropped the oldest lines; it does not
-grow without limit, and it does not silently lose the fact that it lost something.
+**Backpressure, not buffering.** Each surface has a bounded output queue — 1 MiB, drained by a pump
+that batches on a 50 ms tick, per stream and never across them — and `surface.write` returns
+`-32003` once that queue has stayed full for 2 s, the same allowance `session.writeTerminal` gives.
+The queue is what makes the verdict possible at all: a frontend event is fire and forget, so
+emitting straight from the write could never observe a consumer falling behind. It is also what
+keeps a chatty producer from becoming one repaint per chunk. `surface.write` decodes its payload
+before queueing it, so a malformed one is refused rather than displayed.
+
+A `log` surface holds a bounded ring buffer and states plainly in the UI when it has dropped the
+oldest lines; it does not grow without limit, and it does not silently lose the fact that it lost
+something. The viewer renders only the rows its viewport can show — 200 000 lines is a buffer
+bound, not a DOM bound — and searches incrementally, scanning only what arrived since the last
+pass.
 
 ### 2. Dialogs — a structured question
 
@@ -120,8 +129,12 @@ closes it during teardown (`cancel`).
 **`sections[]` is the connection-field schema, unchanged.** The core already has a declarative
 form language with manifest-load validation, per-type value validation and a renderer: the one
 connection protocols use (`internal/domain/plugin/fields.go`, `ValidateManifestFields`,
-`internal/usecase/plugin_fields.go`, `frontend/src/lib/connectionDetails/`). A dialog reuses it
-whole. Two field types are added, both to the shared schema rather than to a dialog-only dialect:
+`internal/usecase/plugin_fields.go`, `frontend/src/lib/fields/`). A dialog reuses it whole,
+including the parts a schema off the wire does not get for free: `ValidateWireFields` compiles a
+declared `validation.pattern` through the same safety screen a manifest pattern goes through, and
+resolves `dependsOn` against the rest of the panel. A field whose dependency is off is not part of
+the answer — its value is dropped and its `required` does not apply, the rule the renderer and
+`SavePluginFields` already follow. Two field types are added, both to the shared schema rather than to a dialog-only dialect:
 
 - `keyValue` — a repeatable list of string pairs. Labels, driver options, environment: the shape
   every "arbitrary map" field in every system has, which today has no representation and would
@@ -191,13 +204,21 @@ are facts about a remote resource rather than local preferences.
 - `discovery.publishDetails` reuses the `discovery.publish` ownership check unchanged.
 - **Audit**: `surface.open`, dialog submit and `applyDetails` are audit-logged with the plugin id
   and the node/session they name — the same events ADR-014 logs for `invokeAction`, for the same
-  reason: these are the points where a plugin acts on the user's screen or on remote state.
+  reason: these are the points where a plugin acts on the user's screen or on remote state. A
+  dialog's entry records which fields were answered and never their values: a form field holds
+  whatever the user typed into it, and a refused submit is logged as denied so an attempt that the
+  host rejected is not the one event missing from the log.
 - **No markup from a plugin, ever.** Titles, labels, field values and `code` contents are text
   nodes; icons remain `<img src="data:…">` per ADR-014. Nothing a plugin sends is interpolated as
   HTML.
 - All plugin-supplied display strings are stripped of control characters and Unicode bidirectional
-  overrides (U+202A–U+202E, U+2066–U+2069) by the existing discovery sanitizer, so a surface title
-  cannot spoof the tab next to it.
+  overrides (U+202A–U+202E, U+2066–U+2069) by the existing discovery sanitizer: surface and dialog
+  titles, field labels, descriptions, placeholders, select option labels, a surface's error message
+  and a dialog's per-field errors. A title cannot spoof the tab next to it, and a label cannot
+  reorder the sentence above the button the user is about to press. Two values are deliberately
+  exempt: a `select` option's **value**, which is data the plugin matches a submit against rather
+  than something drawn, and a `code` field's content, whose control characters are the point of it
+  — bidirectional overrides stay refused there by the field's own validator.
 - Dialog fields may not be `secret`, so no new path exists by which vault material would be
   rendered or round-tripped through a plugin.
 
@@ -216,11 +237,16 @@ unchanged, and `TestAPISurfaceAdditiveOnly` permits new capabilities within a ma
 - The tile grid gains a second kind of tab. Tabs stay addressed by a single id, and the surface's
   id space is disjoint from session ids, so tile layout, drag-and-drop and keyboard navigation are
   unchanged in shape.
-- `Terminal.svelte` is split: the xterm host and the I/O it is wired to become separate concerns,
-  since a terminal surface is the same renderer over a different stream. The file is over the
-  350-line limit today, so this is a debt payment rather than a new cost.
+- `Terminal.svelte` is split three ways: the xterm host, the I/O it is wired to (`TerminalIO`, one
+  implementation per producer) and the grid sizing it had grown around it. The file was over the
+  350-line limit before any of this, so it is a debt payment rather than a new cost.
 - The connection-field renderer moves out of `connectionDetails/` into a shared `fields/` module
-  used by three callers (connection editor, dialogs, node details).
+  used by three callers (connection editor, dialogs, node details). `keyValue` and `code` are part
+  of that shared schema, so a connection protocol may declare them and the editor draws them.
+- Closing a tab, cycling to the next one and the hotkeys that do either move to a tab layer that
+  resolves what an id names. A tab id stopped meaning "a session" the moment surfaces existed.
+- The composition root splits by subject (`main_plugin_*.go`) rather than growing a sixth screen of
+  wiring in one function.
 
 ## Alternatives considered
 

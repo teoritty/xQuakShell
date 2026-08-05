@@ -242,16 +242,23 @@ was already obtainable through `channel`/`exec`, which carries its own install-t
   and `discovery.publish`, on the same code path. Every later `surface.*` call names a `surfaceId`,
   and one owned by another plugin returns the same error as one that never existed, so ids cannot
   be probed. Dialogs follow the same rule for `dialogId`.
-- **Audit.** `surface.open` and `discovery.applyDetails` are audit-logged with the plugin, session
-  and node they name. Writes are not: they are a stream, and burying the entries that describe a
-  claim under the ones that describe traffic helps nobody reading afterwards. The plugin-authored
-  surface title is deliberately absent from the audit line.
+- **Audit.** `surface.open`, dialog submit and `discovery.applyDetails` are audit-logged with the
+  plugin, session and node they name. Writes are not: they are a stream, and burying the entries
+  that describe a claim under the ones that describe traffic helps nobody reading afterwards. Two
+  things are deliberately absent from the lines: the plugin-authored surface title, and a dialog's
+  submitted **values** — a form field holds whatever the user typed into it. Which fields were
+  answered is recorded; what was answered is not.
 - **No markup from a plugin, ever.** Titles, labels, field values and `code` contents are rendered
   as text; icons remain `<img src="data:...">`. Nothing a plugin sends is interpolated as HTML.
-- **Sanitization.** Surface and dialog titles are stripped of control characters and Unicode
-  bidirectional overrides (U+202A–U+202E, U+2066–U+2069), so a title cannot spoof the tab beside
-  it. `keyValue` entries are **refused** rather than stripped: the value travels onward as data,
-  and silently altering data is worse than refusing it.
+- **Sanitization.** Every plugin-authored string that is drawn is stripped of control characters
+  and Unicode bidirectional overrides (U+202A–U+202E, U+2066–U+2069): surface and dialog titles,
+  field labels, descriptions, placeholders, select option labels, a surface's error message and a
+  dialog's per-field errors. A title cannot spoof the tab beside it, and a label cannot reorder the
+  sentence above the button being pressed. Two exemptions, both deliberate: a `select` option's
+  **value** is data the plugin matches a submit against rather than something drawn, and a `code`
+  field's content keeps its control characters because tabs and newlines are what makes it readable
+  — bidirectional overrides stay refused there. `keyValue` entries are **refused** rather than
+  stripped: the value travels onward as data, and silently altering data is worse than refusing it.
 - **No secrets in dialogs.** A `secret: true` field is refused in a dialog or a details panel. A
   secret's storage story is the vault, keyed by connection and field id; a dialog has neither, so a
   secret field would be a plaintext string wearing a lock icon. Plugins needing one still go
@@ -261,4 +268,9 @@ was already obtainable through `channel`/`exec`, which carries its own install-t
   plugin's opinion about a remote object is not core state.
 - **Lifetime.** A surface never outlives the session whose authorization it borrowed: session close
   tears down its surfaces after the channels that feed them and before the SSH client. A plugin
-  process exiting takes its own surfaces and dialogs with it.
+  process exiting takes its own surfaces and dialogs with it, and each surface's output queue and
+  the goroutine draining it end with it.
+- **Rate limits.** `discovery.publishDetails` is metered on the `discovery.publish` budget, shared
+  rather than duplicated: a push costs the host a round trip back to the plugin when the panel
+  re-reads, so an unmetered one would be an amplifier. `surface.write` is bounded by a per-surface
+  output queue and answers `-32003` when it stays full.
