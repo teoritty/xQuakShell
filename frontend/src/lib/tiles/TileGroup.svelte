@@ -3,6 +3,8 @@
   import type { TileGroup, Zone, Edge } from './types';
   import { sessions, activeSessionId } from '../../stores/appState';
   import SessionView from '../SessionView.svelte';
+  import SurfaceView from '../SurfaceView.svelte';
+  import { surfaces, resolveTab, type Tab } from '../../stores/surfaceState';
   import TileTabBar from './TileTabBar.svelte';
   import TileDropOverlay from './TileDropOverlay.svelte';
   import {
@@ -32,14 +34,17 @@
   // True while a drag hovers this tile's tab bar (a merge/add-as-tab target).
   let mergeBar = false;
 
-  $: tileSessions = tile.tabs
-    .map((id) => $sessions.find((s) => s.sessionId === id))
-    .filter((s): s is NonNullable<typeof s> => !!s);
+  // A tab id names either a session or a plugin surface (ADR-015). The tile machinery keeps
+  // working on opaque ids; only the two places that RENDER a tab need to know which it is.
+  // $sessions and $surfaces are referenced so the lookup re-runs when either store changes.
+  $: tileTabs = ($sessions, $surfaces, tile.tabs.map((id) => resolveTab(id)).filter((t): t is NonNullable<Tab> => !!t));
 
   // Per-tile file-panel collapse state and the button that toggles it. The button
   // shows only when the tile's active connection actually has a file browser.
   $: collapsed = $collapsedTileFilePanels.has(tile.id);
   $: activeSession = $sessions.find((s) => s.sessionId === tile.activeTabId);
+  // Only an SSH session has a file browser; a surface never does, so the toggle stays hidden for
+  // one rather than showing a control that would open nothing.
   $: showFilesToggle = !!activeSession && hasFilePanel(activeSession, $connectionProtocols);
 
   function inRect(el: HTMLElement | undefined, x: number, y: number): boolean {
@@ -153,12 +158,19 @@
     {/if}
   </div>
   <div class="tile-body">
-    {#each tileSessions as session (session.sessionId)}
-      <SessionView
-        {session}
-        active={tile.activeTabId === session.sessionId}
-        filesCollapsed={collapsed}
-      />
+    {#each tileTabs as tab (tab.kind === 'session' ? tab.session.sessionId : tab.surface.surfaceId)}
+      {#if tab.kind === 'session'}
+        <SessionView
+          session={tab.session}
+          active={tile.activeTabId === tab.session.sessionId}
+          filesCollapsed={collapsed}
+        />
+      {:else}
+        <SurfaceView
+          surface={tab.surface}
+          active={tile.activeTabId === tab.surface.surfaceId}
+        />
+      {/if}
     {/each}
   </div>
   <TileDropOverlay

@@ -17,6 +17,12 @@ import {
 import { disposeTerminal } from '../lib/terminalPool';
 import { uploadFile } from '../api/remoteFs';
 import { onDiscoveryTreeChanged } from '../stores/discoveryState';
+import {
+  upsertSurface,
+  removeSurface,
+  clearSurfaces,
+  type Surface,
+} from '../stores/surfaceState';
 
 // SFTPReady is a one-shot broadcast emitted once per session right after the
 // remote filesystem is up. A FileTree component mounts only after its session
@@ -68,6 +74,36 @@ export function subscribeToEvents(): void {
     if (!data?.sessionId) return;
     if (hasTerminalOutputConsumer(data.sessionId)) return;
     appendPendingTerminalOutput(data.sessionId, decodeTerminalOutput(data.output));
+  });
+
+  // Plugin-owned tabs (ADR-015). Opened and Changed carry the whole surface, so both are one
+  // upsert: an event that arrives twice leaves the store in the same place, which matters because
+  // a plugin restarting republishes what it holds.
+  rt.EventsOn('PluginSurfaceOpened', (data: Surface) => {
+    if (!data?.surfaceId) return;
+    upsertSurface(data);
+  });
+
+  rt.EventsOn('PluginSurfaceChanged', (data: Surface) => {
+    if (!data?.surfaceId) return;
+    upsertSurface(data);
+  });
+
+  rt.EventsOn('PluginSurfaceClosed', (data: { surfaceId: string }) => {
+    if (!data?.surfaceId) return;
+    removeSurface(data.surfaceId);
+    // The pooled xterm instance and any buffered bytes go with it: a surface id is never reused,
+    // so nothing else will ever come to collect them.
+    disposeTerminal(data.surfaceId);
+    clearPendingTerminalOutput(data.surfaceId);
+  });
+
+  // Buffered exactly like session output, and through the same buffer: a surface's tab may not be
+  // mounted yet when its first bytes arrive, and dropping them would lose the start of a log.
+  rt.EventsOn('PluginSurfaceOutput', (data: { surfaceId: string; data: string }) => {
+    if (!data?.surfaceId) return;
+    if (hasTerminalOutputConsumer(data.surfaceId)) return;
+    appendPendingTerminalOutput(data.surfaceId, decodeTerminalOutput(data.data));
   });
 
   rt.EventsOn('SessionEmbedReady', (data: { sessionId: string; embed: SessionEmbed }) => {
@@ -143,6 +179,9 @@ export function subscribeToEvents(): void {
     connections.set([]);
     sessions.set([]);
     identities.set([]);
+    // Surfaces belong to sessions that no longer exist; leaving them on screen would show a
+    // plugin's tabs over a locked vault.
+    clearSurfaces();
   });
 
   rt.EventsOn('FileEdited', (data: { localPath: string }) => {

@@ -4,14 +4,19 @@
   import { FitAddon } from '@xterm/addon-fit';
   import { LigaturesAddon } from '@xterm/addon-ligatures';
   import { WebLinksAddon } from '@xterm/addon-web-links';
-  import { sendTerminalInput, terminalResize } from '../api/terminal';
+  import type { TerminalIO } from '../terminal/terminalIO';
   import { getSettings } from '../actions/settingsActions';
   import { takePendingTerminalOutput, registerTerminalOutputConsumer, clearPendingTerminalOutput } from '../terminal/outputBuffer';
   import { getUiScaleFactor } from './uiScale';
   import { dataHasEnter, extractCommandLine } from './terminalCommandLine';
   import { getPooledTerminal, setPooledTerminal } from './terminalPool';
 
-  export let sessionId: string;
+  /**
+   * Where this terminal's bytes come from and go to — an SSH session or a plugin surface
+   * (ADR-015). The renderer names neither producer; everything that differs between them lives
+   * behind this interface.
+   */
+  export let io: TerminalIO;
   export let active: boolean = false;
 
   let containerEl: HTMLDivElement;
@@ -27,7 +32,7 @@
   /** Drops live TerminalOutput until subscription is installed. */
   let acceptOutput = false;
   let unregisterOutputConsumer: (() => void) | null = null;
-  const mountSessionId = sessionId;
+  const mountSessionId = io.id;
   /** Captured on Enter keydown before xterm/PTY consume the line. */
   let pendingCommandLine = '';
   let baseTerminalFontSize = 14;
@@ -246,12 +251,12 @@
     dataDisposable = term.onData((data) => {
       const commandLine = dataHasEnter(data) ? pendingCommandLine : '';
       pendingCommandLine = '';
-      sendTerminalInput(sessionId, data, commandLine);
+      io.sendInput(data, commandLine);
     });
 
     // fit() updates cols/rows and fires this; keep the backend PTY in sync.
     resizeDisposable = term.onResize(({ cols, rows }) => {
-      terminalResize(sessionId, cols, rows);
+      io.resize(cols, rows);
     });
 
     // Right-click behaves like a classic console: copy a current selection, or
@@ -308,12 +313,10 @@
         writeBytesToTerm(chunk);
       }
 
-      const handler = (data: { sessionId: string; output: string }) => {
-        if (!acceptOutput || data.sessionId !== mountSessionId || !term) return;
-        writeTerminalPayload(data.output);
-      };
-      const unsubscribe = rt.EventsOn('TerminalOutput', handler);
-      eventOff = unsubscribe;
+      eventOff = io.subscribe((base64) => {
+        if (!acceptOutput || !term) return;
+        writeTerminalPayload(base64);
+      });
       acceptOutput = true;
       unregisterOutputConsumer = registerTerminalOutputConsumer(mountSessionId);
       for (const chunk of takePendingTerminalOutput(mountSessionId)) {

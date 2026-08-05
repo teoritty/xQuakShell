@@ -1,5 +1,6 @@
 <script lang="ts">
   import Terminal from './Terminal.svelte';
+  import { sessionTerminalIO } from '../terminal/sessionTerminalIO';
   import SessionEmbedPanel from './SessionEmbedPanel.svelte';
   import FileTree from './FileTree.svelte';
   import LocalFileTree from './LocalFileTree.svelte';
@@ -14,6 +15,10 @@
   export let active: boolean = false;
   /** When true, the tile has collapsed its file browser column. */
   export let filesCollapsed: boolean = false;
+
+  // Rebuilt when the session changes, so the terminal is never wired to the previous tab's id.
+  $: sessionIO = sessionTerminalIO(session.sessionId);
+
 
   let splitRatio = 70;
   let isDragging = false;
@@ -116,7 +121,7 @@
     <div class="session-content" class:no-select={isDragging || fileDragging} class:terminal-only={!filesVisible}>
       <div class="terminal-area" style="flex: {filesVisible ? splitRatio : 100}">
         {#key session.sessionId}
-          <Terminal sessionId={session.sessionId} {active} />
+          <Terminal io={sessionIO} {active} />
         {/key}
       </div>
       {#if filesVisible}

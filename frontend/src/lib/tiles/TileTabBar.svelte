@@ -1,7 +1,14 @@
 <!-- frontend/src/lib/tiles/TileTabBar.svelte -->
 <script lang="ts">
   import { sessions, activeSessionId } from '../../stores/appState';
-  import { closeSession } from '../../actions/sessionActions';
+  import {
+    surfaces,
+    resolveTab,
+    closeTab,
+    tabTitle,
+    tabState,
+    type Tab,
+  } from '../../stores/surfaceState';
   import type { TileGroup } from './types';
   import { writeDragPayload } from './dragPayload';
   import { activeTileDrag } from '../../stores/tileLayout';
@@ -9,18 +16,21 @@
 
   export let tile: TileGroup;
 
-  // The Session objects for this tile, in tab order.
-  $: tabSessions = tile.tabs
-    .map((id) => $sessions.find((s) => s.sessionId === id))
-    .filter((s): s is NonNullable<typeof s> => !!s);
+  // The tabs of this tile in order, each resolved to the session or plugin surface behind it
+  // (ADR-015). Both stores are referenced so the lookup re-runs when either changes.
+  $: tabs = ($sessions, $surfaces, tile.tabs
+    .map((id) => ({ id, tab: resolveTab(id) }))
+    .filter((e): e is { id: string; tab: NonNullable<Tab> } => !!e.tab));
 
   function activate(sessionId: string) {
     activeSessionId.set(sessionId);
   }
 
-  async function close(e: MouseEvent, sessionId: string) {
+  // Closing routes on what the id names — an SSH session or a plugin's tab. The tab bar itself
+  // must not know the difference, which is why the routing lives in the store.
+  async function close(e: MouseEvent, tabId: string) {
     e.stopPropagation();
-    await closeSession(sessionId);
+    await closeTab(tabId);
   }
 
   function onDragStart(e: DragEvent, sessionId: string) {
@@ -35,31 +45,31 @@
 </script>
 
 <div class="tile-tab-bar">
-  {#each tabSessions as session (session.sessionId)}
+  {#each tabs as entry (entry.id)}
     <div
       class="tab"
-      class:active={tile.activeTabId === session.sessionId}
+      class:active={tile.activeTabId === entry.id}
       draggable="true"
-      on:dragstart={(e) => onDragStart(e, session.sessionId)}
+      on:dragstart={(e) => onDragStart(e, entry.id)}
       on:dragend={onDragEnd}
-      on:click={() => activate(session.sessionId)}
-      on:keydown={(e) => e.key === 'Enter' && activate(session.sessionId)}
+      on:click={() => activate(entry.id)}
+      on:keydown={(e) => e.key === 'Enter' && activate(entry.id)}
       role="tab"
       tabindex="0"
     >
       <span class="tab-state">
-        {#if session.state === 'connecting'}
+        {#if tabState(entry.tab) === 'connecting'}
           <Loader2 size={11} />
-        {:else if session.state === 'ready'}
+        {:else if tabState(entry.tab) === 'ready'}
           <CheckCircle2 size={11} style="color: #4caf50" />
-        {:else if session.state === 'error'}
+        {:else if tabState(entry.tab) === 'error'}
           <XCircle size={11} style="color: var(--danger)" />
         {:else}
           <Circle size={11} />
         {/if}
       </span>
-      <span class="tab-name">{session.connectionName || 'Session'}</span>
-      <button class="tab-close" on:click={(e) => close(e, session.sessionId)} title="Close session">
+      <span class="tab-name">{tabTitle(entry.tab)}</span>
+      <button class="tab-close" on:click={(e) => close(e, entry.id)} title="Close tab">
         <X size={11} />
       </button>
     </div>

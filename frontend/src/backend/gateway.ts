@@ -180,6 +180,14 @@ export interface AppGateway {
 
   SetDiscoveryObserved?(arg1: string, arg2: Array<string>): Promise<void>;
 
+  // --- Plugin UI surfaces (ADR-015). A surface is addressed by its own id; the session it
+  // borrowed its authorization from never crosses this seam either. ---
+  CloseSurface?(arg1: string): Promise<void>;
+
+  SendSurfaceInput?(arg1: string, arg2: string): Promise<void>;
+
+  ResizeSurface?(arg1: string, arg2: number, arg3: number): Promise<void>;
+
   IsVaultUnlocked(): Promise<boolean>;
 
   ListGitHubRepositories?(): Promise<Array<wails.GitHubRepositoryDTO>>;
@@ -307,5 +315,11 @@ export interface AppGateway {
 }
 
 export interface RuntimeGateway {
-  EventsOn(event: string, cb: (data: any) => void): void;
+  /**
+   * Wails returns an unsubscribe function; the type allows void because the app's long-lived
+   * subscriptions never used it and the test fakes do not return one. Callers that DO unsubscribe
+   * (a terminal or a log surface, which outlive neither their tab nor each other) must handle
+   * both shapes rather than assume a function is there.
+   */
+  EventsOn(event: string, cb: (data: any) => void): (() => void) | void;
 }
