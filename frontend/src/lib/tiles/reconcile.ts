@@ -1,7 +1,14 @@
 // frontend/src/lib/tiles/reconcile.ts
-// Keeps a TileLayout in sync with the authoritative session list. `sessions`
-// (in stores/appState) stays the single source of truth for lifecycle; this is
-// the ONLY place a tile learns that a session appeared or disappeared.
+// Keeps a TileLayout in sync with the authoritative list of open tabs. A tab is
+// either an SSH session (stores/appState) or a plugin-owned surface
+// (stores/surfaceState, ADR-015); both stores stay the single source of truth
+// for lifecycle, and this is the ONLY place a tile learns that one appeared or
+// disappeared.
+//
+// The ids are opaque here on purpose. Nothing below asks what a tab IS — that
+// question is answered exactly twice, in TileGroup (which renders the body) and
+// TileTabBar (which renders the label). Teaching the placement machinery the
+// difference would put a second lifecycle rule next to this one.
 
 import type { TileLayout, TileGroup } from './types';
 import { emptyTile } from './types';
@@ -9,12 +16,12 @@ import { withTiles, fixActiveTab } from './invariants';
 
 export function reconcile(
   layout: TileLayout,
-  sessionIds: string[],
-  activeSessionId: string,
+  tabIds: string[],
+  activeTabId: string,
 ): TileLayout {
-  const present = new Set(sessionIds);
+  const present = new Set(tabIds);
 
-  // 1. Strip tabs whose session is gone.
+  // 1. Strip tabs whose session or surface is gone.
   const stripped = layout.tiles
     .map((t) => ({ ...t, tabs: t.tabs.filter((id) => present.has(id)) }))
     .map(fixActiveTab);
@@ -31,9 +38,9 @@ export function reconcile(
     ? layout.activeTileId
     : tiles[0].id;
 
-  // 4. Place newly-appeared sessions onto the active tile, in arrival order.
+  // 4. Place newly-appeared tabs onto the active tile, in arrival order.
   const assigned = new Set(tiles.flatMap((t) => t.tabs));
-  const fresh = sessionIds.filter((id) => !assigned.has(id));
+  const fresh = tabIds.filter((id) => !assigned.has(id));
   if (fresh.length > 0) {
     tiles = tiles.map((t) =>
       t.id === activeTileId
@@ -42,13 +49,13 @@ export function reconcile(
     );
   }
 
-  // 5. Focus follows activeSessionId: its tile becomes active, that tab selected.
-  if (activeSessionId && present.has(activeSessionId)) {
-    const host = tiles.find((t) => t.tabs.includes(activeSessionId));
+  // 5. Focus follows activeTabId: its tile becomes active, that tab selected.
+  if (activeTabId && present.has(activeTabId)) {
+    const host = tiles.find((t) => t.tabs.includes(activeTabId));
     if (host) {
       activeTileId = host.id;
       tiles = tiles.map((t) =>
-        t.id === host.id ? { ...t, activeTabId: activeSessionId } : t,
+        t.id === host.id ? { ...t, activeTabId } : t,
       );
     }
   }

@@ -3,7 +3,7 @@ import { getRuntime } from '../backend/context';
 import {
   folders, connections, sessions, identities,
   vaultUnlocked, transfers, transferCompleted, pendingHostKey,
-  pingResults, editingFiles,
+  pingResults, editingFiles, activeSessionId,
   type Session, type SessionEmbed,
   type TransferItem, type HostKeyEvent, type PingResult,
 } from '../stores/appState';
@@ -90,6 +90,12 @@ export function subscribeToEvents(): void {
   rt.EventsOn('PluginSurfaceOpened', (data: Surface) => {
     if (!data?.surfaceId) return;
     upsertSurface(data);
+    // Focus the new tab. Opened only — a Changed for a title or a state must not
+    // yank the user out of whatever they switched to since. activeSessionId is
+    // the active TAB id (TileGroup already stores surface ids in it); reconcile
+    // step 5 would otherwise pull focus straight back to the session the tab was
+    // opened from, and the surface would appear behind it.
+    activeSessionId.set(data.surfaceId);
   });
 
   rt.EventsOn('PluginSurfaceChanged', (data: Surface) => {
