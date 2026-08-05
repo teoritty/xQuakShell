@@ -3,10 +3,11 @@
 // A surface sits beside a session in the tile grid but is not one: it has no connection of its
 // own, no SSH client, no host-key decision. Keeping it in a separate store rather than widening
 // Session is what stops those two very different things from having to share a shape.
+//
+// State and pure lookups only: what to DO with a tab — close it, cycle to the next one — lives in
+// actions/tabActions.ts, so this store stays free of the RPC layer (§1.5).
 import { writable, get } from 'svelte/store';
 import { sessions, type Session } from './appState';
-import { closeSurface as closeSurfaceRpc } from '../api/surfaces';
-import { closeSession } from '../actions/sessionActions';
 
 export type SurfaceKind = 'terminal' | 'log';
 export type SurfaceState = 'connecting' | 'ready' | 'error';
@@ -35,12 +36,28 @@ export type Tab =
   | { kind: 'surface'; surface: Surface }
   | null;
 
-export function resolveTab(id: string): Tab {
-  const session = get(sessions).find((s) => s.sessionId === id);
+/**
+ * Resolves an id against explicit lists.
+ *
+ * Components use this rather than resolveTab so their reactive statements name $sessions and
+ * $surfaces as real arguments: a lookup that reads the stores itself is invisible to the compiler,
+ * and the tab bar would then not repaint when a surface's title changed.
+ */
+export function resolveTabIn(
+  sessionList: Session[],
+  surfaceList: Surface[],
+  id: string
+): Tab {
+  const session = sessionList.find((s) => s.sessionId === id);
   if (session) return { kind: 'session', session };
-  const surface = get(surfaces).find((s) => s.surfaceId === id);
+  const surface = surfaceList.find((s) => s.surfaceId === id);
   if (surface) return { kind: 'surface', surface };
   return null;
+}
+
+/** The same lookup for imperative callers, which have no reactive context to feed. */
+export function resolveTab(id: string): Tab {
+  return resolveTabIn(get(sessions), get(surfaces), id);
 }
 
 /** Title shown on the tab, for either kind. */
@@ -53,23 +70,6 @@ export function tabTitle(tab: Tab): string {
 export function tabState(tab: Tab): string {
   if (!tab) return '';
   return tab.kind === 'session' ? tab.session.state : tab.surface.state;
-}
-
-/**
- * Closes whatever a tab id names.
- *
- * The two closes are genuinely different calls — one ends an SSH session, the other releases a
- * plugin's tab — and the tab bar must not be the place that knows which. Ids are disjoint by
- * construction (surface ids are minted with an `srf-` prefix), so the lookup cannot pick wrong.
- */
-export async function closeTab(id: string): Promise<void> {
-  const tab = resolveTab(id);
-  if (!tab) return;
-  if (tab.kind === 'session') {
-    await closeSession(id);
-    return;
-  }
-  await closeSurfaceRpc(id);
 }
 
 /** Adds or replaces a surface. Replacement keeps the store idempotent under a repeated event. */

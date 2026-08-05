@@ -4,7 +4,7 @@
   import { sessions, activeSessionId } from '../../stores/appState';
   import SessionView from '../SessionView.svelte';
   import SurfaceView from '../SurfaceView.svelte';
-  import { surfaces, resolveTab, type Tab } from '../../stores/surfaceState';
+  import { surfaces, resolveTabIn, type Tab } from '../../stores/surfaceState';
   import TileTabBar from './TileTabBar.svelte';
   import TileDropOverlay from './TileDropOverlay.svelte';
   import {
@@ -36,8 +36,10 @@
 
   // A tab id names either a session or a plugin surface (ADR-015). The tile machinery keeps
   // working on opaque ids; only the two places that RENDER a tab need to know which it is.
-  // $sessions and $surfaces are referenced so the lookup re-runs when either store changes.
-  $: tileTabs = ($sessions, $surfaces, tile.tabs.map((id) => resolveTab(id)).filter((t): t is NonNullable<Tab> => !!t));
+  // Both stores are passed in so the compiler sees them as dependencies of this statement.
+  $: tileTabs = tile.tabs
+    .map((id) => resolveTabIn($sessions, $surfaces, id))
+    .filter((t): t is NonNullable<Tab> => !!t);
 
   // Per-tile file-panel collapse state and the button that toggles it. The button
   // shows only when the tile's active connection actually has a file browser.

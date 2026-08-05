@@ -18,9 +18,10 @@
   import { subscribeToEvents } from './events/subscribe';
   import { resolveHostKeyRpc as resolveHostKey } from './api/sessions';
   import { createNewConnectionInFolder } from './actions/connectionActions';
-  import {
-    createSessionFromSelection, focusNextSessionTab, focusPrevSessionTab, closeActiveSession,
-  } from './actions/sessionActions';
+  import { createSessionFromSelection } from './actions/sessionActions';
+  // The close and cycle hotkeys address whatever the tab bar shows — an SSH session or a plugin
+  // surface (ADR-015) — so they route through the tab layer, not the session one.
+  import { focusNextTab, focusPrevTab, closeActiveTab } from './actions/tabActions';
   import { getSettings, applyAppearanceSettings } from './actions/settingsActions';
   import { parseHotkeyEvent } from './hotkeys/hotkeys';
   import { DEFAULT_SESSION_HOTKEYS } from './api/settings';
@@ -130,19 +131,19 @@
       if (combo === hotkeys.next) {
         e.preventDefault();
         e.stopPropagation();
-        focusNextSessionTab();
+        focusNextTab();
         return;
       }
       if (combo === hotkeys.prev) {
         e.preventDefault();
         e.stopPropagation();
-        focusPrevSessionTab();
+        focusPrevTab();
         return;
       }
       if (combo === hotkeys.close) {
         e.preventDefault();
         e.stopPropagation();
-        await closeActiveSession();
+        await closeActiveTab();
         return;
       }
       if (combo === 'Ctrl+Shift+P') {
