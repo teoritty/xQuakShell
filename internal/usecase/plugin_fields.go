@@ -203,6 +203,16 @@ func validateFieldValue(value string, def *domainplugin.FieldDef) error {
 		return nil
 	}
 
+	// The two ADR-015 types validate their own whole value rather than being measured by the
+	// generic length/pattern rules below: one is a JSON object and the other may legitimately be
+	// 256 KiB of somebody else's output.
+	if def.Type == domainplugin.FieldTypeKeyValue {
+		return domainplugin.ValidateKeyValueValue(value)
+	}
+	if def.Type == domainplugin.FieldTypeCode {
+		return domainplugin.ValidateCodeValue(value)
+	}
+
 	if def.Type == domainplugin.FieldTypeTextarea && def.Validation != nil {
 		if def.Validation.MaxSizeBytes > 0 && len(value) > def.Validation.MaxSizeBytes {
 			return fmt.Errorf("value exceeds max size %d bytes", def.Validation.MaxSizeBytes)

@@ -12,6 +12,12 @@ const (
 	FieldTypeSelect   FieldType = "select"
 	FieldTypeCheckbox FieldType = "checkbox"
 	FieldTypeTextarea FieldType = "textarea"
+	// FieldTypeKeyValue is a repeatable list of string pairs — labels, driver options, environment.
+	// The shape every "arbitrary map" field in every system has, which until ADR-015 had no
+	// representation and would otherwise be encoded as a textarea each plugin parsed by hand.
+	FieldTypeKeyValue FieldType = "keyValue"
+	// FieldTypeCode is a read-only monospace block. What a detail view is mostly made of.
+	FieldTypeCode FieldType = "code"
 )
 
 // FieldWidth controls layout width in the connection details form.
