@@ -113,6 +113,29 @@ func (r *SurfaceRegistry) RemoveBySession(sessionID string) []domainplugin.Surfa
 	return r.removeIndexed(r.bySession, sessionID)
 }
 
+// Exists reports whether an id is present, with no ownership check.
+//
+// It answers the one question Get deliberately will not, and it is safe only because of where it
+// is used: after Get has already refused, to turn a denial into a silent no-op for a surface that
+// has simply gone away (see surface_io.go). It must never be used to decide whether to serve a
+// request — that decision is Get's, ownership included.
+func (r *SurfaceRegistry) Exists(surfaceID string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, ok := r.byID[surfaceID]
+	return ok
+}
+
+// Lookup returns a surface by id without an ownership check, for host-originated delivery: user
+// input and resizes arrive from the UI, which addresses a tab, and the owner is what the registry
+// is being asked to supply rather than to verify.
+func (r *SurfaceRegistry) Lookup(surfaceID string) (domainplugin.Surface, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	s, ok := r.byID[surfaceID]
+	return s, ok
+}
+
 // CountForPlugin reports how many surfaces a plugin currently holds. Used by tests and by the
 // presentation layer's diagnostics; the cap itself is enforced inside Add, where the check and the
 // insertion share one critical section.
