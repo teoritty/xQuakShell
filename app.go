@@ -450,6 +450,17 @@ func (a *App) ResizeSurface(surfaceId string, cols int, rows int) error {
 	return a.api.ResizeSurface(surfaceId, cols, rows)
 }
 
+// SubmitPluginDialog delivers a plugin dialog's answer. A validation failure comes back as an
+// error the modal shows in place, so the dialog stays open and the user corrects the field.
+func (a *App) SubmitPluginDialog(dialogId string, values map[string]string) error {
+	return a.api.SubmitPluginDialog(dialogId, values)
+}
+
+// CancelPluginDialog closes a plugin dialog without an answer.
+func (a *App) CancelPluginDialog(dialogId string) error {
+	return a.api.CancelPluginDialog(dialogId)
+}
+
 func (a *App) PingPlugin(pluginID string) (presentation.PluginPingResultDTO, error) {
 	return a.api.PingPlugin(pluginID)
 }

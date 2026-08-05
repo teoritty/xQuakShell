@@ -33,7 +33,7 @@ func TestViewMessageRoundTrip(t *testing.T) {
 	auth := usecase.NewPluginSessionAuthorizer(registry)
 	host := infraplugin.NewProcessHost(infraplugin.HostConfig{
 		DataRoot:          t.TempDir(),
-		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(sessionInbound, usecase.NewPluginEmbedInbound(), nil, nil, auth),
+		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(sessionInbound, usecase.NewPluginEmbedInbound(), nil, nil, nil, auth),
 		Events:            eventBus,
 		Views:             viewInbound,
 		SessionAuthorizer: auth,

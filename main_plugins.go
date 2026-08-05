@@ -42,6 +42,7 @@ type pluginRuntime struct {
 	discoveryService    *usecase.DiscoveryService
 	discoveryLeader     *usecase.DiscoveryLeader
 	surfaces            *usecase.SurfaceService
+	dialogs             *usecase.DialogService
 	discoveryEmit       *discoveryEmitHolder
 	viewRelay           *usecase.PluginViewRelay
 	vaultInbound        *usecase.PluginVaultInbound
@@ -122,6 +123,33 @@ func (h *surfaceInboundHolder) Handle(ctx context.Context, pluginID, method stri
 }
 
 var _ domainplugin.SurfaceInboundPort = (*surfaceInboundHolder)(nil)
+
+// dialogInboundHolder late-binds the dialog service, for the same forced ordering as the two
+// holders above.
+type dialogInboundHolder struct {
+	mu   sync.Mutex
+	port domainplugin.DialogInboundPort
+}
+
+func newDialogInboundHolder() *dialogInboundHolder { return &dialogInboundHolder{} }
+
+func (h *dialogInboundHolder) set(port domainplugin.DialogInboundPort) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.port = port
+}
+
+func (h *dialogInboundHolder) Handle(ctx context.Context, pluginID, method string, params json.RawMessage) (json.RawMessage, error) {
+	h.mu.Lock()
+	port := h.port
+	h.mu.Unlock()
+	if port == nil {
+		return nil, domainplugin.ErrCapabilityDenied
+	}
+	return port.Handle(ctx, pluginID, method, params)
+}
+
+var _ domainplugin.DialogInboundPort = (*dialogInboundHolder)(nil)
 
 // discoveryEmitHolder late-binds the frontend emit callback the same way discoveryInboundHolder
 // late-binds the inbound port, and for the same forced ordering: the emit coalescer is built inside
@@ -215,12 +243,13 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	// call discovery.publish before it has been started by the very manager that fills it in.
 	discoveryInbound := newDiscoveryInboundHolder()
 	surfaceInbound := newSurfaceInboundHolder()
+	dialogInbound := newDialogInboundHolder()
 
 	hostCfg := infraplugin.HostConfig{
 		DataRoot:          dataRoot,
 		Portable:          portableRuntime,
 		Vault:             vaultInbound,
-		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, embedInbound, discoveryInbound, surfaceInbound, sessionAuthorizer),
+		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, embedInbound, discoveryInbound, surfaceInbound, dialogInbound, sessionAuthorizer),
 		Events:            eventBus,
 		Views:             viewInbound,
 		Tunnel:            dynamicForward,
@@ -320,6 +349,15 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		pluginAudit.SurfaceFunc(),
 	)
 	surfaceInbound.set(surfaceService)
+
+	// Dialogs share the surface capability lookup: both ask the same manifest the same question.
+	dialogService := usecase.NewDialogService(
+		usecase.NewDialogRegistry(),
+		nil,
+		usecase.NewDialogNotifier(manager),
+		registry.UICapabilities,
+	)
+	dialogInbound.set(dialogService)
 	// A restarted plugin is told the whole observed set again; without this the level-triggered
 	// contract silently degrades into an edge-triggered one (ADR-014 §data flow).
 	manager.SetProcessStartedHandler(discoveryObserver.PluginStarted)
@@ -342,10 +380,12 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	manager.SetProcessCrashedHandler(func(pluginID string) {
 		discoveryService.MarkPluginStale(pluginID)
 		surfaceService.CloseSurfacesForPlugin(pluginID)
+		dialogService.CancelForPlugin(pluginID)
 	})
 	manager.SetProcessSuspendedHandler(func(pluginID string) {
 		discoveryService.MarkPluginStale(pluginID)
 		surfaceService.CloseSurfacesForPlugin(pluginID)
+		dialogService.CancelForPlugin(pluginID)
 	})
 	// And the end of that story: once the supervisor stops trying, stale stops being true. The
 	// branches become error with a reason, so "restarting" and "given up" are not the same grey
@@ -470,6 +510,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		discoveryService:    discoveryService,
 		discoveryLeader:     discoveryLeader,
 		surfaces:            surfaceService,
+		dialogs:             dialogService,
 		discoveryEmit:       discoveryEmit,
 		viewInbound:         viewInbound,
 		viewRelay:           viewRelay,
@@ -518,6 +559,10 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 		r.surfaces.SetPresenter(presentation.NewSurfacePresenter(api))
 		api.SetSurfaceService(r.surfaces)
 		api.Sessions().SetSurfaces(r.surfaces)
+	}
+	if r.dialogs != nil {
+		r.dialogs.SetPresenter(presentation.NewDialogPresenter(api))
+		api.SetDialogService(r.dialogs)
 	}
 	api.Sessions().SetDynamicForward(r.dynamicForward)
 	if r.dynamicForward != nil && r.vaultSettings != nil {

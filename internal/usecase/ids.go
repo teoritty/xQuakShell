@@ -40,3 +40,14 @@ var surfaceIDSeq atomic.Uint64
 func newSurfaceID() string {
 	return surfaceIDPrefix + strconv.FormatUint(surfaceIDSeq.Add(1), 36) + "-" + randomHex(8)
 }
+
+// dialogIDPrefix keeps dialog ids in their own space, for the same reason surface ids have one:
+// an id handed to the wrong lookup must miss rather than match.
+const dialogIDPrefix = "dlg-"
+
+var dialogIDSeq atomic.Uint64
+
+// newDialogID mints an identifier for a plugin dialog.
+func newDialogID() string {
+	return dialogIDPrefix + strconv.FormatUint(dialogIDSeq.Add(1), 36) + "-" + randomHex(8)
+}

@@ -112,6 +112,8 @@ func (g *Gate) Allow(method string) bool {
 		// request body and the gate never sees one. Checking the kind here as well would be a
 		// second copy of one rule, and the copy that falls behind is the way in.
 		return g.manifest.Capabilities.UI != nil && len(g.manifest.Capabilities.UI.Surfaces) > 0
+	case "dialog.open", "dialog.setError", "dialog.close":
+		return g.manifest.Capabilities.UI != nil && g.manifest.Capabilities.UI.Dialogs
 	default:
 		return false
 	}

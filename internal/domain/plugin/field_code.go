@@ -46,3 +46,18 @@ func FieldTypeAllowsSecret(t FieldType) bool {
 		return true
 	}
 }
+
+// IsValidDialogFieldType reports whether a field type may appear in a dialog or a node details
+// panel.
+//
+// Every connection-field type is allowed except password: a dialog cannot store a secret, and a
+// password box that writes plaintext into a JSON payload would be worse than no password box.
+func IsValidDialogFieldType(t FieldType) bool {
+	switch t {
+	case FieldTypeText, FieldTypeNumber, FieldTypeSelect, FieldTypeCheckbox,
+		FieldTypeTextarea, FieldTypeKeyValue, FieldTypeCode:
+		return true
+	default:
+		return false
+	}
+}

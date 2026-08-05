@@ -43,6 +43,7 @@ type AppAPI struct {
 	pluginArbitraryNetworkGrant func(pluginID string) error
 	discovery                   DiscoveryTreeService
 	surfaces                    SurfaceCommands
+	dialogs                     DialogCommands
 	embedBridge                 *usecase.PluginEmbedBridge
 	forwardRules                *usecase.ForwardRuleValidator
 	logWindow                   *logwindow.Manager
