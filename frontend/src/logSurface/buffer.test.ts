@@ -91,6 +91,47 @@ const enc = (s: string) => new TextEncoder().encode(s);
   assert(b.snapshot().length === 0 && !b.truncated(), 'clear resets content and the flag');
 }
 
+{
+  // The byte budget mirrors the host's MaxLogSurfaceBytes, so it must be measured in bytes.
+  // String.length counts UTF-16 code units, which for Cyrillic is half the real cost and for an
+  // emoji a quarter of it — the buffer would hold two to four times what the limit claims.
+  const b = new LogBuffer();
+  b.append(enc('щука\n'), 'stdout');
+  b.append(enc('ok\n'), 'stdout');
+  b.append(enc('🐟\n'), 'stdout');
+  const [cyrillic, ascii, emoji] = b.snapshot();
+  assert(cyrillic.bytes === 8, `4 Cyrillic characters are 8 bytes, got ${cyrillic.bytes}`);
+  assert(ascii.bytes === 2, `2 ASCII characters are 2 bytes, got ${ascii.bytes}`);
+  assert(emoji.bytes === 4, `an astral character is 4 bytes, got ${emoji.bytes}`);
+}
+
+{
+  // Eviction must subtract exactly what insertion added, or the accounting drifts and the buffer
+  // ends up holding either far less or far more than its budget.
+  const b = new LogBuffer(12, 1000);
+  b.append(enc('щука\n'), 'stdout'); // 8 bytes
+  b.append(enc('щука\n'), 'stdout'); // 16 total: over budget, the first is dropped
+  assert(b.snapshot().length === 1, `byte accounting evicts by real size, got ${b.snapshot().length}`);
+  b.append(enc('a\n'), 'stdout');
+  assert(b.snapshot().length === 2, `freed bytes are reusable, got ${b.snapshot().length}`);
+}
+
+{
+  // The viewer repaints off the revision instead of copying the array, so every mutation has to
+  // move it — a missed bump is a log that stops updating.
+  const b = new LogBuffer();
+  const start = b.revision();
+  b.append(enc('one\n'), 'stdout');
+  const afterAppend = b.revision();
+  assert(afterAppend > start, 'appending a line moves the revision');
+  b.append(enc('partial'), 'stdout');
+  assert(b.revision() === afterAppend, 'a partial line is not yet a line, so nothing changed');
+  b.flush();
+  assert(b.revision() > afterAppend, 'flushing the partial line moves it');
+  b.clear();
+  assert(b.revision() > afterAppend, 'clearing moves it too');
+}
+
 // --- search ----------------------------------------------------------------
 
 {

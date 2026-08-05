@@ -13,6 +13,8 @@ export interface LogLine {
   seq: number;
   text: string;
   stream: LogStream;
+  /** UTF-8 size, kept so eviction subtracts what insertion added. */
+  bytes: number;
 }
 
 /** Mirrors the host's MaxLogSurfaceBytes / MaxLogSurfaceLines (internal/domain/plugin/ui_limits.go). */
@@ -24,6 +26,13 @@ export class LogBuffer {
   private bytes = 0;
   private seq = 0;
   private dropped = false;
+  /**
+   * Incremented on every mutation.
+   *
+   * The viewer watches this instead of copying the line array on each chunk: the copy was O(n) per
+   * write, which on a chatty producer is the whole buffer re-walked hundreds of times a second.
+   */
+  private rev = 0;
   /**
    * Per-stream partial line and decoder. A chunk boundary is not a line boundary, and stdout and
    * stderr interleave — one shared partial would splice a half-line of one into the other.
@@ -72,18 +81,30 @@ export class LogBuffer {
   }
 
   private push(text: string, stream: LogStream): void {
-    this.lines.push({ seq: this.seq++, text, stream });
-    this.bytes += text.length;
+    const bytes = utf8Length(text);
+    this.lines.push({ seq: this.seq++, text, stream, bytes });
+    this.bytes += bytes;
+    this.rev++;
     while (this.lines.length > this.maxLines || this.bytes > this.maxBytes) {
       const removed = this.lines.shift();
       if (!removed) break;
-      this.bytes -= removed.text.length;
+      this.bytes -= removed.bytes;
       this.dropped = true;
     }
   }
 
+  /**
+   * The live line array. Not a copy: the viewer renders a window of it and re-reads on `revision`,
+   * so handing back a duplicate of up to MAX_LOG_LINES entries per chunk would be the cost this
+   * buffer exists to avoid. Callers must not mutate it.
+   */
   snapshot(): readonly LogLine[] {
     return this.lines;
+  }
+
+  /** Changes on every append or drop. The viewer's only reason to re-read. */
+  revision(): number {
+    return this.rev;
   }
 
   truncated(): boolean {
@@ -94,6 +115,29 @@ export class LogBuffer {
     this.lines = [];
     this.bytes = 0;
     this.dropped = false;
+    this.rev++;
     this.partial = { stdout: '', stderr: '' };
   }
+}
+
+/**
+ * Bytes a string occupies in UTF-8.
+ *
+ * The host bounds a log surface in bytes (MaxLogSurfaceBytes), and `String.length` counts UTF-16
+ * code units — for anything but ASCII the two differ by two or three times, so the buffer would
+ * hold that much more or less than the limit it claims to mirror.
+ */
+function utf8Length(text: string): number {
+  let bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      // A surrogate pair is one 4-byte character; skip its low half.
+      bytes += 4;
+      i++;
+    } else bytes += 3;
+  }
+  return bytes;
 }
