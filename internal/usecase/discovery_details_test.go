@@ -85,6 +85,44 @@ func detailsHarness(t *testing.T, reply string) (*DiscoveryDetailsService, *fake
 
 // --- describe --------------------------------------------------------------
 
+// The panel is drawn beside the tree the user trusts, so its labels get the same cleaning a node's
+// label does. A bidirectional override reorders what is read without changing what is stored,
+// which in a form is the difference between what the user sees and what they save.
+func TestDescribeNodeSanitizesLabels(t *testing.T) {
+	dirty := `{"sections":[{"id":"g","label":"General‮","fields":[
+		{"id":"shell","label":"Shell‮","description":"path","type":"text","secret":false}
+	]}],"values":{"shell":"/bin/sh"},"editable":true}`
+	svc, _, _ := detailsHarness(t, dirty)
+
+	details, err := svc.Describe(context.Background(), "conn-1", "plugin-a", "node-1")
+	if err != nil {
+		t.Fatalf("Describe: %v", err)
+	}
+	if strings.ContainsRune(details.Sections[0].Label, '‮') {
+		t.Fatalf("section label reached the panel uncleaned: %q", details.Sections[0].Label)
+	}
+	if strings.ContainsRune(details.Sections[0].Fields[0].Label, '‮') {
+		t.Fatalf("field label reached the panel uncleaned: %q", details.Sections[0].Fields[0].Label)
+	}
+}
+
+// A code block's content is left alone: tabs and newlines are what makes it readable, and its own
+// validator already refuses bidirectional overrides while allowing the rest.
+func TestDescribeNodeLeavesCodeContentIntact(t *testing.T) {
+	withCode := `{"sections":[{"id":"g","label":"G","fields":[
+		{"id":"inspect","label":"Inspect","type":"code","secret":false}
+	]}],"values":{"inspect":"line one\n\tindented\nline three"},"editable":false}`
+	svc, _, _ := detailsHarness(t, withCode)
+
+	details, err := svc.Describe(context.Background(), "conn-1", "plugin-a", "node-1")
+	if err != nil {
+		t.Fatalf("Describe: %v", err)
+	}
+	if details.Values["inspect"] != "line one\n\tindented\nline three" {
+		t.Fatalf("code content was altered: %q", details.Values["inspect"])
+	}
+}
+
 // The host answers questions about a node only while it is looking at one; otherwise a frontend
 // could address any id at all through this path.
 func TestDescribeNodeRejectsNodeNotInTheStore(t *testing.T) {

@@ -57,7 +57,9 @@ func (s *SurfaceService) updateState(pluginID string, req surfaceStateParams) er
 	}
 	updated, err := s.registry.Update(req.SurfaceID, pluginID, func(surface *domainplugin.Surface) {
 		surface.State = req.State
-		surface.Error = req.Error
+		// The message is drawn in the tab the user is looking at, so it gets the same treatment as
+		// the title: control characters and bidirectional overrides out, length bounded.
+		surface.Error = sanitizeMessage(req.Error)
 	})
 	if err != nil {
 		return err

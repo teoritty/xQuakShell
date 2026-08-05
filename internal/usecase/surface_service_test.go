@@ -409,6 +409,30 @@ func decodeAllBatches(t *testing.T, outputs []string) string {
 	return b.String()
 }
 
+// The error message is drawn in the tab the user is looking at, so it is cleaned like the title.
+func TestSurfaceUpdateStateSanitizesTheErrorMessage(t *testing.T) {
+	h := newSurfaceHarness(t, bothKinds())
+	id := h.open(t, "log", "logs")
+	params, err := json.Marshal(map[string]string{
+		"surfaceId": id,
+		"state":     "error",
+		"error":     "container exited‮",
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if _, err := h.svc.Handle(context.Background(), "plugin-a", "surface.updateState", params); err != nil {
+		t.Fatalf("surface.updateState: %v", err)
+	}
+	got := h.presenter.changed[len(h.presenter.changed)-1].Error
+	if strings.ContainsRune(got, '‮') || strings.ContainsRune(got, '\a') {
+		t.Fatalf("the error message reached the tab uncleaned: %q", got)
+	}
+	if !strings.Contains(got, "container exited") {
+		t.Fatalf("cleaning must not destroy the message: %q", got)
+	}
+}
+
 func TestSurfaceUpdateStateRejectsUnknownState(t *testing.T) {
 	h := newSurfaceHarness(t, bothKinds())
 	id := h.open(t, "log", "logs")

@@ -204,6 +204,66 @@ func TestDialogOpenSanitizesTitle(t *testing.T) {
 	}
 }
 
+// A label sits next to the button the user is about to press, so it is cleaned exactly like the
+// title. Sent through json.Marshal so the test delivers the bytes a plugin would, rather than a
+// literal the decoder would reject before the sanitizer is reached.
+func TestDialogOpenSanitizesFieldLabels(t *testing.T) {
+	h := newDialogHarness(t, true)
+	params, err := json.Marshal(map[string]any{
+		"kind":  "form",
+		"title": "T",
+		"sections": []map[string]any{{
+			"id":    "g",
+			"label": "General‮",
+			"fields": []map[string]any{{
+				"id":          "name",
+				"label":       "Name‮",
+				"description": "explains",
+				"placeholder": "type‮",
+				"type":        "text",
+			}},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if _, err := h.svc.Handle(context.Background(), "plugin-a", "dialog.open", params); err != nil {
+		t.Fatalf("dialog.open: %v", err)
+	}
+
+	shown := h.presenter.opened[0]
+	field := shown.Sections[0].Fields[0]
+	for name, value := range map[string]string{
+		"section label": shown.Sections[0].Label,
+		"field label":   field.Label,
+		"description":   field.Description,
+		"placeholder":   field.Placeholder,
+	} {
+		if strings.ContainsRune(value, '‮') || strings.ContainsRune(value, '\a') {
+			t.Fatalf("%s reached the modal uncleaned: %q", name, value)
+		}
+	}
+}
+
+func TestDialogSetErrorSanitizesItsMessages(t *testing.T) {
+	h := newDialogHarness(t, true)
+	id := h.open(t, "form")
+	params, err := json.Marshal(map[string]any{
+		"dialogId":    id,
+		"message":     "refused‮",
+		"fieldErrors": map[string]string{"name": "bad‮"},
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if _, err := h.svc.Handle(context.Background(), "plugin-a", "dialog.setError", params); err != nil {
+		t.Fatalf("dialog.setError: %v", err)
+	}
+	if len(h.presenter.errored) != 1 || strings.ContainsRune(h.presenter.errored[0], '‮') {
+		t.Fatalf("the error message reached the modal uncleaned: %v", h.presenter.errored)
+	}
+}
+
 // --- answers ---------------------------------------------------------------
 
 func TestDialogDeliversExactlyOneAnswer(t *testing.T) {

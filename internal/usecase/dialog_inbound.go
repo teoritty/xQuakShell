@@ -80,8 +80,10 @@ func (s *DialogService) open(pluginID string, req dialogOpenParams) (json.RawMes
 		Kind:        kind,
 		Title:       sanitizeDialogTitle(req.Title),
 		SubmitLabel: sanitizeDialogTitle(req.SubmitLabel),
-		Sections:    req.Sections,
-		Values:      req.Values,
+		// Labels, descriptions, placeholders and option labels are drawn next to a button the user
+		// is about to press, so they are cleaned exactly like the title above.
+		Sections: sanitizeFieldGroups(req.Sections),
+		Values:   req.Values,
 	}
 	if err := validateDialogSections(dialog); err != nil {
 		return nil, err
@@ -100,7 +102,7 @@ func (s *DialogService) setError(pluginID string, req dialogErrorParams) error {
 	if err != nil {
 		return err
 	}
-	s.presenter.DialogError(dialog.ID, sanitizeDialogTitle(req.Message), req.FieldErrors)
+	s.presenter.DialogError(dialog.ID, sanitizeMessage(req.Message), sanitizeMessages(req.FieldErrors))
 	return nil
 }
 

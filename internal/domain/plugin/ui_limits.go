@@ -21,6 +21,12 @@ const (
 	// a difference with no meaning behind it.
 	MaxSurfaceTitleLen = 128
 
+	// MaxPluginMessageLen bounds a plugin-authored message shown to the user — a dialog's error,
+	// a surface's failure reason. Deliberately larger than a title: a title labels something and a
+	// message explains a refusal, and cutting an explanation at a label's length leaves a fragment
+	// the user cannot act on.
+	MaxPluginMessageLen = 512
+
 	// MaxLogSurfaceBytes and MaxLogSurfaceLines bound one log surface's ring buffer. The buffer is
 	// the reason a log surface can offer search and export at all, and a bound is the reason it
 	// cannot become an unattended memory leak on a chatty container. Whichever is hit first wins;

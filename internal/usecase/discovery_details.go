@@ -114,6 +114,8 @@ func (s *DiscoveryDetailsService) Describe(ctx context.Context, connectionID, pl
 	if err := details.Validate(); err != nil {
 		return domainplugin.NodeDetails{}, err
 	}
+	// The panel is drawn beside the tree the user trusts, so its labels are cleaned like a node's.
+	details.Sections = sanitizeFieldGroups(details.Sections)
 	return details, nil
 }
 
