@@ -58,11 +58,10 @@ func (p *e2ePresenter) Opened(s domainplugin.Surface) {
 	p.opened = append(p.opened, s)
 }
 
-func (p *e2ePresenter) Output(surfaceID, dataBase64, stream string) error {
+func (p *e2ePresenter) Output(surfaceID, dataBase64, stream string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.outputs = append(p.outputs, surfaceID+"|"+stream+"|"+dataBase64)
-	return nil
 }
 
 func (p *e2ePresenter) Changed(s domainplugin.Surface) {

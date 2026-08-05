@@ -38,23 +38,19 @@ func (p *SurfacePresenter) Closed(surfaceID string) {
 	p.emit(EventPluginSurfaceClosed, SurfaceClosedPayload{SurfaceID: surfaceID})
 }
 
-// Output delivers one chunk of a surface's stream.
+// Output delivers one batch of a surface's stream.
 //
-// It reports an error only when there is no UI to deliver to at all. Wails events are fire and
-// forget — EventsEmit has no completion to read a backpressure verdict from — so this never
-// fabricates one. The plugin still cannot outrun the host without limit: the frame cap bounds each
-// write, and a genuine consumer-side signal would have to come from a consumer-gated buffer like
-// the terminal path's, not from here.
-func (p *SurfacePresenter) Output(surfaceID, dataBase64, stream string) error {
-	if p == nil || p.api == nil || p.api.ctx == nil {
-		return errSurfacesUnavailable
-	}
-	wailsrt.EventsEmit(p.api.ctx, EventPluginSurfaceOutput, SurfaceOutputPayload{
+// It reports nothing, because there is nothing here to report to: this is called from the
+// surface's output pump, long after the plugin's write returned. Wails events are fire and forget
+// — EventsEmit has no completion to read a verdict from — so whether the plugin may keep writing
+// is decided by the bounded queue in front of the pump, which is the only place that can observe
+// the consumer falling behind at all.
+func (p *SurfacePresenter) Output(surfaceID, dataBase64, stream string) {
+	p.emit(EventPluginSurfaceOutput, SurfaceOutputPayload{
 		SurfaceID: surfaceID,
 		Data:      dataBase64,
 		Stream:    stream,
 	})
-	return nil
 }
 
 func (p *SurfacePresenter) emit(event string, payload any) {

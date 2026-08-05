@@ -58,7 +58,12 @@ func (s *SurfaceService) closeOne(surfaceID, pluginID, reason string, notifyPlug
 // announceClosed tells the UI the tab is gone and, when the close did not originate with the
 // plugin, tells the plugin too. Both calls happen outside the registry's lock, which is the
 // invariant surface_registry.go exists to keep readable.
+//
+// It is also the single place a surface's output pump is stopped. Every close path — the user, the
+// session, the plugin, the plugin's process dying — passes through here, so the goroutine cannot
+// outlive its surface down one branch and not another.
 func (s *SurfaceService) announceClosed(surface domainplugin.Surface, reason string, notifyPlugin bool) {
+	s.output.Close(surface.ID)
 	s.presenter.Closed(surface.ID)
 	if notifyPlugin && s.outbound != nil {
 		s.outbound.Closed(surface.PluginID, surface.ID, reason)

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	domainplugin "xquakshell/internal/domain/plugin"
 	"xquakshell/internal/infra/plugin/capability"
@@ -32,11 +33,29 @@ func (p *contractPresenter) Opened(s domainplugin.Surface) {
 	defer p.mu.Unlock()
 	p.opened = append(p.opened, s)
 }
-func (p *contractPresenter) Output(surfaceID, dataBase64, stream string) error {
+func (p *contractPresenter) Output(surfaceID, dataBase64, stream string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.outputs = append(p.outputs, surfaceID+":"+stream)
-	return nil
+}
+
+// waitForOutputs waits for the surface's output pump to deliver. Writes are queued and flushed on
+// an interval now, so reading the slice straight after a write would be racing the pump.
+func (p *contractPresenter) waitForOutputs(t *testing.T, want int) []string {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		p.mu.Lock()
+		got := append([]string(nil), p.outputs...)
+		p.mu.Unlock()
+		if len(got) >= want {
+			return got
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %d output batches, got %v", want, got)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 func (p *contractPresenter) Changed(domainplugin.Surface) {}
 func (p *contractPresenter) Closed(surfaceID string) {
@@ -182,9 +201,7 @@ func TestUISurfaceContractOpenWriteInputClose(t *testing.T) {
 	if _, err := rig.call(t, "surface.write", `{"surfaceId":"`+opened.SurfaceID+`","dataBase64":"`+payload+`","stream":"stderr"}`); err != nil {
 		t.Fatalf("surface.write: %v", err)
 	}
-	if len(rig.presenter.outputs) != 1 {
-		t.Fatalf("outputs = %v", rig.presenter.outputs)
-	}
+	rig.presenter.waitForOutputs(t, 1)
 
 	// Host -> plugin: what the user types reaches the owner.
 	rig.surfaces.DeliverInput(opened.SurfaceID, []byte("ls\r"))
@@ -203,8 +220,10 @@ func TestUISurfaceContractOpenWriteInputClose(t *testing.T) {
 	if _, err := rig.call(t, "surface.write", `{"surfaceId":"`+opened.SurfaceID+`","dataBase64":"`+payload+`"}`); err != nil {
 		t.Fatalf("a write after teardown must be a no-op, got %v", err)
 	}
-	if len(rig.presenter.outputs) != 1 {
-		t.Fatal("a write after teardown must not reach the frontend")
+	// Given a fair chance to flush, nothing more arrives: the queue went with the surface.
+	time.Sleep(200 * time.Millisecond)
+	if got := rig.presenter.waitForOutputs(t, 1); len(got) != 1 {
+		t.Fatalf("a write after teardown must not reach the frontend: %v", got)
 	}
 }
 

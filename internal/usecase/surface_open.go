@@ -49,6 +49,10 @@ func (s *SurfaceService) open(pluginID string, req surfaceOpenParams) (json.RawM
 		s.recordOpen(surface, err)
 		return nil, err
 	}
+	// The queue and its pump exist for as long as the surface does: opened here, closed in
+	// announceClosed, which every close path goes through. A write that arrives before the tab is
+	// on screen is queued rather than lost.
+	startSurfaceOutputPump(surface.ID, s.output.Open(surface.ID), s.emitOutput)
 	s.recordOpen(surface, nil)
 	s.presenter.Opened(surface)
 	return json.Marshal(map[string]string{"surfaceId": surface.ID})

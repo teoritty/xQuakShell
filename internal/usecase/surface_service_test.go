@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	domainplugin "xquakshell/internal/domain/plugin"
@@ -16,12 +17,11 @@ import (
 // --- fakes -----------------------------------------------------------------
 
 type fakeSurfacePresenter struct {
-	mu        sync.Mutex
-	opened    []domainplugin.Surface
-	changed   []domainplugin.Surface
-	closed    []string
-	outputs   []string
-	outputErr error
+	mu      sync.Mutex
+	opened  []domainplugin.Surface
+	changed []domainplugin.Surface
+	closed  []string
+	outputs []string
 }
 
 func (p *fakeSurfacePresenter) Opened(s domainplugin.Surface) {
@@ -30,14 +30,18 @@ func (p *fakeSurfacePresenter) Opened(s domainplugin.Surface) {
 	p.opened = append(p.opened, s)
 }
 
-func (p *fakeSurfacePresenter) Output(surfaceID, dataBase64, stream string) error {
+func (p *fakeSurfacePresenter) Output(surfaceID, dataBase64, stream string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.outputErr != nil {
-		return p.outputErr
-	}
 	p.outputs = append(p.outputs, surfaceID+":"+stream+":"+dataBase64)
-	return nil
+}
+
+// outputSnapshot copies what the pump has delivered so far. Output arrives on the surface's pump
+// goroutine now, so every assertion about it reads through here rather than the slice directly.
+func (p *fakeSurfacePresenter) outputSnapshot() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.outputs...)
 }
 
 func (p *fakeSurfacePresenter) Changed(s domainplugin.Surface) {
@@ -100,6 +104,35 @@ func newSurfaceHarness(t *testing.T, caps *domainplugin.UICaps) *surfaceHarness 
 
 func bothKinds() *domainplugin.UICaps {
 	return &domainplugin.UICaps{Surfaces: []string{"terminal", "log"}}
+}
+
+// waitForOutputs blocks until the pump has delivered want batches, or fails the test.
+//
+// Output is batched on a ticker now, so an assertion that read the slice straight after a write
+// would be racing the flush. Polling keeps the test honest about what it is waiting for instead of
+// sleeping for a guessed interval.
+func (h *surfaceHarness) waitForOutputs(t *testing.T, want int) []string {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		got := h.presenter.outputSnapshot()
+		if len(got) >= want {
+			return got
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %d output batches, got %v", want, got)
+		}
+		time.Sleep(surfaceOutputBatchInterval / 5)
+	}
+}
+
+// expectNoOutput gives the pump a fair chance to deliver something and asserts that it did not.
+func (h *surfaceHarness) expectNoOutput(t *testing.T, why string) {
+	t.Helper()
+	time.Sleep(surfaceOutputBatchInterval * 3)
+	if got := h.presenter.outputSnapshot(); len(got) != 0 {
+		t.Fatalf("%s: outputs = %v", why, got)
+	}
 }
 
 func (h *surfaceHarness) open(t *testing.T, kind, title string) string {
@@ -240,8 +273,9 @@ func TestSurfaceWriteReachesThePresenter(t *testing.T) {
 	if err := h.call("plugin-a", "surface.write", `{"surfaceId":"`+id+`","dataBase64":"`+payload+`","stream":"stderr"}`); err != nil {
 		t.Fatalf("surface.write: %v", err)
 	}
-	if len(h.presenter.outputs) != 1 || !strings.Contains(h.presenter.outputs[0], ":stderr:") {
-		t.Fatalf("outputs = %v", h.presenter.outputs)
+	outputs := h.waitForOutputs(t, 1)
+	if !strings.Contains(outputs[0], ":stderr:") {
+		t.Fatalf("outputs = %v", outputs)
 	}
 }
 
@@ -252,8 +286,9 @@ func TestSurfaceWriteDefaultsToStdout(t *testing.T) {
 	if err := h.call("plugin-a", "surface.write", `{"surfaceId":"`+id+`","dataBase64":"`+payload+`"}`); err != nil {
 		t.Fatalf("surface.write: %v", err)
 	}
-	if !strings.Contains(h.presenter.outputs[0], ":stdout:") {
-		t.Fatalf("outputs = %v", h.presenter.outputs)
+	outputs := h.waitForOutputs(t, 1)
+	if !strings.Contains(outputs[0], ":stdout:") {
+		t.Fatalf("outputs = %v", outputs)
 	}
 }
 
@@ -274,9 +309,7 @@ func TestSurfaceWriteFromForeignPluginIsDenied(t *testing.T) {
 	if !errors.Is(err, domainplugin.ErrCapabilityDenied) {
 		t.Fatalf("got %v, want ErrCapabilityDenied", err)
 	}
-	if len(h.presenter.outputs) != 0 {
-		t.Fatal("a denied write must not reach the presenter")
-	}
+	h.expectNoOutput(t, "a denied write must not reach the presenter")
 }
 
 // A surface the user already closed is not an error for the plugin: the tab is gone, the plugin
@@ -292,20 +325,88 @@ func TestSurfaceWriteAfterCloseIsANoOp(t *testing.T) {
 	if err := h.call("plugin-a", "surface.write", `{"surfaceId":"`+id+`","dataBase64":"`+payload+`"}`); err != nil {
 		t.Fatalf("a write to a closed surface must be a no-op, got %v", err)
 	}
-	if len(h.presenter.outputs) != 0 {
-		t.Fatal("a write to a closed surface must not reach the presenter")
+	h.expectNoOutput(t, "a write to a closed surface must not reach the presenter")
+}
+
+// Whether the consumer is keeping up is the queue's question, not the presenter's, so the
+// backpressure verdict is covered where it is decided: surface_output_test.go.
+
+// A payload that is not base64 is refused rather than forwarded. The frontend decoder falls back
+// to treating an undecodable string as raw bytes, so passing it through put the literal base64
+// text on screen and called it output.
+func TestSurfaceWriteRejectsInvalidBase64(t *testing.T) {
+	h := newSurfaceHarness(t, bothKinds())
+	id := h.open(t, "log", "logs")
+	if err := h.call("plugin-a", "surface.write", `{"surfaceId":"`+id+`","dataBase64":"not base64!!"}`); err == nil {
+		t.Fatal("expected an undecodable payload to be refused")
+	}
+	h.expectNoOutput(t, "an undecodable payload must not reach the presenter")
+}
+
+// Several writes inside one flush interval arrive as one event per stream. That is what keeps a
+// chatty producer from becoming one repaint per chunk in the UI.
+func TestSurfaceWritesAreBatchedPerStream(t *testing.T) {
+	h := newSurfaceHarness(t, bothKinds())
+	id := h.open(t, "log", "logs")
+	for _, part := range []string{"one\n", "two\n", "three\n"} {
+		payload := base64.StdEncoding.EncodeToString([]byte(part))
+		if err := h.call("plugin-a", "surface.write", `{"surfaceId":"`+id+`","dataBase64":"`+payload+`"}`); err != nil {
+			t.Fatalf("surface.write: %v", err)
+		}
+	}
+	outputs := h.waitForOutputs(t, 1)
+	joined := strings.Join(outputs, "|")
+	decoded := decodeAllBatches(t, outputs)
+	if decoded != "one\ntwo\nthree\n" {
+		t.Fatalf("batched output lost or reordered bytes: %q (raw %s)", decoded, joined)
 	}
 }
 
-func TestSurfaceWriteReportsBackpressureAsRateLimited(t *testing.T) {
+// stdout and stderr are never merged: the log viewer colours them apart, and a batch that spliced
+// them would either lose that or interleave two half-lines.
+func TestSurfaceBatchesKeepStreamsApart(t *testing.T) {
 	h := newSurfaceHarness(t, bothKinds())
 	id := h.open(t, "log", "logs")
-	h.presenter.outputErr = errors.New("consumer is behind")
-	payload := base64.StdEncoding.EncodeToString([]byte("x"))
-	err := h.call("plugin-a", "surface.write", `{"surfaceId":"`+id+`","dataBase64":"`+payload+`"}`)
-	if !errors.Is(err, domainplugin.ErrRateLimited) {
-		t.Fatalf("got %v, want ErrRateLimited", err)
+	out := base64.StdEncoding.EncodeToString([]byte("normal\n"))
+	errPayload := base64.StdEncoding.EncodeToString([]byte("broken\n"))
+	if err := h.call("plugin-a", "surface.write", `{"surfaceId":"`+id+`","dataBase64":"`+out+`","stream":"stdout"}`); err != nil {
+		t.Fatalf("surface.write: %v", err)
 	}
+	if err := h.call("plugin-a", "surface.write", `{"surfaceId":"`+id+`","dataBase64":"`+errPayload+`","stream":"stderr"}`); err != nil {
+		t.Fatalf("surface.write: %v", err)
+	}
+
+	outputs := h.waitForOutputs(t, 2)
+	var sawStdout, sawStderr bool
+	for _, entry := range outputs {
+		if strings.Contains(entry, ":stdout:") {
+			sawStdout = true
+		}
+		if strings.Contains(entry, ":stderr:") {
+			sawStderr = true
+		}
+	}
+	if !sawStdout || !sawStderr {
+		t.Fatalf("each stream must arrive as its own batch: %v", outputs)
+	}
+}
+
+// decodeAllBatches concatenates the payloads of every delivered batch.
+func decodeAllBatches(t *testing.T, outputs []string) string {
+	t.Helper()
+	var b strings.Builder
+	for _, entry := range outputs {
+		parts := strings.SplitN(entry, ":", 3)
+		if len(parts) != 3 {
+			t.Fatalf("malformed recorded output %q", entry)
+		}
+		data, err := base64.StdEncoding.DecodeString(parts[2])
+		if err != nil {
+			t.Fatalf("presenter received something that is not base64: %v", err)
+		}
+		b.Write(data)
+	}
+	return b.String()
 }
 
 func TestSurfaceUpdateStateRejectsUnknownState(t *testing.T) {

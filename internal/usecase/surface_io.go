@@ -19,8 +19,17 @@ const (
 // user or by the session ending, the plugin has been told, and the bytes it had already queued
 // are simply dropped — reporting that as a failure would make an ordinary race look like a fault
 // in the plugin, and there is nothing it could do differently.
+//
+// The bytes go into the surface's bounded queue rather than straight to the UI. A Wails event is
+// fire and forget, so emitting from here could never report that the consumer is behind; the queue
+// is what turns "behind" into an answer the plugin can act on, and what stops a chatty producer
+// from becoming one repaint per chunk.
 func (s *SurfaceService) write(pluginID string, req surfaceWriteParams) error {
 	stream, err := normalizeSurfaceStream(req.Stream)
+	if err != nil {
+		return err
+	}
+	data, err := decodeSurfaceOutput(req.DataBase64)
 	if err != nil {
 		return err
 	}
@@ -30,10 +39,13 @@ func (s *SurfaceService) write(pluginID string, req surfaceWriteParams) error {
 		}
 		return err
 	}
-	if err := s.presenter.Output(req.SurfaceID, req.DataBase64, stream); err != nil {
-		// The UI consumer is behind. Same answer session.writeTerminal gives, for the same reason:
-		// the plugin must slow down, and the alternative is an unbounded queue in the host.
-		return fmt.Errorf("%w: surface consumer is behind", domainplugin.ErrRateLimited)
+	if len(data) == 0 {
+		return nil
+	}
+	// A queued=false with no error is a surface that went away between the ownership check and
+	// here: the same ordinary race the check above answers with a no-op.
+	if _, err := s.output.Enqueue(req.SurfaceID, surfaceChunk{data: data, stream: stream}); err != nil {
+		return err
 	}
 	return nil
 }

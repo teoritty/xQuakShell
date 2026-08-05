@@ -8,13 +8,13 @@ import (
 // internal/presentation/wails; declared here because the use case is the side that knows when
 // something happened, and the presentation layer is the side that knows how to say it.
 //
-// Output returns an error when the UI consumer is not keeping up. That is the one presenter method
-// whose failure means something to the plugin — it becomes ErrRateLimited, the same backpressure
-// answer session.writeTerminal already gives — while a failure to announce a state change is not
-// something a plugin could act on and is therefore not reported.
+// No method reports failure, and Output in particular does not: it is called from the surface's
+// output pump, which has nobody to report to — the plugin's write returned long before. Whether
+// the plugin may keep writing is decided by the queue in front of the pump (surface_output.go),
+// which is the only place that can know it.
 type SurfacePresenter interface {
 	Opened(s domainplugin.Surface)
-	Output(surfaceID, dataBase64, stream string) error
+	Output(surfaceID, dataBase64, stream string)
 	Changed(s domainplugin.Surface)
 	Closed(surfaceID string)
 }
@@ -40,6 +40,7 @@ type SurfaceCapabilityLookup func(pluginID string) *domainplugin.UICaps
 // registry, and it is why the registry and its callers are separate files.
 type SurfaceService struct {
 	registry  *SurfaceRegistry
+	output    *SurfaceOutputBroker
 	presenter SurfacePresenter
 	outbound  domainplugin.SurfaceOutboundPort
 	sessions  SurfaceSessionConnections
@@ -63,12 +64,20 @@ func NewSurfaceService(
 	}
 	return &SurfaceService{
 		registry:  registry,
+		output:    NewSurfaceOutputBroker(),
 		presenter: presenter,
 		outbound:  outbound,
 		sessions:  sessions,
 		caps:      caps,
 		audit:     audit,
 	}
+}
+
+// emitOutput is what a surface's pump calls. It reads s.presenter at flush time rather than
+// capturing it at open, so a surface opened before the UI existed starts delivering the moment
+// SetPresenter arrives instead of streaming into the noop for its whole life.
+func (s *SurfaceService) emitOutput(surfaceID, dataBase64, stream string) {
+	s.presenter.Output(surfaceID, dataBase64, stream)
 }
 
 // SetPresenter late-binds the UI side, the way SessionLifecycleService.SetChannelBus late-binds
@@ -98,7 +107,7 @@ func (s *SurfaceService) HoldsSurfaces(pluginID string) bool {
 type noopSurfacePresenter struct{}
 
 func (noopSurfacePresenter) Opened(domainplugin.Surface)  {}
-func (noopSurfacePresenter) Output(_, _, _ string) error  { return nil }
+func (noopSurfacePresenter) Output(_, _, _ string)        {}
 func (noopSurfacePresenter) Changed(domainplugin.Surface) {}
 func (noopSurfacePresenter) Closed(string)                {}
 
