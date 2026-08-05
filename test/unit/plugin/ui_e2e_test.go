@@ -178,7 +178,17 @@ func newUIRig(t *testing.T) *uiRig {
 		usecase.NewDialogRegistry(), rig.dialogUI, usecase.NewDialogNotifier(rig.manager), rig.registry.UICapabilities)
 	dialogHolder.port = rig.dialogs
 
-	rig.details = usecase.NewDiscoveryDetailsService(store, rig.leader, rig.manager, nil, rig.registry.UICapabilities)
+	rig.details = usecase.NewDiscoveryDetailsService(
+		store,
+		rig.leader,
+		rig.manager,
+		nil,
+		rig.registry.UICapabilities,
+		usecase.NewDiscoveryPace(
+			usecase.NewDiscoveryPublishLimiter(nil),
+			usecase.NewDiscoveryEmitCoalescer(nil, nil, nil),
+		),
+	)
 	detailsHolder.port = rig.details
 
 	rig.manager.SetProcessStartedHandler(observer.PluginStarted)

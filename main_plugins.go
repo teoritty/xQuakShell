@@ -395,6 +395,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		manager,
 		pluginAudit.DiscoveryFunc(),
 		registry.UICapabilities,
+		discoveryPace,
 	)
 	detailsInbound.set(detailsService)
 	// A restarted plugin is told the whole observed set again; without this the level-triggered

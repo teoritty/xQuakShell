@@ -35,6 +35,10 @@ type DiscoveryDetailsService struct {
 	caller DiscoveryCaller
 	audit  domainplugin.DiscoveryAuditRecorder
 	caps   SurfaceCapabilityLookup
+	// pace is the discovery publish budget, shared rather than duplicated: publishDetails is a
+	// discovery verb naming a (plugin, connection), and giving it a second allowance would let a
+	// plugin at its publish limit keep spending through this door (ADR-015 §Limits).
+	pace *DiscoveryPace
 	// emit announces a pushed snapshot to the frontend.
 	emit func(connectionID, pluginID, nodeID string)
 }
@@ -46,8 +50,16 @@ func NewDiscoveryDetailsService(
 	caller DiscoveryCaller,
 	audit domainplugin.DiscoveryAuditRecorder,
 	caps SurfaceCapabilityLookup,
+	pace *DiscoveryPace,
 ) *DiscoveryDetailsService {
-	return &DiscoveryDetailsService{store: store, leader: leader, caller: caller, audit: audit, caps: caps}
+	return &DiscoveryDetailsService{
+		store:  store,
+		leader: leader,
+		caller: caller,
+		audit:  audit,
+		caps:   caps,
+		pace:   pace,
+	}
 }
 
 // SetEmitter late-binds the frontend notification, like discoveryEmitHolder does for the tree.
@@ -160,6 +172,13 @@ func (s *DiscoveryDetailsService) PublishDetails(ctx context.Context, pluginID s
 	if err := json.Unmarshal(params, &payload); err != nil {
 		return nil, err
 	}
+	connectionID, ok := s.leader.ConnectionForSession(payload.SessionID)
+	// The budget is charged before the snapshot is examined, and against the connection the session
+	// belongs to — the same key discovery.publish is metered by. A push costs the host a round trip
+	// back to the plugin when the panel re-reads, so an unmetered one is an amplifier.
+	if ok && s.pace != nil && !s.pace.AllowPublish(pluginID, connectionID) {
+		return nil, fmt.Errorf("%w: node details publish rate exceeded", domainplugin.ErrRateLimited)
+	}
 	details := domainplugin.NodeDetails{
 		Sections: payload.Sections,
 		Values:   payload.Values,
@@ -168,7 +187,6 @@ func (s *DiscoveryDetailsService) PublishDetails(ctx context.Context, pluginID s
 	if err := details.Validate(); err != nil {
 		return nil, err
 	}
-	connectionID, ok := s.leader.ConnectionForSession(payload.SessionID)
 	// A snapshot for a session that has stopped leading is accepted and dropped, the same way a
 	// publish for a collapsed branch is: the plugin is racing a handover, which ADR-014 treats as
 	// normal rather than as an error worth reporting.

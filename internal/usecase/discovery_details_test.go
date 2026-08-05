@@ -51,6 +51,16 @@ const editableDetails = `{"sections":[{"id":"g","label":"G","fields":[
 	{"id":"shell","label":"Shell","type":"text","secret":false}
 ]}],"values":{"shell":"/bin/sh"},"editable":true}`
 
+// testDiscoveryPace builds the real pace with real time. publishDetails shares the publish budget
+// (ADR-015 §Limits), so the tests exercise the same limiter production uses rather than a stand-in
+// that could drift from it.
+func testDiscoveryPace() *DiscoveryPace {
+	return NewDiscoveryPace(
+		NewDiscoveryPublishLimiter(nil),
+		NewDiscoveryEmitCoalescer(nil, nil, nil),
+	)
+}
+
 func detailsHarness(t *testing.T, reply string) (*DiscoveryDetailsService, *fakeDetailsCaller, *DiscoveryStore) {
 	t.Helper()
 	store := NewDiscoveryStore()
@@ -68,6 +78,7 @@ func detailsHarness(t *testing.T, reply string) (*DiscoveryDetailsService, *fake
 		func(pluginID string) *domainplugin.UICaps {
 			return &domainplugin.UICaps{NodeDetails: true}
 		},
+		testDiscoveryPace(),
 	)
 	return svc, caller, store
 }
@@ -92,7 +103,7 @@ func TestDescribeNodeRequiresALeadingSession(t *testing.T) {
 	_, _ = store.ApplySnapshot("conn-1", "plugin-a", "", discovery.BranchReady, "", []discovery.Node{
 		{ID: "node-1", Kind: discovery.KindInstance, Label: "web"},
 	})
-	svc := NewDiscoveryDetailsService(store, fakeDetailsLeader{live: false}, &fakeDetailsCaller{}, nil, nil)
+	svc := NewDiscoveryDetailsService(store, fakeDetailsLeader{live: false}, &fakeDetailsCaller{}, nil, nil, testDiscoveryPace())
 	if _, err := svc.Describe(context.Background(), "conn-1", "plugin-a", "node-1"); !errors.Is(err, ErrDiscoveryNoLeadingSession) {
 		t.Fatalf("got %v, want ErrDiscoveryNoLeadingSession", err)
 	}
@@ -180,6 +191,7 @@ func TestApplyDetailsIsAudited(t *testing.T) {
 		&fakeDetailsCaller{reply: json.RawMessage(editableDetails)},
 		func(e domainplugin.DiscoveryAuditEntry) { entries = append(entries, e) },
 		nil,
+		testDiscoveryPace(),
 	)
 	if err := svc.Apply(context.Background(), "conn-1", "plugin-a", "node-1", map[string]string{"shell": "/bin/sh"}); err != nil {
 		t.Fatalf("Apply: %v", err)
@@ -240,5 +252,50 @@ func TestPublishDetailsForTheLeadingSessionNotifiesTheFrontend(t *testing.T) {
 	}
 	if got != [3]string{"conn-1", "plugin-a", "node-1"} {
 		t.Fatalf("emitted %v", got)
+	}
+}
+
+// The budget is the publish budget, not a second one: a push costs the host a round trip back to
+// the plugin when the panel re-reads, so an unmetered one is an amplifier (ADR-015 §Limits).
+func TestPublishDetailsIsMeteredOnTheDiscoveryBudget(t *testing.T) {
+	svc, _, _ := detailsHarness(t, editableDetails)
+	emitted := 0
+	svc.SetEmitter(func(string, string, string) { emitted++ })
+
+	params := json.RawMessage(`{"sessionId":"sess-1","nodeId":"node-1"}`)
+	var lastErr error
+	for i := 0; i < discovery.MaxPublishPerSecond+5; i++ {
+		if _, err := svc.PublishDetails(context.Background(), "plugin-a", params); err != nil {
+			lastErr = err
+			break
+		}
+	}
+	if !errors.Is(lastErr, domainplugin.ErrRateLimited) {
+		t.Fatalf("got %v, want ErrRateLimited past the budget", lastErr)
+	}
+	if emitted > discovery.MaxPublishPerSecond {
+		t.Fatalf("a refused push must not reach the frontend: emitted %d", emitted)
+	}
+}
+
+// The budget is shared with discovery.publish and keyed the same way, so one plugin's spending
+// cannot exhaust another's.
+func TestPublishDetailsBudgetIsPerPlugin(t *testing.T) {
+	svc, _, store := detailsHarness(t, editableDetails)
+	if _, err := store.ApplySnapshot("conn-1", "plugin-b", "", discovery.BranchReady, "", []discovery.Node{
+		{ID: "node-1", Kind: discovery.KindInstance, Label: "web"},
+	}); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+	svc.SetEmitter(func(string, string, string) {})
+
+	params := json.RawMessage(`{"sessionId":"sess-1","nodeId":"node-1"}`)
+	for i := 0; i < discovery.MaxPublishPerSecond+5; i++ {
+		if _, err := svc.PublishDetails(context.Background(), "plugin-a", params); err != nil {
+			break
+		}
+	}
+	if _, err := svc.PublishDetails(context.Background(), "plugin-b", params); err != nil {
+		t.Fatalf("another plugin's budget must be untouched: %v", err)
 	}
 }
