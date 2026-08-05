@@ -10,6 +10,7 @@
   import { isFieldVisible } from './fields/layout';
   import {
     nodeDetailsTarget,
+    nodeDetailsRevision,
     closeNodeDetails,
     type NodeDetails,
   } from '../stores/nodeDetailsState';
@@ -23,13 +24,23 @@
   let failure = '';
   let saving = false;
   let loadedKey = '';
+  // The revision this panel has already read. A pushed refresh names the same node, so the key
+  // alone cannot tell "a different node" from "the same node, but newer" (ADR-015 §3).
+  let loadedRevision = 0;
 
   $: target = $nodeDetailsTarget;
   $: key = target ? `${target.connectionId}${target.pluginId}${target.nodeId}` : '';
   $: if (key !== loadedKey) {
     loadedKey = key;
+    loadedRevision = $nodeDetailsRevision;
     if (target) void load(target.connectionId, target.pluginId, target.nodeId);
     else reset();
+  } else if ($nodeDetailsRevision !== loadedRevision) {
+    loadedRevision = $nodeDetailsRevision;
+    // A push while the user is mid-edit is not applied: overwriting half-typed values with the
+    // plugin's snapshot would throw away work nobody asked to discard. Saving re-reads anyway, so
+    // the newer snapshot is never lost, only deferred.
+    if (target && !dirty) void load(target.connectionId, target.pluginId, target.nodeId);
   }
 
   function reset() {
@@ -84,11 +95,6 @@
     } finally {
       saving = false;
     }
-  }
-
-  /** Called by the event subscriber when the owning plugin pushes a newer panel. */
-  export function refresh() {
-    if (target) void load(target.connectionId, target.pluginId, target.nodeId);
   }
 
   onDestroy(reset);

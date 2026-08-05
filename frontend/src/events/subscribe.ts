@@ -30,7 +30,7 @@ import {
   activeDialog,
   type PluginDialog,
 } from '../stores/dialogState';
-import { nodeDetailsTarget, isCurrentNode } from '../stores/nodeDetailsState';
+import { nodeDetailsTarget, requestNodeDetailsReload } from '../stores/nodeDetailsState';
 
 // SFTPReady is a one-shot broadcast emitted once per session right after the
 // remote filesystem is up. A FileTree component mounts only after its session
@@ -141,10 +141,7 @@ export function subscribeToEvents(): void {
     'PluginNodeDetails',
     (data: { connectionId: string; pluginId: string; nodeId: string }) => {
       if (!data?.nodeId) return;
-      if (!isCurrentNode(data.connectionId, data.pluginId, data.nodeId)) return;
-      // Re-setting the same target is what the panel watches; it reloads and shows what the plugin
-      // now reports.
-      nodeDetailsTarget.update((t) => (t ? { ...t } : t));
+      requestNodeDetailsReload(data.connectionId, data.pluginId, data.nodeId);
     }
   );
 

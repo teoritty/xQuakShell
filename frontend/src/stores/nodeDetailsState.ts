@@ -22,6 +22,15 @@ export interface NodeDetails {
 
 export const nodeDetailsTarget = writable<NodeDetailsTarget | null>(null);
 
+/**
+ * Bumped every time the owning plugin says its panel is stale (ADR-015 §3).
+ *
+ * A separate counter rather than a re-set of the target, because the target's identity is exactly
+ * what does NOT change on a refresh: same connection, same plugin, same node. Re-setting it leaves
+ * every derived value equal, so nothing downstream re-runs and the push is silently lost.
+ */
+export const nodeDetailsRevision = writable(0);
+
 /** Opens the node panel, closing the connection editor: the sidebar has one details slot. */
 export function openNodeDetails(target: NodeDetailsTarget): void {
   detailsConnectionId.set('');
@@ -51,4 +60,21 @@ export function isCurrentNode(connectionId: string, pluginId: string, nodeId: st
     target.pluginId === pluginId &&
     target.nodeId === nodeId
   );
+}
+
+/**
+ * Asks the open panel to re-read, if the push names the node it is showing.
+ *
+ * Returns whether it did, which is what makes the behaviour testable without a component: a plugin
+ * may publish details for any node in its subtree, and only the one on screen is worth a round
+ * trip back to it.
+ */
+export function requestNodeDetailsReload(
+  connectionId: string,
+  pluginId: string,
+  nodeId: string
+): boolean {
+  if (!isCurrentNode(connectionId, pluginId, nodeId)) return false;
+  nodeDetailsRevision.update((n) => n + 1);
+  return true;
 }
