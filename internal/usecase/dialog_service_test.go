@@ -297,6 +297,62 @@ func TestDialogSubmitDropsUndeclaredKeys(t *testing.T) {
 	}
 }
 
+const dependentRequiredFields = `[{"id":"g","label":"G","fields":[
+	{"id":"mode","label":"Mode","type":"text","secret":false},
+	{"id":"path","label":"Path","type":"text","secret":false,"required":true,"dependsOn":"mode"}
+]}]`
+
+// A required field whose dependency is off is not on screen, so demanding it would refuse a form
+// the user cannot complete. The renderer and SavePluginFields both already skip such a field; this
+// is the third place that has to agree.
+func TestDialogSubmitIgnoresARequiredFieldItsDependencyHides(t *testing.T) {
+	h := newDialogHarness(t, true)
+	id := h.openWithSections(t, "form", dependentRequiredFields)
+
+	if err := h.svc.Submit(id, map[string]string{"mode": ""}); err != nil {
+		t.Fatalf("a hidden required field blocked the submit: %v", err)
+	}
+	if _, present := h.outbound.values[id]["path"]; present {
+		t.Fatalf("a hidden field must not reach the plugin: %v", h.outbound.values[id])
+	}
+}
+
+func TestDialogSubmitEnforcesARequiredFieldItsDependencyShows(t *testing.T) {
+	h := newDialogHarness(t, true)
+	id := h.openWithSections(t, "form", dependentRequiredFields)
+
+	if err := h.svc.Submit(id, map[string]string{"mode": "local", "path": ""}); err == nil {
+		t.Fatal("expected a visible required field left empty to be refused")
+	}
+	if len(h.outbound.submitted) != 0 {
+		t.Fatal("a refused submit must not reach the plugin")
+	}
+
+	if err := h.svc.Submit(id, map[string]string{"mode": "local", "path": "/srv"}); err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	if h.outbound.values[id]["path"] != "/srv" {
+		t.Fatalf("the visible dependent value did not reach the plugin: %v", h.outbound.values[id])
+	}
+}
+
+// A stale value for a field the user then hid is dropped rather than validated: the answer is what
+// the form shows now, not what it showed three keystrokes ago.
+func TestDialogSubmitDropsTheValueOfAHiddenField(t *testing.T) {
+	h := newDialogHarness(t, true)
+	id := h.openWithSections(t, "form", `[{"id":"g","label":"G","fields":[
+		{"id":"mode","label":"Mode","type":"text","secret":false},
+		{"id":"port","label":"Port","type":"number","secret":false,"dependsOn":"mode","validation":{"min":1,"max":10}}
+	]}]`)
+
+	if err := h.svc.Submit(id, map[string]string{"mode": "", "port": "99999"}); err != nil {
+		t.Fatalf("a hidden field's stale value was validated: %v", err)
+	}
+	if _, present := h.outbound.values[id]["port"]; present {
+		t.Fatalf("a hidden field's value reached the plugin: %v", h.outbound.values[id])
+	}
+}
+
 // A detail dialog has only a close button. Submitting one would hand a plugin an answer to a
 // question it never asked.
 func TestDetailDialogNeverSubmits(t *testing.T) {
