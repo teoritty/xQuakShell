@@ -3,7 +3,12 @@
   // Layout is shared with the plugin dialog and the node details panel (ADR-015): the markup here
   // is mostly about vault-stored secrets, which those must not have, but how fields are ordered,
   // hidden and packed into rows must not diverge between them.
-  import { groupFieldsIntoRows, isFieldVisible } from '../fields/layout';
+  import { groupFieldsIntoRows } from '../fields/layout';
+  // keyValue and code are rendered by the shared control rather than restated here. They carry no
+  // secret (the manifest refuses `secret` on both), which is the concern this component exists for,
+  // and the alternative was a field a protocol may declare and the editor draws as a bare label.
+  import FieldControl from '../fields/FieldControl.svelte';
+  import { validateFieldValue as validateSharedFieldValue } from '../fields/validate';
   import { createEventDispatcher } from 'svelte';
   import './connectionDetailsShared.css';
 
@@ -46,8 +51,6 @@
 
   const dispatch = createEventDispatcher<{ fieldchange: { fieldId: string; value: unknown } }>();
 
-  type FieldRow = { kind: 'row'; fields: FieldDef[] } | { kind: 'single'; field: FieldDef };
-
   $: compiledPatterns = (() => {
     const result: Record<string, RegExp> = {};
     for (const group of groups) {
@@ -80,6 +83,15 @@
     const val = values[field.id];
     if (field.required && (val === undefined || val === null || val === '')) {
       return `${field.label} is required`;
+    }
+    // The two ADR-015 types validate their whole value at once — one is a JSON object, the other
+    // may legitimately be 256 KiB — so they go to the shared validator rather than through the
+    // length and pattern rules below, which would be measuring the wrong thing.
+    if (field.type === 'keyValue' || field.type === 'code') {
+      return validateSharedFieldValue(
+        { id: field.id, type: field.type, required: field.required },
+        typeof val === 'string' ? val : ''
+      );
     }
     if (field.validation) {
       const v = field.validation;
@@ -196,7 +208,19 @@
         </div>
       {:else}
         {@const field = row.field}
-        {#if field.type === 'checkbox'}
+        {#if field.type === 'keyValue' || field.type === 'code'}
+          <!-- Drawn by the shared control: the same editor the plugin dialog and the node details
+               panel use, so one field type does not look like two things in one window. -->
+          <div class="connection-detail-field">
+            <FieldControl
+              field={{ id: field.id, label: field.label, type: field.type, required: field.required, description: field.description }}
+              value={String(values[field.id] ?? field.default ?? '')}
+              error={errors[field.id] ?? ''}
+              {readonly}
+              onChange={(v) => handleInput(field, v)}
+            />
+          </div>
+        {:else if field.type === 'checkbox'}
           <div class="connection-detail-field">
             <label class="connection-detail-checkbox">
               <input

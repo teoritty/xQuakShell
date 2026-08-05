@@ -6,7 +6,9 @@
 export interface FieldDef {
   id: string;
   label: string;
-  type: 'text' | 'password' | 'number' | 'select' | 'checkbox' | 'textarea';
+  // keyValue and code were added to the shared field schema by ADR-015, so a connection protocol
+  // may declare them too — the host validates both here as it does in a dialog.
+  type: 'text' | 'password' | 'number' | 'select' | 'checkbox' | 'textarea' | 'keyValue' | 'code';
   required: boolean;
   default?: unknown;
   placeholder?: string;
