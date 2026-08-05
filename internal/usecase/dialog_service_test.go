@@ -68,6 +68,7 @@ type dialogHarness struct {
 	svc       *DialogService
 	presenter *fakeDialogPresenter
 	outbound  *fakeDialogOutbound
+	audits    []domainplugin.DialogAuditEntry
 }
 
 func newDialogHarness(t *testing.T, dialogsGranted bool) *dialogHarness {
@@ -80,6 +81,7 @@ func newDialogHarness(t *testing.T, dialogsGranted bool) *dialogHarness {
 		func(pluginID string) *domainplugin.UICaps {
 			return &domainplugin.UICaps{Dialogs: dialogsGranted}
 		},
+		func(entry domainplugin.DialogAuditEntry) { h.audits = append(h.audits, entry) },
 	)
 	return h
 }
@@ -350,6 +352,76 @@ func TestDialogSubmitDropsTheValueOfAHiddenField(t *testing.T) {
 	}
 	if _, present := h.outbound.values[id]["port"]; present {
 		t.Fatalf("a hidden field's value reached the plugin: %v", h.outbound.values[id])
+	}
+}
+
+// --- audit -----------------------------------------------------------------
+
+// Submitting is where something crosses from the user to the plugin, and ADR-015 names it as one
+// of the three audited points.
+func TestDialogSubmitIsAudited(t *testing.T) {
+	h := newDialogHarness(t, true)
+	id := h.open(t, "form")
+	if err := h.svc.Submit(id, map[string]string{"name": "vol"}); err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	if len(h.audits) != 1 {
+		t.Fatalf("audit entries = %d, want 1", len(h.audits))
+	}
+	entry := h.audits[0]
+	if entry.PluginID != "plugin-a" || entry.DialogID != id || !entry.Success {
+		t.Fatalf("audit entry = %+v", entry)
+	}
+	if strings.Join(entry.FieldIDs, ",") != "name" {
+		t.Fatalf("the answered fields must be recorded, got %v", entry.FieldIDs)
+	}
+}
+
+// The values themselves never reach the log. A form field holds whatever the user typed into it,
+// which may be a secret they were not supposed to put there.
+func TestDialogAuditRecordsFieldsButNotValues(t *testing.T) {
+	h := newDialogHarness(t, true)
+	id := h.open(t, "form")
+	const secretish = "hunter2-not-for-the-log"
+	if err := h.svc.Submit(id, map[string]string{"name": secretish}); err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	line := formatPluginDialogAuditLine(h.audits[0])
+	if strings.Contains(line, secretish) {
+		t.Fatalf("a submitted value reached the audit line: %q", line)
+	}
+	if !strings.Contains(line, "fields=name") {
+		t.Fatalf("the audit line must say which fields were answered: %q", line)
+	}
+}
+
+// A refused answer is audited too: an attempt to hand a plugin something the host would not pass
+// on is exactly what a review looks for.
+func TestDialogRefusedSubmitIsAuditedAsDenied(t *testing.T) {
+	h := newDialogHarness(t, true)
+	id := h.openWithSections(t, "form", `[{"id":"g","label":"G","fields":[
+		{"id":"name","label":"Name","type":"text","secret":false,"validation":{"maxLength":2}}
+	]}]`)
+	if err := h.svc.Submit(id, map[string]string{"name": "far too long"}); err == nil {
+		t.Fatal("expected the value to be refused (test setup)")
+	}
+	if len(h.audits) != 1 || h.audits[0].Success {
+		t.Fatalf("a refused submit must be audited as denied, got %+v", h.audits)
+	}
+	if h.audits[0].Error == "" {
+		t.Fatal("a denied entry must say what was wrong")
+	}
+}
+
+// Cancelling is not an answer, so it is not audited: nothing crossed to the plugin.
+func TestDialogCancelIsNotAudited(t *testing.T) {
+	h := newDialogHarness(t, true)
+	id := h.open(t, "form")
+	if err := h.svc.Cancel(id); err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+	if len(h.audits) != 0 {
+		t.Fatalf("a cancellation is not an answer: %+v", h.audits)
 	}
 }
 

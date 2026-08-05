@@ -41,6 +41,9 @@ type uiRig struct {
 
 	presenter *e2ePresenter
 	dialogUI  *e2eDialogPresenter
+	// dialogAudits is what an incident review would have to work from: the audit trail of answers
+	// handed to the plugin (ADR-015 §Security model).
+	dialogAudits []domainplugin.DialogAuditEntry
 }
 
 // e2ePresenter stands in for the frontend: it records what the user would have seen.
@@ -175,7 +178,12 @@ func newUIRig(t *testing.T) *uiRig {
 	surfaceHolder.port = rig.surfaces
 
 	rig.dialogs = usecase.NewDialogService(
-		usecase.NewDialogRegistry(), rig.dialogUI, usecase.NewDialogNotifier(rig.manager), rig.registry.UICapabilities)
+		usecase.NewDialogRegistry(),
+		rig.dialogUI,
+		usecase.NewDialogNotifier(rig.manager),
+		rig.registry.UICapabilities,
+		func(entry domainplugin.DialogAuditEntry) { rig.dialogAudits = append(rig.dialogAudits, entry) },
+	)
 	dialogHolder.port = rig.dialogs
 
 	rig.details = usecase.NewDiscoveryDetailsService(

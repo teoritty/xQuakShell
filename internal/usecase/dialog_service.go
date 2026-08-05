@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"fmt"
+	"sort"
+	"time"
 
 	"xquakshell/internal/domain/discovery"
 	domainplugin "xquakshell/internal/domain/plugin"
@@ -23,20 +25,29 @@ type DialogService struct {
 	presenter DialogPresenter
 	outbound  domainplugin.DialogOutboundPort
 	caps      SurfaceCapabilityLookup
+	audit     domainplugin.DialogAuditRecorder
 }
 
 // NewDialogService wires the dialog use case. presenter may be nil at construction and pushed in
-// later with SetPresenter, for the same composition-order reason SurfaceService allows it.
+// later with SetPresenter, for the same composition-order reason SurfaceService allows it. audit
+// may be nil only where no audit log exists at all; production wiring always supplies one.
 func NewDialogService(
 	registry *DialogRegistry,
 	presenter DialogPresenter,
 	outbound domainplugin.DialogOutboundPort,
 	caps SurfaceCapabilityLookup,
+	audit domainplugin.DialogAuditRecorder,
 ) *DialogService {
 	if presenter == nil {
 		presenter = noopDialogPresenter{}
 	}
-	return &DialogService{registry: registry, presenter: presenter, outbound: outbound, caps: caps}
+	return &DialogService{
+		registry:  registry,
+		presenter: presenter,
+		outbound:  outbound,
+		caps:      caps,
+		audit:     audit,
+	}
 }
 
 // SetPresenter late-binds the UI side.
@@ -59,6 +70,9 @@ func (s *DialogService) Submit(dialogID string, values map[string]string) error 
 	}
 	accepted, err := validateDialogValues(dialog, values)
 	if err != nil {
+		// A refused answer is audited too: an attempt to hand a plugin something the host would not
+		// pass on is exactly what a review looks for, and an entry written only on success omits it.
+		s.recordSubmit(dialog, accepted, err)
 		return err
 	}
 	// Only now is it consumed: taking first would close the dialog on a value the user still has
@@ -66,11 +80,45 @@ func (s *DialogService) Submit(dialogID string, values map[string]string) error 
 	if _, taken := s.registry.Take(dialogID); !taken {
 		return fmt.Errorf("dialog: no such dialog")
 	}
+	s.recordSubmit(dialog, accepted, nil)
 	s.presenter.DialogClosed(dialogID)
 	if s.outbound != nil {
 		s.outbound.Submitted(dialog.PluginID, dialogID, accepted)
 	}
 	return nil
+}
+
+// recordSubmit writes the one audited dialog event.
+//
+// It records which fields were answered and never what they hold: a form field carries whatever
+// the user typed, and an audit log is not a place for that.
+func (s *DialogService) recordSubmit(dialog domainplugin.Dialog, accepted map[string]string, err error) {
+	if s.audit == nil {
+		return
+	}
+	entry := domainplugin.DialogAuditEntry{
+		Timestamp: time.Now(),
+		PluginID:  dialog.PluginID,
+		DialogID:  dialog.ID,
+		Kind:      string(dialog.Kind),
+		FieldIDs:  sortedKeys(accepted),
+		Success:   err == nil,
+	}
+	if err != nil {
+		entry.Error = err.Error()
+	}
+	s.audit(entry)
+}
+
+// sortedKeys returns a map's keys in a stable order, so two runs of the same submit produce the
+// same audit line.
+func sortedKeys(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for id := range values {
+		keys = append(keys, id)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // Cancel closes a dialog without an answer. Called from the UI.

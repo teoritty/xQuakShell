@@ -130,6 +130,31 @@ func formatPluginSurfaceAuditLine(entry domainplugin.SurfaceAuditEntry) string {
 	return line
 }
 
+func (w *PluginAuditWriter) DialogFunc() domainplugin.DialogAuditRecorder {
+	return func(entry domainplugin.DialogAuditEntry) {
+		w.append(formatPluginDialogAuditLine(entry))
+	}
+}
+
+func formatPluginDialogAuditLine(entry domainplugin.DialogAuditEntry) string {
+	flag := "allowed"
+	if !entry.Success {
+		flag = "denied"
+	}
+	// Field ids, never their values: a form field holds whatever the user typed into it, and an
+	// audit line is the last place that belongs. The ids are plugin-authored, so they go through
+	// the same tokenizer node ids do.
+	line := "[plugin] action=" + domainplugin.DialogAuditSubmit + " pluginId=" + entry.PluginID +
+		" dialogId=" + safeAuditValue(entry.DialogID) +
+		" kind=" + safeAuditValue(entry.Kind) +
+		" fields=" + joinAuditTokens(entry.FieldIDs) +
+		" result=" + flag
+	if entry.Error != "" {
+		line += " detail=" + safeAuditValue(entry.Error)
+	}
+	return line
+}
+
 func (w *PluginAuditWriter) DiscoveryFunc() domainplugin.DiscoveryAuditRecorder {
 	return func(entry domainplugin.DiscoveryAuditEntry) {
 		w.append(formatPluginDiscoveryAuditLine(entry))

@@ -384,6 +384,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		nil,
 		usecase.NewDialogNotifier(manager),
 		registry.UICapabilities,
+		pluginAudit.DialogFunc(),
 	)
 	dialogInbound.set(dialogService)
 
