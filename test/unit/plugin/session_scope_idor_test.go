@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"xquakshell/internal/domain"
-	"xquakshell/internal/usecase"
 	domainplugin "xquakshell/internal/domain/plugin"
 	infraplugin "xquakshell/internal/infra/plugin"
 	"xquakshell/internal/infra/plugin/bundle"
+	"xquakshell/internal/usecase"
 )
 
 type multiSessionSettings struct {
@@ -117,11 +117,13 @@ func TestBundledPluginLoadsWithChecksums(t *testing.T) {
 func TestSamePluginCrossSessionUpdateStateDeniedPerSession(t *testing.T) {
 	auth := testSessionAuthorizer(t, nil, nil)
 	inbound := usecase.NewPluginSessionInbound()
-	proxy := usecase.NewPluginSessionRPCHandler(inbound, usecase.NewPluginEmbedInbound(), nil, nil, nil, nil, nil, auth, usecase.PluginSessionScope{
-		PluginID:         "plugin-a",
-		ProcessSessionID: "sess-1",
-		Isolation:        domainplugin.IsolationPerSession,
-	})
+	proxy := usecase.NewPluginSessionRPCHandler(
+		usecase.PluginSessionRPCPorts{Sessions: inbound, Embed: usecase.NewPluginEmbedInbound()},
+		auth, usecase.PluginSessionScope{
+			PluginID:         "plugin-a",
+			ProcessSessionID: "sess-1",
+			Isolation:        domainplugin.IsolationPerSession,
+		})
 
 	params, _ := json.Marshal(map[string]string{
 		"sessionId": "sess-2",
@@ -167,11 +169,13 @@ func TestSamePluginCrossSessionAllowedWithBindingPerPlugin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	proxy := usecase.NewPluginSessionRPCHandler(inbound, usecase.NewPluginEmbedInbound(), nil, nil, nil, nil, nil, auth, usecase.PluginSessionScope{
-		PluginID:          "plugin-a",
-		Isolation:         domainplugin.IsolationPerPlugin,
-		AllowMultiSession: true,
-	})
+	proxy := usecase.NewPluginSessionRPCHandler(
+		usecase.PluginSessionRPCPorts{Sessions: inbound, Embed: usecase.NewPluginEmbedInbound()},
+		auth, usecase.PluginSessionScope{
+			PluginID:          "plugin-a",
+			Isolation:         domainplugin.IsolationPerPlugin,
+			AllowMultiSession: true,
+		})
 
 	params, _ := json.Marshal(map[string]string{
 		"sessionId": sessionB,
@@ -185,10 +189,12 @@ func TestSamePluginCrossSessionAllowedWithBindingPerPlugin(t *testing.T) {
 func TestSessionRPCDeniedWhenNotBound(t *testing.T) {
 	auth := testSessionAuthorizer(t, nil, nil)
 	inbound := usecase.NewPluginSessionInbound()
-	proxy := usecase.NewPluginSessionRPCHandler(inbound, usecase.NewPluginEmbedInbound(), nil, nil, nil, nil, nil, auth, usecase.PluginSessionScope{
-		PluginID:  "plugin-a",
-		Isolation: domainplugin.IsolationPerPlugin,
-	})
+	proxy := usecase.NewPluginSessionRPCHandler(
+		usecase.PluginSessionRPCPorts{Sessions: inbound, Embed: usecase.NewPluginEmbedInbound()},
+		auth, usecase.PluginSessionScope{
+			PluginID:  "plugin-a",
+			Isolation: domainplugin.IsolationPerPlugin,
+		})
 
 	params, _ := json.Marshal(map[string]string{
 		"sessionId": "sess-orphan",
@@ -214,10 +220,12 @@ func TestProcessHostBindSessionDelegatesToUsecaseAuthorizer(t *testing.T) {
 		t.Fatal(err)
 	}
 	inbound.SetHandler(manager)
-	proxy := usecase.NewPluginSessionRPCHandler(inbound, usecase.NewPluginEmbedInbound(), nil, nil, nil, nil, nil, auth, usecase.PluginSessionScope{
-		PluginID:   "plugin-a",
-		Isolation:  domainplugin.IsolationPerPlugin,
-	})
+	proxy := usecase.NewPluginSessionRPCHandler(
+		usecase.PluginSessionRPCPorts{Sessions: inbound, Embed: usecase.NewPluginEmbedInbound()},
+		auth, usecase.PluginSessionScope{
+			PluginID:  "plugin-a",
+			Isolation: domainplugin.IsolationPerPlugin,
+		})
 	params, _ := json.Marshal(map[string]string{
 		"sessionId": "sess-1",
 		"state":     string(domain.SessionReady),

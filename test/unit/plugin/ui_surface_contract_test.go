@@ -155,7 +155,10 @@ func newUIContractRig(t *testing.T, ui *domainplugin.UICaps) *uiContractRig {
 		nil,
 	)
 	rig.handler = usecase.NewPluginSessionRPCHandler(
-		usecase.NewPluginSessionInbound(), nil, nil, nil, rig.surfaces, nil, nil,
+		usecase.PluginSessionRPCPorts{
+			Sessions: usecase.NewPluginSessionInbound(),
+			Surfaces: rig.surfaces,
+		},
 		contractAuthorizer{pluginID: "com.test.ui", sessionID: "sess-1"},
 		usecase.PluginSessionScope{
 			PluginID:         "com.test.ui",

@@ -30,10 +30,12 @@ func TestChannelOpen_RejectsUnownedParentSession(t *testing.T) {
 	auth := usecase.NewPluginSessionAuthorizer(nil)
 	channels := &fakeChannelInbound{}
 	handler := usecase.NewPluginSessionRPCHandler(
-		usecase.NewPluginSessionInbound(),
-		usecase.NewPluginEmbedInbound(),
-		channels,
-		nil, nil, nil, nil, auth, usecase.PluginSessionScope{
+		usecase.PluginSessionRPCPorts{
+			Sessions: usecase.NewPluginSessionInbound(),
+			Embed:    usecase.NewPluginEmbedInbound(),
+			Channels: channels,
+		},
+		auth, usecase.PluginSessionScope{
 			PluginID:         "plugin-a",
 			ProcessSessionID: "sess-owned",
 			Isolation:        domainplugin.IsolationPerSession,
@@ -57,10 +59,12 @@ func TestChannelOpen_AllowsOwnedParentSession(t *testing.T) {
 	auth := usecase.NewPluginSessionAuthorizer(nil)
 	channels := &fakeChannelInbound{}
 	handler := usecase.NewPluginSessionRPCHandler(
-		usecase.NewPluginSessionInbound(),
-		usecase.NewPluginEmbedInbound(),
-		channels,
-		nil, nil, nil, nil, auth, usecase.PluginSessionScope{
+		usecase.PluginSessionRPCPorts{
+			Sessions: usecase.NewPluginSessionInbound(),
+			Embed:    usecase.NewPluginEmbedInbound(),
+			Channels: channels,
+		},
+		auth, usecase.PluginSessionScope{
 			PluginID:         "plugin-a",
 			ProcessSessionID: "sess-owned",
 			Isolation:        domainplugin.IsolationPerSession,

@@ -30,13 +30,11 @@ func (f *fakeDiscoveryInbound) Publish(_ context.Context, _ string, params json.
 
 func newDiscoveryRPCHandler(discovery domainplugin.DiscoveryInboundPort) *usecase.PluginSessionRPCHandler {
 	return usecase.NewPluginSessionRPCHandler(
-		usecase.NewPluginSessionInbound(),
-		usecase.NewPluginEmbedInbound(),
-		nil,
-		discovery,
-		nil,
-		nil,
-		nil,
+		usecase.PluginSessionRPCPorts{
+			Sessions:  usecase.NewPluginSessionInbound(),
+			Embed:     usecase.NewPluginEmbedInbound(),
+			Discovery: discovery,
+		},
 		usecase.NewPluginSessionAuthorizer(nil),
 		usecase.PluginSessionScope{
 			PluginID:         "plugin-a",
