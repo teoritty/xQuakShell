@@ -22,6 +22,10 @@ const (
 	EventSessionEmbedReady          = "SessionEmbedReady"
 	EventDebugLogWindowChanged      = "DebugLogWindowChanged"
 	EventDiscoveryTreeChanged       = "DiscoveryTreeChanged"
+	EventPluginSurfaceOpened        = "PluginSurfaceOpened"
+	EventPluginSurfaceOutput        = "PluginSurfaceOutput"
+	EventPluginSurfaceChanged       = "PluginSurfaceChanged"
+	EventPluginSurfaceClosed        = "PluginSurfaceClosed"
 )
 
 // DiscoveryTreeChangedPayload names the connection and the node whose branch changed (ADR-014).

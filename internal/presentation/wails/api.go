@@ -42,6 +42,7 @@ type AppAPI struct {
 	pluginMultiSessionGrant     func(pluginID string) error
 	pluginArbitraryNetworkGrant func(pluginID string) error
 	discovery                   DiscoveryTreeService
+	surfaces                    SurfaceCommands
 	embedBridge                 *usecase.PluginEmbedBridge
 	forwardRules                *usecase.ForwardRuleValidator
 	logWindow                   *logwindow.Manager

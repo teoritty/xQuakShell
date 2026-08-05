@@ -433,6 +433,23 @@ func (a *App) InvokeDiscoveryAction(connectionId string, pluginId string, nodeId
 	return a.api.InvokeDiscoveryAction(connectionId, pluginId, nodeIds, actionId)
 }
 
+// CloseSurface closes a plugin-owned tab. A surface is addressed by its own id and never by a
+// session id: the session is how the host reaches the plugin, not how the UI names a tab
+// (ADR-015).
+func (a *App) CloseSurface(surfaceId string) error {
+	return a.api.CloseSurface(surfaceId)
+}
+
+// SendSurfaceInput forwards keystrokes to the plugin owning an interactive surface.
+func (a *App) SendSurfaceInput(surfaceId string, dataBase64 string) error {
+	return a.api.SendSurfaceInput(surfaceId, dataBase64)
+}
+
+// ResizeSurface reports a surface's new character grid.
+func (a *App) ResizeSurface(surfaceId string, cols int, rows int) error {
+	return a.api.ResizeSurface(surfaceId, cols, rows)
+}
+
 func (a *App) PingPlugin(pluginID string) (presentation.PluginPingResultDTO, error) {
 	return a.api.PingPlugin(pluginID)
 }

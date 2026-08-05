@@ -28,6 +28,7 @@ var notBound = map[string]string{
 	"SetPluginVaultGrant":            "wiring",
 	"SetPluginViewRelay":             "wiring",
 	"SetDiscoveryService":            "wiring",
+	"SetSurfaceService":              "wiring",
 	"Sessions":                       "wiring: accessor for the composition root",
 
 	// Backend-initiated callbacks and lifecycle, never called from JS.

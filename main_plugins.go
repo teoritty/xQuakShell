@@ -510,6 +510,15 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 	if r.discoveryEmit != nil {
 		r.discoveryEmit.set(api.EmitDiscoveryTreeChanged)
 	}
+	// Surfaces are wired in both directions here (ADR-015): the AppAPI is the presenter the use
+	// case pushes tabs and bytes to, and the use case is what the AppAPI's own handlers call when
+	// the user types into one or closes it. The close cascade goes through the session manager,
+	// beside the channel bus it runs next to.
+	if r.surfaces != nil {
+		r.surfaces.SetPresenter(presentation.NewSurfacePresenter(api))
+		api.SetSurfaceService(r.surfaces)
+		api.Sessions().SetSurfaces(r.surfaces)
+	}
 	api.Sessions().SetDynamicForward(r.dynamicForward)
 	if r.dynamicForward != nil && r.vaultSettings != nil {
 		r.dynamicForward.SetTunnelGrantReader(r.vaultSettings)
