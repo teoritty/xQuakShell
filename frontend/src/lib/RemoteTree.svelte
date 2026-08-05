@@ -75,6 +75,7 @@
   import {
     computeDiscoveryMenu,
     defaultDiscoveryAction,
+    deleteMenuItem,
     type DiscoveryMenu,
     type DiscoveryMenuItem,
   } from './remoteTree/discoveryActions';
@@ -562,6 +563,23 @@
     const tag = target?.tagName ?? '';
     if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
     if (ev.key !== 'Delete') return;
+    // Discovery first, and exclusively: the two selections are disjoint by
+    // construction (a discovery row never enters selectedPaths — see
+    // remoteTree/selection.ts), so a non-empty discovery selection means the key
+    // was pressed with plugin nodes highlighted and nothing else.
+    const discoveryRowsSelected = selectedDiscoveryRows(get(discoverySelection), discoveryRows);
+    if (discoveryRowsSelected.length > 0) {
+      const menu = computeDiscoveryMenu(discoveryRowsSelected);
+      const item = deleteMenuItem(menu);
+      // No marked action is a silent no-op on purpose. The core does not know
+      // which of a plugin's actions removes anything, and inventing one from a
+      // label is how a keystroke deletes something nobody offered to delete.
+      if (item) {
+        ev.preventDefault();
+        requestDiscoveryAction(item, menu);
+      }
+      return;
+    }
     const targets = selectionDeleteTargets(selectedPaths, $connections, $folders);
     if (deleteTargetCount(targets) > 0) {
       ev.preventDefault();

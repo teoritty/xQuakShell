@@ -40,6 +40,9 @@ type DiscoveryActionDTO struct {
 	// Multi marks the action eligible for a multi-selection of siblings. The frontend offers it only
 	// when every selected node carries the same actionId with multi set.
 	Multi bool `json:"multi,omitempty"`
+	// Delete marks the action the Delete key runs, so the shortcut can be bound without the core
+	// having to recognise any actionId of its own.
+	Delete bool `json:"delete,omitempty"`
 }
 
 // DiscoveryNodeDTO is one row of a subtree.
@@ -171,6 +174,7 @@ func discoveryActionsToDTO(actions []discovery.Action) []DiscoveryActionDTO {
 			Danger:  action.Danger,
 			Confirm: action.Confirm,
 			Multi:   action.Multi,
+			Delete:  action.Delete,
 		})
 	}
 	return dtos

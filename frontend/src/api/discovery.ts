@@ -36,6 +36,11 @@ export interface DiscoveryAction {
   confirm?: string;
   /** Eligible for a multi-selection of siblings. */
   multi?: boolean;
+  /**
+   * The action the Delete key runs. The core still relays an opaque actionId —
+   * this only says WHICH one the key means, a question a menu never has to ask.
+   */
+  delete?: boolean;
 }
 
 export interface DiscoveryNode {

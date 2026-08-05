@@ -173,6 +173,8 @@ Fully opaque to the core. A node carries `actions[]` and `defaultActionId`; the 
 
 Mass actions: selection is limited to children of the same parent; an action is shown when it has `multi: true` and is present on every selected node (matched by `actionId`). The result arrives as an ordinary `publish` — the plugin itself moves nodes to `busy` and publishes the outcome; partial success is expressed by some nodes ending up `ok` and others `error`. There is no separate reporting protocol.
 
+The Delete key: an action may carry `delete: true`, and that is the one the key runs on the current selection. Opacity is unaffected — the key relays the same `actionId` the menu would have — it only answers which of several actions the shortcut means, a question a menu never has to ask; deriving it from `danger` or from a label would make a destructive shortcut depend on a plugin's wording. The key resolves through the same menu the user would have opened, so it inherits the `multi` rule, the same-parent rule, the stale-branch block and the size limit. A selection with no marked action, or with two, does nothing rather than guess.
+
 `invokeAction` ack must arrive within 5 s. Long-running work does not hold the RPC open: the plugin acknowledges receipt and reports back via `publish`.
 
 ## Consequences

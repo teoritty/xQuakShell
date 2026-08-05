@@ -16,6 +16,8 @@ export interface DiscoveryMenuItem {
   danger: boolean;
   /** Non-empty means: show this prompt and get a yes before invoking. */
   confirm: string;
+  /** The plugin says this is what the Delete key means on these nodes. */
+  isDelete: boolean;
   disabled: boolean;
 }
 
@@ -44,8 +46,26 @@ function toItem(action: DiscoveryAction, disabled: boolean): DiscoveryMenuItem {
     iconId: action.iconId ?? '',
     danger: !!action.danger,
     confirm: action.confirm ?? '',
+    isDelete: !!action.delete,
     disabled,
   };
+}
+
+/**
+ * The action the Delete key runs on a selection, or null.
+ *
+ * Read off the menu rather than off the rows, so the key inherits every rule the
+ * menu already enforces: the intersection across a multi-selection, the `multi`
+ * flag, the stale-branch block, the size limit. A key that could reach further
+ * than the menu it mirrors would be a second, quieter permission model.
+ *
+ * Two marked actions resolve to null, not to the first one. A plugin that names
+ * two deletes has not said which the key means, and picking one for it is how a
+ * shortcut ends up doing the more destructive of the two.
+ */
+export function deleteMenuItem(menu: DiscoveryMenu): DiscoveryMenuItem | null {
+  const marked = menu.items.filter((i) => i.isDelete && !i.disabled);
+  return marked.length === 1 ? marked[0] : null;
 }
 
 export function computeDiscoveryMenu(rows: DiscoveryRow[]): DiscoveryMenu {

@@ -1,5 +1,5 @@
 import type { DiscoveryAction } from '../../api/discovery';
-import { computeDiscoveryMenu, defaultDiscoveryAction } from './discoveryActions';
+import { computeDiscoveryMenu, defaultDiscoveryAction, deleteMenuItem } from './discoveryActions';
 import { discoveryKey, type DiscoveryRow } from './types';
 
 function assert(cond: boolean, msg: string) {
@@ -31,6 +31,7 @@ const start: DiscoveryAction = { id: 'start', label: 'Start', multi: true };
 const stop: DiscoveryAction = { id: 'stop', label: 'Stop', multi: true, danger: true, confirm: 'Stop it?' };
 const logs: DiscoveryAction = { id: 'logs', label: 'Logs' }; // NOT multi
 const inspect: DiscoveryAction = { id: 'inspect', label: 'Inspect' };
+const remove: DiscoveryAction = { id: 'remove', label: 'Remove…', multi: true, danger: true, delete: true };
 
 // --- nothing selected ---
 {
@@ -113,6 +114,38 @@ const inspect: DiscoveryAction = { id: 'inspect', label: 'Inspect' };
   assert(
     defaultDiscoveryAction([{ ...single, actionsBlocked: true }]) === null,
     'a blocked branch has no default action either'
+  );
+}
+
+// --- the Delete key resolves through the menu, never around it ---
+{
+  assert(
+    deleteMenuItem(computeDiscoveryMenu([row('a', [start, remove])]))?.id === 'remove',
+    'the marked action is what Delete runs'
+  );
+  assert(
+    deleteMenuItem(computeDiscoveryMenu([row('a', [start, logs])])) === null,
+    'no marked action means the key does nothing'
+  );
+  assert(deleteMenuItem(computeDiscoveryMenu([])) === null, 'nothing selected, nothing to delete');
+  // Every menu rule the key inherits, checked at the boundary that enforces it.
+  assert(
+    deleteMenuItem(computeDiscoveryMenu([row('a', [remove]), row('b', [start])])) === null,
+    'an action missing from one selected row is out of reach for the key too'
+  );
+  const notMulti: DiscoveryAction = { ...remove, multi: false };
+  assert(
+    deleteMenuItem(computeDiscoveryMenu([row('a', [notMulti]), row('b', [notMulti])])) === null,
+    'a delete the plugin did not mark multi is not reachable across a selection'
+  );
+  assert(
+    deleteMenuItem(computeDiscoveryMenu([row('a', [remove], { actionsBlocked: true })])) === null,
+    'a stale branch refuses the key exactly as it refuses the menu'
+  );
+  const second: DiscoveryAction = { id: 'purge', label: 'Purge', multi: true, delete: true };
+  assert(
+    deleteMenuItem(computeDiscoveryMenu([row('a', [remove, second])])) === null,
+    'two marked actions is an unanswered question, not a coin flip'
   );
 }
 

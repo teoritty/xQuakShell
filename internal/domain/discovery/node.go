@@ -48,4 +48,11 @@ type Action struct {
 	// Multi marks an action eligible for mass invocation over several selected siblings.
 	// An action is offered for a multi-selection only when every selected node carries it.
 	Multi bool `json:"multi,omitempty"`
+	// Delete marks the action the Delete key runs.
+	//
+	// The core still has no idea what the action does — the key relays the same opaque actionId the
+	// menu would have relayed. What this field buys is the one thing a keyboard shortcut needs and
+	// a menu does not: which of several actions the key means. Deriving that from `danger` or from
+	// a label would make a destructive shortcut depend on a plugin's wording.
+	Delete bool `json:"delete,omitempty"`
 }
