@@ -64,33 +64,8 @@ export function validateFieldValue(field: ValidatableField, value: string): stri
   return '';
 }
 
-/** Parses a keyValue field's stored form: a JSON object of strings, in declaration order. */
-export function parseKeyValue(raw: string): { key: string; value: string }[] {
-  if (raw.trim() === '') return [];
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return [];
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return [];
-  // Object.entries preserves insertion order for string keys, which is the order the host
-  // preserved on its side for the same reason: rows that reshuffle on repaint are unusable.
-  return Object.entries(parsed as Record<string, unknown>).map(([key, value]) => ({
-    key,
-    value: typeof value === 'string' ? value : String(value ?? ''),
-  }));
-}
-
-/** Renders pairs back to the stored form, dropping rows the user has not named yet. */
-export function encodeKeyValue(pairs: { key: string; value: string }[]): string {
-  const obj: Record<string, string> = {};
-  for (const pair of pairs) {
-    if (pair.key.trim() === '') continue;
-    obj[pair.key] = pair.value;
-  }
-  return JSON.stringify(obj);
-}
+// Parsing and rendering a keyValue field's stored form lives in ./keyValueRows.ts, with the row
+// model the editor needs. This file only judges whether a finished value is acceptable.
 
 function validateKeyValue(raw: string): string {
   let parsed: unknown;

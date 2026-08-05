@@ -1,5 +1,5 @@
 // The shared field rules: validation mirroring the host, and the layout the two renderers share.
-import { validateFieldValue, parseKeyValue, encodeKeyValue, MAX_KEY_VALUE_PAIRS } from './validate';
+import { validateFieldValue, MAX_KEY_VALUE_PAIRS } from './validate';
 import { groupFieldsIntoRows, isFieldVisible, sortByOrder, type LayoutField } from './layout';
 
 let failures = 0;
@@ -54,15 +54,6 @@ assert(validateFieldValue(kv, JSON.stringify({ a: "v" + String.fromCharCode(0x20
   const many: Record<string, string> = {};
   for (let i = 0; i <= MAX_KEY_VALUE_PAIRS; i++) many[`k${i}`] = 'v';
   assert(validateFieldValue(kv, JSON.stringify(many)) !== '', 'too many entries are refused');
-}
-
-{
-  const pairs = parseKeyValue('{"zulu":"1","alpha":"2"}');
-  assert(pairs.length === 2 && pairs[0].key === 'zulu', 'parse preserves declaration order');
-  assert(parseKeyValue('not json').length === 0, 'unparseable input yields no rows, not a crash');
-  const round = parseKeyValue(encodeKeyValue(pairs));
-  assert(round.length === 2 && round[1].value === '2', 'round trip');
-  assert(encodeKeyValue([{ key: '  ', value: 'x' }]) === '{}', 'an unnamed row is dropped on encode');
 }
 
 // --- layout ----------------------------------------------------------------

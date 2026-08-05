@@ -5,7 +5,15 @@
   // secrets, which a dialog forbids outright, so reusing it would carry a concern into a place that
   // must not have it. What the two DO share — ordering, visibility, row packing and validation —
   // lives in ./layout.ts and ./validate.ts and is shared.
-  import { parseKeyValue, encodeKeyValue, type ValidatableField } from './validate';
+  import type { ValidatableField } from './validate';
+  import {
+    newRow,
+    rowProblems,
+    rowsFromValue,
+    rowsMatchValue,
+    valueFromRows,
+    type KeyValueRow,
+  } from './keyValueRows';
   import { Plus, Trash2, Copy } from 'lucide-svelte';
 
   export let field: ValidatableField & { placeholder?: string; description?: string };
@@ -14,24 +22,38 @@
   export let readonly: boolean = false;
   export let onChange: (value: string) => void;
 
-  $: pairs = field.type === 'keyValue' ? parseKeyValue(value) : [];
+  /**
+   * Rows are the editor's state, and the JSON object is what they render down to.
+   *
+   * Deriving the rows from `value` on every keystroke is what used to delete a row the moment its
+   * name was cleared for retyping, and merge two rows that briefly shared a name. They are re-read
+   * only when the value changes underneath the editor — a different field, a snapshot pushed by
+   * the plugin — never as an echo of what this component just emitted.
+   */
+  let rows: KeyValueRow[] = [];
+  let rowsFieldID = '';
 
-  function setPairs(next: { key: string; value: string }[]) {
-    onChange(encodeKeyValue(next));
+  $: if (field.type === 'keyValue' && (field.id !== rowsFieldID || !rowsMatchValue(rows, value))) {
+    rowsFieldID = field.id;
+    rows = rowsFromValue(value);
+  }
+  $: problems = field.type === 'keyValue' ? rowProblems(rows) : new Map<number, string>();
+
+  function commitRows(next: KeyValueRow[]) {
+    rows = next;
+    onChange(valueFromRows(next));
   }
 
-  function updatePair(index: number, patch: Partial<{ key: string; value: string }>) {
-    setPairs(pairs.map((p, i) => (i === index ? { ...p, ...patch } : p)));
+  function updateRow(id: number, patch: Partial<KeyValueRow>) {
+    commitRows(rows.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   }
 
-  function addPair() {
-    // Encoding drops an unnamed row, so a blank one would vanish on the next repaint. The new row
-    // gets a placeholder name the user is expected to replace.
-    setPairs([...pairs, { key: `key${pairs.length + 1}`, value: '' }]);
+  function addRow() {
+    commitRows([...rows, newRow()]);
   }
 
-  function removePair(index: number) {
-    setPairs(pairs.filter((_, i) => i !== index));
+  function removeRow(id: number) {
+    commitRows(rows.filter((row) => row.id !== id));
   }
 
   async function copyCode() {
@@ -84,31 +106,38 @@
     </div>
   {:else if field.type === 'keyValue'}
     <div class="pairs">
-      {#each pairs as pair, i (i)}
+      <!-- Keyed by the row's own id, not its position: an id survives a rename, so the input the
+           user is typing in keeps its focus and its cursor. -->
+      {#each rows as row (row.id)}
         <div class="pair">
           <input
             class="pair-key"
-            value={pair.key}
+            class:invalid={problems.has(row.id)}
+            value={row.key}
             placeholder="name"
             disabled={readonly}
-            on:input={(e) => updatePair(i, { key: e.currentTarget.value })}
+            title={problems.get(row.id) ?? ''}
+            on:input={(e) => updateRow(row.id, { key: e.currentTarget.value })}
           />
           <input
             class="pair-value"
-            value={pair.value}
+            value={row.value}
             placeholder="value"
             disabled={readonly}
-            on:input={(e) => updatePair(i, { value: e.currentTarget.value })}
+            on:input={(e) => updateRow(row.id, { value: e.currentTarget.value })}
           />
           {#if !readonly}
-            <button class="ghost" title="Remove" on:click={() => removePair(i)}>
+            <button class="ghost" title="Remove" on:click={() => removeRow(row.id)}>
               <Trash2 size={12} />
             </button>
           {/if}
         </div>
+        {#if problems.has(row.id)}
+          <p class="error">{problems.get(row.id)}</p>
+        {/if}
       {/each}
       {#if !readonly}
-        <button class="ghost add" on:click={addPair}><Plus size={12} /> Add entry</button>
+        <button class="ghost add" on:click={addRow}><Plus size={12} /> Add entry</button>
       {/if}
     </div>
   {:else}
@@ -221,6 +250,10 @@
 
   .pair-key {
     flex: 0 0 35%;
+  }
+
+  .pair-key.invalid {
+    border-color: var(--danger);
   }
 
   .add {

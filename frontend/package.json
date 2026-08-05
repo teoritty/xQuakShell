@@ -31,7 +31,7 @@
     "test:hotkeys": "tsx src/hotkeys/hotkeys.test.ts",
     "test:terminal": "tsx src/terminal/outputBuffer.test.ts",
     "test:log-surface": "tsx src/logSurface/buffer.test.ts && tsx src/logSurface/search.test.ts && tsx src/logSurface/window.test.ts",
-    "test:fields": "tsx src/lib/fields/validate.test.ts",
+    "test:fields": "tsx src/lib/fields/validate.test.ts && tsx src/lib/fields/keyValueRows.test.ts",
     "test:events": "tsx src/events/subscribe.test.ts",
     "test:api-remotefs": "tsx src/api/remoteFs.test.ts",
     "test:api-localfs": "tsx src/api/localFs.test.ts",
