@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Sidebar from './lib/Sidebar.svelte';
+  import PluginDialog from './lib/PluginDialog.svelte';
   import TileGrid from './lib/tiles/TileGrid.svelte';
   import VaultUnlock from './lib/VaultUnlock.svelte';
   import KnownHostsManager from './lib/KnownHostsManager.svelte';
@@ -239,6 +240,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Mounted once, above everything: a plugin's modal is not owned by any one tab or panel. -->
+  <PluginDialog />
 
   {#if statusBarItems.length > 0}
     <div class="plugin-status-bar">

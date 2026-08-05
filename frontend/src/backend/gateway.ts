@@ -188,6 +188,10 @@ export interface AppGateway {
 
   ResizeSurface?(arg1: string, arg2: number, arg3: number): Promise<void>;
 
+  SubmitPluginDialog?(arg1: string, arg2: Record<string, string>): Promise<void>;
+
+  CancelPluginDialog?(arg1: string): Promise<void>;
+
   IsVaultUnlocked(): Promise<boolean>;
 
   ListGitHubRepositories?(): Promise<Array<wails.GitHubRepositoryDTO>>;

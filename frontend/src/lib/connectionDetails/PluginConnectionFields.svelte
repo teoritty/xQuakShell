@@ -1,5 +1,9 @@
 <script lang="ts">
   import type { FieldGroup, FieldDef } from '../../actions/protocolActions';
+  // Layout is shared with the plugin dialog and the node details panel (ADR-015): the markup here
+  // is mostly about vault-stored secrets, which those must not have, but how fields are ordered,
+  // hidden and packed into rows must not diverge between them.
+  import { groupFieldsIntoRows, isFieldVisible } from '../fields/layout';
   import { createEventDispatcher } from 'svelte';
   import './connectionDetailsShared.css';
 
@@ -71,57 +75,6 @@
       ),
     }));
 
-  function isVisible(field: FieldDef, vals: Record<string, unknown>): boolean {
-    if (!field.dependsOn) return true;
-    return !!vals[field.dependsOn];
-  }
-
-  function groupFieldsIntoRows(fields: FieldDef[], vals: Record<string, unknown>): FieldRow[] {
-    const rows: FieldRow[] = [];
-    let currentRow: FieldDef[] = [];
-    let currentWidth: 'half' | 'third' | null = null;
-
-    function flushRow() {
-      if (currentRow.length > 0) {
-        rows.push({ kind: 'row', fields: currentRow });
-        currentRow = [];
-        currentWidth = null;
-      }
-    }
-
-    for (const field of fields) {
-      if (!isVisible(field, vals)) continue;
-
-      const w = field.width;
-      if (field.type === 'checkbox' || w === 'full' || !w) {
-        flushRow();
-        rows.push({ kind: 'single', field });
-        continue;
-      }
-
-      if (w === 'half') {
-        if (currentWidth === 'half' && currentRow.length < 2) {
-          currentRow.push(field);
-        } else {
-          flushRow();
-          currentWidth = 'half';
-          currentRow = [field];
-        }
-        if (currentRow.length === 2) flushRow();
-      } else if (w === 'third') {
-        if (currentWidth === 'third' && currentRow.length < 3) {
-          currentRow.push(field);
-        } else {
-          flushRow();
-          currentWidth = 'third';
-          currentRow = [field];
-        }
-        if (currentRow.length === 3) flushRow();
-      }
-    }
-    flushRow();
-    return rows;
-  }
 
   function validateField(field: FieldDef): string {
     const val = values[field.id];

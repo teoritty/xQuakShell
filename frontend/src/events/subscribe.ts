@@ -23,6 +23,13 @@ import {
   clearSurfaces,
   type Surface,
 } from '../stores/surfaceState';
+import {
+  openDialog,
+  closeDialog,
+  setDialogError,
+  activeDialog,
+  type PluginDialog,
+} from '../stores/dialogState';
 
 // SFTPReady is a one-shot broadcast emitted once per session right after the
 // remote filesystem is up. A FileTree component mounts only after its session
@@ -106,6 +113,26 @@ export function subscribeToEvents(): void {
     appendPendingTerminalOutput(data.surfaceId, decodeTerminalOutput(data.data));
   });
 
+  // Plugin dialogs (ADR-015). At most one is open at a time, which the host enforces, so the
+  // frontend never holds a list.
+  rt.EventsOn('PluginDialogOpened', (data: PluginDialog) => {
+    if (!data?.dialogId) return;
+    openDialog(data);
+  });
+
+  rt.EventsOn('PluginDialogClosed', (data: { dialogId: string }) => {
+    if (!data?.dialogId) return;
+    closeDialog(data.dialogId);
+  });
+
+  rt.EventsOn(
+    'PluginDialogError',
+    (data: { dialogId: string; message: string; fieldErrors: Record<string, string> }) => {
+      if (!data?.dialogId) return;
+      setDialogError(data.dialogId, data.message ?? '', data.fieldErrors ?? {});
+    }
+  );
+
   rt.EventsOn('SessionEmbedReady', (data: { sessionId: string; embed: SessionEmbed }) => {
     sessions.update(list => {
       const idx = list.findIndex(s => s.sessionId === data.sessionId);
@@ -179,9 +206,10 @@ export function subscribeToEvents(): void {
     connections.set([]);
     sessions.set([]);
     identities.set([]);
-    // Surfaces belong to sessions that no longer exist; leaving them on screen would show a
-    // plugin's tabs over a locked vault.
+    // Surfaces and dialogs belong to sessions that no longer exist; leaving them on screen would
+    // show a plugin's tabs and modals over a locked vault.
     clearSurfaces();
+    activeDialog.set(null);
   });
 
   rt.EventsOn('FileEdited', (data: { localPath: string }) => {
