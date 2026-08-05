@@ -192,6 +192,24 @@ func (r *SessionRegistry) ProtocolForSession(id string) (string, bool) {
 	return protocol, true
 }
 
+// ConnectionForSession returns the connection a session belongs to.
+//
+// Plugin surfaces need this fact and nothing else about the session: a surface is displayed under
+// a connection, and the frontend never sees a session id (ADR-015 §1, the rule ADR-014 set for
+// discovery). It sits beside ProtocolForSession because both answer "one fact about a session, for
+// a caller that must not be handed the entry".
+func (r *SessionRegistry) ConnectionForSession(id string) (string, bool) {
+	r.mu.RLock()
+	entry, ok := r.sessions[id]
+	if !ok {
+		r.mu.RUnlock()
+		return "", false
+	}
+	connectionID := entry.connectionID
+	r.mu.RUnlock()
+	return connectionID, true
+}
+
 // StillRegistered reports whether the session id is in the registry.
 func (r *SessionRegistry) StillRegistered(id string) bool {
 	r.mu.RLock()

@@ -157,9 +157,19 @@ func drain(ch <-chan discoveryChange) {
 // exercised in-process.
 func TestPluginRetentionCheckerIsWired(t *testing.T) {
 	source := readCompositionSource(t)
-	if !strings.Contains(source, "manager.SetPluginRetentionChecker(discoveryLeader.HoldsBindings)") {
-		t.Fatal("main_plugins.go must pass discoveryLeader.HoldsBindings to manager.SetPluginRetentionChecker; " +
-			"without it a plugin drawing a subtree counts as idle and is suspended out from under the user")
+	if !strings.Contains(source, "manager.SetPluginRetentionChecker(") {
+		t.Fatal("main_plugins.go must call manager.SetPluginRetentionChecker; without it a plugin " +
+			"drawing a subtree counts as idle and is suspended out from under the user")
+	}
+	if !strings.Contains(source, "discoveryLeader.HoldsBindings(pluginID)") {
+		t.Fatal("the retention checker must consult discoveryLeader.HoldsBindings; without it a plugin " +
+			"drawing a subtree counts as idle and is suspended out from under the user")
+	}
+	// The same trap, one capability later (ADR-015): a plugin streaming a log into a tab the user
+	// is watching is silent on the RPC channel, which is exactly what idle looks like from here.
+	if !strings.Contains(source, "surfaceService.HoldsSurfaces(pluginID)") {
+		t.Fatal("the retention checker must consult surfaceService.HoldsSurfaces; without it a plugin " +
+			"feeding an open surface is suspended out from under the user")
 	}
 }
 

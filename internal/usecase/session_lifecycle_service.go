@@ -25,6 +25,7 @@ type SessionLifecycleService struct {
 	plugins         *PluginSessionBridge
 	embed           *EmbedTunnelService
 	channelBus      domainplugin.ChannelSessionCloser
+	surfaces        domainplugin.SurfaceSessionCloser
 	discovery       DiscoverySessionTracker
 	dynamicForward  *DynamicForwardCoordinator
 	forwardRules    *ForwardRuleValidator
@@ -76,6 +77,12 @@ func (s *SessionLifecycleService) SetChannelBus(bus domainplugin.ChannelSessionC
 
 func (s *SessionLifecycleService) SetDiscovery(tracker DiscoverySessionTracker) {
 	s.discovery = tracker
+}
+
+// SetSurfaces wires the plugin surface closer, late-bound exactly like SetChannelBus: the surface
+// service is built after this one in the composition root, and both are optional in tests.
+func (s *SessionLifecycleService) SetSurfaces(closer domainplugin.SurfaceSessionCloser) {
+	s.surfaces = closer
 }
 
 // OpenSession creates a new session for the given connection ID.
@@ -153,6 +160,13 @@ func (s *SessionLifecycleService) CloseSession(sessionID string) error {
 		// client, so closing the client first would sever them uncleanly instead of letting
 		// each backend tear down its own remote end via CloseRemote.
 		s.channelBus.CloseSession(sessionID)
+	}
+	if s.surfaces != nil {
+		// Alongside the channels, and for the same reason: a surface is a view onto work this
+		// session authorized, so it must not outlive the session. It runs after the channels
+		// because a surface is usually fed BY one — closing the producer first means the tab is
+		// removed with nothing still trying to write to it.
+		s.surfaces.CloseSurfacesForSession(sessionID)
 	}
 	if s.discovery != nil {
 		// Discovery outlives this session whenever another ready one remains — the tree belongs to

@@ -207,7 +207,7 @@ func newDiscoveryRig(t *testing.T) *discoveryRig {
 
 	host := infraplugin.NewProcessHost(infraplugin.HostConfig{
 		DataRoot:          t.TempDir(),
-		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(usecase.NewPluginSessionInbound(), nil, inboundHolder, authorizer),
+		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(usecase.NewPluginSessionInbound(), nil, inboundHolder, nil, authorizer),
 		SessionAuthorizer: authorizer,
 	})
 	rig.manager = usecase.NewPluginManagerWithConfig(usecase.PluginManagerConfig{

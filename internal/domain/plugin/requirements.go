@@ -126,6 +126,9 @@ func (c CapabilitySet) GrantedCapabilityNames() []CapabilityID {
 	if c.Discovery != nil {
 		names = append(names, CapDiscovery)
 	}
+	if c.UI != nil {
+		names = append(names, CapUI)
+	}
 	slices.Sort(names)
 	return names
 }

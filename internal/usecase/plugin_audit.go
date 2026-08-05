@@ -105,6 +105,31 @@ func formatPluginChannelAuditLine(entry domainplugin.ChannelAuditEntry) string {
 	return line
 }
 
+func (w *PluginAuditWriter) SurfaceFunc() domainplugin.SurfaceAuditRecorder {
+	return func(entry domainplugin.SurfaceAuditEntry) {
+		w.append(formatPluginSurfaceAuditLine(entry))
+	}
+}
+
+func formatPluginSurfaceAuditLine(entry domainplugin.SurfaceAuditEntry) string {
+	flag := "allowed"
+	if !entry.Success {
+		flag = "denied"
+	}
+	// The plugin-authored title is deliberately absent. It is free text a plugin chose, and an
+	// audit line is not a place to carry one — the ids below are what an incident review needs.
+	line := "[plugin] action=" + domainplugin.SurfaceAuditOpen + " pluginId=" + entry.PluginID +
+		" sessionId=" + entry.ParentSessionID +
+		" connectionId=" + entry.ConnectionID +
+		" surfaceId=" + safeAuditValue(entry.SurfaceID) +
+		" kind=" + safeAuditValue(entry.Kind) +
+		" result=" + flag
+	if entry.Error != "" {
+		line += " detail=" + safeAuditValue(domainplugin.RedactAuditDetail(entry.Error))
+	}
+	return line
+}
+
 func (w *PluginAuditWriter) DiscoveryFunc() domainplugin.DiscoveryAuditRecorder {
 	return func(entry domainplugin.DiscoveryAuditEntry) {
 		w.append(formatPluginDiscoveryAuditLine(entry))

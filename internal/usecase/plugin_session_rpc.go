@@ -22,6 +22,7 @@ type PluginSessionRPCHandler struct {
 	embed     *PluginEmbedInbound
 	channels  domainplugin.ChannelInboundPort
 	discovery domainplugin.DiscoveryInboundPort
+	surfaces  domainplugin.SurfaceInboundPort
 	scope     PluginSessionScope
 	auth      domainplugin.SessionRPCAuthorizer
 }
@@ -32,6 +33,7 @@ func NewPluginSessionRPCHandler(
 	embed *PluginEmbedInbound,
 	channels domainplugin.ChannelInboundPort,
 	discovery domainplugin.DiscoveryInboundPort,
+	surfaces domainplugin.SurfaceInboundPort,
 	auth domainplugin.SessionRPCAuthorizer,
 	scope PluginSessionScope,
 ) *PluginSessionRPCHandler {
@@ -40,6 +42,7 @@ func NewPluginSessionRPCHandler(
 		embed:     embed,
 		channels:  channels,
 		discovery: discovery,
+		surfaces:  surfaces,
 		scope:     scope,
 		auth:      auth,
 	}
@@ -203,6 +206,27 @@ func (h *PluginSessionRPCHandler) Handle(ctx context.Context, pluginID, method s
 		if _, err := h.discovery.Publish(ctx, pluginID, params); err != nil {
 			return nil, err
 		}
+	case MethodSurfaceOpen:
+		// Opening a surface names the session whose authorization it borrows, so it is authorized
+		// exactly where channel.open and discovery.publish are. The later surface verbs name a
+		// surfaceId instead and are authorized by ownership inside SurfaceService — one rule each,
+		// in one place each.
+		if h.surfaces == nil {
+			return nil, domainplugin.ErrCapabilityDenied
+		}
+		var req surfaceOpenAuthParams
+		if err := json.Unmarshal(params, &req); err != nil {
+			return nil, err
+		}
+		if err := h.authorize(req.ParentSessionID); err != nil {
+			return nil, err
+		}
+		return h.surfaces.Handle(ctx, pluginID, method, params)
+	case MethodSurfaceWrite, MethodSurfaceUpdateState, MethodSurfaceSetTitle, MethodSurfaceClose:
+		if h.surfaces == nil {
+			return nil, domainplugin.ErrCapabilityDenied
+		}
+		return h.surfaces.Handle(ctx, pluginID, method, params)
 	default:
 		return nil, domainplugin.ErrCapabilityDenied
 	}
@@ -218,6 +242,12 @@ type channelOpenAuthParams struct {
 // give this layer an opinion about a payload shape it has no business knowing.
 type discoveryPublishAuthParams struct {
 	SessionID string `json:"sessionId"`
+}
+
+// surfaceOpenAuthParams peels off just the field authorization needs, like the two above. The rest
+// of the open request is decoded once, by the surface usecase that will act on it.
+type surfaceOpenAuthParams struct {
+	ParentSessionID string `json:"parentSessionId"`
 }
 
 func (h *PluginSessionRPCHandler) authorize(targetSessionID string) error {
@@ -248,6 +278,7 @@ func NewPluginSessionRPCHandlerFactory(
 	inbound domainplugin.SessionInboundPort,
 	embed *PluginEmbedInbound,
 	discovery domainplugin.DiscoveryInboundPort,
+	surfaces domainplugin.SurfaceInboundPort,
 	auth domainplugin.SessionRPCAuthorizer,
 ) domainplugin.SessionRPCHandlerFactory {
 	return func(plugin domainplugin.InstalledPlugin, processSessionID string, channels domainplugin.ChannelInboundPort) domainplugin.SessionRPCHandler {
@@ -255,7 +286,7 @@ func NewPluginSessionRPCHandlerFactory(
 		if plugin.Manifest.Capabilities.Session != nil {
 			allowMulti = plugin.Manifest.Capabilities.Session.AllowMultiSession
 		}
-		return NewPluginSessionRPCHandler(inbound, embed, channels, discovery, auth, PluginSessionScope{
+		return NewPluginSessionRPCHandler(inbound, embed, channels, discovery, surfaces, auth, PluginSessionScope{
 			PluginID:          plugin.Manifest.ID,
 			ProcessSessionID:  processSessionID,
 			Isolation:         plugin.Manifest.EffectiveIsolation(),

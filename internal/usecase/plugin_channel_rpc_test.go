@@ -33,9 +33,7 @@ func TestChannelOpen_RejectsUnownedParentSession(t *testing.T) {
 		usecase.NewPluginSessionInbound(),
 		usecase.NewPluginEmbedInbound(),
 		channels,
-		nil,
-		auth,
-		usecase.PluginSessionScope{
+		nil, nil, auth, usecase.PluginSessionScope{
 			PluginID:         "plugin-a",
 			ProcessSessionID: "sess-owned",
 			Isolation:        domainplugin.IsolationPerSession,
@@ -62,9 +60,7 @@ func TestChannelOpen_AllowsOwnedParentSession(t *testing.T) {
 		usecase.NewPluginSessionInbound(),
 		usecase.NewPluginEmbedInbound(),
 		channels,
-		nil,
-		auth,
-		usecase.PluginSessionScope{
+		nil, nil, auth, usecase.PluginSessionScope{
 			PluginID:         "plugin-a",
 			ProcessSessionID: "sess-owned",
 			Isolation:        domainplugin.IsolationPerSession,

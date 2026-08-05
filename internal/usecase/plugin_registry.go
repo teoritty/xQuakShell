@@ -315,6 +315,22 @@ func (r *PluginRegistry) DiscoveryPlugins() []DiscoveryPluginTarget {
 	return targets
 }
 
+// UICapabilities returns a plugin's declared ui capability, or nil when it declared none
+// (ADR-015). An unknown plugin gets the same nil, and both mean one thing to every caller: this
+// plugin may not draw. The result is a copy, so a caller cannot widen its own grant by mutating
+// what it was handed.
+func (r *PluginRegistry) UICapabilities(pluginID string) *domainplugin.UICaps {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	p, ok := r.plugins[pluginID]
+	if !ok || p.Manifest.Capabilities.UI == nil {
+		return nil
+	}
+	caps := *p.Manifest.Capabilities.UI
+	caps.Surfaces = append([]string(nil), caps.Surfaces...)
+	return &caps
+}
+
 // DeclaredDiscoveryIcons returns the icon IDs a plugin registered in
 // contributions.discoveryIcons, as a set. An unknown plugin yields an empty set rather than an
 // error: the caller's answer to "not declared" and to "no such plugin" is identical — publish the

@@ -58,6 +58,9 @@ func NewSurfaceService(
 	caps SurfaceCapabilityLookup,
 	audit domainplugin.SurfaceAuditRecorder,
 ) *SurfaceService {
+	if presenter == nil {
+		presenter = noopSurfacePresenter{}
+	}
 	return &SurfaceService{
 		registry:  registry,
 		presenter: presenter,
@@ -67,6 +70,37 @@ func NewSurfaceService(
 		audit:     audit,
 	}
 }
+
+// SetPresenter late-binds the UI side, the way SessionLifecycleService.SetChannelBus late-binds
+// its own. The composition root builds the plugin stack before the Wails API exists, and a
+// service that refused to be constructed until its presenter did would force the two into an
+// order the rest of the wiring does not have. Until it is set, a surface's output goes nowhere —
+// which is the correct behaviour for a UI that is not up yet, and never a nil dereference.
+func (s *SurfaceService) SetPresenter(presenter SurfacePresenter) {
+	if presenter == nil {
+		return
+	}
+	s.presenter = presenter
+}
+
+// HoldsSurfaces reports whether a plugin currently owns any surface.
+//
+// It answers the idle sweeper's "is anyone using this?" question, which without it says no for a
+// plugin whose only job right now is streaming a log into a tab the user is watching — quiet on
+// the RPC channel is exactly what that looks like. The same trap ADR-014 documented for discovery
+// bindings, in the same place.
+func (s *SurfaceService) HoldsSurfaces(pluginID string) bool {
+	return s.registry.CountForPlugin(pluginID) > 0
+}
+
+// noopSurfacePresenter drops everything. Used before SetPresenter and in tests that care only
+// about the plugin-facing half.
+type noopSurfacePresenter struct{}
+
+func (noopSurfacePresenter) Opened(domainplugin.Surface)  {}
+func (noopSurfacePresenter) Output(_, _, _ string) error  { return nil }
+func (noopSurfacePresenter) Changed(domainplugin.Surface) {}
+func (noopSurfacePresenter) Closed(string)                {}
 
 // capsFor returns the plugin's ui capability, or nil.
 func (s *SurfaceService) capsFor(pluginID string) *domainplugin.UICaps {
