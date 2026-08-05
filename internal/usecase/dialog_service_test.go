@@ -90,7 +90,12 @@ const oneTextField = `[{"id":"main","label":"Main","fields":[
 
 func (h *dialogHarness) open(t *testing.T, kind string) string {
 	t.Helper()
-	params := json.RawMessage(`{"kind":"` + kind + `","title":"T","sections":` + oneTextField + `}`)
+	return h.openWithSections(t, kind, oneTextField)
+}
+
+func (h *dialogHarness) openWithSections(t *testing.T, kind, sections string) string {
+	t.Helper()
+	params := json.RawMessage(`{"kind":"` + kind + `","title":"T","sections":` + sections + `}`)
 	raw, err := h.svc.Handle(context.Background(), "plugin-a", "dialog.open", params)
 	if err != nil {
 		t.Fatalf("dialog.open: %v", err)
@@ -215,24 +220,62 @@ func TestDialogDeliversExactlyOneAnswer(t *testing.T) {
 
 func TestDialogSubmitValidatesAgainstDeclaredFields(t *testing.T) {
 	h := newDialogHarness(t, true)
-	sections := `[{"id":"g","label":"G","fields":[
+	id := h.openWithSections(t, "form", `[{"id":"g","label":"G","fields":[
 		{"id":"name","label":"Name","type":"text","secret":false,"validation":{"maxLength":4}}
-	]}]`
-	params := json.RawMessage(`{"kind":"form","title":"T","sections":` + sections + `}`)
-	raw, err := h.svc.Handle(context.Background(), "plugin-a", "dialog.open", params)
-	if err != nil {
-		t.Fatalf("dialog.open: %v", err)
-	}
-	var res struct {
-		DialogID string `json:"dialogId"`
-	}
-	_ = json.Unmarshal(raw, &res)
+	]}]`)
 
-	if err := h.svc.Submit(res.DialogID, map[string]string{"name": "far too long"}); err == nil {
+	if err := h.svc.Submit(id, map[string]string{"name": "far too long"}); err == nil {
 		t.Fatal("expected a value violating its declared validation to be refused")
 	}
 	if len(h.outbound.submitted) != 0 {
 		t.Fatal("a refused submit must not reach the plugin")
+	}
+}
+
+// A pattern arrives as a string and has to be compiled before a submit can be checked against it.
+// Without that step every value of such a field was refused with "field pattern not compiled" —
+// the form validated in the browser, the host rejected it, and the user had nothing to fix.
+func TestDialogSubmitAcceptsAValueMatchingItsDeclaredPattern(t *testing.T) {
+	h := newDialogHarness(t, true)
+	id := h.openWithSections(t, "form", `[{"id":"g","label":"G","fields":[
+		{"id":"name","label":"Name","type":"text","secret":false,"validation":{"pattern":"^[a-z]+$"}}
+	]}]`)
+
+	if err := h.svc.Submit(id, map[string]string{"name": "webserver"}); err != nil {
+		t.Fatalf("a value matching the declared pattern was refused: %v", err)
+	}
+	if h.outbound.values[id]["name"] != "webserver" {
+		t.Fatalf("the accepted value did not reach the plugin: %v", h.outbound.values[id])
+	}
+}
+
+func TestDialogSubmitRefusesAValueBreakingItsDeclaredPattern(t *testing.T) {
+	h := newDialogHarness(t, true)
+	id := h.openWithSections(t, "form", `[{"id":"g","label":"G","fields":[
+		{"id":"name","label":"Name","type":"text","secret":false,"validation":{"pattern":"^[a-z]+$"}}
+	]}]`)
+
+	if err := h.svc.Submit(id, map[string]string{"name": "NOT lowercase"}); err == nil {
+		t.Fatal("expected a value breaking the declared pattern to be refused")
+	}
+	if len(h.outbound.submitted) != 0 {
+		t.Fatal("a refused submit must not reach the plugin")
+	}
+}
+
+// A dialog whose pattern the host cannot vouch for is refused at open, not at submit: the modal
+// must not appear at all if answering it could never succeed.
+func TestDialogOpenRejectsAnUnsafePattern(t *testing.T) {
+	h := newDialogHarness(t, true)
+	sections := `[{"id":"g","label":"G","fields":[
+		{"id":"name","label":"Name","type":"text","secret":false,"validation":{"pattern":"((a+)+)+"}}
+	]}]`
+	params := json.RawMessage(`{"kind":"form","title":"T","sections":` + sections + `}`)
+	if _, err := h.svc.Handle(context.Background(), "plugin-a", "dialog.open", params); err == nil {
+		t.Fatal("expected an unsafe pattern to be refused at open")
+	}
+	if len(h.presenter.opened) != 0 {
+		t.Fatal("a refused open must not put a modal on screen")
 	}
 }
 

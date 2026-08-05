@@ -124,34 +124,15 @@ func (s *DialogService) capsFor(pluginID string) *domainplugin.UICaps {
 }
 
 // validateDialogSections enforces the declaration rules a dialog's fields must satisfy before the
-// modal is shown: the size limit, and the ban on secrets (ADR-015 §2).
+// modal is shown (ADR-015 §2).
+//
+// Everything a dialog and a node details panel share — ids, types, the ban on secrets, widths,
+// select options, dependsOn, and compiling validation.pattern so a submit can be checked against
+// it — lives in domainplugin.ValidateWireFields. What stays here is the one rule only a dialog
+// has: a modal with nothing to show is not a question.
 func validateDialogSections(dialog domainplugin.Dialog) error {
 	if dialog.CountFields() == 0 {
 		return fmt.Errorf("dialog: at least one field is required")
 	}
-	if dialog.CountFields() > domainplugin.MaxDialogFields {
-		return fmt.Errorf("dialog: %d fields exceeds the limit of %d", dialog.CountFields(), domainplugin.MaxDialogFields)
-	}
-	seen := make(map[string]struct{})
-	for _, group := range dialog.Sections {
-		for _, field := range group.Fields {
-			if field.ID == "" {
-				return fmt.Errorf("dialog: field id must not be empty")
-			}
-			if _, dup := seen[field.ID]; dup {
-				return fmt.Errorf("dialog: duplicate field id %q", field.ID)
-			}
-			seen[field.ID] = struct{}{}
-			if field.Secret {
-				// A dialog has no connection and no vault, so a secret field would be a plaintext
-				// string wearing a lock icon. Plugins needing a secret still go through
-				// vault.getSecret, under its existing consent.
-				return fmt.Errorf("dialog: field %q may not be secret", field.ID)
-			}
-			if !domainplugin.IsValidDialogFieldType(field.Type) {
-				return fmt.Errorf("dialog: field %q has an unsupported type %q", field.ID, field.Type)
-			}
-		}
-	}
-	return nil
+	return domainplugin.ValidateWireFields(dialog.Sections, "dialog")
 }
