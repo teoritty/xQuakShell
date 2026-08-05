@@ -58,6 +58,8 @@ type CapabilitySet struct {
 	Channel *ChannelCaps `json:"channel,omitempty"`
 	// Discovery declares the ability to draw resource subtrees inside connections (ADR-014).
 	Discovery *DiscoveryCaps `json:"discovery,omitempty"`
+	// UI declares where a plugin may draw its own tabs, dialogs and node details (ADR-015).
+	UI *UICaps `json:"ui,omitempty"`
 }
 
 // NetworkCaps controls outbound connectivity.

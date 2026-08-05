@@ -78,6 +78,9 @@ func (m *Manifest) ValidateCapabilities() error {
 	if err := m.validateDiscoveryCaps(); err != nil {
 		return err
 	}
+	if err := m.validateUICaps(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -441,6 +444,9 @@ func (m *Manifest) PermissionSummary() []string {
 	}
 	if m.Capabilities.Discovery != nil {
 		lines = append(lines, "Show discovered resources under your connections")
+	}
+	if m.Capabilities.UI != nil {
+		lines = append(lines, "Show its own tabs, dialogs and node details")
 	}
 	if len(lines) == 0 {
 		lines = append(lines, "No elevated permissions requested")
