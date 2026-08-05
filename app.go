@@ -461,6 +461,18 @@ func (a *App) CancelPluginDialog(dialogId string) error {
 	return a.api.CancelPluginDialog(dialogId)
 }
 
+// DescribeDiscoveryNode returns a discovery node's property panel. pluginId is named explicitly
+// for the same reason InvokeDiscoveryAction names it: node ids are unique only within one plugin's
+// own subtree.
+func (a *App) DescribeDiscoveryNode(connectionId string, pluginId string, nodeId string) (presentation.NodeDetailsDTO, error) {
+	return a.api.DescribeDiscoveryNode(connectionId, pluginId, nodeId)
+}
+
+// ApplyDiscoveryNodeDetails hands edited values to the node's owner, which persists them.
+func (a *App) ApplyDiscoveryNodeDetails(connectionId string, pluginId string, nodeId string, values map[string]string) error {
+	return a.api.ApplyDiscoveryNodeDetails(connectionId, pluginId, nodeId, values)
+}
+
 func (a *App) PingPlugin(pluginID string) (presentation.PluginPingResultDTO, error) {
 	return a.api.PingPlugin(pluginID)
 }

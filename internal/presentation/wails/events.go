@@ -29,6 +29,7 @@ const (
 	EventPluginDialogOpened         = "PluginDialogOpened"
 	EventPluginDialogClosed         = "PluginDialogClosed"
 	EventPluginDialogError          = "PluginDialogError"
+	EventPluginNodeDetails          = "PluginNodeDetails"
 )
 
 // DiscoveryTreeChangedPayload names the connection and the node whose branch changed (ADR-014).

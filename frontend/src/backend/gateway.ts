@@ -192,6 +192,21 @@ export interface AppGateway {
 
   CancelPluginDialog?(arg1: string): Promise<void>;
 
+  // Typed structurally rather than through wails.*: the generated model bindings are checked in
+  // and regenerating them is a separate step, while this shape is small and stable.
+  DescribeDiscoveryNode?(
+    arg1: string,
+    arg2: string,
+    arg3: string
+  ): Promise<{ sections: unknown[]; values: Record<string, string>; editable: boolean }>;
+
+  ApplyDiscoveryNodeDetails?(
+    arg1: string,
+    arg2: string,
+    arg3: string,
+    arg4: Record<string, string>
+  ): Promise<void>;
+
   IsVaultUnlocked(): Promise<boolean>;
 
   ListGitHubRepositories?(): Promise<Array<wails.GitHubRepositoryDTO>>;

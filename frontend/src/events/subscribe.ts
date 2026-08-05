@@ -30,6 +30,7 @@ import {
   activeDialog,
   type PluginDialog,
 } from '../stores/dialogState';
+import { nodeDetailsTarget, isCurrentNode } from '../stores/nodeDetailsState';
 
 // SFTPReady is a one-shot broadcast emitted once per session right after the
 // remote filesystem is up. A FileTree component mounts only after its session
@@ -133,6 +134,20 @@ export function subscribeToEvents(): void {
     }
   );
 
+  // A plugin pushed a newer panel for a node (ADR-015 §3). The event carries no snapshot: the
+  // panel re-reads through DescribeDiscoveryNode, so one reader path serves the first open and
+  // every refresh — the rule DiscoveryTreeChanged already follows for the tree.
+  rt.EventsOn(
+    'PluginNodeDetails',
+    (data: { connectionId: string; pluginId: string; nodeId: string }) => {
+      if (!data?.nodeId) return;
+      if (!isCurrentNode(data.connectionId, data.pluginId, data.nodeId)) return;
+      // Re-setting the same target is what the panel watches; it reloads and shows what the plugin
+      // now reports.
+      nodeDetailsTarget.update((t) => (t ? { ...t } : t));
+    }
+  );
+
   rt.EventsOn('SessionEmbedReady', (data: { sessionId: string; embed: SessionEmbed }) => {
     sessions.update(list => {
       const idx = list.findIndex(s => s.sessionId === data.sessionId);
@@ -210,6 +225,7 @@ export function subscribeToEvents(): void {
     // show a plugin's tabs and modals over a locked vault.
     clearSurfaces();
     activeDialog.set(null);
+    nodeDetailsTarget.set(null);
   });
 
   rt.EventsOn('FileEdited', (data: { localPath: string }) => {

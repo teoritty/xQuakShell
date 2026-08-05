@@ -36,6 +36,7 @@ func newDiscoveryRPCHandler(discovery domainplugin.DiscoveryInboundPort) *usecas
 		discovery,
 		nil,
 		nil,
+		nil,
 		usecase.NewPluginSessionAuthorizer(nil),
 		usecase.PluginSessionScope{
 			PluginID:         "plugin-a",

@@ -24,6 +24,7 @@ type PluginSessionRPCHandler struct {
 	discovery domainplugin.DiscoveryInboundPort
 	surfaces  domainplugin.SurfaceInboundPort
 	dialogs   domainplugin.DialogInboundPort
+	details   domainplugin.DiscoveryDetailsInboundPort
 	scope     PluginSessionScope
 	auth      domainplugin.SessionRPCAuthorizer
 }
@@ -36,6 +37,7 @@ func NewPluginSessionRPCHandler(
 	discovery domainplugin.DiscoveryInboundPort,
 	surfaces domainplugin.SurfaceInboundPort,
 	dialogs domainplugin.DialogInboundPort,
+	details domainplugin.DiscoveryDetailsInboundPort,
 	auth domainplugin.SessionRPCAuthorizer,
 	scope PluginSessionScope,
 ) *PluginSessionRPCHandler {
@@ -46,6 +48,7 @@ func NewPluginSessionRPCHandler(
 		discovery: discovery,
 		surfaces:  surfaces,
 		dialogs:   dialogs,
+		details:   details,
 		scope:     scope,
 		auth:      auth,
 	}
@@ -230,6 +233,19 @@ func (h *PluginSessionRPCHandler) Handle(ctx context.Context, pluginID, method s
 			return nil, domainplugin.ErrCapabilityDenied
 		}
 		return h.surfaces.Handle(ctx, pluginID, method, params)
+	case MethodDiscoveryPublishDetails:
+		// It names a sessionId, so it is authorized here exactly like discovery.publish.
+		if h.details == nil {
+			return nil, domainplugin.ErrCapabilityDenied
+		}
+		var req discoveryPublishAuthParams
+		if err := json.Unmarshal(params, &req); err != nil {
+			return nil, err
+		}
+		if err := h.authorize(req.SessionID); err != nil {
+			return nil, err
+		}
+		return h.details.PublishDetails(ctx, pluginID, params)
 	case MethodDialogOpen, MethodDialogSetError, MethodDialogClose:
 		// No session is named anywhere in the dialog verbs, so there is no IDOR check to run here:
 		// ownership is by dialogId, decided inside DialogService, and the grant is the gate's.
@@ -290,6 +306,7 @@ func NewPluginSessionRPCHandlerFactory(
 	discovery domainplugin.DiscoveryInboundPort,
 	surfaces domainplugin.SurfaceInboundPort,
 	dialogs domainplugin.DialogInboundPort,
+	details domainplugin.DiscoveryDetailsInboundPort,
 	auth domainplugin.SessionRPCAuthorizer,
 ) domainplugin.SessionRPCHandlerFactory {
 	return func(plugin domainplugin.InstalledPlugin, processSessionID string, channels domainplugin.ChannelInboundPort) domainplugin.SessionRPCHandler {
@@ -297,7 +314,7 @@ func NewPluginSessionRPCHandlerFactory(
 		if plugin.Manifest.Capabilities.Session != nil {
 			allowMulti = plugin.Manifest.Capabilities.Session.AllowMultiSession
 		}
-		return NewPluginSessionRPCHandler(inbound, embed, channels, discovery, surfaces, dialogs, auth, PluginSessionScope{
+		return NewPluginSessionRPCHandler(inbound, embed, channels, discovery, surfaces, dialogs, details, auth, PluginSessionScope{
 			PluginID:          plugin.Manifest.ID,
 			ProcessSessionID:  processSessionID,
 			Isolation:         plugin.Manifest.EffectiveIsolation(),

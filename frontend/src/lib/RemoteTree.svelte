@@ -66,6 +66,11 @@
   import { clampMenuPosition } from './clampMenuPosition';
   import { onMount, tick } from 'svelte';
   import { get } from 'svelte/store';
+  import {
+    openNodeDetails,
+    closeNodeDetails,
+    nodeDetailsYieldToConnection,
+  } from '../stores/nodeDetailsState';
   import { invokeDiscoveryAction } from '../api/discovery';
   import {
     computeDiscoveryMenu,
@@ -309,6 +314,19 @@
       lastSelectedPath = null;
     }
     discoverySelection.update((sel) => selectDiscoveryRow(sel, row, discoveryRows, e));
+    // The details panel follows the selection, and only for a single row: a panel showing the
+    // properties of one of four selected nodes would be lying about which one (ADR-015 §3).
+    const selected = get(discoverySelection);
+    if (selected.keys.size === 1) {
+      openNodeDetails({
+        connectionId: row.connectionId,
+        pluginId: row.pluginId,
+        nodeId: row.nodeId,
+        label: row.label,
+      });
+    } else {
+      closeNodeDetails();
+    }
   }
 
   async function runDiscoveryAction(item: DiscoveryMenuItem, menu: DiscoveryMenu) {
@@ -553,6 +571,9 @@
 
   function handleSelectNode(id: string, e?: MouseEvent) {
     clearDiscoverySelection();
+    // The sidebar has one details slot: selecting a connection or folder closes any open node
+    // panel, exactly as selecting a node clears the connection selection (ADR-015 §3).
+    nodeDetailsYieldToConnection();
     applySelection(selectTreeNode(id, shiftNodes, lastSelectedPath, selectedPaths, e));
     const isPlainClick = !e?.ctrlKey && !e?.metaKey && !e?.shiftKey;
     if (isPlainClick && $connections.some((c) => c.id === id)) {

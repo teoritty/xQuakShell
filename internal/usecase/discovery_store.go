@@ -343,6 +343,21 @@ func (s *DiscoveryStore) ClearPlugin(connID, pluginID string) []string {
 // ConnectionsWithPlugin lists the connections currently holding a subtree published by pluginID.
 // It exists so that stopping a plugin can be expressed as "clear it wherever it drew something"
 // without a second index of plugin->connections that would have to be kept in step with this one.
+// HasNode reports whether one plugin's tree under a connection currently holds a node.
+//
+// It is the node-details counterpart of CheckAction's existence half: the host answers questions
+// about a node only while it is looking at one, so a frontend cannot address an arbitrary id
+// through the details path.
+func (s *DiscoveryStore) HasNode(connID, pluginID, nodeID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tree, ok := s.conns[connID][pluginID]
+	if !ok {
+		return false
+	}
+	return tree.hasAll([]string{nodeID})
+}
+
 func (s *DiscoveryStore) ConnectionsWithPlugin(pluginID string) []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()

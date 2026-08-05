@@ -114,6 +114,11 @@ func (g *Gate) Allow(method string) bool {
 		return g.manifest.Capabilities.UI != nil && len(g.manifest.Capabilities.UI.Surfaces) > 0
 	case "dialog.open", "dialog.setError", "dialog.close":
 		return g.manifest.Capabilities.UI != nil && g.manifest.Capabilities.UI.Dialogs
+	case "discovery.publishDetails":
+		// Both grants, because it is both things: a discovery verb addressing a node, and a ui verb
+		// drawing a panel. Either one missing means the plugin cannot legitimately send it.
+		return g.manifest.Capabilities.Discovery != nil &&
+			g.manifest.Capabilities.UI != nil && g.manifest.Capabilities.UI.NodeDetails
 	default:
 		return false
 	}

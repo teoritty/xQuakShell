@@ -17,6 +17,13 @@ type DiscoveryInboundPort interface {
 	Publish(ctx context.Context, pluginID string, params json.RawMessage) (json.RawMessage, error)
 }
 
+// DiscoveryDetailsInboundPort handles the plugin->host discovery.publishDetails request
+// (ADR-015 §3). Separate from DiscoveryInboundPort because the two are granted separately: a
+// plugin may draw a tree without describing its nodes.
+type DiscoveryDetailsInboundPort interface {
+	PublishDetails(ctx context.Context, pluginID string, params json.RawMessage) (json.RawMessage, error)
+}
+
 // DiscoveryConnectionClearer drops a connection's whole discovery tree, the counterpart of
 // ChannelSessionCloser for discovery state.
 //

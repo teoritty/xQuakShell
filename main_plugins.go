@@ -43,6 +43,7 @@ type pluginRuntime struct {
 	discoveryLeader     *usecase.DiscoveryLeader
 	surfaces            *usecase.SurfaceService
 	dialogs             *usecase.DialogService
+	nodeDetails         *usecase.DiscoveryDetailsService
 	discoveryEmit       *discoveryEmitHolder
 	viewRelay           *usecase.PluginViewRelay
 	vaultInbound        *usecase.PluginVaultInbound
@@ -151,6 +152,32 @@ func (h *dialogInboundHolder) Handle(ctx context.Context, pluginID, method strin
 
 var _ domainplugin.DialogInboundPort = (*dialogInboundHolder)(nil)
 
+// detailsInboundHolder late-binds the node-details service, the last of the same family.
+type detailsInboundHolder struct {
+	mu   sync.Mutex
+	port domainplugin.DiscoveryDetailsInboundPort
+}
+
+func newDetailsInboundHolder() *detailsInboundHolder { return &detailsInboundHolder{} }
+
+func (h *detailsInboundHolder) set(port domainplugin.DiscoveryDetailsInboundPort) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.port = port
+}
+
+func (h *detailsInboundHolder) PublishDetails(ctx context.Context, pluginID string, params json.RawMessage) (json.RawMessage, error) {
+	h.mu.Lock()
+	port := h.port
+	h.mu.Unlock()
+	if port == nil {
+		return nil, domainplugin.ErrCapabilityDenied
+	}
+	return port.PublishDetails(ctx, pluginID, params)
+}
+
+var _ domainplugin.DiscoveryDetailsInboundPort = (*detailsInboundHolder)(nil)
+
 // discoveryEmitHolder late-binds the frontend emit callback the same way discoveryInboundHolder
 // late-binds the inbound port, and for the same forced ordering: the emit coalescer is built inside
 // the plugin runtime, and the AppAPI that owns the Wails context is built afterwards from it.
@@ -244,12 +271,13 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	discoveryInbound := newDiscoveryInboundHolder()
 	surfaceInbound := newSurfaceInboundHolder()
 	dialogInbound := newDialogInboundHolder()
+	detailsInbound := newDetailsInboundHolder()
 
 	hostCfg := infraplugin.HostConfig{
 		DataRoot:          dataRoot,
 		Portable:          portableRuntime,
 		Vault:             vaultInbound,
-		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, embedInbound, discoveryInbound, surfaceInbound, dialogInbound, sessionAuthorizer),
+		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, embedInbound, discoveryInbound, surfaceInbound, dialogInbound, detailsInbound, sessionAuthorizer),
 		Events:            eventBus,
 		Views:             viewInbound,
 		Tunnel:            dynamicForward,
@@ -358,6 +386,17 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		registry.UICapabilities,
 	)
 	dialogInbound.set(dialogService)
+
+	// Node details (ADR-015 §3): a discovery verb addressing a node and a ui verb drawing a panel,
+	// which is why it needs both grants and reuses both services' dependencies.
+	detailsService := usecase.NewDiscoveryDetailsService(
+		discoveryStore,
+		discoveryLeader,
+		manager,
+		pluginAudit.DiscoveryFunc(),
+		registry.UICapabilities,
+	)
+	detailsInbound.set(detailsService)
 	// A restarted plugin is told the whole observed set again; without this the level-triggered
 	// contract silently degrades into an edge-triggered one (ADR-014 §data flow).
 	manager.SetProcessStartedHandler(discoveryObserver.PluginStarted)
@@ -511,6 +550,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		discoveryLeader:     discoveryLeader,
 		surfaces:            surfaceService,
 		dialogs:             dialogService,
+		nodeDetails:         detailsService,
 		discoveryEmit:       discoveryEmit,
 		viewInbound:         viewInbound,
 		viewRelay:           viewRelay,
@@ -563,6 +603,10 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 	if r.dialogs != nil {
 		r.dialogs.SetPresenter(presentation.NewDialogPresenter(api))
 		api.SetDialogService(r.dialogs)
+	}
+	if r.nodeDetails != nil {
+		r.nodeDetails.SetEmitter(api.EmitNodeDetailsChanged)
+		api.SetNodeDetailsService(r.nodeDetails)
 	}
 	api.Sessions().SetDynamicForward(r.dynamicForward)
 	if r.dynamicForward != nil && r.vaultSettings != nil {

@@ -143,7 +143,7 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 	// one verb family behind two dispatchers.
 	case "session.updateState", "session.writeTerminal", "session.registerEmbed", "session.tunnelOpen", "session.tunnelFrame", "session.tunnelClose", "session.reportLocalEmbed", "discovery.publish",
 		"surface.open", "surface.write", "surface.updateState", "surface.setTitle", "surface.close",
-		"dialog.open", "dialog.setError", "dialog.close":
+		"dialog.open", "dialog.setError", "dialog.close", "discovery.publishDetails":
 		if s.sessions == nil {
 			return nil, &RPCError{Code: -32603, Message: "session handler unavailable"}
 		}
