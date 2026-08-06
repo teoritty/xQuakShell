@@ -34,7 +34,7 @@ type dialogIDParams struct {
 }
 
 // Handle dispatches one dialog.* call: decode, delegate, nothing else.
-func (s *DialogService) Handle(ctx context.Context, pluginID, method string, params json.RawMessage) (json.RawMessage, error) {
+func (s *DialogService) Handle(_ context.Context, pluginID, method string, params json.RawMessage) (json.RawMessage, error) {
 	switch method {
 	case MethodDialogOpen:
 		var req dialogOpenParams

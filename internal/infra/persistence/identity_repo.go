@@ -22,7 +22,7 @@ func NewIdentityRepo(v domain.VaultRepository) *IdentityRepo {
 }
 
 // GetAll returns metadata for every SSH identity in the vault.
-func (r *IdentityRepo) GetAll(ctx context.Context) ([]domain.SSHIdentity, error) {
+func (r *IdentityRepo) GetAll(_ context.Context) ([]domain.SSHIdentity, error) {
 	data, err := r.vault.GetData()
 	if err != nil {
 		return nil, fmt.Errorf("get all identities: %w", err)
@@ -36,7 +36,7 @@ func (r *IdentityRepo) GetAll(ctx context.Context) ([]domain.SSHIdentity, error)
 }
 
 // GetKeyBlob returns the raw PEM bytes for the identity with the given ID.
-func (r *IdentityRepo) GetKeyBlob(ctx context.Context, id string) ([]byte, error) {
+func (r *IdentityRepo) GetKeyBlob(_ context.Context, id string) ([]byte, error) {
 	data, err := r.vault.GetData()
 	if err != nil {
 		return nil, fmt.Errorf("get key blob: %w", err)

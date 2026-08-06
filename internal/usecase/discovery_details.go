@@ -165,7 +165,7 @@ func (s *DiscoveryDetailsService) Apply(ctx context.Context, connectionID, plugi
 // Level-triggered and a full snapshot, matching discovery.publish: a delta protocol here would
 // desync against a tree that is itself snapshot-based. The IDOR check has already run in
 // PluginSessionRPCHandler, on the same path discovery.publish takes.
-func (s *DiscoveryDetailsService) PublishDetails(ctx context.Context, pluginID string, params json.RawMessage) (json.RawMessage, error) {
+func (s *DiscoveryDetailsService) PublishDetails(_ context.Context, pluginID string, params json.RawMessage) (json.RawMessage, error) {
 	caps := s.capsFor(pluginID)
 	if caps == nil || !caps.NodeDetails {
 		return nil, fmt.Errorf("%w: nodeDetails not declared", domainplugin.ErrCapabilityDenied)
