@@ -43,6 +43,9 @@ func ValidateCapabilitiesForInstall(m *domainplugin.Manifest, installDir string)
 // over in silence, because integrity does not cover every asset of every unsigned bundled plugin —
 // a manifest can be entirely valid while the icon it names is simply absent, and then the only
 // symptom is a node that renders without an icon for no visible reason.
+//
+// Refusing that condition is ValidateDeclaredUIAssets' job, and it does so at install, where a
+// refusal keeps the tree out instead of making an already-installed plugin unloadable.
 func validateDiscoveryIconAssets(m *domainplugin.Manifest, installDir string) error {
 	icons := m.Contributions.DiscoveryIcons
 	if len(icons) == 0 {

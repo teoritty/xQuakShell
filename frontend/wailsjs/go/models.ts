@@ -523,6 +523,115 @@ export namespace wails {
 		}
 	}
 	
+	export class DialogFieldOptionDTO {
+	    value: string;
+	    label: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DialogFieldOptionDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.value = source["value"];
+	        this.label = source["label"];
+	    }
+	}
+	export class DialogFieldDTO {
+	    id: string;
+	    label: string;
+	    type: string;
+	    required: boolean;
+	    placeholder?: string;
+	    description?: string;
+	    width?: string;
+	    order: number;
+	    dependsOn?: string;
+	    options?: DialogFieldOptionDTO[];
+	    minLength?: number;
+	    maxLength?: number;
+	    min?: number;
+	    max?: number;
+	    pattern?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DialogFieldDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.type = source["type"];
+	        this.required = source["required"];
+	        this.placeholder = source["placeholder"];
+	        this.description = source["description"];
+	        this.width = source["width"];
+	        this.order = source["order"];
+	        this.dependsOn = source["dependsOn"];
+	        this.options = this.convertValues(source["options"], DialogFieldOptionDTO);
+	        this.minLength = source["minLength"];
+	        this.maxLength = source["maxLength"];
+	        this.min = source["min"];
+	        this.max = source["max"];
+	        this.pattern = source["pattern"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class DialogSectionDTO {
+	    id: string;
+	    label: string;
+	    order: number;
+	    fields: DialogFieldDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DialogSectionDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.order = source["order"];
+	        this.fields = this.convertValues(source["fields"], DialogFieldDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class DiscoveryActionDTO {
 	    id: string;
 	    label: string;
@@ -530,6 +639,7 @@ export namespace wails {
 	    danger?: boolean;
 	    confirm?: string;
 	    multi?: boolean;
+	    delete?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new DiscoveryActionDTO(source);
@@ -543,6 +653,7 @@ export namespace wails {
 	        this.danger = source["danger"];
 	        this.confirm = source["confirm"];
 	        this.multi = source["multi"];
+	        this.delete = source["delete"];
 	    }
 	}
 	export class DiscoveryTruncatedDTO {
@@ -1183,6 +1294,40 @@ export namespace wails {
 	        this.mode = source["mode"];
 	        this.owner = source["owner"];
 	    }
+	}
+	export class NodeDetailsDTO {
+	    sections: DialogSectionDTO[];
+	    values: Record<string, string>;
+	    editable: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new NodeDetailsDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sections = this.convertValues(source["sections"], DialogSectionDTO);
+	        this.values = source["values"];
+	        this.editable = source["editable"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	
 	export class PingResultDTO {

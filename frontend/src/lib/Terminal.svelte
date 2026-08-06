@@ -4,14 +4,21 @@
   import { FitAddon } from '@xterm/addon-fit';
   import { LigaturesAddon } from '@xterm/addon-ligatures';
   import { WebLinksAddon } from '@xterm/addon-web-links';
-  import { sendTerminalInput, terminalResize } from '../api/terminal';
+  import type { TerminalIO } from '../terminal/terminalIO';
   import { getSettings } from '../actions/settingsActions';
   import { takePendingTerminalOutput, registerTerminalOutputConsumer, clearPendingTerminalOutput } from '../terminal/outputBuffer';
   import { getUiScaleFactor } from './uiScale';
   import { dataHasEnter, extractCommandLine } from './terminalCommandLine';
   import { getPooledTerminal, setPooledTerminal } from './terminalPool';
+  import { refitGrid, ensureInitialFit as ensureGridFit } from '../terminal/xtermGrid';
+  import { defaultTerminalTheme } from '../terminal/xtermTheme';
 
-  export let sessionId: string;
+  /**
+   * Where this terminal's bytes come from and go to — an SSH session or a plugin surface
+   * (ADR-015). The renderer names neither producer; everything that differs between them lives
+   * behind this interface.
+   */
+  export let io: TerminalIO;
   export let active: boolean = false;
 
   let containerEl: HTMLDivElement;
@@ -27,7 +34,7 @@
   /** Drops live TerminalOutput until subscription is installed. */
   let acceptOutput = false;
   let unregisterOutputConsumer: (() => void) | null = null;
-  const mountSessionId = sessionId;
+  const mountSessionId = io.id;
   /** Captured on Enter keydown before xterm/PTY consume the line. */
   let pendingCommandLine = '';
   let baseTerminalFontSize = 14;
@@ -64,105 +71,11 @@
 
   const onUiScaleChanged = () => applyTerminalFontSize();
 
-  const defaultTheme = {
-    background: '#1e1e1e',
-    foreground: '#cccccc',
-    cursor: '#ffffff',
-    selectionBackground: 'rgba(255, 255, 255, 0.30)',
-    selectionForeground: '#000000',
-    selectionInactiveBackground: 'rgba(255, 255, 255, 0.15)',
-    black: '#1e1e1e',
-    red: '#f44747',
-    green: '#6a9955',
-    yellow: '#d7ba7d',
-    blue: '#569cd6',
-    magenta: '#c586c0',
-    cyan: '#4ec9b0',
-    white: '#d4d4d4',
-    brightBlack: '#808080',
-    brightRed: '#f44747',
-    brightGreen: '#6a9955',
-    brightYellow: '#d7ba7d',
-    brightBlue: '#569cd6',
-    brightMagenta: '#c586c0',
-    brightCyan: '#4ec9b0',
-    brightWhite: '#e0e0e0',
-  };
-
   let refitRaf = 0;
 
-  /** Scrollbar gutter xterm reserves when scrollback is enabled (matches FitAddon). */
-  const SCROLLBAR_GUTTER = 14;
-
-  /**
-   * Measure cols/rows from the container's painted pixel box.
-   *
-   * FitAddon.proposeDimensions() reads getComputedStyle(parent).height, which in
-   * our flex layout (WebView2) often reports ~40% of the real height on first
-   * paint — terminal grid stays ~80×24, black bar below. getBoundingClientRect()
-   * reflects the actual allocated flex area.
-   */
-  function measureGrid(): { cols: number; rows: number } | null {
-    if (!term || !containerEl || !term.element) return null;
-    const rect = containerEl.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return null;
-
-    const cell = (term as any)._core?._renderService?.dimensions?.css?.cell;
-    if (!cell?.width || !cell?.height) return null;
-
-    const xtermStyle = window.getComputedStyle(term.element);
-    const padX =
-      (parseFloat(xtermStyle.paddingLeft) || 0) +
-      (parseFloat(xtermStyle.paddingRight) || 0);
-    const padY =
-      (parseFloat(xtermStyle.paddingTop) || 0) +
-      (parseFloat(xtermStyle.paddingBottom) || 0);
-    const gutter = term.options.scrollback === 0 ? 0 : SCROLLBAR_GUTTER;
-
-    const cols = Math.max(2, Math.floor((rect.width - padX - gutter) / cell.width));
-    const rows = Math.max(1, Math.floor((rect.height - padY) / cell.height));
-    if (!isFinite(cols) || !isFinite(rows)) return null;
-    return { cols, rows };
-  }
-
-  /**
-   * Recompute the terminal grid to match its container. Coalesced via rAF so
-   * bursts of ResizeObserver/window events collapse into one fit per frame.
-   * term.resize fires onResize which pushes cols/rows to the PTY.
-   */
+  /** This component's terminal and box, bound into the shared grid helpers. */
   function refit(force = false) {
-    if (!term || !containerEl) return;
-    if (containerEl.offsetWidth <= 0 || containerEl.offsetHeight <= 0) return;
-    try {
-      const dims = measureGrid();
-      if (!dims) return;
-      if (!force && dims.cols === term.cols && dims.rows === term.rows) return;
-      term.resize(dims.cols, dims.rows);
-    } catch {}
-  }
-
-  /** Keep refitting until the grid catches up with the painted container. */
-  async function ensureInitialFit() {
-    let stable = 0;
-    let lastRows = 0;
-    for (let i = 0; i < 90; i++) {
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
-      if (!term || !containerEl) return;
-      const rect = containerEl.getBoundingClientRect();
-      if (rect.height <= 0) continue;
-      const dims = measureGrid();
-      if (!dims) continue;
-      if (dims.cols !== term.cols || dims.rows !== term.rows) {
-        term.resize(dims.cols, dims.rows);
-        stable = 0;
-        lastRows = dims.rows;
-        continue;
-      }
-      if (dims.rows === lastRows && dims.rows > 0) stable++;
-      else lastRows = dims.rows;
-      // Two consecutive matching frames with a sensible row count → layout settled.
-      if (stable >= 2 && dims.rows >= 10) break;
-    }
+    refitGrid(term, containerEl, force);
   }
 
   function scheduleRefit() {
@@ -195,7 +108,7 @@
       const fontSize = scaledTerminalFontSize();
       const fontFamily = settings?.terminalFontFamily || 'Cascadia Code, Consolas, Courier New, monospace';
       const fontColor = settings?.terminalFontColor || '#cccccc';
-      const theme = { ...defaultTheme, foreground: fontColor };
+      const theme = { ...defaultTerminalTheme, foreground: fontColor };
 
       term = new Terminal({
         cursorBlink: true,
@@ -246,12 +159,12 @@
     dataDisposable = term.onData((data) => {
       const commandLine = dataHasEnter(data) ? pendingCommandLine : '';
       pendingCommandLine = '';
-      sendTerminalInput(sessionId, data, commandLine);
+      io.sendInput(data, commandLine);
     });
 
     // fit() updates cols/rows and fires this; keep the backend PTY in sync.
     resizeDisposable = term.onResize(({ cols, rows }) => {
-      terminalResize(sessionId, cols, rows);
+      io.resize(cols, rows);
     });
 
     // Right-click behaves like a classic console: copy a current selection, or
@@ -290,7 +203,7 @@
     });
 
     // First fit: retry until flex layout reports the real container height.
-    void ensureInitialFit();
+    void ensureGridFit(term, containerEl);
     requestAnimationFrame(scheduleRefit);
 
     // Any container size change: tab show (display:none -> flex), split-pane
@@ -308,12 +221,10 @@
         writeBytesToTerm(chunk);
       }
 
-      const handler = (data: { sessionId: string; output: string }) => {
-        if (!acceptOutput || data.sessionId !== mountSessionId || !term) return;
-        writeTerminalPayload(data.output);
-      };
-      const unsubscribe = rt.EventsOn('TerminalOutput', handler);
-      eventOff = unsubscribe;
+      eventOff = io.subscribe((base64) => {
+        if (!acceptOutput || !term) return;
+        writeTerminalPayload(base64);
+      });
       acceptOutput = true;
       unregisterOutputConsumer = registerTerminalOutputConsumer(mountSessionId);
       for (const chunk of takePendingTerminalOutput(mountSessionId)) {

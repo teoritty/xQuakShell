@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -157,9 +158,19 @@ func drain(ch <-chan discoveryChange) {
 // exercised in-process.
 func TestPluginRetentionCheckerIsWired(t *testing.T) {
 	source := readCompositionSource(t)
-	if !strings.Contains(source, "manager.SetPluginRetentionChecker(discoveryLeader.HoldsBindings)") {
-		t.Fatal("main_plugins.go must pass discoveryLeader.HoldsBindings to manager.SetPluginRetentionChecker; " +
-			"without it a plugin drawing a subtree counts as idle and is suspended out from under the user")
+	if !strings.Contains(source, "manager.SetPluginRetentionChecker(") {
+		t.Fatal("the composition root must call manager.SetPluginRetentionChecker; without it a plugin " +
+			"drawing a subtree counts as idle and is suspended out from under the user")
+	}
+	if !strings.Contains(source, "leader.HoldsBindings(pluginID)") {
+		t.Fatal("the retention checker must consult the discovery leader's HoldsBindings; without it a plugin " +
+			"drawing a subtree counts as idle and is suspended out from under the user")
+	}
+	// The same trap, one capability later (ADR-015): a plugin streaming a log into a tab the user
+	// is watching is silent on the RPC channel, which is exactly what idle looks like from here.
+	if !strings.Contains(source, "ui.surfaces.HoldsSurfaces(pluginID)") {
+		t.Fatal("the retention checker must consult the surface service's HoldsSurfaces; without it a plugin " +
+			"feeding an open surface is suspended out from under the user")
 	}
 }
 
@@ -168,20 +179,38 @@ func TestPluginRetentionCheckerIsWired(t *testing.T) {
 func TestLeaderChangeCallbackIsNotNil(t *testing.T) {
 	source := readCompositionSource(t)
 	if strings.Contains(source, "discoveryPace, nil)") {
-		t.Fatal("NewDiscoveryLeader is still being handed a nil change callback in main_plugins.go")
+		t.Fatal("NewDiscoveryLeader is still being handed a nil change callback")
 	}
 	if !strings.Contains(source, "discoveryPace, discoveryEmit.notify)") {
-		t.Fatal("main_plugins.go must hand NewDiscoveryLeader the discoveryEmit.notify callback")
+		t.Fatal("the composition root must hand NewDiscoveryLeader the discoveryEmit.notify callback")
 	}
 }
 
+// readCompositionSource concatenates every composition-root file that wires the plugin runtime.
+//
+// All of them, not main_plugins.go alone: the runtime is assembled across main_plugin_*.go, and a
+// guard that named one file would pass the day a wiring line moved next door — which is exactly
+// when it is most needed.
 func readCompositionSource(t *testing.T) string {
 	t.Helper()
-	data, err := os.ReadFile("main_plugins.go")
+	files, err := filepath.Glob("main_plugin*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := string(data)
+	var source string
+	for _, file := range files {
+		if strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		data, readErr := os.ReadFile(file)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		source += string(data) + "\n"
+	}
+	if source == "" {
+		t.Fatal("no composition-root sources found")
+	}
 	// Comments in this file discuss both wirings at length; strip them so the prose explaining a
 	// rule cannot satisfy the rule.
 	var out strings.Builder

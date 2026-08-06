@@ -12,42 +12,42 @@ import (
 
 // PluginInstallPreviewDTO describes install-time consent data.
 type PluginInstallPreviewDTO struct {
-	ID                        string   `json:"id"`
-	Name                      string   `json:"name"`
-	Version                   string   `json:"version"`
-	Description               string   `json:"description"`
-	Signed                    bool     `json:"signed"`
-	SignatureVerified         bool     `json:"signatureVerified"`
-	ChecksumPresent           bool     `json:"checksumPresent"`
-	RequiresSecretAccess       bool     `json:"requiresSecretAccess"`
-	RequiresAuthProviderAccess bool     `json:"requiresAuthProviderAccess"`
+	ID                           string   `json:"id"`
+	Name                         string   `json:"name"`
+	Version                      string   `json:"version"`
+	Description                  string   `json:"description"`
+	Signed                       bool     `json:"signed"`
+	SignatureVerified            bool     `json:"signatureVerified"`
+	ChecksumPresent              bool     `json:"checksumPresent"`
+	RequiresSecretAccess         bool     `json:"requiresSecretAccess"`
+	RequiresAuthProviderAccess   bool     `json:"requiresAuthProviderAccess"`
 	RequiresTunnelProviderAccess bool     `json:"requiresTunnelProviderAccess"`
-	MultiSessionWarning        bool     `json:"multiSessionWarning"`
-	ArbitraryNetworkWarning   bool     `json:"arbitraryNetworkWarning"`
-	ExecAccessWarning         bool     `json:"execAccessWarning"`
-	UnsignedWarning           bool     `json:"unsignedWarning"`
-	UntrustedSignatureWarning bool     `json:"untrustedSignatureWarning"`
-	Permissions               []string `json:"permissions"`
+	MultiSessionWarning          bool     `json:"multiSessionWarning"`
+	ArbitraryNetworkWarning      bool     `json:"arbitraryNetworkWarning"`
+	ExecAccessWarning            bool     `json:"execAccessWarning"`
+	UnsignedWarning              bool     `json:"unsignedWarning"`
+	UntrustedSignatureWarning    bool     `json:"untrustedSignatureWarning"`
+	Permissions                  []string `json:"permissions"`
 }
 
 func previewToDTO(p usecase.InstallPreview) PluginInstallPreviewDTO {
 	return PluginInstallPreviewDTO{
-		ID:                        p.ID,
-		Name:                      p.Name,
-		Version:                   p.Version,
-		Description:               p.Description,
-		Signed:                    p.Signed,
-		SignatureVerified:         p.SignatureVerified,
-		ChecksumPresent:           p.ChecksumPresent,
-		RequiresSecretAccess:       p.RequiresSecretAccess,
-		RequiresAuthProviderAccess: p.RequiresAuthProviderAccess,
+		ID:                           p.ID,
+		Name:                         p.Name,
+		Version:                      p.Version,
+		Description:                  p.Description,
+		Signed:                       p.Signed,
+		SignatureVerified:            p.SignatureVerified,
+		ChecksumPresent:              p.ChecksumPresent,
+		RequiresSecretAccess:         p.RequiresSecretAccess,
+		RequiresAuthProviderAccess:   p.RequiresAuthProviderAccess,
 		RequiresTunnelProviderAccess: p.RequiresTunnelProviderAccess,
-		MultiSessionWarning:        p.MultiSessionWarning,
-		ArbitraryNetworkWarning:   p.ArbitraryNetworkWarning,
-		ExecAccessWarning:         p.ExecAccessWarning,
-		UnsignedWarning:           p.UnsignedWarning,
-		UntrustedSignatureWarning: p.UntrustedSignatureWarning,
-		Permissions:               p.Permissions,
+		MultiSessionWarning:          p.MultiSessionWarning,
+		ArbitraryNetworkWarning:      p.ArbitraryNetworkWarning,
+		ExecAccessWarning:            p.ExecAccessWarning,
+		UnsignedWarning:              p.UnsignedWarning,
+		UntrustedSignatureWarning:    p.UntrustedSignatureWarning,
+		Permissions:                  p.Permissions,
 	}
 }
 

@@ -37,6 +37,7 @@ func TestRegistryCapabilitiesAreGrantable(t *testing.T) {
 		Tunnel:    &domainplugin.TunnelCaps{},
 		Channel:   &domainplugin.ChannelCaps{},
 		Discovery: &domainplugin.DiscoveryCaps{},
+		UI:        &domainplugin.UICaps{},
 	}
 	grantable := map[domainplugin.CapabilityID]bool{}
 	for _, id := range allGranted.GrantedCapabilityNames() {

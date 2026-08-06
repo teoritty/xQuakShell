@@ -189,6 +189,38 @@ Declares that a plugin draws a subtree of nested nodes (groups/instances) inside
 - Icons render only as `<img src="data:image/svg+xml;base64,…">`; a node whose `iconId` is unknown at publish time is shown without an icon (logged), not rejected.
 - **No separate install-time consent.** Discovery by itself is metadata only — the actual work runs through the already-consented `channel`/`exec` capability. Install preview shows one `PermissionSummary` line: "Show discovered resources under your connections".
 
+**`ui` capability**
+
+Declares where a plugin may draw: its own tabs, modal dialogs, and the property panel of a
+discovery node. Full model, limits and security rationale:
+[ADR-015](./adr/015-plugin-ui-surfaces.md); wire contracts:
+[plugin-api.md](./plugin-api.md#plugin-ui-surfaces).
+
+```json
+"capabilities": {
+  "ui": {
+    "surfaces": ["terminal", "log"],
+    "dialogs": true,
+    "nodeDetails": true,
+    "maxSurfaces": 8
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `surfaces` | string[] | Surface kinds the plugin may open: `terminal`, `log`. An empty list means none, never "all". |
+| `dialogs` | bool | Grants `dialog.open` and its siblings. |
+| `nodeDetails` | bool | Grants the node-details verbs. Requires `capabilities.discovery` — without a subtree there is no node to describe. |
+| `maxSurfaces` | int | Concurrently open surfaces (0 = host default 8; ceiling 16). |
+
+- A `ui` block granting nothing at all is rejected at manifest load, as is an unknown or duplicated
+  surface kind, a `maxSurfaces` above the ceiling, and a `maxSurfaces` with no `surfaces` list.
+- **No install-time consent.** The capability carries no new access to the remote machine: every
+  byte a surface shows was already obtainable through `channel`/`exec`, which has its own consent.
+  It governs only where those bytes are drawn. Install preview shows one `PermissionSummary` line:
+  "Show its own tabs, dialogs and node details".
+
 **`udp-relay` and the network allowlist**
 
 `tcp-relay` and `udp-relay` validate their `hint` target against the same `capabilities.network.outbound` allowlist used by `net.dial` (see [Rules](#rules) below), just with a proto-prefixed pattern form:
@@ -250,6 +282,7 @@ Rules:
 - **`remoteFs` (display):** when `true`, the session UI shows the remote file panel (SFTP-style). Terminal-only plugins (e.g. telnet) should leave this `false`.
 - **`discovery.parentProtocols`:** the host addresses `discovery.observe` only to plugins declaring the target connection's protocol here (ADR-014). `contributions.discoveryIcons[].asset` follows the same asset validation rules as other UI assets (extension allowlist, size caps) and is checked once at install.
 - View `entry` paths must live under `ui/` (default `ui/index.html`). Embed `embedEntry` paths follow the same rule.
+- Every declared `ui/` path — view `entry`, `embedEntry` (under `session.embed`), `discoveryIcons[].asset` — must exist in the tree being installed, or the install is refused. On the GitHub route, a manifest declaring any of them can only be installed from an `.xqsp` bundle asset: a bare release binary carries no `ui/` (ADR-016, see [plugin-api.md](./plugin-api.md#publishing-a-github-release-adr-016)).
 
 ## Contributions
 
@@ -304,7 +337,7 @@ Fields are grouped for display in Connection Details. The host validates manifes
 |-------|------|----------|-------------|
 | `id` | string | yes | Unique within the protocol |
 | `label` | string | yes | Label in the form |
-| `type` | string | yes | `text`, `password`, `number`, `select`, `checkbox`, `textarea` |
+| `type` | string | yes | `text`, `password`, `number`, `select`, `checkbox`, `textarea`, `keyValue`, `code` |
 | `required` | bool | no | Enforced on save **only while the field is visible** (see `dependsOn`). Fields hidden by `dependsOn` are never validated and are actively cleared from storage on save, even if a value was previously entered — do not rely on stale storage. |
 | `default` | any | no | Default for non-secret fields only |
 | `placeholder` | string | no | Input hint |
@@ -324,6 +357,16 @@ Fields are grouped for display in Connection Details. The host validates manifes
 | `min` / `max` | number | `number` |
 | `pattern` | string | string types (regex; ReDoS-safe subset enforced at load) |
 | `maxSizeBytes` | int | `textarea` (default cap 1 MiB if unset) |
+
+**`keyValue` and `code` (ADR-015)**
+
+| Type | Stored as | Notes |
+|------|-----------|-------|
+| `keyValue` | JSON object of strings | Repeatable name/value rows: labels, driver options, environment. Declaration order is preserved. Max 64 pairs; keys unique and non-empty; control characters and bidirectional overrides are **refused rather than stripped**, because the value travels onward as data and silently altering data is worse than refusing it. |
+| `code` | string | Read-only monospace block with copy. Max 256 KiB. Control characters (tabs, newlines) are allowed - they are the point of it - but bidirectional overrides are refused, since they reorder what is shown rather than adding to it. |
+
+Neither may be `secret`, and neither is editable in a connection form's secret sense: both exist
+for dialogs and node-details panels, which have no vault behind them.
 
 **Example**
 
@@ -372,6 +415,7 @@ Fields are grouped for display in Connection Details. The host validates manifes
 
 - Field ids must be unique within a protocol.
 - `password` fields must have `secret: true`.
+- `keyValue` and `code` fields must not have `secret: true`; a dialog has no vault to store one in.
 - Secret fields cannot have a `default`.
 - `select` fields must have `options`; default must match an option value.
 - `dependsOn` must reference an existing field id; cycles are rejected.

@@ -17,6 +17,12 @@ func baseNode(id string) discovery.Node {
 	}
 }
 
+// baseAction is a minimally valid action: every field a plugin MUST fill is filled, so a test about
+// one rule can override just that field without tripping another.
+func baseAction(id string) discovery.Action {
+	return discovery.Action{ID: id, Label: "Do it"}
+}
+
 func TestValidatePublishAcceptsValidSnapshot(t *testing.T) {
 	children := []discovery.Node{
 		baseNode("a"),
@@ -162,7 +168,7 @@ func TestValidatePublishAcceptsMaxLenTooltip(t *testing.T) {
 func TestValidatePublishRejectsTooManyActions(t *testing.T) {
 	n := baseNode("a")
 	for i := 0; i < discovery.MaxActionsPerNode+1; i++ {
-		n.Actions = append(n.Actions, discovery.Action{ID: fmt.Sprintf("action-%d", i)})
+		n.Actions = append(n.Actions, baseAction(fmt.Sprintf("action-%d", i)))
 	}
 	if err := discovery.ValidatePublish("", []discovery.Node{n}); !errors.Is(err, discovery.ErrInvalidNode) {
 		t.Fatalf("expected ErrInvalidNode for too many actions, got %v", err)
@@ -172,7 +178,7 @@ func TestValidatePublishRejectsTooManyActions(t *testing.T) {
 func TestValidatePublishAcceptsMaxActions(t *testing.T) {
 	n := baseNode("a")
 	for i := 0; i < discovery.MaxActionsPerNode; i++ {
-		n.Actions = append(n.Actions, discovery.Action{ID: fmt.Sprintf("action-%d", i)})
+		n.Actions = append(n.Actions, baseAction(fmt.Sprintf("action-%d", i)))
 	}
 	if err := discovery.ValidatePublish("", []discovery.Node{n}); err != nil {
 		t.Fatalf("expected exactly MaxActionsPerNode actions to be valid, got %v", err)
@@ -181,7 +187,7 @@ func TestValidatePublishAcceptsMaxActions(t *testing.T) {
 
 func TestValidatePublishRejectsDuplicateActionID(t *testing.T) {
 	n := baseNode("a")
-	n.Actions = []discovery.Action{{ID: "start"}, {ID: "start"}}
+	n.Actions = []discovery.Action{baseAction("start"), baseAction("start")}
 	err := discovery.ValidatePublish("", []discovery.Node{n})
 	if !errors.Is(err, discovery.ErrInvalidNode) || !strings.Contains(err.Error(), "duplicate action") {
 		t.Fatalf("expected duplicate action id error, got %v", err)
@@ -208,7 +214,7 @@ func TestValidatePublishRejectsTooLongActionID(t *testing.T) {
 
 func TestValidatePublishAcceptsMaxLenActionID(t *testing.T) {
 	n := baseNode("a")
-	n.Actions = []discovery.Action{{ID: strings.Repeat("x", discovery.MaxIDLen)}}
+	n.Actions = []discovery.Action{baseAction(strings.Repeat("x", discovery.MaxIDLen))}
 	if err := discovery.ValidatePublish("", []discovery.Node{n}); err != nil {
 		t.Fatalf("expected max-length action id to be valid, got %v", err)
 	}
@@ -216,7 +222,7 @@ func TestValidatePublishAcceptsMaxLenActionID(t *testing.T) {
 
 func TestValidatePublishRejectsUnknownDefaultActionID(t *testing.T) {
 	n := baseNode("a")
-	n.Actions = []discovery.Action{{ID: "start"}}
+	n.Actions = []discovery.Action{baseAction("start")}
 	n.DefaultActionID = "stop"
 	if err := discovery.ValidatePublish("", []discovery.Node{n}); !errors.Is(err, discovery.ErrInvalidNode) {
 		t.Fatalf("expected ErrInvalidNode for unknown defaultActionId, got %v", err)
@@ -234,5 +240,101 @@ func TestValidatePublishDoesNotRejectOversizeChildCount(t *testing.T) {
 	}
 	if err := discovery.ValidatePublish("", children); err != nil {
 		t.Fatalf("ValidatePublish must not reject a snapshot for exceeding MaxChildrenPerPublish (that is TruncateChildren's job), got %v", err)
+	}
+}
+
+// A role is what a keyboard shortcut resolves to, so the host acts on the value — which means it
+// has to be a value the host understands. An unknown one is refused rather than blanked: silently
+// dropping it would leave a menu entry that looks bound to a key and is not.
+func TestValidatePublishRejectsUnknownActionRole(t *testing.T) {
+	n := baseNode("a")
+	n.Actions = []discovery.Action{{ID: "rename", Label: "Rename…", Role: discovery.Role("rename")}}
+	err := discovery.ValidatePublish("", []discovery.Node{n})
+	if !errors.Is(err, discovery.ErrInvalidNode) || !strings.Contains(err.Error(), "unknown role") {
+		t.Fatalf("expected unknown role error, got %v", err)
+	}
+}
+
+// No role at all is the ordinary case: an entry the menu offers and no key reaches.
+func TestValidatePublishAcceptsAnActionWithoutARole(t *testing.T) {
+	n := baseNode("a")
+	n.Actions = []discovery.Action{baseAction("start"), {ID: "remove", Label: "Remove…", Role: discovery.RoleDelete}}
+	if err := discovery.ValidatePublish("", []discovery.Node{n}); err != nil {
+		t.Fatalf("a node with one delete action and one plain action is legal: %v", err)
+	}
+}
+
+// Two actions claiming one key is a question with no answer — the user's finger is already off the
+// key. Refused in the domain rather than disambiguated in the UI, which would be picking, for a
+// destructive verb, between two things it cannot compare.
+func TestValidatePublishRejectsTwoActionsWithOneRole(t *testing.T) {
+	n := baseNode("a")
+	n.Actions = []discovery.Action{
+		{ID: "remove", Label: "Remove…", Role: discovery.RoleDelete},
+		{ID: "purge", Label: "Purge", Role: discovery.RoleDelete},
+	}
+	err := discovery.ValidatePublish("", []discovery.Node{n})
+	if !errors.Is(err, discovery.ErrInvalidNode) || !strings.Contains(err.Error(), "more than one action with role") {
+		t.Fatalf("expected duplicate role error, got %v", err)
+	}
+}
+
+// Roleless actions do not collide with each other: the uniqueness rule is about claimed keys, and
+// an action claiming none claims nothing.
+func TestValidatePublishAcceptsManyRolelessActions(t *testing.T) {
+	n := baseNode("a")
+	n.Actions = []discovery.Action{baseAction("start"), baseAction("stop"), baseAction("restart")}
+	if err := discovery.ValidatePublish("", []discovery.Node{n}); err != nil {
+		t.Fatalf("actions without roles must not collide: %v", err)
+	}
+}
+
+// Action.Label and Action.Confirm were unbounded and unsanitized while Node.Label and
+// Status.Tooltip were both — the ceiling is measured on the sanitized form, so padding a string
+// with control characters cannot buy room it will not use when rendered.
+func TestValidatePublishBoundsActionText(t *testing.T) {
+	tooLongLabel := baseNode("a")
+	tooLongLabel.Actions = []discovery.Action{{ID: "x", Label: strings.Repeat("l", discovery.MaxLabelLen+1)}}
+	if err := discovery.ValidatePublish("", []discovery.Node{tooLongLabel}); !errors.Is(err, discovery.ErrInvalidNode) {
+		t.Fatalf("expected ErrInvalidNode for an over-long action label, got %v", err)
+	}
+
+	tooLongConfirm := baseNode("a")
+	tooLongConfirm.Actions = []discovery.Action{
+		{ID: "x", Label: "Remove", Confirm: strings.Repeat("c", discovery.MaxConfirmLen+1)},
+	}
+	if err := discovery.ValidatePublish("", []discovery.Node{tooLongConfirm}); !errors.Is(err, discovery.ErrInvalidNode) {
+		t.Fatalf("expected ErrInvalidNode for an over-long confirm, got %v", err)
+	}
+
+	// At the ceiling is allowed: the limit is "no more than".
+	atLimit := baseNode("a")
+	atLimit.Actions = []discovery.Action{{
+		ID:      "x",
+		Label:   strings.Repeat("l", discovery.MaxLabelLen),
+		Confirm: strings.Repeat("c", discovery.MaxConfirmLen),
+	}}
+	if err := discovery.ValidatePublish("", []discovery.Node{atLimit}); err != nil {
+		t.Fatalf("exactly at the limit must pass: %v", err)
+	}
+
+	// Control characters do not buy length: this is over the limit only before sanitizing.
+	padded := baseNode("a")
+	padded.Actions = []discovery.Action{{
+		ID:    "x",
+		Label: strings.Repeat("\x00", 50) + strings.Repeat("l", discovery.MaxLabelLen),
+	}}
+	if err := discovery.ValidatePublish("", []discovery.Node{padded}); err != nil {
+		t.Fatalf("the ceiling applies to the sanitized form: %v", err)
+	}
+}
+
+// An action with no label is a menu entry the user cannot read, which is worse than no entry.
+func TestValidatePublishRejectsAnActionWithNoLabel(t *testing.T) {
+	n := baseNode("a")
+	n.Actions = []discovery.Action{{ID: "x", Label: "\x00\x00"}}
+	err := discovery.ValidatePublish("", []discovery.Node{n})
+	if !errors.Is(err, discovery.ErrInvalidNode) || !strings.Contains(err.Error(), "no label") {
+		t.Fatalf("expected a missing-label error, got %v", err)
 	}
 }

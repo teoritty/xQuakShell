@@ -1,8 +1,10 @@
 <!-- frontend/src/lib/tiles/TileGroup.svelte -->
 <script lang="ts">
   import type { TileGroup, Zone, Edge } from './types';
-  import { sessions, activeSessionId } from '../../stores/appState';
+  import { sessions, activeTabId } from '../../stores/appState';
   import SessionView from '../SessionView.svelte';
+  import SurfaceView from '../SurfaceView.svelte';
+  import { surfaces, resolveTabIn, type Tab } from '../../stores/surfaceState';
   import TileTabBar from './TileTabBar.svelte';
   import TileDropOverlay from './TileDropOverlay.svelte';
   import {
@@ -32,14 +34,19 @@
   // True while a drag hovers this tile's tab bar (a merge/add-as-tab target).
   let mergeBar = false;
 
-  $: tileSessions = tile.tabs
-    .map((id) => $sessions.find((s) => s.sessionId === id))
-    .filter((s): s is NonNullable<typeof s> => !!s);
+  // A tab id names either a session or a plugin surface (ADR-015). The tile machinery keeps
+  // working on opaque ids; only the two places that RENDER a tab need to know which it is.
+  // Both stores are passed in so the compiler sees them as dependencies of this statement.
+  $: tileTabs = tile.tabs
+    .map((id) => resolveTabIn($sessions, $surfaces, id))
+    .filter((t): t is NonNullable<Tab> => !!t);
 
   // Per-tile file-panel collapse state and the button that toggles it. The button
   // shows only when the tile's active connection actually has a file browser.
   $: collapsed = $collapsedTileFilePanels.has(tile.id);
   $: activeSession = $sessions.find((s) => s.sessionId === tile.activeTabId);
+  // Only an SSH session has a file browser; a surface never does, so the toggle stays hidden for
+  // one rather than showing a control that would open nothing.
   $: showFilesToggle = !!activeSession && hasFilePanel(activeSession, $connectionProtocols);
 
   function inRect(el: HTMLElement | undefined, x: number, y: number): boolean {
@@ -66,7 +73,7 @@
       return { zone: 'center', intent: 'merge', mergeBar: true };
     }
 
-    const lone = isLoneTab($tileLayout, drag.sessionId);
+    const lone = isLoneTab($tileLayout, drag.tabId);
     const edges: Edge[] = lone ? reorientEdges($tileLayout) : splitEdges($tileLayout, tile.id);
     const r = root.getBoundingClientRect();
     const z = zoneAt({ left: r.left, top: r.top, width: r.width, height: r.height }, e.clientX, e.clientY, edges);
@@ -107,20 +114,20 @@
     mergeBar = false;
     if (!payload || !act) return;
     if (act === 'merge') {
-      moveTabToTile(payload.sessionId, tile.id);
+      moveTabToTile(payload.tabId, tile.id);
     } else if (act === 'swap') {
-      swapTilesById(payload.sessionId, tile.id);
+      swapTilesById(payload.tabId, tile.id);
     } else if (act === 'reorient' && z && z !== 'center') {
-      reorientTile(payload.sessionId, z);
+      reorientTile(payload.tabId, z);
     } else if (act === 'split' && z && z !== 'center') {
-      splitOutTile(payload.sessionId, tile.id, z);
+      splitOutTile(payload.tabId, tile.id, z);
     }
   }
 
   function focusTile() {
     // Clicking anywhere in the tile focuses its active tab (keeps global
-    // activeSessionId — and thus activeTileId — in sync).
-    if (tile.activeTabId) activeSessionId.set(tile.activeTabId);
+    // activeTabId — and thus activeTileId — in sync).
+    if (tile.activeTabId) activeTabId.set(tile.activeTabId);
   }
 </script>
 
@@ -153,12 +160,19 @@
     {/if}
   </div>
   <div class="tile-body">
-    {#each tileSessions as session (session.sessionId)}
-      <SessionView
-        {session}
-        active={tile.activeTabId === session.sessionId}
-        filesCollapsed={collapsed}
-      />
+    {#each tileTabs as tab (tab.kind === 'session' ? tab.session.sessionId : tab.surface.surfaceId)}
+      {#if tab.kind === 'session'}
+        <SessionView
+          session={tab.session}
+          active={tile.activeTabId === tab.session.sessionId}
+          filesCollapsed={collapsed}
+        />
+      {:else}
+        <SurfaceView
+          surface={tab.surface}
+          active={tile.activeTabId === tab.surface.surfaceId}
+        />
+      {/if}
     {/each}
   </div>
   <TileDropOverlay

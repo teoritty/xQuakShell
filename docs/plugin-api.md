@@ -37,6 +37,26 @@ Install via **Settings → Plugins → Install folder…** or **Install bundle�
 
 Installed plugins are copied to `data/plugins/<id>/` under the xQuakShell executable directory (ADR-006 portable layout).
 
+## Publishing a GitHub release (ADR-016)
+
+**Add GitHub repository** reads `xqsp.json` from the repository and downloads one release asset per
+platform. Name assets `<name>-<os>-<arch>` so the host can match them:
+
+| Asset | Carries | Install |
+|---|---|---|
+| `my-plugin-windows-amd64.xqsp` | manifest, binary, `ui/`, the author's `SHA256SUMS` | installed verbatim; checksums and signature are verified as published |
+| `my-plugin-windows-amd64.exe` | the binary only | manifest is regenerated from `xqsp.json`, checksums are computed by the host |
+
+- **A plugin with a UI must publish `.xqsp` assets.** Declaring `contributions.views[].entry`,
+  `embedEntry` (under `capabilities.session.embed`) or `contributions.discoveryIcons` and shipping
+  only a bare binary is refused at install: the binary carries no `ui/` tree, so those files would
+  be missing and every request for them would 404.
+- Where a release publishes both shapes for a platform, the bundle is chosen.
+- The bundle's `plugin.json` must declare the same `id` as the repository's `xqsp.json`; a mismatch
+  is refused. A differing `version` is accepted and logged.
+- Add a release-level `SHA256SUMS` listing every asset — the host verifies the download against it.
+- Every path a manifest declares under `ui/` must exist in the bundle, or the install is refused.
+
 ## Security limits
 
 - **IPC frames:** NDJSON lines are capped at **256 KiB**; oversize frames are rejected.
@@ -416,6 +436,122 @@ Only one session per connection is ever addressed: the host tracks a **leading**
 
 `discovery.publish` is gated by the same capability `Gate` that denies undeclared methods with `-32001` and audit-logs the denial. `discovery.observe` and `discovery.invokeAction` go host → plugin and never pass through the gate — the host simply never addresses them to a plugin that lacks the `discovery` capability or whose `parentProtocols` doesn't match the connection's protocol.
 
+## Plugin UI surfaces
+
+A `capabilities.ui` plugin can draw three things the core owns and previously could not lend out: a
+tab carrying a byte stream, a modal form, and a property panel for a discovery node. Full rationale,
+limits and security model: [ADR-015](./adr/015-plugin-ui-surfaces.md).
+
+None of it grants new access to the remote machine. Every byte a surface displays was already
+obtainable through `channel`/`exec`, which carries its own install-time consent; `ui` governs only
+where those bytes may be **drawn**, which is why it needs no consent prompt of its own. Install
+shows one `PermissionSummary` line: "Show its own tabs, dialogs and node details".
+
+### Surfaces - a tab the plugin owns
+
+| Method | Direction | Params | Response |
+|---|---|---|---|
+| `surface.open` | plugin -> host (request) | `parentSessionId`, `kind` (`terminal`/`log`), `title`, `iconId?` | `{surfaceId}` |
+| `surface.write` | plugin -> host (request) | `surfaceId`, `dataBase64`, `stream?` (`stdout`/`stderr`) | `{ok:true}` |
+| `surface.updateState` | plugin -> host (request) | `surfaceId`, `state` (`connecting`/`ready`/`error`), `error?` | `{ok:true}` |
+| `surface.setTitle` | plugin -> host (request) | `surfaceId`, `title` | `{ok:true}` |
+| `surface.close` | plugin -> host (request) | `surfaceId` | `{ok:true}` |
+| `surface.input` | host -> plugin (notification) | `surfaceId`, `dataBase64` | - |
+| `surface.resize` | host -> plugin (notification) | `surfaceId`, `cols`, `rows` | - |
+| `surface.closed` | host -> plugin (notification) | `surfaceId`, `reason` | - |
+
+- **`terminal`** is a duplex stream rendered by the terminal emulator: the user types, the plugin
+  receives `surface.input`, and a resize is a real `cols`/`rows` event. **`log`** is one-way and
+  rendered by a viewer the core owns, with search, stdout/stderr distinction and export - none of
+  which a terminal can offer, because by the time bytes reach it they are already screen cells.
+  `surface.input` and `surface.resize` are sent for `terminal` only.
+- **Lifetime is one-directional.** The parent session owns the surface: when it closes, every
+  surface bound to it is closed synchronously - after the channels that usually feed them, before
+  the SSH client - and the plugin is told with `surface.closed`. A plugin process exiting takes its
+  own surfaces with it and is not told. Close is idempotent from either side; a write to a closed
+  surface is a **no-op, not an error**.
+- **Ownership**: every verb after `open` names a `surfaceId`. One belonging to another plugin
+  returns the same `-32001` as one that never existed, so ids cannot be probed.
+- An open surface counts as "in use": the idle sweeper will not reclaim a plugin that owns one.
+- **State is an indicator, not a precondition.** The host mints a surface as `connecting`; the tab
+  shows its viewer immediately and displays the state as a banner above it. A plugin that opens a
+  tab and starts writing loses nothing by never reporting `ready`, and an `error` does not discard
+  what a log has already collected.
+- **Backpressure**: output is queued per surface (1 MiB) and flushed by a pump that batches on a
+  50 ms tick, separately per stream. `surface.write` returns `-32003` once the queue has stayed
+  full for 2 s — the `session.writeTerminal` allowance. It is a pause, not a refusal: writing
+  resumes as soon as the consumer catches up. A `dataBase64` that does not decode is refused
+  outright rather than displayed as its own text.
+
+### Dialogs - a structured question
+
+| Method | Direction | Params | Response |
+|---|---|---|---|
+| `dialog.open` | plugin -> host (request) | `kind` (`form`/`detail`), `title`, `submitLabel?`, `sections[]`, `values?` | `{dialogId}` |
+| `dialog.setError` | plugin -> host (request) | `dialogId`, `message`, `fieldErrors?` | `{ok:true}` |
+| `dialog.close` | plugin -> host (request) | `dialogId` | `{ok:true}` |
+| `dialog.submit` | host -> plugin (notification) | `dialogId`, `values` | - |
+| `dialog.cancel` | host -> plugin (notification) | `dialogId` | - |
+
+- `dialog.open` returns immediately; the answer arrives later as a notification. A dialog is open
+  for as long as a person is reading it, and an RPC held for that would blow the 5 s timeout.
+- **Exactly one** of `dialog.submit` / `dialog.cancel` arrives per dialog, including when the host
+  closes it during teardown (a cancellation). A plugin can therefore await an answer without a
+  timeout of its own.
+- `sections[]` is the connection-field schema (see
+  [plugin-manifest.md](./plugin-manifest.md#connection-protocol-fields)), plus the `keyValue` and
+  `code` types. **`secret: true` is refused**: a dialog has no connection and no vault, so a secret
+  field would be a plaintext string wearing a lock icon. Use `vault.getSecret` under its existing
+  consent instead.
+- The schema is validated as a manifest's is: unknown types, duplicate ids, a `select` with no
+  options, a `dependsOn` naming nothing and an unsafe or uncompilable `validation.pattern` are all
+  refused **at open**, so a modal that could never be answered never appears.
+- A field whose `dependsOn` is off is not part of the answer: its value is dropped and its
+  `required` does not apply. The host, the renderer and the connection editor all follow that one
+  rule.
+- `kind: "detail"` has only a close button and never submits.
+- One open dialog per plugin; a second `dialog.open` returns `-32003`.
+- Submitted values are validated against the plugin's own declarations before they are forwarded:
+  an undeclared key is dropped, a declared field with an invalid value is refused, and a required
+  **visible** field left empty is refused.
+- A submit is audit-logged with the plugin, the dialog and **which fields were answered** — never
+  their values. A refused submit is logged as denied.
+
+### Node details - the panel a discovered node has
+
+| Method | Direction | Params | Response |
+|---|---|---|---|
+| `discovery.describeNode` | host -> plugin (request) | `sessionId`, `nodeId` | `{sections[], values{}, editable}` |
+| `discovery.publishDetails` | plugin -> host (request) | `sessionId`, `nodeId`, `sections[]`, `values{}`, `editable` | `{ok:true}` |
+| `discovery.applyDetails` | host -> plugin (request) | `sessionId`, `nodeId`, `values{}` | ack |
+
+- The host asks when the user selects a node; the plugin may push a newer snapshot at any time with
+  `publishDetails` - full snapshot, level-triggered, exactly like `discovery.publish`.
+- **The host stores nothing.** `applyDetails` hands the values to the plugin, which persists them
+  where it already has permission to write (`${pluginData}`). The core cannot name a discovered
+  resource stably across restarts, and a plugin's opinion about a remote object is not core state.
+- `applyDetails` re-reads the declaration first and drops values for fields it does not contain; a
+  node with `editable: false` refuses the save.
+- `describeNode` / `applyDetails` ack within **5 s**, like `invokeAction`; report the real outcome
+  by republishing.
+- `publishDetails` requires **both** `discovery` and `ui.nodeDetails`, its `sessionId` is authorized
+  on the same path `discovery.publish` takes, and it is metered on the same budget — 20/s per
+  (plugin, connection), shared with `publish` rather than granted again.
+
+### Limits (ADR-015)
+
+| Parameter | Value |
+|---|---|
+| Surfaces per plugin | `ui.maxSurfaces`, default 8, ceiling 16 |
+| Surface `title` | 128 characters, sanitized like `Node.Label` |
+| `log` surface buffer | 8 MiB or 200 000 lines, whichever first |
+| Open dialogs per plugin | 1 |
+| Fields per dialog / details panel | 100 |
+| `keyValue` pairs per field | 64 |
+| `code` field content | 256 KiB |
+| `describeNode` / `applyDetails` ack timeout | 5 s |
+
+
 ## Plugin IPC reference
 
 Complete method list as implemented in the core today.
@@ -472,6 +608,11 @@ and refuses initialization on any incompatibility. `coreVersion` is informationa
 | `session.tunnelBackpressure` | `sessionId` | Pause TCP read (consumer slow / tab inactive) |
 | `session.tunnelResume` | `sessionId` | Resume after backpressure |
 | `discovery.observe` | `sessionId`, `nodeIds[]` | Expanded-node set changed, or plugin (re)started — see [Discovery subtrees](#discovery-subtrees) |
+| `surface.input` | `surfaceId`, `dataBase64` | User typed into an interactive surface |
+| `surface.resize` | `surfaceId`, `cols`, `rows` | Surface geometry changed |
+| `surface.closed` | `surfaceId`, `reason` | Surface closed by the user or with its parent session |
+| `dialog.submit` | `dialogId`, `values` | User submitted a form dialog |
+| `dialog.cancel` | `dialogId` | User dismissed a dialog, or the host tore it down |
 | `deactivate` | omitted | Before shutdown |
 | `view.postMessage` | `{"panelId":"...","message":<json>}` | UI → plugin WebView panel |
 | `event` | `{"channel":"...","payload":<json>}` | Core event bus delivery to subscribers |
@@ -482,6 +623,8 @@ and refuses initialization on any incompatibility. `coreVersion` is informationa
 |--------|--------|------|
 | `command.execute` | `{"commandId":"...","args":<json>}` | Contributed command invoked |
 | `discovery.invokeAction` | `{"sessionId":"...","nodeIds":["..."],"actionId":"..."}` | Discovery node action invoked from the tree UI — see [Discovery subtrees](#discovery-subtrees); ack expected within 5 s |
+| `discovery.describeNode` | `{"sessionId":"...","nodeId":"..."}` | User selected a discovery node; returns its property panel, ack within 5 s |
+| `discovery.applyDetails` | `{"sessionId":"...","nodeId":"...","values":{}}` | User saved a node's editable properties; the plugin persists them |
 
 ### Plugin → host
 
@@ -513,6 +656,15 @@ All methods below require a matching manifest capability unless marked “always
 | `channel.open` | `channel` | `purpose`, `parentSessionId`, `hint` | `channelId` — see [Channel bus](#channel-bus) |
 | `channel.close` | `channel` | `channelId`, `reason?`, `message?` | notification, no response |
 | `discovery.publish` | `discovery` | `sessionId`, `nodeId`, `state`, `error?`, `children[]` | request; returns `{"ok":true}` on acceptance, `-32001` when denied — see [Discovery subtrees](#discovery-subtrees) |
+| `discovery.publishDetails` | `discovery` + `ui.nodeDetails` | `sessionId`, `nodeId`, `sections[]`, `values{}`, `editable` | `{"ok":true}` |
+| `surface.open` | `ui.surfaces` | `parentSessionId`, `kind`, `title`, `iconId?` | `surfaceId` |
+| `surface.write` | `ui.surfaces` | `surfaceId`, `dataBase64`, `stream?` | `{"ok":true}` |
+| `surface.updateState` | `ui.surfaces` | `surfaceId`, `state`, `error?` | `{"ok":true}` |
+| `surface.setTitle` | `ui.surfaces` | `surfaceId`, `title` | `{"ok":true}` |
+| `surface.close` | `ui.surfaces` | `surfaceId` | `{"ok":true}` |
+| `dialog.open` | `ui.dialogs` | `kind`, `title`, `sections[]`, `values?` | `dialogId` |
+| `dialog.setError` | `ui.dialogs` | `dialogId`, `message`, `fieldErrors?` | `{"ok":true}` |
+| `dialog.close` | `ui.dialogs` | `dialogId` | `{"ok":true}` |
 
 FS paths must use the `${pluginData}` prefix (see [plugin-manifest.md](./plugin-manifest.md#capabilities)). Symlinks are rejected.
 
@@ -645,6 +797,9 @@ The core validates the binary matches the host OS at install time.
 - `PluginContributionsChanged` — refresh merged commands/views/status bar
 - `PluginStateChanged` — `{ pluginId, state, sessionId? }` where state is `starting|running|stopped|suspended|crashed`
 - `SessionEmbedReady` — `{ sessionId, embed: { uiUrl, tunnelUrl, sandbox } }` when embed registration completes
+- `PluginSurfaceOpened` / `PluginSurfaceOutput` / `PluginSurfaceChanged` / `PluginSurfaceClosed` — plugin-owned tabs (ADR-015)
+- `PluginDialogOpened` / `PluginDialogClosed` / `PluginDialogError` — plugin modals
+- `PluginNodeDetails` — a plugin pushed a newer property panel for a discovery node
 - `PluginViewMessage` — plugin → host view relay
 
 ## RPC error codes

@@ -37,6 +37,7 @@ const (
 	CapTunnel     CapabilityID = "tunnel"
 	CapChannel    CapabilityID = "channel"
 	CapDiscovery  CapabilityID = "discovery"
+	CapUI         CapabilityID = "ui"
 )
 
 // Feature identifiers, grouped by capability. Named Feat<Capability><Feature> because feature ids
@@ -74,6 +75,15 @@ const (
 	FeatDiscoveryPublish FeatureID = "publish"
 	// FeatDiscoveryInvoke is the host->plugin discovery.invokeAction request (ADR-014).
 	FeatDiscoveryInvoke FeatureID = "invoke"
+
+	// UI features (ADR-015). The two surface kinds are separate features rather than one
+	// "surfaces" flag because they are separate things a plugin can depend on: a log viewer with
+	// search and export is not a terminal with a narrower API, and a plugin that requires one and
+	// gets the other has nowhere to put its output.
+	FeatUISurfaceTerminal FeatureID = "surfaceTerminal"
+	FeatUISurfaceLog      FeatureID = "surfaceLog"
+	FeatUIDialogs         FeatureID = "dialogs"
+	FeatUINodeDetails     FeatureID = "nodeDetails"
 )
 
 // DeprecationInfo records that a capability or one of its features is on its way out.
@@ -136,6 +146,7 @@ var hostRegistry = NewRegistry(map[CapabilityID]CapabilityDescriptor{
 	CapTunnel:     {Version: "1.0.0", Features: []FeatureID{FeatTunnelBind, FeatTunnelDial}},
 	CapChannel:    {Version: "1.0.0", Features: []FeatureID{FeatChannelOpen}},
 	CapDiscovery:  {Version: "1.0.0", Features: []FeatureID{FeatDiscoveryPublish, FeatDiscoveryInvoke}},
+	CapUI:         {Version: "1.0.0", Features: []FeatureID{FeatUISurfaceTerminal, FeatUISurfaceLog, FeatUIDialogs, FeatUINodeDetails}},
 })
 
 // HostRegistry returns the shared immutable host contract. No copy is made — the type has no

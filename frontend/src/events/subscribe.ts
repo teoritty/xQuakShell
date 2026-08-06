@@ -3,7 +3,7 @@ import { getRuntime } from '../backend/context';
 import {
   folders, connections, sessions, identities,
   vaultUnlocked, transfers, transferCompleted, pendingHostKey,
-  pingResults, editingFiles,
+  pingResults, editingFiles, activeTabId,
   type Session, type SessionEmbed,
   type TransferItem, type HostKeyEvent, type PingResult,
 } from '../stores/appState';
@@ -17,6 +17,20 @@ import {
 import { disposeTerminal } from '../lib/terminalPool';
 import { uploadFile } from '../api/remoteFs';
 import { onDiscoveryTreeChanged } from '../stores/discoveryState';
+import {
+  upsertSurface,
+  removeSurface,
+  clearSurfaces,
+  type Surface,
+} from '../stores/surfaceState';
+import {
+  openDialog,
+  closeDialog,
+  setDialogError,
+  activeDialog,
+  type PluginDialog,
+} from '../stores/dialogState';
+import { nodeDetailsTarget, requestNodeDetailsReload } from '../stores/nodeDetailsState';
 
 // SFTPReady is a one-shot broadcast emitted once per session right after the
 // remote filesystem is up. A FileTree component mounts only after its session
@@ -69,6 +83,73 @@ export function subscribeToEvents(): void {
     if (hasTerminalOutputConsumer(data.sessionId)) return;
     appendPendingTerminalOutput(data.sessionId, decodeTerminalOutput(data.output));
   });
+
+  // Plugin-owned tabs (ADR-015). Opened and Changed carry the whole surface, so both are one
+  // upsert: an event that arrives twice leaves the store in the same place, which matters because
+  // a plugin restarting republishes what it holds.
+  rt.EventsOn('PluginSurfaceOpened', (data: Surface) => {
+    if (!data?.surfaceId) return;
+    upsertSurface(data);
+    // Focus the new tab. Opened only — a Changed for a title or a state must not
+    // yank the user out of whatever they switched to since. activeTabId is
+    // the active TAB id (TileGroup already stores surface ids in it); reconcile
+    // step 5 would otherwise pull focus straight back to the session the tab was
+    // opened from, and the surface would appear behind it.
+    activeTabId.set(data.surfaceId);
+  });
+
+  rt.EventsOn('PluginSurfaceChanged', (data: Surface) => {
+    if (!data?.surfaceId) return;
+    upsertSurface(data);
+  });
+
+  rt.EventsOn('PluginSurfaceClosed', (data: { surfaceId: string }) => {
+    if (!data?.surfaceId) return;
+    removeSurface(data.surfaceId);
+    // The pooled xterm instance and any buffered bytes go with it: a surface id is never reused,
+    // so nothing else will ever come to collect them.
+    disposeTerminal(data.surfaceId);
+    clearPendingTerminalOutput(data.surfaceId);
+  });
+
+  // Buffered exactly like session output, and through the same buffer: a surface's tab may not be
+  // mounted yet when its first bytes arrive, and dropping them would lose the start of a log.
+  rt.EventsOn('PluginSurfaceOutput', (data: { surfaceId: string; data: string }) => {
+    if (!data?.surfaceId) return;
+    if (hasTerminalOutputConsumer(data.surfaceId)) return;
+    appendPendingTerminalOutput(data.surfaceId, decodeTerminalOutput(data.data));
+  });
+
+  // Plugin dialogs (ADR-015). At most one is open at a time, which the host enforces, so the
+  // frontend never holds a list.
+  rt.EventsOn('PluginDialogOpened', (data: PluginDialog) => {
+    if (!data?.dialogId) return;
+    openDialog(data);
+  });
+
+  rt.EventsOn('PluginDialogClosed', (data: { dialogId: string }) => {
+    if (!data?.dialogId) return;
+    closeDialog(data.dialogId);
+  });
+
+  rt.EventsOn(
+    'PluginDialogError',
+    (data: { dialogId: string; message: string; fieldErrors: Record<string, string> }) => {
+      if (!data?.dialogId) return;
+      setDialogError(data.dialogId, data.message ?? '', data.fieldErrors ?? {});
+    }
+  );
+
+  // A plugin pushed a newer panel for a node (ADR-015 §3). The event carries no snapshot: the
+  // panel re-reads through DescribeDiscoveryNode, so one reader path serves the first open and
+  // every refresh — the rule DiscoveryTreeChanged already follows for the tree.
+  rt.EventsOn(
+    'PluginNodeDetails',
+    (data: { connectionId: string; pluginId: string; nodeId: string }) => {
+      if (!data?.nodeId) return;
+      requestNodeDetailsReload(data.connectionId, data.pluginId, data.nodeId);
+    }
+  );
 
   rt.EventsOn('SessionEmbedReady', (data: { sessionId: string; embed: SessionEmbed }) => {
     sessions.update(list => {
@@ -143,6 +224,11 @@ export function subscribeToEvents(): void {
     connections.set([]);
     sessions.set([]);
     identities.set([]);
+    // Surfaces and dialogs belong to sessions that no longer exist; leaving them on screen would
+    // show a plugin's tabs and modals over a locked vault.
+    clearSurfaces();
+    activeDialog.set(null);
+    nodeDetailsTarget.set(null);
   });
 
   rt.EventsOn('FileEdited', (data: { localPath: string }) => {

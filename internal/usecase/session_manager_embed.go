@@ -54,6 +54,14 @@ func (m *SessionManager) SetChannelBus(bus domainplugin.ChannelSessionCloser) {
 	}
 }
 
+// SetSurfaces wires the plugin surface closer into session lifecycle for the close cascade
+// (ADR-015): a surface is a view onto work the session authorized, so it must not outlive it.
+func (m *SessionManager) SetSurfaces(closer domainplugin.SurfaceSessionCloser) {
+	if m != nil && m.lifecycle != nil {
+		m.lifecycle.SetSurfaces(closer)
+	}
+}
+
 // SetDiscovery wires the discovery leader tracker into session lifecycle (ADR-014).
 func (m *SessionManager) SetDiscovery(tracker DiscoverySessionTracker) {
 	if m != nil && m.lifecycle != nil {

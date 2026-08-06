@@ -75,7 +75,7 @@ func TestConnectionToDTO_DoesNotShareSlicesWithDomain(t *testing.T) {
 	conn := domain.Connection{
 		Tags: []string{"prod"},
 		Users: []domain.ConnectionUser{{
-			ID: "u1",
+			ID:      "u1",
 			KeyAuth: &domain.KeyAuthConfig{IdentityIDs: []string{"k1"}},
 		}},
 	}

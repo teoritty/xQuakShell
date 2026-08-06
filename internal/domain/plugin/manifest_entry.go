@@ -33,13 +33,19 @@ func ValidateBundleRelativePath(rel string) error {
 	return nil
 }
 
-const viewAssetRootPrefix = "ui/"
+const (
+	viewAssetRootPrefix = "ui/"
+	// defaultViewEntry is the entry a view contribution gets when it names none. It is shared with
+	// DeclaredUIAssets so the path validation admits and the path the install check looks for on
+	// disk can never drift apart.
+	defaultViewEntry = "ui/index.html"
+)
 
 // ValidateViewAssetEntry ensures a view entry resolves under the plugin ui/ sandbox.
 func ValidateViewAssetEntry(entry string) error {
 	entry = strings.TrimSpace(entry)
 	if entry == "" {
-		entry = "ui/index.html"
+		entry = defaultViewEntry
 	}
 	if err := ValidateBundleRelativePath(entry); err != nil {
 		return err

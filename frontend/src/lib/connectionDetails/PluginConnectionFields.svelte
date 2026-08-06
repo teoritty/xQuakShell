@@ -1,5 +1,14 @@
 <script lang="ts">
   import type { FieldGroup, FieldDef } from '../../actions/protocolActions';
+  // Layout is shared with the plugin dialog and the node details panel (ADR-015): the markup here
+  // is mostly about vault-stored secrets, which those must not have, but how fields are ordered,
+  // hidden and packed into rows must not diverge between them.
+  import { groupFieldsIntoRows } from '../fields/layout';
+  // keyValue and code are rendered by the shared control rather than restated here. They carry no
+  // secret (the manifest refuses `secret` on both), which is the concern this component exists for,
+  // and the alternative was a field a protocol may declare and the editor draws as a bare label.
+  import FieldControl from '../fields/FieldControl.svelte';
+  import { validateFieldValue as validateSharedFieldValue } from '../fields/validate';
   import { createEventDispatcher } from 'svelte';
   import './connectionDetailsShared.css';
 
@@ -42,8 +51,6 @@
 
   const dispatch = createEventDispatcher<{ fieldchange: { fieldId: string; value: unknown } }>();
 
-  type FieldRow = { kind: 'row'; fields: FieldDef[] } | { kind: 'single'; field: FieldDef };
-
   $: compiledPatterns = (() => {
     const result: Record<string, RegExp> = {};
     for (const group of groups) {
@@ -71,62 +78,20 @@
       ),
     }));
 
-  function isVisible(field: FieldDef, vals: Record<string, unknown>): boolean {
-    if (!field.dependsOn) return true;
-    return !!vals[field.dependsOn];
-  }
-
-  function groupFieldsIntoRows(fields: FieldDef[], vals: Record<string, unknown>): FieldRow[] {
-    const rows: FieldRow[] = [];
-    let currentRow: FieldDef[] = [];
-    let currentWidth: 'half' | 'third' | null = null;
-
-    function flushRow() {
-      if (currentRow.length > 0) {
-        rows.push({ kind: 'row', fields: currentRow });
-        currentRow = [];
-        currentWidth = null;
-      }
-    }
-
-    for (const field of fields) {
-      if (!isVisible(field, vals)) continue;
-
-      const w = field.width;
-      if (field.type === 'checkbox' || w === 'full' || !w) {
-        flushRow();
-        rows.push({ kind: 'single', field });
-        continue;
-      }
-
-      if (w === 'half') {
-        if (currentWidth === 'half' && currentRow.length < 2) {
-          currentRow.push(field);
-        } else {
-          flushRow();
-          currentWidth = 'half';
-          currentRow = [field];
-        }
-        if (currentRow.length === 2) flushRow();
-      } else if (w === 'third') {
-        if (currentWidth === 'third' && currentRow.length < 3) {
-          currentRow.push(field);
-        } else {
-          flushRow();
-          currentWidth = 'third';
-          currentRow = [field];
-        }
-        if (currentRow.length === 3) flushRow();
-      }
-    }
-    flushRow();
-    return rows;
-  }
 
   function validateField(field: FieldDef): string {
     const val = values[field.id];
     if (field.required && (val === undefined || val === null || val === '')) {
       return `${field.label} is required`;
+    }
+    // The two ADR-015 types validate their whole value at once — one is a JSON object, the other
+    // may legitimately be 256 KiB — so they go to the shared validator rather than through the
+    // length and pattern rules below, which would be measuring the wrong thing.
+    if (field.type === 'keyValue' || field.type === 'code') {
+      return validateSharedFieldValue(
+        { id: field.id, type: field.type, required: field.required },
+        typeof val === 'string' ? val : ''
+      );
     }
     if (field.validation) {
       const v = field.validation;
@@ -243,7 +208,19 @@
         </div>
       {:else}
         {@const field = row.field}
-        {#if field.type === 'checkbox'}
+        {#if field.type === 'keyValue' || field.type === 'code'}
+          <!-- Drawn by the shared control: the same editor the plugin dialog and the node details
+               panel use, so one field type does not look like two things in one window. -->
+          <div class="connection-detail-field">
+            <FieldControl
+              field={{ id: field.id, label: field.label, type: field.type, required: field.required, description: field.description }}
+              value={String(values[field.id] ?? field.default ?? '')}
+              error={errors[field.id] ?? ''}
+              {readonly}
+              onChange={(v) => handleInput(field, v)}
+            />
+          </div>
+        {:else if field.type === 'checkbox'}
           <div class="connection-detail-field">
             <label class="connection-detail-checkbox">
               <input

@@ -28,12 +28,16 @@ var notBound = map[string]string{
 	"SetPluginVaultGrant":            "wiring",
 	"SetPluginViewRelay":             "wiring",
 	"SetDiscoveryService":            "wiring",
+	"SetSurfaceService":              "wiring",
+	"SetDialogService":               "wiring",
+	"SetNodeDetailsService":          "wiring",
 	"Sessions":                       "wiring: accessor for the composition root",
 
 	// Backend-initiated callbacks and lifecycle, never called from JS.
 	"EmitPluginContributionsChanged": "backend-initiated event emitter",
 	"EmitPluginStateChanged":         "backend-initiated event emitter",
 	"EmitDiscoveryTreeChanged":       "backend-initiated event emitter",
+	"EmitNodeDetailsChanged":         "backend-initiated event emitter",
 	"HandlePluginViewMessage":        "implements usecase.PluginViewSink",
 	"OnEmbedReady":                   "callback for embedTunnels.SetEmbedReadyHandler",
 	"StopDebugLogWindow":             "lifecycle, driven from the backend",

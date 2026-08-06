@@ -10,6 +10,14 @@ export function AddKnownHost(arg1, arg2) {
   return window['go']['main']['App']['AddKnownHost'](arg1, arg2);
 }
 
+export function ApplyDiscoveryNodeDetails(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['ApplyDiscoveryNodeDetails'](arg1, arg2, arg3, arg4);
+}
+
+export function CancelPluginDialog(arg1) {
+  return window['go']['main']['App']['CancelPluginDialog'](arg1);
+}
+
 export function CancelTransfer(arg1) {
   return window['go']['main']['App']['CancelTransfer'](arg1);
 }
@@ -36,6 +44,10 @@ export function ClearAuditLog(arg1) {
 
 export function CloseSession(arg1) {
   return window['go']['main']['App']['CloseSession'](arg1);
+}
+
+export function CloseSurface(arg1) {
+  return window['go']['main']['App']['CloseSurface'](arg1);
 }
 
 export function CopyLocalPath(arg1, arg2) {
@@ -68,6 +80,10 @@ export function DeleteFolder(arg1) {
 
 export function DeletePassword(arg1) {
   return window['go']['main']['App']['DeletePassword'](arg1);
+}
+
+export function DescribeDiscoveryNode(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DescribeDiscoveryNode'](arg1, arg2, arg3);
 }
 
 export function DisableAuditSecretLogging() {
@@ -358,6 +374,10 @@ export function ReportRestored() {
   return window['go']['main']['App']['ReportRestored']();
 }
 
+export function ResizeSurface(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ResizeSurface'](arg1, arg2, arg3);
+}
+
 export function ResolveHostKey(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['ResolveHostKey'](arg1, arg2, arg3, arg4);
 }
@@ -398,6 +418,10 @@ export function SelectPluginSourceDir() {
   return window['go']['main']['App']['SelectPluginSourceDir']();
 }
 
+export function SendSurfaceInput(arg1, arg2) {
+  return window['go']['main']['App']['SendSurfaceInput'](arg1, arg2);
+}
+
 export function SendTerminalInput(arg1, arg2, arg3) {
   return window['go']['main']['App']['SendTerminalInput'](arg1, arg2, arg3);
 }
@@ -420,6 +444,10 @@ export function StartFileWatch(arg1) {
 
 export function StartPlugin(arg1) {
   return window['go']['main']['App']['StartPlugin'](arg1);
+}
+
+export function SubmitPluginDialog(arg1, arg2) {
+  return window['go']['main']['App']['SubmitPluginDialog'](arg1, arg2);
 }
 
 export function TerminalResize(arg1, arg2, arg3) {

@@ -22,24 +22,42 @@ type PluginSessionRPCHandler struct {
 	embed     *PluginEmbedInbound
 	channels  domainplugin.ChannelInboundPort
 	discovery domainplugin.DiscoveryInboundPort
+	surfaces  domainplugin.SurfaceInboundPort
+	dialogs   domainplugin.DialogInboundPort
+	details   domainplugin.DiscoveryDetailsInboundPort
 	scope     PluginSessionScope
 	auth      domainplugin.SessionRPCAuthorizer
 }
 
+// PluginSessionRPCPorts is every inbound port this handler can dispatch to.
+//
+// A struct rather than a parameter list: seven of these are interfaces, several have the same
+// shape, and two transposed arguments would have compiled and quietly routed one verb family into
+// another's service. Named fields make that mistake impossible to write.
+type PluginSessionRPCPorts struct {
+	Sessions  domainplugin.SessionInboundPort
+	Embed     *PluginEmbedInbound
+	Channels  domainplugin.ChannelInboundPort
+	Discovery domainplugin.DiscoveryInboundPort
+	Surfaces  domainplugin.SurfaceInboundPort
+	Dialogs   domainplugin.DialogInboundPort
+	Details   domainplugin.DiscoveryDetailsInboundPort
+}
+
 // NewPluginSessionRPCHandler creates a session RPC handler with mandatory scope enforcement.
 func NewPluginSessionRPCHandler(
-	sessions domainplugin.SessionInboundPort,
-	embed *PluginEmbedInbound,
-	channels domainplugin.ChannelInboundPort,
-	discovery domainplugin.DiscoveryInboundPort,
+	ports PluginSessionRPCPorts,
 	auth domainplugin.SessionRPCAuthorizer,
 	scope PluginSessionScope,
 ) *PluginSessionRPCHandler {
 	return &PluginSessionRPCHandler{
-		sessions:  sessions,
-		embed:     embed,
-		channels:  channels,
-		discovery: discovery,
+		sessions:  ports.Sessions,
+		embed:     ports.Embed,
+		channels:  ports.Channels,
+		discovery: ports.Discovery,
+		surfaces:  ports.Surfaces,
+		dialogs:   ports.Dialogs,
+		details:   ports.Details,
 		scope:     scope,
 		auth:      auth,
 	}
@@ -63,10 +81,10 @@ type registerEmbedParams struct {
 }
 
 type tunnelParams struct {
-	SessionID    string `json:"sessionId"`
-	TunnelID     string `json:"tunnelId"`
-	DataBase64   string `json:"dataBase64,omitempty"`
-	EOF          bool   `json:"eof,omitempty"`
+	SessionID  string `json:"sessionId"`
+	TunnelID   string `json:"tunnelId"`
+	DataBase64 string `json:"dataBase64,omitempty"`
+	EOF        bool   `json:"eof,omitempty"`
 }
 
 // Handle dispatches session.* plugin RPC methods.
@@ -97,76 +115,11 @@ func (h *PluginSessionRPCHandler) Handle(ctx context.Context, pluginID, method s
 		if err := h.sessions.WriteTerminal(ctx, pluginID, req.SessionID, req.OutputBase64); err != nil {
 			return nil, err
 		}
-	case "session.registerEmbed":
-		if h.embed == nil {
-			return nil, domainplugin.ErrCapabilityDenied
-		}
-		var req registerEmbedParams
-		if err := json.Unmarshal(params, &req); err != nil {
-			return nil, err
-		}
-		if err := h.authorize(req.SessionID); err != nil {
-			return nil, err
-		}
-		return h.embed.RegisterEmbed(ctx, pluginID, req.SessionID, req.UIEntry, NormalizeTunnelIDs(req.TunnelIDs))
-	case "session.tunnelOpen":
-		if h.embed == nil {
-			return nil, domainplugin.ErrCapabilityDenied
-		}
-		var req tunnelParams
-		if err := json.Unmarshal(params, &req); err != nil {
-			return nil, err
-		}
-		if err := h.authorize(req.SessionID); err != nil {
-			return nil, err
-		}
-		if err := h.embed.TunnelOpen(ctx, pluginID, req.SessionID, req.TunnelID); err != nil {
-			return nil, err
-		}
-	case "session.tunnelFrame":
-		if h.embed == nil {
-			return nil, domainplugin.ErrCapabilityDenied
-		}
-		var req tunnelParams
-		if err := json.Unmarshal(params, &req); err != nil {
-			return nil, err
-		}
-		if err := h.authorize(req.SessionID); err != nil {
-			return nil, err
-		}
-		if err := h.embed.TunnelFrame(ctx, pluginID, req.SessionID, req.TunnelID, req.DataBase64, req.EOF); err != nil {
-			return nil, err
-		}
-	case "session.tunnelClose":
-		if h.embed == nil {
-			return nil, domainplugin.ErrCapabilityDenied
-		}
-		var req tunnelParams
-		if err := json.Unmarshal(params, &req); err != nil {
-			return nil, err
-		}
-		if err := h.authorize(req.SessionID); err != nil {
-			return nil, err
-		}
-		if err := h.embed.TunnelClose(ctx, pluginID, req.SessionID, req.TunnelID); err != nil {
-			return nil, err
-		}
-	case "session.reportLocalEmbed":
-		if h.embed == nil {
-			return nil, domainplugin.ErrCapabilityDenied
-		}
-		var req struct {
-			SessionID string `json:"sessionId"`
-		}
-		if err := json.Unmarshal(params, &req); err != nil {
-			return nil, err
-		}
-		if err := h.authorize(req.SessionID); err != nil {
-			return nil, err
-		}
-		if err := h.embed.ReportLocalEmbed(ctx, pluginID, req.SessionID, params); err != nil {
-			return nil, err
-		}
+	// The embed and tunnel verbs dispatch next door, in plugin_session_rpc_embed.go. They are five
+	// variations on one rule — name a session, prove it is yours, forward — and reading them here
+	// buried the three families that differ.
+	case "session.registerEmbed", "session.tunnelOpen", "session.tunnelFrame", "session.tunnelClose", "session.reportLocalEmbed":
+		return h.handleEmbedVerb(ctx, pluginID, method, params)
 	case "channel.open":
 		if h.channels == nil {
 			return nil, domainplugin.ErrCapabilityDenied
@@ -203,6 +156,14 @@ func (h *PluginSessionRPCHandler) Handle(ctx context.Context, pluginID, method s
 		if _, err := h.discovery.Publish(ctx, pluginID, params); err != nil {
 			return nil, err
 		}
+	// The ADR-015 families dispatch next door, in plugin_session_rpc_ui.go: each authorizes a
+	// different thing, and that difference is the only interesting part of them.
+	case MethodSurfaceOpen, MethodSurfaceWrite, MethodSurfaceUpdateState, MethodSurfaceSetTitle, MethodSurfaceClose:
+		return h.handleSurfaceVerb(ctx, pluginID, method, params)
+	case MethodDialogOpen, MethodDialogSetError, MethodDialogClose:
+		return h.handleDialogVerb(ctx, pluginID, method, params)
+	case MethodDiscoveryPublishDetails:
+		return h.handlePublishDetails(ctx, pluginID, params)
 	default:
 		return nil, domainplugin.ErrCapabilityDenied
 	}
@@ -248,6 +209,9 @@ func NewPluginSessionRPCHandlerFactory(
 	inbound domainplugin.SessionInboundPort,
 	embed *PluginEmbedInbound,
 	discovery domainplugin.DiscoveryInboundPort,
+	surfaces domainplugin.SurfaceInboundPort,
+	dialogs domainplugin.DialogInboundPort,
+	details domainplugin.DiscoveryDetailsInboundPort,
 	auth domainplugin.SessionRPCAuthorizer,
 ) domainplugin.SessionRPCHandlerFactory {
 	return func(plugin domainplugin.InstalledPlugin, processSessionID string, channels domainplugin.ChannelInboundPort) domainplugin.SessionRPCHandler {
@@ -255,7 +219,15 @@ func NewPluginSessionRPCHandlerFactory(
 		if plugin.Manifest.Capabilities.Session != nil {
 			allowMulti = plugin.Manifest.Capabilities.Session.AllowMultiSession
 		}
-		return NewPluginSessionRPCHandler(inbound, embed, channels, discovery, auth, PluginSessionScope{
+		return NewPluginSessionRPCHandler(PluginSessionRPCPorts{
+			Sessions:  inbound,
+			Embed:     embed,
+			Channels:  channels,
+			Discovery: discovery,
+			Surfaces:  surfaces,
+			Dialogs:   dialogs,
+			Details:   details,
+		}, auth, PluginSessionScope{
 			PluginID:          plugin.Manifest.ID,
 			ProcessSessionID:  processSessionID,
 			Isolation:         plugin.Manifest.EffectiveIsolation(),

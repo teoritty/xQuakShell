@@ -3,12 +3,9 @@ import { createFakeGateway } from '../backend/fakeGateway';
 import {
   openSession,
   closeSession,
-  closeActiveSession,
   createSessionFromSelection,
-  focusNextSessionTab,
-  focusPrevSessionTab,
 } from './sessionActions';
-import { sessions, activeSessionId, connections, selectedConnectionId, lastError } from '../stores/appState';
+import { sessions, activeTabId, connections, selectedConnectionId, lastError } from '../stores/appState';
 import { get } from 'svelte/store';
 
 function assert(c: boolean, m: string) {
@@ -17,7 +14,7 @@ function assert(c: boolean, m: string) {
 
 function reset() {
   sessions.set([]);
-  activeSessionId.set('');
+  activeTabId.set('');
   connections.set([]);
   selectedConnectionId.set('');
   lastError.set(null);
@@ -27,7 +24,7 @@ async function run() {
   // --- openSession -------------------------------------------------------
 
   // openSession adds an optimistic 'connecting' tab immediately, sets
-  // activeSessionId, and returns the backend session id.
+  // activeTabId, and returns the backend session id.
   {
     reset();
     connections.set([{ id: 'c1', folderId: '', name: 'MyConn', host: 'h', port: 22, order: 0 }] as any);
@@ -48,7 +45,7 @@ async function run() {
         list[0].errorMessage === '',
       'optimistic tab has state "connecting" and the right shape',
     );
-    assert(get(activeSessionId) === 'sess-1', 'openSession sets activeSessionId to the new session id');
+    assert(get(activeTabId) === 'sess-1', 'openSession sets activeTabId to the new session id');
 
     const openCall = fake.calls.find((c) => c.method === 'OpenSession');
     assert(!!openCall && openCall.args[0] === 'c1', 'openSession forwards connectionId to the RPC');
@@ -96,7 +93,7 @@ async function run() {
     const id = await openSession('c1');
     assert(id === null, 'openSession returns null when gateway is missing');
     assert(get(sessions).length === 0, 'openSession does not touch sessions when gateway is missing');
-    assert(get(activeSessionId) === '', 'openSession does not touch activeSessionId when gateway is missing');
+    assert(get(activeTabId) === '', 'openSession does not touch activeTabId when gateway is missing');
     assert(get(lastError) === null, 'openSession does not set lastError when gateway is missing');
   }
 
@@ -164,40 +161,6 @@ async function run() {
     assert(get(lastError) === null, 'closeSession does not set lastError when gateway is missing');
   }
 
-  // --- closeActiveSession ---------------------------------------------------
-
-  {
-    reset();
-    sessions.set([
-      { sessionId: 's1', connectionId: 'c1', connectionName: 'A', state: 'ready', errorMessage: '' } as any,
-    ]);
-    activeSessionId.set('s1');
-    const fake = createFakeGateway();
-    fake.program('CloseSession', undefined);
-    setGateway(fake);
-
-    await closeActiveSession();
-    assert(get(activeSessionId) === '', 'closeActiveSession with one session leaves activeSessionId as empty string');
-  }
-
-  {
-    reset();
-    sessions.set([
-      { sessionId: 's1', connectionId: 'c1', connectionName: 'A', state: 'ready', errorMessage: '' } as any,
-      { sessionId: 's2', connectionId: 'c2', connectionName: 'B', state: 'ready', errorMessage: '' } as any,
-      { sessionId: 's3', connectionId: 'c3', connectionName: 'C', state: 'ready', errorMessage: '' } as any,
-    ]);
-    activeSessionId.set('s2');
-    const fake = createFakeGateway();
-    fake.program('CloseSession', undefined);
-    setGateway(fake);
-
-    await closeActiveSession();
-    const remaining = get(sessions);
-    assert(remaining.length === 2 && remaining[0].sessionId === 's1' && remaining[1].sessionId === 's3', 'closing s2 leaves s1 and s3');
-    assert(get(activeSessionId) === 's3', 'closeActiveSession picks the last item of the remaining list');
-  }
-
   // --- createSessionFromSelection -------------------------------------------
 
   {
@@ -242,36 +205,6 @@ async function run() {
 
     await createSessionFromSelection();
     assert(get(sessions).length === 0, 'createSessionFromSelection with no connections is a no-op');
-  }
-
-  // --- focusNextSessionTab / focusPrevSessionTab -----------------------------
-
-  {
-    reset();
-    sessions.set([
-      { sessionId: 's1', connectionId: 'c1', connectionName: 'A', state: 'ready', errorMessage: '' } as any,
-      { sessionId: 's2', connectionId: 'c2', connectionName: 'B', state: 'ready', errorMessage: '' } as any,
-      { sessionId: 's3', connectionId: 'c3', connectionName: 'C', state: 'ready', errorMessage: '' } as any,
-    ]);
-
-    activeSessionId.set('s3');
-    focusNextSessionTab();
-    assert(get(activeSessionId) === 's1', 'focusNextSessionTab wraps from the last tab back to the first');
-
-    activeSessionId.set('s1');
-    focusPrevSessionTab();
-    assert(get(activeSessionId) === 's3', 'focusPrevSessionTab wraps from the first tab back to the last');
-
-    activeSessionId.set('s1');
-    focusNextSessionTab();
-    assert(get(activeSessionId) === 's2', 'focusNextSessionTab moves forward one tab');
-  }
-
-  {
-    reset();
-    activeSessionId.set('');
-    focusNextSessionTab();
-    assert(get(activeSessionId) === '', 'focusNextSessionTab with no sessions leaves activeSessionId unchanged');
   }
 
   console.log('sessionActions.test passed');

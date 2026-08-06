@@ -137,7 +137,13 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 	// discovery.publish rides the session RPC handler for one reason: it names a sessionId, and the
 	// usecase layer is where "does this plugin hold that session" is decided (ADR-014, and the same
 	// path channel.open takes). Nothing about it is decoded here.
-	case "session.updateState", "session.writeTerminal", "session.registerEmbed", "session.tunnelOpen", "session.tunnelFrame", "session.tunnelClose", "session.reportLocalEmbed", "discovery.publish":
+	// surface.* rides the session RPC handler for the same reason discovery.publish does:
+	// surface.open names a parentSessionId, and "does this plugin hold that session" is a usecase
+	// decision. The later verbs name a surfaceId instead, but routing them anywhere else would put
+	// one verb family behind two dispatchers.
+	case "session.updateState", "session.writeTerminal", "session.registerEmbed", "session.tunnelOpen", "session.tunnelFrame", "session.tunnelClose", "session.reportLocalEmbed", "discovery.publish",
+		"surface.open", "surface.write", "surface.updateState", "surface.setTitle", "surface.close",
+		"dialog.open", "dialog.setError", "dialog.close", "discovery.publishDetails":
 		if s.sessions == nil {
 			return nil, &RPCError{Code: -32603, Message: "session handler unavailable"}
 		}

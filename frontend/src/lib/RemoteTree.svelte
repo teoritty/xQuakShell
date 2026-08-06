@@ -66,10 +66,16 @@
   import { clampMenuPosition } from './clampMenuPosition';
   import { onMount, tick } from 'svelte';
   import { get } from 'svelte/store';
-  import { invokeDiscoveryAction } from '../api/discovery';
+  import {
+    openNodeDetails,
+    closeNodeDetails,
+    nodeDetailsYieldToConnection,
+  } from '../stores/nodeDetailsState';
+  import { invokeDiscoveryAction, type DiscoveryActionRole } from '../api/discovery';
   import {
     computeDiscoveryMenu,
     defaultDiscoveryAction,
+    menuItemForRole,
     type DiscoveryMenu,
     type DiscoveryMenuItem,
   } from './remoteTree/discoveryActions';
@@ -99,6 +105,18 @@
     selectedConnectionId,
     selectedConnectionIds,
     creationTargetFolderId,
+  };
+
+  /**
+   * Which key runs which action role over a discovery selection (ADR-014).
+   *
+   * A table rather than a branch: binding the next shortcut is one row here and
+   * one constant in domain/discovery/role.go, and the set of keys plugins can
+   * reach is readable in one place. Nothing about what an action DOES appears —
+   * the role is matched, the plugin's own actionId is relayed.
+   */
+  const DISCOVERY_ROLE_KEYS: Record<string, DiscoveryActionRole> = {
+    Delete: 'delete',
   };
 
   let searchQuery = '';
@@ -309,6 +327,19 @@
       lastSelectedPath = null;
     }
     discoverySelection.update((sel) => selectDiscoveryRow(sel, row, discoveryRows, e));
+    // The details panel follows the selection, and only for a single row: a panel showing the
+    // properties of one of four selected nodes would be lying about which one (ADR-015 §3).
+    const selected = get(discoverySelection);
+    if (selected.keys.size === 1) {
+      openNodeDetails({
+        connectionId: row.connectionId,
+        pluginId: row.pluginId,
+        nodeId: row.nodeId,
+        label: row.label,
+      });
+    } else {
+      closeNodeDetails();
+    }
   }
 
   async function runDiscoveryAction(item: DiscoveryMenuItem, menu: DiscoveryMenu) {
@@ -543,6 +574,25 @@
     const target = ev.target as HTMLElement | null;
     const tag = target?.tagName ?? '';
     if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
+    // Discovery first, and exclusively: the two selections are disjoint by
+    // construction (a discovery row never enters selectedPaths — see
+    // remoteTree/selection.ts), so a non-empty discovery selection means the key
+    // was pressed with plugin nodes highlighted and nothing else.
+    const discoveryRowsSelected = selectedDiscoveryRows(get(discoverySelection), discoveryRows);
+    if (discoveryRowsSelected.length > 0) {
+      const role = DISCOVERY_ROLE_KEYS[ev.key];
+      if (!role) return;
+      const menu = computeDiscoveryMenu(discoveryRowsSelected);
+      const item = menuItemForRole(menu, role);
+      // Nothing carrying the role is a silent no-op on purpose. The core does not
+      // know which of a plugin's actions removes anything, and inventing one from
+      // a label is how a keystroke deletes something nobody offered to delete.
+      if (item) {
+        ev.preventDefault();
+        requestDiscoveryAction(item, menu);
+      }
+      return;
+    }
     if (ev.key !== 'Delete') return;
     const targets = selectionDeleteTargets(selectedPaths, $connections, $folders);
     if (deleteTargetCount(targets) > 0) {
@@ -553,6 +603,9 @@
 
   function handleSelectNode(id: string, e?: MouseEvent) {
     clearDiscoverySelection();
+    // The sidebar has one details slot: selecting a connection or folder closes any open node
+    // panel, exactly as selecting a node clears the connection selection (ADR-015 §3).
+    nodeDetailsYieldToConnection();
     applySelection(selectTreeNode(id, shiftNodes, lastSelectedPath, selectedPaths, e));
     const isPlainClick = !e?.ctrlKey && !e?.metaKey && !e?.shiftKey;
     if (isPlainClick && $connections.some((c) => c.id === id)) {

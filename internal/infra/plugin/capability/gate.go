@@ -106,6 +106,19 @@ func (g *Gate) Allow(method string) bool {
 		// publish is already confined to a session the plugin holds a binding for, and that
 		// session's protocol is fixed by the connection behind it.
 		return g.manifest.Capabilities.Discovery != nil
+	case "surface.open", "surface.write", "surface.updateState", "surface.setTitle", "surface.close":
+		// One question only: may this plugin speak surface.* at all. WHICH kind it may open is
+		// decided in the usecase layer (SurfaceService.open), because that answer depends on the
+		// request body and the gate never sees one. Checking the kind here as well would be a
+		// second copy of one rule, and the copy that falls behind is the way in.
+		return g.manifest.Capabilities.UI != nil && len(g.manifest.Capabilities.UI.Surfaces) > 0
+	case "dialog.open", "dialog.setError", "dialog.close":
+		return g.manifest.Capabilities.UI != nil && g.manifest.Capabilities.UI.Dialogs
+	case "discovery.publishDetails":
+		// Both grants, because it is both things: a discovery verb addressing a node, and a ui verb
+		// drawing a panel. Either one missing means the plugin cannot legitimately send it.
+		return g.manifest.Capabilities.Discovery != nil &&
+			g.manifest.Capabilities.UI != nil && g.manifest.Capabilities.UI.NodeDetails
 	default:
 		return false
 	}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Sidebar from './lib/Sidebar.svelte';
+  import PluginDialog from './lib/PluginDialog.svelte';
   import TileGrid from './lib/tiles/TileGrid.svelte';
   import VaultUnlock from './lib/VaultUnlock.svelte';
   import KnownHostsManager from './lib/KnownHostsManager.svelte';
@@ -13,13 +14,14 @@
   import ScriptsDialog from './lib/ScriptsDialog.svelte';
   import PluginCommandPalette from './lib/PluginCommandPalette.svelte';
   import { pluginContributions, initPluginContributionEvents, initPluginViewMessageEvents, refreshPluginContributions } from './stores/pluginState';
-  import { sessions, activeSessionId, vaultUnlocked, pendingHostKey, connections } from './stores/appState';
+  import { sessions, activeTabId, vaultUnlocked, pendingHostKey, connections } from './stores/appState';
   import { subscribeToEvents } from './events/subscribe';
   import { resolveHostKeyRpc as resolveHostKey } from './api/sessions';
   import { createNewConnectionInFolder } from './actions/connectionActions';
-  import {
-    createSessionFromSelection, focusNextSessionTab, focusPrevSessionTab, closeActiveSession,
-  } from './actions/sessionActions';
+  import { createSessionFromSelection } from './actions/sessionActions';
+  // The close and cycle hotkeys address whatever the tab bar shows — an SSH session or a plugin
+  // surface (ADR-015) — so they route through the tab layer, not the session one.
+  import { focusNextTab, focusPrevTab, closeActiveTab } from './actions/tabActions';
   import { getSettings, applyAppearanceSettings } from './actions/settingsActions';
   import { parseHotkeyEvent } from './hotkeys/hotkeys';
   import { DEFAULT_SESSION_HOTKEYS } from './api/settings';
@@ -129,19 +131,19 @@
       if (combo === hotkeys.next) {
         e.preventDefault();
         e.stopPropagation();
-        focusNextSessionTab();
+        focusNextTab();
         return;
       }
       if (combo === hotkeys.prev) {
         e.preventDefault();
         e.stopPropagation();
-        focusPrevSessionTab();
+        focusPrevTab();
         return;
       }
       if (combo === hotkeys.close) {
         e.preventDefault();
         e.stopPropagation();
-        await closeActiveSession();
+        await closeActiveTab();
         return;
       }
       if (combo === 'Ctrl+Shift+P') {
@@ -239,6 +241,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Mounted once, above everything: a plugin's modal is not owned by any one tab or panel. -->
+  <PluginDialog />
 
   {#if statusBarItems.length > 0}
     <div class="plugin-status-bar">

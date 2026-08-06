@@ -52,7 +52,7 @@ func TestDemoTerminalSessionConnect(t *testing.T) {
 	auth := usecase.NewPluginSessionAuthorizer(registry)
 	host := infraplugin.NewProcessHost(infraplugin.HostConfig{
 		DataRoot:          t.TempDir(),
-		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, usecase.NewPluginEmbedInbound(), nil, auth),
+		SessionRPC:        usecase.NewPluginSessionRPCHandlerFactory(inbound, usecase.NewPluginEmbedInbound(), nil, nil, nil, nil, auth),
 		SessionAuthorizer: auth,
 	})
 	manager := newTestPluginManager(t, registry, host)

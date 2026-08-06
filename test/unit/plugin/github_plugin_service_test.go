@@ -51,9 +51,9 @@ type recordingDownloader struct {
 	lastTag string
 }
 
-func (d *recordingDownloader) DownloadBinary(_ context.Context, _, _, tag, _, _ string) (string, func(), error) {
-	d.lastTag = tag
-	return "", func() {}, errors.New("download disabled in test")
+func (d *recordingDownloader) DownloadAsset(_ context.Context, req domainplugin.AssetDownloadRequest) (domainplugin.DownloadedAsset, func(), error) {
+	d.lastTag = req.Tag
+	return domainplugin.DownloadedAsset{}, func() {}, errors.New("download disabled in test")
 }
 
 func (d *recordingDownloader) DownloadAssetContent(_ context.Context, _, _, tag, _ string) ([]byte, error) {

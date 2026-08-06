@@ -40,6 +40,9 @@ type DiscoveryActionDTO struct {
 	// Multi marks the action eligible for a multi-selection of siblings. The frontend offers it only
 	// when every selected node carries the same actionId with multi set.
 	Multi bool `json:"multi,omitempty"`
+	// Role names what the action is, from the closed vocabulary in domain/discovery/role.go, so a
+	// keyboard shortcut can be bound without the core having to recognise any actionId of its own.
+	Role string `json:"role,omitempty"`
 }
 
 // DiscoveryNodeDTO is one row of a subtree.
@@ -171,6 +174,7 @@ func discoveryActionsToDTO(actions []discovery.Action) []DiscoveryActionDTO {
 			Danger:  action.Danger,
 			Confirm: action.Confirm,
 			Multi:   action.Multi,
+			Role:    string(action.Role),
 		})
 	}
 	return dtos

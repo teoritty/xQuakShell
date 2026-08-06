@@ -173,6 +173,12 @@ Fully opaque to the core. A node carries `actions[]` and `defaultActionId`; the 
 
 Mass actions: selection is limited to children of the same parent; an action is shown when it has `multi: true` and is present on every selected node (matched by `actionId`). The result arrives as an ordinary `publish` — the plugin itself moves nodes to `busy` and publishes the outcome; partial success is expressed by some nodes ending up `ok` and others `error`. There is no separate reporting protocol.
 
+Keyboard shortcuts: an action may carry `role`, a value from a closed vocabulary naming what the action IS — currently only `"delete"`, which the Delete key runs on the current selection. Opacity is unaffected: the key relays the same `actionId` the menu would have. A role answers only the question a shortcut asks and a menu never does — which of several actions the key means. Deriving that from `danger` or from a label would make a destructive shortcut depend on a plugin's wording and its translation.
+
+A key resolves through the same menu the user would have opened, so it inherits the `multi` rule, the same-parent rule, the stale-branch block and the size limit; nothing reachable by key is unreachable by mouse. A node may carry at most one action per role — two actions claiming one key is refused at publish, not disambiguated in the UI. A selection with no matching action does nothing.
+
+The vocabulary is part of the contract, not a hint: an unknown role **refuses the whole snapshot** (`ErrInvalidNode`, logged by the host as `discovery: snapshot refused`), exactly as an unknown `tone` does. Blanking it instead would leave a menu entry that looks bound to a key and is not. A plugin using a role added later must therefore raise `requires.capabilities.discovery.min` — a new role is a breaking change for older hosts.
+
 `invokeAction` ack must arrive within 5 s. Long-running work does not hold the RPC open: the plugin acknowledges receipt and reports back via `publish`.
 
 ## Consequences

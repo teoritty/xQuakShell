@@ -167,7 +167,19 @@ export const selectedConnectionIds = writable<Set<string>>(new Set());
  */
 export const creationTargetFolderId = writable<string>('');
 export const sessions = writable<Session[]>([]);
-export const activeSessionId = writable<string>('');
+/**
+ * The id of the tab the user is looking at.
+ *
+ * A tab is EITHER an SSH session or a plugin-owned surface (ADR-015), so this
+ * holds a sessionId or a surfaceId, and a reader has to say which it needs. It
+ * was called activeSessionId until surfaces arrived; the name outlived the fact,
+ * and three call sites ended up handing a `srf-…` id to a session-only backend
+ * call because of it.
+ *
+ * Need a session specifically? Use `activeSession` below — it resolves to null
+ * when the active tab is a surface. Need either? resolveTab in surfaceState.
+ */
+export const activeTabId = writable<string>('');
 export const vaultUnlocked = writable<boolean>(false);
 /**
  * Whether a vault file exists on disk, deciding between the create-master-password
@@ -269,8 +281,16 @@ export const detailsConnection = derived(
     $connections.find(c => c.id === $detailsConnectionId) || null
 );
 
+/**
+ * The active tab, resolved to a session — or null when it is a plugin surface.
+ *
+ * null is the whole point, not a degenerate case: it is the answer to "may I do
+ * a session thing right now?", and anything that reaches a session-only backend
+ * call (sending terminal input, re-running a command) must ask through here
+ * rather than reading activeTabId and hoping.
+ */
 export const activeSession = derived(
-  [sessions, activeSessionId],
-  ([$sessions, $activeSessionId]) =>
-    $sessions.find(s => s.sessionId === $activeSessionId) || null
+  [sessions, activeTabId],
+  ([$sessions, $activeTabId]) =>
+    $sessions.find(s => s.sessionId === $activeTabId) || null
 );

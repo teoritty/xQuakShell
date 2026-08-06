@@ -398,3 +398,71 @@ func TestPluginFieldsServiceRejectsEmptyVisibleRequired(t *testing.T) {
 		t.Fatal("expected visible required field to block save")
 	}
 }
+
+// A connection protocol may declare the two ADR-015 field types, so saving one has to work end to
+// end: the manifest accepts them, the editor draws them through the shared control, and the host
+// validates the whole value rather than measuring it with the length rules.
+func TestPluginFieldsServiceSavesKeyValueAndCode(t *testing.T) {
+	ctx := context.Background()
+	vaultRepo := persistence.NewVaultRepo(t.TempDir())
+	if err := vaultRepo.Create(ctx, "test-pass"); err != nil {
+		t.Fatal(err)
+	}
+
+	registry := usecase.NewPluginRegistry()
+	manifest := domainplugin.Manifest{
+		ID:      "com.test.newtypes",
+		Name:    "NewTypes",
+		Version: "1.0.0",
+		Engine:  domainplugin.EngineConfig{Type: domainplugin.EngineGoBinary, Entry: "p.exe"},
+		Contributions: domainplugin.Contributions{
+			ConnectionProtocols: []domainplugin.ConnectionProtocolContribution{
+				{
+					ID: "telnet",
+					Fields: []domainplugin.FieldGroup{
+						{
+							ID:    "opts",
+							Label: "Options",
+							Fields: []domainplugin.FieldDef{
+								{ID: "labels", Label: "Labels", Type: domainplugin.FieldTypeKeyValue},
+								{ID: "notes", Label: "Notes", Type: domainplugin.FieldTypeCode},
+							},
+						},
+					},
+				},
+			},
+		},
+		Capabilities: domainplugin.CapabilitySet{
+			Session: &domainplugin.SessionCaps{ConnectProtocols: []string{"telnet"}, Terminal: true},
+		},
+		Isolation: domainplugin.IsolationPerSession,
+	}
+	if err := registry.Register(domainplugin.InstalledPlugin{Manifest: manifest}); err != nil {
+		t.Fatal(err)
+	}
+
+	svc := usecase.NewPluginFieldsService(vaultRepo, registry)
+	connRepo := persistence.NewConnectionRepo(vaultRepo)
+	conn := &domain.Connection{ID: "conn-newtypes", Host: "h", Protocol: "telnet", Port: 23}
+	if err := connRepo.Save(ctx, conn); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := svc.SavePluginFields(ctx, conn, map[string]string{
+		"labels": `{"env":"prod","tier":"web"}`,
+		"notes":  "line one\n\tindented",
+	}); err != nil {
+		t.Fatalf("saving the two ADR-015 field types: %v", err)
+	}
+	if conn.PluginFields["labels"] != `{"env":"prod","tier":"web"}` {
+		t.Fatalf("keyValue was not stored as sent: %q", conn.PluginFields["labels"])
+	}
+	if conn.PluginFields["notes"] != "line one\n\tindented" {
+		t.Fatalf("code content was altered: %q", conn.PluginFields["notes"])
+	}
+
+	// The value is a JSON object of strings, and the host is the one that decides so.
+	if err := svc.SavePluginFields(ctx, conn, map[string]string{"labels": "not json"}); err == nil {
+		t.Fatal("expected a malformed keyValue value to be refused")
+	}
+}

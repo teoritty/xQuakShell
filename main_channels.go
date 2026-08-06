@@ -63,6 +63,17 @@ func (h *sessionRegistryHolder) ProtocolForSession(sessionID string) (string, bo
 	return registry.ProtocolForSession(sessionID)
 }
 
+// ConnectionForSession lets the surface service resolve the connection a new surface belongs to,
+// through the same push-me-later indirection. A miss means the session is not (or no longer) live,
+// so no surface may be opened against it.
+func (h *sessionRegistryHolder) ConnectionForSession(sessionID string) (string, bool) {
+	registry := h.get()
+	if registry == nil {
+		return "", false
+	}
+	return registry.ConnectionForSession(sessionID)
+}
+
 // processChannelCloseNotifier is ONE plugin process's channel.close notifier, and the meeting point
 // for two halves of a cycle neither side can close over.
 //

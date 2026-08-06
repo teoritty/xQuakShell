@@ -39,11 +39,11 @@ type PluginStatusBarDTO struct {
 
 // PluginAuthMethodDTO describes a contributed SSH auth method.
 type PluginAuthMethodDTO struct {
-	PluginID string            `json:"pluginId"`
-	ID       string            `json:"id"`
-	Label    string            `json:"label"`
-	Kind     string            `json:"kind"`
-	Fields   []FieldGroupDTO   `json:"fields,omitempty"`
+	PluginID string          `json:"pluginId"`
+	ID       string          `json:"id"`
+	Label    string          `json:"label"`
+	Kind     string          `json:"kind"`
+	Fields   []FieldGroupDTO `json:"fields,omitempty"`
 }
 
 // PluginTunnelProviderDTO describes a contributed dynamic-forward provider.

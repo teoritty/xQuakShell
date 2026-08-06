@@ -35,6 +35,8 @@ type action struct {
 	Danger  bool   `json:"danger,omitempty"`
 	Confirm string `json:"confirm,omitempty"`
 	Multi   bool   `json:"multi,omitempty"`
+	// Role names which keyboard shortcut this action answers, from the host's closed vocabulary.
+	Role string `json:"role,omitempty"`
 }
 
 // toneNone is this fixture's marker for "the plugin reported no status at all". It never reaches
@@ -48,12 +50,17 @@ const (
 	actionRescan  = "rescan"
 )
 
+// roleDelete is the only action role the host currently knows. Spelled out rather than imported: a
+// fixture plugin shares no code with the host, which is the point of having one.
+const roleDelete = "delete"
+
 // instanceActions is the ADR-014 action matrix in miniature: one single-node action, one mass
-// action, and one that is both destructive and confirmable.
+// action, and one that is destructive, confirmable, and bound to the Delete key.
 var instanceActions = []action{
 	{ID: actionInspect, Label: "Inspect"},
 	{ID: actionRefresh, Label: "Refresh", Multi: true},
-	{ID: actionRetire, Label: "Retire", Danger: true, Confirm: "Retire the selected items?", Multi: true},
+	{ID: actionRetire, Label: "Retire", Danger: true, Confirm: "Retire the selected items?",
+		Multi: true, Role: roleDelete},
 }
 
 // groupActions shows that a group carries its own actions rather than the core expanding an action

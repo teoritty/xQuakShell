@@ -61,6 +61,13 @@ func validateProtocolFields(proto ConnectionProtocolContribution) error {
 				return fmt.Errorf("%w: password field %q must have secret=true", ErrInvalidManifest, field.ID)
 			}
 
+			// A secret's storage story is the vault, keyed by connection and field id. keyValue and
+			// code have neither shape nor a place to be stored that way, so a "secret" one would be
+			// a plaintext string wearing a lock icon (ADR-015 §2).
+			if field.Secret && !FieldTypeAllowsSecret(field.Type) {
+				return fmt.Errorf("%w: %s field %q may not be secret", ErrInvalidManifest, field.Type, field.ID)
+			}
+
 			if field.Width != "" && !isValidWidth(field.Width) {
 				return fmt.Errorf("%w: invalid width %q for field %q", ErrInvalidManifest, field.Width, field.ID)
 			}
@@ -126,7 +133,8 @@ func validateProtocolFields(proto ConnectionProtocolContribution) error {
 func isValidFieldType(t FieldType) bool {
 	switch t {
 	case FieldTypeText, FieldTypePassword, FieldTypeNumber,
-		FieldTypeSelect, FieldTypeCheckbox, FieldTypeTextarea:
+		FieldTypeSelect, FieldTypeCheckbox, FieldTypeTextarea,
+		FieldTypeKeyValue, FieldTypeCode:
 		return true
 	}
 	return false

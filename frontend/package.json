@@ -21,6 +21,8 @@
     "test:discovery-markup": "tsx src/lib/remoteTree/discoveryMarkup.test.ts",
     "test:api-discovery": "tsx src/api/discovery.test.ts",
     "test:discovery-state": "tsx src/stores/discoveryState.test.ts",
+    "test:node-details": "tsx src/stores/nodeDetailsState.test.ts",
+    "test:active-session": "tsx src/stores/activeSession.test.ts",
     "test:connection-details": "tsx src/lib/connectionDetails/connectionDraft.test.ts && tsx src/lib/connectionDetails/forwardRuleIds.test.ts && tsx src/lib/connectionDetails/connectionFormMode.test.ts && tsx src/lib/pluginDisplay.test.ts && tsx src/lib/repoFetchSingleFlight.test.ts && tsx src/lib/connectionDetails/sharedControlWidth.test.ts",
     "test:tiles": "tsx src/lib/tiles/invariants.test.ts && tsx src/lib/tiles/geometry.test.ts && tsx src/lib/tiles/operations.test.ts && tsx src/lib/tiles/reconcile.test.ts && tsx src/lib/tiles/dropZones.test.ts && tsx src/lib/tiles/dragPayload.test.ts",
     "test:transfers": "tsx src/lib/formatBytes.test.ts && tsx src/lib/transferRate.test.ts && tsx src/lib/transferPresentation.test.ts",
@@ -29,6 +31,8 @@
     "test:backend": "tsx src/backend/context.test.ts && tsx src/backend/callBackend.test.ts",
     "test:hotkeys": "tsx src/hotkeys/hotkeys.test.ts",
     "test:terminal": "tsx src/terminal/outputBuffer.test.ts",
+    "test:log-surface": "tsx src/logSurface/buffer.test.ts && tsx src/logSurface/search.test.ts && tsx src/logSurface/window.test.ts",
+    "test:fields": "tsx src/lib/fields/validate.test.ts && tsx src/lib/fields/keyValueRows.test.ts",
     "test:events": "tsx src/events/subscribe.test.ts",
     "test:api-remotefs": "tsx src/api/remoteFs.test.ts",
     "test:api-localfs": "tsx src/api/localFs.test.ts",
@@ -48,6 +52,7 @@
     "test:api-sessions": "tsx src/api/sessions.test.ts",
     "test:api-terminal": "tsx src/api/terminal.test.ts",
     "test:actions-sessions": "tsx src/actions/sessionActions.test.ts",
+    "test:actions-tabs": "tsx src/actions/tabActions.test.ts",
     "test:actions-vault": "tsx src/actions/vaultActions.test.ts",
     "test:actions-folders": "tsx src/actions/folderActions.test.ts",
     "test:actions-connections": "tsx src/actions/connectionActions.test.ts",
@@ -55,7 +60,7 @@
     "test:actions-protocols": "tsx src/actions/protocolActions.test.ts",
     "test:actions-transfers": "tsx src/actions/transferActions.test.ts",
     "test:arch": "tsx src/architecture.test.ts",
-    "test": "npm run test:dnd && npm run test:tree-selection && npm run test:drag-highlight && npm run test:pane-selection && npm run test:ping-characterization && npm run test:status-dot && npm run test:discovery-tree && npm run test:discovery-selection && npm run test:discovery-actions && npm run test:discovery-isolation && npm run test:discovery-markup && npm run test:api-discovery && npm run test:discovery-state && npm run test:connection-details && npm run test:tiles && npm run test:transfers && npm run test:transfer-conflict && npm run test:password-strength && npm run test:backend && npm run test:hotkeys && npm run test:terminal && npm run test:events && npm run test:api-remotefs && npm run test:api-localfs && npm run test:api-folders && npm run test:api-connections && npm run test:api-credentials && npm run test:api-sshconfig && npm run test:import-selection && npm run test:putty-encoding && npm run test:api-knownhosts && npm run test:api-settings && npm run test:api-audit && npm run test:api-plugin-runtime && npm run test:api-plugins && npm run test:api-github-plugins && npm run test:api-vault && npm run test:api-sessions && npm run test:api-terminal && npm run test:actions-sessions && npm run test:actions-vault && npm run test:actions-folders && npm run test:actions-connections && npm run test:actions-settings && npm run test:actions-protocols && npm run test:actions-transfers && npm run test:arch"
+    "test": "npm run test:dnd && npm run test:tree-selection && npm run test:drag-highlight && npm run test:pane-selection && npm run test:ping-characterization && npm run test:status-dot && npm run test:discovery-tree && npm run test:discovery-selection && npm run test:discovery-actions && npm run test:discovery-isolation && npm run test:discovery-markup && npm run test:api-discovery && npm run test:discovery-state && npm run test:node-details && npm run test:active-session && npm run test:connection-details && npm run test:tiles && npm run test:transfers && npm run test:transfer-conflict && npm run test:password-strength && npm run test:backend && npm run test:hotkeys && npm run test:terminal && npm run test:log-surface && npm run test:fields && npm run test:events && npm run test:api-remotefs && npm run test:api-localfs && npm run test:api-folders && npm run test:api-connections && npm run test:api-credentials && npm run test:api-sshconfig && npm run test:import-selection && npm run test:putty-encoding && npm run test:api-knownhosts && npm run test:api-settings && npm run test:api-audit && npm run test:api-plugin-runtime && npm run test:api-plugins && npm run test:api-github-plugins && npm run test:api-vault && npm run test:api-sessions && npm run test:api-terminal && npm run test:actions-sessions && npm run test:actions-tabs && npm run test:actions-vault && npm run test:actions-folders && npm run test:actions-connections && npm run test:actions-settings && npm run test:actions-protocols && npm run test:actions-transfers && npm run test:arch"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^1.0.1",

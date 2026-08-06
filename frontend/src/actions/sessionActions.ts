@@ -1,13 +1,16 @@
 // Session orchestration layer: composes the atomic session RPCs
 // (openSessionRpc / closeSessionRpc, in api/sessions.ts) with optimistic
 // store updates. Moved verbatim from stores/api.ts (openSession, closeSession,
-// createSessionFromSelection, focusNextSessionTab, focusPrevSessionTab,
-// closeActiveSession, cycleSession) except that the raw app.OpenSession /
+// createSessionFromSelection) except that the raw app.OpenSession /
 // app.CloseSession calls are now routed through the atomic RPC wrappers, and
 // the 'session not found' swallow (previously part of the atomic layer) is
 // re-added here explicitly, since closeSessionRpc no longer performs it.
+//
+// Focus and close-by-hotkey moved to actions/tabActions.ts when a tab stopped
+// meaning "a session": those verbs address whatever the tab bar shows, and this
+// file addresses sessions.
 import { get } from 'svelte/store';
-import { sessions, connections, activeSessionId, selectedConnectionId, showError } from '../stores/appState';
+import { sessions, connections, activeTabId, selectedConnectionId, showError } from '../stores/appState';
 import { openSessionRpc, closeSessionRpc } from '../api/sessions';
 import { getGateway } from '../backend/context';
 
@@ -40,7 +43,7 @@ export async function openSession(connectionId: string): Promise<string | null> 
         },
       ];
     });
-    activeSessionId.set(sessionId);
+    activeTabId.set(sessionId);
     return sessionId;
   } catch (e) {
     handleError(e, 'Open session');
@@ -73,31 +76,3 @@ export async function createSessionFromSelection(): Promise<void> {
   await openSession(connectionId);
 }
 
-function cycleSession(direction: 1 | -1): void {
-  const list = get(sessions);
-  if (list.length === 0) return;
-  const currentId = get(activeSessionId);
-  const currentIdx = Math.max(0, list.findIndex((s) => s.sessionId === currentId));
-  const nextIdx = (currentIdx + direction + list.length) % list.length;
-  activeSessionId.set(list[nextIdx].sessionId);
-}
-
-export function focusNextSessionTab(): void {
-  cycleSession(1);
-}
-
-export function focusPrevSessionTab(): void {
-  cycleSession(-1);
-}
-
-export async function closeActiveSession(): Promise<void> {
-  const currentId = get(activeSessionId);
-  if (!currentId) return;
-  await closeSession(currentId);
-  const list = get(sessions);
-  if (list.length > 0) {
-    activeSessionId.set(list[list.length - 1].sessionId);
-  } else {
-    activeSessionId.set('');
-  }
-}

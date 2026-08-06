@@ -2,11 +2,15 @@
   import RemoteTree from './RemoteTree.svelte';
   import ConnectionDetails from './ConnectionDetails.svelte';
   import ContributionHost from './ContributionHost.svelte';
+  import DiscoveryNodeDetails from './DiscoveryNodeDetails.svelte';
 </script>
 
 <div class="sidebar">
   <RemoteTree />
   <ConnectionDetails />
+  <!-- The other kind of tree row's details. Only one of the two is ever open: selecting a node
+       clears the connection selection and the other way round. -->
+  <DiscoveryNodeDetails />
   <ContributionHost />
 </div>
 
