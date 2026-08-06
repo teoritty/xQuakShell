@@ -54,6 +54,7 @@ func (r *processReaper) Kill() error {
 	if r.cmd.Process != nil {
 		killPluginProcess(r.cmd.Process.Pid)
 	}
+	// Detached and unbounded, per the note above: the reap must finish.
 	return r.Wait(context.Background())
 }
 

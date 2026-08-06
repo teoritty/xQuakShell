@@ -67,7 +67,10 @@ func initSchema(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_audit_connection ON audit_events(connection_id);
 	CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_events(ts);
 	`
-	if _, err := db.Exec(ddl); err != nil {
+	// Schema creation runs inside NewSQLiteRepo, which has no caller context to
+	// inherit: an audit database that failed to open half-way is worse than one
+	// that took a moment longer, so this one is not cancellable by design.
+	if _, err := db.ExecContext(context.Background(), ddl); err != nil {
 		return fmt.Errorf("audit init schema: %w", err)
 	}
 	return nil

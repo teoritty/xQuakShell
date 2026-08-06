@@ -17,39 +17,50 @@ type App struct {
 	plugins *pluginRuntime
 }
 
+// reqCtx mirrors AppAPI.reqCtx for the facade's own callbacks. Wails hands the
+// app context to startup, and the grant callbacks below are user actions that
+// should stop when the app does; before startup runs there is nothing to
+// inherit, which is what the nil branch covers.
+func (a *App) reqCtx() context.Context {
+	if a == nil || a.ctx == nil {
+		return context.Background()
+	}
+	return a.ctx
+}
+
 func (a *App) grantPluginMultiSessionAccess(pluginID string) error {
 	if a.plugins == nil {
 		return nil
 	}
-	return a.plugins.grantMultiSessionAccess(context.Background(), pluginID)
+	return a.plugins.grantMultiSessionAccess(a.reqCtx(), pluginID)
 }
 
 func (a *App) grantPluginSecretAccess(pluginID string) error {
 	if a.plugins == nil {
 		return nil
 	}
-	return a.plugins.grantSecretAccess(context.Background(), pluginID)
+	return a.plugins.grantSecretAccess(a.reqCtx(), pluginID)
 }
 
 func (a *App) grantPluginAuthProviderAccess(pluginID string) error {
 	if a.plugins == nil {
 		return nil
 	}
-	return a.plugins.grantAuthProviderAccess(context.Background(), pluginID)
+	return a.plugins.grantAuthProviderAccess(a.reqCtx(), pluginID)
 }
 
 func (a *App) grantPluginTunnelProviderAccess(pluginID string) error {
 	if a.plugins == nil {
 		return nil
 	}
-	return a.plugins.grantTunnelProviderAccess(context.Background(), pluginID)
+	return a.plugins.grantTunnelProviderAccess(a.reqCtx(), pluginID)
 }
 
 func (a *App) grantPluginArbitraryNetworkAccess(pluginID string) error {
 	if a.plugins == nil {
 		return nil
 	}
-	return a.plugins.grantArbitraryNetworkAccess(context.Background(), pluginID)
+	return a.plugins.grantArbitraryNetworkAccess(a.reqCtx(), pluginID)
 }
 
 func (a *App) pluginAssetHandler() http.Handler {
@@ -69,7 +80,7 @@ func (a *App) startup(ctx context.Context) {
 	a.api.SetPluginArbitraryNetworkGrant(a.grantPluginArbitraryNetworkAccess)
 	if a.plugins != nil && a.plugins.manager != nil {
 		safego.GoNamed("plugin.startupActivate", func() {
-			a.plugins.manager.ActivateStartupPlugins(context.Background())
+			a.plugins.manager.ActivateStartupPlugins(ctx)
 		})
 		a.plugins.manager.SetStateChangeHandler(a.api.EmitPluginStateChanged)
 	}
