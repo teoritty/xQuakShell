@@ -90,6 +90,7 @@ func validateActions(node Node) error {
 		return fmt.Errorf("%w: node %q has more than %d actions", ErrInvalidNode, node.ID, MaxActionsPerNode)
 	}
 	seenActionIDs := make(map[string]struct{}, len(node.Actions))
+	seenRoles := make(map[Role]struct{}, len(node.Actions))
 	for _, action := range node.Actions {
 		if action.ID == "" {
 			return fmt.Errorf("%w: node %q has an action with an empty id", ErrInvalidNode, node.ID)
@@ -101,6 +102,20 @@ func validateActions(node Node) error {
 			return fmt.Errorf("%w: node %q has duplicate action id %q", ErrInvalidNode, node.ID, action.ID)
 		}
 		seenActionIDs[action.ID] = struct{}{}
+		if !ValidRole(action.Role) {
+			return fmt.Errorf("%w: node %q action %q has unknown role %q", ErrInvalidNode, node.ID, action.ID, action.Role)
+		}
+		// One action per role, per node. A role is what a key resolves to, and two actions claiming
+		// the same key is a question with no answer — the frontend cannot ask the user which they
+		// meant while their finger is already off the key. Refused here rather than disambiguated
+		// there: what a legal node looks like is a question for the domain, and a UI that quietly
+		// picked one would be picking, for a destructive verb, between two things it cannot compare.
+		if action.Role != RoleNone {
+			if _, dup := seenRoles[action.Role]; dup {
+				return fmt.Errorf("%w: node %q has more than one action with role %q", ErrInvalidNode, node.ID, action.Role)
+			}
+			seenRoles[action.Role] = struct{}{}
+		}
 	}
 	if node.DefaultActionID != "" {
 		if _, ok := seenActionIDs[node.DefaultActionID]; !ok {

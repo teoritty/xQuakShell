@@ -6,7 +6,7 @@
 //
 // Actions are fully opaque to the core: it draws the label, relays the click and
 // knows nothing about what happens next.
-import { MAX_ACTION_NODES, type DiscoveryAction } from '../../api/discovery';
+import { MAX_ACTION_NODES, type DiscoveryAction, type DiscoveryActionRole } from '../../api/discovery';
 import type { DiscoveryRow } from './types';
 
 export interface DiscoveryMenuItem {
@@ -16,8 +16,8 @@ export interface DiscoveryMenuItem {
   danger: boolean;
   /** Non-empty means: show this prompt and get a yes before invoking. */
   confirm: string;
-  /** The plugin says this is what the Delete key means on these nodes. */
-  isDelete: boolean;
+  /** Which shortcut the plugin says this answers, or '' for none. */
+  role: DiscoveryActionRole | '';
   disabled: boolean;
 }
 
@@ -46,26 +46,33 @@ function toItem(action: DiscoveryAction, disabled: boolean): DiscoveryMenuItem {
     iconId: action.iconId ?? '',
     danger: !!action.danger,
     confirm: action.confirm ?? '',
-    isDelete: !!action.delete,
+    role: action.role ?? '',
     disabled,
   };
 }
 
 /**
- * The action the Delete key runs on a selection, or null.
+ * The action a shortcut runs on the current selection, or null.
  *
- * Read off the menu rather than off the rows, so the key inherits every rule the
+ * Read off the MENU rather than off the rows, so a key inherits every rule the
  * menu already enforces: the intersection across a multi-selection, the `multi`
  * flag, the stale-branch block, the size limit. A key that could reach further
  * than the menu it mirrors would be a second, quieter permission model.
  *
- * Two marked actions resolve to null, not to the first one. A plugin that names
- * two deletes has not said which the key means, and picking one for it is how a
- * shortcut ends up doing the more destructive of the two.
+ * One function for every role, present and future: binding a new key is a row in
+ * the caller's key table, not another lookup written out longhand here.
+ *
+ * More than one match resolves to null. The host refuses a NODE carrying two
+ * actions of one role, so this can only happen across a selection whose rows
+ * disagree — and a shortcut that picked for the user, on a destructive verb,
+ * would be picking between two things it cannot compare.
  */
-export function deleteMenuItem(menu: DiscoveryMenu): DiscoveryMenuItem | null {
-  const marked = menu.items.filter((i) => i.isDelete && !i.disabled);
-  return marked.length === 1 ? marked[0] : null;
+export function menuItemForRole(
+  menu: DiscoveryMenu,
+  role: DiscoveryActionRole
+): DiscoveryMenuItem | null {
+  const matches = menu.items.filter((i) => i.role === role && !i.disabled);
+  return matches.length === 1 ? matches[0] : null;
 }
 
 export function computeDiscoveryMenu(rows: DiscoveryRow[]): DiscoveryMenu {

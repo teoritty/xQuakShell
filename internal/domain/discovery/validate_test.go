@@ -236,3 +236,49 @@ func TestValidatePublishDoesNotRejectOversizeChildCount(t *testing.T) {
 		t.Fatalf("ValidatePublish must not reject a snapshot for exceeding MaxChildrenPerPublish (that is TruncateChildren's job), got %v", err)
 	}
 }
+
+// A role is what a keyboard shortcut resolves to, so the host acts on the value — which means it
+// has to be a value the host understands. An unknown one is refused rather than blanked: silently
+// dropping it would leave a menu entry that looks bound to a key and is not.
+func TestValidatePublishRejectsUnknownActionRole(t *testing.T) {
+	n := baseNode("a")
+	n.Actions = []discovery.Action{{ID: "rename", Role: discovery.Role("rename")}}
+	err := discovery.ValidatePublish("", []discovery.Node{n})
+	if !errors.Is(err, discovery.ErrInvalidNode) || !strings.Contains(err.Error(), "unknown role") {
+		t.Fatalf("expected unknown role error, got %v", err)
+	}
+}
+
+// No role at all is the ordinary case: an entry the menu offers and no key reaches.
+func TestValidatePublishAcceptsAnActionWithoutARole(t *testing.T) {
+	n := baseNode("a")
+	n.Actions = []discovery.Action{{ID: "start"}, {ID: "remove", Role: discovery.RoleDelete}}
+	if err := discovery.ValidatePublish("", []discovery.Node{n}); err != nil {
+		t.Fatalf("a node with one delete action and one plain action is legal: %v", err)
+	}
+}
+
+// Two actions claiming one key is a question with no answer — the user's finger is already off the
+// key. Refused in the domain rather than disambiguated in the UI, which would be picking, for a
+// destructive verb, between two things it cannot compare.
+func TestValidatePublishRejectsTwoActionsWithOneRole(t *testing.T) {
+	n := baseNode("a")
+	n.Actions = []discovery.Action{
+		{ID: "remove", Role: discovery.RoleDelete},
+		{ID: "purge", Role: discovery.RoleDelete},
+	}
+	err := discovery.ValidatePublish("", []discovery.Node{n})
+	if !errors.Is(err, discovery.ErrInvalidNode) || !strings.Contains(err.Error(), "more than one action with role") {
+		t.Fatalf("expected duplicate role error, got %v", err)
+	}
+}
+
+// Roleless actions do not collide with each other: the uniqueness rule is about claimed keys, and
+// an action claiming none claims nothing.
+func TestValidatePublishAcceptsManyRolelessActions(t *testing.T) {
+	n := baseNode("a")
+	n.Actions = []discovery.Action{{ID: "start"}, {ID: "stop"}, {ID: "restart"}}
+	if err := discovery.ValidatePublish("", []discovery.Node{n}); err != nil {
+		t.Fatalf("actions without roles must not collide: %v", err)
+	}
+}

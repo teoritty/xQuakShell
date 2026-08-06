@@ -1,5 +1,5 @@
 import type { DiscoveryAction } from '../../api/discovery';
-import { computeDiscoveryMenu, defaultDiscoveryAction, deleteMenuItem } from './discoveryActions';
+import { computeDiscoveryMenu, defaultDiscoveryAction, menuItemForRole } from './discoveryActions';
 import { discoveryKey, type DiscoveryRow } from './types';
 
 function assert(cond: boolean, msg: string) {
@@ -31,7 +31,7 @@ const start: DiscoveryAction = { id: 'start', label: 'Start', multi: true };
 const stop: DiscoveryAction = { id: 'stop', label: 'Stop', multi: true, danger: true, confirm: 'Stop it?' };
 const logs: DiscoveryAction = { id: 'logs', label: 'Logs' }; // NOT multi
 const inspect: DiscoveryAction = { id: 'inspect', label: 'Inspect' };
-const remove: DiscoveryAction = { id: 'remove', label: 'Remove…', multi: true, danger: true, delete: true };
+const remove: DiscoveryAction = { id: 'remove', label: 'Remove…', multi: true, danger: true, role: 'delete' };
 
 // --- nothing selected ---
 {
@@ -117,35 +117,42 @@ const remove: DiscoveryAction = { id: 'remove', label: 'Remove…', multi: true,
   );
 }
 
-// --- the Delete key resolves through the menu, never around it ---
+// --- a shortcut resolves through the menu, never around it ---
 {
   assert(
-    deleteMenuItem(computeDiscoveryMenu([row('a', [start, remove])]))?.id === 'remove',
-    'the marked action is what Delete runs'
+    menuItemForRole(computeDiscoveryMenu([row('a', [start, remove])]), 'delete')?.id === 'remove',
+    'the action carrying the role is what the key runs'
   );
   assert(
-    deleteMenuItem(computeDiscoveryMenu([row('a', [start, logs])])) === null,
-    'no marked action means the key does nothing'
+    menuItemForRole(computeDiscoveryMenu([row('a', [start, logs])]), 'delete') === null,
+    'no action carrying the role means the key does nothing'
   );
-  assert(deleteMenuItem(computeDiscoveryMenu([])) === null, 'nothing selected, nothing to delete');
+  assert(menuItemForRole(computeDiscoveryMenu([]), 'delete') === null, 'nothing selected, nothing to run');
   // Every menu rule the key inherits, checked at the boundary that enforces it.
   assert(
-    deleteMenuItem(computeDiscoveryMenu([row('a', [remove]), row('b', [start])])) === null,
+    menuItemForRole(computeDiscoveryMenu([row('a', [remove]), row('b', [start])]), 'delete') === null,
     'an action missing from one selected row is out of reach for the key too'
   );
   const notMulti: DiscoveryAction = { ...remove, multi: false };
   assert(
-    deleteMenuItem(computeDiscoveryMenu([row('a', [notMulti]), row('b', [notMulti])])) === null,
-    'a delete the plugin did not mark multi is not reachable across a selection'
+    menuItemForRole(computeDiscoveryMenu([row('a', [notMulti]), row('b', [notMulti])]), 'delete') === null,
+    'a role the plugin did not mark multi is not reachable across a selection'
   );
   assert(
-    deleteMenuItem(computeDiscoveryMenu([row('a', [remove], { actionsBlocked: true })])) === null,
+    menuItemForRole(computeDiscoveryMenu([row('a', [remove], { actionsBlocked: true })]), 'delete') === null,
     'a stale branch refuses the key exactly as it refuses the menu'
   );
-  const second: DiscoveryAction = { id: 'purge', label: 'Purge', multi: true, delete: true };
+  // The host refuses a NODE with two actions of one role, so this can only arise across rows that
+  // disagree — and the answer is still to do nothing rather than pick.
+  const second: DiscoveryAction = { id: 'purge', label: 'Purge', multi: true, role: 'delete' };
   assert(
-    deleteMenuItem(computeDiscoveryMenu([row('a', [remove, second])])) === null,
-    'two marked actions is an unanswered question, not a coin flip'
+    menuItemForRole(computeDiscoveryMenu([row('a', [remove, second])]), 'delete') === null,
+    'two actions claiming one key is an unanswered question, not a coin flip'
+  );
+  // An action with no role is reachable from the menu and by no key at all.
+  assert(
+    computeDiscoveryMenu([row('a', [start])]).items[0].role === '',
+    'an unmarked action carries no role'
   );
 }
 
