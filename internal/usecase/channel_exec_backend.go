@@ -40,7 +40,7 @@ type ChannelCloseNotifier func(channelID uint32, reason, message string)
 
 const stderrCaptureLimit = 4 * 1024
 
-// ChannelExecBackend implements the exec purpose (ADR-011 Stage 7): it matches a channel.open
+// ChannelExecBackend implements the exec purpose (ADR-011): it matches a channel.open
 // hint against the plugin's manifest argv-template allowlist (domainplugin.MatchExecCommand),
 // then runs the matched argv as an SSH exec channel over the parent session's already
 // authenticated *ssh.Client, streaming stdio onto the channel's binary data path.

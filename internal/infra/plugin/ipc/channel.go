@@ -26,8 +26,8 @@ type channelFrame struct {
 	Payload []byte
 }
 
-// channel holds one channelId's lifecycle state and inbound queue. Stage 2 deliberately
-// has no credit/flow-control policy (Stage 5) — the queue is unbounded so a slow consumer
+// channel holds one channelId's lifecycle state and inbound queue. The plain channel
+// deliberately has no credit policy — the queue is unbounded so a slow consumer
 // on one channel cannot block delivery to another channel or to the JSON-RPC control plane,
 // which share the single-threaded read loop that feeds all channels' deliver calls.
 type channel struct {
@@ -260,7 +260,7 @@ func errFrameTooLarge(purpose string, got, max int) error {
 
 // deliver enqueues an inbound frame. After Close(), further deliveries are dropped as
 // no-ops per ADR-011 §Session lifecycle coupling ("the host ignores all further frames
-// for that channelId"), not errors. For kind=0x02 frames on a channel with Stage 5 flow
+// for that channelId"), not errors. For kind=0x02 frames on a channel with flow
 // control configured, delivery is also accounted against the credit the host granted the
 // plugin; sending past that grant is a protocol violation, enforced host-side regardless of
 // what the plugin claims locally (defense in depth, ADR-011 §2b).

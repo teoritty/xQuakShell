@@ -1,7 +1,7 @@
 // Atomic folder RPC wrappers. Each function is a thin wrapper around a
 // single backend RPC call, routed through callBackend/callBackendVoid for
-// uniform error handling. No store access here — orchestration (Phase 3)
-// combines these with `folders` store updates.
+// uniform error handling. No store access here — orchestration lives in
+// actions/folderActions.ts, which combines these with `folders` store updates.
 import { callBackend, callBackendVoid } from '../backend/callBackend';
 import type { Folder } from '../stores/appState';
 

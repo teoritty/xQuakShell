@@ -1,7 +1,8 @@
 // Atomic connection RPC wrappers. Each function is a thin wrapper around a
 // single backend RPC call, routed through callBackend/callBackendVoid for
-// uniform error handling. No store access here — orchestration (Phase 3)
-// combines these with `connections` store updates.
+// uniform error handling. No store access here — orchestration lives in
+// actions/connectionActions.ts, which combines these with `connections` store
+// updates.
 import { callBackend, callBackendVoid } from '../backend/callBackend';
 import type { Connection } from '../stores/appState';
 

@@ -23,10 +23,10 @@ const (
 
 // Manifest describes a plugin package (plugin.json).
 type Manifest struct {
-	ID               string          `json:"id"`
-	Name             string          `json:"name"`
-	Version          string          `json:"version"`
-	Description      string          `json:"description,omitempty"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description,omitempty"`
 	// MinCoreVersion is unsupported; kept only so resolvePluginAPI can reject
 	// manifests that still declare it with a clear error.
 	MinCoreVersion   string          `json:"minCoreVersion,omitempty"`
@@ -165,7 +165,7 @@ type TunnelProviderContribution struct {
 
 const defaultEmbedEntry = "ui/embed.html"
 
-// ViewContribution registers a declarative UI panel (Phase 5).
+// ViewContribution registers a declarative UI panel.
 type ViewContribution struct {
 	ID       string `json:"id"`
 	Location string `json:"location"`
@@ -174,7 +174,7 @@ type ViewContribution struct {
 	Entry    string `json:"entry,omitempty"`
 }
 
-// StatusBarContribution registers a status bar item (Phase 5).
+// StatusBarContribution registers a status bar item.
 type StatusBarContribution struct {
 	ID       string `json:"id"`
 	Text     string `json:"text"`

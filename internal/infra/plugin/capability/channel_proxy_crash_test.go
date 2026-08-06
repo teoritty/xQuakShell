@@ -8,7 +8,7 @@ import (
 )
 
 // TestChannelProxy_CloseAllInvokesBackendCloseRemoteForEveryChannel proves CloseAll (the
-// process-exit/crash teardown path, ADR-011 Stage 4b) signals every owned channel's backend to
+// process-exit/crash teardown path, ADR-011) signals every owned channel's backend to
 // tear down its remote end, not just drop the local ownership map — otherwise a remote docker
 // exec / relay conn would leak past the plugin process's own lifetime.
 func TestChannelProxy_CloseAllInvokesBackendCloseRemoteForEveryChannel(t *testing.T) {
@@ -76,7 +76,7 @@ func TestChannelProxy_CloseAllWorksWithoutEverCallingCloseSession(t *testing.T) 
 }
 
 // TestChannelProxy_CloseSessionWorksWithoutEverCallingCloseAll proves the session-cascade close
-// (ADR-011 Stage 4) works on a still-alive process, i.e. it does not rely on process-crash
+// (ADR-011) works on a still-alive process, i.e. it does not rely on process-crash
 // teardown (CloseAll) ever running.
 func TestChannelProxy_CloseSessionWorksWithoutEverCallingCloseAll(t *testing.T) {
 	backend := &fakeChannelBackend{}

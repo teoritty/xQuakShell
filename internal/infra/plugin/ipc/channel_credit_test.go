@@ -136,7 +136,7 @@ func TestChannelCreditAcquireOutboundRespectsContextCancellation(t *testing.T) {
 }
 
 // TestChannelDeliverEnforcesInboundCreditAsProtocolViolation exercises the host-enforced
-// server-side path end to end: a channel with Stage 5 flow control configured must reject
+// server-side path end to end: a channel with flow control configured must reject
 // (not silently queue) an inbound kind=0x02 frame once the plugin's granted credit is spent.
 func TestChannelDeliverEnforcesInboundCreditAsProtocolViolation(t *testing.T) {
 	ch := newFlowChannel(1, "exec", 1, 0, nil, func([]byte) error { return nil })

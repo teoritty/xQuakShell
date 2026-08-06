@@ -202,7 +202,7 @@ var _ domainplugin.SessionRPCHandler = (*PluginSessionRPCHandler)(nil)
 
 // NewPluginSessionRPCHandlerFactory returns a factory wired to inbound session RPC and authorizer.
 // channels is supplied per-call by the caller (internal/infra/plugin/process_ipc_factory.go),
-// since each plugin process gets its own ChannelProxy (ADR-011 Stage 4b) rather than a shared one.
+// since each plugin process gets its own ChannelProxy (ADR-011) rather than a shared one.
 // discovery is shared rather than per-process: unlike a channel, a discovery subtree belongs to a
 // connection and outlives any one plugin process, so there is exactly one service behind it.
 func NewPluginSessionRPCHandlerFactory(

@@ -14,7 +14,7 @@ import (
 	"xquakshell/internal/pkg/safego"
 )
 
-// ChannelRelayBackend implements the tcp-relay purpose (ADR-011 Stage 6): it wires a channel
+// ChannelRelayBackend implements the tcp-relay purpose (ADR-011): it wires a channel
 // to a host-dialed TCP target chosen by the plugin's hint, validated through the same
 // dial-policy chain NetProxy already enforces for net.dial — matchingPatternHost and
 // shouldAllowResolvedIP (net_proxy_match.go), backed by IsRestrictedDialIP/AllowResolvedDialIP
@@ -45,7 +45,7 @@ func NewChannelRelayBackend(pluginID string, caps *domainplugin.NetworkCaps, aud
 }
 
 // Authorize validates hint ("host:port") through the existing dial-policy chain against the
-// plugin's tcp: allowlist entries only, leaving udp: entries to the Stage 6b udp-relay backend.
+// plugin's tcp: allowlist entries only, leaving udp: entries to ChannelUDPRelayBackend.
 func (b *ChannelRelayBackend) Authorize(purpose, _ string, hint string) error {
 	if purpose != domainplugin.PurposeTCPRelay {
 		return domainplugin.ErrCapabilityDenied

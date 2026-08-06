@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	// SignatureScheme identifies Ed25519 manifest signatures (Phase 6).
+	// SignatureScheme identifies Ed25519 manifest signatures.
 	SignatureScheme = "ed25519"
 
 	// ChecksumsSHA256Len is the expected length of a hex-encoded SHA-256 checksums digest.

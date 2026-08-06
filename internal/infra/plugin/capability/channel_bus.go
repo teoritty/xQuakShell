@@ -8,7 +8,7 @@ import (
 
 // ChannelBus fans a session-scoped close out to every plugin process's ChannelProxy, since a
 // session's channels can be spread across multiple plugin processes. It owns no channel state
-// itself (that stays in each ChannelProxy's own map/mutex, Stage 3) — it is only a registry of
+// itself (that stays in each ChannelProxy's own map/mutex) — it is only a registry of
 // "which processes currently exist," constructed once at the composition root (main_plugins.go)
 // and populated as plugin processes come up.
 type ChannelBus struct {
@@ -44,7 +44,7 @@ func (b *ChannelBus) Register(processKey string, proxy *ChannelProxy) {
 	b.mu.Unlock()
 }
 
-// Unregister drops a plugin process's ChannelProxy (process exit/crash teardown, Stage 4b).
+// Unregister drops a plugin process's ChannelProxy on process exit or crash teardown.
 //
 // The proxy is half of the key. Process keys are reused — a plugin restarts under the same
 // pluginID — so a teardown running late for a dead process would otherwise tear the registration

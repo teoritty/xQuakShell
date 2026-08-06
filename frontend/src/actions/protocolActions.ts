@@ -2,9 +2,9 @@
 // store + `protocolsCache` module state and composes the atomic plugin
 // install/uninstall RPCs (installPluginRpc in api/plugins.ts;
 // installGitHubPluginRpc / uninstallGitHubPluginRpc in api/githubPlugins.ts)
-// with protocol-cache invalidation/refresh. Moved verbatim from
-// stores/api.ts (including the interim shims installPlugin /
-// installGitHubPlugin / uninstallGitHubPlugin added in Task 2.6b/2.6c).
+// with protocol-cache invalidation/refresh. installPlugin, installGitHubPlugin
+// and uninstallGitHubPlugin are shims that keep the pre-atomization call
+// signature working for callers that have not moved to the api/* wrappers.
 //
 // Missing-gateway guard analysis (per-function, matches the original
 // stores/api.ts bodies exactly):

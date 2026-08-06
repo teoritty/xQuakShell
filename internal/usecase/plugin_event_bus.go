@@ -24,17 +24,17 @@ type PluginSessionOwnershipChecker interface {
 // PluginEventNotifier delivers host→plugin notifications with session-aware process scope.
 type PluginEventNotifier func(ctx context.Context, pluginID, sessionID, method string, params json.RawMessage) error
 
-// PluginEventBus routes hub-and-spoke events between core and plugins (Phase 4).
+// PluginEventBus routes hub-and-spoke events between core and plugins.
 type PluginEventBus struct {
 	registry *PluginRegistry
 	notify   PluginEventNotifier
 
-	mu              sync.RWMutex
-	subscriptions   map[string]map[string]struct{} // pluginID -> channels
-	publishCount    map[string]int
-	publishWindow   time.Time
-	sessionActive   func(pluginID string) bool
-	sessionOwner    PluginSessionOwnershipChecker
+	mu            sync.RWMutex
+	subscriptions map[string]map[string]struct{} // pluginID -> channels
+	publishCount  map[string]int
+	publishWindow time.Time
+	sessionActive func(pluginID string) bool
+	sessionOwner  PluginSessionOwnershipChecker
 }
 
 // NewPluginEventBus creates an event bus over the plugin registry and notify func.

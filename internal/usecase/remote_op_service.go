@@ -93,7 +93,7 @@ func (s *RemoteOpService) run(
 		defer cancel()
 		defer s.cancels.Unregister(opID)
 
-		// Phase 1 — scan: count the entries to act on, streaming a live counter
+		// First pass — scan: count the entries to act on, streaming a live counter
 		// with an indeterminate total.
 		var scanned int64
 		total, err := fs.CountTree(ctx, remotePath, applyTo, func() {
@@ -105,7 +105,7 @@ func (s *RemoteOpService) run(
 			return
 		}
 
-		// Phase 2 — act: perform the operation, streaming an accurate percentage.
+		// Second pass — act: perform the operation, streaming an accurate percentage.
 		var done int64
 		if actErr := act(ctx, fs, func() {
 			done++

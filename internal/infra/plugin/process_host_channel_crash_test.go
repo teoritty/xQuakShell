@@ -64,7 +64,7 @@ func closedReaper(exitErr error) *processReaper {
 	return r
 }
 
-// TestWaitProcess_ClosesChannelsOnCrash_WithoutSessionClose is the Stage 4b invariant: a plugin
+// TestWaitProcess_ClosesChannelsOnCrash_WithoutSessionClose pins the crash-teardown invariant: a plugin
 // process crashing while its parent SSH session stays open must close every channel that process
 // owned, and tear down the backend's remote end, without any session-close event ever occurring.
 func TestWaitProcess_ClosesChannelsOnCrash_WithoutSessionClose(t *testing.T) {

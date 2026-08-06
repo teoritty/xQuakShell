@@ -1,9 +1,9 @@
-// Layer-boundary guard test (Task 5.3).
+// Layer-boundary guard test.
 //
 // Mirrors the backend's architecture test: enforces the frontend's api/actions/backend
 // layering going forward, while explicitly allowlisting the small, already-reviewed set
 // of exceptions that exist today. Each exception below was investigated (not guessed)
-// during Tasks 2.x-3.x code review and is documented inline in its source file. The
+// and is documented inline in its source file. The
 // allowlists are a closed, deliberate list — extending them requires the same scrutiny
 // as the original findings, not a rubber stamp.
 //
@@ -12,7 +12,7 @@
 //     except the specific documented cases below (error reporting / host-key reset that
 //     don't fit callBackend's four error shapes).
 //  2. actions/*.ts must not import `getGateway` directly, except the specific files that
-//     use it as the established missing-gateway pre-flight guard idiom (Tasks 3.1-3.4),
+//     use it as the established missing-gateway pre-flight guard idiom,
 //     reproducing exact original stores/api.ts fallback behavior.
 //  3. Nothing outside a small set of sanctioned files may reference the raw Wails bridge
 //     (`window.go` / `window.runtime` / `(window as any).go` / `(window as any).runtime`).
@@ -67,7 +67,7 @@ const API_APPSTATE_VALUE_IMPORT_ALLOWLIST: Map<string, Set<string>> = new Map([
 // Closed allowlist: these five files import `getGateway` directly from
 // '../backend/context' and call it as an explicit pre-flight guard before
 // invoking the atomic api/* RPC wrapper. This is the established
-// missing-gateway-guard idiom from Tasks 3.1-3.4: the atomic api/* wrappers
+// missing-gateway-guard idiom: the atomic api/* wrappers
 // return their fallback *before* the caller's try/catch runs any dependent
 // refresh logic, so without this explicit guard the surrounding orchestration
 // would proceed as if the mutation succeeded even when there is no backend.
@@ -165,7 +165,7 @@ function checkActionsGetGateway(): void {
       assert(
         ACTIONS_GET_GATEWAY_ALLOWLIST.has(file),
         `actions/${file} imports getGateway directly, which is only permitted for the ` +
-          `established missing-gateway pre-flight guard idiom (Tasks 3.1-3.4) in the ` +
+          `established missing-gateway pre-flight guard idiom in the ` +
           `reviewed allowlist. actions/* must otherwise reach the gateway only through api/*.`
       );
     }
