@@ -1,0 +1,51 @@
+{
+  "limits": {
+    "go": {
+      "maxCodeLines": 350
+    },
+    "ts": {
+      "maxCodeLines": 350
+    },
+    "svelte": {
+      "maxScriptCodeLines": 200,
+      "maxTotalCodeLines": 400
+    },
+    "goFunc": {
+      "maxCodeLines": 80,
+      "maxParams": 5,
+      "maxNesting": 3
+    },
+    "tsFunc": {
+      "maxCodeLines": 80,
+      "maxParams": 5,
+      "maxNesting": 3
+    }
+  },
+  "exemptions": {
+    "files": [
+      {
+        "path": "app.go",
+        "kind": "facade-surface",
+        "reason": "ADR-010 Wails facade: 116 methods, each a one-line delegate to presentation.AppAPI, with no branching of its own. Wails binds a single struct, so splitting the file would scatter one binding surface across several files without removing a single decision from it. It grows with the API, not with complexity."
+      }
+    ],
+    "functions": []
+  },
+  "baseline": {
+    "files": {
+      "internal/domain/plugin/manifest_capabilities.go": {
+        "codeLines": 413
+      },
+      "internal/infra/sftp/remote_fs.go": {
+        "codeLines": 468
+      },
+      "internal/usecase/embed_tunnel_service.go": {
+        "codeLines": 459
+      },
+      "internal/usecase/session_lifecycle_service.go": {
+        "codeLines": 351
+      }
+    },
+    "functions": {}
+  }
+}
