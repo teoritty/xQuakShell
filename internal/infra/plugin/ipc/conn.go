@@ -215,8 +215,34 @@ func (c *Conn) readLoop() {
 		default:
 		}
 
+		// What a message IS decides where it goes; its id only says which one. Both peers number
+		// their own requests from 1, so the two id spaces overlap by construction — matching an
+		// inbound request against c.pending would hand the plugin's request #3 to whoever is
+		// waiting on the host's call #3, leaving the request unanswered and the call resolved
+		// with a request for a result. `method` is the only thing that tells them apart
+		// (JSON-RPC 2.0 §4, §5).
+		if msg.Method != "" {
+			if msg.ID == nil {
+				if c.onNotify != nil {
+					c.onNotify(msg.Method, msg.Params)
+				}
+				continue
+			}
+			if c.onRequest != nil {
+				c.wg.Add(1)
+				reqID := *msg.ID
+				reqMethod := msg.Method
+				reqParams := append(json.RawMessage(nil), msg.Params...)
+				safego.GoNamed("ipc.handleRequest", func() {
+					defer c.wg.Done()
+					c.handleIncomingRequest(reqID, reqMethod, reqParams)
+				})
+			}
+			continue
+		}
+
 		if msg.ID != nil {
-			if msg.Method == "" && msg.Error == nil && msg.Result == nil {
+			if msg.Error == nil && msg.Result == nil {
 				_ = c.enc.WriteMessage(NewErrorResponse(*msg.ID, RPCError{Code: -32600, Message: "Invalid Request"}))
 				continue
 			}
@@ -227,23 +253,7 @@ func (c *Conn) readLoop() {
 			c.mu.Unlock()
 			if ok {
 				ch <- messageResult{msg: msg} // buffer is guaranteed empty: sole sender
-				continue
 			}
-			if msg.Method != "" && c.onRequest != nil {
-				c.wg.Add(1)
-				reqID := *msg.ID
-				reqMethod := msg.Method
-				reqParams := append(json.RawMessage(nil), msg.Params...)
-				safego.GoNamed("ipc.handleRequest", func() {
-					defer c.wg.Done()
-					c.handleIncomingRequest(reqID, reqMethod, reqParams)
-				})
-				continue
-			}
-		}
-
-		if msg.Method != "" && c.onNotify != nil {
-			c.onNotify(msg.Method, msg.Params)
 		}
 	}
 }
