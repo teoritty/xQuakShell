@@ -106,28 +106,3 @@ func refuseUnsafeRunes(what, s string) error {
 	}
 	return nil
 }
-
-// EncodeKeyValue renders pairs back to the stored form. Used by tests and by any host code that
-// needs to hand a plugin a value it can round-trip.
-func EncodeKeyValue(pairs []KeyValuePair) (string, error) {
-	var b strings.Builder
-	b.WriteByte('{')
-	for i, pair := range pairs {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		key, err := json.Marshal(pair.Key)
-		if err != nil {
-			return "", err
-		}
-		value, err := json.Marshal(pair.Value)
-		if err != nil {
-			return "", err
-		}
-		b.Write(key)
-		b.WriteByte(':')
-		b.Write(value)
-	}
-	b.WriteByte('}')
-	return b.String(), nil
-}

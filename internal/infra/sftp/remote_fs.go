@@ -68,11 +68,6 @@ func safeEntryName(name string) bool {
 	return true
 }
 
-// NewRemoteFS wraps an SFTP client to implement domain.RemoteFS.
-func NewRemoteFS(client *sftp.Client) *RemoteFS {
-	return &RemoteFS{client: client}
-}
-
 // NewRemoteFSWithRateLimit creates RemoteFS with optional transfer speed limit (Kbps, 0 = unlimited).
 func NewRemoteFSWithRateLimit(client *sftp.Client, rateLimitKbps int) *RemoteFS {
 	return &RemoteFS{client: client, rateLimitKbps: rateLimitKbps}

@@ -95,10 +95,6 @@ type EmbedSettings struct {
 	SuspendTcpWhenInactive bool `json:"suspendTcpWhenInactive,omitempty"`
 }
 
-func DefaultEmbedSettings() EmbedSettings {
-	return EmbedSettings{}
-}
-
 type DebugSettings struct {
 	LogWindowEnabled bool `json:"logWindowEnabled,omitempty"`
 	// LogLevel is the minimum level published to the debug log

@@ -53,14 +53,6 @@ type PluginManager struct {
 	idleTimeout     time.Duration
 }
 
-// NewPluginManager creates a plugin manager with the given registry and process host port.
-func NewPluginManager(registry *PluginRegistry, host domainplugin.ProcessHost) *PluginManager {
-	return NewPluginManagerWithConfig(PluginManagerConfig{
-		Registry: registry,
-		Host:     host,
-	})
-}
-
 // DiscoverPlugins loads manifests via the provided discover function.
 func (m *PluginManager) DiscoverPlugins(discover func() ([]domainplugin.InstalledPlugin, error)) error {
 	plugins, err := discover()

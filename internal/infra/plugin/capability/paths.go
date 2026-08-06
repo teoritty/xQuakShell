@@ -11,17 +11,6 @@ import (
 
 const placeholderPluginData = "${pluginData}"
 
-// ResolveFSRoots expands manifest FS patterns to absolute directory roots.
-func ResolveFSRoots(caps *domainplugin.FSCaps, pluginDataDir string) ([]string, error) {
-	if caps == nil {
-		return nil, nil
-	}
-	var patterns []string
-	patterns = append(patterns, caps.Read...)
-	patterns = append(patterns, caps.Write...)
-	return resolveRoots(patterns, pluginDataDir)
-}
-
 func resolveRoots(patterns []string, pluginDataDir string) ([]string, error) {
 	seen := make(map[string]struct{})
 	roots := make([]string, 0, len(patterns))
