@@ -1,0 +1,72 @@
+name: Mutation
+
+# Mutation testing answers a question line coverage cannot: would the tests have
+# noticed if the code were wrong? Both tools rerun a test suite once per mutant,
+# so a full pass takes tens of minutes to hours. That is why this is nightly and
+# deliberately absent from pull_request - blocking a merge on it would make the
+# gate the thing people work around.
+#
+# A red run here is not a broken build. It means a test stopped catching
+# something it used to, which is worth a morning's attention rather than an
+# immediate revert.
+on:
+  schedule:
+    - cron: '17 3 * * *' # 03:17 UTC, off the hour so it does not queue behind everything else
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # The go:embed in main.go needs frontend/dist to exist before anything
+      # can type-check the module, gremlins included.
+      - name: Build frontend (for go:embed)
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Mutation testing (Go)
+        run: go run ./scripts/mutate
+
+  frontend:
+    runs-on: ubuntu-latest
+    # A measured local run is 1997 mutants in about 2h15m, and every mutant
+    # reruns the whole suite. 120 would cut it off just short of the finish.
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Mutation testing (frontend)
+        working-directory: frontend
+        run: npm run mutate

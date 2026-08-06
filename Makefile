@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build dev clean rebuild portable install check gates test test-go test-frontend typecheck-frontend coverage lint sec deps-linux require-wails
+.PHONY: help build dev clean rebuild portable install check gates test test-go test-frontend typecheck-frontend coverage mutate lint sec deps-linux require-wails
 
 # ---------------------------------------------------------------------------
 # Host detection
@@ -78,6 +78,7 @@ help:
 	@echo gates - every pre-merge gate CI enforces, in CI order
 	@echo test - check + Go and frontend test suites
 	@echo coverage - per-package coverage floors for the plugin stack
+	@echo mutate - mutation testing, slow, runs nightly in CI
 	@echo lint - staticcheck
 	@echo sec - govulncheck + gosec
 	@echo deps-linux - print the system packages a Linux build needs
@@ -161,6 +162,13 @@ typecheck-frontend:
 
 coverage:
 	go run ./scripts/coverage
+
+# Not part of `gates`: a mutation run reruns a test suite once per mutant and
+# takes tens of minutes. .github/workflows/mutation.yml runs it nightly; this
+# target is for reproducing a nightly failure locally.
+mutate:
+	go run ./scripts/mutate
+	cd frontend && npm run mutate
 
 # Both targets type-check the whole module, which needs frontend/dist to exist
 # for the go:embed in main.go. Run `make install && cd frontend && npm run build`

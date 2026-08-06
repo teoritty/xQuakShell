@@ -69,3 +69,7 @@ frontend/package.json.md5
 
 # Portable WebView2 runtime (downloaded by scripts; large)
 build/bin/WebView2/
+
+# Stryker mutation testing scratch and reports (nightly only).
+frontend/.stryker-tmp/
+frontend/reports/

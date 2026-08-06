@@ -1,0 +1,59 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": [
+    "Mutation testing for the frontend's pure logic. Nightly, never per-merge:",
+    "the command runner re-runs the whole listed suite for every mutant, so the",
+    "wall time is minutes even at this scope.",
+    "",
+    "mutate lists only modules with a 1:1 test file and no DOM or backend",
+    "dependency. A component or an api/* wrapper would produce mutants that no",
+    "test can kill without a browser or a live gateway, which measures the test",
+    "harness rather than the tests.",
+    "",
+    "concurrency is capped well below the core count on purpose. Stryker times a",
+    "mutant against how long the unmutated suite took, measured once on an idle",
+    "machine; running fifteen suites at once then makes healthy mutants time out.",
+    "At the default, a third of the mutants on one small module timed out.",
+    "",
+    "coverageAnalysis is off because the command runner cannot report which test",
+    "touched which mutant; every mutant costs a full suite run.",
+    "",
+    "thresholds.break is 0 because no full run has finished yet: the scope is",
+    "1997 mutants at roughly 2h15m, which is a nightly, not something to pin a",
+    "number from locally. The first green nightly reports a score - set break",
+    "just under it in that same commit. Until then this job reports but cannot",
+    "fail, which is the one gate here that does not yet gate.",
+    "",
+    "After that: raise break when a nightly beats it; never lower it to make a",
+    "red run green."
+  ],
+  "packageManager": "npm",
+  "testRunner": "command",
+  "commandRunner": {
+    "command": "npm run mutate:suite"
+  },
+  "mutate": [
+    "src/lib/tiles/*.ts",
+    "src/lib/fileTree/*.ts",
+    "src/logSurface/*.ts",
+    "src/hotkeys/*.ts",
+    "src/lib/transfer/*.ts",
+    "src/lib/vault/passwordStrength.ts",
+    "src/lib/formatBytes.ts",
+    "src/lib/transferRate.ts",
+    "src/lib/transferPresentation.ts",
+    "!src/**/*.test.ts"
+  ],
+  "reporters": [
+    "progress",
+    "clear-text"
+  ],
+  "coverageAnalysis": "off",
+  "tempDirName": ".stryker-tmp",
+  "thresholds": {
+    "high": 90,
+    "low": 75,
+    "break": 0
+  },
+  "concurrency": 4
+}

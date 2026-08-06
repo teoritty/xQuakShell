@@ -66,9 +66,12 @@ export function checkFrontendFileBudgets(cfg: BudgetConfig): string[] {
 
     if (!recorded) {
       if (over(budget)) {
+        const advice = rel.endsWith('.svelte')
+          ? 'Split it into a container plus presentational subcomponents'
+          : 'Split it by responsibility into separate modules';
         issues.push(
-          `${rel}: ${describe(budget)}. Split it into a container plus presentational subcomponents, ` +
-            `or - if it is generated or a declarations-only surface - add an exemption with a kind and a reason to code-budgets.json`
+          `${rel}: ${describe(budget)}. ${advice}, or - if it is generated or a ` +
+            `declarations-only surface - add an exemption with a kind and a reason to code-budgets.json`
         );
       }
       continue;
