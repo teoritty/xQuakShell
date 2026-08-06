@@ -168,17 +168,19 @@ func (h *Host) readLoop() {
 			return
 		}
 
-		if msg.ID != nil {
-			h.pendingMu.Lock()
-			ch, ok := h.pending[*msg.ID]
-			h.pendingMu.Unlock()
-			if ok {
-				ch <- msg
-				continue
-			}
-		}
-
+		// A message with a method is a request or a notification, whatever its id; only a message
+		// without one can be an answer to something this host asked. Both peers number their own
+		// requests from 1, so the id spaces overlap and matching an incoming request against
+		// h.pending would swallow it as the answer to a call still in flight.
 		if msg.Method == "" {
+			if msg.ID != nil {
+				h.pendingMu.Lock()
+				ch, ok := h.pending[*msg.ID]
+				h.pendingMu.Unlock()
+				if ok {
+					ch <- msg
+				}
+			}
 			continue
 		}
 
