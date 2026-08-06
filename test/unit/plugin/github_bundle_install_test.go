@@ -60,6 +60,31 @@ func (d *bundleDownloader) DownloadAssetContent(_ context.Context, _, _, _, _ st
 	return nil, errors.New("no checksum asset in test")
 }
 
+// idleProcessHost stands in for the process host: install ends by starting the plugin, which is
+// not what these tests are about, so every call succeeds and nothing is spawned.
+type idleProcessHost struct{}
+
+func (idleProcessHost) Start(context.Context, domainplugin.InstalledPlugin, string) error { return nil }
+func (idleProcessHost) Stop(context.Context, string, string) error                        { return nil }
+func (idleProcessHost) StopAll(context.Context)                                           {}
+func (idleProcessHost) Call(context.Context, string, string, string, json.RawMessage) (json.RawMessage, error) {
+	return nil, nil
+}
+
+func (idleProcessHost) CallWithTimeout(context.Context, string, string, string, json.RawMessage, time.Duration) (json.RawMessage, error) {
+	return nil, nil
+}
+
+func (idleProcessHost) Notify(context.Context, string, string, string, json.RawMessage) error {
+	return nil
+}
+func (idleProcessHost) State(string, string) domainplugin.ProcessState {
+	return domainplugin.ProcessState("")
+}
+func (idleProcessHost) RunningInstances() []domainplugin.ProcessInstance { return nil }
+func (idleProcessHost) BindSession(string, string) error                 { return nil }
+func (idleProcessHost) UnbindSession(string, string)                     {}
+
 // installRig wires the real stager, loader and installer around a fake GitHub.
 type installRig struct {
 	service    *usecase.GitHubPluginService
@@ -72,6 +97,7 @@ func newInstallRig(t *testing.T, repoManifest string, assets []domainplugin.GitH
 	dataRoot := t.TempDir()
 	manager := usecase.NewPluginManagerWithConfig(usecase.PluginManagerConfig{
 		Registry:      usecase.NewPluginRegistry(),
+		Host:          idleProcessHost{},
 		LoadBundle:    infraplugin.LoadPluginSource,
 		InstallBundle: infraplugin.InstallFromSource,
 		InstallRoot:   dataRoot,
@@ -205,6 +231,44 @@ func TestInstallFromGitHubDownloadsTheBundleWhenBothShapesArePublished(t *testin
 	}
 	if downloader.calls[0].AssetName != bundleAssetName() {
 		t.Fatalf("downloaded %q, want the bundle %q", downloader.calls[0].AssetName, bundleAssetName())
+	}
+}
+
+func TestInstallFromGitHubRefusesAUIPluginPublishedAsABareBinary(t *testing.T) {
+	downloader := &bundleDownloader{failOnCall: true}
+	rig := newInstallRig(t, embedPluginManifest,
+		[]domainplugin.GitHubReleaseAsset{{Name: currentPlatformAssetName()}},
+		downloader)
+
+	err := rig.install(t)
+	if !errors.Is(err, domainplugin.ErrUIPluginRequiresBundle) {
+		t.Fatalf("expected ErrUIPluginRequiresBundle, got %v", err)
+	}
+	// The refusal has to land before the download: nothing about the asset can change the answer,
+	// and the user should not wait on a transfer that is already known to be useless.
+	if len(downloader.calls) != 0 {
+		t.Fatalf("expected no download, got %d", len(downloader.calls))
+	}
+}
+
+func TestInstallFromGitHubStillAcceptsABareBinaryForAHeadlessPlugin(t *testing.T) {
+	headlessManifest := `{
+  "id": "com.example.headless",
+  "name": "Headless",
+  "version": "1.0.0",
+  "engine": {"type": "go-binary", "entry": "demo.exe"}
+}`
+	binaryPath := filepath.Join(t.TempDir(), "demo")
+	writeFixtureFile(t, binaryPath, []byte("stub"))
+	rig := newInstallRig(t, headlessManifest,
+		[]domainplugin.GitHubReleaseAsset{{Name: currentPlatformAssetName()}},
+		&bundleDownloader{assetPath: binaryPath})
+
+	if err := rig.install(t); err != nil {
+		t.Fatalf("install failed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(rig.dataRoot, "plugins", "com.example.headless", "plugin.json")); err != nil {
+		t.Fatalf("expected the headless plugin to install: %v", err)
 	}
 }
 
