@@ -29,14 +29,19 @@ const (
 	// particular backend's own ID format.
 	MaxIDLen = 256
 
-	// MaxLabelLen bounds Node.Label. 128 runes is generous for a resource name while keeping a
-	// single row from dominating the tree's fixed-width layout.
+	// MaxLabelLen bounds Node.Label and Action.Label. 128 runes is generous for a resource name
+	// or a menu entry while keeping a single row from dominating the tree's fixed-width layout.
 	MaxLabelLen = 128
 
 	// MaxTooltipLen bounds Status.Tooltip. Tooltips are free text a plugin author writes for a
 	// human, not an identifier, so the ceiling is looser than MaxLabelLen but still bounded —
 	// an unbounded tooltip is an unbounded DOM string rendered on hover.
 	MaxTooltipLen = 256
+
+	// MaxConfirmLen bounds Action.Confirm, on the same reasoning as MaxTooltipLen: a sentence
+	// written for a human, and the one piece of plugin text shown in a MODAL the user must read
+	// before a destructive action. An unbounded one is a dialog with no dismiss button on screen.
+	MaxConfirmLen = 256
 
 	// MaxActionsPerNode bounds Node.Actions. A context menu with more than 16 entries stops
 	// being a menu; this is a UI sanity limit, not a security one.

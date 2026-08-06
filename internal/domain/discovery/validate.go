@@ -102,6 +102,19 @@ func validateActions(node Node) error {
 			return fmt.Errorf("%w: node %q has duplicate action id %q", ErrInvalidNode, node.ID, action.ID)
 		}
 		seenActionIDs[action.ID] = struct{}{}
+		// Measured after sanitizing, like Node.Label and Status.Tooltip above: the ceiling is on
+		// what will actually be rendered, and a string padded to length with control characters
+		// must not spend the budget it will not use.
+		label := SanitizeText(action.Label)
+		if label == "" {
+			return fmt.Errorf("%w: node %q action %q has no label", ErrInvalidNode, node.ID, action.ID)
+		}
+		if utf8.RuneCountInString(label) > MaxLabelLen {
+			return fmt.Errorf("%w: node %q action %q label exceeds %d characters", ErrInvalidNode, node.ID, action.ID, MaxLabelLen)
+		}
+		if utf8.RuneCountInString(SanitizeText(action.Confirm)) > MaxConfirmLen {
+			return fmt.Errorf("%w: node %q action %q confirm exceeds %d characters", ErrInvalidNode, node.ID, action.ID, MaxConfirmLen)
+		}
 		if !ValidRole(action.Role) {
 			return fmt.Errorf("%w: node %q action %q has unknown role %q", ErrInvalidNode, node.ID, action.ID, action.Role)
 		}
