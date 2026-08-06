@@ -1,7 +1,7 @@
 <!-- frontend/src/lib/tiles/TileGroup.svelte -->
 <script lang="ts">
   import type { TileGroup, Zone, Edge } from './types';
-  import { sessions, activeSessionId } from '../../stores/appState';
+  import { sessions, activeTabId } from '../../stores/appState';
   import SessionView from '../SessionView.svelte';
   import SurfaceView from '../SurfaceView.svelte';
   import { surfaces, resolveTabIn, type Tab } from '../../stores/surfaceState';
@@ -73,7 +73,7 @@
       return { zone: 'center', intent: 'merge', mergeBar: true };
     }
 
-    const lone = isLoneTab($tileLayout, drag.sessionId);
+    const lone = isLoneTab($tileLayout, drag.tabId);
     const edges: Edge[] = lone ? reorientEdges($tileLayout) : splitEdges($tileLayout, tile.id);
     const r = root.getBoundingClientRect();
     const z = zoneAt({ left: r.left, top: r.top, width: r.width, height: r.height }, e.clientX, e.clientY, edges);
@@ -114,20 +114,20 @@
     mergeBar = false;
     if (!payload || !act) return;
     if (act === 'merge') {
-      moveTabToTile(payload.sessionId, tile.id);
+      moveTabToTile(payload.tabId, tile.id);
     } else if (act === 'swap') {
-      swapTilesById(payload.sessionId, tile.id);
+      swapTilesById(payload.tabId, tile.id);
     } else if (act === 'reorient' && z && z !== 'center') {
-      reorientTile(payload.sessionId, z);
+      reorientTile(payload.tabId, z);
     } else if (act === 'split' && z && z !== 'center') {
-      splitOutTile(payload.sessionId, tile.id, z);
+      splitOutTile(payload.tabId, tile.id, z);
     }
   }
 
   function focusTile() {
     // Clicking anywhere in the tile focuses its active tab (keeps global
-    // activeSessionId — and thus activeTileId — in sync).
-    if (tile.activeTabId) activeSessionId.set(tile.activeTabId);
+    // activeTabId — and thus activeTileId — in sync).
+    if (tile.activeTabId) activeTabId.set(tile.activeTabId);
   }
 </script>
 

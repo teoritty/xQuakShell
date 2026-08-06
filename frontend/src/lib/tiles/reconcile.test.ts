@@ -17,7 +17,7 @@ function layout(tiles: TileGroup[]): TileLayout {
 const l0 = emptyLayout();
 const l1 = reconcile(l0, ['s1', 's2'], 's2');
 assert(l1.tiles.length === 1 && l1.tiles[0].tabs.join() === 's1,s2', 'new sessions join active tile');
-assert(l1.tiles[0].activeTabId === 's2', 'activeSessionId focuses its tab');
+assert(l1.tiles[0].activeTabId === 's2', 'activeTabId focuses its tab');
 
 // Closing a session removes its tab
 const l2 = reconcile(l1, ['s1'], 's1');

@@ -9,7 +9,7 @@ export type Zone = Edge | 'center';
 /** One tile = a group of session tabs with its own mini tab bar. */
 export interface TileGroup {
   id: string;
-  tabs: string[];       // sessionIds, in tab order
+  tabs: string[];       // tab ids (session or surface), in order
   activeTabId: string;  // '' when the tile is empty
 }
 

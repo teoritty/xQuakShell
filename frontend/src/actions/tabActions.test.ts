@@ -2,13 +2,13 @@
 // and every action on "the tab" has to route on which.
 //
 // The regression this file exists for: the close hotkey called closeSession with whatever
-// activeSessionId held. For a surface that reached the backend as CloseSession("srf-…"), whose
+// activeTabId held. For a surface that reached the backend as CloseSession("srf-…"), whose
 // "session not found" was swallowed — the plugin's tab stayed open, no error was shown, and focus
 // moved away from it anyway.
 import { get } from 'svelte/store';
 import { setGateway } from '../backend/context';
 import { createFakeGateway, type FakeGateway } from '../backend/fakeGateway';
-import { activeSessionId, sessions, lastError } from '../stores/appState';
+import { activeTabId, sessions, lastError } from '../stores/appState';
 import { surfaces, type Surface } from '../stores/surfaceState';
 import { allTabIds, closeActiveTab, closeTab, focusNextTab, focusPrevTab } from './tabActions';
 
@@ -36,7 +36,7 @@ function surface(id: string): Surface {
 function reset(): FakeGateway {
   sessions.set([]);
   surfaces.set([]);
-  activeSessionId.set('');
+  activeTabId.set('');
   lastError.set(null);
   const fake = createFakeGateway();
   fake.program('CloseSession', undefined);
@@ -53,7 +53,7 @@ async function testClosingASurfaceTabDoesNotTouchSessions() {
   const fake = reset();
   sessions.set([session('s1')]);
   surfaces.set([surface('srf-1')]);
-  activeSessionId.set('srf-1');
+  activeTabId.set('srf-1');
 
   await closeActiveTab();
 
@@ -71,23 +71,23 @@ async function testClosingASurfaceTabDoesNotTouchSessions() {
 async function testClosingASessionTabIsUnchanged() {
   const fake = reset();
   sessions.set([session('s1'), session('s2')]);
-  activeSessionId.set('s1');
+  activeTabId.set('s1');
 
   await closeActiveTab();
 
   assert(methodsCalled(fake).includes('CloseSession'), 'closing a session tab reaches CloseSession');
   assert(!methodsCalled(fake).includes('CloseSurface'), 'a session id must not reach CloseSurface');
   assert(get(sessions).length === 1, 'the closed session is removed optimistically');
-  assert(get(activeSessionId) === 's2', 'focus moves to the remaining tab');
+  assert(get(activeTabId) === 's2', 'focus moves to the remaining tab');
 }
 
 async function testFocusAfterClosingTheLastTab() {
   reset();
   sessions.set([session('s1')]);
-  activeSessionId.set('s1');
+  activeTabId.set('s1');
 
   await closeActiveTab();
-  assert(get(activeSessionId) === '', 'closing the only tab leaves no active tab');
+  assert(get(activeTabId) === '', 'closing the only tab leaves no active tab');
 }
 
 // The surface store is emptied by the PluginSurfaceClosed event, which has not arrived yet when
@@ -96,11 +96,11 @@ async function testFocusSkipsTheTabJustClosed() {
   reset();
   sessions.set([session('s1')]);
   surfaces.set([surface('srf-1')]);
-  activeSessionId.set('srf-1');
+  activeTabId.set('srf-1');
 
   await closeActiveTab();
   assert(
-    get(activeSessionId) === 's1',
+    get(activeTabId) === 's1',
     'focus must move off the closed surface even before its event arrives'
   );
 }
@@ -116,25 +116,25 @@ function testCycleCoversBothKinds() {
   sessions.set([session('s1'), session('s2')]);
   surfaces.set([surface('srf-1')]);
 
-  activeSessionId.set('s2');
+  activeTabId.set('s2');
   focusNextTab();
-  assert(get(activeSessionId) === 'srf-1', 'cycling forward reaches a plugin tab');
+  assert(get(activeTabId) === 'srf-1', 'cycling forward reaches a plugin tab');
 
   focusNextTab();
-  assert(get(activeSessionId) === 's1', 'cycling wraps from the last tab back to the first');
+  assert(get(activeTabId) === 's1', 'cycling wraps from the last tab back to the first');
 
   focusPrevTab();
-  assert(get(activeSessionId) === 'srf-1', 'cycling back wraps to the last tab');
+  assert(get(activeTabId) === 'srf-1', 'cycling back wraps to the last tab');
 
-  activeSessionId.set('s1');
+  activeTabId.set('s1');
   focusNextTab();
-  assert(get(activeSessionId) === 's2', 'cycling forward moves one tab');
+  assert(get(activeTabId) === 's2', 'cycling forward moves one tab');
 }
 
 function testCycleWithNoTabs() {
   reset();
   focusNextTab();
-  assert(get(activeSessionId) === '', 'cycling with no tabs leaves the active tab unchanged');
+  assert(get(activeTabId) === '', 'cycling with no tabs leaves the active tab unchanged');
 }
 
 function testTabOrderPutsSessionsFirst() {

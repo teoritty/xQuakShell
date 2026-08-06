@@ -14,7 +14,7 @@
   import ScriptsDialog from './lib/ScriptsDialog.svelte';
   import PluginCommandPalette from './lib/PluginCommandPalette.svelte';
   import { pluginContributions, initPluginContributionEvents, initPluginViewMessageEvents, refreshPluginContributions } from './stores/pluginState';
-  import { sessions, activeSessionId, vaultUnlocked, pendingHostKey, connections } from './stores/appState';
+  import { sessions, activeTabId, vaultUnlocked, pendingHostKey, connections } from './stores/appState';
   import { subscribeToEvents } from './events/subscribe';
   import { resolveHostKeyRpc as resolveHostKey } from './api/sessions';
   import { createNewConnectionInFolder } from './actions/connectionActions';

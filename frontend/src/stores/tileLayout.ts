@@ -4,7 +4,7 @@
 // exposes the user-gesture actions. It NEVER opens/closes sessions or surfaces.
 
 import { writable, get } from 'svelte/store';
-import { sessions, activeSessionId } from './appState';
+import { sessions, activeTabId } from './appState';
 import { surfaces } from './surfaceState';
 import type { TileLayout, Edge } from '../lib/tiles/types';
 import { emptyLayout } from '../lib/tiles/types';
@@ -18,7 +18,7 @@ export const tileLayout = writable<TileLayout>(emptyLayout());
  * dragend. Drop targets read it during `dragover` (where the DataTransfer payload
  * is not yet readable) to decide whether the gesture splits, re-orients or moves.
  */
-export const activeTileDrag = writable<{ sessionId: string; sourceTileId: string } | null>(null);
+export const activeTileDrag = writable<{ tabId: string; sourceTileId: string } | null>(null);
 
 // A tab is a session OR a plugin-owned surface (ADR-015). Surfaces are listed
 // after sessions rather than merged by arrival time: order only decides where a
@@ -29,7 +29,7 @@ function sync(): void {
     ...get(sessions).map((s) => s.sessionId),
     ...get(surfaces).map((s) => s.surfaceId),
   ];
-  const active = get(activeSessionId);
+  const active = get(activeTabId);
   tileLayout.update((l) => reconcile(l, ids, active));
 }
 
@@ -39,22 +39,22 @@ function sync(): void {
 // its id from every tile because it was not in the list it was given.
 sessions.subscribe(sync);
 surfaces.subscribe(sync);
-activeSessionId.subscribe(sync);
+activeTabId.subscribe(sync);
 
-export function splitOutTile(sessionId: string, targetTileId: string, edge: Edge): void {
-  tileLayout.update((l) => splitOut(l, sessionId, targetTileId, edge));
+export function splitOutTile(tabId: string, targetTileId: string, edge: Edge): void {
+  tileLayout.update((l) => splitOut(l, tabId, targetTileId, edge));
 }
 
-export function moveTabToTile(sessionId: string, targetTileId: string): void {
-  tileLayout.update((l) => moveTab(l, sessionId, targetTileId));
+export function moveTabToTile(tabId: string, targetTileId: string): void {
+  tileLayout.update((l) => moveTab(l, tabId, targetTileId));
 }
 
-export function reorientTile(sessionId: string, edge: Edge): void {
-  tileLayout.update((l) => reorient(l, sessionId, edge));
+export function reorientTile(tabId: string, edge: Edge): void {
+  tileLayout.update((l) => reorient(l, tabId, edge));
 }
 
-export function swapTilesById(sessionId: string, targetTileId: string): void {
-  tileLayout.update((l) => swapTiles(l, sessionId, targetTileId));
+export function swapTilesById(tabId: string, targetTileId: string): void {
+  tileLayout.update((l) => swapTiles(l, tabId, targetTileId));
 }
 
 export function setDivider(divider: 'main' | 'cross', ratio: number): void {

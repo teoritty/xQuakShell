@@ -15,16 +15,16 @@ import type { TileLayout, TileGroup, Edge, Orientation } from './types';
 import { newTileId } from './types';
 import { withTiles, removeTab } from './invariants';
 
-export function tileOf(layout: TileLayout, sessionId: string): TileGroup | undefined {
-  return layout.tiles.find((t) => t.tabs.includes(sessionId));
+export function tileOf(layout: TileLayout, tabId: string): TileGroup | undefined {
+  return layout.tiles.find((t) => t.tabs.includes(tabId));
 }
 
 const isFirstHalf = (edge: Edge) => edge === 'left' || edge === 'top';
 const axisOf = (edge: Edge): Orientation => (edge === 'left' || edge === 'right' ? 'h' : 'v');
 
 /** True when the session is the only tab in its tile (dragging it moves a whole tile). */
-export function isLoneTab(layout: TileLayout, sessionId: string): boolean {
-  const t = tileOf(layout, sessionId);
+export function isLoneTab(layout: TileLayout, tabId: string): boolean {
+  const t = tileOf(layout, tabId);
   return !!t && t.tabs.length <= 1;
 }
 
@@ -58,20 +58,20 @@ export function reorientEdges(layout: TileLayout): Edge[] {
 
 export function splitOut(
   layout: TileLayout,
-  sessionId: string,
+  tabId: string,
   targetTileId: string,
   edge: Edge,
 ): TileLayout {
   const n = layout.tiles.length;
   if (n >= 4) return layout;
-  const source = tileOf(layout, sessionId);
+  const source = tileOf(layout, tabId);
   if (!source || source.tabs.length < 2) return layout; // need >=2 tabs to spawn a tile
   if (!layout.tiles.some((t) => t.id === targetTileId)) return layout;
   if (!splitEdges(layout, targetTileId).includes(edge)) return layout;
 
   // Strip the moved session from its source, in place within the array.
-  const base = layout.tiles.map((t) => (t.id === source.id ? removeTab(t, sessionId) : t));
-  const moved: TileGroup = { id: newTileId(), tabs: [sessionId], activeTabId: sessionId };
+  const base = layout.tiles.map((t) => (t.id === source.id ? removeTab(t, tabId) : t));
+  const moved: TileGroup = { id: newTileId(), tabs: [tabId], activeTabId: tabId };
   const target = base.find((t) => t.id === targetTileId)!;
 
   let tiles: TileGroup[];
@@ -104,9 +104,9 @@ export function splitOut(
  * same tiles (and their ids, so nothing remounts) — only their arrangement
  * changes. No-op unless the edge is a `reorientEdges` edge.
  */
-export function reorient(layout: TileLayout, sessionId: string, edge: Edge): TileLayout {
+export function reorient(layout: TileLayout, tabId: string, edge: Edge): TileLayout {
   const n = layout.tiles.length;
-  const source = tileOf(layout, sessionId);
+  const source = tileOf(layout, tabId);
   if (!source) return layout;
   if (!reorientEdges(layout).includes(edge)) return layout;
   const targetAxis = axisOf(edge);
@@ -129,8 +129,8 @@ export function reorient(layout: TileLayout, sessionId: string, edge: Edge): Til
  * slot order swaps), so nothing remounts. This is the "поменять местами" gesture
  * and works for any layout of 2, 3 or 4 tiles.
  */
-export function swapTiles(layout: TileLayout, sessionId: string, targetTileId: string): TileLayout {
-  const source = tileOf(layout, sessionId);
+export function swapTiles(layout: TileLayout, tabId: string, targetTileId: string): TileLayout {
+  const source = tileOf(layout, tabId);
   if (!source || source.id === targetTileId) return layout;
   const si = layout.tiles.findIndex((t) => t.id === source.id);
   const ti = layout.tiles.findIndex((t) => t.id === targetTileId);
@@ -141,15 +141,15 @@ export function swapTiles(layout: TileLayout, sessionId: string, targetTileId: s
 }
 
 /** Moves a tab into another existing tile (center drop). Collapses an emptied source. */
-export function moveTab(layout: TileLayout, sessionId: string, targetTileId: string): TileLayout {
-  const source = tileOf(layout, sessionId);
+export function moveTab(layout: TileLayout, tabId: string, targetTileId: string): TileLayout {
+  const source = tileOf(layout, tabId);
   if (!source || source.id === targetTileId) return layout;
   if (!layout.tiles.some((t) => t.id === targetTileId)) return layout;
   const tiles = layout.tiles
-    .map((t) => (t.id === source.id ? removeTab(t, sessionId) : t))
+    .map((t) => (t.id === source.id ? removeTab(t, tabId) : t))
     .map((t) =>
       t.id === targetTileId
-        ? { ...t, tabs: [...t.tabs, sessionId], activeTabId: sessionId }
+        ? { ...t, tabs: [...t.tabs, tabId], activeTabId: tabId }
         : t,
     )
     .filter((t) => t.tabs.length > 0);

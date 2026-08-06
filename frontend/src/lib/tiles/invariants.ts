@@ -6,10 +6,10 @@
 
 import type { TileGroup, TileLayout, Orientation } from './types';
 
-export function removeTab(t: TileGroup, sessionId: string): TileGroup {
-  const tabs = t.tabs.filter((id) => id !== sessionId);
+export function removeTab(t: TileGroup, tabId: string): TileGroup {
+  const tabs = t.tabs.filter((id) => id !== tabId);
   const activeTabId =
-    t.activeTabId === sessionId ? tabs[tabs.length - 1] ?? '' : t.activeTabId;
+    t.activeTabId === tabId ? tabs[tabs.length - 1] ?? '' : t.activeTabId;
   return { ...t, tabs, activeTabId };
 }
 

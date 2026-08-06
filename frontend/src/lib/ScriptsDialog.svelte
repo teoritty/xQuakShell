@@ -6,7 +6,7 @@
   import { sendTerminalInput } from '../api/terminal';
   import { scalePx } from './uiScale';
   import { newLocalId } from './localId';
-  import { activeSessionId, sessions } from '../stores/appState';
+  import { activeTabId, sessions } from '../stores/appState';
   import { Terminal, Play, Plus, BookOpen, Pencil, Trash2 } from 'lucide-svelte';
 
   export let show = false;
@@ -59,12 +59,12 @@
   let lintErrors: string[] = [];
   let cmEditor: CodeMirrorEditor | null = null;
 
-  $: activeSession = $sessions.find((s) => s.sessionId === $activeSessionId);
+  $: activeSession = $sessions.find((s) => s.sessionId === $activeTabId);
   $: hasActiveTerminal = activeSession?.state === 'ready';
 
   function runScript(content: string) {
     if (!content.trim()) return;
-    const sid = $activeSessionId;
+    const sid = $activeTabId;
     if (!sid) return;
     sendTerminalInput(sid, content.trim() + '\n', content.trim());
     show = false;
@@ -225,7 +225,7 @@
 
   onMount(() => {
     const handler = (e: KeyboardEvent) => {
-      if (!$activeSessionId) return;
+      if (!$activeTabId) return;
       const hotkey = parseHotkey(e);
       const stored = (() => {
         try {

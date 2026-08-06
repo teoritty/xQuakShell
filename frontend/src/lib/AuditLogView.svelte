@@ -1,6 +1,6 @@
 <script lang="ts">
   import Modal from './Modal.svelte';
-  import { activeSessionId } from '../stores/appState';
+  import { activeTabId } from '../stores/appState';
   import { sendTerminalInput } from '../api/terminal';
   import { getSettings } from '../actions/settingsActions';
   import { searchAuditLog, deleteAuditEntry, clearAuditLog } from '../api/audit';
@@ -85,7 +85,7 @@
   }
 
   async function rerunCommand(entry: AuditEntry) {
-    const sid = $activeSessionId;
+    const sid = $activeTabId;
     if (!sid) return;
     await sendTerminalInput(sid, entry.input + '\n', entry.input);
     show = false;
@@ -234,7 +234,7 @@
                     >
                       <Trash2 size={11} />
                     </button>
-                    {#if $activeSessionId && !entry.redacted}
+                    {#if $activeTabId && !entry.redacted}
                       <button
                         class="entry-btn rerun"
                         on:click={() => rerunCommand(entry)}
