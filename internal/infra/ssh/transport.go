@@ -98,7 +98,11 @@ func BuildTransportChain(
 			nextAddr = fmt.Sprintf("%s:%d", hops[i+1].Host, hops[i+1].Port)
 		}
 
-		transport, err = client.Client().Dial("tcp", nextAddr)
+		// OpenDirectTCP rather than client.Client().Dial: the chain is built
+		// under the caller's connect deadline, and a raw Dial ignores it. One
+		// hop that accepts TCP but stalls on direct-tcpip would otherwise hang
+		// the whole chain past every timeout the user configured.
+		transport, err = client.OpenDirectTCP(ctx, nextAddr)
 		if err != nil {
 			cleanup()
 			return nil, nil, fmt.Errorf("hop %d forward to %s: %w", i, nextAddr, err)
