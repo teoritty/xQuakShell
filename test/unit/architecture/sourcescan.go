@@ -1,10 +1,10 @@
 package architecture
 
 import (
-	"bufio"
 	"fmt"
 	"go/ast"
 	"go/parser"
+	"go/scanner"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -142,29 +142,56 @@ func findMethod(file *ast.File, recvType, name string) *ast.FuncDecl {
 	return nil
 }
 
-// countNonBlankLines counts lines with at least one non-whitespace character.
+// countGoCodeLines counts the lines of a Go file that carry at least one
+// non-comment token.
 //
-// This deliberately matches PowerShell's `Measure-Object -Line`, which the
-// replaced scripts used: the budgets below were all calibrated against
-// non-blank counts, and switching to raw line counts would retroactively
-// break files that are within budget today.
-func countNonBlankLines(path string) (int, error) {
-	f, err := os.Open(path)
+// Comments are excluded on purpose. A size budget that counts them taxes the
+// one thing this codebase wants more of: rationale written next to the code it
+// explains. An author facing a budget measured in raw lines deletes the
+// explanation, not the complexity. Measuring only executable weight means a
+// twenty-line "why" block above a five-line function is free, while the
+// five lines still count.
+//
+// A line carrying both code and a trailing comment counts as code, and a
+// multi-line raw string literal counts every line it spans - the scanner
+// reports token boundaries, so both cases fall out of marking the span of each
+// non-comment token.
+func countGoCodeLines(path string) (int, error) {
+	src, err := os.ReadFile(path)
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
 
-	count := 0
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		if strings.TrimSpace(scanner.Text()) != "" {
-			count++
+	fset := token.NewFileSet()
+	file := fset.AddFile(path, fset.Base(), len(src))
+
+	var s scanner.Scanner
+	// The no-op error handler keeps a syntactically broken file from aborting
+	// the whole gate run: the layer-import check parses every file anyway and
+	// reports the parse error with a usable message, so failing twice here
+	// would only bury it.
+	s.Init(file, src, func(token.Position, string) {}, scanner.ScanComments)
+
+	codeLines := make(map[int]bool)
+	for {
+		pos, tok, lit := s.Scan()
+		if tok == token.EOF {
+			break
+		}
+		if tok == token.COMMENT {
+			continue
+		}
+		start := fset.Position(pos).Line
+		codeLines[start] = true
+		// Only a raw string literal can carry a newline inside a single
+		// non-comment token. Expanding on any token's literal would double
+		// count every line end, because the scanner reports its automatic
+		// semicolons with "\n" as their literal.
+		if tok == token.STRING {
+			for i := 1; i <= strings.Count(lit, "\n"); i++ {
+				codeLines[start+i] = true
+			}
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return 0, err
-	}
-	return count, nil
+	return len(codeLines), nil
 }

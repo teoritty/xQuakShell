@@ -70,7 +70,7 @@ func checkSessionManagerFacadeSize(repoRoot string) ([]SessionManagerIssue, erro
 		}}, nil
 	}
 
-	count, err := countNonBlankLines(absPath)
+	count, err := countGoCodeLines(absPath)
 	if err != nil {
 		return nil, err
 	}
