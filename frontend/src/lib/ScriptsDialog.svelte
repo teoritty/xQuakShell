@@ -6,7 +6,7 @@
   import { sendTerminalInput } from '../api/terminal';
   import { scalePx } from './uiScale';
   import { newLocalId } from './localId';
-  import { activeTabId, sessions } from '../stores/appState';
+  import { activeSession } from '../stores/appState';
   import { Terminal, Play, Plus, BookOpen, Pencil, Trash2 } from 'lucide-svelte';
 
   export let show = false;
@@ -59,14 +59,16 @@
   let lintErrors: string[] = [];
   let cmEditor: CodeMirrorEditor | null = null;
 
-  $: activeSession = $sessions.find((s) => s.sessionId === $activeTabId);
-  $: hasActiveTerminal = activeSession?.state === 'ready';
+  $: hasActiveTerminal = $activeSession?.state === 'ready';
 
   function runScript(content: string) {
     if (!content.trim()) return;
-    const sid = $activeTabId;
-    if (!sid) return;
-    sendTerminalInput(sid, content.trim() + '\n', content.trim());
+    // The guard lives here, not only in the markup: the preset hotkey below reaches
+    // this function without passing a disabled button. activeSession is null when
+    // the active tab is a plugin surface, whose id SendTerminalInput cannot use.
+    const session = $activeSession;
+    if (!session) return;
+    sendTerminalInput(session.sessionId, content.trim() + '\n', content.trim());
     show = false;
   }
 
@@ -225,7 +227,7 @@
 
   onMount(() => {
     const handler = (e: KeyboardEvent) => {
-      if (!$activeTabId) return;
+      if (!$activeSession) return;
       const hotkey = parseHotkey(e);
       const stored = (() => {
         try {
