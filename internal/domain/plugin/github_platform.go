@@ -26,6 +26,7 @@ func ParseGitHubAssetName(filename string) (osName, arch string) {
 	name = strings.TrimSuffix(name, ".zip")
 	name = strings.TrimSuffix(name, ".tar.gz")
 	name = strings.TrimSuffix(name, ".tgz")
+	name = strings.TrimSuffix(name, BundleAssetSuffix)
 
 	parts := strings.Split(name, "-")
 	if len(parts) < 3 {
@@ -40,8 +41,16 @@ func ParseGitHubAssetName(filename string) (osName, arch string) {
 	return osName, arch
 }
 
+// ExtractPlatformsFromAssets reports one installable asset per platform.
+//
+// A release may publish both shapes for the same platform — a publisher adding bundles keeps the
+// bare binaries for hosts that predate them — and the install resolves a platform to exactly one
+// asset. The bundle wins that tie wherever both appear, because it is the only shape that can
+// carry a plugin's ui/ tree and the author's own checksums. Without the preference the winner
+// would be whichever asset GitHub happened to list first.
 func ExtractPlatformsFromAssets(assets []GitHubReleaseAsset, checksums map[string]string) []PlatformInfo {
 	var platforms []PlatformInfo
+	indexByPlatform := make(map[string]int)
 	for _, asset := range assets {
 		if asset.Name == "SHA256SUMS" || asset.Name == "checksums.txt" {
 			continue
@@ -50,12 +59,23 @@ func ExtractPlatformsFromAssets(assets []GitHubReleaseAsset, checksums map[strin
 		if osName == "" || arch == "" {
 			continue
 		}
-		platforms = append(platforms, PlatformInfo{
+		info := PlatformInfo{
 			OS:        osName,
 			Arch:      arch,
 			AssetName: asset.Name,
 			Checksum:  checksums[asset.Name],
-		})
+			Kind:      ClassifyReleaseAsset(asset.Name),
+		}
+		key := osName + "/" + arch
+		existing, seen := indexByPlatform[key]
+		if !seen {
+			indexByPlatform[key] = len(platforms)
+			platforms = append(platforms, info)
+			continue
+		}
+		if platforms[existing].Kind != ReleaseAssetBundle && info.Kind == ReleaseAssetBundle {
+			platforms[existing] = info
+		}
 	}
 	return platforms
 }

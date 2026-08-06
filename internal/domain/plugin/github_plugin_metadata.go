@@ -36,12 +36,16 @@ type GitHubPluginMetadata struct {
 	Manifest          Manifest               `json:"-"`
 }
 
-// PlatformInfo describes platform support for a binary.
+// PlatformInfo describes platform support for a release asset.
 type PlatformInfo struct {
 	OS        string `json:"os"`
 	Arch      string `json:"arch"`
 	AssetName string `json:"assetName"`
 	Checksum  string `json:"checksum,omitempty"`
+	// Kind says whether the asset is a full bundle or a bare binary. A plugin that ships ui/
+	// assets is installable only from the former, which is why the install has to know before
+	// it downloads anything.
+	Kind ReleaseAssetKind `json:"kind,omitempty"`
 }
 
 // Validate ensures metadata is complete and valid.
