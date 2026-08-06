@@ -239,6 +239,11 @@ func (r *SQLiteRepo) Close() error {
 }
 
 // PurgeOlderThanNow deletes audit entries older than the given duration from now.
+//
+// The context-free signature is the port's, so the context has to be minted
+// here. Retention is a policy the vault owner set, not a request anyone is
+// waiting on, and a purge that gets cancelled leaves data past its retention
+// window - which is the failure this exists to prevent.
 func (r *SQLiteRepo) PurgeOlderThanNow(d time.Duration) error {
 	return r.PurgeOlderThan(context.Background(), time.Now().Add(-d))
 }

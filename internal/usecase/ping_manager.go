@@ -117,6 +117,9 @@ func (pm *PingManager) PingByConnectionID(ctx context.Context, connID string) {
 // PingSingle pings a single connection immediately.
 func (pm *PingManager) PingSingle(ctx context.Context, connID, host string, port int) {
 	if ctx == nil {
+		// A nil context reaches here from callers that have none to give (the settings
+		// path fires pings without a request behind them). The limiter and the TCP dial
+		// below both require a non-nil one, so substitute rather than refuse the ping.
 		ctx = context.Background()
 	}
 	if err := pm.limiter.Acquire(ctx); err != nil {

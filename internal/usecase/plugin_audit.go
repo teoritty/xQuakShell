@@ -55,6 +55,10 @@ func (w *PluginAuditWriter) append(input string) {
 		SessionID: "plugin",
 		Input:     input,
 	}
+	// Audit writes are detached on purpose. This runs from RPC paths that have a
+	// context, but an audit record is the evidence that the operation happened -
+	// dropping it because the operation was cancelled would delete exactly the
+	// entries an investigation cares about.
 	if err := w.repo.Append(context.Background(), entry); err != nil {
 		log.Printf("WARNING: plugin audit append failed: %v", err)
 	}

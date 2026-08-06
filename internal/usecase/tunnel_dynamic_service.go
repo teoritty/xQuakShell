@@ -99,6 +99,8 @@ func (s *TunnelDynamicService) evictPreBindLocal(localConnID string) {
 
 	if s.notify != nil {
 		params, _ := json.Marshal(map[string]string{"localConnId": localConnID})
+		// The connection is already closed above; this only tells the plugin so it can
+		// drop its side. Detached so a teardown triggered by shutdown still delivers.
 		_ = s.notify(context.Background(), pluginID, "", "tunnel.localClose", params)
 	}
 	if s.onPreBindEvict != nil {

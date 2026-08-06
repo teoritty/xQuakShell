@@ -187,6 +187,9 @@ func (s *TransferService) uploadFile(parentCtx context.Context, sessionID, local
 	if err != nil {
 		if ctx.Err() == context.Canceled {
 			state = "cancelled"
+			// Reached only when ctx was cancelled, to delete the partial upload. Passing
+			// the cancelled context here would guarantee the cleanup fails and leave the
+			// truncated file on the remote host - the one outcome cancelling must not have.
 			_ = fs.Remove(context.Background(), remotePath)
 		} else {
 			state = "failed"
