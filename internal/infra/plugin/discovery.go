@@ -188,19 +188,3 @@ func detectInstallSource(dir string) domainplugin.InstallSource {
 func MarkUserInstalled(pluginDir string) error {
 	return os.WriteFile(filepath.Join(pluginDir, UserInstalledMarker), nil, 0600)
 }
-
-func resolveEntryAlternate(dir, entry string) string {
-	candidates := []string{}
-	if strings.HasSuffix(strings.ToLower(entry), ".exe") {
-		candidates = append(candidates, strings.TrimSuffix(entry, ".exe"))
-	} else {
-		candidates = append(candidates, entry+".exe")
-	}
-	for _, name := range candidates {
-		path := filepath.Join(dir, name)
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-	return ""
-}

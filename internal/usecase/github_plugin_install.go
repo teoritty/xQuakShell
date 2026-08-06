@@ -70,50 +70,6 @@ func (s *GitHubPluginService) ensureRepositoryRegistered(ctx context.Context, no
 	return nil
 }
 
-func (s *GitHubPluginService) downloadAndStage(
-	ctx context.Context,
-	normalizedURL, releaseTag string,
-	metadata *domainplugin.GitHubPluginMetadata,
-) (stageDir string, cleanup func(), err error) {
-	platformInfo := metadata.GetPlatformForCurrent()
-	if platformInfo == nil {
-		return "", func() {}, domainplugin.ErrPlatformNotSupported
-	}
-
-	owner, repoName, err := domainplugin.ParseGitHubURL(normalizedURL)
-	if err != nil {
-		return "", func() {}, err
-	}
-
-	binaryPath, binaryCleanup, err := s.downloadBinary(ctx, owner, repoName, metadata.LatestRelease, platformInfo.AssetName, platformInfo.Checksum)
-	if err != nil {
-		return "", func() {}, err
-	}
-	defer binaryCleanup()
-
-	stageDir, stageCleanup, err := s.stager(binaryPath, metadata.Manifest)
-	if err != nil {
-		return "", func() {}, err
-	}
-
-	installTag := releaseTag
-	if installTag == "" {
-		installTag = metadata.LatestRelease
-	}
-	if s.installMetaWriter != nil {
-		if err := s.installMetaWriter.Write(stageDir, domainplugin.PluginInstallMeta{
-			Source:        domainplugin.InstallMetaSourceGitHub,
-			RepositoryURL: normalizedURL,
-			ReleaseTag:    installTag,
-		}); err != nil {
-			stageCleanup()
-			return "", func() {}, err
-		}
-	}
-
-	return stageDir, stageCleanup, nil
-}
-
 func enforceInstallConsents(
 	preview InstallPreview,
 	grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess bool,
