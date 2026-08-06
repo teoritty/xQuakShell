@@ -115,11 +115,6 @@ export interface DragVisualState {
   dragOverTargetId: string | null;
 }
 
-export const emptyDragPayload = (): DragPayload => ({
-  folderIds: [],
-  connectionIds: [],
-});
-
 export const emptyDragVisualState = (): DragVisualState => ({
   dragOverId: null,
   dragOverRoot: false,

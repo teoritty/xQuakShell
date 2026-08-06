@@ -210,12 +210,3 @@ export function resolveOsDropTarget(root: HTMLElement, x: number, y: number, cur
   return isDir ? path : parentOf(path);
 }
 
-export function joinPath(dir: string, name: string): string {
-  const sep = dir.includes('\\') && !dir.includes('/') ? '\\' : '/';
-  if (dir === '/' || dir === '') return `${sep}${name}`;
-  return dir.endsWith(sep) ? `${dir}${name}` : `${dir}${sep}${name}`;
-}
-
-export function baseName(path: string): string {
-  return path.split(/[\\/]/).filter(Boolean).pop() || path;
-}

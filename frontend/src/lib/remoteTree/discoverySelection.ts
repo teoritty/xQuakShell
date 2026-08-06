@@ -30,10 +30,6 @@ export function emptyDiscoverySelection(): DiscoverySelection {
   return { connectionId: '', pluginId: '', parentKey: '', keys: new Set(), lastKey: '' };
 }
 
-export function isDiscoverySelectionEmpty(selection: DiscoverySelection): boolean {
-  return selection.keys.size === 0;
-}
-
 function soloSelect(row: DiscoveryRow): DiscoverySelection {
   return {
     connectionId: row.connectionId,
