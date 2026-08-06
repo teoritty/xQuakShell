@@ -27,6 +27,14 @@ export interface DiscoveryStatus {
   tooltip?: string;
 }
 
+/**
+ * What an action IS, from the closed vocabulary in domain/discovery/role.go.
+ *
+ * It exists so a keyboard shortcut can be bound to an action without the core
+ * recognising any actionId. Everything else about an action stays opaque.
+ */
+export type DiscoveryActionRole = 'delete';
+
 export interface DiscoveryAction {
   id: string;
   label: string;
@@ -36,6 +44,8 @@ export interface DiscoveryAction {
   confirm?: string;
   /** Eligible for a multi-selection of siblings. */
   multi?: boolean;
+  /** Which shortcut this action answers, if any. Absent for an ordinary entry. */
+  role?: DiscoveryActionRole;
 }
 
 export interface DiscoveryNode {

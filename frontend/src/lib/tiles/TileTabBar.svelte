@@ -1,6 +1,6 @@
 <!-- frontend/src/lib/tiles/TileTabBar.svelte -->
 <script lang="ts">
-  import { sessions, activeSessionId } from '../../stores/appState';
+  import { sessions, activeTabId } from '../../stores/appState';
   import {
     surfaces,
     resolveTabIn,
@@ -23,8 +23,8 @@
     .map((id) => ({ id, tab: resolveTabIn($sessions, $surfaces, id) }))
     .filter((e): e is { id: string; tab: NonNullable<Tab> } => !!e.tab);
 
-  function activate(sessionId: string) {
-    activeSessionId.set(sessionId);
+  function activate(tabId: string) {
+    activeTabId.set(tabId);
   }
 
   // Closing routes on what the id names — an SSH session or a plugin's tab. The tab bar itself
@@ -34,10 +34,10 @@
     await closeTab(tabId);
   }
 
-  function onDragStart(e: DragEvent, sessionId: string) {
+  function onDragStart(e: DragEvent, tabId: string) {
     if (!e.dataTransfer) return;
-    writeDragPayload(e.dataTransfer, { sessionId, sourceTileId: tile.id });
-    activeTileDrag.set({ sessionId, sourceTileId: tile.id });
+    writeDragPayload(e.dataTransfer, { tabId, sourceTileId: tile.id });
+    activeTileDrag.set({ tabId, sourceTileId: tile.id });
   }
 
   function onDragEnd() {

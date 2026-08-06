@@ -1,6 +1,6 @@
 <script lang="ts">
   import Modal from './Modal.svelte';
-  import { activeSessionId } from '../stores/appState';
+  import { activeSession } from '../stores/appState';
   import { sendTerminalInput } from '../api/terminal';
   import { getSettings } from '../actions/settingsActions';
   import { searchAuditLog, deleteAuditEntry, clearAuditLog } from '../api/audit';
@@ -85,9 +85,12 @@
   }
 
   async function rerunCommand(entry: AuditEntry) {
-    const sid = $activeSessionId;
-    if (!sid) return;
-    await sendTerminalInput(sid, entry.input + '\n', entry.input);
+    // activeSession, not activeTabId: the active tab may be a plugin surface, and
+    // a surface id handed to SendTerminalInput fails in the backend, where the
+    // error is swallowed — the user would press Re-run and see nothing happen.
+    const session = $activeSession;
+    if (!session) return;
+    await sendTerminalInput(session.sessionId, entry.input + '\n', entry.input);
     show = false;
   }
 
@@ -234,7 +237,7 @@
                     >
                       <Trash2 size={11} />
                     </button>
-                    {#if $activeSessionId && !entry.redacted}
+                    {#if $activeSession && !entry.redacted}
                       <button
                         class="entry-btn rerun"
                         on:click={() => rerunCommand(entry)}

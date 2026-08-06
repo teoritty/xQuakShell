@@ -10,7 +10,7 @@
 // meaning "a session": those verbs address whatever the tab bar shows, and this
 // file addresses sessions.
 import { get } from 'svelte/store';
-import { sessions, connections, activeSessionId, selectedConnectionId, showError } from '../stores/appState';
+import { sessions, connections, activeTabId, selectedConnectionId, showError } from '../stores/appState';
 import { openSessionRpc, closeSessionRpc } from '../api/sessions';
 import { getGateway } from '../backend/context';
 
@@ -43,7 +43,7 @@ export async function openSession(connectionId: string): Promise<string | null> 
         },
       ];
     });
-    activeSessionId.set(sessionId);
+    activeTabId.set(sessionId);
     return sessionId;
   } catch (e) {
     handleError(e, 'Open session');

@@ -5,7 +5,7 @@ import {
   closeSession,
   createSessionFromSelection,
 } from './sessionActions';
-import { sessions, activeSessionId, connections, selectedConnectionId, lastError } from '../stores/appState';
+import { sessions, activeTabId, connections, selectedConnectionId, lastError } from '../stores/appState';
 import { get } from 'svelte/store';
 
 function assert(c: boolean, m: string) {
@@ -14,7 +14,7 @@ function assert(c: boolean, m: string) {
 
 function reset() {
   sessions.set([]);
-  activeSessionId.set('');
+  activeTabId.set('');
   connections.set([]);
   selectedConnectionId.set('');
   lastError.set(null);
@@ -24,7 +24,7 @@ async function run() {
   // --- openSession -------------------------------------------------------
 
   // openSession adds an optimistic 'connecting' tab immediately, sets
-  // activeSessionId, and returns the backend session id.
+  // activeTabId, and returns the backend session id.
   {
     reset();
     connections.set([{ id: 'c1', folderId: '', name: 'MyConn', host: 'h', port: 22, order: 0 }] as any);
@@ -45,7 +45,7 @@ async function run() {
         list[0].errorMessage === '',
       'optimistic tab has state "connecting" and the right shape',
     );
-    assert(get(activeSessionId) === 'sess-1', 'openSession sets activeSessionId to the new session id');
+    assert(get(activeTabId) === 'sess-1', 'openSession sets activeTabId to the new session id');
 
     const openCall = fake.calls.find((c) => c.method === 'OpenSession');
     assert(!!openCall && openCall.args[0] === 'c1', 'openSession forwards connectionId to the RPC');
@@ -93,7 +93,7 @@ async function run() {
     const id = await openSession('c1');
     assert(id === null, 'openSession returns null when gateway is missing');
     assert(get(sessions).length === 0, 'openSession does not touch sessions when gateway is missing');
-    assert(get(activeSessionId) === '', 'openSession does not touch activeSessionId when gateway is missing');
+    assert(get(activeTabId) === '', 'openSession does not touch activeTabId when gateway is missing');
     assert(get(lastError) === null, 'openSession does not set lastError when gateway is missing');
   }
 

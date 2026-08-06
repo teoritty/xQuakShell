@@ -103,6 +103,12 @@ func (r *DiscoveryPublishRouter) Apply(ctx context.Context, pluginID string, pay
 
 	removed, err := r.store.ApplySnapshot(connectionID, pluginID, payload.NodeID, payload.State, payload.Error, children)
 	if err != nil {
+		// Warn, and here rather than only on the wire. Every ordinary drop above returns nil, so
+		// nothing reaches this line but a snapshot the host judged malformed — and a refused snapshot
+		// has no other symptom than a branch that never appears. The error is still returned: the
+		// plugin author is the one who can fix it.
+		slog.Warn("discovery: snapshot refused", "component", "discovery", "pluginId", pluginID,
+			"connectionId", connectionID, "nodeId", logfmtToken(payload.NodeID), "err", err)
 		return err
 	}
 	// Order matters: the observed set must shed the vanished IDs before the frontend is told the

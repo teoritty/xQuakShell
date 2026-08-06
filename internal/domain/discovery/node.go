@@ -48,4 +48,7 @@ type Action struct {
 	// Multi marks an action eligible for mass invocation over several selected siblings.
 	// An action is offered for a multi-selection only when every selected node carries it.
 	Multi bool `json:"multi,omitempty"`
+	// Role names what this action is, from a closed vocabulary, so a keyboard shortcut can be bound
+	// to it. See role.go: the core still has no idea what the action does.
+	Role Role `json:"role,omitempty"`
 }

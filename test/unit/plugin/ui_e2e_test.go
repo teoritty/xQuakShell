@@ -322,7 +322,7 @@ func TestUIEndToEndLogSurface(t *testing.T) {
 		_, outputs, _, _ := rig.presenter.snapshot()
 		return len(outputs) == 1
 	})
-	_, outputs, states, _ := rig.presenter.snapshot()
+	_, outputs, _, _ := rig.presenter.snapshot()
 	if !strings.Contains(outputs[0], "|stdout|") {
 		t.Fatalf("output = %q", outputs[0])
 	}
@@ -330,7 +330,7 @@ func TestUIEndToEndLogSurface(t *testing.T) {
 		_, _, states, _ := rig.presenter.snapshot()
 		return len(states) > 0
 	})
-	_, _, states, _ = rig.presenter.snapshot()
+	_, _, states, _ := rig.presenter.snapshot()
 	if !strings.Contains(states[len(states)-1], "|ready|") {
 		t.Fatalf("states = %v", states)
 	}

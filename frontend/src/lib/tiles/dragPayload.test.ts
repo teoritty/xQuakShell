@@ -17,12 +17,12 @@ function fakeDT(): DataTransfer {
 }
 
 const dt = fakeDT();
-writeDragPayload(dt, { sessionId: 's1', sourceTileId: 'A' });
+writeDragPayload(dt, { tabId: 's1', sourceTileId: 'A' });
 assert(isTileTabDrag(dt), 'recognises tile-tab drag');
 assert(dt.getData(TILE_TAB_MIME).length > 0, 'writes to the MIME slot');
 
 const p = readDragPayload(dt);
-assert(p !== null && p.sessionId === 's1' && p.sourceTileId === 'A', 'round-trips payload');
+assert(p !== null && p.tabId === 's1' && p.sourceTileId === 'A', 'round-trips payload');
 
 // A drag carrying only OS files is not a tile-tab drag
 const files = fakeDT();

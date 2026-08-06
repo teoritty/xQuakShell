@@ -1,5 +1,5 @@
 import type { DiscoveryAction } from '../../api/discovery';
-import { computeDiscoveryMenu, defaultDiscoveryAction } from './discoveryActions';
+import { computeDiscoveryMenu, defaultDiscoveryAction, menuItemForRole } from './discoveryActions';
 import { discoveryKey, type DiscoveryRow } from './types';
 
 function assert(cond: boolean, msg: string) {
@@ -31,6 +31,7 @@ const start: DiscoveryAction = { id: 'start', label: 'Start', multi: true };
 const stop: DiscoveryAction = { id: 'stop', label: 'Stop', multi: true, danger: true, confirm: 'Stop it?' };
 const logs: DiscoveryAction = { id: 'logs', label: 'Logs' }; // NOT multi
 const inspect: DiscoveryAction = { id: 'inspect', label: 'Inspect' };
+const remove: DiscoveryAction = { id: 'remove', label: 'Remove…', multi: true, danger: true, role: 'delete' };
 
 // --- nothing selected ---
 {
@@ -113,6 +114,45 @@ const inspect: DiscoveryAction = { id: 'inspect', label: 'Inspect' };
   assert(
     defaultDiscoveryAction([{ ...single, actionsBlocked: true }]) === null,
     'a blocked branch has no default action either'
+  );
+}
+
+// --- a shortcut resolves through the menu, never around it ---
+{
+  assert(
+    menuItemForRole(computeDiscoveryMenu([row('a', [start, remove])]), 'delete')?.id === 'remove',
+    'the action carrying the role is what the key runs'
+  );
+  assert(
+    menuItemForRole(computeDiscoveryMenu([row('a', [start, logs])]), 'delete') === null,
+    'no action carrying the role means the key does nothing'
+  );
+  assert(menuItemForRole(computeDiscoveryMenu([]), 'delete') === null, 'nothing selected, nothing to run');
+  // Every menu rule the key inherits, checked at the boundary that enforces it.
+  assert(
+    menuItemForRole(computeDiscoveryMenu([row('a', [remove]), row('b', [start])]), 'delete') === null,
+    'an action missing from one selected row is out of reach for the key too'
+  );
+  const notMulti: DiscoveryAction = { ...remove, multi: false };
+  assert(
+    menuItemForRole(computeDiscoveryMenu([row('a', [notMulti]), row('b', [notMulti])]), 'delete') === null,
+    'a role the plugin did not mark multi is not reachable across a selection'
+  );
+  assert(
+    menuItemForRole(computeDiscoveryMenu([row('a', [remove], { actionsBlocked: true })]), 'delete') === null,
+    'a stale branch refuses the key exactly as it refuses the menu'
+  );
+  // The host refuses a NODE with two actions of one role, so this can only arise across rows that
+  // disagree — and the answer is still to do nothing rather than pick.
+  const second: DiscoveryAction = { id: 'purge', label: 'Purge', multi: true, role: 'delete' };
+  assert(
+    menuItemForRole(computeDiscoveryMenu([row('a', [remove, second])]), 'delete') === null,
+    'two actions claiming one key is an unanswered question, not a coin flip'
+  );
+  // An action with no role is reachable from the menu and by no key at all.
+  assert(
+    computeDiscoveryMenu([row('a', [start])]).items[0].role === '',
+    'an unmarked action carries no role'
   );
 }
 

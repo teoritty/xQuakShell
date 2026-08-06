@@ -17,7 +17,7 @@ function layout(tiles: TileGroup[]): TileLayout {
 const l0 = emptyLayout();
 const l1 = reconcile(l0, ['s1', 's2'], 's2');
 assert(l1.tiles.length === 1 && l1.tiles[0].tabs.join() === 's1,s2', 'new sessions join active tile');
-assert(l1.tiles[0].activeTabId === 's2', 'activeSessionId focuses its tab');
+assert(l1.tiles[0].activeTabId === 's2', 'activeTabId focuses its tab');
 
 // Closing a session removes its tab
 const l2 = reconcile(l1, ['s1'], 's1');
@@ -44,5 +44,17 @@ assert(l3.tiles.find((t) => t.id === 'B')!.tabs.join() === 's2,s3', 'new session
 // All sessions gone -> one empty tile (welcome screen)
 const emptied = reconcile(twoTiles, [], '');
 assert(emptied.tiles.length === 1 && emptied.tiles[0].tabs.length === 0, 'zero sessions keeps one empty tile');
+
+// A plugin surface is an ordinary tab (ADR-015). The ids are opaque here, so the
+// only thing worth pinning is that a surface id is neither stripped nor treated
+// specially — the bug this replaces was reconcile never being told about it.
+const withSurface = reconcile(layout([tile('A', ['s1'])]), ['s1', 'srf-1'], 'srf-1');
+assert(withSurface.tiles[0].tabs.join() === 's1,srf-1', 'a surface joins the active tile like a session');
+assert(withSurface.tiles[0].activeTabId === 'srf-1', 'a freshly opened surface takes focus');
+
+// Closing the tab removes it and focus falls back to what is left.
+const surfaceClosed = reconcile(withSurface, ['s1'], 's1');
+assert(surfaceClosed.tiles[0].tabs.join() === 's1', 'a closed surface tab is stripped');
+assert(surfaceClosed.tiles[0].activeTabId === 's1', 'focus returns to the surviving tab');
 
 console.log('OK reconcile');

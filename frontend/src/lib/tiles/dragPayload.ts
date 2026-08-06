@@ -6,7 +6,7 @@
 export const TILE_TAB_MIME = 'application/x-xquak-tile-tab';
 
 export interface TileTabPayload {
-  sessionId: string;
+  tabId: string;
   sourceTileId: string;
 }
 
@@ -20,7 +20,7 @@ export function readDragPayload(dt: DataTransfer): TileTabPayload | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
-    if (typeof parsed?.sessionId === 'string' && typeof parsed?.sourceTileId === 'string') {
+    if (typeof parsed?.tabId === 'string' && typeof parsed?.sourceTileId === 'string') {
       return parsed;
     }
   } catch {

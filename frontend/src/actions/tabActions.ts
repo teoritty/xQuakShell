@@ -6,7 +6,7 @@
 // difference and none of them can get it wrong. The stores hold state; this file is the only
 // place that decides what an action means.
 import { get } from 'svelte/store';
-import { activeSessionId, sessions } from '../stores/appState';
+import { activeTabId, sessions } from '../stores/appState';
 import { surfaces, resolveTab } from '../stores/surfaceState';
 import { closeSession } from './sessionActions';
 import { closeSurface as closeSurfaceRpc } from '../api/surfaces';
@@ -48,11 +48,11 @@ export async function closeTab(id: string): Promise<void> {
  * the plugin's tab stayed open, and focus jumped away from it anyway.
  */
 export async function closeActiveTab(): Promise<void> {
-  const currentId = get(activeSessionId);
+  const currentId = get(activeTabId);
   if (!currentId) return;
   await closeTab(currentId);
   const remaining = allTabIds().filter((id) => id !== currentId);
-  activeSessionId.set(remaining.length > 0 ? remaining[remaining.length - 1] : '');
+  activeTabId.set(remaining.length > 0 ? remaining[remaining.length - 1] : '');
 }
 
 export function focusNextTab(): void {
@@ -66,7 +66,7 @@ export function focusPrevTab(): void {
 function cycleTab(direction: 1 | -1): void {
   const ids = allTabIds();
   if (ids.length === 0) return;
-  const currentIdx = Math.max(0, ids.indexOf(get(activeSessionId)));
+  const currentIdx = Math.max(0, ids.indexOf(get(activeTabId)));
   const nextIdx = (currentIdx + direction + ids.length) % ids.length;
-  activeSessionId.set(ids[nextIdx]);
+  activeTabId.set(ids[nextIdx]);
 }

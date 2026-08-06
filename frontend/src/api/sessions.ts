@@ -3,7 +3,7 @@
 //
 // openSessionRpc / closeSessionRpc are deliberately atomic-only: unlike the
 // original openSession/closeSession (which also drive the sessions and
-// activeSessionId stores optimistically, and in closeSession's case swallow
+// activeTabId stores optimistically, and in closeSession's case swallow
 // a "session not found" error), these functions perform ONLY their
 // respective RPC call. That orchestration remains in stores/api.ts
 // (openSession/closeSession) until a later task relocates it to actions/.
