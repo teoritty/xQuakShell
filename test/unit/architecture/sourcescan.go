@@ -157,9 +157,20 @@ func findMethod(file *ast.File, recvType, name string) *ast.FuncDecl {
 // reports token boundaries, so both cases fall out of marking the span of each
 // non-comment token.
 func countGoCodeLines(path string) (int, error) {
-	src, err := os.ReadFile(path)
+	lines, err := goCodeLineSet(path)
 	if err != nil {
 		return 0, err
+	}
+	return len(lines), nil
+}
+
+// goCodeLineSet reports which 1-based lines of a Go file carry code, so a
+// caller measuring a single function can intersect it with that function's
+// span instead of re-scanning the file per declaration.
+func goCodeLineSet(path string) (map[int]bool, error) {
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
 	}
 
 	fset := token.NewFileSet()
@@ -193,5 +204,5 @@ func countGoCodeLines(path string) (int, error) {
 			}
 		}
 	}
-	return len(codeLines), nil
+	return codeLines, nil
 }

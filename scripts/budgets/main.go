@@ -49,15 +49,22 @@ func main() {
 		return
 	}
 
-	issues, err := architecture.CheckGoFileBudgets(repoRoot, cfg)
+	fileIssues, err := architecture.CheckGoFileBudgets(repoRoot, cfg)
 	if err != nil {
 		fail(err)
 	}
-	if len(issues) == 0 {
+	funcIssues, err := architecture.CheckGoFuncBudgets(repoRoot, cfg)
+	if err != nil {
+		fail(err)
+	}
+	if len(fileIssues) == 0 && len(funcIssues) == 0 {
 		fmt.Println("budgets: no drift")
 		return
 	}
-	for _, issue := range issues {
+	for _, issue := range fileIssues {
+		fmt.Fprintln(os.Stderr, issue.String())
+	}
+	for _, issue := range funcIssues {
 		fmt.Fprintln(os.Stderr, issue.String())
 	}
 	os.Exit(1)
@@ -105,17 +112,51 @@ func rewriteBaseline(repoRoot string, cfg architecture.BudgetConfig) error {
 	}
 
 	cfg.Baseline.Files = next
+	addedFuncs, err := rebuildFuncBaseline(repoRoot, &cfg)
+	if err != nil {
+		return err
+	}
 	if err := writeConfig(repoRoot, cfg); err != nil {
 		return err
 	}
 
+	added = append(added, addedFuncs...)
 	sort.Strings(added)
-	for _, path := range added {
-		fmt.Fprintf(os.Stderr, "WARNING: added %s to the baseline at %d code lines. "+
-			"New debt should be paid, not recorded.\n", path, measured[path])
+	for _, id := range added {
+		fmt.Fprintf(os.Stderr, "WARNING: added %s to the baseline. New debt should be paid, not recorded.\n", id)
 	}
-	fmt.Printf("budgets: %d Go files baselined\n", countGo(next))
+	fmt.Printf("budgets: %d Go files and %d functions baselined\n", countGo(next), len(cfg.Baseline.Functions))
 	return nil
+}
+
+func rebuildFuncBaseline(repoRoot string, cfg *architecture.BudgetConfig) ([]string, error) {
+	measured, err := architecture.MeasureGoFuncs(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	exempt := cfg.ExemptFunctions()
+	limit := cfg.Limits.GoFunc
+
+	next := map[string]architecture.FuncMeasurement{}
+	var added []string
+	for symbol, shape := range measured {
+		if !architecture.ShapeExceeds(shape, limit) {
+			continue
+		}
+		if _, ok := exempt[symbol]; ok {
+			continue
+		}
+		if _, existed := cfg.Baseline.Functions[symbol]; !existed {
+			added = append(added, symbol)
+		}
+		next[symbol] = architecture.FuncMeasurement{
+			CodeLines: shape.CodeLines,
+			Params:    shape.Params,
+			Nesting:   shape.Nesting,
+		}
+	}
+	cfg.Baseline.Functions = next
+	return added, nil
 }
 
 func countGo(files map[string]architecture.FileMeasurement) int {

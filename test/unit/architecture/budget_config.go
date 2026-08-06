@@ -133,7 +133,8 @@ func (c BudgetConfig) validate() error {
 	}
 	seen := map[string]bool{}
 	for _, e := range c.Exemptions.Files {
-		if err := validateExemption("file", e.Path, e.Kind, e.Reason, fileExemptionKinds, seen); err != nil {
+		entry := exemptionEntry{what: "file", id: e.Path, kind: e.Kind, reason: e.Reason}
+		if err := validateExemption(entry, fileExemptionKinds, seen); err != nil {
 			return err
 		}
 		if _, dup := c.Baseline.Files[e.Path]; dup {
@@ -142,7 +143,8 @@ func (c BudgetConfig) validate() error {
 	}
 	seen = map[string]bool{}
 	for _, e := range c.Exemptions.Functions {
-		if err := validateExemption("function", e.Symbol, e.Kind, e.Reason, funcExemptionKinds, seen); err != nil {
+		entry := exemptionEntry{what: "function", id: e.Symbol, kind: e.Kind, reason: e.Reason}
+		if err := validateExemption(entry, funcExemptionKinds, seen); err != nil {
 			return err
 		}
 		if _, dup := c.Baseline.Functions[e.Symbol]; dup {
@@ -178,23 +180,32 @@ func (c BudgetConfig) validateLimits() error {
 	return nil
 }
 
-func validateExemption(what, id, kind, reason string, kinds map[string]string, seen map[string]bool) error {
-	if id == "" {
-		return fmt.Errorf("%s exemption with an empty path/symbol", what)
-	}
-	if seen[id] {
-		return fmt.Errorf("duplicate %s exemption for %s", what, id)
-	}
-	seen[id] = true
+// exemptionEntry is the language-neutral view of one exemption, so file and
+// function entries share a single set of rules instead of drifting apart.
+type exemptionEntry struct {
+	what   string
+	id     string
+	kind   string
+	reason string
+}
 
-	if kind == "debt" {
-		return fmt.Errorf("%s: %q is not an exemption kind. Debt belongs in baseline, where it can only shrink; run `go run ./scripts/budgets -update`", id, kind)
+func validateExemption(e exemptionEntry, kinds map[string]string, seen map[string]bool) error {
+	if e.id == "" {
+		return fmt.Errorf("%s exemption with an empty path/symbol", e.what)
 	}
-	if _, ok := kinds[kind]; !ok {
-		return fmt.Errorf("%s: unknown exemption kind %q. Allowed: %s", id, kind, strings.Join(sortedKeys(kinds), ", "))
+	if seen[e.id] {
+		return fmt.Errorf("duplicate %s exemption for %s", e.what, e.id)
 	}
-	if len(strings.TrimSpace(reason)) < minExemptionReason {
-		return fmt.Errorf("%s: exemption reason must be at least %d characters and explain why the shape is correct, not that it is large", id, minExemptionReason)
+	seen[e.id] = true
+
+	if e.kind == "debt" {
+		return fmt.Errorf("%s: %q is not an exemption kind. Debt belongs in baseline, where it can only shrink; run `go run ./scripts/budgets -update`", e.id, e.kind)
+	}
+	if _, ok := kinds[e.kind]; !ok {
+		return fmt.Errorf("%s: unknown exemption kind %q. Allowed: %s", e.id, e.kind, strings.Join(sortedKeys(kinds), ", "))
+	}
+	if len(strings.TrimSpace(e.reason)) < minExemptionReason {
+		return fmt.Errorf("%s: exemption reason must be at least %d characters and explain why the shape is correct, not that it is large", e.id, minExemptionReason)
 	}
 	return nil
 }

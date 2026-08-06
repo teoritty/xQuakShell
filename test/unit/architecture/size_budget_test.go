@@ -25,3 +25,23 @@ func TestGoFileBudgets(t *testing.T) {
 		t.Error(issue.String())
 	}
 }
+
+func TestGoFuncBudgets(t *testing.T) {
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := architecture.LoadBudgetConfig(repoRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	issues, err := architecture.CheckGoFuncBudgets(repoRoot, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, issue := range issues {
+		t.Error(issue.String())
+	}
+}
