@@ -29,13 +29,16 @@ func (h *ProcessHost) Call(ctx context.Context, pluginID, sessionID, method stri
 }
 
 // Notify sends a JSON-RPC notification to a running plugin.
-func (h *ProcessHost) Notify(ctx context.Context, pluginID, sessionID, method string, params json.RawMessage) error {
+//
+// The context is part of the port's shape, not of this path: a notification has
+// no reply to wait for, so Conn.Notify only hands the frame to the write side
+// and returns. There is no round trip here for a caller to cancel.
+func (h *ProcessHost) Notify(_ context.Context, pluginID, sessionID, method string, params json.RawMessage) error {
 	mp, err := h.runningProcess(pluginID, sessionID)
 	if err != nil {
 		return err
 	}
 	h.syncTunnelLocalNotify(mp, method, params)
-	_ = ctx
 	return mp.conn.Notify(method, params)
 }
 

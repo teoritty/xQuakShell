@@ -85,7 +85,11 @@ func (w *sshClientWrapper) OpenDirectTCP(ctx context.Context, addr string) (net.
 	})
 }
 
-func (w *sshClientWrapper) ListenTCP(ctx context.Context, remoteAddr string) (net.Listener, error) {
+// ListenTCP takes a context to match the port, not to use it: x/crypto/ssh
+// offers no cancellable Listen, and unlike a dial there is nothing to abandon -
+// the tcpip-forward request either binds on the server or fails. Cancellation
+// belongs to the returned Listener, which the caller closes.
+func (w *sshClientWrapper) ListenTCP(_ context.Context, remoteAddr string) (net.Listener, error) {
 	host, portStr, err := net.SplitHostPort(remoteAddr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid remote forward address %q: %w", remoteAddr, err)
@@ -94,7 +98,6 @@ func (w *sshClientWrapper) ListenTCP(ctx context.Context, remoteAddr string) (ne
 	if err != nil {
 		return nil, fmt.Errorf("invalid remote forward port %q: %w", portStr, err)
 	}
-	_ = ctx
 	return w.client.Listen("tcp", net.JoinHostPort(host, strconv.Itoa(port)))
 }
 

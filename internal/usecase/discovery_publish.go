@@ -68,12 +68,11 @@ func NewDiscoveryPublishRouter(store *DiscoveryStore, observer *DiscoveryObserve
 //
 // A malformed or contradictory snapshot does return an error: that one the plugin author needs to
 // see, and only that one.
-func (r *DiscoveryPublishRouter) Apply(ctx context.Context, pluginID string, payload DiscoveryPublish) error {
-	// No plugin call happens on this path. publish is a request on the wire (it must be refusable —
-	// ADR-014 §data flow), but the host answers it from what it already knows: nothing downstream of
-	// here is awaited, so ctx has nothing to cancel.
-	_ = ctx
-
+//
+// No plugin call happens on this path. publish is a request on the wire (it must be refusable —
+// ADR-014 §data flow), but the host answers it from what it already knows: nothing downstream of
+// here is awaited, so the context has nothing to cancel.
+func (r *DiscoveryPublishRouter) Apply(_ context.Context, pluginID string, payload DiscoveryPublish) error {
 	connectionID, addressed := r.leadingConnectionFor(payload.SessionID)
 	if !addressed {
 		slog.Debug("discovery: publish from a session the host is not addressing, ignored",
