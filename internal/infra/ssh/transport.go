@@ -10,29 +10,6 @@ import (
 	"xquakshell/internal/domain"
 )
 
-// DirectDialer establishes direct TCP connections.
-type DirectDialer struct{}
-
-// DialContext opens a TCP connection to the given address.
-func (d *DirectDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	var dialer net.Dialer
-	return dialer.DialContext(ctx, network, address)
-}
-
-// BastionDialer routes connections through an existing SSH client using direct-tcpip channels.
-type BastionDialer struct {
-	client *gossh.Client
-}
-
-// DialContext opens a direct-tcpip channel through the bastion SSH connection.
-func (b *BastionDialer) DialContext(_ context.Context, _, address string) (net.Conn, error) {
-	conn, err := b.client.Dial("tcp", address)
-	if err != nil {
-		return nil, fmt.Errorf("bastion dial %s: %w", address, err)
-	}
-	return conn, nil
-}
-
 // BuildTransportChain establishes SSH connections through a chain of bastion hops.
 // Returns the final net.Conn that reaches the target, and a cleanup function for
 // all intermediate SSH clients.
