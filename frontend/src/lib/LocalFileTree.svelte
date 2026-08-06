@@ -11,7 +11,6 @@
   import FileContextMenu from './FileContextMenu.svelte';
   import { openContextMenu, releaseContextMenu } from './contextMenuManager';
   import ConfirmDialog from './ConfirmDialog.svelte';
-  import OverflowToolbar from './OverflowToolbar.svelte';
   import { buildFilePanelToolbarItems, cycleSortState, type SortKey } from './filePanelToolbar';
   import { refreshesLocalPane } from './transferPresentation';
   import type { SortState } from './fileTree/types';
@@ -21,10 +20,12 @@
   import { readDragPayload, isMultiDrag } from './fileTree/dragPayload';
   import { uniqueName } from './fileTree/uniqueName';
   import { describeDelete } from './fileTree/deletePrompt';
-  import { ChevronUp, X } from 'lucide-svelte';
+  import { loadPrefs, saveColumnPrefs as persistColumns, saveHiddenPref } from './fileTree/columnPrefs';
+  import FilePaneHeader from './fileTree/FilePaneHeader.svelte';
+  import './fileTree/fileTreeShared.css';
+  import { ChevronUp } from 'lucide-svelte';
 
-  const STORAGE_KEY = 'localfiletree-show-columns';
-  const STORAGE_HIDDEN = 'localfiletree-show-hidden';
+  const STORAGE_KEYS = { columns: 'localfiletree-show-columns', hidden: 'localfiletree-show-hidden' };
 
 
   let tree: Map<string, LocalNode[]> = new Map();
@@ -103,21 +104,13 @@
     deleteConfirm = { ...deleteConfirm, show: false };
   }
 
-  let pathInput = '';
-  let pathInputEl: HTMLInputElement | null = null;
+  let header: FilePaneHeader | null = null;
   let error = '';
 
   onMount(async () => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const o = JSON.parse(stored);
-        showPermissions = !!o.permissions;
-        showOwner = !!o.owner;
-        showDate = !!o.date;
-      }
-      showHidden = localStorage.getItem(STORAGE_HIDDEN) === '1';
-    } catch (_) {}
+    const prefs = loadPrefs(localStorage, STORAGE_KEYS);
+    ({ permissions: showPermissions, owner: showOwner, date: showDate } = prefs.columns);
+    showHidden = prefs.showHidden;
     homeDir = (await getUserHomeDir()) || '';
     currentPath = homeDir;
     await loadDir(currentPath);
@@ -199,10 +192,8 @@
     tree = tree;
   }
 
-  async function handlePathSubmit() {
-    const trimmed = pathInput.trim();
-    if (!trimmed) return;
-    const nextPath = normalizeLocalPathInput(trimmed, homeDir);
+  async function handlePathSubmit(typed: string) {
+    const nextPath = normalizeLocalPathInput(typed, homeDir);
     const prevPath = currentPath;
     // listLocalPath normally swallows errors (returns []) and shows a global
     // banner; opt into rethrow so a non-existent path is caught here and the
@@ -221,13 +212,9 @@
     } catch (e: any) {
       error = e?.message || String(e);
       currentPath = prevPath;
-      pathInput = prevPath;
+      header?.resetInput();
       return;
     }
-  }
-
-  $: if (!pathInputEl || document.activeElement !== pathInputEl) {
-    pathInput = currentPath;
   }
 
   async function goUp() {
@@ -404,18 +391,16 @@
     tree = tree;
   }
 
-  function saveColumnPrefs() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ permissions: showPermissions, owner: showOwner, date: showDate }));
-    } catch (_) {}
+  function saveColumns() {
+    persistColumns(localStorage, STORAGE_KEYS, { permissions: showPermissions, owner: showOwner, date: showDate });
   }
 
-  function togglePermissions() { showPermissions = !showPermissions; saveColumnPrefs(); }
-  function toggleOwner() { showOwner = !showOwner; saveColumnPrefs(); }
-  function toggleDate() { showDate = !showDate; saveColumnPrefs(); }
+  function togglePermissions() { showPermissions = !showPermissions; saveColumns(); }
+  function toggleOwner() { showOwner = !showOwner; saveColumns(); }
+  function toggleDate() { showDate = !showDate; saveColumns(); }
   function toggleHidden() {
     showHidden = !showHidden;
-    try { localStorage.setItem(STORAGE_HIDDEN, showHidden ? '1' : '0'); } catch (_) {}
+    saveHiddenPref(localStorage, STORAGE_KEYS, showHidden);
     refreshPreservingState([...expanded, currentPath]);
   }
 
@@ -497,26 +482,16 @@
   class:internal-drop-active={internalDragHighlight(dragOverPath, currentPath) === 'pane'}
   bind:this={rootEl}
 >
-  <div class="panel-header">
-    <span>Local Files</span>
-    <OverflowToolbar items={toolbarItems} />
-  </div>
-  <div class="path-bar">
-    <input
-      bind:this={pathInputEl}
-      bind:value={pathInput}
-      on:keydown={(e) => e.key === 'Enter' && handlePathSubmit()}
-      on:blur={() => pathInput = currentPath}
-      placeholder="C:\"
-    />
-  </div>
-
-  {#if error}
-    <div class="tree-error">
-      <span class="tree-error-msg">{error}</span>
-      <button class="tree-error-close" title="Dismiss" on:click={() => (error = '')}><X size={12} /></button>
-    </div>
-  {/if}
+  <FilePaneHeader
+    bind:this={header}
+    title="Local Files"
+    {toolbarItems}
+    {currentPath}
+    {error}
+    placeholder={'C:\\'}
+    on:navigate={(e) => handlePathSubmit(e.detail)}
+    on:dismissError={() => (error = '')}
+  />
 
   <div
     class="tree-body"
@@ -585,128 +560,3 @@
     on:cancel={cancelDelete}
   />
 </div>
-
-<style>
-  .file-tree {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .path-bar {
-    padding: 2px 8px;
-    border-bottom: 1px solid var(--border-color);
-  }
-
-  .path-bar input {
-    width: 100%;
-    padding: 4px 6px;
-    font-size: 11px;
-    color: var(--text-primary);
-    background: var(--bg-secondary);
-    border: 1px solid transparent;
-    border-radius: 4px;
-    outline: none;
-  }
-
-  .path-bar input:focus {
-    border-color: var(--accent);
-  }
-
-  .parent-node {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    cursor: pointer;
-    font-size: 12px;
-    user-select: none;
-    transition: background 0.1s;
-  }
-
-  .parent-node:hover {
-    background: var(--bg-hover);
-  }
-
-  .parent-node .node-icon {
-    display: inline-flex;
-    flex-shrink: 0;
-    color: var(--text-secondary);
-  }
-
-  .parent-node .node-name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .tree-error {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    font-size: 11px;
-    color: var(--danger);
-    background: rgba(211, 47, 47, 0.1);
-    border-bottom: 1px solid var(--border-color);
-  }
-
-  .tree-error-msg {
-    flex: 1;
-    min-width: 0;
-    word-break: break-word;
-  }
-
-  .tree-error-close {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2px;
-    color: var(--danger);
-    background: transparent;
-    border: none;
-    border-radius: 3px;
-    cursor: pointer;
-  }
-
-  .tree-error-close:hover {
-    background: rgba(211, 47, 47, 0.18);
-  }
-
-  .tree-body {
-    overflow-y: auto;
-    flex: 1;
-    padding: 4px 0;
-  }
-
-  /* Drag-over highlight applied by osFileDrop's router while an OS file is
-     dragged over this pane (see registerOsDropZone). */
-  .file-tree:global(.os-drop-active) {
-    outline: 2px dashed var(--accent);
-    outline-offset: -3px;
-    background: rgba(100, 150, 255, 0.08);
-  }
-
-  /* Same fill for an internal pane-to-pane drag whose drop would land in this
-     pane's current directory (cursor over a file row or empty space). Driven by
-     our own drag state rather than the OS router, which only sees drags carrying
-     real OS files — a distinction WebView2 blurred and WebKitGTK does not. */
-  .file-tree.internal-drop-active {
-    outline: 2px dashed var(--accent);
-    outline-offset: -3px;
-    background: rgba(100, 150, 255, 0.08);
-  }
-
-  /* Folder row highlighted when an OS file is dragged directly over it (drop
-     targets that folder rather than the current directory). */
-  :global(.node-row.os-drop-active) {
-    background: rgba(100, 150, 255, 0.22);
-    outline: 1px solid var(--accent);
-    outline-offset: -1px;
-  }
-
-</style>

@@ -30,6 +30,10 @@ for (const pane of PANES) {
   assert(/from '\.\/fileTree\/dragPayload'/.test(src), `${pane} reads drags through fileTree/dragPayload`);
   assert(/from '\.\/fileTree\/uniqueName'/.test(src), `${pane} names new entries through fileTree/uniqueName`);
   assert(/from '\.\/fileTree\/deletePrompt'/.test(src), `${pane} words its delete prompt through fileTree/deletePrompt`);
+  assert(/from '\.\/fileTree\/columnPrefs'/.test(src), `${pane} persists columns through fileTree/columnPrefs`);
+  assert(/from '\.\/fileTree\/FilePaneHeader\.svelte'/.test(src), `${pane} renders the shared header`);
+  assert(/import '\.\/fileTree\/fileTreeShared\.css'/.test(src), `${pane} takes its styles from the shared sheet`);
+  assert(!/<style>/.test(src), `${pane} must not grow a private style block back`);
 }
 
 // --- and no pane keeps a private copy of what it now imports ---
@@ -48,6 +52,7 @@ const MUST_NOT_REDEFINE = [
   'normalizePathInput',
   'describeDelete',
   'readDragPayload',
+  'saveColumnPrefs',
 ];
 for (const pane of PANES) {
   const src = source.get(pane)!;
@@ -73,11 +78,18 @@ for (const pane of PANES) {
   assert(!src.includes('This action cannot be undone'), `${pane} must not inline the delete warning`);
 }
 
+// --- the path input belongs to the header, not the panes ---
+for (const pane of PANES) {
+  const src = source.get(pane)!;
+  assert(!src.includes('pathInputEl'), `${pane} must not track the path input element itself`);
+  assert(!src.includes('class="path-bar"'), `${pane} must not render its own path bar`);
+}
+
 // --- the panes stay symmetric ---
 // They are near-clones by design (remote over SFTP, local over the host FS).
 // Whatever one of them learns to import from here, the other one should too.
 const importsOf = (src: string) =>
-  [...src.matchAll(/from '\.\/fileTree\/(\w+)'/g)].map((m) => m[1]).sort().join(',');
+  [...src.matchAll(/from '\.\/fileTree\/([\w.]+)'/g)].map((m) => m[1]).sort().join(',');
 assert(
   importsOf(source.get('FileTree.svelte')!) === importsOf(source.get('LocalFileTree.svelte')!),
   'both panes must import the same set of fileTree modules, or the split has drifted',
