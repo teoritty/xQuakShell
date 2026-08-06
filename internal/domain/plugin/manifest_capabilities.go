@@ -187,7 +187,7 @@ func (m *Manifest) validateViewEntries() error {
 	for _, v := range m.Contributions.Views {
 		entry := strings.TrimSpace(v.Entry)
 		if entry == "" {
-			entry = "ui/index.html"
+			entry = defaultViewEntry
 		}
 		if err := ValidateViewAssetEntry(entry); err != nil {
 			return err
