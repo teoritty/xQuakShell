@@ -46,7 +46,7 @@ func (mp *managedProcess) closeResources(killProcess bool) {
 		}
 		if mp.channels != nil {
 			// Process exit/crash unconditionally tears down every channel this process owned,
-			// independently of any session-level handling (ADR-011 Stage 4b) — a plugin crash
+			// independently of any session-level handling (ADR-011) — a plugin crash
 			// must never leave a remote docker exec / relay conn running with no owner.
 			mp.channels.CloseAll()
 		}

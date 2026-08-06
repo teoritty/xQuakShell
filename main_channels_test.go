@@ -257,7 +257,7 @@ func openChannel(t *testing.T, proxy *capability.ChannelProxy, conn *ipc.Conn, p
 
 // TestChannelResolverWiresARealTCPRelayEndToEnd is the seam this whole blocker exists for. The
 // resolver was a stub returning ErrNotImplemented, so every channel.open was rejected and nothing
-// below Stage 6 was reachable at all -- while every backend, the bus, credit and the proxy stayed
+// downstream of it was reachable at all -- while every backend, the bus, credit and the proxy stayed
 // individually green.
 //
 // It drives InitialCredit x 3 frames in both directions (7.2): a run of InitialCredit frames

@@ -12,6 +12,6 @@ type SessionRPCHandler interface {
 
 // SessionRPCHandlerFactory builds a session RPC handler for a plugin process instance. channels
 // is that specific process's own ChannelInboundPort (one ChannelProxy per managedProcess,
-// ADR-011 Stage 4b) — it must not be a shared/global port, since channelId allocation and
+// ADR-011) — it must not be a shared/global port, since channelId allocation and
 // ownership are scoped to a single plugin process.
 type SessionRPCHandlerFactory func(plugin InstalledPlugin, processSessionID string, channels ChannelInboundPort) SessionRPCHandler

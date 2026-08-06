@@ -53,14 +53,6 @@ type PluginManager struct {
 	idleTimeout     time.Duration
 }
 
-// NewPluginManager creates a plugin manager with the given registry and process host port.
-func NewPluginManager(registry *PluginRegistry, host domainplugin.ProcessHost) *PluginManager {
-	return NewPluginManagerWithConfig(PluginManagerConfig{
-		Registry: registry,
-		Host:     host,
-	})
-}
-
 // DiscoverPlugins loads manifests via the provided discover function.
 func (m *PluginManager) DiscoverPlugins(discover func() ([]domainplugin.InstalledPlugin, error)) error {
 	plugins, err := discover()
@@ -165,7 +157,13 @@ func (m *PluginManager) Call(ctx context.Context, pluginID, method string, param
 	if err != nil {
 		return nil, err
 	}
-	return m.host.Call(ctx, pluginID, scope, method, params)
+	m.auditAuthParams(pluginID, method, params)
+	raw, err := m.host.Call(ctx, pluginID, scope, method, params)
+	if err != nil {
+		return nil, err
+	}
+	m.auditAuthResult(pluginID, method, raw)
+	return raw, nil
 }
 
 // CallWithTimeout sends a JSON-RPC request with an explicit timeout override.
@@ -174,9 +172,7 @@ func (m *PluginManager) CallWithTimeout(ctx context.Context, pluginID, method st
 	if err != nil {
 		return nil, err
 	}
-	if strings.HasPrefix(method, "auth.") && m.outboundAuthAudit != nil {
-		m.outboundAuthAudit(pluginID, method, string(domainplugin.SanitizeAuthRPCParams(method, params)))
-	}
+	m.auditAuthParams(pluginID, method, params)
 	raw, err := m.host.CallWithTimeout(ctx, pluginID, scope, method, params, timeout)
 	if err != nil {
 		if method == "auth.answerChallenge" && (errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)) {
@@ -184,10 +180,34 @@ func (m *PluginManager) CallWithTimeout(ctx context.Context, pluginID, method st
 		}
 		return nil, err
 	}
-	if strings.HasPrefix(method, "auth.") && m.outboundAuthAudit != nil {
-		m.outboundAuthAudit(pluginID, method+"#result", string(domainplugin.SanitizeAuthRPCResult(method, raw)))
-	}
+	m.auditAuthResult(pluginID, method, raw)
 	return raw, nil
+}
+
+// auditAuthParams and auditAuthResult record an outbound auth.* RPC.
+//
+// They are methods rather than inline conditions because "is this method
+// audited?" must be answered in one place: the rule used to live inside
+// CallWithTimeout only, so Call was a second, unaudited door to the same host.
+// Nothing routed auth.* through it — but nothing stopped it either, and
+// plugin_session_bridge already forwards arbitrary methods that way. A rule
+// that has to be remembered at each call site is a rule that eventually is not.
+func (m *PluginManager) auditAuthParams(pluginID, method string, params json.RawMessage) {
+	if !isAuthMethod(method) || m.outboundAuthAudit == nil {
+		return
+	}
+	m.outboundAuthAudit(pluginID, method, string(domainplugin.SanitizeAuthRPCParams(method, params)))
+}
+
+func (m *PluginManager) auditAuthResult(pluginID, method string, result json.RawMessage) {
+	if !isAuthMethod(method) || m.outboundAuthAudit == nil {
+		return
+	}
+	m.outboundAuthAudit(pluginID, method+"#result", string(domainplugin.SanitizeAuthRPCResult(method, result)))
+}
+
+func isAuthMethod(method string) bool {
+	return strings.HasPrefix(method, "auth.")
 }
 
 // Notify sends a JSON-RPC notification to a running plugin process (per-plugin scope or single session instance).

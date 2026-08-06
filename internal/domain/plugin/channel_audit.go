@@ -3,8 +3,8 @@ package plugin
 import "time"
 
 // ChannelAuditEntry records a channel.open/channel.close event without secret values. Target
-// carries the raw hint in Stage 3 (no real backends exist yet); Stage 6 replaces it with the
-// post-validation canonical target for tcp-relay so raw plugin input never reaches the audit log.
+// carries the post-validation canonical target for tcp-relay, never the raw hint, so unvalidated
+// plugin input cannot reach the audit log.
 type ChannelAuditEntry struct {
 	Timestamp       time.Time
 	PluginID        string

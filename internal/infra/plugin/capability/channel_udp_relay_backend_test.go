@@ -16,7 +16,7 @@ import (
 // udpDialPolicyFixtures reuses dialPolicyFixtures verbatim (the same shared table
 // tcp-relay's tests consume) and rewrites only the proto token on each pattern from
 // "tcp:" to "udp:", so the IP-restriction core is exercised identically for both
-// purposes without a parallel table of IP-blocking cases (ADR-011 Stage 6b).
+// purposes without a parallel table of IP-blocking cases (ADR-011).
 func udpDialPolicyFixtures() []dialPolicyFixture {
 	base := dialPolicyFixtures()
 	out := make([]dialPolicyFixture, len(base))

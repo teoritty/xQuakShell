@@ -39,7 +39,9 @@ func NewClientWithBaseURL(baseURL string) *Client {
 	}
 }
 
-// Release represents a GitHub release.
+// Release is the subset of the GitHub releases API response this client reads.
+// Everything else in the payload is dropped on decode, so the field list
+// doubles as the record of what a plugin install actually depends on.
 type Release struct {
 	TagName     string  `json:"tag_name"`
 	Name        string  `json:"name"`
@@ -50,7 +52,9 @@ type Release struct {
 	Assets      []Asset `json:"assets"`
 }
 
-// Asset represents a release asset.
+// Asset is one downloadable file attached to a Release. BrowserDownloadURL is
+// what the installer follows; Name, Size and DownloadCount exist so the UI can
+// describe a download before the user commits to it.
 type Asset struct {
 	Name               string `json:"name"`
 	Size               int64  `json:"size"`

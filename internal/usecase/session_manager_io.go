@@ -21,7 +21,9 @@ func (m *SessionManager) GetPTYBridge(sessionID string) (domain.TerminalPTYBridg
 	return m.io.GetPTYBridge(sessionID)
 }
 
-// GetSessionContext returns the context for a session.
+// GetSessionContext hands out the per-session context so callers cancel with
+// the session rather than with the process. The facade only delegates; per
+// ADR-009 the state lives in the io component.
 func (m *SessionManager) GetSessionContext(sessionID string) (context.Context, error) {
 	return m.io.GetSessionContext(sessionID)
 }

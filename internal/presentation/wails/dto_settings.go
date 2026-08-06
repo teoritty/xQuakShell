@@ -71,10 +71,6 @@ func puttySessionsToDTO(sessions []usecase.PuTTYSessionPreview) []PuTTYSessionDT
 	return result
 }
 
-func LocalNodeToDTO(name, fullPath string, isDir bool, size int64, modTime, mode, owner string) LocalNodeDTO {
-	return LocalNodeDTO{Name: name, Path: fullPath, IsDir: isDir, Size: size, ModTime: modTime, Mode: mode, Owner: owner}
-}
-
 func AppSettingsToDTO(s domain.AppSettings) AppSettingsDTO {
 	return AppSettingsDTO{
 		LockoutEnabled:              s.Lockout.Enabled,

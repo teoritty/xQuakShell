@@ -45,9 +45,17 @@ var facadeBudgets = []facadeBudget{
 	{Path: "internal/infra/plugin/process_host.go", MaxLines: 100},
 }
 
-// CheckFileSizes enforces the per-file line budgets. Counts are non-blank
-// lines (see countNonBlankLines) and test files are exempt: the budgets exist
-// to stop production services from re-growing into God Objects.
+// CheckFileSizes enforces the per-file line budgets. Counts are code lines
+// (see countGoCodeLines) and test files are exempt: the budgets exist to stop
+// production services from re-growing into God Objects, and a long test is not
+// a God Object.
+//
+// The budgets below were originally calibrated against non-blank counts, which
+// included comments. Switching to code lines only loosened them, and they were
+// left at their old numbers rather than re-tightened: every budgeted file is
+// far enough inside its limit that the difference is noise, and moving the
+// numbers in the same commit as the metric would have hidden a real regression
+// behind a bookkeeping change.
 func CheckFileSizes(repoRoot string) ([]FileSizeIssue, error) {
 	var issues []FileSizeIssue
 
@@ -68,7 +76,7 @@ func CheckFileSizes(repoRoot string) ([]FileSizeIssue, error) {
 			})
 			continue
 		}
-		count, err := countNonBlankLines(absPath)
+		count, err := countGoCodeLines(absPath)
 		if err != nil {
 			return nil, err
 		}
@@ -105,7 +113,7 @@ func checkBudgetedDir(repoRoot string, budget fileSizeBudget) ([]FileSizeIssue, 
 		}
 		matched++
 
-		count, err := countNonBlankLines(filepath.Join(dir, name))
+		count, err := countGoCodeLines(filepath.Join(dir, name))
 		if err != nil {
 			return nil, err
 		}

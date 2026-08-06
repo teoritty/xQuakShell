@@ -66,7 +66,9 @@ func (a *AppAPI) RenameLocalPath(oldPath, newPath string) error {
 	return a.localFS.Rename(oldPath, newPath)
 }
 
-// CreateLocalFile creates an empty local file.
+// CreateLocalFile makes an empty file so the browser can offer "new file"
+// without shipping an editor. The path is validated by the service, not here:
+// the frontend supplied it and is not a trust boundary.
 func (a *AppAPI) CreateLocalFile(localPath string) error {
 	if a.localFS == nil {
 		return fmt.Errorf("local file service unavailable")

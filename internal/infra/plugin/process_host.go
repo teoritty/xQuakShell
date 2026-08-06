@@ -62,7 +62,7 @@ type HostConfig struct {
 	//
 	// ChannelAudit records channel.open/channel.close events. ChannelBus
 	// registers each process's ChannelProxy so SessionLifecycleService's CloseSession cascade
-	// (ADR-011 Stage 4) can reach it; process exit/crash teardown (Stage 4b) does not depend on it.
+	// (ADR-011) can reach it; process exit/crash teardown does not depend on it.
 	ChannelResolverFor func(plugin domainplugin.InstalledPlugin, sessionID string) (capability.ChannelBackendResolver, AttachChannelCloseNotify)
 
 	ChannelAudit domainplugin.ChannelAuditRecorder

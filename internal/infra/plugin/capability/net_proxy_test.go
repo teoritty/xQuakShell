@@ -17,7 +17,7 @@ import (
 
 // dialPolicyFixture is one dial-policy decision case, shared verbatim between NetProxy's own
 // tests and any other caller of the dial-policy chain (ChannelRelayBackend's tcp-relay
-// backend, ADR-011 Stage 6) so the two never assert diverging behavior for the same inputs.
+// backend, ADR-011) so the two never assert diverging behavior for the same inputs.
 type dialPolicyFixture struct {
 	name           string
 	patterns       []string

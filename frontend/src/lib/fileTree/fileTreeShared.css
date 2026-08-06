@@ -1,0 +1,141 @@
+/* Styles shared by the Remote and Local file panes.
+   Every rule is scoped under .file-tree by hand: this is a plain stylesheet, not a
+   Svelte <style> block, so nothing scopes it for us - and the generic names here
+   (.tree-body, .parent-node) collide with the connection tree next door, which is
+   why remoteTree/remoteTreeShared.css scopes itself under .remote-tree the same way.
+   Imported by both panes and by every subcomponent that renders part of one. */
+.file-tree {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.file-tree .tree-loading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.file-tree .tree-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--danger);
+  background: rgba(211, 47, 47, 0.1);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.file-tree .tree-error-msg {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.file-tree .tree-error-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  color: var(--danger);
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.file-tree .tree-error-close:hover {
+  background: rgba(211, 47, 47, 0.18);
+}
+
+.file-tree .path-bar {
+  padding: 2px 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* The exclusion is what keeps this from beating the checkbox/radio normalisation in
+   style.css, which states its sizing at bare-`input` specificity on purpose. Inside a
+   Svelte <style> block the scoping hash hid the problem; in a shared sheet it does not.
+   Same form as connectionDetails/connectionDetailsShared.css, and pinned by
+   connectionDetails/sharedControlWidth.test.ts. */
+.file-tree .path-bar input:where(:not([type="checkbox"]):not([type="radio"])) {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 11px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  outline: none;
+}
+
+.file-tree .path-bar input:focus {
+  border-color: var(--accent);
+}
+
+.file-tree .parent-node {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.file-tree .parent-node:hover {
+  background: var(--bg-hover);
+}
+
+.file-tree .parent-node .node-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.file-tree .parent-node .node-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree .tree-body {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px 0;
+}
+
+/* Drag-over highlight applied by osFileDrop's router while an OS file is
+   dragged over this pane (see registerOsDropZone). */
+.file-tree.os-drop-active {
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
+  background: rgba(100, 150, 255, 0.08);
+}
+
+/* Same fill for an internal pane-to-pane drag whose drop would land in this
+   pane's current directory (cursor over a file row or empty space). Driven by
+   our own drag state rather than the OS router, which only sees drags carrying
+   real OS files - a distinction WebView2 blurred and WebKitGTK does not. */
+.file-tree.internal-drop-active {
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
+  background: rgba(100, 150, 255, 0.08);
+}
+
+/* Folder row highlighted when an OS file is dragged directly over it (drop
+   targets that folder rather than the current directory). */
+.file-tree .node-row.os-drop-active {
+  background: rgba(100, 150, 255, 0.22);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}

@@ -1,9 +1,9 @@
-// Layer-boundary guard test (Task 5.3).
+// Layer-boundary guard test.
 //
 // Mirrors the backend's architecture test: enforces the frontend's api/actions/backend
 // layering going forward, while explicitly allowlisting the small, already-reviewed set
 // of exceptions that exist today. Each exception below was investigated (not guessed)
-// during Tasks 2.x-3.x code review and is documented inline in its source file. The
+// and is documented inline in its source file. The
 // allowlists are a closed, deliberate list — extending them requires the same scrutiny
 // as the original findings, not a rubber stamp.
 //
@@ -12,7 +12,7 @@
 //     except the specific documented cases below (error reporting / host-key reset that
 //     don't fit callBackend's four error shapes).
 //  2. actions/*.ts must not import `getGateway` directly, except the specific files that
-//     use it as the established missing-gateway pre-flight guard idiom (Tasks 3.1-3.4),
+//     use it as the established missing-gateway pre-flight guard idiom,
 //     reproducing exact original stores/api.ts fallback behavior.
 //  3. Nothing outside a small set of sanctioned files may reference the raw Wails bridge
 //     (`window.go` / `window.runtime` / `(window as any).go` / `(window as any).runtime`).
@@ -26,6 +26,11 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripComments } from './architecture/measure';
+import { loadBudgetConfig } from './architecture/budgetConfig';
+import { checkFrontendFileBudgets } from './architecture/budgets';
+import { checkFrontendFuncBudgets } from './architecture/funcBudgets';
+import { checkComments } from './architecture/comments';
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
@@ -63,7 +68,7 @@ const API_APPSTATE_VALUE_IMPORT_ALLOWLIST: Map<string, Set<string>> = new Map([
 // Closed allowlist: these five files import `getGateway` directly from
 // '../backend/context' and call it as an explicit pre-flight guard before
 // invoking the atomic api/* RPC wrapper. This is the established
-// missing-gateway-guard idiom from Tasks 3.1-3.4: the atomic api/* wrappers
+// missing-gateway-guard idiom: the atomic api/* wrappers
 // return their fallback *before* the caller's try/catch runs any dependent
 // refresh logic, so without this explicit guard the surrounding orchestration
 // would proceed as if the mutation succeeded even when there is no backend.
@@ -103,24 +108,6 @@ const WINDOW_BRIDGE_ALLOWLIST: Set<string> = new Set([
   join('lib', 'osFileDrop.ts'),
   join('stores', 'pluginState.ts'),
 ]);
-
-function stripComments(src: string): string {
-  // Strip /* ... */ block comments and // line comments so comment-only mentions
-  // (e.g. backend/gateway.ts's header referencing `window.go.main.App`) don't
-  // false-positive the scan.
-  //
-  // The block strip runs to a fixpoint: removing one match splices its
-  // neighbours together, and `/` + `*` on either side of the removal re-forms
-  // an opening delimiter a single pass would miss. Line comments are anchored
-  // to a line end and cannot re-form, so one pass is enough there.
-  let prev: string;
-  let out = src;
-  do {
-    prev = out;
-    out = out.replace(/\/\*[\s\S]*?\*\//g, '');
-  } while (out !== prev);
-  return out.replace(/(^|[^:])\/\/.*$/gm, '$1');
-}
 
 const WINDOW_BRIDGE_RE = /\(window\s+as\s+any\)\s*\.\s*(go|runtime)\b|\bwindow\.(go|runtime)\b/;
 
@@ -179,7 +166,7 @@ function checkActionsGetGateway(): void {
       assert(
         ACTIONS_GET_GATEWAY_ALLOWLIST.has(file),
         `actions/${file} imports getGateway directly, which is only permitted for the ` +
-          `established missing-gateway pre-flight guard idiom (Tasks 3.1-3.4) in the ` +
+          `established missing-gateway pre-flight guard idiom in the ` +
           `reviewed allowlist. actions/* must otherwise reach the gateway only through api/*.`
       );
     }
@@ -219,8 +206,29 @@ function checkWindowBridgeUsage(): void {
   }
 }
 
+// --- Rule 4 ---
+function checkFileBudgets(): void {
+  const issues = checkFrontendFileBudgets(loadBudgetConfig());
+  assert(issues.length === 0, ['size budgets:', ...issues].join('\n  '));
+}
+
+// --- Rule 6 ---
+function checkCommentRules(): void {
+  const issues = checkComments();
+  assert(issues.length === 0, ['comment rules:', ...issues].join('\n  '));
+}
+
+// --- Rule 5 ---
+function checkFuncBudgets(): void {
+  const issues = checkFrontendFuncBudgets(loadBudgetConfig());
+  assert(issues.length === 0, ['function budgets:', ...issues].join('\n  '));
+}
+
 checkApiAppStateImports();
 checkActionsGetGateway();
 checkWindowBridgeUsage();
+checkFileBudgets();
+checkFuncBudgets();
+checkCommentRules();
 
 console.log('architecture.test passed');

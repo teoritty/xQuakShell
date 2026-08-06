@@ -33,13 +33,18 @@ func githubRepoToDTO(repo domainplugin.GitHubRepository) GitHubRepositoryDTO {
 	return dto
 }
 
-// AddGitHubRepositoryRequest is the request to add a repository.
+// AddGitHubRepositoryRequest carries the trust decision together with the URL,
+// so a repository can never be registered in an undecided state and then be
+// read as trusted by default.
 type AddGitHubRepositoryRequest struct {
 	URL     string `json:"url"`
 	Trusted bool   `json:"trusted"`
 }
 
-// SetGitHubRepositoryTrustRequest toggles repository trust.
+// SetGitHubRepositoryTrustRequest has the same shape as
+// AddGitHubRepositoryRequest and is deliberately a separate type. Registering a
+// repository and re-granting trust to one are different authorizations; sharing
+// a DTO would let a field added for one silently appear in the other.
 type SetGitHubRepositoryTrustRequest struct {
 	URL     string `json:"url"`
 	Trusted bool   `json:"trusted"`

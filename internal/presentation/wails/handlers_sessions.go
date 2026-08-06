@@ -64,7 +64,9 @@ func (a *AppAPI) CloseSession(sessionID string) error {
 	return nil
 }
 
-// GetSessionState returns the current state of a session.
+// GetSessionState maps through SessionToDTO rather than handing back the
+// internal session info, so the UI never gains a reference it could hold past
+// the session's lifetime.
 func (a *AppAPI) GetSessionState(sessionID string) (SessionDTO, error) {
 	info, err := a.sessions.GetState(sessionID)
 	if err != nil {

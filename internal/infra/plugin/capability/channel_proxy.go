@@ -15,8 +15,8 @@ import (
 // ChannelBackendResolver resolves the ChannelPurposeBackend that serves a requested purpose for
 // one plugin process. It takes only the purpose because everything else a backend needs — the
 // manifest, the parent session — is closed over when the resolver is built, per process, by
-// HostConfig.ChannelResolverFor. Real backends (exec/tcp-relay/embed-stream) land in Stages 6-8;
-// Stage 3 tests inject a fake.
+// HostConfig.ChannelResolverFor. The real backends are exec, tcp-relay and embed-stream; tests
+// inject a fake.
 //
 // It must return a fresh backend per call: the backends are stateful and single-use (they store
 // the resolved argv/target/tunnelId during Authorize), so a shared instance lets the second

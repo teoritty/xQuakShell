@@ -1,0 +1,475 @@
+{
+  "limits": {
+    "go": {
+      "maxCodeLines": 350
+    },
+    "ts": {
+      "maxCodeLines": 350
+    },
+    "svelte": {
+      "maxScriptCodeLines": 200,
+      "maxTotalCodeLines": 400
+    },
+    "goFunc": {
+      "maxCodeLines": 80,
+      "maxParams": 5,
+      "maxNesting": 3
+    },
+    "tsFunc": {
+      "maxCodeLines": 80,
+      "maxParams": 5,
+      "maxNesting": 3
+    }
+  },
+  "exemptions": {
+    "files": [
+      {
+        "path": "app.go",
+        "kind": "facade-surface",
+        "reason": "ADR-010 Wails facade: 116 methods, each a one-line delegate to presentation.AppAPI, with no branching of its own. Wails binds a single struct, so splitting the file would scatter one binding surface across several files without removing a single decision from it. It grows with the API, not with complexity."
+      }
+    ],
+    "functions": [
+      {
+        "symbol": "internal/infra/plugin/ipc/host_server.go::HostServer.HandleRequest",
+        "kind": "dispatch-table",
+        "reason": "One flat switch over the plugin RPC method names, three or four lines per arm, every arm delegating to a capability proxy. The length is the size of the protocol surface, not of a decision. Splitting it into per-method handlers would scatter the one place where the capability gate, the method name and the proxy it reaches are visible together, which is exactly what a reviewer needs to read in one screen."
+      }
+    ]
+  },
+  "baseline": {
+    "files": {
+      "frontend/src/lib/AuditLogView.svelte": {
+        "codeLines": 476,
+        "scriptCodeLines": 98
+      },
+      "frontend/src/lib/ConnectionDetails.svelte": {
+        "codeLines": 310,
+        "scriptCodeLines": 244
+      },
+      "frontend/src/lib/FileTree.svelte": {
+        "codeLines": 545,
+        "scriptCodeLines": 450
+      },
+      "frontend/src/lib/LocalFileTree.svelte": {
+        "codeLines": 498,
+        "scriptCodeLines": 415
+      },
+      "frontend/src/lib/PluginSettingsPanel.svelte": {
+        "codeLines": 1193,
+        "scriptCodeLines": 515
+      },
+      "frontend/src/lib/RemoteTree.svelte": {
+        "codeLines": 672,
+        "scriptCodeLines": 559
+      },
+      "frontend/src/lib/ScriptsDialog.svelte": {
+        "codeLines": 548,
+        "scriptCodeLines": 220
+      },
+      "frontend/src/lib/SettingsDialog.svelte": {
+        "codeLines": 983,
+        "scriptCodeLines": 311
+      },
+      "internal/domain/plugin/manifest_capabilities.go": {
+        "codeLines": 413
+      },
+      "internal/infra/sftp/remote_fs.go": {
+        "codeLines": 468
+      },
+      "internal/usecase/embed_tunnel_service.go": {
+        "codeLines": 459
+      },
+      "internal/usecase/session_lifecycle_service.go": {
+        "codeLines": 351
+      }
+    },
+    "functions": {
+      "app.go::App.InstallGitHubPlugin": {
+        "codeLines": 1,
+        "params": 8,
+        "nesting": 0
+      },
+      "app.go::App.InstallPlugin": {
+        "codeLines": 1,
+        "params": 7,
+        "nesting": 0
+      },
+      "app.go::App.SearchAuditLog": {
+        "codeLines": 1,
+        "params": 6,
+        "nesting": 0
+      },
+      "frontend/src/actions/protocolActions.ts::installGitHubPlugin": {
+        "codeLines": 1,
+        "params": 8,
+        "nesting": 0
+      },
+      "frontend/src/actions/protocolActions.ts::installPlugin": {
+        "codeLines": 4,
+        "params": 7,
+        "nesting": 0
+      },
+      "frontend/src/api/audit.ts::searchAuditLog": {
+        "codeLines": 8,
+        "params": 6,
+        "nesting": 1
+      },
+      "frontend/src/api/githubPlugins.ts::installGitHubPluginRpc": {
+        "codeLines": 8,
+        "params": 8,
+        "nesting": 1
+      },
+      "frontend/src/api/plugins.ts::installPluginRpc": {
+        "codeLines": 10,
+        "params": 7,
+        "nesting": 1
+      },
+      "frontend/src/events/subscribe.ts::subscribeToEvents": {
+        "codeLines": 157,
+        "params": 0,
+        "nesting": 2
+      },
+      "frontend/src/lib/FileTree.svelte::handleDrop": {
+        "codeLines": 29,
+        "params": 2,
+        "nesting": 5
+      },
+      "frontend/src/lib/LocalFileTree.svelte::handleDrop": {
+        "codeLines": 29,
+        "params": 2,
+        "nesting": 5
+      },
+      "frontend/src/lib/PermissionsDialog.svelte::handleApply": {
+        "codeLines": 26,
+        "params": 0,
+        "nesting": 4
+      },
+      "frontend/src/lib/remoteTree/discoveryTree.ts::branchNotices": {
+        "codeLines": 35,
+        "params": 6,
+        "nesting": 1
+      },
+      "frontend/src/lib/remoteTree/discoveryTree.ts::buildDiscoverySubtree": {
+        "codeLines": 90,
+        "params": 1,
+        "nesting": 2
+      },
+      "frontend/src/lib/remoteTree/discoveryTree.ts::buildLevel": {
+        "codeLines": 68,
+        "params": 6,
+        "nesting": 2
+      },
+      "frontend/src/lib/remoteTree/discoveryTree.ts::noticeRow": {
+        "codeLines": 8,
+        "params": 7,
+        "nesting": 0
+      },
+      "frontend/src/lib/remoteTree/dndGuards.ts::shouldShowDropIndicator": {
+        "codeLines": 10,
+        "params": 6,
+        "nesting": 2
+      },
+      "frontend/src/lib/remoteTree/dndHandlers.ts::executeDropBetween": {
+        "codeLines": 62,
+        "params": 6,
+        "nesting": 3
+      },
+      "internal/domain/plugin/channel_port.go::NewChannelHandle": {
+        "codeLines": 11,
+        "params": 6,
+        "nesting": 1
+      },
+      "internal/domain/plugin/manifest_fields_validate.go::checkRegexSafety": {
+        "codeLines": 32,
+        "params": 2,
+        "nesting": 5
+      },
+      "internal/domain/plugin/manifest_fields_validate.go::validateProtocolFields": {
+        "codeLines": 93,
+        "params": 1,
+        "nesting": 5
+      },
+      "internal/infra/embed/broker_handler.go::BrokerHandler.pumpWSToPlugin": {
+        "codeLines": 21,
+        "params": 6,
+        "nesting": 2
+      },
+      "internal/infra/plugin/capability/channel_proxy.go::ChannelProxy.Open": {
+        "codeLines": 99,
+        "params": 2,
+        "nesting": 1
+      },
+      "internal/infra/plugin/capability/net_proxy.go::NetProxy.Dial": {
+        "codeLines": 94,
+        "params": 1,
+        "nesting": 2
+      },
+      "internal/infra/plugin/discovery.go::Discovery.Discover": {
+        "codeLines": 32,
+        "params": 0,
+        "nesting": 4
+      },
+      "internal/infra/plugin/ipc/channel.go::newFlowChannel": {
+        "codeLines": 14,
+        "params": 6,
+        "nesting": 0
+      },
+      "internal/infra/plugin/ipc/conn.go::Conn.readLoop": {
+        "codeLines": 63,
+        "params": 0,
+        "nesting": 4
+      },
+      "internal/infra/plugin/process_host_rpc.go::ProcessHost.CallWithTimeout": {
+        "codeLines": 7,
+        "params": 6,
+        "nesting": 1
+      },
+      "internal/infra/plugin/process_host_start.go::ProcessHost.Start": {
+        "codeLines": 91,
+        "params": 3,
+        "nesting": 2
+      },
+      "internal/infra/plugin/process_initializer.go::initializePluginProcess": {
+        "codeLines": 27,
+        "params": 7,
+        "nesting": 1
+      },
+      "internal/infra/plugin/process_ipc_factory.go::ProcessHost.newConn": {
+        "codeLines": 39,
+        "params": 6,
+        "nesting": 1
+      },
+      "internal/infra/putty/reg_parser.go::ParsePuTTYReg": {
+        "codeLines": 56,
+        "params": 1,
+        "nesting": 4
+      },
+      "internal/infra/sftp/remote_fs.go::RemoteFS.ChownRecursive": {
+        "codeLines": 10,
+        "params": 6,
+        "nesting": 1
+      },
+      "internal/infra/sftp/remote_fs.go::RemoteFS.downloadRecursive": {
+        "codeLines": 48,
+        "params": 6,
+        "nesting": 3
+      },
+      "internal/infra/sftp/remote_fs.go::RemoteFS.walkApply": {
+        "codeLines": 32,
+        "params": 4,
+        "nesting": 4
+      },
+      "internal/infra/ssh/transport.go::BuildTransportChain": {
+        "codeLines": 48,
+        "params": 8,
+        "nesting": 2
+      },
+      "internal/infra/ssh/transport.go::jumpTransportBuilder.BuildChain": {
+        "codeLines": 1,
+        "params": 8,
+        "nesting": 0
+      },
+      "internal/presentation/wails/api.go::AppAPI.afterVaultOpened": {
+        "codeLines": 26,
+        "params": 0,
+        "nesting": 4
+      },
+      "internal/presentation/wails/api.go::NewAppAPI": {
+        "codeLines": 85,
+        "params": 30,
+        "nesting": 1
+      },
+      "internal/presentation/wails/handlers_github.go::AppAPI.InstallGitHubPlugin": {
+        "codeLines": 9,
+        "params": 8,
+        "nesting": 1
+      },
+      "internal/presentation/wails/handlers_plugin.go::AppAPI.InstallPlugin": {
+        "codeLines": 64,
+        "params": 7,
+        "nesting": 2
+      },
+      "internal/presentation/wails/handlers_sessions.go::AppAPI.streamTerminalOutput": {
+        "codeLines": 45,
+        "params": 2,
+        "nesting": 4
+      },
+      "internal/presentation/wails/handlers_settings_ping_audit.go::AppAPI.SearchAuditLog": {
+        "codeLines": 15,
+        "params": 6,
+        "nesting": 1
+      },
+      "internal/usecase/audit_service.go::AuditService.RecordCommand": {
+        "codeLines": 59,
+        "params": 3,
+        "nesting": 4
+      },
+      "internal/usecase/audit_service.go::NewAuditService": {
+        "codeLines": 10,
+        "params": 6,
+        "nesting": 0
+      },
+      "internal/usecase/channel_embed_backend.go::ChannelEmbedBackend.Wire": {
+        "codeLines": 64,
+        "params": 2,
+        "nesting": 5
+      },
+      "internal/usecase/channel_exec_backend.go::ChannelExecBackend.Wire": {
+        "codeLines": 113,
+        "params": 2,
+        "nesting": 3
+      },
+      "internal/usecase/channel_exec_backend.go::NewChannelExecBackend": {
+        "codeLines": 10,
+        "params": 6,
+        "nesting": 0
+      },
+      "internal/usecase/discovery_details.go::DiscoveryDetailsService.record": {
+        "codeLines": 17,
+        "params": 6,
+        "nesting": 1
+      },
+      "internal/usecase/discovery_details.go::NewDiscoveryDetailsService": {
+        "codeLines": 8,
+        "params": 6,
+        "nesting": 0
+      },
+      "internal/usecase/discovery_invoke.go::DiscoveryInvoker.record": {
+        "codeLines": 17,
+        "params": 7,
+        "nesting": 1
+      },
+      "internal/usecase/discovery_leader.go::NewDiscoveryLeader": {
+        "codeLines": 13,
+        "params": 7,
+        "nesting": 0
+      },
+      "internal/usecase/discovery_store.go::DiscoveryStore.ApplySnapshot": {
+        "codeLines": 28,
+        "params": 6,
+        "nesting": 2
+      },
+      "internal/usecase/dynamic_forward_testhooks.go::DynamicForwardCoordinator.RegisterPreBindLocalForTest": {
+        "codeLines": 16,
+        "params": 7,
+        "nesting": 1
+      },
+      "internal/usecase/embed_tunnel_protocol.go::EmbedTunnelService.HandlePluginTunnelFrame": {
+        "codeLines": 11,
+        "params": 6,
+        "nesting": 1
+      },
+      "internal/usecase/github_plugin_install.go::GitHubPluginService.InstallPluginFromGitHub": {
+        "codeLines": 32,
+        "params": 9,
+        "nesting": 1
+      },
+      "internal/usecase/github_plugin_install.go::GitHubPluginService.commitInstall": {
+        "codeLines": 30,
+        "params": 11,
+        "nesting": 2
+      },
+      "internal/usecase/github_plugin_install.go::enforceInstallConsents": {
+        "codeLines": 19,
+        "params": 7,
+        "nesting": 1
+      },
+      "internal/usecase/github_plugin_service.go::NewGitHubPluginService": {
+        "codeLines": 9,
+        "params": 7,
+        "nesting": 0
+      },
+      "internal/usecase/ping_manager.go::PingManager.pingAll": {
+        "codeLines": 62,
+        "params": 1,
+        "nesting": 4
+      },
+      "internal/usecase/plugin_embed_bridge.go::PluginEmbedBridge.ReportViewport": {
+        "codeLines": 15,
+        "params": 6,
+        "nesting": 1
+      },
+      "internal/usecase/plugin_embed_inbound.go::PluginEmbedInbound.TunnelFrame": {
+        "codeLines": 5,
+        "params": 6,
+        "nesting": 1
+      },
+      "internal/usecase/plugin_event_bus.go::PluginEventBus.subscribersFor": {
+        "codeLines": 29,
+        "params": 2,
+        "nesting": 4
+      },
+      "internal/usecase/plugin_fields.go::PluginFieldsService.SavePluginFields": {
+        "codeLines": 89,
+        "params": 3,
+        "nesting": 3
+      },
+      "internal/usecase/plugin_registry.go::validateProtocolOwnership": {
+        "codeLines": 13,
+        "params": 2,
+        "nesting": 4
+      },
+      "internal/usecase/plugin_session_rpc.go::NewPluginSessionRPCHandlerFactory": {
+        "codeLines": 20,
+        "params": 7,
+        "nesting": 1
+      },
+      "internal/usecase/plugin_vault_inbound.go::NewPluginVaultInbound": {
+        "codeLines": 8,
+        "params": 6,
+        "nesting": 0
+      },
+      "internal/usecase/remote_op_service.go::RemoteOpService.ChownRecursive": {
+        "codeLines": 4,
+        "params": 6,
+        "nesting": 0
+      },
+      "internal/usecase/remote_op_service.go::RemoteOpService.run": {
+        "codeLines": 37,
+        "params": 6,
+        "nesting": 1
+      },
+      "internal/usecase/session_io_service.go::SessionIOService.RunServerAlive": {
+        "codeLines": 22,
+        "params": 1,
+        "nesting": 4
+      },
+      "internal/usecase/session_manager_embed.go::SessionManager.HandlePluginTunnelFrame": {
+        "codeLines": 1,
+        "params": 6,
+        "nesting": 0
+      },
+      "internal/usecase/ssh_connector.go::SSHConnector.loadSigners": {
+        "codeLines": 36,
+        "params": 2,
+        "nesting": 4
+      },
+      "internal/usecase/surface_service.go::NewSurfaceService": {
+        "codeLines": 12,
+        "params": 6,
+        "nesting": 1
+      },
+      "internal/usecase/transfer_plan.go::buildPlan": {
+        "codeLines": 53,
+        "params": 4,
+        "nesting": 4
+      },
+      "internal/usecase/tunnel_dynamic_service.go::TunnelDynamicService.RegisterLocal": {
+        "codeLines": 57,
+        "params": 6,
+        "nesting": 3
+      },
+      "main_plugin_ui.go::wirePluginProcessLifecycle": {
+        "codeLines": 17,
+        "params": 6,
+        "nesting": 0
+      },
+      "main_plugins.go::newPluginRuntime": {
+        "codeLines": 140,
+        "params": 3,
+        "nesting": 1
+      }
+    }
+  }
+}

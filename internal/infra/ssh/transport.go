@@ -24,11 +24,6 @@ type BastionDialer struct {
 	client *gossh.Client
 }
 
-// NewBastionDialer creates a transport dialer that routes through the given SSH client.
-func NewBastionDialer(client *gossh.Client) *BastionDialer {
-	return &BastionDialer{client: client}
-}
-
 // DialContext opens a direct-tcpip channel through the bastion SSH connection.
 func (b *BastionDialer) DialContext(_ context.Context, _, address string) (net.Conn, error) {
 	conn, err := b.client.Dial("tcp", address)

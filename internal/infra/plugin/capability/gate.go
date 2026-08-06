@@ -124,11 +124,6 @@ func (g *Gate) Allow(method string) bool {
 	}
 }
 
-// ValidateManifestCapabilities rejects unsafe capability patterns (Phase 2).
-func ValidateManifestCapabilities(m domainplugin.Manifest) error {
-	return m.ValidateCapabilities()
-}
-
 func (g *Gate) hasNetworkAccess() bool {
 	n := g.manifest.Capabilities.Network
 	if n == nil {

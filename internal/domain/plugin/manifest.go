@@ -23,10 +23,10 @@ const (
 
 // Manifest describes a plugin package (plugin.json).
 type Manifest struct {
-	ID               string          `json:"id"`
-	Name             string          `json:"name"`
-	Version          string          `json:"version"`
-	Description      string          `json:"description,omitempty"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description,omitempty"`
 	// MinCoreVersion is unsupported; kept only so resolvePluginAPI can reject
 	// manifests that still declare it with a clear error.
 	MinCoreVersion   string          `json:"minCoreVersion,omitempty"`
@@ -139,7 +139,10 @@ type MenuContribution struct {
 	Items    []string `json:"items"`
 }
 
-// ConnectionProtocolContribution registers a connection protocol.
+// ConnectionProtocolContribution is how a plugin adds a protocol to the
+// connection dialog. Fields drives the form the user fills in, so all of this
+// is untrusted manifest data that manifest validation has to clear before the
+// UI renders any of it.
 type ConnectionProtocolContribution struct {
 	ID          string       `json:"id"`
 	Label       string       `json:"label"`
@@ -165,7 +168,7 @@ type TunnelProviderContribution struct {
 
 const defaultEmbedEntry = "ui/embed.html"
 
-// ViewContribution registers a declarative UI panel (Phase 5).
+// ViewContribution registers a declarative UI panel.
 type ViewContribution struct {
 	ID       string `json:"id"`
 	Location string `json:"location"`
@@ -174,7 +177,7 @@ type ViewContribution struct {
 	Entry    string `json:"entry,omitempty"`
 }
 
-// StatusBarContribution registers a status bar item (Phase 5).
+// StatusBarContribution registers a status bar item.
 type StatusBarContribution struct {
 	ID       string `json:"id"`
 	Text     string `json:"text"`

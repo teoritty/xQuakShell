@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -36,5 +37,23 @@ func TestSanitizeTunnelRPCResultInvalidJSONPassthrough(t *testing.T) {
 	out := SanitizeTunnelRPCResult("tunnel.localFrame", raw)
 	if string(out) != string(raw) {
 		t.Fatalf("invalid JSON should pass through unchanged")
+	}
+}
+
+func TestSanitizeTunnelRPCParamsRedactsNestedDataBase64(t *testing.T) {
+	raw := json.RawMessage(`{"frames":[{"dataBase64":"c2VjcmV0"}]}`)
+	out := SanitizeTunnelRPCParams("tunnel.localWrite", raw)
+	if strings.Contains(string(out), "c2VjcmV0") {
+		t.Fatalf("nested tunnel payload leaked: %s", out)
+	}
+}
+
+// The two key sets stay separate: sharing a redactor must not merge what each
+// protocol considers sensitive.
+func TestSanitizeTunnelRPCParamsLeavesAuthOnlyKeysAlone(t *testing.T) {
+	raw := json.RawMessage(`{"signatureBase64":"c2ln"}`)
+	out := SanitizeTunnelRPCParams("tunnel.localWrite", raw)
+	if !strings.Contains(string(out), "c2ln") {
+		t.Fatalf("tunnel sanitizer redacted an auth-only key: %s", out)
 	}
 }

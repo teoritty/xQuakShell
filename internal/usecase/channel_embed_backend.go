@@ -55,11 +55,11 @@ const embedAckCeiling = 120 * time.Second
 // refusal. The pump waits on a timer and on ctx.Done(); it never busy-waits.
 const embedDeliverRetryInterval = 25 * time.Millisecond
 
-// ChannelEmbedBackend implements the embed-stream purpose (ADR-011 Stage 8): it authorizes
+// ChannelEmbedBackend implements the embed-stream purpose (ADR-011): it authorizes
 // against manifest.Capabilities.Session.Embed plus the parentSessionId already being the
 // plugin's own registered embed session, then wires the channel straight through to that
 // session's embed surface in both directions with no JSON/base64 wrapping. Overflow handling
-// is entirely Stage 5's, applied inside ch.Data().Send — this backend only ever calls
+// is entirely the flow-control layer's, applied inside ch.Data().Send — this backend only calls
 // Send/Recv/Ack, it never buffers or evicts frames itself.
 type ChannelEmbedBackend struct {
 	pluginID    string
@@ -135,7 +135,7 @@ func (b *ChannelEmbedBackend) Authorize(purpose, parentSessionID, hint string) e
 
 // Wire pumps bytes in both directions with no framing beyond the channel bus's own kind=0x02
 // frames: plugin -> data.Recv() -> sink.RouteTunnelFrameFromPlugin (e.g. video/output), and the
-// embed surface's outbound subscription -> data.Send() (e.g. control/input). Stage 5's
+// embed surface's outbound subscription -> data.Send() (e.g. control/input). The credit
 // exhaustion policy applies inside data.Send exactly as it does for every other purpose; this
 // method never inspects or overrides it.
 func (b *ChannelEmbedBackend) Wire(ctx context.Context, ch *domainplugin.ChannelHandle) error {

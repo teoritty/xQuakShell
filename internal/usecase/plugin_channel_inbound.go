@@ -23,11 +23,6 @@ type PluginChannelInbound struct {
 	handler ChannelSink
 }
 
-// NewPluginChannelInbound creates a channel inbound adapter.
-func NewPluginChannelInbound() *PluginChannelInbound {
-	return &PluginChannelInbound{}
-}
-
 // SetHandler binds the channel sink after composition.
 func (p *PluginChannelInbound) SetHandler(h ChannelSink) {
 	p.mu.Lock()

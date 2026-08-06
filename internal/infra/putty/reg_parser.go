@@ -5,10 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-
-	"github.com/google/uuid"
-
-	"xquakshell/internal/domain"
 )
 
 // PuTTYSession represents a parsed PuTTY session from a REG file.
@@ -87,26 +83,4 @@ func ParsePuTTYReg(content string) ([]PuTTYSession, error) {
 	}
 
 	return sessions, nil
-}
-
-func (p *PuTTYSession) ToConnection(folderID string, order int) domain.Connection {
-	conn := domain.Connection{
-		FolderID: folderID,
-		Name:     p.Name,
-		Host:     p.HostName,
-		Port:     p.Port,
-		Order:    order,
-		Protocol: domain.ProtocolSSH,
-	}
-	if p.Port == 0 {
-		conn.Port = domain.DefaultSSHPort
-	}
-	if p.UserName != "" {
-		uid := "u-" + uuid.New().String()[:8]
-		conn.Users = []domain.ConnectionUser{
-			{ID: uid, Username: p.UserName, Auth: domain.AuthMethodKey},
-		}
-		conn.DefaultUserID = uid
-	}
-	return conn
 }

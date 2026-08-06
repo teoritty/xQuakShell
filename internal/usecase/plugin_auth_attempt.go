@@ -84,7 +84,9 @@ func (r *PluginAuthAttemptRegistry) End(attemptID string) {
 	}
 }
 
-// Lookup returns the attempt when present.
+// Lookup hands back a copy. Returning the struct by value keeps a caller from
+// mutating registry state without going through the registry, which is what
+// the mutex here exists to serialize.
 func (r *PluginAuthAttemptRegistry) Lookup(attemptID string) (PluginAuthAttempt, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

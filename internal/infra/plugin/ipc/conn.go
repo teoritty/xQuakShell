@@ -323,7 +323,9 @@ func channelIDFromOpenResult(result json.RawMessage) uint32 {
 	return r.ChannelID
 }
 
-// ReadError returns the terminal read error, if any.
+// ReadError reports why the read loop stopped, under the same mutex the loop
+// stores it with. It stays readable after the connection is closed, which is
+// what lets a caller tell an orderly shutdown from a protocol failure.
 func (c *Conn) ReadError() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

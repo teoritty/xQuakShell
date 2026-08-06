@@ -13,7 +13,7 @@ import (
 	"xquakshell/internal/pkg/safego"
 )
 
-// ChannelUDPRelayBackend implements the udp-relay purpose (ADR-011 Stage 6b): it wires a
+// ChannelUDPRelayBackend implements the udp-relay purpose (ADR-011): it wires a
 // channel to a host-dialed UDP target chosen by the plugin's hint, validated through the same
 // dial-policy chain tcp-relay uses (matchingPatternHost, shouldAllowResolvedIP), matched
 // against the plugin's udp: allowlist entries instead of tcp:. UDP has no connection close, so

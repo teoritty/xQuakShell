@@ -44,7 +44,8 @@ func (m *IdleLockoutManager) Start(handler domain.LockoutEventHandler) {
 	safego.GoNamed("lockout.monitor", m.monitorLoop)
 }
 
-// Stop ceases monitoring.
+// Stop is safe to call twice. The running flag guards close(m.stopCh), which
+// panics on a second close, and shutdown paths do reach it more than once.
 func (m *IdleLockoutManager) Stop() {
 	m.mu.Lock()
 	defer m.mu.Unlock()

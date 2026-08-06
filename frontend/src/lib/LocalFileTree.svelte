@@ -11,13 +11,21 @@
   import FileContextMenu from './FileContextMenu.svelte';
   import { openContextMenu, releaseContextMenu } from './contextMenuManager';
   import ConfirmDialog from './ConfirmDialog.svelte';
-  import OverflowToolbar from './OverflowToolbar.svelte';
   import { buildFilePanelToolbarItems, cycleSortState, type SortKey } from './filePanelToolbar';
   import { refreshesLocalPane } from './transferPresentation';
-  import { ChevronUp, X } from 'lucide-svelte';
+  import type { SortState } from './fileTree/types';
+  import { formatSize, applySort, sortTree } from './fileTree/sorting';
+  import { selectNode as nextSelection, clearSelection, findNode as findNodeIn } from './fileTree/selection';
+  import { isAtFilesystemRoot, parentDirectory, localBasename, localJoin, normalizeLocalPathInput } from './fileTree/paths';
+  import { readDragPayload, isMultiDrag } from './fileTree/dragPayload';
+  import { uniqueName } from './fileTree/uniqueName';
+  import { describeDelete } from './fileTree/deletePrompt';
+  import { loadPrefs, saveColumnPrefs as persistColumns, saveHiddenPref } from './fileTree/columnPrefs';
+  import FilePaneHeader from './fileTree/FilePaneHeader.svelte';
+  import './fileTree/fileTreeShared.css';
+  import { ChevronUp } from 'lucide-svelte';
 
-  const STORAGE_KEY = 'localfiletree-show-columns';
-  const STORAGE_HIDDEN = 'localfiletree-show-hidden';
+  const STORAGE_KEYS = { columns: 'localfiletree-show-columns', hidden: 'localfiletree-show-hidden' };
 
 
   let tree: Map<string, LocalNode[]> = new Map();
@@ -43,20 +51,12 @@
   let sortKey: SortKey | null = null;
   let sortDir: SortDir = 'asc';
 
-  function findNode(path: string): LocalNode | undefined {
-    for (const [, nodes] of tree) {
-      const n = nodes.find((x) => x.path === path);
-      if (n) return n;
-    }
-    return undefined;
-  }
-
   async function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Delete' && selectedPaths.size > 0) {
       e.preventDefault();
       const paths = Array.from(selectedPaths);
       if (paths.length === 1) {
-        const node = findNode(paths[0]);
+        const node = findNodeIn(tree, paths[0]);
         if (node) await requestDelete(paths[0], node.isDir, node.name);
       } else {
         deleteConfirm = {
@@ -90,16 +90,13 @@
     for (const p of toDelete) {
       try {
         await removeLocalPath(p);
-        const sep = p.includes('\\') ? '\\' : '/';
-        const idx = p.lastIndexOf(sep);
-        const parent = idx > 0 ? p.slice(0, idx) : homeDir;
+        const parent = parentDirectory(p);
         if (parent) affectedPaths.add(parent);
       } catch (e: any) {
         error = e?.message || String(e);
       }
     }
-    selectedPaths = new Set();
-    lastSelectedPath = null;
+    ({ selectedPaths, lastSelectedPath } = clearSelection());
     await refreshPreservingState([...affectedPaths]);
   }
 
@@ -107,21 +104,13 @@
     deleteConfirm = { ...deleteConfirm, show: false };
   }
 
-  let pathInput = '';
-  let pathInputEl: HTMLInputElement | null = null;
+  let header: FilePaneHeader | null = null;
   let error = '';
 
   onMount(async () => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const o = JSON.parse(stored);
-        showPermissions = !!o.permissions;
-        showOwner = !!o.owner;
-        showDate = !!o.date;
-      }
-      showHidden = localStorage.getItem(STORAGE_HIDDEN) === '1';
-    } catch (_) {}
+    const prefs = loadPrefs(localStorage, STORAGE_KEYS);
+    ({ permissions: showPermissions, owner: showOwner, date: showDate } = prefs.columns);
+    showHidden = prefs.showHidden;
     homeDir = (await getUserHomeDir()) || '';
     currentPath = homeDir;
     await loadDir(currentPath);
@@ -149,7 +138,7 @@
     try {
       const nodes = (await listLocalPath(path, showHidden)) || [];
       rawTree.set(path, nodes);
-      tree.set(path, applySort(nodes));
+      tree.set(path, applySort(nodes, sortState()));
       tree = tree;
     } catch (e: any) {
       error = e?.message || String(e);
@@ -173,24 +162,12 @@
   }
 
   function selectNode(path: string, e?: MouseEvent) {
-    const nodes = tree.get(currentPath) || [];
-    if (e?.ctrlKey || e?.metaKey) {
-      const next = new Set(selectedPaths);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      selectedPaths = next;
-      lastSelectedPath = path;
-    } else if (e?.shiftKey) {
-      const idx = nodes.findIndex((n) => n.path === path);
-      const lastIdx = lastSelectedPath != null ? nodes.findIndex((n) => n.path === lastSelectedPath) : -1;
-      const next = new Set(selectedPaths);
-      const [lo, hi] = lastIdx >= 0 ? (idx < lastIdx ? [idx, lastIdx] : [lastIdx, idx]) : [idx, idx];
-      for (let i = lo; i <= hi; i++) next.add(nodes[i].path);
-      selectedPaths = next;
-    } else {
-      selectedPaths = new Set([path]);
-      lastSelectedPath = path;
-    }
+    ({ selectedPaths, lastSelectedPath } = nextSelection(
+      tree.get(currentPath) || [],
+      { selectedPaths, lastSelectedPath },
+      path,
+      e
+    ));
   }
 
   // This pane owns its selection only while the pointer keeps landing on its own
@@ -200,12 +177,11 @@
     if (selectedPaths.size === 0) return;
     const target = e.target instanceof Element ? e.target : null;
     if (keepsPaneSelection(target, rootEl)) return;
-    selectedPaths = new Set();
-    lastSelectedPath = null;
+    ({ selectedPaths, lastSelectedPath } = clearSelection());
   }
 
   async function navigateInto(path: string) {
-    const node = findNode(path);
+    const node = findNodeIn(tree, path);
     if (!node?.isDir) return;
     currentPath = path;
     expanded.add(path);
@@ -216,10 +192,8 @@
     tree = tree;
   }
 
-  async function handlePathSubmit() {
-    const trimmed = pathInput.trim();
-    if (!trimmed) return;
-    const nextPath = normalizePathInput(trimmed);
+  async function handlePathSubmit(typed: string) {
+    const nextPath = normalizeLocalPathInput(typed, homeDir);
     const prevPath = currentPath;
     // listLocalPath normally swallows errors (returns []) and shows a global
     // banner; opt into rethrow so a non-existent path is caught here and the
@@ -227,7 +201,7 @@
     try {
       const nodes = await listLocalPath(nextPath, showHidden, { rethrow: true, silence: () => true });
       rawTree.set(nextPath, nodes);
-      tree.set(nextPath, applySort(nodes));
+      tree.set(nextPath, applySort(nodes, sortState()));
       currentPath = nextPath;
       if (!expanded.has(currentPath)) {
         expanded.add(currentPath);
@@ -238,32 +212,9 @@
     } catch (e: any) {
       error = e?.message || String(e);
       currentPath = prevPath;
-      pathInput = prevPath;
+      header?.resetInput();
       return;
     }
-  }
-
-  $: if (!pathInputEl || document.activeElement !== pathInputEl) {
-    pathInput = currentPath;
-  }
-
-  function isAtFilesystemRoot(path: string): boolean {
-    const trimmed = path.replace(/[\\/]+$/, '');
-    if (!trimmed || trimmed === '/') return true;
-    if (/^[a-zA-Z]:\\?$/i.test(trimmed)) return true;
-    return false;
-  }
-
-  function parentDirectory(path: string): string {
-    if (isAtFilesystemRoot(path)) return path;
-    const trimmed = path.replace(/[\\/]+$/, '');
-    const idx = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'));
-    if (/^[a-zA-Z]:/.test(trimmed)) {
-      if (idx <= 2) return `${trimmed.slice(0, 2)}\\`;
-      return trimmed.slice(0, idx);
-    }
-    if (idx <= 0) return '/';
-    return trimmed.slice(0, idx);
   }
 
   async function goUp() {
@@ -307,67 +258,8 @@
     refreshPreservingState([t.refreshDir, currentPath]);
   }
 
-  function formatSize(size: number): string {
-    if (size < 1024) return `${size} B`;
-    if (size < 1048576) return `${(size / 1024).toFixed(1)} KB`;
-    if (size < 1073741824) return `${(size / 1048576).toFixed(1)} MB`;
-    return `${(size / 1073741824).toFixed(1)} GB`;
-  }
-
-  function normalizePathInput(input: string): string {
-    const looksWindows = input.includes('\\') || /^[a-zA-Z]:/.test(input);
-    if (looksWindows) {
-      let normalized = input.replace(/\//g, '\\').replace(/\\{2,}/g, '\\');
-      if (/^[a-zA-Z]:$/.test(normalized)) return `${normalized}\\`;
-      if (/^[a-zA-Z]:\\$/.test(normalized)) return normalized;
-      normalized = normalized.replace(/\\+$/, '');
-      return normalized || homeDir || '';
-    }
-    const normalized = input.replace(/\/{2,}/g, '/').replace(/\/+$/, '');
-    return normalized || '/';
-  }
-
-  function parseTimestamp(value?: string): number {
-    if (!value) return -1;
-    const ts = Date.parse(value);
-    return Number.isFinite(ts) ? ts : -1;
-  }
-
-  function compareValues(a: number | string, b: number | string): number {
-    if (typeof a === 'string' && typeof b === 'string') return a.localeCompare(b);
-    return Number(a) - Number(b);
-  }
-
-  function sortValue(node: LocalNode, key: SortKey): number | string {
-    if (key === 'name') return node.name.toLowerCase();
-    if (key === 'size') return node.size ?? 0;
-    if (key === 'modTime') return parseTimestamp(node.modTime);
-    return (node.owner || '').toLowerCase();
-  }
-
-  function applySort(nodes: LocalNode[]): LocalNode[] {
-    if (!nodes) return [];
-    const dir = sortDir === 'asc' ? 1 : -1;
-    return [...nodes].sort((a, b) => {
-      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-      if (sortEnabled && sortKey) {
-        const cmp = compareValues(sortValue(a, sortKey), sortValue(b, sortKey));
-        if (cmp !== 0) return cmp * dir;
-      }
-      return a.name.localeCompare(b.name);
-    });
-  }
-
-  function reapplySortToTree() {
-    if (!sortEnabled || !sortKey) {
-      tree = new Map(rawTree);
-      return;
-    }
-    const next = new Map<string, LocalNode[]>();
-    for (const [path, nodes] of rawTree.entries()) {
-      next.set(path, applySort(nodes));
-    }
-    tree = next;
+  function sortState(): SortState {
+    return { sortEnabled, sortKey, sortDir };
   }
 
   function toggleSort(nextKey: SortKey) {
@@ -375,7 +267,7 @@
       { sortEnabled, sortKey, sortDir },
       nextKey
     ));
-    reapplySortToTree();
+    tree = sortTree(rawTree, sortState());
   }
 
   function handleDragOverPath(e: DragEvent, path: string) {
@@ -404,30 +296,19 @@
     e.stopPropagation();
     dragOverPath = null;
     if (!e.dataTransfer) return;
-    const dropSessionId = e.dataTransfer.getData('text/session-id');
-    const localPathsJson = e.dataTransfer.getData('text/local-selected-paths');
-    const localPaths = localPathsJson
-      ? ((): string[] => { try { return JSON.parse(localPathsJson); } catch { return []; } })()
-      : null;
-    const localPath = localPaths ? null : e.dataTransfer.getData('text/local-path') || null;
-    const remotePathsJson = e.dataTransfer.getData('text/selected-paths');
-    const remotePaths = remotePathsJson
-      ? ((): string[] => { try { return JSON.parse(remotePathsJson); } catch { return []; } })()
-      : null;
-    const remotePath = remotePaths ? null : e.dataTransfer.getData('text/remote-path') || null;
+    const dt = e.dataTransfer;
+    const { sessionId: dropSessionId, remotePaths, localPaths } = readDragPayload((k) => dt.getData(k));
 
-    const locals = localPaths && localPaths.length > 0 ? localPaths : (localPath ? [localPath] : []);
-    if (locals.length > 0) {
-      const sep = targetDir.includes('\\') ? '\\' : '/';
+    // Local paths win: a drag carrying them is a move on this filesystem, and
+    // only a purely remote drag is a download into this directory.
+    if (localPaths.length > 0) {
       const srcParents: string[] = [];
-      for (const lp of locals) {
-        const base = lp.split(/[\\/]/).pop() || 'item';
-        const destPath = targetDir.endsWith(sep) ? targetDir + base : targetDir + sep + base;
+      for (const lp of localPaths) {
+        const destPath = localJoin(targetDir, localBasename(lp));
         if (!isInvalidMove(lp, targetDir)) {
           try {
             await renameLocalPath(lp, destPath);
-            const srcSep = lp.includes('\\') ? '\\' : '/';
-            const srcParent = lp.split(srcSep).slice(0, -1).join(srcSep) || srcSep;
+            const srcParent = parentDirectory(lp);
             if (!srcParents.includes(srcParent)) srcParents.push(srcParent);
           } catch (err: any) {
             error = err?.message || String(err);
@@ -437,9 +318,8 @@
       if (srcParents.length > 0) await refreshPreservingState([targetDir, currentPath, ...srcParents]);
       return;
     }
-    const remotes = remotePaths && remotePaths.length > 0 ? remotePaths : (remotePath ? [remotePath] : []);
-    if (remotes.length > 0 && dropSessionId) {
-      await startDownloadDrop(dropSessionId, remotes, targetDir);
+    if (remotePaths.length > 0 && dropSessionId) {
+      await startDownloadDrop(dropSessionId, remotePaths, targetDir);
       await refreshPreservingState([targetDir, currentPath]);
     }
   }
@@ -447,7 +327,7 @@
   function handleDragStartFile(e: DragEvent, node: LocalNode) {
     if (!e.dataTransfer) return;
     e.dataTransfer.effectAllowed = 'copy';
-    const multi = selectedPaths.has(node.path) && selectedPaths.size > 1;
+    const multi = isMultiDrag(selectedPaths, node.path);
     if (multi) {
       e.dataTransfer.setData('text/local-selected-paths', JSON.stringify([...selectedPaths]));
     } else {
@@ -480,26 +360,18 @@
 
   async function handleCtxDelete() {
     if (!ctxMenu.path) return;
-    const name = ctxMenu.path.split(/[\\/]/).pop() || ctxMenu.path;
+    const name = localBasename(ctxMenu.path, ctxMenu.path);
     closeContextMenu();
     await requestDelete(ctxMenu.path, ctxMenu.isDir, name);
   }
 
-  function uniqueName(parentPath: string, base: string): string {
-    const existing = (tree.get(parentPath) || []).map((n) => n.name);
-    let name = base;
-    let i = 1;
-    while (existing.includes(name)) {
-      name = `${base} (${++i})`;
-    }
-    return name;
+  function namesIn(parentPath: string): string[] {
+    return (tree.get(parentPath) || []).map((n) => n.name);
   }
 
   async function handleCtxNewFolder() {
     const parentPath = ctxMenu.isEmptyArea ? currentPath : ctxMenu.path;
-    const sep = parentPath.includes('\\') ? '\\' : '/';
-    const baseName = uniqueName(parentPath, 'New Folder');
-    const dirPath = (parentPath.endsWith(sep) ? parentPath : parentPath + sep) + baseName;
+    const dirPath = localJoin(parentPath, uniqueName(namesIn(parentPath), 'New Folder'));
     try {
       await mkdirLocalPath(dirPath);
     } catch (e: any) {
@@ -519,27 +391,23 @@
     tree = tree;
   }
 
-  function saveColumnPrefs() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ permissions: showPermissions, owner: showOwner, date: showDate }));
-    } catch (_) {}
+  function saveColumns() {
+    persistColumns(localStorage, STORAGE_KEYS, { permissions: showPermissions, owner: showOwner, date: showDate });
   }
 
-  function togglePermissions() { showPermissions = !showPermissions; saveColumnPrefs(); }
-  function toggleOwner() { showOwner = !showOwner; saveColumnPrefs(); }
-  function toggleDate() { showDate = !showDate; saveColumnPrefs(); }
+  function togglePermissions() { showPermissions = !showPermissions; saveColumns(); }
+  function toggleOwner() { showOwner = !showOwner; saveColumns(); }
+  function toggleDate() { showDate = !showDate; saveColumns(); }
   function toggleHidden() {
     showHidden = !showHidden;
-    try { localStorage.setItem(STORAGE_HIDDEN, showHidden ? '1' : '0'); } catch (_) {}
+    saveHiddenPref(localStorage, STORAGE_KEYS, showHidden);
     refreshPreservingState([...expanded, currentPath]);
   }
 
   async function handleCtxNewFile() {
     if (!ctxMenu.isDir) return;
     const parentPath = ctxMenu.path;
-    const sep = parentPath.includes('\\') ? '\\' : '/';
-    const baseName = uniqueName(parentPath, 'New File');
-    const filePath = (parentPath.endsWith(sep) ? parentPath : parentPath + sep) + baseName;
+    const filePath = localJoin(parentPath, uniqueName(namesIn(parentPath), 'New File'));
     try {
       await createLocalFile(filePath);
     } catch (e: any) {
@@ -567,10 +435,8 @@
       editingNewPath = null;
       return;
     }
-    const sep = oldPath.includes('\\') ? '\\' : '/';
-    const lastSep = Math.max(oldPath.lastIndexOf(sep), oldPath.lastIndexOf('/'));
-    const parent = lastSep > 0 ? oldPath.substring(0, lastSep) : homeDir;
-    const newFullPath = (parent.endsWith(sep) ? parent : parent + sep) + newName.trim();
+    const parent = parentDirectory(oldPath);
+    const newFullPath = localJoin(parent, newName.trim());
     if (newFullPath === oldPath) {
       editingNewPath = null;
       return;
@@ -590,6 +456,8 @@
   function handleRenameCancel() {
     editingNewPath = null;
   }
+
+  $: deletePrompt = describeDelete(deleteConfirm);
 
   $: toolbarItems = buildFilePanelToolbarItems({
     showPermissions,
@@ -614,26 +482,16 @@
   class:internal-drop-active={internalDragHighlight(dragOverPath, currentPath) === 'pane'}
   bind:this={rootEl}
 >
-  <div class="panel-header">
-    <span>Local Files</span>
-    <OverflowToolbar items={toolbarItems} />
-  </div>
-  <div class="path-bar">
-    <input
-      bind:this={pathInputEl}
-      bind:value={pathInput}
-      on:keydown={(e) => e.key === 'Enter' && handlePathSubmit()}
-      on:blur={() => pathInput = currentPath}
-      placeholder="C:\"
-    />
-  </div>
-
-  {#if error}
-    <div class="tree-error">
-      <span class="tree-error-msg">{error}</span>
-      <button class="tree-error-close" title="Dismiss" on:click={() => (error = '')}><X size={12} /></button>
-    </div>
-  {/if}
+  <FilePaneHeader
+    bind:this={header}
+    title="Local Files"
+    {toolbarItems}
+    {currentPath}
+    {error}
+    placeholder={'C:\\'}
+    on:navigate={(e) => handlePathSubmit(e.detail)}
+    on:dismissError={() => (error = '')}
+  />
 
   <div
     class="tree-body"
@@ -692,142 +550,13 @@
 
   <ConfirmDialog
     show={deleteConfirm.show}
-    title={deleteConfirm.pathsToDelete.length > 1 || deleteConfirm.childCount > 0 ? 'Delete items?' : 'Delete?'}
-    message={deleteConfirm.pathsToDelete.length > 0
-      ? `You are deleting ${deleteConfirm.pathsToDelete.length} item(s). This action cannot be undone.`
-      : deleteConfirm.childCount > 0
-        ? `You are deleting "${deleteConfirm.name}" and ${deleteConfirm.childCount} item(s) inside. This action cannot be undone.`
-        : `Delete "${deleteConfirm.name}"?`}
-    critical={deleteConfirm.pathsToDelete.length > 1 || deleteConfirm.childCount > 0}
-    requireCheckbox={deleteConfirm.pathsToDelete.length > 1 || deleteConfirm.childCount > 0}
+    title={deletePrompt.title}
+    message={deletePrompt.message}
+    critical={deletePrompt.critical}
+    requireCheckbox={deletePrompt.requireCheckbox}
     checkboxLabel="I understand"
     confirmLabel="Delete"
     on:confirm={confirmDelete}
     on:cancel={cancelDelete}
   />
 </div>
-
-<style>
-  .file-tree {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .path-bar {
-    padding: 2px 8px;
-    border-bottom: 1px solid var(--border-color);
-  }
-
-  .path-bar input {
-    width: 100%;
-    padding: 4px 6px;
-    font-size: 11px;
-    color: var(--text-primary);
-    background: var(--bg-secondary);
-    border: 1px solid transparent;
-    border-radius: 4px;
-    outline: none;
-  }
-
-  .path-bar input:focus {
-    border-color: var(--accent);
-  }
-
-  .parent-node {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    cursor: pointer;
-    font-size: 12px;
-    user-select: none;
-    transition: background 0.1s;
-  }
-
-  .parent-node:hover {
-    background: var(--bg-hover);
-  }
-
-  .parent-node .node-icon {
-    display: inline-flex;
-    flex-shrink: 0;
-    color: var(--text-secondary);
-  }
-
-  .parent-node .node-name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .tree-error {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    font-size: 11px;
-    color: var(--danger);
-    background: rgba(211, 47, 47, 0.1);
-    border-bottom: 1px solid var(--border-color);
-  }
-
-  .tree-error-msg {
-    flex: 1;
-    min-width: 0;
-    word-break: break-word;
-  }
-
-  .tree-error-close {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2px;
-    color: var(--danger);
-    background: transparent;
-    border: none;
-    border-radius: 3px;
-    cursor: pointer;
-  }
-
-  .tree-error-close:hover {
-    background: rgba(211, 47, 47, 0.18);
-  }
-
-  .tree-body {
-    overflow-y: auto;
-    flex: 1;
-    padding: 4px 0;
-  }
-
-  /* Drag-over highlight applied by osFileDrop's router while an OS file is
-     dragged over this pane (see registerOsDropZone). */
-  .file-tree:global(.os-drop-active) {
-    outline: 2px dashed var(--accent);
-    outline-offset: -3px;
-    background: rgba(100, 150, 255, 0.08);
-  }
-
-  /* Same fill for an internal pane-to-pane drag whose drop would land in this
-     pane's current directory (cursor over a file row or empty space). Driven by
-     our own drag state rather than the OS router, which only sees drags carrying
-     real OS files — a distinction WebView2 blurred and WebKitGTK does not. */
-  .file-tree.internal-drop-active {
-    outline: 2px dashed var(--accent);
-    outline-offset: -3px;
-    background: rgba(100, 150, 255, 0.08);
-  }
-
-  /* Folder row highlighted when an OS file is dragged directly over it (drop
-     targets that folder rather than the current directory). */
-  :global(.node-row.os-drop-active) {
-    background: rgba(100, 150, 255, 0.22);
-    outline: 1px solid var(--accent);
-    outline-offset: -1px;
-  }
-
-</style>

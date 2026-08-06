@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build dev clean rebuild portable install check test test-go test-frontend coverage lint sec deps-linux require-wails
+.PHONY: help build dev clean rebuild portable install check gates test test-go test-frontend typecheck-frontend coverage mutate lint sec deps-linux require-wails
 
 # ---------------------------------------------------------------------------
 # Host detection
@@ -75,8 +75,10 @@ help:
 	@echo portable - build + bundle the WebView2 runtime, Windows only
 	@echo install - install frontend dependencies
 	@echo check - architecture gates, layers and boundaries and budgets
+	@echo gates - every pre-merge gate CI enforces, in CI order
 	@echo test - check + Go and frontend test suites
 	@echo coverage - per-package coverage floors for the plugin stack
+	@echo mutate - mutation testing, slow, runs nightly in CI
 	@echo lint - staticcheck
 	@echo sec - govulncheck + gosec
 	@echo deps-linux - print the system packages a Linux build needs
@@ -139,14 +141,34 @@ check:
 
 test: check test-go test-frontend
 
+# gates is what CI enforces, in the order CI runs it, so a green local run means
+# a green pipeline. Keep it in step with .github/workflows/test.yml; `test` is
+# the shorter loop for while you work.
+#
+# `sec` is not here on purpose: govulncheck and gosec download their own
+# toolchains and the advisory database, which is a slow network round trip to
+# put in front of every local run. security.yml gates on zero findings from
+# both.
+gates: check typecheck-frontend test-go test-frontend coverage lint
+
 test-go:
 	go test ./... -race -count=1
 
 test-frontend:
 	cd frontend && npm test
 
+typecheck-frontend:
+	cd frontend && npm run check
+
 coverage:
 	go run ./scripts/coverage
+
+# Not part of `gates`: a mutation run reruns a test suite once per mutant and
+# takes tens of minutes. .github/workflows/mutation.yml runs it nightly; this
+# target is for reproducing a nightly failure locally.
+mutate:
+	go run ./scripts/mutate
+	cd frontend && npm run mutate
 
 # Both targets type-check the whole module, which needs frontend/dist to exist
 # for the go:embed in main.go. Run `make install && cd frontend && npm run build`

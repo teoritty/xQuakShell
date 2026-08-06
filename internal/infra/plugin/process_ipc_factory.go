@@ -19,7 +19,7 @@ func (h *ProcessHost) newConn(plugin domainplugin.InstalledPlugin, dataDir, sess
 	netProxy := capability.NewNetProxy(plugin.Manifest.ID, plugin.Manifest.Capabilities.Network)
 	tunnelDial := capability.NewTunnelDialProxy(plugin.Manifest.ID, plugin.Manifest.Capabilities.Tunnel, h.cfg.Tunnel)
 	tunnelLocal := capability.NewTunnelLocalProxy(plugin.Manifest.ID, h.cfg.Tunnel, tunnelDial)
-	// One ChannelProxy per plugin process (ADR-011 Stage 4b): its lifetime is tied to this
+	// One ChannelProxy per plugin process (ADR-011): its lifetime is tied to this
 	// managedProcess, not to any session, so a plugin crash tears down exactly its own channels.
 	// The resolver is built here and not in the composition root because this is where the
 	// process's manifest and sessionID are in scope — everything a purpose backend needs beyond
