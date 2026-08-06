@@ -28,15 +28,3 @@ func (PortAdapter) ParseReg(content string) ([]domain.PuTTYSession, error) {
 func (PortAdapter) PPKToPEM(ppkContent []byte, passphrase string) ([]byte, string, error) {
 	return PPKToPEM(ppkContent, passphrase)
 }
-
-// PuttySessionToConnection converts a domain PuTTY session to a vault connection.
-func PuttySessionToConnection(s domain.PuTTYSession, folderID string, order int) domain.Connection {
-	p := PuTTYSession{
-		Name:     s.Name,
-		HostName: s.HostName,
-		Port:     s.Port,
-		UserName: s.UserName,
-		Protocol: s.Protocol,
-	}
-	return p.ToConnection(folderID, order)
-}

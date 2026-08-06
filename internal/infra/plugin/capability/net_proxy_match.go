@@ -26,17 +26,6 @@ func shouldAllowResolvedIP(allowArbitrary, allowPrivateNetworks bool, patternHos
 	return domainplugin.AllowResolvedDialIP(patternHost, ip)
 }
 
-func matchNetworkPattern(pattern, host string, port int) bool {
-	parsed, err := domainplugin.ParseNetworkPattern(pattern)
-	if err != nil {
-		return false
-	}
-	if !strings.EqualFold(parsed.Host, host) {
-		return false
-	}
-	return matchPortSpec(parsed.PortSpec, port)
-}
-
 // matchingPatternHost returns the host literal from the first matching outbound pattern.
 func matchingPatternHost(patterns []string, host string, port int) (string, bool) {
 	for _, pattern := range patterns {
