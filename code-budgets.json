@@ -39,6 +39,38 @@
   },
   "baseline": {
     "files": {
+      "frontend/src/lib/AuditLogView.svelte": {
+        "codeLines": 476,
+        "scriptCodeLines": 98
+      },
+      "frontend/src/lib/ConnectionDetails.svelte": {
+        "codeLines": 310,
+        "scriptCodeLines": 244
+      },
+      "frontend/src/lib/FileTree.svelte": {
+        "codeLines": 545,
+        "scriptCodeLines": 450
+      },
+      "frontend/src/lib/LocalFileTree.svelte": {
+        "codeLines": 498,
+        "scriptCodeLines": 415
+      },
+      "frontend/src/lib/PluginSettingsPanel.svelte": {
+        "codeLines": 1193,
+        "scriptCodeLines": 515
+      },
+      "frontend/src/lib/RemoteTree.svelte": {
+        "codeLines": 672,
+        "scriptCodeLines": 559
+      },
+      "frontend/src/lib/ScriptsDialog.svelte": {
+        "codeLines": 548,
+        "scriptCodeLines": 220
+      },
+      "frontend/src/lib/SettingsDialog.svelte": {
+        "codeLines": 983,
+        "scriptCodeLines": 311
+      },
       "internal/domain/plugin/manifest_capabilities.go": {
         "codeLines": 413
       },

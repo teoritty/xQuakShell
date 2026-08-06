@@ -26,6 +26,9 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripComments } from './architecture/measure';
+import { loadBudgetConfig } from './architecture/budgetConfig';
+import { checkFrontendFileBudgets } from './architecture/budgets';
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
@@ -103,24 +106,6 @@ const WINDOW_BRIDGE_ALLOWLIST: Set<string> = new Set([
   join('lib', 'osFileDrop.ts'),
   join('stores', 'pluginState.ts'),
 ]);
-
-function stripComments(src: string): string {
-  // Strip /* ... */ block comments and // line comments so comment-only mentions
-  // (e.g. backend/gateway.ts's header referencing `window.go.main.App`) don't
-  // false-positive the scan.
-  //
-  // The block strip runs to a fixpoint: removing one match splices its
-  // neighbours together, and `/` + `*` on either side of the removal re-forms
-  // an opening delimiter a single pass would miss. Line comments are anchored
-  // to a line end and cannot re-form, so one pass is enough there.
-  let prev: string;
-  let out = src;
-  do {
-    prev = out;
-    out = out.replace(/\/\*[\s\S]*?\*\//g, '');
-  } while (out !== prev);
-  return out.replace(/(^|[^:])\/\/.*$/gm, '$1');
-}
 
 const WINDOW_BRIDGE_RE = /\(window\s+as\s+any\)\s*\.\s*(go|runtime)\b|\bwindow\.(go|runtime)\b/;
 
@@ -219,8 +204,15 @@ function checkWindowBridgeUsage(): void {
   }
 }
 
+// --- Rule 4 ---
+function checkFileBudgets(): void {
+  const issues = checkFrontendFileBudgets(loadBudgetConfig());
+  assert(issues.length === 0, ['size budgets:', ...issues].join('\n  '));
+}
+
 checkApiAppStateImports();
 checkActionsGetGateway();
 checkWindowBridgeUsage();
+checkFileBudgets();
 
 console.log('architecture.test passed');
