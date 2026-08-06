@@ -104,7 +104,10 @@ func (s *EmbedTunnelService) HandlePluginTunnelFrame(ctx context.Context, plugin
 	return s.RouteTunnelFrameFromPlugin(ctx, sessionID, tunnelID, data)
 }
 
-// HandlePluginTunnelClose closes a tunnel for the session.
+// HandlePluginTunnelClose checks the plugin owns the session before touching
+// the tunnel. Without assertPluginSession a plugin could tear down another
+// plugin's tunnel by guessing a session id, which is why the check runs first
+// and unconditionally.
 func (s *EmbedTunnelService) HandlePluginTunnelClose(_ context.Context, pluginID, sessionID, tunnelID string) error {
 	if err := s.assertPluginSession(pluginID, sessionID); err != nil {
 		return err

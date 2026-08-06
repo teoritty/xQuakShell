@@ -7,7 +7,10 @@ type TerminalSettings struct {
 	FontColor  string `json:"fontColor"`
 }
 
-// DefaultTerminalSettings returns sensible terminal defaults.
+// DefaultTerminalSettings supplies what a profile starts with before the user
+// has saved anything. The font stack is ordered by what a Windows install is
+// likeliest to already have, ending in the generic monospace family so the
+// terminal still renders on a machine with none of the named fonts.
 func DefaultTerminalSettings() TerminalSettings {
 	return TerminalSettings{
 		FontFamily: "Cascadia Code, Consolas, Courier New, monospace",

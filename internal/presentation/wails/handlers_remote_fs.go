@@ -104,7 +104,10 @@ func (a *AppAPI) ChownRecursive(sessionID, remotePath string, uid, gid int, appl
 
 // --- Known Hosts ---
 
-// GetKnownHosts returns all known host entries.
+// GetKnownHosts feeds the known-hosts manager. A missing host key service is
+// an error rather than an empty list: a wiring mistake must not reach the user
+// looking like "you have trusted nothing", which invites re-trusting a host
+// that was already pinned.
 func (a *AppAPI) GetKnownHosts() ([]KnownHostDTO, error) {
 	if a.hostKeys == nil {
 		return nil, fmt.Errorf("host key service unavailable")

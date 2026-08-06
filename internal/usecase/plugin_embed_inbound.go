@@ -73,7 +73,9 @@ func (p *PluginEmbedInbound) TunnelFrame(ctx context.Context, pluginID, sessionI
 	return h.HandlePluginTunnelFrame(ctx, pluginID, sessionID, tunnelID, dataBase64, eof)
 }
 
-// TunnelClose closes a tunnel for a session.
+// TunnelClose fails when no embed handler is wired instead of returning nil.
+// A close that silently did nothing would leave the tunnel open while the
+// plugin believes it is gone.
 func (p *PluginEmbedInbound) TunnelClose(ctx context.Context, pluginID, sessionID, tunnelID string) error {
 	h, err := p.handlerOrErr()
 	if err != nil {

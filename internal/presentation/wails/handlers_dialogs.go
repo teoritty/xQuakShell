@@ -70,7 +70,9 @@ func (p *DialogPresenter) DialogOpened(d domainplugin.Dialog) {
 	p.emit(EventPluginDialogOpened, dialogToDTO(d))
 }
 
-// DialogClosed hides it.
+// DialogClosed ends the interaction, unlike DialogError, which leaves the
+// dialog up so the user can correct their input. Anything typed is gone by the
+// time this arrives.
 func (p *DialogPresenter) DialogClosed(dialogID string) {
 	p.emit(EventPluginDialogClosed, DialogClosedPayload{DialogID: dialogID})
 }

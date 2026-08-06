@@ -221,3 +221,63 @@ func sortedFileKeys[V any](m map[string]V) []string {
 	sort.Strings(keys)
 	return keys
 }
+
+// goTestFiles lists the test files under the budget scan roots. Tests carry no
+// size budget, but the comment rules apply to them: a stale process note
+// misleads a reader wherever it sits.
+func goTestFiles(repoRoot string) ([]string, error) {
+	var files []string
+	for _, root := range budgetScanRoots {
+		found, err := testFilesUnder(repoRoot, root)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, found...)
+	}
+	sort.Strings(files)
+	return files, nil
+}
+
+func testFilesUnder(repoRoot, root string) ([]string, error) {
+	isTest := func(name string) bool { return strings.HasSuffix(name, "_test.go") }
+
+	if root == "." {
+		entries, err := os.ReadDir(repoRoot)
+		if err != nil {
+			return nil, fmt.Errorf("read repo root: %w", err)
+		}
+		var files []string
+		for _, entry := range entries {
+			if !entry.IsDir() && isTest(entry.Name()) {
+				files = append(files, entry.Name())
+			}
+		}
+		return files, nil
+	}
+
+	var files []string
+	err := filepath.WalkDir(filepath.Join(repoRoot, filepath.FromSlash(root)), func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			if budgetPrunedDirs[d.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !isTest(d.Name()) {
+			return nil
+		}
+		rel, err := filepath.Rel(repoRoot, path)
+		if err != nil {
+			return err
+		}
+		files = append(files, filepathToSlash(rel))
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("scan %s: %w", root, err)
+	}
+	return files, nil
+}

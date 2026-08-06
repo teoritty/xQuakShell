@@ -30,6 +30,7 @@ import { stripComments } from './architecture/measure';
 import { loadBudgetConfig } from './architecture/budgetConfig';
 import { checkFrontendFileBudgets } from './architecture/budgets';
 import { checkFrontendFuncBudgets } from './architecture/funcBudgets';
+import { checkComments } from './architecture/comments';
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
@@ -211,6 +212,12 @@ function checkFileBudgets(): void {
   assert(issues.length === 0, ['size budgets:', ...issues].join('\n  '));
 }
 
+// --- Rule 6 ---
+function checkCommentRules(): void {
+  const issues = checkComments();
+  assert(issues.length === 0, ['comment rules:', ...issues].join('\n  '));
+}
+
 // --- Rule 5 ---
 function checkFuncBudgets(): void {
   const issues = checkFrontendFuncBudgets(loadBudgetConfig());
@@ -222,5 +229,6 @@ checkActionsGetGateway();
 checkWindowBridgeUsage();
 checkFileBudgets();
 checkFuncBudgets();
+checkCommentRules();
 
 console.log('architecture.test passed');

@@ -32,7 +32,8 @@ type repoFile struct {
 	Repositories []domainplugin.GitHubRepository `json:"repositories"`
 }
 
-// List returns all registered repositories.
+// List reads the registry under a read lock, so it can never observe the
+// half-written slice a concurrent Add or Remove is in the middle of saving.
 func (s *FileGitHubRepositoryStorage) List(_ context.Context) ([]domainplugin.GitHubRepository, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -57,7 +58,10 @@ func (s *FileGitHubRepositoryStorage) Add(_ context.Context, repo domainplugin.G
 	return s.saveReposLocked(repos)
 }
 
-// Remove unregisters a repository.
+// Remove filters the URL out and rewrites the file, succeeding even when it
+// was not registered. Removal is idempotent on purpose: the caller is acting
+// on a user's request to be rid of a repository, and reporting "not found" for
+// a state they already wanted is noise, not information.
 func (s *FileGitHubRepositoryStorage) Remove(_ context.Context, repoURL string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

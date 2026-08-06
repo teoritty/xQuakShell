@@ -139,7 +139,10 @@ type MenuContribution struct {
 	Items    []string `json:"items"`
 }
 
-// ConnectionProtocolContribution registers a connection protocol.
+// ConnectionProtocolContribution is how a plugin adds a protocol to the
+// connection dialog. Fields drives the form the user fills in, so all of this
+// is untrusted manifest data that manifest validation has to clear before the
+// UI renders any of it.
 type ConnectionProtocolContribution struct {
 	ID          string       `json:"id"`
 	Label       string       `json:"label"`
