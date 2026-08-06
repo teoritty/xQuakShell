@@ -19,6 +19,13 @@
   import OverflowToolbar from './OverflowToolbar.svelte';
   import { buildFilePanelToolbarItems, cycleSortState, type SortKey } from './filePanelToolbar';
   import { refreshesRemotePane, remoteRefreshDirs } from './transferPresentation';
+  import type { SortState } from './fileTree/types';
+  import { formatSize, applySort, sortTree } from './fileTree/sorting';
+  import { selectNode as nextSelection, clearSelection, findNode as findNodeIn } from './fileTree/selection';
+  import { remoteParent, remoteBasename, remoteJoin, normalizeRemotePathInput, localJoin } from './fileTree/paths';
+  import { readDragPayload, isMultiDrag } from './fileTree/dragPayload';
+  import { uniqueName } from './fileTree/uniqueName';
+  import { describeDelete } from './fileTree/deletePrompt';
   import { Loader2, ChevronUp, X } from 'lucide-svelte';
 
   const STORAGE_KEY = 'filetree-show-columns';
@@ -95,7 +102,7 @@
     try {
       const nodes = await listPath(sessionId, path);
       rawTree.set(path, nodes);
-      tree.set(path, applySort(nodes));
+      tree.set(path, applySort(nodes, sortState()));
       tree = tree;
     } catch (e: any) {
       error = e?.message || String(e);
@@ -106,7 +113,7 @@
   }
 
   async function goUp() {
-    const parent = currentPath.replace(/\/[^/]+$/, '') || '/';
+    const parent = remoteParent(currentPath);
     if (parent !== currentPath) {
       currentPath = parent;
       await loadDir(currentPath);
@@ -132,24 +139,12 @@
   }
 
   function selectNode(path: string, e?: MouseEvent) {
-    const nodes = tree.get(currentPath) || [];
-    if (e?.ctrlKey || e?.metaKey) {
-      const next = new Set(selectedPaths);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      selectedPaths = next;
-      lastSelectedPath = path;
-    } else if (e?.shiftKey) {
-      const idx = nodes.findIndex((n) => n.path === path);
-      const lastIdx = lastSelectedPath != null ? nodes.findIndex((n) => n.path === lastSelectedPath) : -1;
-      const next = new Set(selectedPaths);
-      const [lo, hi] = lastIdx >= 0 ? (idx < lastIdx ? [idx, lastIdx] : [lastIdx, idx]) : [idx, idx];
-      for (let i = lo; i <= hi; i++) next.add(nodes[i].path);
-      selectedPaths = next;
-    } else {
-      selectedPaths = new Set([path]);
-      lastSelectedPath = path;
-    }
+    ({ selectedPaths, lastSelectedPath } = nextSelection(
+      tree.get(currentPath) || [],
+      { selectedPaths, lastSelectedPath },
+      path,
+      e
+    ));
   }
 
   // This pane owns its selection only while the pointer keeps landing on its own
@@ -159,12 +154,11 @@
     if (selectedPaths.size === 0) return;
     const target = e.target instanceof Element ? e.target : null;
     if (keepsPaneSelection(target, rootEl)) return;
-    selectedPaths = new Set();
-    lastSelectedPath = null;
+    ({ selectedPaths, lastSelectedPath } = clearSelection());
   }
 
   async function navigateInto(path: string) {
-    const node = findNode(path);
+    const node = findNodeIn(tree, path);
     if (!node?.isDir) return;
     currentPath = path;
     expanded.add(path);
@@ -205,53 +199,8 @@
     refreshPreservingState([...remoteRefreshDirs(t.kind, t.refreshDir), currentPath]);
   }
 
-  function formatSize(size: number): string {
-    if (size < 1024) return `${size} B`;
-    if (size < 1048576) return `${(size / 1024).toFixed(1)} KB`;
-    if (size < 1073741824) return `${(size / 1048576).toFixed(1)} MB`;
-    return `${(size / 1073741824).toFixed(1)} GB`;
-  }
-
-  function parseTimestamp(value?: string): number {
-    if (!value) return -1;
-    const ts = Date.parse(value);
-    return Number.isFinite(ts) ? ts : -1;
-  }
-
-  function compareValues(a: number | string, b: number | string): number {
-    if (typeof a === 'string' && typeof b === 'string') return a.localeCompare(b);
-    return Number(a) - Number(b);
-  }
-
-  function sortValue(node: RemoteNode, key: SortKey): number | string {
-    if (key === 'name') return node.name.toLowerCase();
-    if (key === 'size') return node.size ?? 0;
-    if (key === 'modTime') return parseTimestamp(node.modTime);
-    return (node.owner || node.group || '').toLowerCase();
-  }
-
-  function applySort(nodes: RemoteNode[]): RemoteNode[] {
-    const dir = sortDir === 'asc' ? 1 : -1;
-    return [...nodes].sort((a, b) => {
-      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-      if (sortEnabled && sortKey) {
-        const cmp = compareValues(sortValue(a, sortKey), sortValue(b, sortKey));
-        if (cmp !== 0) return cmp * dir;
-      }
-      return a.name.localeCompare(b.name);
-    });
-  }
-
-  function reapplySortToTree() {
-    if (!sortEnabled || !sortKey) {
-      tree = new Map(rawTree);
-      return;
-    }
-    const next = new Map<string, RemoteNode[]>();
-    for (const [path, nodes] of rawTree.entries()) {
-      next.set(path, applySort(nodes));
-    }
-    tree = next;
+  function sortState(): SortState {
+    return { sortEnabled, sortKey, sortDir };
   }
 
   function toggleSort(nextKey: SortKey) {
@@ -259,7 +208,7 @@
       { sortEnabled, sortKey, sortDir },
       nextKey
     ));
-    reapplySortToTree();
+    tree = sortTree(rawTree, sortState());
   }
 
   function handleDragOverPath(e: DragEvent, path: string) {
@@ -288,28 +237,19 @@
     e.stopPropagation();
     dragOverPath = null;
     if (!e.dataTransfer) return;
-    const dropSessionId = e.dataTransfer.getData('text/session-id');
-    const selectedPathsJson = e.dataTransfer.getData('text/selected-paths');
-    const remotePaths = selectedPathsJson
-      ? ((): string[] => { try { return JSON.parse(selectedPathsJson); } catch { return []; } })()
-      : null;
-    const remotePath = remotePaths ? null : e.dataTransfer.getData('text/remote-path') || null;
-    const localPathsJson = e.dataTransfer.getData('text/local-selected-paths');
-    const localPaths = localPathsJson
-      ? ((): string[] => { try { return JSON.parse(localPathsJson); } catch { return []; } })()
-      : null;
-    const localPath = localPaths ? null : e.dataTransfer.getData('text/local-path') || null;
+    const dt = e.dataTransfer;
+    const { sessionId: dropSessionId, remotePaths, localPaths } = readDragPayload((k) => dt.getData(k));
 
-    const remotes = remotePaths && remotePaths.length > 0 ? remotePaths : (remotePath ? [remotePath] : []);
-    if (remotes.length > 0 && dropSessionId === sessionId) {
+    // A remote drag from this same session is a move within the host; one from
+    // another session is not ours to rename, and falls through to the upload path.
+    if (remotePaths.length > 0 && dropSessionId === sessionId) {
       const srcParents: string[] = [];
-      for (const rp of remotes) {
-        const base = rp.split('/').filter(Boolean).pop() || 'item';
-        const destPath = targetDir === '/' ? `/${base}` : `${targetDir}/${base}`;
+      for (const rp of remotePaths) {
+        const destPath = remoteJoin(targetDir, remoteBasename(rp));
         if (!isInvalidMove(rp, targetDir)) {
           try {
             await renamePath(sessionId, rp, destPath);
-            const srcParent = rp.replace(/\/[^/]+$/, '') || '/';
+            const srcParent = remoteParent(rp);
             if (!srcParents.includes(srcParent)) srcParents.push(srcParent);
           } catch (err: any) {
             error = err?.message || String(err);
@@ -319,9 +259,8 @@
       if (srcParents.length > 0) await refreshPreservingState([targetDir, currentPath, ...srcParents]);
       return;
     }
-    const locals = localPaths && localPaths.length > 0 ? localPaths : (localPath ? [localPath] : []);
-    if (locals.length > 0) {
-      await startUploadDrop(sessionId, locals, targetDir);
+    if (localPaths.length > 0) {
+      await startUploadDrop(sessionId, localPaths, targetDir);
       await refreshPreservingState([targetDir, currentPath]);
     }
   }
@@ -329,7 +268,7 @@
   function handleDragStartFile(e: DragEvent, node: RemoteNode) {
     if (!e.dataTransfer) return;
     e.dataTransfer.effectAllowed = 'copy';
-    const multi = selectedPaths.has(node.path) && selectedPaths.size > 1;
+    const multi = isMultiDrag(selectedPaths, node.path);
     if (multi) {
       e.dataTransfer.setData('text/selected-paths', JSON.stringify([...selectedPaths]));
     } else {
@@ -351,20 +290,12 @@
     ctxMenu = { ...ctxMenu, show: false };
   }
 
-  function findNode(path: string): RemoteNode | undefined {
-    for (const [, nodes] of tree) {
-      const n = nodes.find((x) => x.path === path);
-      if (n) return n;
-    }
-    return undefined;
-  }
-
   async function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Delete' && selectedPaths.size > 0) {
       e.preventDefault();
       const paths = Array.from(selectedPaths);
       if (paths.length === 1) {
-        const node = findNode(paths[0]);
+        const node = findNodeIn(tree, paths[0]);
         if (node) await requestDelete(paths[0], node.isDir, node.name);
       } else {
         deleteConfirm = {
@@ -392,7 +323,7 @@
 
   async function handleCtxDelete() {
     if (!ctxMenu.path) return;
-    const name = ctxMenu.path.split('/').pop() || ctxMenu.path;
+    const name = remoteBasename(ctxMenu.path, ctxMenu.path);
     closeContextMenu();
     await requestDelete(ctxMenu.path, ctxMenu.isDir, name);
   }
@@ -411,8 +342,7 @@
         error = e?.message || String(e);
       }
     }
-    selectedPaths = new Set();
-    lastSelectedPath = null;
+    ({ selectedPaths, lastSelectedPath } = clearSelection());
   }
 
   function cancelDelete() {
@@ -434,9 +364,7 @@
       const tempDir = await getTempDir();
       if (!tempDir) throw new Error('Could not get temp directory');
       await downloadFile(sessionId, remotePath, tempDir);
-      const sep = tempDir.includes('\\') ? '\\' : '/';
-      const fileName = remotePath.split('/').pop() || 'file';
-      const localPath = tempDir.endsWith(sep) ? tempDir + fileName : tempDir + sep + fileName;
+      const localPath = localJoin(tempDir, remoteBasename(remotePath, 'file'));
       const settings = await getSettings();
       const editorPath = settings?.externalEditorPath?.trim() || '';
       editingFiles.update((m) => {
@@ -451,19 +379,13 @@
     }
   }
 
-  function uniqueName(parentPath: string, base: string, isDir: boolean): string {
-    const existing = (tree.get(parentPath) || []).map((n) => n.name);
-    let name = base;
-    let i = 1;
-    while (existing.includes(name)) {
-      name = `${base} (${++i})`;
-    }
-    return name;
+  function namesIn(parentPath: string): string[] {
+    return (tree.get(parentPath) || []).map((n) => n.name);
   }
 
   async function handleCtxNewFolder() {
     const parentPath = ctxMenu.isEmptyArea ? currentPath : ctxMenu.path;
-    const baseName = uniqueName(parentPath, 'New Folder', true);
+    const baseName = uniqueName(namesIn(parentPath), 'New Folder');
     try {
       await mkdirPath(sessionId, parentPath, baseName);
     } catch (e: any) {
@@ -479,16 +401,14 @@
     } else {
       await loadDir(currentPath);
     }
-    const newPath = parentPath === '/' ? `/${baseName}` : `${parentPath}/${baseName}`;
-    editingNewPath = newPath;
+    editingNewPath = remoteJoin(parentPath, baseName);
     tree = tree;
   }
 
   async function handlePathSubmit() {
     const trimmed = pathInput.trim();
     if (!trimmed) return;
-    const normalized = trimmed.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '') || '/';
-    const nextPath = normalized.startsWith('/') ? normalized : `/${normalized}`;
+    const nextPath = normalizeRemotePathInput(trimmed);
     const prevPath = currentPath;
     // Fetch first: only commit navigation once the listing succeeds. A
     // non-existent directory must leave the current view untouched. listPath
@@ -498,7 +418,7 @@
     try {
       const nodes = await listPath(sessionId, nextPath, { rethrow: true, silence: () => true });
       rawTree.set(nextPath, nodes);
-      tree.set(nextPath, applySort(nodes));
+      tree.set(nextPath, applySort(nodes, sortState()));
       currentPath = nextPath;
       if (!expanded.has(currentPath)) {
         expanded.add(currentPath);
@@ -539,7 +459,7 @@
   async function handleCtxNewFile() {
     if (!ctxMenu.isDir) return;
     const parentPath = ctxMenu.path;
-    const baseName = uniqueName(parentPath, 'New File', false);
+    const baseName = uniqueName(namesIn(parentPath), 'New File');
     try {
       await createFilePath(sessionId, parentPath, baseName);
     } catch (e: any) {
@@ -559,7 +479,7 @@
       closeContextMenu();
       return;
     }
-    const node = findNode(ctxMenu.path);
+    const node = findNodeIn(tree, ctxMenu.path);
     permDialog = { show: true, path: ctxMenu.path, isDir: ctxMenu.isDir, mode: node?.mode || '' };
     closeContextMenu();
   }
@@ -578,8 +498,8 @@
       editingNewPath = null;
       return;
     }
-    const parent = oldPath.replace(/\/[^/]+$/, '') || '/';
-    const newPath = parent === '/' ? `/${newName.trim()}` : `${parent}/${newName.trim()}`;
+    const parent = remoteParent(oldPath);
+    const newPath = remoteJoin(parent, newName.trim());
     if (newPath === oldPath) {
       editingNewPath = null;
       return;
@@ -599,6 +519,8 @@
   function handleRenameCancel() {
     editingNewPath = null;
   }
+
+  $: deletePrompt = describeDelete(deleteConfirm);
 
   $: toolbarItems = buildFilePanelToolbarItems({
     showPermissions,
@@ -719,14 +641,10 @@
 
   <ConfirmDialog
     show={deleteConfirm.show}
-    title={deleteConfirm.pathsToDelete.length > 1 || deleteConfirm.childCount > 0 ? 'Delete items?' : 'Delete?'}
-    message={deleteConfirm.pathsToDelete.length > 0
-      ? `You are deleting ${deleteConfirm.pathsToDelete.length} item(s). This action cannot be undone.`
-      : deleteConfirm.childCount > 0
-        ? `You are deleting "${deleteConfirm.name}" and ${deleteConfirm.childCount} item(s) inside. This action cannot be undone.`
-        : `Delete "${deleteConfirm.name}"?`}
-    critical={deleteConfirm.pathsToDelete.length > 1 || deleteConfirm.childCount > 0}
-    requireCheckbox={deleteConfirm.pathsToDelete.length > 1 || deleteConfirm.childCount > 0}
+    title={deletePrompt.title}
+    message={deletePrompt.message}
+    critical={deletePrompt.critical}
+    requireCheckbox={deletePrompt.requireCheckbox}
     checkboxLabel="I understand"
     confirmLabel="Delete"
     on:confirm={confirmDelete}
