@@ -81,7 +81,7 @@ func (a *AppAPI) InvokeDiscoveryAction(connectionId string, pluginId string, nod
 	// No timeout is imposed here: the invoker bounds the plugin call with the ADR's 5 s ack timeout,
 	// and a second, shorter deadline layered on top would only make this layer the one that decides
 	// how long an acknowledgement may take.
-	return a.discovery.InvokeAction(context.Background(), connectionId, pluginId, nodeIds, actionId)
+	return a.discovery.InvokeAction(a.reqCtx(), connectionId, pluginId, nodeIds, actionId)
 }
 
 // EmitDiscoveryTreeChanged tells the frontend that one branch of a connection's tree changed.

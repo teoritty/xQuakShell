@@ -33,7 +33,7 @@ func (a *AppAPI) PingPlugin(pluginID string) (PluginPingResultDTO, error) {
 	if a.plugins == nil {
 		return PluginPingResultDTO{}, errPluginManagerUnavailable
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), pluginCallTimeout)
+	ctx, cancel := context.WithTimeout(a.reqCtx(), pluginCallTimeout)
 	defer cancel()
 
 	result, err := a.plugins.Ping(ctx, pluginID)
@@ -48,7 +48,7 @@ func (a *AppAPI) StartPlugin(pluginID string) error {
 	if a.plugins == nil {
 		return errPluginManagerUnavailable
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), pluginCallTimeout)
+	ctx, cancel := context.WithTimeout(a.reqCtx(), pluginCallTimeout)
 	defer cancel()
 	return a.plugins.StartPluginManual(ctx, pluginID)
 }
@@ -58,7 +58,7 @@ func (a *AppAPI) SetPluginEnabled(pluginID string, enabled bool) error {
 	if a.plugins == nil {
 		return errPluginManagerUnavailable
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), pluginCallTimeout)
+	ctx, cancel := context.WithTimeout(a.reqCtx(), pluginCallTimeout)
 	defer cancel()
 	if err := a.plugins.SetPluginEnabled(ctx, pluginID, enabled); err != nil {
 		return err

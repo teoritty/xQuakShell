@@ -114,7 +114,7 @@ func (a *AppAPI) ExecutePluginCommand(pluginID, commandID string, args json.RawM
 	if a.plugins == nil {
 		return nil, errPluginManagerUnavailable
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), pluginCallTimeout)
+	ctx, cancel := context.WithTimeout(a.reqCtx(), pluginCallTimeout)
 	defer cancel()
 	return a.plugins.ExecuteCommand(ctx, pluginID, commandID, args)
 }

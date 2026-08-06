@@ -54,7 +54,7 @@ func (a *AppAPI) DescribeDiscoveryNode(connectionId string, pluginId string, nod
 	if strings.TrimSpace(connectionId) == "" || strings.TrimSpace(pluginId) == "" {
 		return NodeDetailsDTO{}, errNodeDetailsUnavailable
 	}
-	details, err := a.nodeDetails.Describe(context.Background(), connectionId, pluginId, nodeId)
+	details, err := a.nodeDetails.Describe(a.reqCtx(), connectionId, pluginId, nodeId)
 	if err != nil {
 		return NodeDetailsDTO{}, err
 	}
@@ -73,7 +73,7 @@ func (a *AppAPI) ApplyDiscoveryNodeDetails(connectionId string, pluginId string,
 	if values == nil {
 		values = map[string]string{}
 	}
-	return a.nodeDetails.Apply(context.Background(), connectionId, pluginId, nodeId, values)
+	return a.nodeDetails.Apply(a.reqCtx(), connectionId, pluginId, nodeId, values)
 }
 
 // EmitNodeDetailsChanged announces that a plugin pushed a newer panel for a node.

@@ -29,7 +29,7 @@ func (a *AppAPI) RelayPluginViewMessage(token string, message json.RawMessage) e
 	if a.viewRelay == nil {
 		return errPluginManagerUnavailable
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), pluginCallTimeout)
+	ctx, cancel := context.WithTimeout(a.reqCtx(), pluginCallTimeout)
 	defer cancel()
 	return a.viewRelay.RelayMessage(ctx, token, message)
 }

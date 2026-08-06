@@ -1,7 +1,6 @@
 package wails
 
 import (
-	"context"
 	"encoding/base64"
 	"fmt"
 )
@@ -9,7 +8,7 @@ import (
 // --- Folders ---
 
 func (a *AppAPI) GetFolders() ([]FolderDTO, error) {
-	fs, err := a.vaultSvc.GetAllFolders(context.Background())
+	fs, err := a.vaultSvc.GetAllFolders(a.reqCtx())
 	if err != nil {
 		return nil, err
 	}
@@ -18,20 +17,20 @@ func (a *AppAPI) GetFolders() ([]FolderDTO, error) {
 
 func (a *AppAPI) SaveFolder(dto FolderDTO) (FolderDTO, error) {
 	f := DTOToFolder(dto)
-	if err := a.vaultSvc.SaveFolder(context.Background(), &f); err != nil {
+	if err := a.vaultSvc.SaveFolder(a.reqCtx(), &f); err != nil {
 		return FolderDTO{}, err
 	}
 	return FolderToDTO(f), nil
 }
 
 func (a *AppAPI) DeleteFolder(id string) error {
-	return a.vaultSvc.DeleteFolder(context.Background(), id)
+	return a.vaultSvc.DeleteFolder(a.reqCtx(), id)
 }
 
 // --- Connections ---
 
 func (a *AppAPI) GetAllConnections() ([]ConnectionDTO, error) {
-	cs, err := a.vaultSvc.GetAllConnections(context.Background())
+	cs, err := a.vaultSvc.GetAllConnections(a.reqCtx())
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +39,7 @@ func (a *AppAPI) GetAllConnections() ([]ConnectionDTO, error) {
 
 func (a *AppAPI) SaveConnection(dto ConnectionDTO) (ConnectionDTO, error) {
 	c := DTOToConnection(dto)
-	saved, err := a.vaultSvc.SaveConnection(context.Background(), &c, cloneStringMap(dto.PluginFields))
+	saved, err := a.vaultSvc.SaveConnection(a.reqCtx(), &c, cloneStringMap(dto.PluginFields))
 	if err != nil {
 		return ConnectionDTO{}, err
 	}
@@ -48,39 +47,39 @@ func (a *AppAPI) SaveConnection(dto ConnectionDTO) (ConnectionDTO, error) {
 }
 
 func (a *AppAPI) DeleteConnection(id string) error {
-	return a.vaultSvc.DeleteConnection(context.Background(), id)
+	return a.vaultSvc.DeleteConnection(a.reqCtx(), id)
 }
 
 func (a *AppAPI) MoveConnections(connectionIDs []string, targetFolderID string) error {
-	return a.vaultSvc.MoveConnections(context.Background(), connectionIDs, targetFolderID)
+	return a.vaultSvc.MoveConnections(a.reqCtx(), connectionIDs, targetFolderID)
 }
 
 func (a *AppAPI) MoveFolder(folderID, targetParentID string) error {
-	return a.vaultSvc.MoveFolder(context.Background(), folderID, targetParentID)
+	return a.vaultSvc.MoveFolder(a.reqCtx(), folderID, targetParentID)
 }
 
 func (a *AppAPI) ReorderConnections(connectionIDs []string, folderID string) error {
-	return a.vaultSvc.ReorderConnections(context.Background(), connectionIDs, folderID)
+	return a.vaultSvc.ReorderConnections(a.reqCtx(), connectionIDs, folderID)
 }
 
 func (a *AppAPI) ReorderFolders(folderIDs []string, parentID string) error {
-	return a.vaultSvc.ReorderFolders(context.Background(), folderIDs, parentID)
+	return a.vaultSvc.ReorderFolders(a.reqCtx(), folderIDs, parentID)
 }
 
 // --- Passwords ---
 
 func (a *AppAPI) ImportPassword(password, label string) (string, error) {
-	return a.vaultSvc.ImportPassword(context.Background(), []byte(password), label)
+	return a.vaultSvc.ImportPassword(a.reqCtx(), []byte(password), label)
 }
 
 func (a *AppAPI) DeletePassword(id string) error {
-	return a.vaultSvc.DeletePassword(context.Background(), id)
+	return a.vaultSvc.DeletePassword(a.reqCtx(), id)
 }
 
 // --- Identities ---
 
 func (a *AppAPI) GetIdentities() ([]IdentityDTO, error) {
-	ids, err := a.vaultSvc.GetAllIdentities(context.Background())
+	ids, err := a.vaultSvc.GetAllIdentities(a.reqCtx())
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +91,7 @@ func (a *AppAPI) ImportIdentity(pemBase64, comment string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("decode pem base64: %w", err)
 	}
-	identity, err := a.vaultSvc.ImportIdentity(context.Background(), pemData, comment)
+	identity, err := a.vaultSvc.ImportIdentity(a.reqCtx(), pemData, comment)
 	if err != nil {
 		return "", err
 	}
@@ -107,7 +106,7 @@ func (a *AppAPI) ImportPuTTYPPK(ppkBase64, passphrase string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("decode ppk base64: %w", err)
 	}
-	return a.puttyImport.ImportPPK(context.Background(), ppkData, passphrase)
+	return a.puttyImport.ImportPPK(a.reqCtx(), ppkData, passphrase)
 }
 
 func (a *AppAPI) ImportPuTTYReg(regContent string) ([]PuTTYSessionDTO, error) {
@@ -125,7 +124,7 @@ func (a *AppAPI) ImportPuTTYRegAsConnections(regContent, folderID string) ([]Con
 	if a.puttyImport == nil {
 		return nil, fmt.Errorf("putty import unavailable")
 	}
-	connections, err := a.puttyImport.ImportRegAsConnections(context.Background(), regContent, folderID)
+	connections, err := a.puttyImport.ImportRegAsConnections(a.reqCtx(), regContent, folderID)
 	if err != nil {
 		return nil, err
 	}

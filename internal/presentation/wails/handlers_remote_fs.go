@@ -1,7 +1,6 @@
 package wails
 
 import (
-	"context"
 	"fmt"
 	"os"
 
@@ -124,7 +123,7 @@ func (a *AppAPI) AddKnownHost(host, authorizedKey string) error {
 	if a.hostKeys == nil {
 		return fmt.Errorf("host key service unavailable")
 	}
-	return a.hostKeys.Add(context.Background(), host, authorizedKey)
+	return a.hostKeys.Add(a.reqCtx(), host, authorizedKey)
 }
 
 // RemoveKnownHost removes a known host entry by host pattern.
@@ -132,5 +131,5 @@ func (a *AppAPI) RemoveKnownHost(host string) error {
 	if a.hostKeys == nil {
 		return fmt.Errorf("host key service unavailable")
 	}
-	return a.hostKeys.Remove(context.Background(), host)
+	return a.hostKeys.Remove(a.reqCtx(), host)
 }
