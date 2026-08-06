@@ -74,7 +74,7 @@ func initSchema(db *sql.DB) error {
 }
 
 // Append writes a new audit entry to the log.
-func (r *SQLiteRepo) Append(_ context.Context, entry domain.AuditEntry) error {
+func (r *SQLiteRepo) Append(ctx context.Context, entry domain.AuditEntry) error {
 	ts := entry.Timestamp.UTC().Format(time.RFC3339Nano)
 	redacted := 0
 	if entry.Redacted {
@@ -84,7 +84,8 @@ func (r *SQLiteRepo) Append(_ context.Context, entry domain.AuditEntry) error {
 	if category == "" {
 		category = domain.AuditCategoryCommand
 	}
-	_, err := r.db.Exec(
+	_, err := r.db.ExecContext(
+		ctx,
 		`INSERT INTO audit_events (ts, category, session_id, connection_id, connection_name, host, username, input, redacted)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		ts, category, entry.SessionID, entry.ConnectionID, entry.ConnectionName, entry.Host, entry.Username, entry.Input, redacted,
@@ -96,7 +97,7 @@ func (r *SQLiteRepo) Append(_ context.Context, entry domain.AuditEntry) error {
 }
 
 // Search performs full-text search on audit entries with optional filters.
-func (r *SQLiteRepo) Search(_ context.Context, query string, filter domain.AuditSearchFilter) ([]domain.AuditEntry, error) {
+func (r *SQLiteRepo) Search(ctx context.Context, query string, filter domain.AuditSearchFilter) ([]domain.AuditEntry, error) {
 	var args []interface{}
 	var whereClauses []string
 
@@ -155,7 +156,7 @@ func (r *SQLiteRepo) Search(_ context.Context, query string, filter domain.Audit
 		baseQuery += fmt.Sprintf(` OFFSET %d`, filter.Offset)
 	}
 
-	rows, err := r.db.Query(baseQuery, args...)
+	rows, err := r.db.QueryContext(ctx, baseQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("audit search: %w", err)
 	}
