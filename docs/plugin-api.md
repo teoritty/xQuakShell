@@ -37,6 +37,26 @@ Install via **Settings → Plugins → Install folder…** or **Install bundle�
 
 Installed plugins are copied to `data/plugins/<id>/` under the xQuakShell executable directory (ADR-006 portable layout).
 
+## Publishing a GitHub release (ADR-016)
+
+**Add GitHub repository** reads `xqsp.json` from the repository and downloads one release asset per
+platform. Name assets `<name>-<os>-<arch>` so the host can match them:
+
+| Asset | Carries | Install |
+|---|---|---|
+| `my-plugin-windows-amd64.xqsp` | manifest, binary, `ui/`, the author's `SHA256SUMS` | installed verbatim; checksums and signature are verified as published |
+| `my-plugin-windows-amd64.exe` | the binary only | manifest is regenerated from `xqsp.json`, checksums are computed by the host |
+
+- **A plugin with a UI must publish `.xqsp` assets.** Declaring `contributions.views[].entry`,
+  `embedEntry` (under `capabilities.session.embed`) or `contributions.discoveryIcons` and shipping
+  only a bare binary is refused at install: the binary carries no `ui/` tree, so those files would
+  be missing and every request for them would 404.
+- Where a release publishes both shapes for a platform, the bundle is chosen.
+- The bundle's `plugin.json` must declare the same `id` as the repository's `xqsp.json`; a mismatch
+  is refused. A differing `version` is accepted and logged.
+- Add a release-level `SHA256SUMS` listing every asset — the host verifies the download against it.
+- Every path a manifest declares under `ui/` must exist in the bundle, or the install is refused.
+
 ## Security limits
 
 - **IPC frames:** NDJSON lines are capped at **256 KiB**; oversize frames are rejected.

@@ -82,34 +82,59 @@ func (r loadedSource) cleanup() {
 	}
 }
 
+// loadSource is the one gate both install routes pass through: a local .xqsp the user picked, and
+// the staging directory a GitHub install prepared. Startup discovery does not come this way, which
+// is what lets the checks here refuse a plugin without making an installed one unloadable.
 func loadSource(path string) (loadedSource, error) {
 	path = filepath.Clean(path)
+
+	var (
+		res loadedSource
+		err error
+	)
 	if bundle.IsBundlePath(path) {
-		tempBase := portable.Default.TempDir()
-		if err := os.MkdirAll(tempBase, 0o700); err != nil {
-			return loadedSource{}, fmt.Errorf("create portable temp dir: %w", err)
-		}
-		tempDir, err := os.MkdirTemp(tempBase, "xqsp-*")
-		if err != nil {
-			return loadedSource{}, err
-		}
-		if err := bundle.Extract(path, tempDir); err != nil {
-			_ = os.RemoveAll(tempDir)
-			return loadedSource{}, fmt.Errorf("extract bundle: %w", err)
-		}
-		if err := bundle.RequireChecksums(tempDir, InstallMetaFile, UserInstalledMarker); err != nil {
-			_ = os.RemoveAll(tempDir)
-			return loadedSource{}, fmt.Errorf("validate checksums: %w", err)
-		}
-		plugin, err := LoadPluginDir(tempDir)
-		if err != nil {
-			_ = os.RemoveAll(tempDir)
-			return loadedSource{}, err
-		}
-		// ChecksumsDigest is captured while tempDir still exists (before cleanup below).
-		return loadedSource{plugin: plugin, tempDir: tempDir}, nil
+		res, err = loadBundleSource(path)
+	} else {
+		res, err = loadDirSource(path)
+	}
+	if err != nil {
+		return loadedSource{}, err
 	}
 
+	if err := bundle.ValidateDeclaredUIAssets(&res.plugin.Manifest, res.plugin.RootDir); err != nil {
+		res.cleanup()
+		return loadedSource{}, err
+	}
+	return res, nil
+}
+
+func loadBundleSource(path string) (loadedSource, error) {
+	tempBase := portable.Default.TempDir()
+	if err := os.MkdirAll(tempBase, 0o700); err != nil {
+		return loadedSource{}, fmt.Errorf("create portable temp dir: %w", err)
+	}
+	tempDir, err := os.MkdirTemp(tempBase, "xqsp-*")
+	if err != nil {
+		return loadedSource{}, err
+	}
+	if err := bundle.Extract(path, tempDir); err != nil {
+		_ = os.RemoveAll(tempDir)
+		return loadedSource{}, fmt.Errorf("extract bundle: %w", err)
+	}
+	if err := bundle.RequireChecksums(tempDir, InstallMetaFile, UserInstalledMarker); err != nil {
+		_ = os.RemoveAll(tempDir)
+		return loadedSource{}, fmt.Errorf("validate checksums: %w", err)
+	}
+	plugin, err := LoadPluginDir(tempDir)
+	if err != nil {
+		_ = os.RemoveAll(tempDir)
+		return loadedSource{}, err
+	}
+	// ChecksumsDigest is captured while tempDir still exists (before cleanup below).
+	return loadedSource{plugin: plugin, tempDir: tempDir}, nil
+}
+
+func loadDirSource(path string) (loadedSource, error) {
 	plugin, err := LoadPluginDir(path)
 	if err != nil {
 		return loadedSource{}, err

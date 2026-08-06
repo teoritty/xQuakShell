@@ -13,53 +13,68 @@ import (
 
 // NewGitHubPluginStager returns a stager that creates staging directories under tempBase.
 // When tempBase is empty, os.TempDir() is used.
-func NewGitHubPluginStager(tempBase string) func(string, domainplugin.Manifest) (string, func(), error) {
-	return func(binaryPath string, manifest domainplugin.Manifest) (string, func(), error) {
-		return stageGitHubPlugin(tempBase, binaryPath, manifest)
+func NewGitHubPluginStager(tempBase string) func(domainplugin.DownloadedAsset, domainplugin.Manifest) (domainplugin.StagedPlugin, func(), error) {
+	return func(asset domainplugin.DownloadedAsset, manifest domainplugin.Manifest) (domainplugin.StagedPlugin, func(), error) {
+		return stageGitHubPlugin(tempBase, asset, manifest)
 	}
 }
 
-func stageGitHubPlugin(tempBase string, binaryPath string, manifest domainplugin.Manifest) (string, func(), error) {
+func stageGitHubPlugin(tempBase string, asset domainplugin.DownloadedAsset, manifest domainplugin.Manifest) (domainplugin.StagedPlugin, func(), error) {
 	noop := func() {}
 	if tempBase == "" {
 		tempBase = os.TempDir()
 	}
 	tempDir, err := os.MkdirTemp(tempBase, "xqs-github-stage-*")
 	if err != nil {
-		return "", noop, fmt.Errorf("create staging dir: %w", err)
+		return domainplugin.StagedPlugin{}, noop, fmt.Errorf("create staging dir: %w", err)
 	}
 	cleanup := func() { _ = os.RemoveAll(tempDir) }
 
-	entryName := manifest.Engine.Entry
-	destBinary := filepath.Join(tempDir, entryName)
-	if err := copyFileTo(binaryPath, destBinary); err != nil {
+	var staged domainplugin.Manifest
+	switch asset.Kind {
+	case domainplugin.ReleaseAssetBundle:
+		staged, err = stageBundle(tempDir, asset.Path)
+	default:
+		staged, err = stageBinary(tempDir, asset.Path, manifest)
+	}
+	if err != nil {
 		cleanup()
-		return "", noop, fmt.Errorf("copy binary: %w", err)
+		return domainplugin.StagedPlugin{}, noop, err
+	}
+
+	return domainplugin.StagedPlugin{Dir: tempDir, Manifest: staged}, cleanup, nil
+}
+
+// stageBinary builds a minimal plugin tree around a bare release binary: the binary itself, the
+// manifest the repository published, and checksums over the two.
+//
+// Those checksums are a container, not a claim of authenticity — we compute them over files we
+// just wrote ourselves, so validating them later proves only that nothing was corrupted in
+// between. That is the whole reason a plugin which ships ui/ assets may not be installed this
+// way: there would be no author statement about the assets, and no assets either.
+func stageBinary(tempDir, binaryPath string, manifest domainplugin.Manifest) (domainplugin.Manifest, error) {
+	destBinary := filepath.Join(tempDir, manifest.Engine.Entry)
+	if err := copyFileTo(binaryPath, destBinary); err != nil {
+		return domainplugin.Manifest{}, fmt.Errorf("copy binary: %w", err)
 	}
 	// #nosec G302 -- the plugin entry point must be executable; 0700 is already the
 	// narrowest mode that allows the host to exec it, and the staging dir is 0700.
 	if err := os.Chmod(destBinary, 0o700); err != nil {
-		cleanup()
-		return "", noop, err
+		return domainplugin.Manifest{}, err
 	}
 
-	manifestPath := filepath.Join(tempDir, "plugin.json")
 	data, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
-		cleanup()
-		return "", noop, err
+		return domainplugin.Manifest{}, err
 	}
-	if err := os.WriteFile(manifestPath, data, 0o600); err != nil {
-		cleanup()
-		return "", noop, err
+	if err := os.WriteFile(filepath.Join(tempDir, "plugin.json"), data, 0o600); err != nil {
+		return domainplugin.Manifest{}, err
 	}
 
 	if err := bundle.WriteChecksums(tempDir); err != nil {
-		cleanup()
-		return "", noop, fmt.Errorf("write checksums: %w", err)
+		return domainplugin.Manifest{}, fmt.Errorf("write checksums: %w", err)
 	}
-
-	return tempDir, cleanup, nil
+	return manifest, nil
 }
 
 func copyFileTo(src, dest string) error {

@@ -282,6 +282,7 @@ Rules:
 - **`remoteFs` (display):** when `true`, the session UI shows the remote file panel (SFTP-style). Terminal-only plugins (e.g. telnet) should leave this `false`.
 - **`discovery.parentProtocols`:** the host addresses `discovery.observe` only to plugins declaring the target connection's protocol here (ADR-014). `contributions.discoveryIcons[].asset` follows the same asset validation rules as other UI assets (extension allowlist, size caps) and is checked once at install.
 - View `entry` paths must live under `ui/` (default `ui/index.html`). Embed `embedEntry` paths follow the same rule.
+- Every declared `ui/` path — view `entry`, `embedEntry` (under `session.embed`), `discoveryIcons[].asset` — must exist in the tree being installed, or the install is refused. On the GitHub route, a manifest declaring any of them can only be installed from an `.xqsp` bundle asset: a bare release binary carries no `ui/` (ADR-016, see [plugin-api.md](./plugin-api.md#publishing-a-github-release-adr-016)).
 
 ## Contributions
 

@@ -7,14 +7,14 @@ import (
 	domainplugin "xquakshell/internal/domain/plugin"
 )
 
-func (s *GitHubPluginService) downloadBinary(
+func (s *GitHubPluginService) downloadAsset(
 	ctx context.Context,
-	owner, repo, tag, assetName, checksum string,
-) (path string, cleanup func(), err error) {
+	req domainplugin.AssetDownloadRequest,
+) (domainplugin.DownloadedAsset, func(), error) {
 	if s.downloader == nil {
-		return "", func() {}, fmt.Errorf("plugin downloader unavailable")
+		return domainplugin.DownloadedAsset{}, func() {}, fmt.Errorf("plugin downloader unavailable")
 	}
-	return s.downloader.DownloadBinary(ctx, owner, repo, tag, assetName, checksum)
+	return s.downloader.DownloadAsset(ctx, req)
 }
 
 func (s *GitHubPluginService) loadReleaseChecksums(ctx context.Context, owner, repo string, release *domainplugin.GitHubRelease) map[string]string {

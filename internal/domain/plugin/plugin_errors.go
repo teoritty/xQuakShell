@@ -91,6 +91,17 @@ var (
 	// ErrPlatformNotSupported indicates no binary exists for the current platform.
 	ErrPlatformNotSupported = errors.New("plugin does not support current platform")
 
+	// ErrBundleIdentityMismatch indicates a downloaded release bundle declares a different plugin
+	// than the repository's xqsp.json did.
+	ErrBundleIdentityMismatch = errors.New("release bundle does not match the repository manifest")
+
+	// ErrUIPluginRequiresBundle indicates a plugin that ships ui/ assets is published for this
+	// platform only as a bare binary, which cannot carry them.
+	ErrUIPluginRequiresBundle = errors.New("plugin with a UI must be published as an .xqsp bundle")
+
+	// ErrUIAssetMissing indicates a manifest declares a ui/ asset the plugin tree does not contain.
+	ErrUIAssetMissing = errors.New("plugin declares a UI asset that is missing from the bundle")
+
 	// ErrReleaseAssetNotFound indicates the requested release asset was not found.
 	ErrReleaseAssetNotFound = errors.New("release asset not found")
 
