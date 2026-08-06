@@ -332,7 +332,7 @@ func (c *SSHConnector) loadSigners(ctx context.Context, identityIDs []string) ([
 		signer, err := c.keySigner.ParsePrivateKeyWithPassphrase(pemData, passphrase)
 		if err != nil {
 			if err == domain.ErrPassphraseRequired && c.passphraseReq != nil {
-				identMeta, metaErr := c.getIdentityMeta(ctx, idRef)
+				identMeta, metaErr := c.getIdentityMeta(idRef)
 				comment := idRef
 				if metaErr != nil {
 					slog.Debug("getIdentityMeta failed", "id", idRef, "err", metaErr)
@@ -358,7 +358,7 @@ func (c *SSHConnector) loadSigners(ctx context.Context, identityIDs []string) ([
 	return signers, nil
 }
 
-func (c *SSHConnector) getIdentityMeta(ctx context.Context, id string) (*domain.SSHIdentity, error) {
+func (c *SSHConnector) getIdentityMeta(id string) (*domain.SSHIdentity, error) {
 	data, err := c.vaultRepo.GetData()
 	if err != nil {
 		return nil, err
