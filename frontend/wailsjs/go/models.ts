@@ -639,7 +639,7 @@ export namespace wails {
 	    danger?: boolean;
 	    confirm?: string;
 	    multi?: boolean;
-	    delete?: boolean;
+	    role?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new DiscoveryActionDTO(source);
@@ -653,7 +653,7 @@ export namespace wails {
 	        this.danger = source["danger"];
 	        this.confirm = source["confirm"];
 	        this.multi = source["multi"];
-	        this.delete = source["delete"];
+	        this.role = source["role"];
 	    }
 	}
 	export class DiscoveryTruncatedDTO {
