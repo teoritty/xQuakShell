@@ -42,22 +42,47 @@ func (w *sshClientWrapper) KeepAlive() error {
 	return err
 }
 
-func (w *sshClientWrapper) OpenDirectTCP(ctx context.Context, addr string) (net.Conn, error) {
+// dialUnderContext gives a blocking SSH dial a deadline it does not have.
+//
+// x/crypto/ssh exposes no cancellable Dial: once the channel-open request is on
+// the wire the server answers on its own schedule, and a bastion that accepts
+// TCP but never answers direct-tcpip holds the caller forever. Running the dial
+// on its own goroutine and selecting on the context is the only way to give the
+// caller back its deadline.
+//
+// The drain is the part that is easy to leave out and expensive to omit. The
+// dial keeps running after we return, so its result must still be collected and
+// closed - otherwise every cancelled dial abandons a channel the peer believes
+// is open, for the life of the SSH connection, and a flapping target is exactly
+// the case that both cancels often and eventually succeeds. The channel is
+// buffered so the dial goroutine never blocks even if nothing drains it.
+func dialUnderContext(ctx context.Context, name string, dial func() (net.Conn, error)) (net.Conn, error) {
 	type result struct {
 		conn net.Conn
 		err  error
 	}
 	ch := make(chan result, 1)
-	safego.GoNamed("ssh.openDirectTCP", func() {
-		c, err := w.client.Dial("tcp", addr)
+	safego.GoNamed(name, func() {
+		c, err := dial()
 		ch <- result{c, err}
 	})
 	select {
 	case r := <-ch:
 		return r.conn, r.err
 	case <-ctx.Done():
+		safego.GoNamed(name+".drain", func() {
+			if r := <-ch; r.conn != nil {
+				_ = r.conn.Close()
+			}
+		})
 		return nil, ctx.Err()
 	}
+}
+
+func (w *sshClientWrapper) OpenDirectTCP(ctx context.Context, addr string) (net.Conn, error) {
+	return dialUnderContext(ctx, "ssh.openDirectTCP", func() (net.Conn, error) {
+		return w.client.Dial("tcp", addr)
+	})
 }
 
 func (w *sshClientWrapper) ListenTCP(ctx context.Context, remoteAddr string) (net.Listener, error) {
