@@ -240,8 +240,10 @@ type okAuthHost struct {
 func (*okAuthHost) Start(context.Context, domainplugin.InstalledPlugin, string) error { return nil }
 func (*okAuthHost) Stop(context.Context, string, string) error                        { return nil }
 func (*okAuthHost) StopAll(context.Context)                                           {}
-func (*okAuthHost) Call(context.Context, string, string, string, json.RawMessage) (json.RawMessage, error) {
-	return nil, nil
+func (h *okAuthHost) Call(context.Context, string, string, string, json.RawMessage) (json.RawMessage, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append(json.RawMessage(nil), h.result...), nil
 }
 func (h *okAuthHost) CallWithTimeout(_ context.Context, _, _, _ string, _ json.RawMessage, _ time.Duration) (json.RawMessage, error) {
 	h.mu.Lock()
