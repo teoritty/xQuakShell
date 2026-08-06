@@ -29,6 +29,7 @@ import { fileURLToPath } from 'node:url';
 import { stripComments } from './architecture/measure';
 import { loadBudgetConfig } from './architecture/budgetConfig';
 import { checkFrontendFileBudgets } from './architecture/budgets';
+import { checkFrontendFuncBudgets } from './architecture/funcBudgets';
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
@@ -210,9 +211,16 @@ function checkFileBudgets(): void {
   assert(issues.length === 0, ['size budgets:', ...issues].join('\n  '));
 }
 
+// --- Rule 5 ---
+function checkFuncBudgets(): void {
+  const issues = checkFrontendFuncBudgets(loadBudgetConfig());
+  assert(issues.length === 0, ['function budgets:', ...issues].join('\n  '));
+}
+
 checkApiAppStateImports();
 checkActionsGetGateway();
 checkWindowBridgeUsage();
 checkFileBudgets();
+checkFuncBudgets();
 
 console.log('architecture.test passed');

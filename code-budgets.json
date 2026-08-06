@@ -100,6 +100,81 @@
         "params": 6,
         "nesting": 0
       },
+      "frontend/src/actions/protocolActions.ts::installGitHubPlugin": {
+        "codeLines": 1,
+        "params": 8,
+        "nesting": 0
+      },
+      "frontend/src/actions/protocolActions.ts::installPlugin": {
+        "codeLines": 4,
+        "params": 7,
+        "nesting": 0
+      },
+      "frontend/src/api/audit.ts::searchAuditLog": {
+        "codeLines": 8,
+        "params": 6,
+        "nesting": 1
+      },
+      "frontend/src/api/githubPlugins.ts::installGitHubPluginRpc": {
+        "codeLines": 8,
+        "params": 8,
+        "nesting": 1
+      },
+      "frontend/src/api/plugins.ts::installPluginRpc": {
+        "codeLines": 10,
+        "params": 7,
+        "nesting": 1
+      },
+      "frontend/src/events/subscribe.ts::subscribeToEvents": {
+        "codeLines": 157,
+        "params": 0,
+        "nesting": 2
+      },
+      "frontend/src/lib/FileTree.svelte::handleDrop": {
+        "codeLines": 29,
+        "params": 2,
+        "nesting": 5
+      },
+      "frontend/src/lib/LocalFileTree.svelte::handleDrop": {
+        "codeLines": 29,
+        "params": 2,
+        "nesting": 5
+      },
+      "frontend/src/lib/PermissionsDialog.svelte::handleApply": {
+        "codeLines": 26,
+        "params": 0,
+        "nesting": 4
+      },
+      "frontend/src/lib/remoteTree/discoveryTree.ts::branchNotices": {
+        "codeLines": 35,
+        "params": 6,
+        "nesting": 1
+      },
+      "frontend/src/lib/remoteTree/discoveryTree.ts::buildDiscoverySubtree": {
+        "codeLines": 90,
+        "params": 1,
+        "nesting": 2
+      },
+      "frontend/src/lib/remoteTree/discoveryTree.ts::buildLevel": {
+        "codeLines": 68,
+        "params": 6,
+        "nesting": 2
+      },
+      "frontend/src/lib/remoteTree/discoveryTree.ts::noticeRow": {
+        "codeLines": 8,
+        "params": 7,
+        "nesting": 0
+      },
+      "frontend/src/lib/remoteTree/dndGuards.ts::shouldShowDropIndicator": {
+        "codeLines": 10,
+        "params": 6,
+        "nesting": 2
+      },
+      "frontend/src/lib/remoteTree/dndHandlers.ts::executeDropBetween": {
+        "codeLines": 62,
+        "params": 6,
+        "nesting": 3
+      },
       "internal/domain/plugin/channel_port.go::NewChannelHandle": {
         "codeLines": 11,
         "params": 6,

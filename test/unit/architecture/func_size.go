@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"path/filepath"
+	"strings"
 )
 
 // FuncBudgetIssue is a function that outgrew one of its budgets.
@@ -140,9 +141,20 @@ func funcBaselineDrift(symbol string, shape FuncShape, recorded FuncMeasurement,
 	return nil
 }
 
+// isGoSymbol tells the two halves of the config apart by the file part of the
+// symbol, so a frontend entry never looks stale to the Go gate and vice versa.
+// frontend/src/architecture/funcBudgets.ts owns the other half.
+func isGoSymbol(symbol string) bool {
+	file, _, found := strings.Cut(symbol, "::")
+	return found && strings.HasSuffix(file, ".go")
+}
+
 func missingFuncEntries(measured map[string]FuncShape, cfg BudgetConfig) []FuncBudgetIssue {
 	var issues []FuncBudgetIssue
 	for _, symbol := range sortedFileKeys(cfg.Baseline.Functions) {
+		if !isGoSymbol(symbol) {
+			continue
+		}
 		if _, ok := measured[symbol]; !ok {
 			issues = append(issues, FuncBudgetIssue{
 				Symbol: symbol,
@@ -151,6 +163,9 @@ func missingFuncEntries(measured map[string]FuncShape, cfg BudgetConfig) []FuncB
 		}
 	}
 	for _, e := range cfg.Exemptions.Functions {
+		if !isGoSymbol(e.Symbol) {
+			continue
+		}
 		if _, ok := measured[e.Symbol]; !ok {
 			issues = append(issues, FuncBudgetIssue{
 				Symbol: e.Symbol,
