@@ -82,6 +82,8 @@ help:
 	@echo budgets-update - re-record both halves of the size baseline
 	@echo lint - staticcheck
 	@echo sec - govulncheck + gosec
+	@echo gosec - static security analysis, also part of gates
+	@echo govulncheck - reachable-vulnerability scan, needs network
 	@echo deps-linux - print the system packages a Linux build needs
 	@echo WEBKIT=4.1 - build against libwebkit2gtk-4.1 on Linux
 	@echo NOTE - clean and rebuild delete all of build/, including the portable
@@ -143,14 +145,25 @@ check:
 test: check test-go test-frontend
 
 # gates is what CI enforces, in the order CI runs it, so a green local run means
-# a green pipeline. Keep it in step with .github/workflows/test.yml; `test` is
-# the shorter loop for while you work.
+# a green pipeline. Keep it in step with .github/workflows/test.yml and the `go`
+# job of security.yml; `test` is the shorter loop for while you work.
 #
-# `sec` is not here on purpose: govulncheck and gosec download their own
-# toolchains and the advisory database, which is a slow network round trip to
-# put in front of every local run. security.yml gates on zero findings from
-# both.
-gates: check typecheck-frontend test-go test-frontend coverage lint
+# gosec is here and govulncheck is not, and the split is the point. gosec is a
+# static analyser over the tree you already have, so once its module is in the
+# build cache it costs a minute and no network. govulncheck has to fetch the
+# advisory database on every run, which is a network round trip in front of
+# every local gate and a failure with no internet - security.yml runs it.
+#
+# This split exists because the security workflow was red on main for a day
+# without anyone able to see it locally: `make sec` was the only way to find
+# out, and nothing ran it. A gate CI enforces that a developer cannot run is a
+# gate that reports failures late and to the wrong person.
+#
+# One divergence this does NOT close: gosec analyses the files its build tags
+# select, so a run on Windows sees `*_windows.go` and CI on ubuntu-latest sees
+# the linux half. The two are complementary rather than identical, and a finding
+# in a linux-only file will still surface first in CI.
+gates: check typecheck-frontend test-go test-frontend coverage lint gosec
 
 test-go:
 	go test ./... -race -count=1
@@ -185,8 +198,20 @@ mutate:
 lint:
 	go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) ./...
 
-sec:
+# sec is the full security pass; `gates` runs the gosec half of it. Split into
+# two targets so that half can be depended on without dragging the advisory
+# database fetch along with it.
+sec: govulncheck gosec
+
+govulncheck:
 	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
+
+# The flags must stay byte-identical to the gosec step in .github/workflows/security.yml.
+# That workflow gates on zero findings from the same invocation, so any drift here
+# turns this target into a green light for a red pipeline - which is exactly the
+# failure it was added to prevent. The three excluded rules are justified at
+# length in security.yml; do not restate the reasoning in two places.
+gosec:
 	go run github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION) -exclude-dir=test/fixtures -exclude-dir=frontend -exclude-dir=build -exclude=G104,G304,G103 ./...
 
 # Printed rather than executed: a build target must not run a privileged
