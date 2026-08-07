@@ -164,7 +164,11 @@
   // Only the single-path transfer API fills localPath; a planned batch leaves it
   // empty and puts a caption ("3 items") in remotePath, which must never be sent
   // back as a path. canRetry gates the button on exactly that.
-  function canRetry(item: TransferItem): boolean {
+  // A type predicate, not a boolean: the `!!item.sessionId` below already proves what
+  // retryTransfer needs, and TypeScript cannot carry that narrowing across a call unless the
+  // signature says so. Returning `boolean` left retryTransfer passing `string | undefined`
+  // into calls that take `string`, guarded correctly and unable to prove it.
+  function canRetry(item: TransferItem): item is TransferItem & { sessionId: string } {
     return !!item.sessionId && !!item.localPath
       && (item.kind === 'upload' || item.kind === 'download')
       && (item.state === 'failed' || item.state === 'cancelled');
