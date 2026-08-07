@@ -15,12 +15,15 @@ updates:
   # of them is either the SSH/SFTP stack or the vault's storage engine - the parts of this
   # product where a fixed upstream bug is worth having.
   #
-  # One bump will arrive red, and that is the design working: the Wails version lives in three
-  # places - go.mod, the `cmd/wails@` pin in release.yml, and WAILS_VERSION in the Makefile -
-  # and test/unit/release's TestWailsCLIIsPinnedToTheGoModVersion fails when they disagree.
-  # Dependabot only edits the first. The red test IS the reminder to edit the other two; do
-  # that in the PR rather than adding an ignore rule here, because an ignore would trade a
-  # visible red check for silently never hearing about a new Wails.
+  # One bump will arrive red, and that is the design working: the Wails version is written down
+  # in five places - go.mod, two `cmd/wails@` pins in release.yml (one per build job),
+  # WAILS_VERSION in the Makefile, and the README badge. Dependabot edits only go.mod, and
+  # test/unit/release fails on any of the rest disagreeing except the badge, which no test
+  # guards because a badge is a claim rather than a build input.
+  #
+  # The red test IS the reminder to edit the others; do that in the PR rather than adding an
+  # ignore rule here, because an ignore would trade a visible red check for silently never
+  # hearing about a new Wails.
   - package-ecosystem: gomod
     directory: "/"
     schedule:

@@ -42,7 +42,7 @@ endif
 WAILS_BIN := $(call detect,wails)
 
 # Pinned to the Wails CLI version the release workflow installs.
-WAILS_VERSION := v2.12.0
+WAILS_VERSION := v2.13.0
 
 # Versions are pinned (never @latest) so local runs and CI agree.
 # Keep in sync with .github/workflows/security.yml.
