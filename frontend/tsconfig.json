@@ -7,6 +7,16 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     /**
+     * Declared here rather than inherited, because the preset changed under us:
+     * @tsconfig/svelte v3 set strict false and v5 sets it true. Turning it on is
+     * worth doing and is NOT what a dependency migration should do silently - it
+     * reports 7 pre-existing strictNullChecks findings across four files, three of
+     * them calls to a possibly-undefined Wails binding in api/surfaces.ts, and each
+     * deserves reading rather than a blanket `!`. Enable it in the commit that
+     * fixes them.
+     */
+    "strict": false,
+    /**
      * Typecheck JS in `.svelte` and `.js` files by default.
      * Disable checkJs if you'd like to use dynamic types in JS.
      * Note that setting allowJs false does not prevent the use
