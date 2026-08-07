@@ -11,7 +11,7 @@
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-blue.svg" alt="License: GPLv3"></a>
   <img src="https://img.shields.io/badge/go-1.25.12-00ADD8?logo=go&logoColor=white" alt="Go 1.25.12">
-  <img src="https://img.shields.io/badge/Wails-v2.12.0-DF0000?logo=wails&logoColor=white" alt="Wails v2.12.0">
+  <img src="https://img.shields.io/badge/Wails-v2.13.0-DF0000?logo=wails&logoColor=white" alt="Wails v2.13.0">
   <!-- <img src="https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white" alt="Windows"> -->
   <a href="https://t.me/xQuakShell"><img src="https://img.shields.io/badge/Telegram-Join%20chat-26A5E4?logo=telegram&logoColor=white" alt="Telegram"></a>
 </p>
