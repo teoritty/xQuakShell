@@ -46,8 +46,25 @@ export interface ExecutePlanDTO {
   resolutions: ResolvedActionDTO[];
 }
 
+// Every method here is required, and none of them used to be: 43 of the 118 carried a `?`.
+// The marker described nothing real. Wails generates App.d.ts from the bound Go struct and
+// never emits an optional binding, and all 118 names appear there unconditionally - the split
+// into 43 optional and 75 required matched no property of the bridge, it was just whichever
+// ones happened to be added with a `?`.
+//
+// The cost of the fiction was paid where it is hardest to see. Under `strict: false` a call to
+// a possibly-undefined method is not reported at all, so api/surfaces.ts copied the guard shape
+// from api/terminal.ts - `if (!app) return;` and then call - without noticing that terminal's
+// methods are required and surfaces' were not. Eleven call sites across five api/ modules ended
+// up guarding the gateway but not the method, and nothing could say so.
+//
+// The runtime guards that DO exist, `if (!app?.SearchAuditLog) return []` in api/audit.ts and
+// its siblings, stay exactly as they are. They are not dead code: audit.test.ts,
+// githubPlugins.test.ts, pluginRuntime.test.ts and plugins.test.ts each drive a gateway with one
+// method proxied away and assert the wrapper degrades instead of throwing. Deleting a guard
+// turns one of those red, which is the correct outcome and the reason this comment names them.
 export interface AppGateway {
-  AddGitHubRepository?(arg1: wails.AddGitHubRepositoryRequest): Promise<void>;
+  AddGitHubRepository(arg1: wails.AddGitHubRepositoryRequest): Promise<void>;
 
   AddKnownHost(arg1: string, arg2: string): Promise<void>;
 
@@ -61,7 +78,7 @@ export interface AppGateway {
 
   ChownRecursive(arg1: string, arg2: string, arg3: number, arg4: number, arg5: string): Promise<void>;
 
-  ClearAuditLog?(arg1: string): Promise<void>;
+  ClearAuditLog(arg1: string): Promise<void>;
 
   CloseSession(arg1: string): Promise<void>;
 
@@ -73,7 +90,7 @@ export interface AppGateway {
 
   CreateVault(arg1: string): Promise<void>;
 
-  DeleteAuditEntry?(arg1: number): Promise<void>;
+  DeleteAuditEntry(arg1: number): Promise<void>;
 
   DeleteConnection(arg1: string): Promise<void>;
 
@@ -81,21 +98,21 @@ export interface AppGateway {
 
   DeletePassword(arg1: string): Promise<void>;
 
-  DisableAuditSecretLogging?(): Promise<void>;
+  DisableAuditSecretLogging(): Promise<void>;
 
   Download(arg1: string, arg2: string, arg3: string): Promise<void>;
 
-  EnableAuditSecretLogging?(arg1: boolean): Promise<void>;
+  EnableAuditSecretLogging(arg1: boolean): Promise<void>;
 
-  ExecutePluginCommand?(arg1: string, arg2: string, arg3: RawMessage): Promise<RawMessage>;
+  ExecutePluginCommand(arg1: string, arg2: string, arg3: RawMessage): Promise<RawMessage>;
 
-  FetchGitHubPlugins?(arg1: wails.FetchGitHubPluginsRequest): Promise<wails.GitHubPluginListDTO>;
+  FetchGitHubPlugins(arg1: wails.FetchGitHubPluginsRequest): Promise<wails.GitHubPluginListDTO>;
 
-  GeneratePluginPublisherKeyPair?(): Promise<wails.PluginPublisherKeyPairDTO>;
+  GeneratePluginPublisherKeyPair(): Promise<wails.PluginPublisherKeyPairDTO>;
 
   GetAllConnections(): Promise<Array<wails.ConnectionDTO>>;
 
-  GetAuditSessionState?(): Promise<wails.AuditSessionStateDTO>;
+  GetAuditSessionState(): Promise<wails.AuditSessionStateDTO>;
 
   GetFolders(): Promise<Array<wails.FolderDTO>>;
 
@@ -107,11 +124,11 @@ export interface AppGateway {
 
   GetPlatform(): Promise<string>;
 
-  GetPluginConnectionProtocols?(): Promise<Array<wails.ConnectionProtocolDTO>>;
+  GetPluginConnectionProtocols(): Promise<Array<wails.ConnectionProtocolDTO>>;
 
-  GetPluginContributions?(): Promise<wails.PluginContributionsDTO>;
+  GetPluginContributions(): Promise<wails.PluginContributionsDTO>;
 
-  GetPluginSettings?(): Promise<wails.PluginSettingsDTO>;
+  GetPluginSettings(): Promise<wails.PluginSettingsDTO>;
 
   GetPortableDataRoot(): Promise<string>;
 
@@ -119,7 +136,7 @@ export interface AppGateway {
 
   GetSettings(): Promise<wails.AppSettingsDTO>;
 
-  GetVersionInfo?(): Promise<{ appVersion: string; coreVersion: string; pluginApiVersion: string }>;
+  GetVersionInfo(): Promise<{ appVersion: string; coreVersion: string; pluginApiVersion: string }>;
 
   GetTempDir(): Promise<string>;
 
@@ -146,7 +163,7 @@ export interface AppGateway {
     arg4: boolean
   ): Promise<wails.SSHConfigImportResultDTO>;
 
-  InstallGitHubPlugin?(
+  InstallGitHubPlugin(
     arg1: string,
     arg2: string,
     arg3: boolean,
@@ -157,7 +174,7 @@ export interface AppGateway {
     arg8: boolean
   ): Promise<void>;
 
-  InstallPlugin?(
+  InstallPlugin(
     arg1: string,
     arg2: boolean,
     arg3: boolean,
@@ -169,38 +186,38 @@ export interface AppGateway {
 
   // --- Discovery subtrees (ADR-014). Everything is addressed by connectionId;
   // the backend's sessionId never crosses this seam. ---
-  GetDiscoveryTree?(arg1: string): Promise<wails.DiscoverySnapshotDTO>;
+  GetDiscoveryTree(arg1: string): Promise<wails.DiscoverySnapshotDTO>;
 
-  InvokeDiscoveryAction?(
+  InvokeDiscoveryAction(
     arg1: string,
     arg2: string,
     arg3: Array<string>,
     arg4: string
   ): Promise<void>;
 
-  SetDiscoveryObserved?(arg1: string, arg2: Array<string>): Promise<void>;
+  SetDiscoveryObserved(arg1: string, arg2: Array<string>): Promise<void>;
 
   // --- Plugin UI surfaces (ADR-015). A surface is addressed by its own id; the session it
   // borrowed its authorization from never crosses this seam either. ---
-  CloseSurface?(arg1: string): Promise<void>;
+  CloseSurface(arg1: string): Promise<void>;
 
-  SendSurfaceInput?(arg1: string, arg2: string): Promise<void>;
+  SendSurfaceInput(arg1: string, arg2: string): Promise<void>;
 
-  ResizeSurface?(arg1: string, arg2: number, arg3: number): Promise<void>;
+  ResizeSurface(arg1: string, arg2: number, arg3: number): Promise<void>;
 
-  SubmitPluginDialog?(arg1: string, arg2: Record<string, string>): Promise<void>;
+  SubmitPluginDialog(arg1: string, arg2: Record<string, string>): Promise<void>;
 
-  CancelPluginDialog?(arg1: string): Promise<void>;
+  CancelPluginDialog(arg1: string): Promise<void>;
 
   // Typed structurally rather than through wails.*: the generated model bindings are checked in
   // and regenerating them is a separate step, while this shape is small and stable.
-  DescribeDiscoveryNode?(
+  DescribeDiscoveryNode(
     arg1: string,
     arg2: string,
     arg3: string
   ): Promise<{ sections: unknown[]; values: Record<string, string>; editable: boolean }>;
 
-  ApplyDiscoveryNodeDetails?(
+  ApplyDiscoveryNodeDetails(
     arg1: string,
     arg2: string,
     arg3: string,
@@ -209,13 +226,13 @@ export interface AppGateway {
 
   IsVaultUnlocked(): Promise<boolean>;
 
-  ListGitHubRepositories?(): Promise<Array<wails.GitHubRepositoryDTO>>;
+  ListGitHubRepositories(): Promise<Array<wails.GitHubRepositoryDTO>>;
 
   ListLocalPath(arg1: string, arg2: boolean): Promise<Array<wails.LocalNodeDTO>>;
 
   ListPath(arg1: string, arg2: string): Promise<Array<wails.RemoteNodeDTO>>;
 
-  ListPlugins?(): Promise<Array<wails.PluginDTO>>;
+  ListPlugins(): Promise<Array<wails.PluginDTO>>;
 
   LockVault(): Promise<void>;
 
@@ -245,19 +262,19 @@ export interface AppGateway {
 
   ExecuteLocalCopy(arg1: ExecutePlanDTO): Promise<void>;
 
-  PingPlugin?(arg1: string): Promise<wails.PluginPingResultDTO>;
+  PingPlugin(arg1: string): Promise<wails.PluginPingResultDTO>;
 
-  PreparePluginViewPanel?(arg1: string, arg2: string): Promise<string>;
+  PreparePluginViewPanel(arg1: string, arg2: string): Promise<string>;
 
-  PreviewGitHubPluginInstall?(arg1: string, arg2: string): Promise<wails.GitHubPluginPreviewResponseDTO>;
+  PreviewGitHubPluginInstall(arg1: string, arg2: string): Promise<wails.GitHubPluginPreviewResponseDTO>;
 
-  PreviewPluginInstall?(arg1: string): Promise<wails.PluginInstallPreviewDTO>;
+  PreviewPluginInstall(arg1: string): Promise<wails.PluginInstallPreviewDTO>;
 
-  RelayPluginViewMessage?(arg1: string, arg2: RawMessage): Promise<void>;
+  RelayPluginViewMessage(arg1: string, arg2: RawMessage): Promise<void>;
 
-  ReleasePluginViewPanel?(arg1: string): Promise<void>;
+  ReleasePluginViewPanel(arg1: string): Promise<void>;
 
-  RemoveGitHubRepository?(arg1: string): Promise<void>;
+  RemoveGitHubRepository(arg1: string): Promise<void>;
 
   RemoveKnownHost(arg1: string): Promise<void>;
 
@@ -275,9 +292,9 @@ export interface AppGateway {
 
   ReportActivity(): Promise<void>;
 
-  ReportEmbedActivity?(arg1: string, arg2: boolean): Promise<void>;
+  ReportEmbedActivity(arg1: string, arg2: boolean): Promise<void>;
 
-  ReportEmbedViewport?(arg1: string, arg2: number, arg3: number, arg4: number): Promise<void>;
+  ReportEmbedViewport(arg1: string, arg2: number, arg3: number, arg4: number): Promise<void>;
 
   ReportMinimized(): Promise<void>;
 
@@ -289,11 +306,11 @@ export interface AppGateway {
 
   SaveFolder(arg1: wails.FolderDTO): Promise<wails.FolderDTO>;
 
-  SavePluginSettings?(arg1: wails.PluginSettingsDTO): Promise<void>;
+  SavePluginSettings(arg1: wails.PluginSettingsDTO): Promise<void>;
 
   SaveSettings(arg1: wails.AppSettingsDTO): Promise<void>;
 
-  SearchAuditLog?(
+  SearchAuditLog(
     arg1: string,
     arg2: string,
     arg3: string,
@@ -306,15 +323,15 @@ export interface AppGateway {
 
   SelectLocalFile(): Promise<string>;
 
-  SelectPluginBundleFile?(): Promise<string>;
+  SelectPluginBundleFile(): Promise<string>;
 
-  SelectPluginSourceDir?(): Promise<string>;
+  SelectPluginSourceDir(): Promise<string>;
 
   SendTerminalInput(arg1: string, arg2: string, arg3: string): Promise<void>;
 
-  SetGitHubRepositoryTrust?(arg1: wails.SetGitHubRepositoryTrustRequest): Promise<void>;
+  SetGitHubRepositoryTrust(arg1: wails.SetGitHubRepositoryTrustRequest): Promise<void>;
 
-  SetPluginEnabled?(arg1: string, arg2: boolean): Promise<void>;
+  SetPluginEnabled(arg1: string, arg2: boolean): Promise<void>;
 
   StartFileWatch(arg1: string): Promise<void>;
 
@@ -322,7 +339,7 @@ export interface AppGateway {
 
   TerminalResize(arg1: string, arg2: number, arg3: number): Promise<void>;
 
-  UninstallGitHubPlugin?(arg1: string, arg2: boolean): Promise<void>;
+  UninstallGitHubPlugin(arg1: string, arg2: boolean): Promise<void>;
 
   UnlockVault(arg1: string): Promise<void>;
 
