@@ -260,37 +260,36 @@ jobs:
       # Scoped to frontend/ deliberately: frontend/wailsjs/runtime/package.json is
       # a generated, lockfile-less manifest and must not be audited.
       #
-      # --omit=dev is a deliberate narrowing, not a way to dodge a red build. The one
-      # high-severity advisory left in devDependencies is GHSA-67mh-4wv8-2f99 in the
-      # esbuild bundled by vite 3: it lets a website talk to the vite DEV SERVER. This
-      # app ships `npm run build` output embedded in the Go binary and never runs the
-      # dev server for users, so it is a local-developer surface only, and clearing it
-      # means migrating vite 3 -> 8 (five majors). Track that separately; do not raise
-      # --audit-level to dodge it.
+      # --omit=dev is a deliberate narrowing, not a way to dodge a red build. What is left in
+      # devDependencies is vite, esbuild and their transitives - a website talking to the vite
+      # DEV SERVER. This app ships `npm run build` output embedded in the Go binary and never
+      # runs the dev server for users, so that is a local-developer surface only, and clearing
+      # it means vite 5 -> 8. Track that separately; do not raise --audit-level to dodge it.
       #
-      # --audit-level=high is NOT the same claim as "no findings", and the gap is currently
-      # occupied. `svelte` is declared as a devDependency but its runtime ships in the bundle,
-      # so it sits in the production tree, and at 3.49 it carries two MODERATE advisories that
-      # this threshold lets through. Both are client-side, so unlike the five SSR ones beside
-      # them they do apply here:
+      # moderate, not high, and the difference is the whole point of this step. `svelte` is
+      # declared as a devDependency but its runtime ships in the bundle, so it sits in the
+      # production tree - and at 3.49 it carried two client-side advisories that a `high`
+      # threshold silently passed over:
       #
-      #   GHSA-8266-84wp-wv5c  mXSS via improper HTML escaping        fixed in 4.2.19
-      #   GHSA-rcqx-6q8c-2c42  XSS via DOM clobbering of framework    fixed in 5.55.7
-      #                        state
+      #   GHSA-8266-84wp-wv5c  mXSS via improper HTML escaping             fixed in 4.2.19
+      #   GHSA-rcqx-6q8c-2c42  XSS via DOM clobbering of framework state   fixed in 5.55.7
       #
-      # They matter more than their severity suggests because of one specific sink: a plugin
-      # README fetched from GitHub reaches {@html} in GitHubReadmePanel.svelte, inside a WebView
-      # bound to the whole Wails API. DOMPurify sits in that path and is current, so this is
-      # defence in depth rather than a known-open hole - nobody has shown these are reachable
-      # through it.
+      # Both were moderate. Both mattered more than that suggests, because of one sink: a
+      # plugin README fetched from GitHub reaches {@html} in GitHubReadmePanel.svelte, inside a
+      # WebView bound to the whole Wails API. The first sat open for close to two years while
+      # this step reported green.
       #
-      # Lowering the threshold to moderate is the right end state and the wrong move today:
-      # both fixes need a major Svelte bump, so the gate would go red with no available fix,
-      # and a gate that is red without a remedy is a gate people learn to skip. Lower it as
-      # part of the Svelte 3 -> 5 migration, in the commit that makes it pass.
+      # The threshold is lowered here rather than earlier because a gate that is red with no
+      # available fix is one people learn to skip: both needed a major Svelte bump, which is
+      # the commit before this one. The production tree now audits clean at every severity, so
+      # the gate can finally say what a green run has always looked like it was saying.
+      #
+      # Raising this back to `high` re-opens the same blind spot. If a moderate finding lands
+      # with no fix available, take the fix that exists or record why it cannot be taken - do
+      # not move the line.
       - name: npm audit (production dependencies)
         working-directory: frontend
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --audit-level=moderate
 
       # Non-blocking, so the dev-dependency backlog stays visible in the job log
       # instead of quietly disappearing behind --omit=dev.
