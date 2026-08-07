@@ -267,6 +267,27 @@ jobs:
       # dev server for users, so it is a local-developer surface only, and clearing it
       # means migrating vite 3 -> 8 (five majors). Track that separately; do not raise
       # --audit-level to dodge it.
+      #
+      # --audit-level=high is NOT the same claim as "no findings", and the gap is currently
+      # occupied. `svelte` is declared as a devDependency but its runtime ships in the bundle,
+      # so it sits in the production tree, and at 3.49 it carries two MODERATE advisories that
+      # this threshold lets through. Both are client-side, so unlike the five SSR ones beside
+      # them they do apply here:
+      #
+      #   GHSA-8266-84wp-wv5c  mXSS via improper HTML escaping        fixed in 4.2.19
+      #   GHSA-rcqx-6q8c-2c42  XSS via DOM clobbering of framework    fixed in 5.55.7
+      #                        state
+      #
+      # They matter more than their severity suggests because of one specific sink: a plugin
+      # README fetched from GitHub reaches {@html} in GitHubReadmePanel.svelte, inside a WebView
+      # bound to the whole Wails API. DOMPurify sits in that path and is current, so this is
+      # defence in depth rather than a known-open hole - nobody has shown these are reachable
+      # through it.
+      #
+      # Lowering the threshold to moderate is the right end state and the wrong move today:
+      # both fixes need a major Svelte bump, so the gate would go red with no available fix,
+      # and a gate that is red without a remedy is a gate people learn to skip. Lower it as
+      # part of the Svelte 3 -> 5 migration, in the commit that makes it pass.
       - name: npm audit (production dependencies)
         working-directory: frontend
         run: npm audit --omit=dev --audit-level=high
