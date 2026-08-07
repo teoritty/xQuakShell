@@ -48,4 +48,40 @@ const plain = measureSource('frontend/src/api/x.ts', 'export const a = 1;\n// no
 assert(plain.scriptCodeLines === undefined, 'a .ts file has no separate script budget');
 assert(plain.codeLines === 1, `code lines = ${plain.codeLines}, want 1`);
 
+// HTML5 allows whitespace between the tag name and the `>` of an end tag, so
+// each of these closes the script as far as a browser and the Svelte compiler
+// are concerned. An end tag the pattern misses does not fail loudly: the block
+// runs to the end of the file, matches nothing, and the component reports an
+// empty script - which is a component the script and function budgets no longer
+// measure at all.
+const spacedEndTag = ['<script>', '  let x = 1;', '</script >', '<div>{x}</div>'].join('\n');
+assert(svelteScript(spacedEndTag).includes('let x = 1;'), '`</script >` closes the block');
+
+const newlineEndTag = ['<script>', '  let x = 1;', '</script', '>', '<div>{x}</div>'].join('\n');
+assert(svelteScript(newlineEndTag).includes('let x = 1;'), '`</script\\n>` closes the block');
+
+const tabEndTag = ['<script>', '  let x = 1;', '</script\t>', '<div>{x}</div>'].join('\n');
+assert(svelteScript(tabEndTag).includes('let x = 1;'), '`</script\\t>` closes the block');
+
+// An end tag may also carry attributes. They are a parse error, but the spec
+// says to report it and carry on, so the tag still closes. Anything narrower
+// than this leaves the same budget hole open for a slightly odder tag.
+const junkEndTag = ['<script>', '  let x = 1;', '</script\t\n foo="bar">', '<div>{x}</div>'].join('\n');
+assert(svelteScript(junkEndTag).includes('let x = 1;'), '`</script\\t\\n foo="bar">` closes the block');
+
+// The other direction, or permissiveness turns into a different bug: this is a
+// tag whose NAME is scriptfoo, so nothing here closes a <script>.
+const differentTag = ['<script>', '  let x = 1;', '</scriptfoo>', '<div>{x}</div>'].join('\n');
+assert(svelteScript(differentTag) === '', '`</scriptfoo>` is a different tag and closes nothing');
+
+// The markup after the end tag must stay outside the script, or a missed end
+// tag would be hidden by the extraction succeeding on too much.
+assert(!svelteScript(spacedEndTag).includes('<div>'), 'markup after `</script >` is not script');
+
+const spaced = measureSource('frontend/src/lib/Spaced.svelte', spacedEndTag);
+assert(
+  spaced.scriptCodeLines === 1,
+  `script code lines = ${spaced.scriptCodeLines}, want 1; a space in the end tag must not hide the script`
+);
+
 console.log('measure.test passed');

@@ -1,7 +1,6 @@
 package wails
 
 import (
-	"context"
 	"fmt"
 )
 
@@ -10,7 +9,7 @@ func (a *AppAPI) ListGitHubRepositories() ([]GitHubRepositoryDTO, error) {
 		return nil, fmt.Errorf("GitHub repository service not available")
 	}
 
-	ctx := context.Background()
+	ctx := a.reqCtx()
 	repos, err := a.githubRepoService.ListRepositories(ctx)
 	if err != nil {
 		return nil, err
@@ -30,7 +29,7 @@ func (a *AppAPI) AddGitHubRepository(req AddGitHubRepositoryRequest) error {
 	if a.githubPluginService == nil {
 		return fmt.Errorf("GitHub plugin service not available")
 	}
-	ctx := context.Background()
+	ctx := a.reqCtx()
 	if _, err := a.githubPluginService.FetchPluginMetadata(ctx, req.URL, true); err != nil {
 		return err
 	}
@@ -41,7 +40,7 @@ func (a *AppAPI) RemoveGitHubRepository(repoURL string) error {
 	if a.githubRepoService == nil {
 		return fmt.Errorf("GitHub repository service not available")
 	}
-	ctx := context.Background()
+	ctx := a.reqCtx()
 	return a.githubRepoService.RemoveRepository(ctx, repoURL)
 }
 
@@ -49,7 +48,7 @@ func (a *AppAPI) SetGitHubRepositoryTrust(req SetGitHubRepositoryTrustRequest) e
 	if a.githubRepoService == nil {
 		return fmt.Errorf("GitHub repository service not available")
 	}
-	ctx := context.Background()
+	ctx := a.reqCtx()
 	return a.githubRepoService.SetRepositoryTrust(ctx, req.URL, req.Trusted)
 }
 
@@ -63,7 +62,7 @@ func (a *AppAPI) FetchGitHubPlugins(req FetchGitHubPluginsRequest) (*GitHubPlugi
 		return nil, fmt.Errorf("GitHub plugin service not available")
 	}
 
-	ctx := context.Background()
+	ctx := a.reqCtx()
 	metadata, err := a.githubPluginService.FetchPluginMetadata(ctx, req.URL, req.ForceRefresh)
 	if err != nil {
 		return nil, err
@@ -94,7 +93,7 @@ func (a *AppAPI) PreviewGitHubPluginInstall(repoURL, releaseTag string) (GitHubP
 	if a.githubPluginService == nil {
 		return GitHubPluginPreviewResponseDTO{}, fmt.Errorf("GitHub plugin service not available")
 	}
-	ctx := context.Background()
+	ctx := a.reqCtx()
 	preview, err := a.githubPluginService.PreviewInstall(ctx, repoURL, releaseTag)
 	if err != nil {
 		return GitHubPluginPreviewResponseDTO{}, err
@@ -107,7 +106,7 @@ func (a *AppAPI) InstallGitHubPlugin(repoURL, releaseTag string, grantSecretAcce
 		return fmt.Errorf("GitHub plugin service not available")
 	}
 
-	ctx := context.Background()
+	ctx := a.reqCtx()
 	if err := a.githubPluginService.InstallPluginFromGitHub(ctx, repoURL, releaseTag, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess); err != nil {
 		return err
 	}
@@ -120,7 +119,7 @@ func (a *AppAPI) UninstallGitHubPlugin(pluginID string, removeData bool) error {
 		return fmt.Errorf("GitHub plugin service not available")
 	}
 
-	ctx := context.Background()
+	ctx := a.reqCtx()
 	if err := a.githubPluginService.UninstallPlugin(ctx, pluginID, removeData); err != nil {
 		return err
 	}

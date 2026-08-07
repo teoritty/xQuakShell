@@ -20,7 +20,7 @@ func NewConnectionRepo(v domain.VaultRepository) *ConnectionRepo {
 }
 
 // GetAllFolders returns every folder stored in the vault.
-func (r *ConnectionRepo) GetAllFolders(ctx context.Context) ([]domain.ConnectionFolder, error) {
+func (r *ConnectionRepo) GetAllFolders(_ context.Context) ([]domain.ConnectionFolder, error) {
 	data, err := r.vault.GetData()
 	if err != nil {
 		return nil, fmt.Errorf("get folders: %w", err)
@@ -104,7 +104,7 @@ func folderSubtreeIDs(folders []domain.ConnectionFolder, rootID string) map[stri
 }
 
 // GetAllConnections returns all connections regardless of folder.
-func (r *ConnectionRepo) GetAllConnections(ctx context.Context) ([]domain.Connection, error) {
+func (r *ConnectionRepo) GetAllConnections(_ context.Context) ([]domain.Connection, error) {
 	data, err := r.vault.GetData()
 	if err != nil {
 		return nil, fmt.Errorf("get all connections: %w", err)
@@ -117,7 +117,7 @@ func (r *ConnectionRepo) GetAllConnections(ctx context.Context) ([]domain.Connec
 }
 
 // GetByFolder returns connections belonging to a specific folder.
-func (r *ConnectionRepo) GetByFolder(ctx context.Context, folderID string) ([]domain.Connection, error) {
+func (r *ConnectionRepo) GetByFolder(_ context.Context, folderID string) ([]domain.Connection, error) {
 	data, err := r.vault.GetData()
 	if err != nil {
 		return nil, fmt.Errorf("get by folder: %w", err)
@@ -133,7 +133,7 @@ func (r *ConnectionRepo) GetByFolder(ctx context.Context, folderID string) ([]do
 }
 
 // GetByID returns a single connection by its ID.
-func (r *ConnectionRepo) GetByID(ctx context.Context, id string) (*domain.Connection, error) {
+func (r *ConnectionRepo) GetByID(_ context.Context, id string) (*domain.Connection, error) {
 	data, err := r.vault.GetData()
 	if err != nil {
 		return nil, fmt.Errorf("get by id: %w", err)

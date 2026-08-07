@@ -122,7 +122,7 @@ func (s *PluginFieldsService) SavePluginFields(ctx context.Context, conn *domain
 }
 
 // ResolvePluginFields decrypts secret refs and returns plaintext values for session.connect.
-func (s *PluginFieldsService) ResolvePluginFields(ctx context.Context, conn *domain.Connection, protoDef *domainplugin.ProtocolDef) (map[string]string, error) {
+func (s *PluginFieldsService) ResolvePluginFields(_ context.Context, conn *domain.Connection, protoDef *domainplugin.ProtocolDef) (map[string]string, error) {
 	if conn == nil || protoDef == nil || len(conn.PluginFields) == 0 {
 		return map[string]string{}, nil
 	}

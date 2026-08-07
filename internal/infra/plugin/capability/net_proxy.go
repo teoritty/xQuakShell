@@ -234,6 +234,9 @@ func (p *NetProxy) Read(ctx context.Context, params json.RawMessage) (json.RawMe
 	}
 
 	if ctx == nil {
+		// Defensive: the RPC dispatcher always supplies a context, but the read below
+		// blocks on the network and would panic on a nil one. Substituting keeps a
+		// future caller's mistake from taking the plugin host down.
 		ctx = context.Background()
 	}
 

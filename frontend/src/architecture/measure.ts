@@ -50,14 +50,43 @@ export function countCodeLines(src: string): number {
     .filter((line) => line.trim() !== '').length;
 }
 
-const SCRIPT_BLOCK_RE = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
+/**
+ * The one pattern that finds a Svelte `<script>` block, for every measurement
+ * that needs one.
+ *
+ * `(?:\s[^>]*)?` on the end tag is load-bearing, and it is wider than it first
+ * looks it needs to be. An HTML5 end tag is `</`, the name, then anything up to
+ * the `>`: whitespace and even attributes are a parse error the parser reports
+ * and then ignores, so `</script >`, `</script\n>` and `</script\t\n foo="bar">`
+ * all really do close the block in a browser and in the Svelte compiler.
+ *
+ * An end tag this pattern misses does not fail loudly. `[\s\S]*?` finds no
+ * close, the match fails outright, and the component reports an empty script -
+ * a hole straight through the script and function budgets, where one stray
+ * space stops a component of any size being measured at all. Being permissive
+ * here is the safe direction: closing a block early costs a mismeasurement,
+ * never closing it costs the whole gate.
+ *
+ * The leading `\s` inside the group, rather than a bare `[^>]*`, is what keeps
+ * `</scriptfoo>` from closing anything - that is a different tag, not this one
+ * with junk after it.
+ *
+ * A factory, not a shared constant: a `/g` regex carries a mutable `lastIndex`
+ * between calls, so a single shared object makes every caller responsible for
+ * resetting it and the one that forgets silently starts scanning mid-file.
+ * Handing out a fresh object costs nothing and removes the failure mode instead
+ * of documenting it.
+ */
+export function scriptBlockRe(): RegExp {
+  return /<script\b[^>]*>([\s\S]*?)<\/script(?:\s[^>]*)?>/gi;
+}
 
 /** Concatenates the contents of every <script> block in a Svelte component. */
 export function svelteScript(src: string): string {
   const blocks: string[] = [];
+  const re = scriptBlockRe();
   let match: RegExpExecArray | null;
-  SCRIPT_BLOCK_RE.lastIndex = 0;
-  while ((match = SCRIPT_BLOCK_RE.exec(src))) {
+  while ((match = re.exec(src))) {
     blocks.push(match[1]);
   }
   return blocks.join('\n');

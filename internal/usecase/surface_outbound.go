@@ -71,6 +71,8 @@ func (n *SurfaceNotifier) send(pluginID, method string, payload any) {
 		slog.Warn("surface: marshal notification failed", "method", method, "err", err)
 		return
 	}
+	// Detached for the reason above: nothing is awaited, so there is no deadline to
+	// inherit and no caller to disappoint.
 	if err := n.notifier.Notify(context.Background(), pluginID, method, params); err != nil {
 		slog.Debug("surface: notify failed", "method", method, "pluginId", pluginID, "err", err)
 	}

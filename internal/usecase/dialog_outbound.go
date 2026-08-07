@@ -55,6 +55,9 @@ func (n *DialogNotifier) send(pluginID, method string, payload any) {
 		slog.Warn("dialog: marshal notification failed", "method", method, "err", err)
 		return
 	}
+	// A dialog notification reports something the UI has already done. The caller
+	// is not waiting on the plugin's answer and there is nothing to undo if the
+	// plugin never reads it, so this fires under no deadline but the transport's.
 	if err := n.notifier.Notify(context.Background(), pluginID, method, params); err != nil {
 		slog.Debug("dialog: notify failed", "method", method, "pluginId", pluginID, "err", err)
 	}

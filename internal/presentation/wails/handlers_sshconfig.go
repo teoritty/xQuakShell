@@ -1,7 +1,6 @@
 package wails
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -38,7 +37,7 @@ func (a *AppAPI) PreviewSSHConfig(path string) (SSHConfigPreviewDTO, error) {
 	if strings.TrimSpace(path) == "" {
 		return SSHConfigPreviewDTO{}, fmt.Errorf("select an SSH config file first")
 	}
-	preview, err := a.sshConfigImport.Preview(context.Background(), path)
+	preview, err := a.sshConfigImport.Preview(a.reqCtx(), path)
 	if err != nil {
 		return SSHConfigPreviewDTO{}, sshConfigUserError(err)
 	}
@@ -63,7 +62,7 @@ func (a *AppAPI) ImportSSHConfig(path string, aliases []string, folderID string,
 		return SSHConfigImportResultDTO{}, fmt.Errorf("too many hosts selected")
 	}
 
-	result, err := a.sshConfigImport.Import(context.Background(), usecase.SSHConfigImportRequest{
+	result, err := a.sshConfigImport.Import(a.reqCtx(), usecase.SSHConfigImportRequest{
 		Path:       path,
 		Aliases:    aliases,
 		FolderID:   folderID,

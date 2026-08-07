@@ -133,7 +133,7 @@ func (a *AppAPI) ExecuteLocalCopy(req ExecutePlanDTO) error {
 	if a.transferSvc == nil {
 		return nil
 	}
-	return a.execPlan(context.Background(), "", req)
+	return a.execPlan(a.reqCtx(), "", req)
 }
 
 // CancelTransfer cancels an active transfer, a scanning drop or a remote

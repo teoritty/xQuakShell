@@ -307,6 +307,10 @@ func (o *DiscoveryObserver) send(pluginID, sessionID string, nodeIDs []string) {
 		slog.Error("discovery: encode observe failed", "component", "discovery", "pluginId", pluginID, "err", err)
 		return
 	}
+	// Same shape as every other outbound notification: the observation has already
+	// happened, the plugin is only being told. Binding it to the context of the
+	// operation that produced it would drop notices exactly when a session ends,
+	// which is when the last one matters most.
 	if err := o.notifier.Notify(context.Background(), pluginID, discoveryObserveMethod, params); err != nil {
 		// A plugin that is not running cannot be told anything, and does not need to be: it will
 		// be told the full set again the moment it starts (PluginStarted).

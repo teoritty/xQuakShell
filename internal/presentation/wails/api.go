@@ -186,7 +186,7 @@ func (a *AppAPI) SyncDebugLogWindow(enabled bool) {
 	if a == nil || a.logWindow == nil {
 		return
 	}
-	a.logWindow.SyncEnabled(context.Background(), enabled)
+	a.logWindow.SyncEnabled(a.reqCtx(), enabled)
 }
 
 // StopDebugLogWindow closes the debug log viewer subprocess.
@@ -269,12 +269,19 @@ func (a *AppAPI) SetContext(ctx context.Context) {
 		a.lockout.Start(a.onLockoutTriggered)
 	}
 	if a.auditSvc != nil && a.vaultRepo.IsUnlocked() {
-		_ = a.auditSvc.EnforceRetention(context.Background())
+		_ = a.auditSvc.EnforceRetention(a.reqCtx())
 	}
 }
 
 // Shutdown cleans up all resources when the application closes.
 // Order: stop ping → stop lockout → close all sessions → lock vault → close audit log.
+//
+// The two calls below deliberately do not use reqCtx. Every other handler wants
+// to be cancelled when the app context dies; these run *because* it is dying,
+// and inheriting it would mean the cleanup is cancelled at exactly the moment
+// it is needed - plugin processes left running and the audit retention policy
+// silently skipped. They get their own deadline instead, so a wedged plugin
+// cannot hold the window open forever either.
 func (a *AppAPI) Shutdown() {
 	a.StopDebugLogWindow()
 	if a.pingMgr != nil {
@@ -283,13 +290,16 @@ func (a *AppAPI) Shutdown() {
 	if a.lockout != nil {
 		a.lockout.Stop()
 	}
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), shutdownCleanupTimeout)
+	defer cancelShutdown()
+
 	if a.plugins != nil {
-		a.plugins.StopAll(context.Background())
+		a.plugins.StopAll(shutdownCtx)
 	}
 	a.sessions.CloseAll()
 
 	if a.auditSvc != nil {
-		_ = a.auditSvc.EnforceRetention(context.Background())
+		_ = a.auditSvc.EnforceRetention(shutdownCtx)
 	}
 	a.vaultRepo.Lock()
 	if a.auditSvc != nil {
@@ -340,7 +350,7 @@ func (a *AppAPI) VaultExists() bool {
 // CreateVault creates a new vault protected by masterPassword and leaves it unlocked.
 // It fails rather than overwriting an existing vault.
 func (a *AppAPI) CreateVault(masterPassword string) error {
-	if err := a.vaultRepo.Create(context.Background(), masterPassword); err != nil {
+	if err := a.vaultRepo.Create(a.reqCtx(), masterPassword); err != nil {
 		return err
 	}
 	a.afterVaultOpened()
@@ -350,7 +360,7 @@ func (a *AppAPI) CreateVault(masterPassword string) error {
 // UnlockVault decrypts the vault with the given master password.
 // After unlocking, applies persisted settings (e.g. lockout) to the running managers.
 func (a *AppAPI) UnlockVault(masterPassword string) error {
-	if err := a.vaultRepo.Unlock(context.Background(), masterPassword); err != nil {
+	if err := a.vaultRepo.Unlock(a.reqCtx(), masterPassword); err != nil {
 		return err
 	}
 	a.afterVaultOpened()
@@ -391,7 +401,7 @@ func (a *AppAPI) afterVaultOpened() {
 
 	if a.auditSvc != nil {
 		a.auditSvc.OnVaultLocked()
-		_ = a.auditSvc.EnforceRetention(context.Background())
+		_ = a.auditSvc.EnforceRetention(a.reqCtx())
 	}
 }
 

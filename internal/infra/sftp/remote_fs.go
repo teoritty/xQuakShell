@@ -378,13 +378,13 @@ func (fs *RemoteFS) downloadRecursive(ctx context.Context, remoteDir, localDir s
 }
 
 // Mkdir creates a remote directory (and parents if needed).
-func (fs *RemoteFS) Mkdir(ctx context.Context, dirPath string) error {
+func (fs *RemoteFS) Mkdir(_ context.Context, dirPath string) error {
 	dirPath = sanitizeRemotePath(dirPath)
 	return fs.client.MkdirAll(dirPath)
 }
 
 // CreateFile creates an empty remote file.
-func (fs *RemoteFS) CreateFile(ctx context.Context, remotePath string) error {
+func (fs *RemoteFS) CreateFile(_ context.Context, remotePath string) error {
 	remotePath = sanitizeRemotePath(remotePath)
 	f, err := fs.client.Create(remotePath)
 	if err != nil {
@@ -394,7 +394,7 @@ func (fs *RemoteFS) CreateFile(ctx context.Context, remotePath string) error {
 }
 
 // Remove deletes a remote file or empty directory.
-func (fs *RemoteFS) Remove(ctx context.Context, remotePath string) error {
+func (fs *RemoteFS) Remove(_ context.Context, remotePath string) error {
 	remotePath = sanitizeRemotePath(remotePath)
 	return fs.client.Remove(remotePath)
 }
@@ -467,7 +467,7 @@ func tick(fn func()) {
 }
 
 // Rename moves/renames a remote path.
-func (fs *RemoteFS) Rename(ctx context.Context, oldPath, newPath string) error {
+func (fs *RemoteFS) Rename(_ context.Context, oldPath, newPath string) error {
 	oldPath = sanitizeRemotePath(oldPath)
 	newPath = sanitizeRemotePath(newPath)
 	return fs.client.Rename(oldPath, newPath)
@@ -477,7 +477,7 @@ func (fs *RemoteFS) Rename(ctx context.Context, oldPath, newPath string) error {
 //
 // Note: SFTP has no lchmod equivalent — if remotePath is a symlink, this
 // changes the permissions of its target, not the link itself.
-func (fs *RemoteFS) Chmod(ctx context.Context, remotePath string, mode os.FileMode) error {
+func (fs *RemoteFS) Chmod(_ context.Context, remotePath string, mode os.FileMode) error {
 	remotePath = sanitizeRemotePath(remotePath)
 	if err := fs.client.Chmod(remotePath, mode); err != nil {
 		return fmt.Errorf("sftp chmod %s: %w", remotePath, err)
@@ -489,7 +489,7 @@ func (fs *RemoteFS) Chmod(ctx context.Context, remotePath string, mode os.FileMo
 //
 // Note: SFTP has no lchown equivalent — if remotePath is a symlink, this
 // changes the owner of its target, not the link itself.
-func (fs *RemoteFS) Chown(ctx context.Context, remotePath string, uid, gid int) error {
+func (fs *RemoteFS) Chown(_ context.Context, remotePath string, uid, gid int) error {
 	remotePath = sanitizeRemotePath(remotePath)
 	if err := fs.client.Chown(remotePath, uid, gid); err != nil {
 		return fmt.Errorf("sftp chown %s: %w", remotePath, err)

@@ -1,7 +1,6 @@
 package wails
 
 import (
-	"context"
 	"crypto/ed25519"
 	"fmt"
 
@@ -122,11 +121,7 @@ func (a *AppAPI) SavePluginSettings(dto PluginSettingsDTO) error {
 		return err
 	}
 	settings.Plugins = dtoToPluginSettings(dto)
-	ctx := a.ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	return a.settingsSvc.SaveSettings(ctx, settings)
+	return a.settingsSvc.SaveSettings(a.reqCtx(), settings)
 }
 
 // GeneratePluginPublisherKeyPair returns a new Ed25519 key pair for plugin signing.

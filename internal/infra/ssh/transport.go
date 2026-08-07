@@ -10,29 +10,6 @@ import (
 	"xquakshell/internal/domain"
 )
 
-// DirectDialer establishes direct TCP connections.
-type DirectDialer struct{}
-
-// DialContext opens a TCP connection to the given address.
-func (d *DirectDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	var dialer net.Dialer
-	return dialer.DialContext(ctx, network, address)
-}
-
-// BastionDialer routes connections through an existing SSH client using direct-tcpip channels.
-type BastionDialer struct {
-	client *gossh.Client
-}
-
-// DialContext opens a direct-tcpip channel through the bastion SSH connection.
-func (b *BastionDialer) DialContext(_ context.Context, _, address string) (net.Conn, error) {
-	conn, err := b.client.Dial("tcp", address)
-	if err != nil {
-		return nil, fmt.Errorf("bastion dial %s: %w", address, err)
-	}
-	return conn, nil
-}
-
 // BuildTransportChain establishes SSH connections through a chain of bastion hops.
 // Returns the final net.Conn that reaches the target, and a cleanup function for
 // all intermediate SSH clients.
@@ -98,7 +75,11 @@ func BuildTransportChain(
 			nextAddr = fmt.Sprintf("%s:%d", hops[i+1].Host, hops[i+1].Port)
 		}
 
-		transport, err = client.Client().Dial("tcp", nextAddr)
+		// OpenDirectTCP rather than client.Client().Dial: the chain is built
+		// under the caller's connect deadline, and a raw Dial ignores it. One
+		// hop that accepts TCP but stalls on direct-tcpip would otherwise hang
+		// the whole chain past every timeout the user configured.
+		transport, err = client.OpenDirectTCP(ctx, nextAddr)
 		if err != nil {
 			cleanup()
 			return nil, nil, fmt.Errorf("hop %d forward to %s: %w", i, nextAddr, err)

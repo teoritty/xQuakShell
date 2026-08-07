@@ -1,7 +1,6 @@
 package wails
 
 import (
-	"context"
 	"fmt"
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -24,11 +23,11 @@ func (a *AppAPI) GetSettings() (AppSettingsDTO, error) {
 // SaveSettings persists application settings to the vault and applies them.
 func (a *AppAPI) SaveSettings(dto AppSettingsDTO) error {
 	settings := DTOToAppSettings(dto)
-	if err := a.settingsSvc.SaveSettings(context.Background(), settings); err != nil {
+	if err := a.settingsSvc.SaveSettings(a.reqCtx(), settings); err != nil {
 		return err
 	}
 	if a.auditSvc != nil {
-		_ = a.auditSvc.EnforceRetention(context.Background())
+		_ = a.auditSvc.EnforceRetention(a.reqCtx())
 	}
 	if a.pingMgr != nil {
 		a.pingMgr.Stop()
@@ -71,7 +70,7 @@ func (a *AppAPI) GetPingResults() []PingResultDTO {
 // PingConnection pings a single connection immediately.
 func (a *AppAPI) PingConnection(connID string) {
 	if a.pingMgr != nil {
-		a.pingMgr.PingByConnectionID(context.Background(), connID)
+		a.pingMgr.PingByConnectionID(a.reqCtx(), connID)
 	}
 }
 
@@ -89,7 +88,7 @@ func (a *AppAPI) SearchAuditLog(query, sessionID, connectionID, category string,
 		Limit:        limit,
 		Offset:       offset,
 	}
-	entries, err := a.auditSvc.Search(context.Background(), query, filter)
+	entries, err := a.auditSvc.Search(a.reqCtx(), query, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +100,7 @@ func (a *AppAPI) DeleteAuditEntry(id int64) error {
 	if a.auditSvc == nil {
 		return fmt.Errorf("audit log not available")
 	}
-	return a.auditSvc.DeleteByID(context.Background(), id)
+	return a.auditSvc.DeleteByID(a.reqCtx(), id)
 }
 
 // ClearAuditLog removes audit log entries of the given category. An empty
@@ -110,7 +109,7 @@ func (a *AppAPI) ClearAuditLog(category string) error {
 	if a.auditSvc == nil {
 		return fmt.Errorf("audit log not available")
 	}
-	return a.auditSvc.ClearAll(context.Background(), category)
+	return a.auditSvc.ClearAll(a.reqCtx(), category)
 }
 
 // AuditSessionStateDTO exposes session-only audit options to the UI.

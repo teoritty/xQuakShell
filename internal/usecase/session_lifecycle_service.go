@@ -134,6 +134,9 @@ func (s *SessionLifecycleService) CloseSession(sessionID string) error {
 		_ = s.embed.RevokeBySession(sessionID)
 	}
 	if entry.pluginID != "" && s.plugins != nil {
+		// entry.cancel() ran a few lines up, so the session context is already dead.
+		// Telling the plugin to disconnect is teardown that has to survive it, or the
+		// plugin keeps state for a session the host has forgotten.
 		s.plugins.Disconnect(context.Background(), entry.pluginID, sessionID)
 	}
 	if entry.pluginOutput != nil {

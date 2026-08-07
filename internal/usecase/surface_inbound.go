@@ -53,7 +53,7 @@ type surfaceIDParams struct {
 // the time a payload arrives here — PluginSessionRPCHandler authorizes it on the same path it
 // authorizes channel.open and discovery.publish. Repeating it here would be a second copy of one
 // rule, and the weaker copy is how the two drift.
-func (s *SurfaceService) Handle(ctx context.Context, pluginID, method string, params json.RawMessage) (json.RawMessage, error) {
+func (s *SurfaceService) Handle(_ context.Context, pluginID, method string, params json.RawMessage) (json.RawMessage, error) {
 	switch method {
 	case MethodSurfaceOpen:
 		var req surfaceOpenParams

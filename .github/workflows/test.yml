@@ -16,8 +16,9 @@ jobs:
           go-version: '1.25'
 
       # Layer imports, composition root, filesystem boundaries, goroutine
-      # launches, file budgets and the session manager decomposition. This
-      # package does not import main, so it needs no frontend/dist.
+      # launches, context usage, file budgets and the session manager
+      # decomposition. This package does not import main, so it needs no
+      # frontend/dist.
       - name: Architecture checks
         run: go test ./test/unit/architecture/... -count=1
 

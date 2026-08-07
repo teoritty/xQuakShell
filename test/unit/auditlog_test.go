@@ -2,6 +2,7 @@ package unit_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -186,5 +187,51 @@ func TestDefaultAuditLogSettings(t *testing.T) {
 	}
 	if def.ShowConnection {
 		t.Error("connection logging should be off by default")
+	}
+}
+
+// TestAuditLogHonoursCancelledContext pins the reason Append and Search take a
+// context at all. Both used to call db.Exec/db.Query, so a cancelled caller
+// still paid for the write and, worse, for an FTS scan of the whole log that
+// nobody was waiting on any more.
+func TestAuditLogHonoursCancelledContext(t *testing.T) {
+	repo, err := auditlog.NewSQLiteRepo(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewSQLiteRepo: %v", err)
+	}
+	defer repo.Close()
+
+	seeded := domain.AuditEntry{
+		Timestamp:    time.Now(),
+		SessionID:    "sess-cancel",
+		ConnectionID: "conn-cancel",
+		Input:        "cat /etc/shadow",
+	}
+	if err := repo.Append(context.Background(), seeded); err != nil {
+		t.Fatalf("seed Append: %v", err)
+	}
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := repo.Append(cancelled, seeded); !errors.Is(err, context.Canceled) {
+		t.Errorf("Append with a cancelled context: err = %v, want context.Canceled; the write must not outlive its caller", err)
+	}
+
+	entries, err := repo.Search(cancelled, "shadow", domain.AuditSearchFilter{Limit: 100})
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Search with a cancelled context: err = %v, want context.Canceled; an abandoned FTS query must not keep scanning", err)
+	}
+	if entries != nil {
+		t.Errorf("Search with a cancelled context returned %d entries, want none", len(entries))
+	}
+
+	// The cancelled Append must not have landed: the seeded row is still the only one.
+	count, err := repo.Count(context.Background())
+	if err != nil {
+		t.Fatalf("Count: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("row count = %d, want 1; the cancelled Append wrote anyway", count)
 	}
 }

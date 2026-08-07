@@ -46,10 +46,15 @@ func (r *processReaper) Wait(ctx context.Context) error {
 }
 
 // Kill terminates the child and waits for exit.
+//
+// The wait is deliberately unbounded and detached: the signal has already been
+// delivered, so this is reaping a process that is on its way out. Giving up
+// early would leave a zombie and a plugin the host believes is still running.
 func (r *processReaper) Kill() error {
 	if r.cmd.Process != nil {
 		killPluginProcess(r.cmd.Process.Pid)
 	}
+	// Detached and unbounded, per the note above: the reap must finish.
 	return r.Wait(context.Background())
 }
 

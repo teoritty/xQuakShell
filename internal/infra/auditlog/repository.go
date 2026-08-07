@@ -67,14 +67,17 @@ func initSchema(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_audit_connection ON audit_events(connection_id);
 	CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_events(ts);
 	`
-	if _, err := db.Exec(ddl); err != nil {
+	// Schema creation runs inside NewSQLiteRepo, which has no caller context to
+	// inherit: an audit database that failed to open half-way is worse than one
+	// that took a moment longer, so this one is not cancellable by design.
+	if _, err := db.ExecContext(context.Background(), ddl); err != nil {
 		return fmt.Errorf("audit init schema: %w", err)
 	}
 	return nil
 }
 
 // Append writes a new audit entry to the log.
-func (r *SQLiteRepo) Append(_ context.Context, entry domain.AuditEntry) error {
+func (r *SQLiteRepo) Append(ctx context.Context, entry domain.AuditEntry) error {
 	ts := entry.Timestamp.UTC().Format(time.RFC3339Nano)
 	redacted := 0
 	if entry.Redacted {
@@ -84,7 +87,8 @@ func (r *SQLiteRepo) Append(_ context.Context, entry domain.AuditEntry) error {
 	if category == "" {
 		category = domain.AuditCategoryCommand
 	}
-	_, err := r.db.Exec(
+	_, err := r.db.ExecContext(
+		ctx,
 		`INSERT INTO audit_events (ts, category, session_id, connection_id, connection_name, host, username, input, redacted)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		ts, category, entry.SessionID, entry.ConnectionID, entry.ConnectionName, entry.Host, entry.Username, entry.Input, redacted,
@@ -96,7 +100,7 @@ func (r *SQLiteRepo) Append(_ context.Context, entry domain.AuditEntry) error {
 }
 
 // Search performs full-text search on audit entries with optional filters.
-func (r *SQLiteRepo) Search(_ context.Context, query string, filter domain.AuditSearchFilter) ([]domain.AuditEntry, error) {
+func (r *SQLiteRepo) Search(ctx context.Context, query string, filter domain.AuditSearchFilter) ([]domain.AuditEntry, error) {
 	var args []interface{}
 	var whereClauses []string
 
@@ -155,7 +159,7 @@ func (r *SQLiteRepo) Search(_ context.Context, query string, filter domain.Audit
 		baseQuery += fmt.Sprintf(` OFFSET %d`, filter.Offset)
 	}
 
-	rows, err := r.db.Query(baseQuery, args...)
+	rows, err := r.db.QueryContext(ctx, baseQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("audit search: %w", err)
 	}
@@ -238,6 +242,11 @@ func (r *SQLiteRepo) Close() error {
 }
 
 // PurgeOlderThanNow deletes audit entries older than the given duration from now.
+//
+// The context-free signature is the port's, so the context has to be minted
+// here. Retention is a policy the vault owner set, not a request anyone is
+// waiting on, and a purge that gets cancelled leaves data past its retention
+// window - which is the failure this exists to prevent.
 func (r *SQLiteRepo) PurgeOlderThanNow(d time.Duration) error {
 	return r.PurgeOlderThan(context.Background(), time.Now().Add(-d))
 }

@@ -183,7 +183,11 @@ func (s *EmbedTunnelService) WireSessionContext(registry *SessionRegistry, looku
 }
 
 // Register mints a new embed token for a session (replaces any prior token).
-func (s *EmbedTunnelService) Register(ctx context.Context, reg domain.EmbedRegistration) (domain.SessionEmbedDescriptor, error) {
+//
+// The context is unused: registration is a bookkeeping write under s.mu plus a
+// synchronous ready callback. Nothing here waits on the plugin or the network,
+// and the embed it registers must outlive the call that created it.
+func (s *EmbedTunnelService) Register(_ context.Context, reg domain.EmbedRegistration) (domain.SessionEmbedDescriptor, error) {
 	if s == nil {
 		return domain.SessionEmbedDescriptor{}, fmt.Errorf("embed tunnel service unavailable")
 	}
@@ -251,7 +255,6 @@ func (s *EmbedTunnelService) Register(ctx context.Context, reg domain.EmbedRegis
 	if ready != nil {
 		ready(desc)
 	}
-	_ = ctx
 	return desc, nil
 }
 

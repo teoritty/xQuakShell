@@ -1,7 +1,6 @@
 package wails
 
 import (
-	"context"
 	"encoding/base64"
 	"fmt"
 	"log/slog"
@@ -19,7 +18,7 @@ import (
 // OpenSession starts a new SSH session for the given connection.
 // Returns the session ID; the connection process is async.
 func (a *AppAPI) OpenSession(connectionID string) (string, error) {
-	sessionID, err := a.sessions.OpenSession(context.Background(), connectionID)
+	sessionID, err := a.sessions.OpenSession(a.reqCtx(), connectionID)
 	if err != nil {
 		return "", err
 	}
@@ -27,7 +26,7 @@ func (a *AppAPI) OpenSession(connectionID string) (string, error) {
 	slog.Debug("embed: OpenSession RPC returning sessionId to frontend", "pluginId", pluginID, "sessionId", sessionID, "connectionId", connectionID)
 
 	if a.plugins != nil {
-		a.plugins.PublishCoreEvent(context.Background(), "core.session.opened", map[string]string{
+		a.plugins.PublishCoreEvent(a.reqCtx(), "core.session.opened", map[string]string{
 			"sessionId":    sessionID,
 			"connectionId": connectionID,
 		})
@@ -54,7 +53,7 @@ func (a *AppAPI) CloseSession(sessionID string) error {
 		wailsrt.EventsEmit(a.ctx, EventSessionClosed, map[string]string{"sessionId": sessionID})
 	}
 	if a.plugins != nil {
-		a.plugins.PublishCoreEvent(context.Background(), "core.session.closed", map[string]string{
+		a.plugins.PublishCoreEvent(a.reqCtx(), "core.session.closed", map[string]string{
 			"sessionId": sessionID,
 		})
 	}
@@ -109,7 +108,7 @@ func (a *AppAPI) trackAuditInput(sessionID, data, commandLine string) {
 		return
 	}
 
-	if err := a.auditSvc.RecordCommand(context.Background(), sessionID, line); err != nil {
+	if err := a.auditSvc.RecordCommand(a.reqCtx(), sessionID, line); err != nil {
 		slog.Warn("audit record command failed", "sessionId", sessionID, "err", err)
 	}
 }
@@ -152,7 +151,7 @@ func (a *AppAPI) ResolveHostKey(sessionID, action, host, authorizedKey string) e
 	if a.hostKeys == nil {
 		return fmt.Errorf("host key service unavailable")
 	}
-	return a.hostKeys.ResolveHostKey(context.Background(), sessionID, action, host, authorizedKey)
+	return a.hostKeys.ResolveHostKey(a.reqCtx(), sessionID, action, host, authorizedKey)
 }
 
 // ReportEmbedViewport forwards pixel dimensions to the plugin process.
@@ -162,7 +161,7 @@ func (a *AppAPI) ReportEmbedViewport(sessionID string, widthPx, heightPx int, de
 	if a.embedBridge == nil {
 		return nil
 	}
-	return a.embedBridge.ReportViewport(context.Background(), sessionID, widthPx, heightPx, devicePixelRatio, true)
+	return a.embedBridge.ReportViewport(a.reqCtx(), sessionID, widthPx, heightPx, devicePixelRatio, true)
 }
 
 // ReportEmbedActivity updates broker backpressure when the session tab focus changes.
@@ -172,7 +171,7 @@ func (a *AppAPI) ReportEmbedActivity(sessionID string, active bool) error {
 	if a.embedBridge == nil {
 		return nil
 	}
-	return a.embedBridge.ReportActivity(context.Background(), sessionID, active)
+	return a.embedBridge.ReportActivity(a.reqCtx(), sessionID, active)
 }
 
 // --- Internal helpers ---
@@ -184,7 +183,7 @@ func (a *AppAPI) onSessionStateChange(session domain.ConnectionSession) {
 		wailsrt.EventsEmit(a.ctx, EventSessionStateChanged, SessionToDTO(session))
 	}
 	if a.plugins != nil {
-		a.plugins.PublishCoreEvent(context.Background(), "core.session.stateChanged", map[string]string{
+		a.plugins.PublishCoreEvent(a.reqCtx(), "core.session.stateChanged", map[string]string{
 			"sessionId": session.SessionID,
 			"state":     string(session.State),
 		})
@@ -228,7 +227,7 @@ func (a *AppAPI) onStreamReady(sessionID string, outputCh <-chan []byte) {
 // initSessionPTYAndSFTP delegates PTY and SFTP setup to the SessionManager,
 // then emits Wails events when the subsystems are ready.
 func (a *AppAPI) initSessionPTYAndSFTP(sessionID string) {
-	outputCh, initialPath, err := a.sessions.InitSessionIO(context.Background(), sessionID)
+	outputCh, initialPath, err := a.sessions.InitSessionIO(a.reqCtx(), sessionID)
 	if err != nil || outputCh == nil {
 		return
 	}

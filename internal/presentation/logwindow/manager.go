@@ -67,7 +67,11 @@ func (m *Manager) Stop() {
 	closeJob()
 }
 
-func (m *Manager) startLocked(ctx context.Context) {
+// startLocked spawns the viewer subprocess. The context is not used and cannot
+// be: the window it starts outlives this call by design, and its lifetime is
+// owned by stopLocked and the watchChild goroutine, not by whoever asked for it
+// to appear. Cancelling the request that opened a window must not close it.
+func (m *Manager) startLocked(_ context.Context) {
 	if m.running {
 		return
 	}
@@ -110,7 +114,6 @@ func (m *Manager) startLocked(ctx context.Context) {
 	m.running = true
 
 	safego.GoNamed("logwindow.watchChild", func() { m.watchChild(cmd) })
-	_ = ctx
 }
 
 func (m *Manager) stopLocked() {
