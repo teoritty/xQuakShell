@@ -200,10 +200,47 @@ jobs:
           CGO_ENABLED: 0
         run: go build ./...
 
+      # `output:` keeps the SARIF on disk for the gate below. Upload still happens
+      # (the action's default is `upload: always`), so the Security tab is
+      # unaffected -- this only stops the results being write-only.
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
+          output: codeql-results
+
+      # analyze exits 0 whatever it found, so until this step a CodeQL alert only
+      # ever appeared in the Security tab and never turned a build red -- the same
+      # hole the gosec and staticcheck gates in the `go` job above already close,
+      # left open on the one tool with its own engine. Four alerts sat on main
+      # through green pipelines.
+      #
+      # What this does and does not catch, because a green PR here is easy to
+      # misread: CodeQL restricts most queries to the lines a pull request
+      # touches, so on a `pull_request` run this fails what the PR INTRODUCES and
+      # says nothing about what it inherits. The push-to-main run analyses the
+      # whole tree and is what catches an inherited alert. Both are wanted; only
+      # the second is exhaustive.
+      #
+      # The results are printed before failing because, unlike gosec and
+      # staticcheck, nothing else in the job log names them.
+      - name: Gate on CodeQL findings
+        if: always()
+        run: |
+          shopt -s nullglob
+          sarif=(codeql-results/*.sarif)
+          if [ "${#sarif[@]}" -eq 0 ]; then
+            echo "no CodeQL SARIF in codeql-results/ - analyze did not run to completion"
+            exit 1
+          fi
+          count=$(jq -s '[.[].runs[].results[]] | length' "${sarif[@]}")
+          if [ "$count" -ne 0 ]; then
+            jq -rs '.[].runs[].results[]
+              | "\(.ruleId)\t\(.locations[0].physicalLocation.artifactLocation.uri // "?"):\(.locations[0].physicalLocation.region.startLine // 0)\t\(.message.text)"' \
+              "${sarif[@]}"
+            echo "CodeQL reported $count finding(s) for ${{ matrix.language }}"
+            exit 1
+          fi
 
   frontend:
     runs-on: ubuntu-latest

@@ -31,4 +31,28 @@ assert(asTs.split('\n').length === component.split('\n').length, 'blanking marku
 const svelteShapes = measureFuncs('X.svelte', component);
 assert(svelteShapes.get('X.svelte::handle')?.codeLines === 1, 'a component handler is measured');
 
+// The same whitespace-tolerant end tag measure.ts handles. This file used to
+// carry its own copy of the pattern, so repairing one left the other silently
+// blanking the entire component: svelteAsTypeScript would find no block, emit
+// only spaces, and measureFuncs would report a component with no functions in
+// it - every function budget bypassed by one space in a closing tag.
+const spacedComponent = [
+  '<div>hi</div>',
+  '',
+  '<script lang="ts">',
+  '  function handle(e: Event) {',
+  '    console.log(e);',
+  '  }',
+  '</script >',
+].join('\n');
+const spacedShapes = measureFuncs('Spaced.svelte', spacedComponent);
+assert(
+  spacedShapes.get('Spaced.svelte::handle')?.codeLines === 1,
+  `handler code lines = ${spacedShapes.get('Spaced.svelte::handle')?.codeLines}, want 1; \`</script >\` must not hide a function`
+);
+assert(
+  svelteAsTypeScript(spacedComponent).split('\n').length === spacedComponent.split('\n').length,
+  'the wider end tag still preserves line numbers'
+);
+
 console.log('funcShapes.test passed');
