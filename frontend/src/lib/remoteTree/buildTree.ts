@@ -63,7 +63,10 @@ export function buildTree(
       const showFolder = !query || selfMatches || childMatches;
       if (!showFolder) continue;
 
-      const isExpanded = expanded.has(f.id) || (query && childMatches);
+      // `!!query` rather than `query`: && on a string yields '' for an empty query, so the
+      // expression typed as `boolean | ''` and leaked a string into a boolean field. Both are
+      // falsy, so nothing behaved differently - it only meant the type could not say so.
+      const isExpanded = expanded.has(f.id) || (!!query && childMatches);
       const node: TreeNode = {
         type: 'folder',
         id: f.id,

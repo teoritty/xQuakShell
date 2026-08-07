@@ -7,15 +7,22 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     /**
-     * Declared here rather than inherited, because the preset changed under us:
-     * @tsconfig/svelte v3 set strict false and v5 sets it true. Turning it on is
-     * worth doing and is NOT what a dependency migration should do silently - it
-     * reports 7 pre-existing strictNullChecks findings across four files, three of
-     * them calls to a possibly-undefined Wails binding in api/surfaces.ts, and each
-     * deserves reading rather than a blanket `!`. Enable it in the commit that
-     * fixes them.
+     * Declared here rather than inherited so a preset bump cannot move it again:
+     * @tsconfig/svelte v3 set this false, v5 sets it true, and the change arrived
+     * silently inside a Svelte upgrade.
+     *
+     * It is on, and the seven findings it reported were fixed rather than
+     * suppressed - not one `!`, `as` or `@ts-ignore` was added for them. Three
+     * were an AppGateway declaring 43 methods optional when the Wails generator
+     * emits none; one a `&&` on a string typing as `boolean | ''`; two a guard
+     * that proved more than its `boolean` return could carry; one a write path
+     * disagreeing with the two beside it. Each was a true statement the types
+     * were unable to make.
+     *
+     * Keep it on. Turning it off to land something is how those seven
+     * accumulated unseen in the first place.
      */
-    "strict": false,
+    "strict": true,
     /**
      * Typecheck JS in `.svelte` and `.js` files by default.
      * Disable checkJs if you'd like to use dynamic types in JS.

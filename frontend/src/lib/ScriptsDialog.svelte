@@ -145,8 +145,12 @@
             ...p,
             name: editPresetName.trim() || p.name,
             content: editPresetContent,
-            hint: editPresetHint.trim() || undefined,
-            hotkey: editPresetHotkey || undefined,
+            // '' rather than undefined, matching DEFAULT_PRESETS and addPreset, which are the
+            // only other places a preset is written. Both fields are read as `p.hint || ''`,
+            // and `p.hotkey && ...` treats either as absent, so this changes no behaviour - it
+            // stops one of three write paths disagreeing with the shape the other two produce.
+            hint: editPresetHint.trim(),
+            hotkey: editPresetHotkey,
           }
         : p
     );
