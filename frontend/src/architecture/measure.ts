@@ -50,14 +50,34 @@ export function countCodeLines(src: string): number {
     .filter((line) => line.trim() !== '').length;
 }
 
-const SCRIPT_BLOCK_RE = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
+/**
+ * The one pattern that finds a Svelte `<script>` block, for every measurement
+ * that needs one.
+ *
+ * `\s*` before the closing `>` is load-bearing. HTML5 allows whitespace between
+ * the tag name and the `>` of an end tag, so `</script >` and `</script\n>` are
+ * real end tags that a browser and the Svelte compiler both honour. An end tag
+ * this pattern misses does not fail loudly: the block simply runs past the end
+ * of the file, matches nothing, and the component reports an empty script. That
+ * is a hole straight through the script and function budgets - one stray space
+ * and a component of any size stops being measured at all.
+ *
+ * A factory, not a shared constant: a `/g` regex carries a mutable `lastIndex`
+ * between calls, so a single shared object makes every caller responsible for
+ * resetting it and the one that forgets silently starts scanning mid-file.
+ * Handing out a fresh object costs nothing and removes the failure mode instead
+ * of documenting it.
+ */
+export function scriptBlockRe(): RegExp {
+  return /<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi;
+}
 
 /** Concatenates the contents of every <script> block in a Svelte component. */
 export function svelteScript(src: string): string {
   const blocks: string[] = [];
+  const re = scriptBlockRe();
   let match: RegExpExecArray | null;
-  SCRIPT_BLOCK_RE.lastIndex = 0;
-  while ((match = SCRIPT_BLOCK_RE.exec(src))) {
+  while ((match = re.exec(src))) {
     blocks.push(match[1]);
   }
   return blocks.join('\n');
