@@ -54,13 +54,22 @@ export function countCodeLines(src: string): number {
  * The one pattern that finds a Svelte `<script>` block, for every measurement
  * that needs one.
  *
- * `\s*` before the closing `>` is load-bearing. HTML5 allows whitespace between
- * the tag name and the `>` of an end tag, so `</script >` and `</script\n>` are
- * real end tags that a browser and the Svelte compiler both honour. An end tag
- * this pattern misses does not fail loudly: the block simply runs past the end
- * of the file, matches nothing, and the component reports an empty script. That
- * is a hole straight through the script and function budgets - one stray space
- * and a component of any size stops being measured at all.
+ * `(?:\s[^>]*)?` on the end tag is load-bearing, and it is wider than it first
+ * looks it needs to be. An HTML5 end tag is `</`, the name, then anything up to
+ * the `>`: whitespace and even attributes are a parse error the parser reports
+ * and then ignores, so `</script >`, `</script\n>` and `</script\t\n foo="bar">`
+ * all really do close the block in a browser and in the Svelte compiler.
+ *
+ * An end tag this pattern misses does not fail loudly. `[\s\S]*?` finds no
+ * close, the match fails outright, and the component reports an empty script -
+ * a hole straight through the script and function budgets, where one stray
+ * space stops a component of any size being measured at all. Being permissive
+ * here is the safe direction: closing a block early costs a mismeasurement,
+ * never closing it costs the whole gate.
+ *
+ * The leading `\s` inside the group, rather than a bare `[^>]*`, is what keeps
+ * `</scriptfoo>` from closing anything - that is a different tag, not this one
+ * with junk after it.
  *
  * A factory, not a shared constant: a `/g` regex carries a mutable `lastIndex`
  * between calls, so a single shared object makes every caller responsible for
@@ -69,7 +78,7 @@ export function countCodeLines(src: string): number {
  * of documenting it.
  */
 export function scriptBlockRe(): RegExp {
-  return /<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi;
+  return /<script\b[^>]*>([\s\S]*?)<\/script(?:\s[^>]*)?>/gi;
 }
 
 /** Concatenates the contents of every <script> block in a Svelte component. */
