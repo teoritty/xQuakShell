@@ -49,17 +49,19 @@ updates:
   # lockfile, and is excluded from `npm audit` in security.yml for the same reason - it is not
   # a project anyone here maintains.
   #
-  # Majors are ignored deliberately, and this is a scope decision rather than an attempt to
-  # look green. The build tooling is 3-6 majors behind (vite 3, typescript 4,
-  # vite-plugin-svelte 1), and every one of those PRs would be unmergeable on arrival: the
-  # Svelte 3 -> 5 move is a coordinated migration of five packages, not a bump. Left
-  # unignored they would arrive as a permanent wall of red PRs and teach everyone to ignore
-  # the label. See .claude/dependency-strategy.md for the migration plan; remove this ignore
-  # when that lands.
+  # Majors were ignored here until the tree caught up, and are not any more. The ignore existed
+  # because the build tooling was 3-6 majors behind - vite 3, typescript 4,
+  # vite-plugin-svelte 1 - so every major PR would have been unmergeable on arrival: Svelte
+  # 3 -> 5 was a coordinated migration of five packages, not a bump. A permanent wall of red
+  # PRs is how a team learns to ignore the label.
   #
-  # What ships to a user is a different population and is already current: dompurify, marked,
-  # xterm and codemirror are all within a patch or minor, so patch/minor updates here are the
-  # ones that actually reach the product.
+  # That migration has landed. Svelte 5, vite 8, typescript 5.9, and `npm audit --omit=dev`
+  # reports zero. The blanket ignore now has the opposite effect: it would hold the tree back
+  # from the state it was added to reach.
+  #
+  # If a major wall ever forms again, the answer is the same as it was - ignore majors for as
+  # long as the migration takes, with the plan written down, and lift it in the commit that
+  # makes the tree current. Not: leave it on because it is quiet.
   - package-ecosystem: npm
     directory: "/frontend"
     schedule:
@@ -71,10 +73,6 @@ updates:
     commit-message:
       prefix: build
       include: scope
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - version-update:semver-major
     groups:
       # Both families move as a set upstream and are meaningless to review one package at a
       # time - a codemirror editor with mismatched @codemirror/state and /view does not work.
