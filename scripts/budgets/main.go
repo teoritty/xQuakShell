@@ -254,11 +254,21 @@ func writeConfig(repoRoot string, cfg architecture.BudgetConfig) error {
 		return err
 	}
 	path := filepath.Join(repoRoot, architecture.BudgetConfigFile)
-	return os.WriteFile(path, buf.Bytes(), 0o644)
+	// 0600 rather than 0644, and it costs nothing: the mode is only applied when
+	// the file is created, and code-budgets.json is tracked by git, so in practice
+	// this always overwrites a file whose mode git already owns. Do not widen it
+	// back - gosec gates the security workflow on zero findings, and G306 fires on
+	// anything above 0600.
+	return os.WriteFile(path, buf.Bytes(), 0o600)
 }
 
 func gitTrackedFiles(repoRoot string) (map[string]bool, error) {
-	cmd := exec.Command("git", "-C", repoRoot, "ls-files")
+	// The working directory is set on the command rather than passed as `-C
+	// <root>`: identical behaviour, but no variable reaches the argument list, so
+	// there is nothing here for gosec's G204 to warn about. No shell is involved
+	// either way - this is not a suppression, it is one fewer thing to argue about.
+	cmd := exec.Command("git", "ls-files")
+	cmd.Dir = repoRoot
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("git ls-files: %w", err)
