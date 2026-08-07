@@ -8,7 +8,7 @@
 // by the file budget.
 
 import ts from 'typescript';
-import { blankComments, svelteScript } from './measure';
+import { blankComments, scriptBlockRe, svelteScript } from './measure';
 
 export interface FuncShape {
   codeLines: number;
@@ -28,7 +28,7 @@ export function svelteAsTypeScript(src: string): string {
 
   let out = '';
   let index = 0;
-  const re = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
+  const re = scriptBlockRe();
   let match: RegExpExecArray | null;
   while ((match = re.exec(src))) {
     const scriptStart = match.index + match[0].indexOf('>') + 1;
