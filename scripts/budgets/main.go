@@ -70,6 +70,69 @@ func main() {
 	os.Exit(1)
 }
 
+// ownsBaselineKey reports whether the Go updater owns this baseline entry.
+//
+// A key is either a path ("internal/x.go") or a symbol ("internal/x.go::Name"),
+// so the extension test runs on the path half of both. One predicate for files
+// and functions alike: the two halves used to decide this separately, and the
+// function half simply forgot to.
+func ownsBaselineKey(key string) bool {
+	path, _, _ := strings.Cut(key, "::")
+	return strings.HasSuffix(path, ".go")
+}
+
+// carryForeignFiles keeps the entries this command does not own. Frontend
+// numbers are measured by frontend/src/architecture/updateBaseline.ts; each
+// side rewrites its own and preserves the other's.
+func carryForeignFiles(base map[string]architecture.FileMeasurement) map[string]architecture.FileMeasurement {
+	next := map[string]architecture.FileMeasurement{}
+	for path, m := range base {
+		if !ownsBaselineKey(path) {
+			next[path] = m
+		}
+	}
+	return next
+}
+
+// carryForeignFuncs is carryForeignFiles for the function half. Its absence was
+// the bug: rebuildFuncBaseline started from an empty map, so every frontend
+// function entry was deleted by a Go-only run.
+func carryForeignFuncs(base map[string]architecture.FuncMeasurement) map[string]architecture.FuncMeasurement {
+	next := map[string]architecture.FuncMeasurement{}
+	for symbol, m := range base {
+		if !ownsBaselineKey(symbol) {
+			next[symbol] = m
+		}
+	}
+	return next
+}
+
+// assertForeignPreserved refuses to write a baseline that dropped an entry
+// belonging to the other updater.
+//
+// This guards the class rather than the one bug: a lost entry is not a
+// cosmetic diff, it is a lost ratchet. The file stops being tracked as debt and
+// its next growth passes the gate unnoticed, which is the opposite of what the
+// baseline is for. Silence is what made the original instance survive - it
+// deleted fifteen frontend functions and reported success.
+func assertForeignPreserved(before, after architecture.Baseline) error {
+	for path := range before.Files {
+		if !ownsBaselineKey(path) {
+			if _, kept := after.Files[path]; !kept {
+				return fmt.Errorf("rewrite would drop the baseline entry for %s, which this command does not own", path)
+			}
+		}
+	}
+	for symbol := range before.Functions {
+		if !ownsBaselineKey(symbol) {
+			if _, kept := after.Functions[symbol]; !kept {
+				return fmt.Errorf("rewrite would drop the baseline entry for %s, which this command does not own", symbol)
+			}
+		}
+	}
+	return nil
+}
+
 func rewriteBaseline(repoRoot string, cfg architecture.BudgetConfig) error {
 	measured, err := architecture.MeasureGoFiles(repoRoot)
 	if err != nil {
@@ -80,17 +143,11 @@ func rewriteBaseline(repoRoot string, cfg architecture.BudgetConfig) error {
 		return err
 	}
 
+	before := architecture.Baseline{Files: cfg.Baseline.Files, Functions: cfg.Baseline.Functions}
 	exempt := cfg.ExemptFiles()
 	limit := cfg.Limits.Go.MaxCodeLines
 
-	next := map[string]architecture.FileMeasurement{}
-	// Frontend entries are measured by frontend/src/architecture.test.ts and
-	// carried through untouched; this command only owns the Go numbers.
-	for path, m := range cfg.Baseline.Files {
-		if !strings.HasSuffix(path, ".go") {
-			next[path] = m
-		}
-	}
+	next := carryForeignFiles(cfg.Baseline.Files)
 
 	var added []string
 	for path, count := range measured {
@@ -116,6 +173,9 @@ func rewriteBaseline(repoRoot string, cfg architecture.BudgetConfig) error {
 	if err != nil {
 		return err
 	}
+	if err := assertForeignPreserved(before, cfg.Baseline); err != nil {
+		return err
+	}
 	if err := writeConfig(repoRoot, cfg); err != nil {
 		return err
 	}
@@ -125,7 +185,8 @@ func rewriteBaseline(repoRoot string, cfg architecture.BudgetConfig) error {
 	for _, id := range added {
 		fmt.Fprintf(os.Stderr, "WARNING: added %s to the baseline. New debt should be paid, not recorded.\n", id)
 	}
-	fmt.Printf("budgets: %d Go files and %d functions baselined\n", countGo(next), len(cfg.Baseline.Functions))
+	fmt.Printf("budgets: %d Go files and %d Go functions baselined\n",
+		countOwnedFiles(next), countOwnedFuncs(cfg.Baseline.Functions))
 	return nil
 }
 
@@ -137,7 +198,7 @@ func rebuildFuncBaseline(repoRoot string, cfg *architecture.BudgetConfig) ([]str
 	exempt := cfg.ExemptFunctions()
 	limit := cfg.Limits.GoFunc
 
-	next := map[string]architecture.FuncMeasurement{}
+	next := carryForeignFuncs(cfg.Baseline.Functions)
 	var added []string
 	for symbol, shape := range measured {
 		if !architecture.ShapeExceeds(shape, limit) {
@@ -159,10 +220,25 @@ func rebuildFuncBaseline(repoRoot string, cfg *architecture.BudgetConfig) ([]str
 	return added, nil
 }
 
-func countGo(files map[string]architecture.FileMeasurement) int {
+// countOwnedFiles and countOwnedFuncs count only this command's own entries, so
+// the summary line does not report the frontend's numbers as if they were Go
+// ones. Two functions rather than one generic: the rest of this repository is
+// written without type parameters, and a counter is a poor reason to be the
+// first.
+func countOwnedFiles(files map[string]architecture.FileMeasurement) int {
 	n := 0
 	for path := range files {
-		if strings.HasSuffix(path, ".go") {
+		if ownsBaselineKey(path) {
+			n++
+		}
+	}
+	return n
+}
+
+func countOwnedFuncs(funcs map[string]architecture.FuncMeasurement) int {
+	n := 0
+	for symbol := range funcs {
+		if ownsBaselineKey(symbol) {
 			n++
 		}
 	}
