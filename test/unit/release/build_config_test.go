@@ -117,6 +117,48 @@ func TestWailsCLIIsPinnedToTheGoModVersion(t *testing.T) {
 	if !strings.Contains(workflow, want) {
 		t.Errorf("release.yml does not install %q; the CLI must match the library version in go.mod", want)
 	}
+
+	// Contains() above is satisfied by one correct pin, and release.yml carries two - one per
+	// build job. A bump that updated only the windows one would pass on the strength of that
+	// single match while the linux archive was built by a different CLI than the windows one,
+	// which is precisely the irreproducibility the pin exists to prevent. So every pin in the
+	// file has to agree, not merely one of them.
+	for _, pin := range regexp.MustCompile(`cmd/wails@v[\d.]+`).FindAllString(workflow, -1) {
+		if pin != want {
+			t.Errorf("release.yml pins %q as well as %q; every job must install the same CLI", pin, want)
+		}
+	}
+}
+
+// The Makefile's WAILS_VERSION is the version a developer is told to install when the CLI is
+// missing, so a stale one sends them to a build that does not match CI's. It drifts for the same
+// reason the release.yml pins do: Dependabot edits go.mod and nothing else.
+func TestMakefileWailsVersionMatchesGoMod(t *testing.T) {
+	root, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	goMod, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	libVersion := regexp.MustCompile(`github\.com/wailsapp/wails/v2 (v[\d.]+)`).FindSubmatch(goMod)
+	if libVersion == nil {
+		t.Fatal("could not find the wails/v2 version in go.mod")
+	}
+
+	makefile, err := os.ReadFile(filepath.Join(root, "Makefile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	declared := regexp.MustCompile(`(?m)^WAILS_VERSION\s*:=\s*(v[\d.]+)`).FindSubmatch(makefile)
+	if declared == nil {
+		t.Fatal("the Makefile no longer declares WAILS_VERSION; the require-wails guard depends on it")
+	}
+	if got, want := string(declared[1]), string(libVersion[1]); got != want {
+		t.Errorf("Makefile WAILS_VERSION = %s, go.mod requires %s; a developer following the "+
+			"install hint would get a different CLI than CI uses", got, want)
+	}
 }
 
 // The release must stamp the tag into the binary, using the exact symbol path proven to work by
