@@ -67,7 +67,7 @@
     "mutate:suite": "npm run test:tiles && npm run test:file-tree && npm run test:log-surface && npm run test:hotkeys && npm run test:transfers && npm run test:transfer-conflict && npm run test:password-strength"
   },
   "devDependencies": {
-    "@stryker-mutator/core": "^8.7.1",
+    "@stryker-mutator/core": "^9.6.1",
     "@sveltejs/vite-plugin-svelte": "^1.0.1",
     "@tsconfig/svelte": "^3.0.0",
     "@types/dompurify": "^3.0.5",
