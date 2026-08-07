@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build dev clean rebuild portable install check gates test test-go test-frontend typecheck-frontend coverage mutate lint sec deps-linux require-wails
+.PHONY: help build dev clean rebuild portable install check gates test test-go test-frontend typecheck-frontend coverage mutate lint sec gosec govulncheck budgets-update deps-linux require-wails
 
 # ---------------------------------------------------------------------------
 # Host detection
@@ -79,6 +79,7 @@ help:
 	@echo test - check + Go and frontend test suites
 	@echo coverage - per-package coverage floors for the plugin stack
 	@echo mutate - mutation testing, slow, runs nightly in CI
+	@echo budgets-update - re-record both halves of the size baseline
 	@echo lint - staticcheck
 	@echo sec - govulncheck + gosec
 	@echo deps-linux - print the system packages a Linux build needs
@@ -162,6 +163,14 @@ typecheck-frontend:
 
 coverage:
 	go run ./scripts/coverage
+
+# The baseline has two owners: this side records the Go numbers, frontend/ records
+# the .ts and .svelte ones, and each carries the other's entries through. Running
+# only one half is safe (the Go updater refuses to write a baseline that would drop
+# an entry it does not own) but it is still half a job, so re-record with one command.
+budgets-update:
+	go run ./scripts/budgets -update
+	cd frontend && npm run budgets:update
 
 # Not part of `gates`: a mutation run reruns a test suite once per mutant and
 # takes tens of minutes. .github/workflows/mutation.yml runs it nightly; this
