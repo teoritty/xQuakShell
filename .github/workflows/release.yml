@@ -18,13 +18,13 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.25'
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: npm
@@ -87,7 +87,7 @@ jobs:
           if (-not (Test-Path $clientDll)) { throw "Bundled runtime is missing $clientDll" }
           Compress-Archive -Path "stage/$name" -DestinationPath "dist/$name.zip"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-archives
           path: dist/*.zip
@@ -120,13 +120,13 @@ jobs:
             # Without this tag Wails links 4.0 regardless of what is installed.
             build_tags: '-tags webkit2_41'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.25'
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: npm
@@ -177,7 +177,7 @@ jobs:
           tar -czf "dist/$NAME.tar.gz" -C stage "$NAME"
           tar -tzf "dist/$NAME.tar.gz"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-archives-webkit${{ matrix.webkit }}
           path: dist/*.tar.gz
@@ -195,7 +195,7 @@ jobs:
       # No pattern filter: every archive any build job uploaded is published and checksummed,
       # so a new platform job cannot be added without its files being covered.
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -213,7 +213,7 @@ jobs:
           cat SHA256SUMS
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           # Tagged with a suffix (v1.0.0-rc.1) -> Pre-release; clean tag (v1.0.0) -> Release.
           prerelease: ${{ contains(github.ref_name, '-') }}
