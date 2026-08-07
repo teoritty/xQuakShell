@@ -92,6 +92,6 @@
     "codemirror": "^6.0.2",
     "dompurify": "^3.4.13",
     "lucide-svelte": "^0.577.0",
-    "marked": "^18.0.5"
+    "marked": "^18.0.9"
   }
 }
