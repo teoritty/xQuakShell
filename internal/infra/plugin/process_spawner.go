@@ -31,6 +31,12 @@ func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, se
 	if err != nil {
 		return nil, fmt.Errorf("resolve plugin entry: %w", err)
 	}
+	// Repairs installs written before CopyBundle preserved the execute bit. Without this the fix
+	// only helps plugins installed after the update, and every plugin already on a Linux disk stays
+	// dead with no hint that reinstalling is what would revive it.
+	if err := EnsureEntryExecutable(entryPath); err != nil {
+		return nil, err
+	}
 	// The child process is deliberately NOT tied to the caller's context. exec.CommandContext makes
 	// the passed context own the LIFETIME of the child: cancelling it kills the process. Every caller
 	// of Start passes a short-lived request context (a WithTimeout with a `defer cancel()`), so a
