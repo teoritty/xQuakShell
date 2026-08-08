@@ -39,6 +39,19 @@ func jobSection(t *testing.T, workflow, job string) string {
 	return rest
 }
 
+// withoutComments drops whole-line YAML and shell comments. An assertion that a command is absent
+// has to read the commands only: the comment explaining why that command is the wrong one to use
+// mentions it by name, and would otherwise be indistinguishable from using it.
+func withoutComments(text string) string {
+	var kept []string
+	for line := range strings.SplitSeq(text, "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), "#") {
+			kept = append(kept, line)
+		}
+	}
+	return strings.Join(kept, "\n")
+}
+
 // sourcesCopied lists the first capture of every match, sorted, so two jobs can be compared on the
 // set of files they put into an archive rather than on the order of their steps.
 func sourcesCopied(pattern *regexp.Regexp, job string) []string {
@@ -90,15 +103,63 @@ func TestNightlySkipsWhenMainHasNotMoved(t *testing.T) {
 func TestNightlyReplacesThePreviousRelease(t *testing.T) {
 	publish := jobSection(t, readNightlyWorkflow(t), "publish")
 
-	if !strings.Contains(publish, "gh release delete nightly --yes --cleanup-tag") {
-		t.Error("the publish job does not delete the previous nightly release and its tag")
+	if !strings.Contains(publish, `select(.tag_name == "nightly") | .id`) {
+		t.Error("the publish job does not enumerate the existing nightly releases by id; a draft " +
+			"left by a half-finished run has no tag to be found by and would accumulate")
+	}
+	if !strings.Contains(publish, `gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${id}"`) {
+		t.Error("the publish job does not delete the previous nightly release")
 	}
 	if !strings.Contains(publish, "tag_name: nightly") {
 		t.Error("the published release is not pinned to the fixed nightly tag, so its download " +
 			"links would move every night")
 	}
-	if strings.Index(publish, "gh release delete") > strings.Index(publish, "action-gh-release") {
+
+	deleted, created := strings.Index(publish, "-X DELETE"), strings.Index(publish, "action-gh-release")
+	if deleted > created {
 		t.Error("the delete runs after the release is created, which would delete the new one")
+	}
+
+	// The tag must outlive the release it belongs to by exactly nothing: deleting it first demotes
+	// the still-present release to a draft, which is invisible to every user it was built for.
+	release := strings.Index(publish, `/releases/${id}"`)
+	tag := strings.Index(publish, "/git/refs/tags/nightly")
+	if release < 0 || tag < 0 || release > tag {
+		t.Error("the nightly tag is deleted before the release that points at it, which turns the " +
+			"release into a draft instead of removing it")
+	}
+}
+
+// This job has no checkout, and gh infers the repository it acts on from a git remote. Without
+// GH_REPO every gh call in it fails on a directory that is not a repository - which is how the
+// delete above once became a no-op, silently turning "replace the nightly" into "update it".
+func TestNightlyDeletionDoesNotDependOnACheckout(t *testing.T) {
+	publish := jobSection(t, readNightlyWorkflow(t), "publish")
+
+	if !strings.Contains(publish, "GH_REPO: ${{ github.repository }}") {
+		t.Error("the publish job runs gh without GH_REPO and without a checkout; gh cannot tell " +
+			"which repository to act on")
+	}
+	// `gh release delete --cleanup-tag` shells out to git for the tag half of its work, so it
+	// cannot do this job's work at all. The API calls it was replaced with need no working tree.
+	if strings.Contains(withoutComments(publish), "gh release delete") {
+		t.Error("the publish job uses gh release delete, which needs a git working tree it does not have")
+	}
+	// A tolerated failure here is indistinguishable from a successful delete, and the difference
+	// between them is whether the workflow does the one thing it exists to do.
+	if regexp.MustCompile(`gh api -X DELETE "repos/\$\{GITHUB_REPOSITORY\}/releases/\$\{id\}"\s*\|\|`).MatchString(publish) {
+		t.Error("a failed release delete is swallowed; the run would then update the old release " +
+			"in place and report success")
+	}
+}
+
+// The default only applies to a release the action creates. On the update path an inherited draft
+// flag survives, and a drafted nightly is published to nobody.
+func TestNightlyIsNeverPublishedAsADraft(t *testing.T) {
+	publish := jobSection(t, readNightlyWorkflow(t), "publish")
+
+	if !strings.Contains(publish, "draft: false") {
+		t.Error("the nightly release does not state draft: false")
 	}
 }
 
