@@ -5,9 +5,9 @@
   import PluginSettingsPanel from './PluginSettingsPanel.svelte';
   import { CONFLICT_ACTIONS } from './transfer/conflictActions';
   import { getSettings, saveSettings } from '../actions/settingsActions';
-  import { fetchVersionInfo } from '../api/settings';
+  import { fetchVersionInfo, DEFAULT_SESSION_HOTKEYS } from '../api/settings';
   import { parseHotkeyEvent, normalizeHotkey } from '../hotkeys/hotkeys';
-  import { DEFAULT_SESSION_HOTKEYS } from '../api/settings';
+  import { openReleasesPage, openNewIssue } from './projectLinks';
   import {
     getAuditSessionState,
     enableAuditSecretLogging,
@@ -381,11 +381,11 @@
               <p class="version-text">Version {appVersion || '—'}</p>
               <p class="version-text">Core {coreVersion || '—'} · Plugin API {pluginApiVersion || '—'}</p>
               <div class="about-links">
-                <button class="secondary about-link" on:click={() => window.open('https://github.com/teoritty/xQuakShell/releases/', '_blank')}>
+                <button class="secondary about-link" on:click={() => openReleasesPage()}>
                   <ExternalLink size={13} />
                   Check for Updates
                 </button>
-                <button class="secondary about-link" on:click={() => window.open('https://github.com/teoritty/xQuakShell/issues/new', '_blank')}>
+                <button class="secondary about-link" on:click={() => openNewIssue()}>
                   <ExternalLink size={13} />
                   Report an Issue
                 </button>

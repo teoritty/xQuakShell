@@ -13,7 +13,9 @@ setGateway(null);
 assert(getGateway() === null, 'gateway resets to null');
 
 // Injection round-trips for the runtime gateway.
-const fakeRuntime = { EventsOn: () => {} };
+// BrowserOpenURL is required on RuntimeGateway because the Wails runtime always provides it;
+// this double only has to satisfy the shape, not do anything.
+const fakeRuntime = { EventsOn: () => {}, BrowserOpenURL: () => {} };
 setRuntime(fakeRuntime);
 assert(getRuntime() === fakeRuntime, 'injected runtime should be returned');
 setRuntime(null);
