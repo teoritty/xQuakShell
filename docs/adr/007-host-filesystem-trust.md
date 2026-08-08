@@ -42,4 +42,4 @@ Local Files browser defaults to `os.UserHomeDir()`.
 
 - [security-model.md](../security-model.md) — Host trust boundary
 - [architecture.md](../architecture.md) — Filesystem zones
-- ADR-006 — Portable data layout
+- ADR-006 — Portable data layout (no ADR file; see [the index](README.md#numbers-below-007))

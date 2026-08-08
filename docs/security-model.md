@@ -100,7 +100,7 @@ Authorization for vault and session data is enforced in the **usecase** layer:
 1. Core sends `deactivate` as a **notification** (plugins: `RegisterNotification` / `OnDeactivate`).
 2. Core sends `shutdown` as an **RPC request** with a short timeout (plugins: `Register` / `OnShutdown`, return `{"ok":true}`).
 3. Core closes plugin stdin; if the process has not exited within the grace period, it is force-killed.
-4. 
+
 ## Activation policy
 Plugins start only via declared `activationEvents`:
 
@@ -172,7 +172,7 @@ Plugin terminal output is written to a bounded channel. If the UI consumer does 
 - Maximum sandboxed file size (via chunked I/O): **16 MiB**
 - FS paths must use `${pluginData}` prefix; resolved roots must stay under plugin install directory.
 - Symlinks rejected on FS access.
-- 
+
 ## Install security
 
 - Zip-slip protected bundle extract (`pathsafe.UnderRoot`).
@@ -223,8 +223,6 @@ Embed sessions serve plugin `ui/` assets and WebSocket tunnels through a **core-
 Mode B (`localEmbedServer`) is opt-in with install consent and loopback-only binding. See [adr/008-session-embed-surfaces.md](adr/008-session-embed-surfaces.md).
 
 Tunnel payload bytes are **not** audit-logged. Control events (`session.embed.register`, `session.embed.revoke`, auth failures) may be logged without secrets.
-
-
 
 ## Plugin UI surfaces (ADR-015)
 

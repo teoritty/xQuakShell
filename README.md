@@ -74,11 +74,11 @@ Want to build your own? Start with the [Plugin API Reference](./docs/plugin-api.
 
 ### Plugins
 
-![Settings](./images/plugins_1.png)
+![Plugin manager](./images/plugins_1.png)
 
 ### Tiles
 
-![Audit log](./images/tiles_1.png)
+![Tiled sessions](./images/tiles_1.png)
 
 ---
 
@@ -93,6 +93,11 @@ Every release publishes portable archives — unpack and run, no installer, no s
 | Windows | `…-windows-amd64-portable-webview2.zip` | Clean or offline machines — WebView2 Fixed Runtime is bundled |
 | Linux | `…-linux-amd64-webkit4.1.tar.gz` | Ubuntu 22.04+, Debian 12+, Fedora 40+, Arch — start here |
 | Linux | `…-linux-amd64-webkit4.0.tar.gz` | Older systems still carrying the webkit2gtk-4.0 runtime |
+
+There is also a rolling [`nightly`](https://github.com/teoritty/xQuakShell/releases/tag/nightly)
+pre-release, rebuilt from `main` whenever it moves and carrying the same four archives. It is
+replaced in place, so its links always point at the newest build and never at the one you tested
+yesterday. Use a tagged release for anything you rely on.
 
 Each archive unpacks into a folder of its own and carries a README. Windows will show
 "Windows protected your PC" on first run — the binaries are not code-signed, so SmartScreen has no
@@ -111,8 +116,12 @@ to install. The Linux archive carries a launcher, a desktop entry and its own RE
 ### Prerequisites
 
 - Go 1.25.12+ (earlier 1.25 patches carry known stdlib vulnerabilities)
-- Node.js 18+
-- Wails CLI v2 (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`)
+- Node.js 20.19+ or 22.12+ (Vite 8 refuses to run on anything older; CI builds on 20)
+- Wails CLI v2.13.0 — pinned, not `@latest`: it must match the library version in `go.mod`, and
+  `make` will tell you the same if it is missing.
+  ```bash
+  go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+  ```
 
 ### Production build
 
@@ -121,7 +130,7 @@ make install
 make build
 ```
 
-Output: `build/bin/xQuakShell.exe`
+Output: `build/bin/xQuakShell.exe` on Windows, `build/bin/xQuakShell` elsewhere.
 
 ### Portable build (Windows)
 
@@ -134,8 +143,8 @@ Bundles WebView2 Fixed Runtime into `build/bin/WebView2/`.
 ### Linux build
 
 ```bash
-sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev   # 4.0-dev on older distributions
-wails build -platform linux/amd64 -tags webkit2_41    # drop the tag to link webkit2gtk-4.0
+make deps-linux              # prints the system packages to install
+make build WEBKIT=4.1        # omit WEBKIT to link webkit2gtk-4.0
 ```
 
 The release archives are assembled by `.github/workflows/release.yml`, which adds the launcher,

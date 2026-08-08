@@ -26,7 +26,7 @@
       {
         "path": "app.go",
         "kind": "facade-surface",
-        "reason": "ADR-010 Wails facade: 116 methods, each a one-line delegate to presentation.AppAPI, with no branching of its own. Wails binds a single struct, so splitting the file would scatter one binding surface across several files without removing a single decision from it. It grows with the API, not with complexity."
+        "reason": "ADR-010 Wails facade: every method is a one-line delegate to presentation.AppAPI, with no branching of its own. Wails binds a single struct, so splitting the file would scatter one binding surface across several files without removing a single decision from it. It grows with the API, not with complexity."
       }
     ],
     "functions": [
