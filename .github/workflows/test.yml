@@ -43,6 +43,25 @@ jobs:
       - name: Benchmark smoke
         run: go test ./test/bench/... -bench=. -benchtime=100ms
 
+  # Relative links between documents, the files they point at, and the headings they point into.
+  # Offline: only the checkout is consulted, so a third party's outage can never fail a pull
+  # request - links.yml checks the http half on a schedule instead. Fragments are included because
+  # a link into a heading that has been renamed is as broken as one to a deleted file, and heading
+  # text is edited far more often than a filename.
+  #
+  # Runs on Linux, which is the point: the filesystem here is case-sensitive and GitHub's renderer
+  # is too, so a link that only resolves on a developer's Windows checkout fails here.
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check documentation links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --offline --include-fragments --no-progress '*.md' 'docs/**/*.md' 'packaging/**/*.md' '.github/**/*.md' 'frontend/README.md'
+          fail: true
+
   frontend:
     runs-on: ubuntu-latest
     steps:

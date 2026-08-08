@@ -147,7 +147,7 @@ make deps-linux              # prints the system packages to install
 make build WEBKIT=4.1        # omit WEBKIT to link webkit2gtk-4.0
 ```
 
-The release archives are assembled by `.github/workflows/release.yml`, which adds the launcher,
+The release archives are assembled by [`.github/workflows/release.yml`](.github/workflows/release.yml), which adds the launcher,
 desktop entry and icon from `packaging/linux/`.
 
 ---

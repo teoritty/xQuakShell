@@ -35,9 +35,9 @@ Three trust boundaries — do not mix:
 
 | Zone | Domain port | Infra implementation | Path policy | Key methods |
 |------|-------------|------------------------|-------------|-------------|
-| Host user FS | `HostFileSystem`, `HostAppLauncher` | `internal/infra/host/host_fs.go`, `launcher_*.go` | No sandbox root; trusted host UI | `List`, `Stat`, `Remove`, `Mkdir`, `Rename`, `CreateFile`, `OpenDefault`, `OpenWith` — used by `LocalFSService`, `TransferService` |
-| Portable app data | `PortableDataStore` | `internal/infra/portable/data_store.go` | Jailed to `<exe>/data` | `ResolvePath`, `Remove`, `ReadFile`, `EnsureTempDir` — used by plugin install/uninstall and GitHub staging temp |
-| Plugin sandbox | (IPC only) | `internal/infra/plugin/capability/fs_proxy.go` | Manifest roots + symlink checks | `fs.*` RPC only |
+| Host user FS | `HostFileSystem`, `HostAppLauncher` | [`internal/infra/host/host_fs.go`](../internal/infra/host/host_fs.go), `launcher_*.go` | No sandbox root; trusted host UI | `List`, `Stat`, `Remove`, `Mkdir`, `Rename`, `CreateFile`, `OpenDefault`, `OpenWith` — used by `LocalFSService`, `TransferService` |
+| Portable app data | `PortableDataStore` | [`internal/infra/portable/data_store.go`](../internal/infra/portable/data_store.go) | Jailed to `<exe>/data` | `ResolvePath`, `Remove`, `ReadFile`, `EnsureTempDir` — used by plugin install/uninstall and GitHub staging temp |
+| Plugin sandbox | (IPC only) | [`internal/infra/plugin/capability/fs_proxy.go`](../internal/infra/plugin/capability/fs_proxy.go) | Manifest roots + symlink checks | `fs.*` RPC only |
 
 Run `make check` to verify zone separation. Canonical rules: [`test/unit/architecture/fs_boundaries.go`](../test/unit/architecture/fs_boundaries.go).
 See [adr/007-host-filesystem-trust.md](adr/007-host-filesystem-trust.md).
@@ -92,7 +92,7 @@ Run `make check` to enforce this rule. Canonical rules: [`test/unit/architecture
 
 A vault comes into existence in exactly one place: `VaultRepository.Create`. `Unlock` never creates one — a missing `vault.age` returns `domain.ErrVaultNotFound` — because a read that silently synthesizes a vault makes a typo on the unlock screen indistinguishable from deliberately choosing a new master password.
 
-- **Length policy.** `domain.MinMasterPasswordLength` (8 runes) is enforced in `Create` only. An existing vault stays openable with whatever password created it, including one from before the policy. The frontend duplicates the constant in `frontend/src/lib/vault/passwordStrength.ts` to disable the submit button early; there is no Go-to-TypeScript constant generation, so the two change together.
+- **Length policy.** `domain.MinMasterPasswordLength` (8 runes) is enforced in `Create` only. An existing vault stays openable with whatever password created it, including one from before the policy. The frontend duplicates the constant in [`frontend/src/lib/vault/passwordStrength.ts`](../frontend/src/lib/vault/passwordStrength.ts) to disable the submit button early; there is no Go-to-TypeScript constant generation, so the two change together.
 - **Strength meter.** `evaluatePasswordStrength` is an entropy approximation with pattern penalties, computed in the renderer with no dependencies and no I/O. Character-class diversity both scales the estimate and caps the verdict, so length alone cannot buy a "strong" rating — a digit-only password is held to "medium" until it is very long indeed, because a narrow alphabet is what mask attacks try first. It is **advisory**: a weak-but-long-enough password still creates a vault, with a warning. Only the length floor blocks.
 - **Durability.** `Create` writes synchronously instead of going through the 400 ms debounced flush used by `UpdateData`, so `Exists()` is true the moment it returns and a crash cannot discard a password the user believes is set. It also reports write failures to the caller, which the debounced path only logs.
 - **Concurrency.** The existence check and the write share one `r.mu` write lock, so concurrent `Create` calls serialize and all but one get `ErrVaultAlreadyExists`. The guarantee is process-local; `Exists()` on its own is advisory.
@@ -115,19 +115,19 @@ Plugin connectors receive `ConnectorHooks` to set PTY bridge, SFTP (`RemoteFS`),
 
 | Area | Entry points |
 |------|----------------|
-| **Vault / connections** | `internal/usecase/vault_service.go` (CRUD orchestration), repositories wired in `main_compose.go` only, DTOs in `dto_connection.go`, thin handlers in `handlers_vault.go`. |
+| **Vault / connections** | [`internal/usecase/vault_service.go`](../internal/usecase/vault_service.go) (CRUD orchestration), repositories wired in `main_compose.go` only, DTOs in `dto_connection.go`, thin handlers in `handlers_vault.go`. |
 | **SSH sessions** | `internal/usecase/session_manager*.go`, PTY/SFTP init via `SessionManager.InitSessionIO`, handlers in `handlers_sessions.go`. |
-| **Host keys** | `internal/usecase/host_key_service.go` (parse, add/replace/remove, resolve prompt); `domain.ParseAuthorizedSSHKey`; handlers delegate in `handlers_sessions.go` and `handlers_remote_fs.go`. |
-| **Remote file browser** | `internal/usecase/remote_fs_service.go` (SFTP ops, getent UID/GID cache); thin DTO handlers in `handlers_remote_fs.go`. |
-| **Local file browser** | `internal/usecase/local_fs_service.go` orchestrates `HostFileSystem` + `HostAppLauncher`; infra in `internal/infra/host/`; thin handlers in `handlers_local_fs.go` (routing table in file header). |
-| **Portable temp / data paths** | `domain.PortableDataStore`, `internal/infra/portable/data_store.go`. |
-| **Transfers** | `domain.ConcurrencyLimiter` (`internal/pkg/conlimit`), `internal/usecase/transfer_service.go`, handlers in `handlers_transfers.go`. |
+| **Host keys** | [`internal/usecase/host_key_service.go`](../internal/usecase/host_key_service.go) (parse, add/replace/remove, resolve prompt); `domain.ParseAuthorizedSSHKey`; handlers delegate in `handlers_sessions.go` and `handlers_remote_fs.go`. |
+| **Remote file browser** | [`internal/usecase/remote_fs_service.go`](../internal/usecase/remote_fs_service.go) (SFTP ops, getent UID/GID cache); thin DTO handlers in `handlers_remote_fs.go`. |
+| **Local file browser** | [`internal/usecase/local_fs_service.go`](../internal/usecase/local_fs_service.go) orchestrates `HostFileSystem` + `HostAppLauncher`; infra in `internal/infra/host/`; thin handlers in `handlers_local_fs.go` (routing table in file header). |
+| **Portable temp / data paths** | `domain.PortableDataStore`, [`internal/infra/portable/data_store.go`](../internal/infra/portable/data_store.go). |
+| **Transfers** | `domain.ConcurrencyLimiter` (`internal/pkg/conlimit`), [`internal/usecase/transfer_service.go`](../internal/usecase/transfer_service.go), handlers in `handlers_transfers.go`. |
 | **Settings / ping / audit** | `domain.ConcurrencyLimiter` (`internal/pkg/conlimit`), `domain.Pinger` (`internal/infra/pinger`), `settings_service.go`, `audit_service.go`, `ping_manager.go`, `handlers_settings_ping_audit.go`. |
 | **Debug log window** | `domain.LogStream`, `internal/infra/loghub`, `internal/presentation/logwindow`. |
 | **Plugins** | `internal/usecase/plugin_*.go`, handlers in `handlers_plugin*.go`, manifest FS checks in `infra/plugin/bundle/capabilities_validate.go`. |
-| **Plugin connection fields** | Manifest: `internal/domain/plugin/fields.go`, validation in `manifest_fields_validate.go`; persistence: `PluginFieldsService`, `Connection.pluginFields`, `VaultData.pluginSecrets`; UI: `PluginConnectionFields.svelte`, `GetPluginConnectionProtocols`. |
+| **Plugin connection fields** | Manifest: [`internal/domain/plugin/fields.go`](../internal/domain/plugin/fields.go), validation in `manifest_fields_validate.go`; persistence: `PluginFieldsService`, `Connection.pluginFields`, `VaultData.pluginSecrets`; UI: `PluginConnectionFields.svelte`, `GetPluginConnectionProtocols`. |
 | **Plugin protocols** | Out-of-process plugins via `PluginSessionBridge` and `session.connect` (with optional `fields`). |
-| **Session embed** | `domain.RateLimiterFactory` (`internal/pkg/ratelimit`), `EmbedTunnelService`, `internal/infra/embed/broker_handler.go`, `SessionEmbedPanel.svelte`, `session.registerEmbed` / tunnel IPC. See [adr/008-session-embed-surfaces.md](adr/008-session-embed-surfaces.md). |
+| **Session embed** | `domain.RateLimiterFactory` (`internal/pkg/ratelimit`), `EmbedTunnelService`, [`internal/infra/embed/broker_handler.go`](../internal/infra/embed/broker_handler.go), `SessionEmbedPanel.svelte`, `session.registerEmbed` / tunnel IPC. See [adr/008-session-embed-surfaces.md](adr/008-session-embed-surfaces.md). |
 
 ## SRP: plugin GitHub usecase
 
@@ -148,7 +148,7 @@ One type (`GitHubPluginService`), one file per reason to change — same pattern
 
 `github_repo_service.go` matches the same directory budget but is a separate type (`GitHubRepositoryService`, the registry of plugin repositories), not part of this decomposition.
 
-Pure platform/checksum parsing lives in `internal/domain/plugin/github_platform.go`. Security-critical flows stay isolated: list metadata must not download assets; release metadata may download checksums; install downloads verified binaries.
+Pure platform/checksum parsing lives in [`internal/domain/plugin/github_platform.go`](../internal/domain/plugin/github_platform.go). Security-critical flows stay isolated: list metadata must not download assets; release metadata may download checksums; install downloads verified binaries.
 
 ## SRP: plugin process host
 
@@ -195,5 +195,5 @@ flowchart LR
 
 ## Tests
 
-- Use case SSH flows: `internal/usecase/ssh_connector_test.go`, `ssh_auth_wiring_test.go` (no network; mocked ports).
+- Use case SSH flows: [`internal/usecase/ssh_connector_test.go`](../internal/usecase/ssh_connector_test.go), `ssh_auth_wiring_test.go` (no network; mocked ports).
 - Broader unit tests: `test/unit/`.

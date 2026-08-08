@@ -8,7 +8,7 @@ Deferred
 
 The file manager supports dragging files *into* the app: an OS Explorer drag over a
 Remote/Local pane uploads/copies the dropped items. That inbound path is handled
-entirely on the frontend (`frontend/src/lib/osFileDrop.ts`) on top of the Wails
+entirely on the frontend ([`frontend/src/lib/osFileDrop.ts`](../../frontend/src/lib/osFileDrop.ts)) on top of the Wails
 runtime's `OnFileDrop`/`OnFileDropOff` callbacks — no Go relay (see the
 os-file-drop architecture notes).
 
@@ -48,5 +48,5 @@ approach.
 - When revisited, start with a minimal native `DoDragDrop` spike that proves a
   drag can be initiated from the WebView2 window at all, before wiring either
   pane. Reuse the existing staging plumbing (`app.go` `Download`/`GetTempDir`,
-  `internal/usecase/transfer_service.go`) for remote files.
+  [`internal/usecase/transfer_service.go`](../../internal/usecase/transfer_service.go)) for remote files.
 - No inbound drop behavior changes; `osFileDrop.ts` is untouched.

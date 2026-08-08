@@ -222,7 +222,7 @@ The following were left as illustrative (`e.g.`) values in earlier drafts and ar
 
 ## On "full abstraction vs. purpose-limited"
 
-Explicitly **not** a fully generic "open any pipe to anything" abstraction. `purpose` stays a closed, host-validated enum (`exec` / `embed-stream` / `tcp-relay` / `udp-relay`), each backed by host-side logic the plugin cannot influence beyond its declared parameters. A fully generic raw-socket abstraction would collapse the entire capability/consent model back to "trust the plugin" — which is exactly the failure mode `docs/security-model.md` is presumably built to avoid. New purposes can be added later — `udp-relay` was added exactly this way, as a deliberate, reviewed core purpose sharing the existing dial policy — but each one is such an addition, never something plugins can synthesize themselves, and never a generic "any protocol" destination the plugin picks freely.
+Explicitly **not** a fully generic "open any pipe to anything" abstraction. `purpose` stays a closed, host-validated enum (`exec` / `embed-stream` / `tcp-relay` / `udp-relay`), each backed by host-side logic the plugin cannot influence beyond its declared parameters. A fully generic raw-socket abstraction would collapse the entire capability/consent model back to "trust the plugin" — which is exactly the failure mode [`docs/security-model.md`](../security-model.md) is presumably built to avoid. New purposes can be added later — `udp-relay` was added exactly this way, as a deliberate, reviewed core purpose sharing the existing dial policy — but each one is such an addition, never something plugins can synthesize themselves, and never a generic "any protocol" destination the plugin picks freely.
 
 ## Atomicity
 
@@ -243,7 +243,7 @@ This ADR only introduces `channel.open` / `channel.close` as new atomic verbs pl
 
 ## How the embed page reaches the tunnel
 
-The channel bus only replaces the **plugin ↔ host** leg (binary frames instead of base64-in-JSON `tunnelFrame`). The **host ↔ embed page** leg is unchanged and still the ADR-008 WebSocket served by the local broker (`internal/infra/embed/broker_handler.go`). For VNC the full path is:
+The channel bus only replaces the **plugin ↔ host** leg (binary frames instead of base64-in-JSON `tunnelFrame`). The **host ↔ embed page** leg is unchanged and still the ADR-008 WebSocket served by the local broker ([`internal/infra/embed/broker_handler.go`](../../internal/infra/embed/broker_handler.go)). For VNC the full path is:
 
 ```
 VNC server ──tcp──▶ plugin ──embed-stream channel──▶ host ──WebSocket──▶ iframe page (renders)
@@ -267,17 +267,17 @@ This is worth stating plainly because it was previously implicit: derivation-fro
 - [security-model.md](../security-model.md)
 - ADR-008 — Session embed surfaces
 - ADR-009 — SessionManager decomposition
-- `internal/infra/plugin/capability/tunnel_local_proxy_idor_test.go` — precedent for required IDOR coverage on new proxies
+- [`internal/infra/plugin/capability/tunnel_local_proxy_idor_test.go`](../../internal/infra/plugin/capability/tunnel_local_proxy_idor_test.go) — precedent for required IDOR coverage on new proxies
 
 Implementation:
 
-- `internal/infra/plugin/ipc/frame.go` — frame header format
-- `internal/infra/plugin/ipc/channel_credit.go`, `channel.go` — credit-based flow control
-- `internal/domain/plugin/channel_limits.go` — frame kinds, initial credit, size caps, defaults
-- `internal/domain/plugin/channel_caps.go`, `channel_caps_validate.go` — manifest `channel` capability
-- `internal/domain/plugin/channel_exec_match.go` — `exec` argv-template and placeholder validation
-- `internal/infra/plugin/capability/channel_proxy.go`, `gate.go` — capability gating and channel ownership
-- `internal/infra/plugin/capability/channel_proxy_idor_test.go` — IDOR coverage for `channel.close`
-- `internal/usecase/channel_exec_backend.go`, `channel_embed_backend.go` — `exec` and `embed-stream` purpose backends
-- `internal/infra/plugin/capability/channel_relay_backend.go`, `channel_udp_relay_backend.go` — `tcp-relay` and `udp-relay` purpose backends
-- `internal/usecase/session_lifecycle_service.go`, `session_lifecycle_channel_close_test.go` — session-close cascade
+- [`internal/infra/plugin/ipc/frame.go`](../../internal/infra/plugin/ipc/frame.go) — frame header format
+- [`internal/infra/plugin/ipc/channel_credit.go`](../../internal/infra/plugin/ipc/channel_credit.go), `channel.go` — credit-based flow control
+- [`internal/domain/plugin/channel_limits.go`](../../internal/domain/plugin/channel_limits.go) — frame kinds, initial credit, size caps, defaults
+- [`internal/domain/plugin/channel_caps.go`](../../internal/domain/plugin/channel_caps.go), `channel_caps_validate.go` — manifest `channel` capability
+- [`internal/domain/plugin/channel_exec_match.go`](../../internal/domain/plugin/channel_exec_match.go) — `exec` argv-template and placeholder validation
+- [`internal/infra/plugin/capability/channel_proxy.go`](../../internal/infra/plugin/capability/channel_proxy.go), `gate.go` — capability gating and channel ownership
+- [`internal/infra/plugin/capability/channel_proxy_idor_test.go`](../../internal/infra/plugin/capability/channel_proxy_idor_test.go) — IDOR coverage for `channel.close`
+- [`internal/usecase/channel_exec_backend.go`](../../internal/usecase/channel_exec_backend.go), `channel_embed_backend.go` — `exec` and `embed-stream` purpose backends
+- [`internal/infra/plugin/capability/channel_relay_backend.go`](../../internal/infra/plugin/capability/channel_relay_backend.go), `channel_udp_relay_backend.go` — `tcp-relay` and `udp-relay` purpose backends
+- [`internal/usecase/session_lifecycle_service.go`](../../internal/usecase/session_lifecycle_service.go), `session_lifecycle_channel_close_test.go` — session-close cascade

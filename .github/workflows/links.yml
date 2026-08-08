@@ -1,0 +1,33 @@
+name: External links
+
+# The http half of the link checking that test.yml does offline on every pull request.
+#
+# Deliberately not a pull-request gate. An external site going down, rate-limiting a CI runner or
+# moving a page is not a defect in the branch being reviewed, and a gate that fails for reasons the
+# author cannot fix is one people learn to ignore. It runs weekly instead, alongside the security
+# cron, because a link rots without any commit here to notice it. A failed run is the notification:
+# scheduled failures surface in the Actions tab and mail the repository owner.
+on:
+  schedule:
+    - cron: '0 7 * * 1' # Mondays 07:00 UTC, an hour after the security scan
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  external:
+    # A fork inherits the schedule but not the intent, and every fork checking the same URLs is how
+    # a host decides this project is worth rate-limiting.
+    if: github.repository == 'teoritty/xQuakShell'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check external links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          # 429 counts as reachable: a host that rate-limits a CI runner has answered, and treating
+          # that as a dead link would make the weekly result depend on who else ran this hour.
+          args: --cache --max-cache-age 1d --no-progress --accept 200,206,429 '*.md' 'docs/**/*.md' 'packaging/**/*.md' '.github/**/*.md' 'frontend/README.md'
+          fail: true

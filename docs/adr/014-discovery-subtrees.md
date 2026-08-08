@@ -7,7 +7,7 @@ Accepted
 ## Context
 
 - ADR-011 §"Application to discovery" described discovery as a deferred direction: the `channel` capability (`exec`/`embed-stream`/`tcp-relay`/`udp-relay`) is implemented, `discovery` is not.
-- The connection tree (`frontend/src/lib/remoteTree/types.ts`) knows exactly two node kinds: `folder` and `connection`. There is no way to draw a subtree *inside* a connection.
+- The connection tree ([`frontend/src/lib/remoteTree/types.ts`](../../frontend/src/lib/remoteTree/types.ts)) knows exactly two node kinds: `folder` and `connection`. There is no way to draw a subtree *inside* a connection.
 - Multiple discovery plugins on the same machine, with no grouping, would produce one interleaved flat list — unusable once more than one plugin enumerates resources under the same SSH connection.
 
 ## Decision — node model
@@ -74,7 +74,7 @@ Deltas are deliberately absent: a per-node snapshot removes a whole class of des
 - `parentProtocols` is not decorative: the host addresses `observe` only to plugins whose list contains the protocol of that connection.
 - Asset paths are validated by the existing `ValidateViewAssetEntry` **once, at install time**; there are no paths at all on the hot path — `iconId` refers to an already-validated asset. Reusing that validator means icons live under the bundle's `ui/` tree like every other declared asset: a path outside it fails manifest validation, so the plugin does not install at all.
 - Extensions `.svg`/`.png`/`.ico`; ≤ 64 assets per plugin, ≤ 64 KiB each, ≤ 1 MiB total.
-- Icon bytes are read **once, when the plugin enters the registry**, encoded as base64 data URIs and cached there; they reach the frontend on the existing `ListPlugins` call as `discoveryIcons: {iconId: dataUri}`, so there is no icon endpoint taking a plugin ID and an asset name from the frontend. This deliberately differs from view assets (`internal/infra/plugin/assets/handler.go`), which are read from disk per request: a discovery icon is fetched up to 64 times per plugin on a path that repaints, and the cache is also what keeps "an unreadable asset is logged once per plugin" true. `Register`/`Unregister` re-read, so install, update and removal are all reflected; only editing a file inside an already-installed bundle goes unnoticed, which is not a supported scenario.
+- Icon bytes are read **once, when the plugin enters the registry**, encoded as base64 data URIs and cached there; they reach the frontend on the existing `ListPlugins` call as `discoveryIcons: {iconId: dataUri}`, so there is no icon endpoint taking a plugin ID and an asset name from the frontend. This deliberately differs from view assets ([`internal/infra/plugin/assets/handler.go`](../../internal/infra/plugin/assets/handler.go)), which are read from disk per request: a discovery icon is fetched up to 64 times per plugin on a path that repaints, and the cache is also what keeps "an unreadable asset is logged once per plugin" true. `Register`/`Unregister` re-read, so install, update and removal are all reflected; only editing a file inside an already-installed bundle goes unnoticed, which is not a supported scenario.
 - No separate install-time consent: discovery by itself is metadata only — the actual work runs through `channel`/`exec`, which already carries consent. `PermissionSummary` gets one line: "Show discovered resources under your connections".
 
 ## Limits (v1, not overridable by the plugin)
@@ -96,7 +96,7 @@ Deltas are deliberately absent: a per-node snapshot removes a whole class of des
 Both budgets are keyed by **connection**, not by session: the host stores one tree per connection
 whatever session currently carries the traffic, so that is the side that owns the memory and the
 only side that can enforce a ceiling on it. A plugin sees only sessions, which is why an earlier
-draft of this table said "session"; the code and `internal/domain/discovery/limits.go` have always
+draft of this table said "session"; the code and [`internal/domain/discovery/limits.go`](../../internal/domain/discovery/limits.go) have always
 said connection.
 
 Exceeding the children limit is truncation with `Truncated{Shown, Total}`, not a refusal: the user should see something and understand the list is incomplete, rather than see nothing.

@@ -23,7 +23,7 @@ enumerating remote resources can start and stop them, but it cannot:
   anonymous volumes?". `Action.Confirm` carries one string and returns yes/no; there is no way to
   collect a structured answer. The only UI surface a plugin can draw at all is a
   `sidebar.bottom` WebView panel, which the frontend renders at `max-height: 220px`
-  (`frontend/src/lib/PluginWebViewPanel.svelte`) and which no other location value reaches
+  ([`frontend/src/lib/PluginWebViewPanel.svelte`](../../frontend/src/lib/PluginWebViewPanel.svelte)) and which no other location value reaches
   (`ContributionHost.svelte`).
 - **show or edit a node's own settings** — the tree row has a label, an icon, a status dot and a
   menu, and nothing else. There is no equivalent of Connection Details for a discovered node.
@@ -128,8 +128,8 @@ closes it during teardown (`cancel`).
 
 **`sections[]` is the connection-field schema, unchanged.** The core already has a declarative
 form language with manifest-load validation, per-type value validation and a renderer: the one
-connection protocols use (`internal/domain/plugin/fields.go`, `ValidateManifestFields`,
-`internal/usecase/plugin_fields.go`, `frontend/src/lib/fields/`). A dialog reuses it whole,
+connection protocols use ([`internal/domain/plugin/fields.go`](../../internal/domain/plugin/fields.go), `ValidateManifestFields`,
+[`internal/usecase/plugin_fields.go`](../../internal/usecase/plugin_fields.go), `frontend/src/lib/fields/`). A dialog reuses it whole,
 including the parts a schema off the wire does not get for free: `ValidateWireFields` compiles a
 declared `validation.pattern` through the same safety screen a manifest pattern goes through, and
 resolves `dependsOn` against the rest of the panel. A field whose dependency is off is not part of
