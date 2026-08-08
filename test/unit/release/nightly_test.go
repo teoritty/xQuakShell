@@ -138,7 +138,7 @@ func TestNightlyDeletionDoesNotDependOnACheckout(t *testing.T) {
 
 	// Per step, not per job: the job has more than one step calling gh, and a check that any single
 	// step declares GH_REPO passes while another one is left unable to resolve the repository.
-	for _, step := range strings.Split(publish, "\n      - ") {
+	for step := range strings.SplitSeq(publish, "\n      - ") {
 		if !strings.Contains(step, "gh api") && !strings.Contains(step, "gh release") {
 			continue
 		}
@@ -180,6 +180,16 @@ func TestNightlyChangelogCoversOnlyTheLastDay(t *testing.T) {
 	if strings.Contains(publish, "generate_release_notes") {
 		t.Error("the release action generates its own notes; with the nightly tag deleted nightly " +
 			"it has no previous nightly to diff against")
+	}
+
+	// Every ref GitHub's own footer names is stale by the time a reader clicks it: the nightly tag
+	// has moved on to this build, and the label was never a tag. Commit SHAs are what stay put.
+	if !strings.Contains(publish, `sed -i '/^\*\*Full Changelog\*\*:/d' generated.md`) {
+		t.Error("the generated Full Changelog footer is kept; both refs it compares are dead links " +
+			"as soon as the nightly tag moves")
+	}
+	if !strings.Contains(publish, "compare/${PREVIOUS}...${SHA}") {
+		t.Error("the notes carry no compare link built from commit SHAs")
 	}
 
 	generated := strings.Index(publish, "releases/generate-notes")

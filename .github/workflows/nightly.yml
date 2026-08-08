@@ -286,11 +286,19 @@ jobs:
           # It is printed to the log either way: silence here would hide a broken changelog for as
           # long as nobody read a release.
           if gh api -X POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-            "${args[@]}" --jq .body >> notes.md; then
+            "${args[@]}" --jq .body > generated.md; then
+            # The generated footer compares the two tag names it was given, and by the time anyone
+            # reads it both are wrong: nightly has moved on to this very build, and the label was
+            # never a tag at all. Commit SHAs are the only refs in this release that stay put.
+            sed -i '/^\*\*Full Changelog\*\*:/d' generated.md
+            cat generated.md >> notes.md
             echo "Generated release notes against ${PREVIOUS:-the last tagged release}"
           else
             echo "Note generation failed; falling back to a compare link"
-            echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS:-main}...${SHA}" >> notes.md
+          fi
+
+          if [ -n "${PREVIOUS}" ] && [ "${PREVIOUS}" != "${SHA}" ]; then
+            echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS}...${SHA}" >> notes.md
           fi
           cat notes.md
 
