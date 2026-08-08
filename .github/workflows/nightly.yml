@@ -1,0 +1,299 @@
+name: Nightly
+
+# One rolling pre-release, rebuilt from main every night and replaced in place. It exists so the
+# release path itself is exercised daily rather than only on a tag, and so testers have a link that
+# never changes. The build steps below are deliberately a copy of release.yml's: nightly and release
+# must produce the same archives, and test/unit/release/nightly_test.go fails the build if the two
+# drift apart.
+on:
+  # 04:00 Moscow time. MSK is UTC+3 the whole year - Russia has had no daylight saving since 2014 -
+  # so this one expression does not need a summer twin.
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Build even when main has not moved since the last nightly'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# A nightly that overlaps itself would race two runs for the same tag, and the loser would delete
+# the winner's release. Queue instead of cancelling: a run that is already building archives should
+# finish and publish them.
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  # Everything downstream is gated on this job. Its whole purpose is to answer "has main moved since
+  # the nightly we already published", so that an untouched day leaves no trace in the release list.
+  decide:
+    # A fork inherits the schedule but not the intent; without this every fork publishes nightlies
+    # of its own from our cron.
+    if: github.repository == 'teoritty/xQuakShell'
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.check.outputs.build }}
+      label: ${{ steps.check.outputs.label }}
+      previous: ${{ steps.check.outputs.previous }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Decide whether anything changed
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          # The commit the published nightly was built from is whatever the nightly tag points at.
+          # An annotated tag's ref names the tag object, so ^{} is what resolves to a commit; the
+          # release action creates a lightweight ref, which the second lookup covers.
+          previous="$(git ls-remote origin 'refs/tags/nightly^{}' | cut -f1)"
+          if [ -z "$previous" ]; then
+            previous="$(git ls-remote origin refs/tags/nightly | cut -f1)"
+          fi
+
+          # A tag with no release behind it means an earlier run died between creating the two.
+          # Rebuild rather than reading the orphan tag as proof that the build already shipped.
+          released=yes
+          gh release view nightly >/dev/null 2>&1 || released=no
+
+          build=true
+          reason="main has moved to ${SHA}"
+          if [ "${FORCE}" != "true" ] && [ "${released}" = yes ] && [ "${previous}" = "${SHA}" ]; then
+            build=false
+            reason="main is still at ${SHA}, which the published nightly was already built from"
+          fi
+
+          # Comparing against the published nightly rather than against a 24-hour window is what
+          # makes a failed or skipped night self-healing: the next run still sees the commits the
+          # missed one would have carried.
+          {
+            echo "build=${build}"
+            echo "previous=${previous}"
+            echo "label=nightly-$(date -u +%Y%m%d)-$(echo "${SHA}" | cut -c1-7)"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Nightly build: ${build} — ${reason}" >> "$GITHUB_STEP_SUMMARY"
+
+  windows:
+    needs: decide
+    if: needs.decide.outputs.build == 'true'
+    runs-on: windows-latest
+    env:
+      LABEL: ${{ needs.decide.outputs.label }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25'
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Pinned to the wails/v2 version in go.mod, exactly as release.yml pins it. A nightly built by
+      # a different CLI than the release would stop being a rehearsal of the release.
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+
+      - name: Build
+        shell: pwsh
+        run: wails build -platform windows/amd64 -clean -ldflags "-X xquakshell/internal/presentation/wails.AppVersion=$env:LABEL"
+
+      # Both archives unpack into one folder named after themselves rather than scattering an exe
+      # and a 250 MB runtime folder into whatever directory they were opened in. The app keeps its
+      # vault, audit log and plugins in data\ next to the executable, so that folder is the
+      # installation and has to stay together.
+      - name: Package portable (no WebView2)
+        shell: pwsh
+        run: |
+          $name = "xQuakShell-$env:LABEL-windows-amd64-portable"
+          New-Item -ItemType Directory -Path dist, "stage/$name" -Force | Out-Null
+          Copy-Item "build/bin/xQuakShell.exe" "stage/$name/"
+          Copy-Item "packaging/windows/README.md" "stage/$name/README.md"
+          Copy-Item "LICENSE" "stage/$name/"
+          Compress-Archive -Path "stage/$name" -DestinationPath "dist/$name.zip"
+
+      # Fetches the x64 fixed runtime, verifies it is the architecture this build needs and that
+      # Microsoft signed it, and fails the build if either is not true.
+      - name: Download WebView2 Fixed Runtime
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/download_webview2.ps1
+
+      - name: Package portable (with WebView2)
+        shell: pwsh
+        run: |
+          $name = "xQuakShell-$env:LABEL-windows-amd64-portable-webview2"
+          New-Item -ItemType Directory -Path "stage/$name" -Force | Out-Null
+          Copy-Item "build/bin/xQuakShell.exe" "stage/$name/"
+          Copy-Item "build/bin/WebView2" "stage/$name/WebView2" -Recurse
+          Copy-Item "packaging/windows/README.md" "stage/$name/README.md"
+          Copy-Item "LICENSE" "stage/$name/"
+          # The file Wails resolves at startup. If it is missing the app exits without a window,
+          # which is exactly the failure this archive exists to prevent — so the build stops here
+          # rather than shipping it.
+          $clientDll = "stage/$name/WebView2/EBWebView/x64/EmbeddedBrowserWebView.dll"
+          if (-not (Test-Path $clientDll)) { throw "Bundled runtime is missing $clientDll" }
+          Compress-Archive -Path "stage/$name" -DestinationPath "dist/$name.zip"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-archives
+          path: dist/*.zip
+          if-no-files-found: error
+
+  # One archive per WebKitGTK ABI, for the reason release.yml spells out: 4.0 and 4.1 are not
+  # interchangeable, and ubuntu-22.04 sets the oldest glibc floor still on offer.
+  linux:
+    needs: decide
+    if: needs.decide.outputs.build == 'true'
+    runs-on: ubuntu-22.04
+    env:
+      LABEL: ${{ needs.decide.outputs.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - webkit: '4.0'
+            dev_package: libwebkit2gtk-4.0-dev
+            build_tags: ''
+          - webkit: '4.1'
+            dev_package: libwebkit2gtk-4.1-dev
+            # Without this tag Wails links 4.0 regardless of what is installed.
+            build_tags: '-tags webkit2_41'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25'
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev ${{ matrix.dev_package }}
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+
+      - name: Name the archive
+        run: echo "NAME=xQuakShell-$LABEL-linux-amd64-webkit${{ matrix.webkit }}" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: |
+          wails build -platform linux/amd64 -clean ${{ matrix.build_tags }} \
+            -ldflags "-X xquakshell/internal/presentation/wails.AppVersion=$LABEL"
+
+      # An ELF on its own has no icon, no menu entry and no explanation of which WebKitGTK it needs.
+      # The archive carries the launcher, the desktop entry and the instructions with it.
+      - name: Assemble archive
+        run: |
+          mkdir -p dist "stage/$NAME"
+          cp build/bin/xQuakShell "stage/$NAME/"
+          cp packaging/linux/xquakshell.sh "stage/$NAME/"
+          cp packaging/linux/install-desktop-entry.sh "stage/$NAME/"
+          cp packaging/linux/xquakshell.desktop "stage/$NAME/"
+          cp packaging/linux/README.md "stage/$NAME/README.md"
+          cp images/icon.png "stage/$NAME/icon.png"
+          cp LICENSE "stage/$NAME/"
+          # core.filemode is false in this repository and the scripts are tracked 0644, so the
+          # executable bit does not survive checkout; tar would record exactly that.
+          chmod +x "stage/$NAME/xQuakShell" "stage/$NAME/xquakshell.sh" "stage/$NAME/install-desktop-entry.sh"
+          # -C keeps the staging path out of the archive: it unpacks into one directory named
+          # after itself, never into the current one.
+          tar -czf "dist/$NAME.tar.gz" -C stage "$NAME"
+          tar -tzf "dist/$NAME.tar.gz"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-archives-webkit${{ matrix.webkit }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: [decide, windows, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # No pattern filter: every archive any build job uploaded is published and checksummed,
+      # so a new platform job cannot be added without its files being covered.
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Collect archives
+        run: |
+          mkdir -p dist
+          find artifacts -type f \( -name '*.zip' -o -name '*.tar.gz' \) -exec mv {} dist/ \;
+          ls -l dist
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          # Runs before SHA256SUMS exists, so the glob cannot include the file being written.
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Release notes
+        env:
+          PREVIOUS: ${{ needs.decide.outputs.previous }}
+          SHA: ${{ github.sha }}
+          LABEL: ${{ needs.decide.outputs.label }}
+        run: |
+          set -euo pipefail
+          {
+            echo "Automated build of \`main\` at \`${SHA}\`, published as \`${LABEL}\`."
+            echo
+            echo "This release is replaced by the next nightly. Its download links stay valid only"
+            echo "until then; for a build that keeps its files, use a tagged release."
+            if [ -n "${PREVIOUS}" ] && [ "${PREVIOUS}" != "${SHA}" ]; then
+              echo
+              echo "Changes since the previous nightly: https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS}...${SHA}"
+            fi
+          } > notes.md
+          cat notes.md
+
+      # The old release goes before the new one is created, which is what keeps exactly one nightly
+      # in the list. --cleanup-tag frees the tag name so it can be recreated at the new commit;
+      # the explicit ref delete covers a tag left behind by a run that died after tagging.
+      - name: Remove the previous nightly
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete nightly --yes --cleanup-tag || true
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/nightly" --silent || true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: nightly
+          target_commitish: ${{ github.sha }}
+          name: Nightly ${{ needs.decide.outputs.label }}
+          body_path: notes.md
+          # A nightly is never the release a first-time visitor should land on. Both flags say so:
+          # prerelease keeps it out of the "Latest" badge, make_latest keeps the /releases/latest
+          # redirect pointing at the newest tagged release.
+          prerelease: true
+          make_latest: false
+          files: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/SHA256SUMS
