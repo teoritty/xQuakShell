@@ -2,6 +2,7 @@
   import Modal from './Modal.svelte';
   import { Copy, ExternalLink } from 'lucide-svelte';
   import { lastError, clearError } from '../stores/appState';
+  import { openExternal } from './openExternal';
 
   let copied = false;
 
@@ -18,7 +19,10 @@
     });
   }
 
-  const GITHUB_ISSUES_URL = 'https://github.com/xQuakShell/xQuakShell/issues/new';
+  // teoritty/xQuakShell, not xQuakShell/xQuakShell. This pointed at an org that does not exist, so
+  // even once the button started opening a browser it would have landed on a 404 - and the report
+  // it was collecting a stack trace for would never have arrived.
+  const GITHUB_ISSUES_URL = 'https://github.com/teoritty/xQuakShell/issues/new';
 
   function openIssue() {
     if (!$lastError) return;
@@ -29,7 +33,7 @@
       '---\n*Please describe what you were doing when this error occurred.*'
     );
     const url = `${GITHUB_ISSUES_URL}?title=${title}&body=${body}`;
-    window.open(url, '_blank');
+    openExternal(url);
   }
 </script>
 

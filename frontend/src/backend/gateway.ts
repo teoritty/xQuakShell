@@ -358,4 +358,16 @@ export interface RuntimeGateway {
    * both shapes rather than assume a function is there.
    */
   EventsOn(event: string, cb: (data: any) => void): (() => void) | void;
+
+  /**
+   * Hands a URL to the OS so it opens in the user's real browser.
+   *
+   * This is the only way out of the app to the web that works. `window.open` cannot leave a Wails
+   * webview, and it fails differently per platform, which is why it produced a bug report that read
+   * as two unrelated ones: WebView2 answers it with a second chrome-less in-app window, while
+   * WebKitGTK - what the Linux builds run on - drops the call silently unless the host handles its
+   * `create` signal, so the button does nothing at all. Route external links through
+   * lib/openExternal.ts rather than calling this directly.
+   */
+  BrowserOpenURL(url: string): void;
 }

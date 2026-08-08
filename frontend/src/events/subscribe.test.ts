@@ -24,6 +24,8 @@ function createFakeRuntime() {
     EventsOn(event: string, cb: (data: any) => void) {
       handlers.set(event, cb);
     },
+    // Unused here; RuntimeGateway requires it because the live Wails runtime always has it.
+    BrowserOpenURL() {},
   };
   return { runtime, handlers };
 }
