@@ -142,8 +142,11 @@ One type (`GitHubPluginService`), one file per reason to change — same pattern
 | `github_binary_fetch.go` | Release asset download via downloader port |
 | `github_plugin_preview.go` | Install preview DTO |
 | `github_plugin_install.go` | Install orchestration pipeline |
+| `github_plugin_stage.go` | Asset download and staging, including the bundle-required-for-UI-plugins refusal |
 | `github_plugin_uninstall.go` | Uninstall + cache invalidation |
 | `github_ports.go` | GitHub usecase ports (domain DTOs only) |
+
+`github_repo_service.go` matches the same directory budget but is a separate type (`GitHubRepositoryService`, the registry of plugin repositories), not part of this decomposition.
 
 Pure platform/checksum parsing lives in `internal/domain/plugin/github_platform.go`. Security-critical flows stay isolated: list metadata must not download assets; release metadata may download checksums; install downloads verified binaries.
 
@@ -158,6 +161,10 @@ One type (`ProcessHost`), one file per reason to change.
 | `process_host_registry.go` | Process map, lookup, state queries |
 | `process_host_lifecycle.go` | Wait, finalize, reservation rollback |
 | `process_spawner.go` | Child process spawn and pipes |
+| `process_env.go` | The sanitized environment a plugin process is given |
+| `process_reaper.go` | Waiting on and killing the child process |
+| `process_key.go` | The process-map key, and the isolation mode it encodes |
+| `process_host_dial_slot.go` | Tunnel dial-slot release |
 | `process_sandbox.go` | Job objects, resource limits, data dir |
 | `process_ipc_factory.go` | IPC server and capability proxy wiring |
 | `process_initializer.go` | Plugin initialize handshake |
@@ -165,7 +172,14 @@ One type (`ProcessHost`), one file per reason to change.
 | `process_host_stop.go` | Stop and StopAll |
 | `process_host_rpc.go` | Call and Notify |
 
-**SRP rules (enforced in CI):** new concern → new file; `internal/usecase` must not import `internal/infra`; `make check` includes the file budgets in [`test/unit/architecture/file_size.go`](../test/unit/architecture/file_size.go) (300 non-blank lines for concern files, 100 for facades).
+**SRP rules (enforced in CI):** new concern → new file; `internal/usecase` must not import `internal/infra`. `make check` enforces two layers of size budget, both counting **code lines** — non-blank lines that are not comments:
+
+| Budget | Where | Limit |
+|--------|-------|-------|
+| Repo-wide, every production Go file | [`size_budget.go`](../test/unit/architecture/size_budget.go) + [`code-budgets.json`](../code-budgets.json) | 350, with an exemption list for shapes that should not be split and a frozen baseline for pre-existing debt |
+| Per-directory, to stop the decomposed services re-merging | [`file_size.go`](../test/unit/architecture/file_size.go) | 300 for `internal/usecase/github_*.go` and `internal/infra/plugin/process_*.go`, 100 for the two facades below |
+
+The baseline is a ratchet: a file in it fails the gate if it grows **and** if it shrinks without being re-recorded. Re-record with `make budgets-update`.
 
 ## Session embed data flow
 
@@ -181,5 +195,5 @@ flowchart LR
 
 ## Tests
 
-- Use case SSH flows: `internal/usecase/session_manager_ssh_test.go` (no network; mocked ports).
+- Use case SSH flows: `internal/usecase/ssh_connector_test.go`, `ssh_auth_wiring_test.go` (no network; mocked ports).
 - Broader unit tests: `test/unit/`.

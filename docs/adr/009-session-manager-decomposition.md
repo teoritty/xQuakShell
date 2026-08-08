@@ -48,5 +48,5 @@ External method signatures visible to presentation layer remain unchanged.
 ## References
 
 - [architecture.md](../architecture.md)
-- ADR-001 — SSH fast path vs plugin sessions
+- ADR-001 — SSH fast path vs plugin sessions (no ADR file; see [the index](README.md#numbers-below-007))
 - ADR-008 — Session embed surfaces

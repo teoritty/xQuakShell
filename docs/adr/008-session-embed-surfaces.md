@@ -39,7 +39,6 @@ Session surface types are mutually exclusive: `terminal` **or** `embed`. Embed r
 
 ## References
 
-- [PLAN-session-embed-surfaces.md](../../PLAN-session-embed-surfaces.md)
 - [plugin-api.md](../plugin-api.md)
-- ADR-003 — Process isolation
+- ADR-003 — Process isolation (no ADR file; see [the index](README.md#numbers-below-007))
 - ADR-007 — Trust boundaries

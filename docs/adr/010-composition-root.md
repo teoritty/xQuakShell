@@ -14,13 +14,13 @@ The composition root is **`package main`**, limited to:
 
 | File | Role |
 |------|------|
-| [`main.go`](../main.go) | Process entry: Wails bootstrap, calls `composeApp()` |
-| [`main_compose.go`](../main_compose.go) | Core DI: repos, SSH stack, `NewAppAPI`, post-wire hooks |
-| [`main_ssh_auth.go`](../main_ssh_auth.go) | Plugin SSH auth: `SSHAuthWiring` (usecase ↔ infra glue) |
-| [`main_plugins.go`](../main_plugins.go) | Plugin runtime, embed tunnels, GitHub services |
-| [`main_connectors.go`](../main_connectors.go) | Non-SSH `SessionConnector` registry |
+| [`main.go`](../../main.go) | Process entry: Wails bootstrap, calls `composeApp()` |
+| [`main_compose.go`](../../main_compose.go) | Core DI: repos, SSH stack, `NewAppAPI`, post-wire hooks |
+| [`main_ssh_auth.go`](../../main_ssh_auth.go) | Plugin SSH auth: `SSHAuthWiring` (usecase ↔ infra glue) |
+| [`main_plugins.go`](../../main_plugins.go) | Plugin runtime, embed tunnels, GitHub services |
+| [`main_connectors.go`](../../main_connectors.go) | Non-SSH `SessionConnector` registry |
 
-[`app.go`](../app.go) is the **Wails binding facade** only: `App` struct, lifecycle (`startup`/`shutdown`), and method delegates to `presentation.AppAPI`. It must **not** import `internal/infra/*`, `internal/pkg/conlimit`, or `internal/pkg/ratelimit`, and must not define package-level `New*` constructors.
+[`app.go`](../../app.go) is the **Wails binding facade** only: `App` struct, lifecycle (`startup`/`shutdown`), and method delegates to `presentation.AppAPI`. It must **not** import `internal/infra/*`, `internal/pkg/conlimit`, or `internal/pkg/ratelimit`, and must not define package-level `New*` constructors.
 
 **Rules:**
 
