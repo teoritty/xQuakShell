@@ -78,7 +78,7 @@ func TestNightlyRunsAtFourMoscowTime(t *testing.T) {
 // every job that costs runner minutes or writes a release hangs off its answer.
 func TestNightlySkipsWhenMainHasNotMoved(t *testing.T) {
 	workflow := readNightlyWorkflow(t)
-	decide := jobSection(t, workflow, "decide")
+	decide := withoutComments(jobSection(t, workflow, "decide"))
 
 	// The comparison is against the commit the published nightly was built from, not against a
 	// time window: that is what lets a failed night be picked up by the next one.
@@ -101,7 +101,7 @@ func TestNightlySkipsWhenMainHasNotMoved(t *testing.T) {
 // changes. A dated tag, or a create without the delete, leaves the release list growing by one
 // entry a day - the thing this workflow exists to avoid.
 func TestNightlyReplacesThePreviousRelease(t *testing.T) {
-	publish := jobSection(t, readNightlyWorkflow(t), "publish")
+	publish := withoutComments(jobSection(t, readNightlyWorkflow(t), "publish"))
 
 	if !strings.Contains(publish, `select(.tag_name == "nightly") | .id`) {
 		t.Error("the publish job does not enumerate the existing nightly releases by id; a draft " +
@@ -134,15 +134,23 @@ func TestNightlyReplacesThePreviousRelease(t *testing.T) {
 // GH_REPO every gh call in it fails on a directory that is not a repository - which is how the
 // delete above once became a no-op, silently turning "replace the nightly" into "update it".
 func TestNightlyDeletionDoesNotDependOnACheckout(t *testing.T) {
-	publish := jobSection(t, readNightlyWorkflow(t), "publish")
+	publish := withoutComments(jobSection(t, readNightlyWorkflow(t), "publish"))
 
-	if !strings.Contains(publish, "GH_REPO: ${{ github.repository }}") {
-		t.Error("the publish job runs gh without GH_REPO and without a checkout; gh cannot tell " +
-			"which repository to act on")
+	// Per step, not per job: the job has more than one step calling gh, and a check that any single
+	// step declares GH_REPO passes while another one is left unable to resolve the repository.
+	for _, step := range strings.Split(publish, "\n      - ") {
+		if !strings.Contains(step, "gh api") && !strings.Contains(step, "gh release") {
+			continue
+		}
+		if !strings.Contains(step, "GH_REPO: ${{ github.repository }}") {
+			name := strings.SplitN(strings.TrimPrefix(step, "name: "), "\n", 2)[0]
+			t.Errorf("step %q runs gh without GH_REPO, and the job has no checkout for gh to "+
+				"infer the repository from", name)
+		}
 	}
 	// `gh release delete --cleanup-tag` shells out to git for the tag half of its work, so it
 	// cannot do this job's work at all. The API calls it was replaced with need no working tree.
-	if strings.Contains(withoutComments(publish), "gh release delete") {
+	if strings.Contains(publish, "gh release delete") {
 		t.Error("the publish job uses gh release delete, which needs a git working tree it does not have")
 	}
 	// A tolerated failure here is indistinguishable from a successful delete, and the difference
@@ -150,6 +158,35 @@ func TestNightlyDeletionDoesNotDependOnACheckout(t *testing.T) {
 	if regexp.MustCompile(`gh api -X DELETE "repos/\$\{GITHUB_REPOSITORY\}/releases/\$\{id\}"\s*\|\|`).MatchString(publish) {
 		t.Error("a failed release delete is swallowed; the run would then update the old release " +
 			"in place and report success")
+	}
+}
+
+// The changelog has to be asked for while the nightly tag still points at the previous build,
+// because that tag is the only record of where the last one stopped. Ask afterwards and there is
+// nothing to diff against; let the release action generate its own notes and GitHub falls back to
+// the last tagged release, re-listing every commit since it and growing by a day's work a night.
+func TestNightlyChangelogCoversOnlyTheLastDay(t *testing.T) {
+	// Comments stripped throughout: the paragraph above the step names every flag it explains, and
+	// an assertion satisfied by that prose passes just as happily when the flag itself is gone.
+	publish := withoutComments(jobSection(t, readNightlyWorkflow(t), "publish"))
+
+	if !strings.Contains(publish, "releases/generate-notes") {
+		t.Error("the publish job never generates a What's Changed list")
+	}
+	if !strings.Contains(publish, "previous_tag_name=nightly") {
+		t.Error("the changelog is not bounded by the previous nightly, so it would restate every " +
+			"change since the last tagged release")
+	}
+	if strings.Contains(publish, "generate_release_notes") {
+		t.Error("the release action generates its own notes; with the nightly tag deleted nightly " +
+			"it has no previous nightly to diff against")
+	}
+
+	generated := strings.Index(publish, "releases/generate-notes")
+	removed := strings.Index(publish, "/git/refs/tags/nightly")
+	if generated > removed {
+		t.Error("the changelog is generated after the nightly tag is deleted, leaving nothing to " +
+			"bound it to the last build")
 	}
 }
 

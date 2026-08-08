@@ -252,8 +252,16 @@ jobs:
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
 
+      # Runs before the step that deletes the old nightly, and that order is the whole trick. The
+      # "What's Changed" list is asked for explicitly with previous_tag_name=nightly, so it covers
+      # the previous nightly to this build - and the nightly tag still exists to be named at this
+      # point. generate_release_notes on the release itself cannot do this: with the nightly tag
+      # deleted every night, GitHub would fall back to the last tagged release and re-list every
+      # commit since it, growing by a day's work each night.
       - name: Release notes
         env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           PREVIOUS: ${{ needs.decide.outputs.previous }}
           SHA: ${{ github.sha }}
           LABEL: ${{ needs.decide.outputs.label }}
@@ -264,11 +272,26 @@ jobs:
             echo
             echo "This release is replaced by the next nightly. Its download links stay valid only"
             echo "until then; for a build that keeps its files, use a tagged release."
-            if [ -n "${PREVIOUS}" ] && [ "${PREVIOUS}" != "${SHA}" ]; then
-              echo
-              echo "Changes since the previous nightly: https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS}...${SHA}"
-            fi
+            echo
           } > notes.md
+
+          # The label names a tag that does not exist yet, which is what makes target_commitish the
+          # thing GitHub diffs to; naming the existing nightly tag here would diff it against itself.
+          args=(-f "tag_name=${LABEL}" -f "target_commitish=${SHA}")
+          if [ -n "${PREVIOUS}" ]; then
+            args+=(-f previous_tag_name=nightly)
+          fi
+
+          # A missing changelog is not worth failing a good build for, so the compare link stands in.
+          # It is printed to the log either way: silence here would hide a broken changelog for as
+          # long as nobody read a release.
+          if gh api -X POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            "${args[@]}" --jq .body >> notes.md; then
+            echo "Generated release notes against ${PREVIOUS:-the last tagged release}"
+          else
+            echo "Note generation failed; falling back to a compare link"
+            echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS:-main}...${SHA}" >> notes.md
+          fi
           cat notes.md
 
       # The old release goes before the new one is created, which is what keeps exactly one nightly
