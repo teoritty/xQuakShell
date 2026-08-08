@@ -418,11 +418,29 @@ func TestChannelEmbedBackend_StallPastCeilingClosesWithReason(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("consumer stalled past the ceiling but the channel was never closed with a reason")
 	}
-	if !backend.isClosed() {
-		t.Fatal("ceiling fired but the backend was not closed")
-	}
+	waitClosed(t, backend)
 	if acks := data.ackCount(); acks != 0 {
 		t.Fatalf("acks = %d, want 0 — no frame ever reached the consumer", acks)
+	}
+}
+
+// waitClosed asserts the backend detaches, and waits for it rather than sampling once.
+//
+// The order in closeWithReason is deliberate: notifyClose runs FIRST and CloseRemote — which sets
+// the flag this reads — runs after it, because a plugin that learns nothing about why its channel
+// died is the bug that reason string exists to prevent. So a test that has just received on the
+// close channel is observing something that happened INSIDE notifyClose, before the detach it then
+// asserts. Reading the flag straight away was not testing an ordering, it was racing one, and
+// under `go test ./... -race` it lost often enough to redden `make gates`.
+func waitClosed(t *testing.T, b *ChannelEmbedBackend) {
+	t.Helper()
+	deadline := time.After(5 * time.Second)
+	for !b.isClosed() {
+		select {
+		case <-deadline:
+			t.Fatal("the close reason was delivered but the backend never detached")
+		case <-time.After(5 * time.Millisecond):
+		}
 	}
 }
 
