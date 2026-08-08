@@ -223,7 +223,7 @@ discovery node. Full model, limits and security rationale:
 
 **`udp-relay` and the network allowlist**
 
-`tcp-relay` and `udp-relay` validate their `hint` target against the same `capabilities.network.outbound` allowlist used by `net.dial` (see [Rules](#rules) below), just with a proto-prefixed pattern form:
+`tcp-relay` and `udp-relay` validate their `hint` target against the same `capabilities.network.outbound` allowlist used by `net.dial` (see [Validation rules](#validation-rules) below), just with a proto-prefixed pattern form:
 
 ```json
 "capabilities": {

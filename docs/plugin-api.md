@@ -566,7 +566,7 @@ Complete method list as implemented in the core today.
 | `ping` | omitted / `null` | any JSON | Used by `PingPlugin` when process is already running |
 | `activate` | `{"reason":"<trigger>"}` | any JSON | Not sent by dev `StartPlugin` — only `initialize` |
 | `shutdown` | omitted / `null` | `{"ok":true}` recommended | 2 s timeout |
-| `session.connect` | see [Session plugin lifecycle](#session-connect-contract) | `{"accepted":true}` | Sync RPC; failure → session error |
+| `session.connect` | see [`session.connect` contract](#sessionconnect-contract) | `{"accepted":true}` | Sync RPC; failure → session error |
 
 **`initialize` params:**
 
