@@ -37,7 +37,7 @@ func InstallFromSource(sourcePath, dataRoot string) (domainplugin.InstalledPlugi
 	if err := os.RemoveAll(destDir); err != nil {
 		return domainplugin.InstalledPlugin{}, fmt.Errorf("prepare install dir: %w", err)
 	}
-	if err := CopyBundle(sourceDir, destDir); err != nil {
+	if err := CopyBundle(sourceDir, destDir, plugin.Manifest.Engine.Entry); err != nil {
 		return domainplugin.InstalledPlugin{}, err
 	}
 	if err := MarkUserInstalled(destDir); err != nil {
