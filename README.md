@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-blue.svg" alt="License: GPLv3"></a>
-  <img src="https://img.shields.io/badge/go-1.25.12-00ADD8?logo=go&logoColor=white" alt="Go 1.25.12">
+  <img src="https://img.shields.io/badge/go-1.26.5-00ADD8?logo=go&logoColor=white" alt="Go 1.26.5">
   <img src="https://img.shields.io/badge/Wails-v2.13.0-DF0000?logo=wails&logoColor=white" alt="Wails v2.13.0">
   <!-- <img src="https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white" alt="Windows"> -->
   <a href="https://t.me/xQuakShell"><img src="https://img.shields.io/badge/Telegram-Join%20chat-26A5E4?logo=telegram&logoColor=white" alt="Telegram"></a>
@@ -115,7 +115,7 @@ to install. The Linux archive carries a launcher, a desktop entry and its own RE
 
 ### Prerequisites
 
-- Go 1.25.12+ (earlier 1.25 patches carry known stdlib vulnerabilities)
+- Go 1.26.5+ — the version `go.mod` requires and every workflow builds with
 - Node.js 20.19+ or 22.12+ (Vite 8 refuses to run on anything older; CI builds on 20)
 - Wails CLI v2.13.0 — pinned, not `@latest`: it must match the library version in `go.mod`, and
   `make` will tell you the same if it is missing.

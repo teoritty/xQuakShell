@@ -30,7 +30,7 @@ If applicable, add screenshots to help explain your problem.
 
 - OS: [e.g. Windows 11, Ubuntu 22.04]
 - xQuakShell version: [e.g. 1.2.3 or commit hash]
-- Go version (if building from source): [e.g. 1.25.12]
+- Go version (if building from source): [e.g. 1.26.5]
 - Node version (if building from source): [e.g. 20.x]
 
 ## Additional context

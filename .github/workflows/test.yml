@@ -13,7 +13,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.25'
+          go-version: '1.26'
 
       # Layer imports, composition root, filesystem boundaries, goroutine
       # launches, context usage, file budgets and the session manager
