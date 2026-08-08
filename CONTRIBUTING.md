@@ -28,7 +28,10 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 
 1. **Fork** the repository and create a branch from `main`.
 2. **Implement** your changes. Follow existing code style and architecture.
-3. **Test** your changes: `go test ./test/unit/... -v`
+3. **Test** your changes: `make gates` runs every pre-merge gate in the order CI runs them.
+   `make check` is the fast subset — architecture, budgets, comments — for while you iterate.
+   (`go test ./test/unit/...` reaches a fraction of the suite: most tests live next to the code
+   they cover, and CI runs `go test ./... -race`.)
 4. **Commit** with clear messages (e.g., `fix: RDP UTF-16 encoding`, `feat: add Serial connector`).
 5. **Push** and open a Pull Request.
 6. Address review feedback.
@@ -37,7 +40,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 
 ```bash
 # Clone your fork
-git clone https://github.com/teoritty/xQuakShell.git
+git clone https://github.com/<your-fork>/xQuakShell.git
 cd xQuakShell
 
 # Install dependencies
@@ -50,7 +53,8 @@ make dev
 ### Code Style
 
 - **Go:** Follow [Effective Go](https://go.dev/doc/effective_go) and standard `gofmt`/`go vet`.
-- **TypeScript/Svelte:** Use existing patterns; run `npm run build` to verify.
+- **TypeScript/Svelte:** Use existing patterns; `cd frontend && npm run check` must report
+  **zero errors** (svelte-check), and `npm test` must pass. CI gates on both.
 - **Documentation:** Add doc comments for exported types and functions (godoc style).
 
 ### Architecture
@@ -96,11 +100,16 @@ The plugin API is versioned and frozen (**[docs/adr/012-plugin-api-versioning.md
 
 ### Security scanning
 
-The `Security` workflow ([.github/workflows/security.yml](.github/workflows/security.yml)) gates every PR and also runs weekly on a cron — a CVE against a dependency lands in the vulnerability database without any commit here, so pushes alone are not enough to notice it. All four checks are blocking. Run them locally before you push:
+The `Security` workflow ([.github/workflows/security.yml](.github/workflows/security.yml)) gates every PR and also runs weekly on a cron — a CVE against a dependency lands in the vulnerability database without any commit here, so pushes alone are not enough to notice it. Every check in it is blocking, CodeQL included. The ones you can run locally:
 
 - `make sec` — **govulncheck** (dependency and stdlib CVEs, filtered to the ones actually reachable from our call graph) and **gosec** (security patterns).
 - `make lint` — **staticcheck**, configured by [staticcheck.conf](staticcheck.conf).
-- `cd frontend && npm audit --omit=dev --audit-level=high` — frontend dependencies that ship in the binary.
+- `cd frontend && npm audit --omit=dev --audit-level=moderate` — frontend dependencies that ship in
+  the binary. The level must match the workflow: run it at `high` and a moderate finding passes
+  here and fails there.
+
+CodeQL (Go and JavaScript/TypeScript) has no local equivalent and runs on the PR; its findings gate
+the same way the others do.
 
 Both `make` targets type-check the whole module, which needs `frontend/dist` for the `go:embed` in `main.go`; run `cd frontend && npm run build` first on a clean tree. Tool versions are pinned identically in the Makefile and the workflow — bump them together, or local and CI results will drift.
 
@@ -114,6 +123,7 @@ When gosec flags code you believe is correct:
 
 ## Questions
 
-Open an issue or discussion if you have questions. We're happy to help.
+Open an issue if you have questions, or ask in the Telegram channel
+([t.me/xQuakShell](https://t.me/xQuakShell)). We're happy to help.
 
 Thank you for contributing!
