@@ -14,11 +14,14 @@ This guide explains how to use xQuakShell for managing remote connections, organ
 6. [Folders and Organization](#folders-and-organization)
 7. [Importing Connections](#importing-connections)
 8. [Sessions and Tabs](#sessions-and-tabs)
-9. [Terminal](#terminal)
-10. [SFTP File Transfer](#sftp-file-transfer)
-11. [Known Hosts](#known-hosts)
-12. [Audit Log](#audit-log)
-13. [Settings and Lockout](#settings-and-lockout)
+9. [Tiling the Workspace](#tiling-the-workspace)
+10. [Terminal](#terminal)
+11. [SFTP File Transfer](#sftp-file-transfer)
+12. [Port Forwarding](#port-forwarding)
+13. [Plugins](#plugins)
+14. [Known Hosts](#known-hosts)
+15. [Audit Log](#audit-log)
+16. [Settings and Lockout](#settings-and-lockout)
 
 ---
 
@@ -28,7 +31,9 @@ All data—connections, SSH keys, passwords, known hosts—is stored in a single
 
 ### First launch
 
-- Enter any password to **create** a new vault. This password becomes your master password.
+- Enter a password of at least 8 characters to **create** a new vault. It becomes your master
+  password. A strength meter rates it, but only the length is enforced — a weak-but-long-enough
+  password creates the vault with a warning.
 - On subsequent launches, enter the same password to **unlock** the vault.
 
 ### Where is data stored?
@@ -37,13 +42,18 @@ xQuakShell is **fully portable**. All application data lives **next to the execu
 
 ```
 xQuakShell.exe
-vault.age              # encrypted vault
-audit.db               # audit log (if enabled)
-plugins/               # bundled and user-installed plugins
-  example-echo/
-  com.example.myplugin/
-    data/              # plugin runtime data
+data/
+  vault.age            # encrypted vault
+  audit.db             # audit log (if enabled)
+  github-repos.json    # plugin repositories you have added
+  plugins/             # installed plugins, one directory per plugin ID
+    com.example.myplugin/
+      data/            # that plugin's own runtime data
+  tmp/                 # staging area for plugin installs
 ```
+
+Everything the app writes stays inside `data/`. Deleting that directory resets the app to a first
+launch; deleting it is also how you start over if you forget the master password.
 
 Copy the entire folder to a USB stick or another PC — settings, vault, and plugins move with it.
 
@@ -218,6 +228,18 @@ To produce a `.reg` file, run: `regedit /e putty-sessions.reg HKEY_CURRENT_USER\
 
 ---
 
+## Tiling the Workspace
+
+Sessions do not have to take turns in one pane. Drag a session tab onto an open session and drop
+zones light up along its edges: drop on an edge to **split** the area and show both sessions at
+once, drop in the middle to **merge** the tab into that group's tab bar. Tiles can be nested, and
+the divider between any two is draggable.
+
+This is the same drag as reordering tabs — where you release it decides whether you get a new tile
+or a moved tab.
+
+---
+
 ## Terminal
 
 - Full PTY terminal via xterm.js.
@@ -226,8 +248,21 @@ To produce a `.reg` file, run: `regedit /e putty-sessions.reg HKEY_CURRENT_USER\
 
 ### Keyboard shortcuts
 
-- Standard terminal shortcuts apply (e.g., Ctrl+C, Ctrl+L).
-- Copy/paste: use system shortcuts or the terminal’s context menu.
+Terminal keys go to the remote shell: Ctrl+C, Ctrl+L and friends behave as they would in any
+terminal, and copy/paste uses the system shortcuts or the terminal's context menu.
+
+The application keeps four shortcuts of its own, deliberately chosen not to collide with common
+shell bindings. All four are rebindable in **Settings → Hotkeys**:
+
+| Action | Default |
+|--------|---------|
+| New session from the selected connection | `Ctrl+Shift+N` |
+| Next session | `Ctrl+Tab` |
+| Previous session | `Ctrl+Shift+Tab` |
+| Close session | `Ctrl+Shift+Q` |
+
+These stay active while the terminal has focus — otherwise they would be unreachable exactly when
+you need them.
 
 ---
 
@@ -237,9 +272,14 @@ Available for **SSH** sessions.
 
 ### Layout
 
-- **Left:** Remote file tree.
-- **Right:** Local file tree.
-- **Bottom:** Transfer panel (uploads/downloads in progress).
+The file panels share one column to the **right of the terminal**:
+
+- **Top of the column:** remote file tree (the SFTP side).
+- **Below it:** local file tree.
+- **Bottom of the session:** transfer panel (uploads/downloads in progress).
+
+Every divider is draggable: between terminal and file column, between the two trees, and — since
+the sidebar became resizable — the sidebar's right edge as well.
 
 ### Browsing
 
@@ -261,6 +301,50 @@ Available for **SSH** sessions.
 - Lists active and completed transfers.
 - **Cancel** to abort.
 - **Retry** for failed or cancelled transfers.
+
+---
+
+## Port Forwarding
+
+Forwarding rules belong to a connection and come up with its session. Add them in the connection
+details panel, under **Forward rules**:
+
+| Kind | ssh equivalent | What it does |
+|------|----------------|--------------|
+| **Local** | `-L` | A port on your machine is forwarded to a host reachable from the remote end |
+| **Remote** | `-R` | A port on the remote host is forwarded back to a host reachable from yours |
+| **Dynamic** | `-D` | A local SOCKS proxy that routes through the session |
+
+Local and remote rules take a bind address (default `127.0.0.1`), a bind port, and the target host
+and port. A rule can be disabled without deleting it. Plugins may also contribute tunnel providers,
+which appear as an extra kind once the plugin has been granted tunnel-provider consent in its
+settings.
+
+---
+
+## Plugins
+
+Everything beyond SSH — VNC, Telnet, Docker discovery — is an out-of-process plugin. Manage them in
+**Settings → Plugins**.
+
+### Installing
+
+- **From GitHub.** Add a repository, then install a release from it. Plugins that ship a user
+  interface must be published as an `.xqsp` bundle; a release that offers this platform only a bare
+  binary is refused at install time, with the missing asset named.
+- **From a file.** Install a downloaded `.xqsp` bundle, or point the installer at an unpacked
+  plugin directory — useful while developing one.
+
+### What a plugin may do
+
+A plugin's manifest declares the files, hosts and vault fields it needs. Anything outside that
+declaration is refused before it runs, and refusals are recorded in the audit log. Capabilities that
+carry real risk — tunnel providers among them — additionally require your explicit consent in the
+plugin's settings, separately from installing it.
+
+Each plugin runs as its own OS process with memory and handle limits, and is killed when the app
+shuts down. Uninstalling removes the plugin itself; the data it stored under `data/plugins/<id>/`
+is kept unless you ask for that to go too, so reinstalling does not silently discard its state.
 
 ---
 
@@ -286,9 +370,19 @@ Available for **SSH** sessions.
 
 ### Settings
 
-- **Session lockout:** Idle timeout, minimize lock, etc.
-- **Theme:** Dark/light (if supported).
-- Other app preferences.
+Settings opens on nine tabs:
+
+| Tab | What lives there |
+|-----|------------------|
+| **About** | Version and build information |
+| **Appearance** | Theme and colors |
+| **Audit Log** | Whether input is recorded, and retention |
+| **Files** | File browser and transfer behavior |
+| **Hotkeys** | The session shortcuts below |
+| **Network** | Ping and connection behavior |
+| **Plugins** | Installed plugins, repositories, per-plugin consent |
+| **Security** | Lockout: idle timeout, lock on minimize |
+| **Terminal** | Font, scrollback and terminal behavior |
 
 ### Lockout behavior
 
