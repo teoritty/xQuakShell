@@ -50,7 +50,8 @@ Get-ChildItem -Recurse | Unblock-File
 In `data\`, next to the executable:
 
 - `data\vault.age` — the encrypted vault: connections, credentials, keys
-- `data\audit\` — the audit log
+- `data\audit.db` — the audit log: recorded terminal input, searchable in the app
+- `data\audit\` — the plugin audit trail (which plugin asked the vault for what)
 - `data\plugins\` — installed plugins and their own data
 
 Back up `data\`, or copy the whole folder, and your setup moves with it. Deleting this folder
