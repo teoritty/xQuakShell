@@ -272,14 +272,29 @@ jobs:
           cat notes.md
 
       # The old release goes before the new one is created, which is what keeps exactly one nightly
-      # in the list. --cleanup-tag frees the tag name so it can be recreated at the new commit;
-      # the explicit ref delete covers a tag left behind by a run that died after tagging.
+      # in the list. Everything here talks to the API by explicit repository path: this job has no
+      # checkout, and `gh release delete` infers the repository from a git remote, so it fails
+      # outright without one. Swallowing that failure turned the replacement into an update of the
+      # existing release and left a nightly published as an untagged draft - invisible to everyone
+      # it was built for. Hence no blanket `|| true`: a delete that fails must fail the job.
       - name: Remove the previous nightly
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          gh release delete nightly --yes --cleanup-tag || true
-          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/nightly" --silent || true
+          set -euo pipefail
+          # Listed rather than looked up by tag. A draft release has no tag to look up by, and a
+          # draft left behind by a half-finished run is precisely what must not accumulate.
+          ids="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq '.[] | select(.tag_name == "nightly") | .id')"
+          for id in ${ids}; do
+            echo "Deleting release ${id}"
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${id}"
+          done
+          # The release goes first and the tag second: a tag deleted out from under a live release
+          # is what demotes it to a draft. Absent tag here is the normal first-run case.
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/nightly" --silent 2>/dev/null \
+            || echo "No nightly tag to remove"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
@@ -293,6 +308,10 @@ jobs:
           # redirect pointing at the newest tagged release.
           prerelease: true
           make_latest: false
+          # Stated rather than left to the default, because the default is only applied to a release
+          # this step creates. Should it ever find one to update instead, an inherited draft flag
+          # would carry over and publish nothing at all.
+          draft: false
           files: |
             dist/*.zip
             dist/*.tar.gz
