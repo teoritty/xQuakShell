@@ -62,6 +62,7 @@ from GitHub through the in-app plugin manager. The officially maintained ones:
 |--------|----------|-------|
 | **VNC** — remote desktop in an embedded noVNC viewer (fit-to-window, quality/bandwidth controls, auto-reconnect) | `vnc` | [Releases](https://github.com/teoritty/xqs-plugin-vnc/releases) · [Source](https://github.com/teoritty/xqs-plugin-vnc) |
 | **Telnet** — plaintext terminal sessions, optional auto-login | `telnet` | [Releases](https://github.com/teoritty/xqs-plugin-telnet/releases) · [Source](https://github.com/teoritty/xqs-plugin-telnet) |
+| **Docker discovery** — Docker management inside xQuakShell | `discovery` | [Releases](https://github.com/teoritty/xqs-plugin-docker-discovery/releases) · [Source](https://github.com/teoritty/xqs-plugin-docker-discovery) |
 
 Want to build your own? Start with the [Plugin API Reference](./docs/plugin-api.md) and [Plugin Manifest schema](./docs/plugin-manifest.md).
 

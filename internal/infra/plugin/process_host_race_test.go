@@ -291,10 +291,30 @@ func TestStartCancelledDuringHandshakeLeavesNoLiveProcess(t *testing.T) {
 	plugin := domainplugin.InstalledPlugin{Manifest: manifest, RootDir: pluginDir}
 	host := NewProcessHost(HostConfig{DataRoot: t.TempDir()})
 
-	// The fixture sleeps 2s inside initialize, so this expires while the handshake is in flight —
-	// after the process is up and published, which is the window the caller's context used to cover.
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	// Cancel on the fixture's own signal, not on a stopwatch. announcePID is the first statement
+	// in the fixture's main and initialize sleeps 2s after it, so "the pid file exists" means the
+	// child is up and the handshake is starting or already in flight — the window this test is
+	// about — with two seconds of slack behind it.
+	//
+	// This was a 300ms context timeout, which is a bet that spawning an OS process beats a clock.
+	// On a loaded machine it loses: Start failed before the child ever ran, no pid was ever
+	// written, and the assertion below then burned its full 20s timeout to report a broken
+	// fixture that was not broken. It cost `make gates` a spurious red at least twice.
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	type pidResult struct {
+		pid int
+		ok  bool
+	}
+	// Buffered and sent to exactly once, before the cancel that lets Start return, so the receive
+	// below cannot deadlock however Start finishes.
+	announced := make(chan pidResult, 1)
+	go func() {
+		defer cancel()
+		pid, ok := fixturePID(t, pluginDir, 20*time.Second)
+		announced <- pidResult{pid: pid, ok: ok}
+	}()
 
 	if err := host.Start(ctx, plugin, ""); err == nil {
 		t.Fatal("a Start whose context died mid-handshake must fail")
@@ -302,13 +322,11 @@ func TestStartCancelledDuringHandshakeLeavesNoLiveProcess(t *testing.T) {
 	if st := host.State(manifest.ID, ""); st != domainplugin.ProcessDiscovered {
 		t.Fatalf("a failed Start must release its reservation, got state %q", st)
 	}
-	// Here the child certainly ran — the handshake reached it — so a missing pid would be a broken
-	// fixture, not a fast kill.
-	pid, ok := fixturePID(t, pluginDir, 20*time.Second)
-	if !ok {
-		t.Fatal("the fixture never announced a pid, yet its handshake was under way")
+	got := <-announced
+	if !got.ok {
+		t.Fatal("the fixture never announced a pid, so the cancel never reached a running child")
 	}
-	assertProcessGone(t, pid, "a Start whose context was cancelled mid-handshake")
+	assertProcessGone(t, got.pid, "a Start whose context was cancelled mid-handshake")
 }
 
 func readFixtureManifest(t *testing.T, pluginDir string) domainplugin.Manifest {
