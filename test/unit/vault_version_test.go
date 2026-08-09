@@ -3,6 +3,7 @@ package unit
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -84,5 +85,62 @@ func TestVaultFromANewerBuildIsNeverWrittenTo(t *testing.T) {
 	}
 	if string(before) != string(after) {
 		t.Error("the vault file changed after a refused unlock; a rollback to this build would now be losing whatever the newer build stored")
+	}
+}
+
+func TestBackupVaultFileNamesTheVersionItLeavesBehind(t *testing.T) {
+	dir := t.TempDir()
+	original := writeVaultAtVersion(t, dir, domain.CurrentVaultVersion)
+
+	if err := vault.BackupVaultFile(dir, domain.CurrentVaultVersion); err != nil {
+		t.Fatalf("backup: %v", err)
+	}
+
+	backupPath := filepath.Join(dir, fmt.Sprintf("vault.age.v%d.bak", domain.CurrentVaultVersion))
+	got, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatalf("read backup: %v", err)
+	}
+	if string(got) != string(original) {
+		t.Error("the backup is not a byte copy of the vault it was taken from")
+	}
+}
+
+// A second migration attempt must not replace the pre-migration copy with already-migrated bytes:
+// that copy is the only remaining record of the data as it stood before any upgrade ran.
+func TestBackupVaultFileRefusesToOverwriteAnEarlierBackup(t *testing.T) {
+	dir := t.TempDir()
+	writeVaultAtVersion(t, dir, domain.CurrentVaultVersion)
+	if err := vault.BackupVaultFile(dir, domain.CurrentVaultVersion); err != nil {
+		t.Fatalf("first backup: %v", err)
+	}
+
+	backupPath := filepath.Join(dir, fmt.Sprintf("vault.age.v%d.bak", domain.CurrentVaultVersion))
+	first, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatalf("read first backup: %v", err)
+	}
+
+	// Stand in for "the vault has since been rewritten by a migration".
+	rewritten := writeVaultAtVersion(t, dir, domain.CurrentVaultVersion)
+	if string(rewritten) == string(first) {
+		t.Fatal("the rewrite produced identical bytes, so this test cannot detect a clobber")
+	}
+
+	if err := vault.BackupVaultFile(dir, domain.CurrentVaultVersion); err != nil {
+		t.Fatalf("second backup: %v", err)
+	}
+	second, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatalf("read backup after second call: %v", err)
+	}
+	if string(second) != string(first) {
+		t.Error("the second call overwrote the original backup with post-migration bytes")
+	}
+}
+
+func TestBackupVaultFileReportsAMissingVault(t *testing.T) {
+	if err := vault.BackupVaultFile(t.TempDir(), 3); !errors.Is(err, domain.ErrVaultNotFound) {
+		t.Errorf("got %v, want ErrVaultNotFound", err)
 	}
 }
