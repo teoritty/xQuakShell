@@ -33,6 +33,10 @@ A bundle is a ZIP archive containing:
 - plugin binary and assets
 - `SHA256SUMS` (SHA-256 hashes of all files except the checksums file itself)
 
+This layout is versioned by the manifest's `bundleFormat` field, on its own axis, independent of
+`pluginApi` — see [plugin-manifest.md](./plugin-manifest.md#bundle-format). Omit it and the host
+reads the bundle as `1.0.0`, so bundles built before the field existed keep installing unchanged.
+
 Install via **Settings → Plugins → Install folder…** or **Install bundle…** (`.xqsp` file).
 
 Installed plugins are copied to `data/plugins/<id>/` under the xQuakShell executable directory (ADR-006 portable layout).
