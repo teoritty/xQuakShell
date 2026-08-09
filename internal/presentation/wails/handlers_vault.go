@@ -2,8 +2,33 @@ package wails
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
+
+	"xquakshell/internal/domain"
 )
+
+// --- Vault schema version ---
+
+// vaultUnlockUserError turns a schema-version refusal into a sentence the user can act on.
+//
+// VaultUnlockForm renders the returned message verbatim, so this text is the UI. It has to name
+// which direction the mismatch goes, because the two need opposite actions — reinstall the newer
+// build, or export from the older one — and neither is guessable from a bare version number.
+// Anything else passes through untouched: the frontend keys on "vault not found" to send the user
+// to the create screen, and rewriting that would strand them on the unlock form.
+func vaultUnlockUserError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, domain.ErrVaultVersionTooNew):
+		return fmt.Errorf("this vault was created by a newer version of xQuakShell; install that version to open it, or restore a backup from the data folder")
+	case errors.Is(err, domain.ErrVaultVersionTooOld):
+		return fmt.Errorf("this vault uses an older format that this version cannot open; install the version that created it and export your data first")
+	default:
+		return err
+	}
+}
 
 // --- Folders ---
 

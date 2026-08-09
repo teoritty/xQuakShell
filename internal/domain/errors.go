@@ -26,8 +26,16 @@ var ErrVaultAlreadyExists = errors.New("vault already exists")
 // ErrMasterPasswordTooShort indicates the proposed master password is below the minimum length policy.
 var ErrMasterPasswordTooShort = errors.New("master password is too short")
 
-// ErrUnsupportedVaultVersion indicates the vault file uses an unsupported schema version.
-var ErrUnsupportedVaultVersion = errors.New("unsupported vault version")
+// ErrVaultVersionTooNew indicates the vault was written by a newer build than this one. The two
+// directions are separate errors because only one of them is recoverable here: a newer file must
+// never be touched — this build would have to guess at fields it does not know, and writing back
+// what it understood would silently drop the rest — while an older one is a migration this build
+// could perform. Collapsing both into one error costs the user the difference between "install the
+// newer version again" and "let it upgrade your data".
+var ErrVaultVersionTooNew = errors.New("vault was written by a newer version of the application")
+
+// ErrVaultVersionTooOld indicates the vault predates this build's schema and needs migrating.
+var ErrVaultVersionTooOld = errors.New("vault needs migrating to the current schema")
 
 // ErrSessionNotFound indicates no active session exists with the given ID.
 var ErrSessionNotFound = errors.New("session not found")

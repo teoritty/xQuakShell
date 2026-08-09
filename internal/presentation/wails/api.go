@@ -361,7 +361,7 @@ func (a *AppAPI) CreateVault(masterPassword string) error {
 // After unlocking, applies persisted settings (e.g. lockout) to the running managers.
 func (a *AppAPI) UnlockVault(masterPassword string) error {
 	if err := a.vaultRepo.Unlock(a.reqCtx(), masterPassword); err != nil {
-		return err
+		return vaultUnlockUserError(err)
 	}
 	a.afterVaultOpened()
 	return nil
