@@ -1,5 +1,27 @@
 # Security Policy
 
+## Supported Versions
+
+| Version | Supported |
+|---------|-----------|
+| Latest release | ✅ |
+| Anything older | ❌ |
+
+Only the most recent release receives fixes, security fixes included. There are no long-lived
+release branches and no backports: a single maintainer promising a support window they cannot meet
+would leave people on an old build believing they were covered, which for a tool holding SSH keys is
+worse than promising nothing. Fixes ship as a new release.
+
+**There is no fixed response deadline.** Timing follows severity. A critical fix can be cut from the
+last release tag without waiting for unrelated work in `main` to be finished.
+
+The application checks GitHub Releases at startup and tells you when a newer version exists, because
+"upgrade to the latest release" is only a usable answer if you can find out one came out. It
+downloads and installs nothing, and it can be turned off in settings.
+
+The full policy, including what counts as a breaking change to each published contract, is
+[ADR-017](docs/adr/017-release-and-compatibility-policy.md).
+
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability in xQuakShell, please report it responsibly.

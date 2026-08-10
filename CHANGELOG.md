@@ -6,7 +6,7 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 **Every release carries a `Compatibility` block and a `BREAKING` section.** `BREAKING` is present
 even when there is nothing to report, so its absence always means the entry is incomplete rather
 than that the release was safe. The compatibility numbers are separate axes and move independently
-of the application version.
+of the application version — see [ADR-017](docs/adr/017-release-and-compatibility-policy.md).
 
 The newest versioned heading is the release being prepared. Only the latest release is supported;
 fixes, including security fixes, ship in a new release rather than as patches to an older one

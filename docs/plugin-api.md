@@ -61,6 +61,46 @@ platform. Name assets `<name>-<os>-<arch>` so the host can match them:
 - Add a release-level `SHA256SUMS` listing every asset — the host verifies the download against it.
 - Every path a manifest declares under `ui/` must exist in the bundle, or the install is refused.
 
+## Stability and compatibility
+
+From xQuakShell 1.0.0 the plugin contract is frozen. What that means for you, concretely:
+
+**Four things you can build against and rely on.** The protocol (`pluginApi`), each capability's
+version and feature flags, the `plugin.json` schema, and the `.xqsp` bundle layout
+(`bundleFormat`). Within a major version these only ever gain: new capabilities, new feature flags,
+new **optional** manifest fields, new archive entries. Nothing you already declare is removed or
+made stricter.
+
+**Four version axes that move independently.** Do not gate on the application version — it is
+informational and shown in About. Declare what you actually use:
+
+```json
+{
+  "bundleFormat": "1.0.0",
+  "requires": {
+    "pluginApi": "1.0.0",
+    "capabilities": { "vault": { "min": "1.0.0", "features": ["getSecret"] } }
+  }
+}
+```
+
+A host satisfies a requirement when it has the same major and a minor at least as high. Patch never
+gates. Because you declare capabilities one by one, a host that evolves a capability you do not use
+never rejects you.
+
+**Before anything is removed** it is marked deprecated and keeps working for at least two minor
+releases and until the next major of that axis. Deprecation notices are logged once per plugin load,
+so a plugin that will break later says so now, in the log, while there is still time.
+
+**When a major does land**, your plugin stays installed with its data intact but does not load, and
+the plugins panel says which version it needs and which one is present.
+
+Every release records all of this in [CHANGELOG.md](../CHANGELOG.md): a `Compatibility` table with
+the current number on each axis, and a `BREAKING` section that is present even when it says
+*Nothing*. Read that section before upgrading — it is the one written for you. The reasoning behind
+the policy is [ADR-017](./adr/017-release-and-compatibility-policy.md), and the versioning mechanism
+itself is [ADR-012](./adr/012-plugin-api-versioning.md).
+
 ## Security limits
 
 - **IPC frames:** NDJSON lines are capped at **256 KiB**; oversize frames are rejected.
