@@ -95,6 +95,8 @@ export function GetSettings():Promise<wails.AppSettingsDTO>;
 
 export function GetTempDir():Promise<string>;
 
+export function GetUpdateStatus():Promise<wails.UpdateStatusDTO>;
+
 export function GetUserHomeDir():Promise<string>;
 
 export function GetVersionInfo():Promise<wails.VersionInfoDTO>;

@@ -12,3 +12,4 @@ export * from './githubPlugins';
 export * from './vault';
 export * from './sessions';
 export * from './terminal';
+export * from './update';

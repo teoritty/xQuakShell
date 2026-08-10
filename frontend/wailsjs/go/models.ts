@@ -46,6 +46,7 @@ export namespace wails {
 	    auditShowConnection: boolean;
 	    debugLogWindowEnabled: boolean;
 	    debugLogLevel: string;
+	    updateCheckOnStartup: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppSettingsDTO(source);
@@ -84,6 +85,7 @@ export namespace wails {
 	        this.auditShowConnection = source["auditShowConnection"];
 	        this.debugLogWindowEnabled = source["debugLogWindowEnabled"];
 	        this.debugLogLevel = source["debugLogLevel"];
+	        this.updateCheckOnStartup = source["updateCheckOnStartup"];
 	    }
 	}
 	export class AuditEntryDTO {
@@ -1855,6 +1857,26 @@ export namespace wails {
 	    }
 	}
 	
+	export class UpdateStatusDTO {
+	    currentVersion: string;
+	    latestVersion: string;
+	    releaseUrl: string;
+	    updateAvailable: boolean;
+	    checked: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateStatusDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.currentVersion = source["currentVersion"];
+	        this.latestVersion = source["latestVersion"];
+	        this.releaseUrl = source["releaseUrl"];
+	        this.updateAvailable = source["updateAvailable"];
+	        this.checked = source["checked"];
+	    }
+	}
 	export class VersionInfoDTO {
 	    appVersion: string;
 	    coreVersion: string;

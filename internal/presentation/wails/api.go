@@ -49,6 +49,7 @@ type AppAPI struct {
 	forwardRules                *usecase.ForwardRuleValidator
 	logWindow                   *logwindow.Manager
 	logLevel                    domain.LogLevelController
+	updateSvc                   *usecase.UpdateService
 }
 
 // NewAppAPI creates a new AppAPI with the given dependencies.
@@ -200,6 +201,11 @@ func (a *AppAPI) StopDebugLogWindow() {
 // Sessions exposes the session manager for composition-root wiring.
 func (a *AppAPI) Sessions() *usecase.SessionManager {
 	return a.sessions
+}
+
+// SettingsService exposes the settings service for composition-root wiring, mirroring Sessions.
+func (a *AppAPI) SettingsService() *usecase.SettingsService {
+	return a.settingsSvc
 }
 
 // SetPluginVaultGrant sets the callback used after install to record secret consent.
@@ -375,24 +381,33 @@ func (a *AppAPI) UnlockVault(masterPassword string) error {
 // its lockout timer, ping manager and log level right away rather than on the
 // next restart. Keeping it in one place is what stops the two entry points from
 // drifting apart.
+// restartPing applies ping settings and starts the manager with the callback that publishes
+// results to the frontend. Both the unlock path and a settings save need exactly this, and having
+// it twice is what let the two drift apart in the first place.
+func (a *AppAPI) restartPing(settings domain.PingSettings) {
+	if a.pingMgr == nil {
+		return
+	}
+	a.pingMgr.UpdateSettings(settings)
+	a.pingMgr.Start(func(results []usecase.PingResult) {
+		if a.ctx == nil {
+			return
+		}
+		dtos := make([]PingResultDTO, 0, len(results))
+		for _, r := range results {
+			dtos = append(dtos, PingResultDTO{ConnectionID: r.ConnectionID, Reachable: r.Reachable, LatencyMs: r.LatencyMs})
+		}
+		wailsrt.EventsEmit(a.ctx, EventPingUpdated, dtos)
+	})
+}
+
 func (a *AppAPI) afterVaultOpened() {
 	data, err := a.vaultRepo.GetData()
 	if err == nil && data.Settings != nil {
 		if a.lockout != nil {
 			a.lockout.UpdateSettings(data.Settings.Lockout)
 		}
-		if a.pingMgr != nil {
-			a.pingMgr.UpdateSettings(data.Settings.Ping)
-			a.pingMgr.Start(func(results []usecase.PingResult) {
-				if a.ctx != nil {
-					dtos := make([]PingResultDTO, 0, len(results))
-					for _, r := range results {
-						dtos = append(dtos, PingResultDTO{ConnectionID: r.ConnectionID, Reachable: r.Reachable, LatencyMs: r.LatencyMs})
-					}
-					wailsrt.EventsEmit(a.ctx, EventPingUpdated, dtos)
-				}
-			})
-		}
+		a.restartPing(data.Settings.Ping)
 		if a.logLevel != nil {
 			a.logLevel.SetLevel(data.Settings.Debug.LogLevel)
 		}
@@ -403,6 +418,10 @@ func (a *AppAPI) afterVaultOpened() {
 		a.auditSvc.OnVaultLocked()
 		_ = a.auditSvc.EnforceRetention(a.reqCtx())
 	}
+
+	// The setting permitting the network call lives in the vault, so this is the first moment the
+	// application is allowed to know whether the user wants it.
+	a.startUpdateCheck()
 }
 
 // LockVault re-locks the vault and clears sensitive data from memory.

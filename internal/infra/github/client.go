@@ -43,7 +43,10 @@ func NewClientWithBaseURL(baseURL string) *Client {
 // Everything else in the payload is dropped on decode, so the field list
 // doubles as the record of what a plugin install actually depends on.
 type Release struct {
-	TagName     string  `json:"tag_name"`
+	TagName string `json:"tag_name"`
+	// HTMLURL is the release page a human opens. Nothing downloads from it; it exists so the app
+	// can point at a release instead of describing where to find one.
+	HTMLURL     string  `json:"html_url"`
 	Name        string  `json:"name"`
 	Body        string  `json:"body"`
 	PublishedAt string  `json:"published_at"`

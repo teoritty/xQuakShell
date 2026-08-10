@@ -106,6 +106,7 @@ func composeApp() *App {
 		api.SetPluginViewRelay(pluginRuntime.viewRelay)
 	}
 	api.SetGitHubServices(pluginRuntime.githubRepoService, pluginRuntime.githubPluginService)
+	api.SetUpdateService(newUpdateService(api, auditLogRepo))
 	if bridge := api.Sessions().PluginBridge(); bridge != nil {
 		pluginRuntime.setSessionRecoverer(bridge)
 	}

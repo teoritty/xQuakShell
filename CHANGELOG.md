@@ -41,6 +41,10 @@ Nothing.
 - The vault is copied aside before any future schema migration, named after the version being left
   behind (`vault.age.v3.bak`). Existing backups are never overwritten and nothing deletes them.
 - The audit database records its schema version in `PRAGMA user_version`.
+- An update check: the app tells you when the release you are running has been superseded, since
+  only the latest release is supported. It runs once the vault is unlocked (the setting permitting
+  it lives in the vault), makes one anonymous request, downloads and installs nothing, is recorded
+  in the audit log, and can be turned off under Settings → About.
 
 ### Fixed
 
@@ -51,6 +55,9 @@ Nothing.
   Opening the database now reconciles it against the expected columns and repairs it in place.
 - A vault written by a newer build is now distinguished from one that predates this build. The two
   need opposite actions from the user and previously produced the same unmapped error, shown raw.
+- **Saving settings wiped plugin trust.** `AppSettingsDTO` never carried the plugin section, and the
+  save assigns the whole settings struct, so changing the theme cleared `RequireSignedPlugins`,
+  every granted capability and the disabled-plugin list.
 
 ## [1.0.0-rc.3] — 2026-08-07
 

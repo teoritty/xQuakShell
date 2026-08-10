@@ -46,6 +46,7 @@ export interface AppSettings {
   auditShowConnection: boolean;
   debugLogWindowEnabled: boolean;
   debugLogLevel: string;
+  updateCheckOnStartup: boolean;
 }
 
 export interface AuditEntry {

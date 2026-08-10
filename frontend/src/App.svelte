@@ -4,6 +4,7 @@
   import PluginDialog from './lib/PluginDialog.svelte';
   import TileGrid from './lib/tiles/TileGrid.svelte';
   import VaultUnlock from './lib/VaultUnlock.svelte';
+  import UpdateBanner from './lib/UpdateBanner.svelte';
   import KnownHostsManager from './lib/KnownHostsManager.svelte';
   import HostKeyDialog from './lib/HostKeyDialog.svelte';
   import AuditLogView from './lib/AuditLogView.svelte';
@@ -188,6 +189,7 @@
   <VaultUnlock />
 {:else}
   <div class="app-shell">
+  <UpdateBanner />
   <div class="app-layout">
     <Sidebar />
     <div class="main-area">

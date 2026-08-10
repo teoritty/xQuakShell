@@ -3,10 +3,7 @@ package wails
 import (
 	"fmt"
 
-	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"xquakshell/internal/domain"
-	"xquakshell/internal/usecase"
 )
 
 // --- Settings ---
@@ -31,15 +28,7 @@ func (a *AppAPI) SaveSettings(dto AppSettingsDTO) error {
 	}
 	if a.pingMgr != nil {
 		a.pingMgr.Stop()
-		a.pingMgr.Start(func(results []usecase.PingResult) {
-			if a.ctx != nil {
-				dtos := make([]PingResultDTO, 0, len(results))
-				for _, r := range results {
-					dtos = append(dtos, PingResultDTO{ConnectionID: r.ConnectionID, Reachable: r.Reachable, LatencyMs: r.LatencyMs})
-				}
-				wailsrt.EventsEmit(a.ctx, EventPingUpdated, dtos)
-			}
-		})
+		a.restartPing(settings.Ping)
 	}
 	if a.logLevel != nil {
 		a.logLevel.SetLevel(settings.Debug.LogLevel)
