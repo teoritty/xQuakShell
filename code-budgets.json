@@ -73,8 +73,8 @@
         "scriptCodeLines": 220
       },
       "frontend/src/lib/SettingsDialog.svelte": {
-        "codeLines": 983,
-        "scriptCodeLines": 311
+        "codeLines": 962,
+        "scriptCodeLines": 304
       },
       "internal/domain/plugin/manifest_capabilities.go": {
         "codeLines": 413
@@ -131,7 +131,7 @@
         "nesting": 1
       },
       "frontend/src/events/subscribe.ts::subscribeToEvents": {
-        "codeLines": 157,
+        "codeLines": 160,
         "params": 0,
         "nesting": 2
       },

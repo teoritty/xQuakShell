@@ -15,9 +15,12 @@ worse than promising nothing. Fixes ship as a new release.
 **There is no fixed response deadline.** Timing follows severity. A critical fix can be cut from the
 last release tag without waiting for unrelated work in `main` to be finished.
 
-The application checks GitHub Releases at startup and tells you when a newer version exists, because
-"upgrade to the latest release" is only a usable answer if you can find out one came out. It
-downloads and installs nothing, and it can be turned off in settings.
+The application checks GitHub Releases once the vault is unlocked and tells you when a newer version
+exists, because "upgrade to the latest release" is only a usable answer if you can find out one came
+out. The check waits for the unlock deliberately: the setting that permits it lives inside the
+encrypted vault, so before then the application cannot know whether you allowed the request. It is
+one anonymous GET of a public endpoint, it downloads and installs nothing, it is recorded in the
+audit log, and it can be turned off under Settings -> About.
 
 The full policy, including what counts as a breaking change to each published contract, is
 [ADR-017](docs/adr/017-release-and-compatibility-policy.md).

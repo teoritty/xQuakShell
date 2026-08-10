@@ -137,6 +137,7 @@ export interface AppGateway {
   GetSettings(): Promise<wails.AppSettingsDTO>;
 
   GetVersionInfo(): Promise<{ appVersion: string; coreVersion: string; pluginApiVersion: string }>;
+  GetUpdateStatus?(): Promise<wails.UpdateStatusDTO>;
 
   GetTempDir(): Promise<string>;
 

@@ -107,9 +107,14 @@ Severity decides timing; there is no fixed SLA. When `main` is not in a releasab
 mechanism is a branch from the last release tag carrying the fix alone.
 
 Because only the latest release is supported, the application must be able to say that a newer one
-exists: it checks GitHub Releases at startup and shows a banner when it is behind. Otherwise
-"upgrade" is advice the user has no way to act on. It downloads and installs nothing, and can be
+exists: it checks GitHub Releases and shows a banner when it is behind. Otherwise "upgrade" is
+advice the user has no way to act on. It downloads and installs nothing, is audited, and can be
 turned off.
+
+The check runs when the vault is unlocked rather than at process start, because the setting that
+permits the request is stored in the vault: making the call before the vault is open would be making
+it without knowing whether the user consented. A locked vault therefore fails closed and no request
+goes out.
 
 Plugins built against a superseded major keep their installed state and their data. They do not
 load, and the plugins panel says exactly why and against which version. The host does not carry two

@@ -186,6 +186,10 @@ export function GetTempDir() {
   return window['go']['main']['App']['GetTempDir']();
 }
 
+export function GetUpdateStatus() {
+  return window['go']['main']['App']['GetUpdateStatus']();
+}
+
 export function GetUserHomeDir() {
   return window['go']['main']['App']['GetUserHomeDir']();
 }

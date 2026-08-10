@@ -20,6 +20,7 @@ var notBound = map[string]string{
 	"SetEmbedBridge":                 "wiring",
 	"SetForwardRuleValidator":        "wiring",
 	"SetGitHubServices":              "wiring",
+	"SetUpdateService":               "wiring",
 	"SetPluginArbitraryNetworkGrant": "wiring",
 	"SetPluginAuthGrant":             "wiring",
 	"SetPluginManager":               "wiring",
@@ -32,6 +33,7 @@ var notBound = map[string]string{
 	"SetDialogService":               "wiring",
 	"SetNodeDetailsService":          "wiring",
 	"Sessions":                       "wiring: accessor for the composition root",
+	"SettingsService":                "wiring: accessor for the composition root",
 
 	// Backend-initiated callbacks and lifecycle, never called from JS.
 	"EmitPluginContributionsChanged": "backend-initiated event emitter",

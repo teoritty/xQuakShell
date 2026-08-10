@@ -1,3 +1,4 @@
+import type { UpdateStatus } from '../api/update';
 import { writable, derived } from 'svelte/store';
 
 export interface Folder {
@@ -227,6 +228,20 @@ function saveExpandedFolders(set: Set<string>) {
 export const expandedFolderIds = writable<Set<string>>(loadExpandedFolders());
 expandedFolderIds.subscribe(saveExpandedFolders);
 export const pendingHostKey = writable<HostKeyEvent | null>(null);
+// updateStatus is the last release check the backend performed. It is a store rather than a
+// per-component fetch because two places render it — the banner and the About panel — and a
+// second fetch would report a check that never ran.
+// The initial value is spelled out rather than imported from api/update: callBackend already
+// imports this module, so pulling a runtime value the other way closes an import cycle and the
+// constant is read before it is initialised.
+export const updateStatus = writable<UpdateStatus>({
+  currentVersion: '',
+  latestVersion: '',
+  releaseUrl: '',
+  updateAvailable: false,
+  checked: false,
+});
+
 export const pingResults = writable<Map<string, PingResult>>(new Map());
 export const platform = writable<string>('');
 

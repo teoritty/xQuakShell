@@ -3,7 +3,7 @@ import { getRuntime } from '../backend/context';
 import {
   folders, connections, sessions, identities,
   vaultUnlocked, transfers, transferCompleted, pendingHostKey,
-  pingResults, editingFiles, activeTabId,
+  pingResults, editingFiles, activeTabId, updateStatus,
   type Session, type SessionEmbed,
   type TransferItem, type HostKeyEvent, type PingResult,
 } from '../stores/appState';
@@ -16,6 +16,7 @@ import {
 } from '../terminal/outputBuffer';
 import { disposeTerminal } from '../lib/terminalPool';
 import { uploadFile } from '../api/remoteFs';
+import type { UpdateStatus } from '../api/update';
 import { onDiscoveryTreeChanged } from '../stores/discoveryState';
 import {
   upsertSurface,
@@ -200,6 +201,13 @@ export function subscribeToEvents(): void {
 
   rt.EventsOn('HostKeyRequired', (data: HostKeyEvent) => {
     pendingHostKey.set(data);
+  });
+
+  // The backend runs the check once the vault opens and emits only when there is something to
+  // report, so this listener is the whole of the banner's plumbing. GetUpdateStatus covers the
+  // reverse race, where the check finished before the frontend was listening.
+  rt.EventsOn('UpdateAvailable', (status: UpdateStatus) => {
+    updateStatus.set(status);
   });
 
   rt.EventsOn('PingUpdated', (data: PingResult[]) => {
