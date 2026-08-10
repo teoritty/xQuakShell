@@ -192,6 +192,50 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+
+      # A tag is permanent and a release is public the instant it is created, so this is the last
+      # point at which "nobody wrote down what changed" can still be caught. generate_release_notes
+      # would otherwise publish a list of commit subjects and call it a release note, leaving a
+      # plugin author no way to tell whether their plugin still loads on this build.
+      #
+      # The test-suite gate holds wails.json against the changelog on every commit; only the tag
+      # can be compared here, because an ordinary commit does not have one.
+      - name: Verify the changelog covers this tag
+        run: |
+          set -uo pipefail
+          version="${GITHUB_REF_NAME#v}"
+
+          start=$(grep -n "^## \[$version\]" CHANGELOG.md | head -1 | cut -d: -f1)
+          if [ -z "$start" ]; then
+            echo "::error::CHANGELOG.md has no '## [$version]' section for tag $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+          heading=$(sed -n "${start}p" CHANGELOG.md)
+          case "$heading" in
+            *[Uu]nreleased*)
+              echo "::error::the changelog entry for $version is still marked unreleased: $heading" >&2
+              exit 1
+              ;;
+          esac
+
+          section=$(tail -n +"$((start + 1))" CHANGELOG.md | awk '/^## \[/ { exit } { print }')
+          for required in '### Compatibility' '### BREAKING'; do
+            if ! printf '%s\n' "$section" | grep -qF "$required"; then
+              echo "::error::the changelog entry for $version has no '$required' block" >&2
+              exit 1
+            fi
+          done
+
+          product=$(grep -o '"productVersion"[[:space:]]*:[[:space:]]*"[^"]*"' wails.json | sed 's/.*"\([^"]*\)"$/\1/')
+          if [ "$product" != "$version" ]; then
+            echo "::error::wails.json productVersion is $product but the tag is $version" >&2
+            exit 1
+          fi
+
+          echo "changelog entry for $version is complete"
+
       # No pattern filter: every archive any build job uploaded is published and checksummed,
       # so a new platform job cannot be added without its files being covered.
       - name: Download build artifacts
