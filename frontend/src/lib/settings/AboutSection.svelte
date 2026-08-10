@@ -24,31 +24,40 @@
 </script>
 
 <div class="section">
-  <h4>SSH Client</h4>
-  <p class="version-text">Version {appVersion || '—'}</p>
-  <p class="version-text">Core {coreVersion || '—'} · Plugin API {pluginApiVersion || '—'}</p>
+  <h4>xQuakShell</h4>
+
+  <div class="version-table">
+    <div class="version-row">
+      <span class="version-label">Version</span>
+      <span class="version-value">{appVersion || '—'}</span>
+    </div>
+    <div class="version-row">
+      <span class="version-label">Core</span>
+      <span class="version-value">{coreVersion || '—'}</span>
+    </div>
+    <div class="version-row">
+      <span class="version-label">Plugin API</span>
+      <span class="version-value">{pluginApiVersion || '—'}</span>
+    </div>
+  </div>
 
   {#if $updateStatus.updateAvailable}
-    <p class="version-text update-available">
+    <p class="update-line update-available">
       Version {$updateStatus.latestVersion} is available.
     </p>
   {:else if $updateStatus.checked}
-    <p class="version-text muted">You are on the latest release.</p>
+    <p class="update-line">You are on the latest release.</p>
   {/if}
 
-  <label class="update-toggle">
+  <label class="checkbox-row">
     <input type="checkbox" bind:checked={updateCheckOnStartup} />
     Check for updates on startup
   </label>
-  <p class="version-text muted">
-    Only the latest release is supported. The check is one anonymous request to GitHub; nothing is
-    downloaded or installed.
-  </p>
 
   <div class="about-links">
     <button class="secondary about-link" on:click={() => openReleasesPage()}>
       <ExternalLink size={13} />
-      Check for Updates
+      Releases
     </button>
     <button class="secondary about-link" on:click={() => openNewIssue()}>
       <ExternalLink size={13} />
@@ -58,20 +67,20 @@
 </div>
 
 <style>
-  .update-available {
-    color: var(--accent, #4aa3ff);
-    font-weight: 600;
-  }
-
-  .muted {
-    opacity: 0.7;
-  }
-
-  .update-toggle {
+  .version-table {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 10px 0 4px;
-    cursor: pointer;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .update-line {
+    margin: 0;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .update-available {
+    color: var(--accent);
+    font-weight: 600;
   }
 </style>

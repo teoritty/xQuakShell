@@ -1,3 +1,10 @@
+/* Settings-dialog layout primitives. Imported here rather than from a component because both
+   SettingsDialog and its child panels need them, and a component's own <style> is scoped to
+   that component's markup - which is how the About panel ended up rendering the parent's
+   classes with no styling at all. Every rule in that file is scoped under .settings-content,
+   so nothing leaks into the other screens that reuse the same generic class names. */
+@import './lib/settings/settingsShared.css';
+
 :root {
   --ui-scale: 1;
   --bg-primary: #1e1e1e;
