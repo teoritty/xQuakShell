@@ -1,0 +1,1127 @@
+{
+  "types": [
+    {
+      "name": "AuthCaps",
+      "fields": [
+        {
+          "name": "Provider",
+          "json": "provider",
+          "omitempty": true,
+          "type": "bool"
+        },
+        {
+          "name": "Methods",
+          "json": "methods",
+          "omitempty": true,
+          "type": "[]string"
+        }
+      ]
+    },
+    {
+      "name": "AuthMethodContribution",
+      "fields": [
+        {
+          "name": "ID",
+          "json": "id",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Label",
+          "json": "label",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Kind",
+          "json": "kind",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Fields",
+          "json": "fields",
+          "omitempty": true,
+          "type": "[]plugin.FieldGroup"
+        }
+      ]
+    },
+    {
+      "name": "CapabilityRequirement",
+      "fields": [
+        {
+          "name": "Min",
+          "json": "min",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Features",
+          "json": "features",
+          "omitempty": true,
+          "type": "[]plugin.FeatureID"
+        }
+      ]
+    },
+    {
+      "name": "CapabilitySet",
+      "fields": [
+        {
+          "name": "Network",
+          "json": "network",
+          "omitempty": true,
+          "type": "*plugin.NetworkCaps"
+        },
+        {
+          "name": "FS",
+          "json": "filesystem",
+          "omitempty": true,
+          "type": "*plugin.FSCaps"
+        },
+        {
+          "name": "Events",
+          "json": "events",
+          "omitempty": true,
+          "type": "*plugin.EventCaps"
+        },
+        {
+          "name": "Vault",
+          "json": "vault",
+          "omitempty": true,
+          "type": "*plugin.VaultCaps"
+        },
+        {
+          "name": "Session",
+          "json": "session",
+          "omitempty": true,
+          "type": "*plugin.SessionCaps"
+        },
+        {
+          "name": "Auth",
+          "json": "auth",
+          "omitempty": true,
+          "type": "*plugin.AuthCaps"
+        },
+        {
+          "name": "Tunnel",
+          "json": "tunnel",
+          "omitempty": true,
+          "type": "*plugin.TunnelCaps"
+        },
+        {
+          "name": "Channel",
+          "json": "channel",
+          "omitempty": true,
+          "type": "*plugin.ChannelCaps"
+        },
+        {
+          "name": "Discovery",
+          "json": "discovery",
+          "omitempty": true,
+          "type": "*plugin.DiscoveryCaps"
+        },
+        {
+          "name": "UI",
+          "json": "ui",
+          "omitempty": true,
+          "type": "*plugin.UICaps"
+        }
+      ]
+    },
+    {
+      "name": "ChannelCaps",
+      "fields": [
+        {
+          "name": "Purposes",
+          "json": "purposes",
+          "omitempty": true,
+          "type": "[]string"
+        },
+        {
+          "name": "MaxConcurrent",
+          "json": "maxConcurrent",
+          "omitempty": true,
+          "type": "int"
+        },
+        {
+          "name": "MaxThroughputKbps",
+          "json": "maxThroughputKbps",
+          "omitempty": true,
+          "type": "int"
+        },
+        {
+          "name": "ExecCommands",
+          "json": "execCommands",
+          "omitempty": true,
+          "type": "[]plugin.ExecCommandTemplate"
+        }
+      ]
+    },
+    {
+      "name": "CommandContribution",
+      "fields": [
+        {
+          "name": "ID",
+          "json": "id",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Title",
+          "json": "title",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Category",
+          "json": "category",
+          "omitempty": true,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "ConnectionProtocolContribution",
+      "fields": [
+        {
+          "name": "ID",
+          "json": "id",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Label",
+          "json": "label",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "DefaultPort",
+          "json": "defaultPort",
+          "omitempty": true,
+          "type": "int"
+        },
+        {
+          "name": "Icon",
+          "json": "icon",
+          "omitempty": true,
+          "type": "string"
+        },
+        {
+          "name": "EmbedEntry",
+          "json": "embedEntry",
+          "omitempty": true,
+          "type": "string"
+        },
+        {
+          "name": "Fields",
+          "json": "fields",
+          "omitempty": true,
+          "type": "[]plugin.FieldGroup"
+        }
+      ]
+    },
+    {
+      "name": "Contributions",
+      "fields": [
+        {
+          "name": "Commands",
+          "json": "commands",
+          "omitempty": true,
+          "type": "[]plugin.CommandContribution"
+        },
+        {
+          "name": "Menus",
+          "json": "menus",
+          "omitempty": true,
+          "type": "[]plugin.MenuContribution"
+        },
+        {
+          "name": "ConnectionProtocols",
+          "json": "connectionProtocols",
+          "omitempty": true,
+          "type": "[]plugin.ConnectionProtocolContribution"
+        },
+        {
+          "name": "Views",
+          "json": "views",
+          "omitempty": true,
+          "type": "[]plugin.ViewContribution"
+        },
+        {
+          "name": "StatusBar",
+          "json": "statusBar",
+          "omitempty": true,
+          "type": "[]plugin.StatusBarContribution"
+        },
+        {
+          "name": "AuthMethods",
+          "json": "authMethods",
+          "omitempty": true,
+          "type": "[]plugin.AuthMethodContribution"
+        },
+        {
+          "name": "TunnelProviders",
+          "json": "tunnelProviders",
+          "omitempty": true,
+          "type": "[]plugin.TunnelProviderContribution"
+        },
+        {
+          "name": "DiscoveryIcons",
+          "json": "discoveryIcons",
+          "omitempty": true,
+          "type": "[]plugin.DiscoveryIconContribution"
+        }
+      ]
+    },
+    {
+      "name": "DiscoveryCaps",
+      "fields": [
+        {
+          "name": "ParentProtocols",
+          "json": "parentProtocols",
+          "omitempty": true,
+          "type": "[]string"
+        }
+      ]
+    },
+    {
+      "name": "DiscoveryIconContribution",
+      "fields": [
+        {
+          "name": "ID",
+          "json": "id",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Asset",
+          "json": "asset",
+          "omitempty": false,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "EngineConfig",
+      "fields": [
+        {
+          "name": "Type",
+          "json": "type",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Entry",
+          "json": "entry",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Args",
+          "json": "args",
+          "omitempty": true,
+          "type": "[]string"
+        }
+      ]
+    },
+    {
+      "name": "EventCaps",
+      "fields": [
+        {
+          "name": "Subscribe",
+          "json": "subscribe",
+          "omitempty": true,
+          "type": "[]string"
+        },
+        {
+          "name": "Publish",
+          "json": "publish",
+          "omitempty": true,
+          "type": "[]string"
+        }
+      ]
+    },
+    {
+      "name": "ExecCommandTemplate",
+      "fields": [
+        {
+          "name": "Argv",
+          "json": "argv",
+          "omitempty": false,
+          "type": "[]string"
+        },
+        {
+          "name": "Params",
+          "json": "params",
+          "omitempty": true,
+          "type": "map[string]string"
+        }
+      ]
+    },
+    {
+      "name": "FSCaps",
+      "fields": [
+        {
+          "name": "Read",
+          "json": "read",
+          "omitempty": true,
+          "type": "[]string"
+        },
+        {
+          "name": "Write",
+          "json": "write",
+          "omitempty": true,
+          "type": "[]string"
+        }
+      ]
+    },
+    {
+      "name": "FieldDef",
+      "fields": [
+        {
+          "name": "ID",
+          "json": "id",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Label",
+          "json": "label",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Type",
+          "json": "type",
+          "omitempty": false,
+          "type": "plugin.FieldType"
+        },
+        {
+          "name": "Required",
+          "json": "required",
+          "omitempty": false,
+          "type": "bool"
+        },
+        {
+          "name": "Default",
+          "json": "default",
+          "omitempty": true,
+          "type": "interface {}"
+        },
+        {
+          "name": "Placeholder",
+          "json": "placeholder",
+          "omitempty": true,
+          "type": "string"
+        },
+        {
+          "name": "Description",
+          "json": "description",
+          "omitempty": true,
+          "type": "string"
+        },
+        {
+          "name": "Width",
+          "json": "width",
+          "omitempty": true,
+          "type": "plugin.FieldWidth"
+        },
+        {
+          "name": "Order",
+          "json": "order",
+          "omitempty": false,
+          "type": "int"
+        },
+        {
+          "name": "Validation",
+          "json": "validation",
+          "omitempty": true,
+          "type": "*plugin.FieldValidation"
+        },
+        {
+          "name": "Options",
+          "json": "options",
+          "omitempty": true,
+          "type": "[]plugin.FieldOption"
+        },
+        {
+          "name": "DependsOn",
+          "json": "dependsOn",
+          "omitempty": true,
+          "type": "string"
+        },
+        {
+          "name": "Secret",
+          "json": "secret",
+          "omitempty": false,
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "FieldGroup",
+      "fields": [
+        {
+          "name": "ID",
+          "json": "id",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Label",
+          "json": "label",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Order",
+          "json": "order",
+          "omitempty": false,
+          "type": "int"
+        },
+        {
+          "name": "Fields",
+          "json": "fields",
+          "omitempty": false,
+          "type": "[]plugin.FieldDef"
+        }
+      ]
+    },
+    {
+      "name": "FieldOption",
+      "fields": [
+        {
+          "name": "Value",
+          "json": "value",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Label",
+          "json": "label",
+          "omitempty": false,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "FieldValidation",
+      "fields": [
+        {
+          "name": "MinLength",
+          "json": "minLength",
+          "omitempty": true,
+          "type": "int"
+        },
+        {
+          "name": "MaxLength",
+          "json": "maxLength",
+          "omitempty": true,
+          "type": "int"
+        },
+        {
+          "name": "Min",
+          "json": "min",
+          "omitempty": true,
+          "type": "*float64"
+        },
+        {
+          "name": "Max",
+          "json": "max",
+          "omitempty": true,
+          "type": "*float64"
+        },
+        {
+          "name": "Pattern",
+          "json": "pattern",
+          "omitempty": true,
+          "type": "string"
+        },
+        {
+          "name": "MaxSizeBytes",
+          "json": "maxSizeBytes",
+          "omitempty": true,
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "name": "Inst",
+      "fields": [
+        {
+          "name": "Op",
+          "json": "Op",
+          "omitempty": false,
+          "type": "syntax.InstOp"
+        },
+        {
+          "name": "Out",
+          "json": "Out",
+          "omitempty": false,
+          "type": "uint32"
+        },
+        {
+          "name": "Arg",
+          "json": "Arg",
+          "omitempty": false,
+          "type": "uint32"
+        },
+        {
+          "name": "Rune",
+          "json": "Rune",
+          "omitempty": false,
+          "type": "[]int32"
+        }
+      ]
+    },
+    {
+      "name": "Manifest",
+      "fields": [
+        {
+          "name": "ID",
+          "json": "id",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Name",
+          "json": "name",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Version",
+          "json": "version",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Description",
+          "json": "description",
+          "omitempty": true,
+          "type": "string"
+        },
+        {
+          "name": "BundleFormat",
+          "json": "bundleFormat",
+          "omitempty": true,
+          "type": "string"
+        },
+        {
+          "name": "MinCoreVersion",
+          "json": "minCoreVersion",
+          "omitempty": true,
+          "type": "string"
+        },
+        {
+          "name": "Requires",
+          "json": "requires",
+          "omitempty": true,
+          "type": "*plugin.RequirementSet"
+        },
+        {
+          "name": "Engine",
+          "json": "engine",
+          "omitempty": false,
+          "type": "plugin.EngineConfig"
+        },
+        {
+          "name": "Capabilities",
+          "json": "capabilities",
+          "omitempty": true,
+          "type": "plugin.CapabilitySet"
+        },
+        {
+          "name": "Contributions",
+          "json": "contributions",
+          "omitempty": true,
+          "type": "plugin.Contributions"
+        },
+        {
+          "name": "ActivationEvents",
+          "json": "activationEvents",
+          "omitempty": true,
+          "type": "[]string"
+        },
+        {
+          "name": "Isolation",
+          "json": "isolation",
+          "omitempty": true,
+          "type": "plugin.IsolationMode"
+        },
+        {
+          "name": "Signature",
+          "json": "signature",
+          "omitempty": true,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "MenuContribution",
+      "fields": [
+        {
+          "name": "ID",
+          "json": "id",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Label",
+          "json": "label",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Location",
+          "json": "location",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Items",
+          "json": "items",
+          "omitempty": false,
+          "type": "[]string"
+        }
+      ]
+    },
+    {
+      "name": "NetworkCaps",
+      "fields": [
+        {
+          "name": "Outbound",
+          "json": "outbound",
+          "omitempty": true,
+          "type": "[]string"
+        },
+        {
+          "name": "AllowArbitraryOutbound",
+          "json": "allowArbitraryOutbound",
+          "omitempty": true,
+          "type": "bool"
+        },
+        {
+          "name": "AllowPrivateNetworks",
+          "json": "allowPrivateNetworks",
+          "omitempty": true,
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "Prog",
+      "fields": [
+        {
+          "name": "Inst",
+          "json": "Inst",
+          "omitempty": false,
+          "type": "[]syntax.Inst"
+        },
+        {
+          "name": "Start",
+          "json": "Start",
+          "omitempty": false,
+          "type": "int"
+        },
+        {
+          "name": "NumCap",
+          "json": "NumCap",
+          "omitempty": false,
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "name": "Regexp",
+      "fields": null
+    },
+    {
+      "name": "RequirementSet",
+      "fields": [
+        {
+          "name": "PluginAPI",
+          "json": "pluginApi",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Capabilities",
+          "json": "capabilities",
+          "omitempty": true,
+          "type": "map[plugin.CapabilityID]plugin.CapabilityRequirement"
+        }
+      ]
+    },
+    {
+      "name": "SessionCaps",
+      "fields": [
+        {
+          "name": "ConnectProtocols",
+          "json": "connectProtocols",
+          "omitempty": true,
+          "type": "[]string"
+        },
+        {
+          "name": "Terminal",
+          "json": "terminal",
+          "omitempty": true,
+          "type": "bool"
+        },
+        {
+          "name": "Embed",
+          "json": "embed",
+          "omitempty": true,
+          "type": "bool"
+        },
+        {
+          "name": "LocalEmbedServer",
+          "json": "localEmbedServer",
+          "omitempty": true,
+          "type": "bool"
+        },
+        {
+          "name": "RemoteFS",
+          "json": "remoteFs",
+          "omitempty": true,
+          "type": "bool"
+        },
+        {
+          "name": "AllowMultiSession",
+          "json": "allowMultiSession",
+          "omitempty": true,
+          "type": "bool"
+        },
+        {
+          "name": "MaxTunnelBandwidthKbps",
+          "json": "maxTunnelBandwidthKbps",
+          "omitempty": true,
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "name": "StatusBarContribution",
+      "fields": [
+        {
+          "name": "ID",
+          "json": "id",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Text",
+          "json": "text",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Tooltip",
+          "json": "tooltip",
+          "omitempty": true,
+          "type": "string"
+        },
+        {
+          "name": "Priority",
+          "json": "priority",
+          "omitempty": true,
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "name": "TunnelCaps",
+      "fields": [
+        {
+          "name": "Provider",
+          "json": "provider",
+          "omitempty": true,
+          "type": "bool"
+        },
+        {
+          "name": "MaxConcurrentChannels",
+          "json": "maxConcurrentChannels",
+          "omitempty": true,
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "name": "TunnelProviderContribution",
+      "fields": [
+        {
+          "name": "ID",
+          "json": "id",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Label",
+          "json": "label",
+          "omitempty": false,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "UICaps",
+      "fields": [
+        {
+          "name": "Surfaces",
+          "json": "surfaces",
+          "omitempty": true,
+          "type": "[]string"
+        },
+        {
+          "name": "Dialogs",
+          "json": "dialogs",
+          "omitempty": true,
+          "type": "bool"
+        },
+        {
+          "name": "NodeDetails",
+          "json": "nodeDetails",
+          "omitempty": true,
+          "type": "bool"
+        },
+        {
+          "name": "MaxSurfaces",
+          "json": "maxSurfaces",
+          "omitempty": true,
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "name": "VaultCaps",
+      "fields": [
+        {
+          "name": "ReadConnectionFields",
+          "json": "readConnectionFields",
+          "omitempty": true,
+          "type": "[]string"
+        },
+        {
+          "name": "GetSecret",
+          "json": "getSecret",
+          "omitempty": true,
+          "type": "[]string"
+        }
+      ]
+    },
+    {
+      "name": "ViewContribution",
+      "fields": [
+        {
+          "name": "ID",
+          "json": "id",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Location",
+          "json": "location",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Title",
+          "json": "title",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Type",
+          "json": "type",
+          "omitempty": true,
+          "type": "string"
+        },
+        {
+          "name": "Entry",
+          "json": "entry",
+          "omitempty": true,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "onePassInst",
+      "fields": [
+        {
+          "name": "Inst",
+          "json": "Inst",
+          "omitempty": false,
+          "type": "syntax.Inst"
+        },
+        {
+          "name": "Next",
+          "json": "Next",
+          "omitempty": false,
+          "type": "[]uint32"
+        }
+      ]
+    },
+    {
+      "name": "onePassProg",
+      "fields": [
+        {
+          "name": "Inst",
+          "json": "Inst",
+          "omitempty": false,
+          "type": "[]regexp.onePassInst"
+        },
+        {
+          "name": "Start",
+          "json": "Start",
+          "omitempty": false,
+          "type": "int"
+        },
+        {
+          "name": "NumCap",
+          "json": "NumCap",
+          "omitempty": false,
+          "type": "int"
+        }
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "path": "activationEvents",
+      "required": false
+    },
+    {
+      "path": "bundleFormat",
+      "required": false
+    },
+    {
+      "path": "capabilities",
+      "required": false
+    },
+    {
+      "path": "capabilities.auth",
+      "required": false
+    },
+    {
+      "path": "capabilities.channel",
+      "required": false
+    },
+    {
+      "path": "capabilities.discovery",
+      "required": false
+    },
+    {
+      "path": "capabilities.events",
+      "required": false
+    },
+    {
+      "path": "capabilities.filesystem",
+      "required": false
+    },
+    {
+      "path": "capabilities.network",
+      "required": false
+    },
+    {
+      "path": "capabilities.session",
+      "required": false
+    },
+    {
+      "path": "capabilities.tunnel",
+      "required": false
+    },
+    {
+      "path": "capabilities.ui",
+      "required": false
+    },
+    {
+      "path": "capabilities.vault",
+      "required": false
+    },
+    {
+      "path": "contributions",
+      "required": false
+    },
+    {
+      "path": "contributions.authMethods",
+      "required": false
+    },
+    {
+      "path": "contributions.commands",
+      "required": false
+    },
+    {
+      "path": "contributions.connectionProtocols",
+      "required": false
+    },
+    {
+      "path": "contributions.discoveryIcons",
+      "required": false
+    },
+    {
+      "path": "contributions.menus",
+      "required": false
+    },
+    {
+      "path": "contributions.statusBar",
+      "required": false
+    },
+    {
+      "path": "contributions.tunnelProviders",
+      "required": false
+    },
+    {
+      "path": "contributions.views",
+      "required": false
+    },
+    {
+      "path": "description",
+      "required": false
+    },
+    {
+      "path": "engine",
+      "required": true
+    },
+    {
+      "path": "engine.args",
+      "required": false
+    },
+    {
+      "path": "engine.entry",
+      "required": true
+    },
+    {
+      "path": "engine.type",
+      "required": true
+    },
+    {
+      "path": "id",
+      "required": true
+    },
+    {
+      "path": "isolation",
+      "required": false
+    },
+    {
+      "path": "minCoreVersion",
+      "required": false
+    },
+    {
+      "path": "name",
+      "required": true
+    },
+    {
+      "path": "requires",
+      "required": false
+    },
+    {
+      "path": "signature",
+      "required": false
+    },
+    {
+      "path": "version",
+      "required": true
+    }
+  ]
+}
