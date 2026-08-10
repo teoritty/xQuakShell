@@ -39,6 +39,13 @@ func (s *SettingsService) SaveSettings(ctx context.Context, settings domain.AppS
 		if data.Settings == nil {
 			data.Settings = &domain.AppSettings{}
 		}
+		// The settings dialog does not own all of AppSettings, and this is a whole-struct
+		// assignment. Plugin trust and the capability grants are established elsewhere — through
+		// install-time consent prompts — and never travel in AppSettingsDTO, so without carrying
+		// them across, changing the theme silently cleared RequireSignedPlugins, every granted
+		// capability, and the disabled-plugin list. Embed is here for the same reason.
+		normalized.Plugins = data.Settings.Plugins
+		normalized.Embed = data.Settings.Embed
 		*data.Settings = normalized
 		return nil
 	}); err != nil {
