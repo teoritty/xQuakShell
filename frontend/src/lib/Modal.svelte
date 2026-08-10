@@ -63,8 +63,16 @@
   }
 
   .modal-content.settings-modal {
-    width: 620px;
-    max-width: 620px;
+    width: 680px;
+    max-width: 680px;
+  }
+
+  /* Settings draws its own tab sidebar and footer, both of which need their dividers to reach the
+     dialog border. A padded body would stop them one gutter short; each region inside pays for its
+     own inset instead. */
+  .modal-content.settings-modal .modal-body {
+    padding: 0;
+    overflow: hidden;
   }
 
   .modal-content:global(.plugin-details-modal) {

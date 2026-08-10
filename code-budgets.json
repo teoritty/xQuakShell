@@ -61,7 +61,7 @@
         "scriptCodeLines": 415
       },
       "frontend/src/lib/PluginSettingsPanel.svelte": {
-        "codeLines": 1193,
+        "codeLines": 1192,
         "scriptCodeLines": 515
       },
       "frontend/src/lib/RemoteTree.svelte": {
@@ -73,7 +73,7 @@
         "scriptCodeLines": 220
       },
       "frontend/src/lib/SettingsDialog.svelte": {
-        "codeLines": 962,
+        "codeLines": 885,
         "scriptCodeLines": 304
       },
       "internal/domain/plugin/manifest_capabilities.go": {

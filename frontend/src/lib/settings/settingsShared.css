@@ -1,0 +1,139 @@
+/* Layout primitives shared by every panel inside the settings dialog.
+
+   These used to live in SettingsDialog.svelte's scoped <style>, which meant they applied to the
+   markup that file owns and to nothing else: a child panel carries its own scope hash, so
+   AboutSection rendered its version lines with plain browser defaults while the identical markup in
+   the parent looked correct. Plain CSS is global, so one copy now serves both.
+
+   Every rule is scoped under .settings-content on purpose. The class names here - .section,
+   .checkbox-row, .setting-row - are generic enough that half a dozen unrelated screens use them for
+   their own purposes, and going global without the prefix would restyle all of them. */
+
+.settings-content .section {
+  color: var(--text-primary);
+}
+
+/* Spacing comes from adjacent-sibling margins rather than a flex gap so the heading block can be
+   tighter than the rows below it. With a gap the description would sit as far from its own heading
+   as an unrelated control does, which is what made the panels read as a flat list of strays. */
+.settings-content .section > * + * {
+  margin-top: 9px;
+}
+
+.settings-content .section h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+.settings-content .section-desc {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.settings-content .section > h4 + .section-desc {
+  margin-top: 3px;
+}
+
+.settings-content .section + .section,
+.settings-content .section-tab-label:not(:first-child) + .section {
+  border-top: 1px solid var(--border-color);
+  padding-top: 16px;
+  margin-top: 16px;
+}
+
+.settings-content .checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+/* A disabled control greys itself out but its text label is a sibling, not a child, so nothing
+   would tell the reader the whole row is inert - the audit tab had four rows in that state. */
+.settings-content .checkbox-row:has(input:disabled) {
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* One label column and one control column, shared by every field in the dialog. The fixed control
+   width is what makes fields line up across sections of different label lengths; without it each
+   row sized itself to its own text and the right edge of the panel looked ragged. */
+.settings-content .setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.settings-content .setting-row > span {
+  font-size: 12px;
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.settings-content .setting-row:has(input:disabled) > span,
+.settings-content .setting-row:has(select:disabled) > span {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+/* Checkboxes and radios are excluded because they take their box from style.css and have no
+   content of their own: stretching one to the column width inflates the widget itself. */
+.settings-content .setting-row > input:where(:not([type="checkbox"]):not([type="radio"])),
+.settings-content .setting-row > select {
+  width: 100%;
+  min-width: 0;
+}
+
+/* A number holds three digits, so it keeps its own width and sits at the left edge of the control
+   column - which is where every select and text field starts, so the column still reads as one. */
+.settings-content .setting-row > input[type="number"] {
+  width: 88px;
+}
+
+/* Fields that qualify the radio above them, indented to show they belong to it rather than to the
+   section, and set closer to it than two unrelated rows would be. */
+.settings-content .setting-row.setting-sub {
+  margin-top: 4px;
+  padding-left: 21px;
+}
+
+.settings-content .version-row {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.settings-content .version-label {
+  color: var(--text-secondary);
+}
+
+.settings-content .version-value {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.settings-content .about-links {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.settings-content .about-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 12px;
+}

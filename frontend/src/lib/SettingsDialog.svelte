@@ -378,12 +378,11 @@
             {/if}
             <div class="section">
               <h4>Developer</h4>
-              <p class="section-desc">Opens a separate window with live logs from the application core and installed plugins. The window closes when the app exits.</p>
               <label class="checkbox-row">
                 <input type="checkbox" bind:checked={debugLogWindowEnabled} />
                 Open debug log window
               </label>
-              <label class="field-block">
+              <label class="setting-row">
                 <span>Minimum log level</span>
                 <select bind:value={debugLogLevel}>
                   <option value="debug">Debug (most verbose)</option>
@@ -422,8 +421,8 @@
             {/if}
             <div class="section">
               <h4>Interface scale</h4>
-              <p class="section-desc">Adjust the size of the entire interface. Layout reflows to fit the window — nothing is cropped like browser zoom.</p>
-              <label class="field-block">
+              <p class="section-desc">The layout reflows to fit the window — nothing is cropped, unlike browser zoom.</p>
+              <label class="setting-row">
                 <span>Scale</span>
                 <select bind:value={uiScalePercent} on:change={handleUiScaleChange}>
                   {#each UI_SCALE_PRESETS as preset}
@@ -440,7 +439,7 @@
             {/if}
             <div class="section">
               <h4>General</h4>
-              <p class="section-desc">Command audit logging is disabled by default. When enabled, submitted commands are stored locally on Enter.</p>
+              <p class="section-desc">Submitted commands are stored locally, on Enter. Disabled by default.</p>
               <label class="checkbox-row">
                 <input type="checkbox" bind:checked={auditLogEnabled} />
                 Enable audit log
@@ -457,9 +456,9 @@
               <p class="section-desc">Old entries are deleted automatically and cannot be recovered.</p>
               <label class="checkbox-row">
                 <input type="radio" bind:group={auditRetentionMode} value="days" disabled={!auditLogEnabled} />
-                By time (days)
+                By time
               </label>
-              <label class="field-inline">
+              <label class="setting-row setting-sub">
                 <span>Keep entries for (days)</span>
                 <input type="number" bind:value={auditRetentionDays} min="1" max="365" disabled={!auditLogEnabled || auditRetentionMode !== 'days'} />
               </label>
@@ -467,7 +466,7 @@
                 <input type="radio" bind:group={auditRetentionMode} value="count" disabled={!auditLogEnabled} />
                 By count
               </label>
-              <label class="field-inline">
+              <label class="setting-row setting-sub">
                 <span>Maximum entries</span>
                 <input type="number" bind:value={auditRetentionCount} min="10" max="10000" disabled={!auditLogEnabled || auditRetentionMode !== 'count'} />
               </label>
@@ -480,7 +479,6 @@
             {/if}
             <div class="section">
               <h4>Privacy</h4>
-              <p class="section-desc">When enabled, metadata is stored in the audit log and shown in the viewer.</p>
               <label class="checkbox-row">
                 <input type="checkbox" bind:checked={auditShowUsername} disabled={!auditLogEnabled} />
                 Log &amp; show username
@@ -497,8 +495,8 @@
               <div class="section-tab-label">{SETTINGS_TAB_LABELS.audit}</div>
             {/if}
             <div class="section">
-              <h4>Sensitive data (session only)</h4>
-              <p class="section-desc">When enabled, passwords and secrets are logged in plaintext until you lock the vault or restart the app. This setting is not saved to the vault.</p>
+              <h4>Sensitive data</h4>
+              <p class="section-desc">Passwords and secrets are logged in plaintext until you lock the vault or restart the app. Never saved to the vault.</p>
               <label class="checkbox-row">
                 <input type="checkbox" checked={auditLogSecrets} on:change={handleAuditSecretsToggle} disabled={!auditLogEnabled} />
                 Log secrets this session
@@ -511,9 +509,9 @@
               <div class="section-tab-label">{SETTINGS_TAB_LABELS.files}</div>
             {/if}
             <div class="section">
-              <h4>External Editor (Edit on the fly)</h4>
-              <p class="section-desc">Path to editor executable for editing remote files. When you edit a remote file, it is downloaded, opened with this editor, and changes are automatically re-uploaded on save.</p>
-              <label class="field-block">
+              <h4>External editor</h4>
+              <p class="section-desc">A remote file you edit is downloaded, opened in this editor, and re-uploaded when you save.</p>
+              <label class="setting-row">
                 <span>Editor path</span>
                 <input type="text" bind:value={externalEditorPath} placeholder="e.g. code, notepad.exe, C:\...\gvim.exe" />
               </label>
@@ -526,8 +524,8 @@
             {/if}
             <div class="section">
               <h4>When a file already exists</h4>
-              <p class="section-desc">What to do when a transferred file already exists at the destination. "Ask every time" shows the conflict dialog; any other choice applies silently. Choosing an action in that dialog without "Apply to current queue only" also sets these.</p>
-              <label class="field-block">
+              <p class="section-desc">"Ask every time" shows the conflict dialog; any other choice applies silently. Picking an action in that dialog without "Apply to current queue only" also changes these.</p>
+              <label class="setting-row">
                 <span>Uploads and local copies</span>
                 <select bind:value={defaultUploadExistsAction}>
                   <option value="ask">Ask every time</option>
@@ -536,7 +534,7 @@
                   {/each}
                 </select>
               </label>
-              <label class="field-block">
+              <label class="setting-row">
                 <span>Downloads</span>
                 <select bind:value={defaultDownloadExistsAction}>
                   <option value="ask">Ask every time</option>
@@ -553,21 +551,21 @@
               <div class="section-tab-label">{SETTINGS_TAB_LABELS.hotkeys}</div>
             {/if}
             <div class="section">
-              <h4>Session Hotkeys</h4>
-              <p class="section-desc">Configure global shortcuts for session actions. Click a field and press a key combination.</p>
-              <label class="field-block">
+              <h4>Session hotkeys</h4>
+              <p class="section-desc">Click a field and press a key combination.</p>
+              <label class="setting-row">
                 <span>Create session</span>
                 <input class="hotkey-input" type="text" bind:value={sessionHotkeyCreate} on:keydown={(e) => captureHotkey(e, 'create')} />
               </label>
-              <label class="field-block">
+              <label class="setting-row">
                 <span>Next session tab</span>
                 <input class="hotkey-input" type="text" bind:value={sessionHotkeyNext} on:keydown={(e) => captureHotkey(e, 'next')} />
               </label>
-              <label class="field-block">
+              <label class="setting-row">
                 <span>Previous session tab</span>
                 <input class="hotkey-input" type="text" bind:value={sessionHotkeyPrev} on:keydown={(e) => captureHotkey(e, 'prev')} />
               </label>
-              <label class="field-block">
+              <label class="setting-row">
                 <span>Close active session</span>
                 <input class="hotkey-input" type="text" bind:value={sessionHotkeyClose} on:keydown={(e) => captureHotkey(e, 'close')} />
               </label>
@@ -585,20 +583,20 @@
               <div class="section-tab-label">{SETTINGS_TAB_LABELS.network}</div>
             {/if}
             <div class="section">
-              <h4>Connection Ping</h4>
+              <h4>Connection ping</h4>
               <p class="section-desc">Check host reachability via TCP connect.</p>
               <label class="checkbox-row">
                 <input type="checkbox" bind:checked={pingEnabled} />
                 Enable automatic ping
               </label>
-              <label class="field-block">
+              <label class="setting-row">
                 <span>Ping mode</span>
                 <select bind:value={pingMode} disabled={!pingEnabled}>
                   <option value="on_change">On connection settings change only</option>
                   <option value="interval">Every N seconds</option>
                 </select>
               </label>
-              <label class="field-inline">
+              <label class="setting-row">
                 <span>Ping interval (seconds)</span>
                 <input
                   type="number"
@@ -608,7 +606,7 @@
                   disabled={pingMode !== 'interval' || !pingEnabled}
                 />
               </label>
-              <label class="field-inline">
+              <label class="setting-row">
                 <span>Max concurrent pings</span>
                 <input
                   type="number"
@@ -626,17 +624,16 @@
               <div class="section-tab-label">{SETTINGS_TAB_LABELS.network}</div>
             {/if}
             <div class="section">
-              <h4>File Transfer</h4>
-              <p class="section-desc">Settings for sysadmins and DevOps.</p>
-              <label class="field-block">
+              <h4>File transfer</h4>
+              <label class="setting-row">
                 <span>Speed limit (Kbps)</span>
                 <input type="number" bind:value={transferSpeedLimitKbps} min="0" placeholder="0 = unlimited" />
               </label>
-              <label class="field-block">
+              <label class="setting-row">
                 <span>Connection timeout (seconds)</span>
                 <input type="number" bind:value={connectionTimeoutSeconds} min="5" max="300" />
               </label>
-              <label class="field-block">
+              <label class="setting-row">
                 <span>Max concurrent transfers</span>
                 <input type="number" bind:value={maxConcurrentTransfers} min="1" max="16" />
               </label>
@@ -648,13 +645,12 @@
               <div class="section-tab-label">{SETTINGS_TAB_LABELS.security}</div>
             {/if}
             <div class="section">
-              <h4>Session Lockout</h4>
-              <p class="section-desc">Automatically lock the vault after inactivity.</p>
+              <h4>Session lockout</h4>
               <label class="checkbox-row">
                 <input type="checkbox" bind:checked={lockoutEnabled} />
                 Enable lockout on idle timeout
               </label>
-              <label class="field-inline">
+              <label class="setting-row">
                 <span>Idle timeout (minutes)</span>
                 <input
                   type="number"
@@ -676,21 +672,21 @@
               <div class="section-tab-label">{SETTINGS_TAB_LABELS.terminal}</div>
             {/if}
             <div class="section">
-              <h4>Terminal Font</h4>
-              <label class="field-block">
-                <span>Font Family</span>
+              <h4>Terminal font</h4>
+              <label class="setting-row">
+                <span>Font family</span>
                 <select bind:value={terminalFontFamily}>
                   {#each monoFonts as font}
                     <option value={font} style="font-family: {font}">{font.split(',')[0].trim()}</option>
                   {/each}
                 </select>
               </label>
-              <label class="field-block">
-                <span>Font Size (px)</span>
+              <label class="setting-row">
+                <span>Font size (px)</span>
                 <input type="number" bind:value={terminalFontSize} min="8" max="32" />
               </label>
-              <label class="field-block">
-                <span>Font Color</span>
+              <label class="setting-row">
+                <span>Font color</span>
                 <div class="color-picker-row">
                   <input type="color" bind:value={terminalFontColor} class="color-input" />
                   <input type="text" bind:value={terminalFontColor} class="color-hex" placeholder="#cccccc" />
@@ -756,7 +752,7 @@
     padding: 0 8px;
     background: var(--bg-input, var(--bg-primary));
     border: 1px solid var(--border-color);
-    border-radius: 3px;
+    border-radius: 4px;
     color: var(--text-secondary);
   }
   .settings-search-wrap:focus-within {
@@ -773,18 +769,21 @@
     min-width: 0;
   }
 
+  /* The modal body carries no padding for this dialog (see Modal.svelte), so the sidebar divider
+     and the footer rule run edge to edge instead of stopping short of the border. Each region
+     below pays for its own inset. */
   .settings-layout {
     display: flex;
-    gap: 0;
-    height: 420px;
+    height: min(440px, 58vh);
   }
 
   .settings-tabs {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 2px;
+    padding: 10px 8px;
     border-right: 1px solid var(--border-color);
-    width: 130px;
+    width: 150px;
     flex-shrink: 0;
     overflow-y: auto;
   }
@@ -792,28 +791,31 @@
   .tab-item {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
+    gap: 8px;
+    padding: 6px 10px;
     background: transparent;
     border: none;
+    border-radius: 4px;
     color: var(--text-secondary);
     font-size: 12px;
     cursor: pointer;
     text-align: left;
-    border-radius: 0;
   }
   .tab-item:hover {
     background: var(--bg-hover);
     color: var(--text-primary);
   }
   .tab-item.active {
-    background: var(--bg-active);
+    background: var(--accent-muted);
     color: var(--text-bright);
+  }
+  .tab-item.active :global(svg) {
+    color: var(--accent);
   }
 
   .settings-content {
     flex: 1;
-    padding: 12px 16px;
+    padding: 16px 18px 20px;
     overflow-y: auto;
     min-width: 300px;
   }
@@ -821,7 +823,7 @@
   .settings-loading {
     color: var(--text-secondary);
     font-size: 12px;
-    padding: 20px;
+    padding: 24px;
     text-align: center;
   }
 
@@ -829,77 +831,13 @@
     font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
     color: var(--accent);
-    margin-bottom: 6px;
+    margin-bottom: 8px;
   }
 
   .section-tab-label:not(:first-child) {
-    margin-top: 4px;
-  }
-
-  .section h4 {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-bright);
-    margin: 0 0 4px;
-  }
-
-  .section-desc {
-    font-size: 11px;
-    color: var(--text-secondary);
-    margin: 0 0 12px;
-  }
-
-  .section {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .section + .section,
-  .section-tab-label:not(:first-child) + .section {
-    border-top: 1px solid var(--border-color);
-    padding-top: 14px;
-    margin-top: 14px;
-  }
-
-  .checkbox-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--text-primary);
-    cursor: pointer;
-  }
-  .checkbox-row input[type="checkbox"],
-  .checkbox-row input[type="radio"] {
-    margin: 0;
-    width: 14px;
-    height: 14px;
-  }
-
-  .field-inline {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    color: var(--text-primary);
-  }
-  .field-inline input[type="number"] {
-    width: 60px;
-  }
-
-  .field-block {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    font-size: 12px;
-    color: var(--text-primary);
-  }
-  .field-block span {
-    font-size: 11px;
-    color: var(--text-secondary);
+    margin-top: 16px;
   }
 
   .color-picker-row {
@@ -908,41 +846,42 @@
     gap: 8px;
   }
   .color-input {
-    width: 36px;
-    height: 28px;
+    width: 32px;
+    height: var(--control-height);
     padding: 0;
     border: 1px solid var(--border-color);
-    border-radius: 3px;
+    border-radius: 2px;
     cursor: pointer;
     background: transparent;
+    flex: 0 0 auto;
   }
   .color-input::-webkit-color-swatch-wrapper { padding: 2px; }
   .color-input::-webkit-color-swatch { border-radius: 2px; border: none; }
   .color-hex {
-    width: 80px;
+    flex: 1;
+    min-width: 0;
     font-size: 12px;
-    font-family: var(--font-mono, monospace);
+    font-family: var(--font-mono);
   }
 
   .font-preview {
-    padding: 10px;
-    background: #1e1e1e;
+    padding: 10px 12px;
+    background: var(--bg-primary);
     border: 1px solid var(--border-color);
-    border-radius: 2px;
+    border-radius: 4px;
     line-height: 1.4;
-    margin-top: 4px;
   }
 
   .theme-options {
     display: flex;
-    gap: 12px;
+    gap: 10px;
   }
 
   .theme-option {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     cursor: pointer;
     padding: 8px;
     border: 1px solid var(--border-color);
@@ -952,6 +891,7 @@
   }
   .theme-option.selected {
     border-color: var(--accent);
+    background: var(--accent-muted);
     color: var(--text-primary);
   }
   .theme-option input { display: none; }
@@ -963,37 +903,14 @@
     border: 1px solid var(--border-color);
   }
   .dark-swatch { background: #1e1e1e; }
-  .light-swatch { background: #f5f5f5; }
-
-  .version-text {
-    font-size: 12px;
-    color: var(--text-secondary);
-    margin: 0;
-  }
-
-  .about-links {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 8px;
-  }
-  .about-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    padding: 6px 12px;
-    width: fit-content;
-  }
 
   .settings-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 12px;
-    padding-top: 12px;
+    padding: 10px 16px;
     border-top: 1px solid var(--border-color);
-    margin-top: 12px;
   }
   .settings-footer-left {
     min-width: 0;
@@ -1014,25 +931,25 @@
     user-select: none;
   }
   .settings-footer button {
-    padding: 5px 14px;
+    padding: 4px 14px;
     font-size: 12px;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
   }
 
   .hotkey-input {
-    font-family: var(--font-mono, monospace);
+    font-family: var(--font-mono);
+    text-align: center;
   }
 
   .hotkey-conflict {
     font-size: 11px;
-    color: var(--danger, #f44747);
+    color: var(--danger);
   }
 
   .hotkey-actions {
     display: flex;
     justify-content: flex-start;
-    margin-top: 2px;
   }
 </style>

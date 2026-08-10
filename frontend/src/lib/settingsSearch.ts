@@ -20,7 +20,17 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
   {
     tabId: 'about',
     sectionId: 'info',
-    terms: ['About', 'SSH Client', 'Version', 'Check for Updates', 'Report an Issue'],
+    terms: [
+      'About',
+      'xQuakShell',
+      'SSH Client',
+      'Version',
+      'Core',
+      'Plugin API',
+      'Check for updates on startup',
+      'Releases',
+      'Report an Issue',
+    ],
   },
   {
     tabId: 'about',

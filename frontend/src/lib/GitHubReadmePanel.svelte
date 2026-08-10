@@ -18,7 +18,7 @@
   .readme-empty {
     margin: 0;
     font-size: 13px;
-    color: var(--text-muted, #888);
+    color: var(--text-secondary);
   }
 
   .readme-markdown {
@@ -57,7 +57,7 @@
   .readme-markdown :global(blockquote) {
     padding-left: 12px;
     border-left: 3px solid var(--border-color, #333);
-    color: var(--text-muted, #888);
+    color: var(--text-secondary);
   }
 
   .readme-markdown :global(code) {
