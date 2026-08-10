@@ -27,6 +27,11 @@ type Manifest struct {
 	Name        string `json:"name"`
 	Version     string `json:"version"`
 	Description string `json:"description,omitempty"`
+	// BundleFormat is the packaging format the bundle was built against (ADR-016, ADR-017).
+	// omitempty is load-bearing, not style: ManifestSigningPayload canonicalises the whole
+	// manifest, so a field that marshalled as "bundleFormat":"" would change the signed bytes
+	// of every bundle published before this field existed and invalidate their signatures.
+	BundleFormat string `json:"bundleFormat,omitempty"`
 	// MinCoreVersion is unsupported; kept only so resolvePluginAPI can reject
 	// manifests that still declare it with a clear error.
 	MinCoreVersion   string          `json:"minCoreVersion,omitempty"`
@@ -245,6 +250,9 @@ func (m *Manifest) Validate() error {
 	}
 	if strings.TrimSpace(m.Version) == "" {
 		return fmt.Errorf("%w: version is required", ErrInvalidManifest)
+	}
+	if err := ValidateBundleFormat(m.BundleFormat); err != nil {
+		return err
 	}
 	if m.Engine.Type != EngineGoBinary {
 		return fmt.Errorf("%w: unsupported engine type %q", ErrInvalidManifest, m.Engine.Type)

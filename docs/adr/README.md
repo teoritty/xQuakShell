@@ -16,6 +16,7 @@ be treated as arbitrary and worked around.
 | [014](014-discovery-subtrees.md) | Discovery Subtrees |
 | [015](015-plugin-ui-surfaces.md) | Plugin UI Surfaces |
 | [016](016-ui-plugins-ship-bundles.md) | A Plugin With a UI Is Published as a Bundle |
+| [017](017-release-and-compatibility-policy.md) | Release and Compatibility Policy — six version axes, four frozen contracts, latest release only |
 
 ## Numbers below 007
 

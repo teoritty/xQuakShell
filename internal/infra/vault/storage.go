@@ -38,6 +38,46 @@ func ReadVaultFile(dir, passphrase string) (*domain.VaultData, error) {
 	return Decrypt(ciphertext, passphrase)
 }
 
+// BackupVaultFile copies the vault aside before a schema migration rewrites it, naming the copy
+// after the version being left behind: vault.age.v3.bak.
+//
+// It refuses to overwrite an existing backup. The file it would clobber is the last copy of the
+// data as it stood before the first migration to run, and a second attempt - a crash mid-upgrade,
+// a downgrade and re-upgrade - would replace that original with already-migrated bytes, which is
+// the one thing a backup must never do. Nothing deletes these: they hold someone's keys, and an
+// application that silently disposes of the only pre-migration copy has no way to be right.
+//
+// The copy carries no plaintext; it is the same age-encrypted file under the same master
+// password, so it is exactly as safe at rest as the vault itself.
+func BackupVaultFile(dir string, fromVersion int) error {
+	source := filepath.Join(dir, vaultFileName)
+	target := filepath.Join(dir, fmt.Sprintf("%s.v%d.bak", vaultFileName, fromVersion))
+
+	if _, err := os.Stat(target); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("vault backup stat %s: %w", target, err)
+	}
+
+	ciphertext, err := os.ReadFile(source)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return domain.ErrVaultNotFound
+		}
+		return fmt.Errorf("vault backup read %s: %w", source, err)
+	}
+
+	// gosec traces dir into a write and cannot see that this is the same dir WriteVaultFile
+	// already writes vault.age into, so the backup reaches nowhere the vault itself does not.
+	// The filename is built from a constant and an int, and the read above has already proven a
+	// vault exists here — the write only ever lands beside a file this package owns.
+	// #nosec G703 -- dir is the vault directory from the composition root, never user input
+	if err := os.WriteFile(target, ciphertext, 0o600); err != nil {
+		return fmt.Errorf("vault backup write %s: %w", target, err)
+	}
+	return nil
+}
+
 // WriteVaultFile encrypts and atomically writes the vault to disk.
 // It writes to a temporary file first, syncs, then renames to the final name.
 func WriteVaultFile(dir, passphrase string, data *domain.VaultData) error {

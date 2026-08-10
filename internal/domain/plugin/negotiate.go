@@ -31,7 +31,10 @@ func Negotiate(m *Manifest, reg Registry) (NegotiatedDescriptor, []string, error
 	if err != nil {
 		return NegotiatedDescriptor{}, warnings, err
 	}
-	if report := eff.CheckAgainstHost(reg); report != nil {
+	// Packaging is checked alongside the requires{} block rather than at extract time so that one
+	// report carries every reason a plugin cannot run — the install preview shows the whole list
+	// instead of surfacing them one failed attempt at a time.
+	if report := CheckBundleFormat(m.BundleFormat, eff.CheckAgainstHost(reg)); report != nil {
 		return NegotiatedDescriptor{}, warnings, report
 	}
 

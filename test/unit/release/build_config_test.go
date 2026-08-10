@@ -30,6 +30,9 @@ func findRepoRoot() (string, error) {
 // wailsConfig is the subset of wails.json this package asserts on.
 type wailsConfig struct {
 	PreBuildHooks map[string]string `json:"preBuildHooks"`
+	Info          struct {
+		ProductVersion string `json:"productVersion"`
+	} `json:"info"`
 }
 
 func readWailsConfig(t *testing.T) wailsConfig {

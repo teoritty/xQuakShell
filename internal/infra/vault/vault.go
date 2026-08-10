@@ -94,8 +94,11 @@ func Decrypt(ciphertext []byte, passphrase string) (*domain.VaultData, error) {
 	if err := json.Unmarshal(plaintext, &data); err != nil {
 		return nil, fmt.Errorf("vault unmarshal: %w", err)
 	}
-	if data.Version != domain.CurrentVaultVersion {
-		return nil, fmt.Errorf("vault version %d: %w", data.Version, domain.ErrUnsupportedVaultVersion)
+	if data.Version > domain.CurrentVaultVersion {
+		return nil, fmt.Errorf("vault version %d, this build reads %d: %w", data.Version, domain.CurrentVaultVersion, domain.ErrVaultVersionTooNew)
+	}
+	if data.Version < domain.CurrentVaultVersion {
+		return nil, fmt.Errorf("vault version %d, this build reads %d: %w", data.Version, domain.CurrentVaultVersion, domain.ErrVaultVersionTooOld)
 	}
 
 	return &data, nil

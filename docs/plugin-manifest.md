@@ -10,6 +10,7 @@
 | `name` | string | yes | Display name |
 | `version` | string | yes | Semver string |
 | `description` | string | no | Short description |
+| `bundleFormat` | string | no | Packaging format the bundle was built against (ADR-017). Omit to mean `1.0.0` |
 | `requires` | object | no | Plugin API / capability version requirements (ADR-012) |
 | `engine` | object | yes | How to launch the plugin |
 | `capabilities` | object | no | Permission declarations |
@@ -43,6 +44,24 @@ plugin is checked against the host at install and again at `initialize`; the hos
 - You may only require a capability you also declare in `capabilities{}`. A granted capability with
   no explicit requirement gets an implicit baseline (`<major>.0.0`).
 - `minCoreVersion` is not supported: a manifest declaring it is rejected — declare `requires` instead.
+
+## Bundle format
+
+`bundleFormat` is a version axis of its own, separate from `pluginApi`: it describes how the
+`.xqsp` archive is laid out — which entries exist, what `SHA256SUMS` covers, and what the manifest
+signature binds to. Packaging and protocol change for unrelated reasons, so neither number gates
+the other.
+
+```json
+{ "bundleFormat": "1.0.0" }
+```
+
+- Strict `MAJOR.MINOR.PATCH`, no pre-release suffix.
+- Omitting the field means `1.0.0` — the layout every bundle published before the field existed
+  was built against. That baseline is fixed and does not follow the host.
+- Compatible when the host has the same major and a minor ≥ yours. A bundle packaged by a newer
+  minor is refused rather than opened: it may carry entries this build would ignore, which for a
+  signed archive means verifying less than the publisher signed.
 
 ## Engine
 

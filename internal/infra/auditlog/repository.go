@@ -70,10 +70,13 @@ func initSchema(db *sql.DB) error {
 	// Schema creation runs inside NewSQLiteRepo, which has no caller context to
 	// inherit: an audit database that failed to open half-way is worse than one
 	// that took a moment longer, so this one is not cancellable by design.
-	if _, err := db.ExecContext(context.Background(), ddl); err != nil {
+	ctx := context.Background()
+	if _, err := db.ExecContext(ctx, ddl); err != nil {
 		return fmt.Errorf("audit init schema: %w", err)
 	}
-	return nil
+	// The DDL above is inert against a database that already has the tables, so anything added to
+	// audit_events after its first release only reaches an existing file through the migration.
+	return migrateAuditSchema(ctx, db)
 }
 
 // Append writes a new audit entry to the log.
