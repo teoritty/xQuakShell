@@ -67,6 +67,11 @@ func BackupVaultFile(dir string, fromVersion int) error {
 		return fmt.Errorf("vault backup read %s: %w", source, err)
 	}
 
+	// gosec traces dir into a write and cannot see that this is the same dir WriteVaultFile
+	// already writes vault.age into, so the backup reaches nowhere the vault itself does not.
+	// The filename is built from a constant and an int, and the read above has already proven a
+	// vault exists here — the write only ever lands beside a file this package owns.
+	// #nosec G703 -- dir is the vault directory from the composition root, never user input
 	if err := os.WriteFile(target, ciphertext, 0o600); err != nil {
 		return fmt.Errorf("vault backup write %s: %w", target, err)
 	}
