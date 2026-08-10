@@ -21,6 +21,7 @@ const (
 	EventPluginStateChanged         = "PluginStateChanged"
 	EventSessionEmbedReady          = "SessionEmbedReady"
 	EventDebugLogWindowChanged      = "DebugLogWindowChanged"
+	EventUpdateAvailable            = "UpdateAvailable"
 	EventDiscoveryTreeChanged       = "DiscoveryTreeChanged"
 	EventPluginSurfaceOpened        = "PluginSurfaceOpened"
 	EventPluginSurfaceOutput        = "PluginSurfaceOutput"

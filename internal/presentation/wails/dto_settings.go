@@ -49,6 +49,7 @@ type AppSettingsDTO struct {
 	AuditShowConnection         bool   `json:"auditShowConnection"`
 	DebugLogWindowEnabled       bool   `json:"debugLogWindowEnabled"`
 	DebugLogLevel               string `json:"debugLogLevel"`
+	UpdateCheckOnStartup        bool   `json:"updateCheckOnStartup"`
 }
 
 type PuTTYSessionDTO struct {
@@ -103,6 +104,9 @@ func AppSettingsToDTO(s domain.AppSettings) AppSettingsDTO {
 		AuditShowConnection:         s.AuditLog.ShowConnection,
 		DebugLogWindowEnabled:       s.Debug.LogWindowEnabled,
 		DebugLogLevel:               s.Debug.LogLevel,
+		// Resolved through the accessor: the stored tri-state is a backend concern, and the
+		// checkbox has only two positions.
+		UpdateCheckOnStartup: s.Updates.StartupCheckEnabled(),
 	}
 }
 
@@ -152,5 +156,8 @@ func DTOToAppSettings(dto AppSettingsDTO) domain.AppSettings {
 			LogWindowEnabled: dto.DebugLogWindowEnabled,
 			LogLevel:         dto.DebugLogLevel,
 		},
+		// Once the dialog has been saved the choice is explicit either way, so the pointer is
+		// always set from here on and "never configured" only ever describes an older vault.
+		Updates: domain.UpdateSettings{CheckOnStartup: &dto.UpdateCheckOnStartup},
 	}
 }

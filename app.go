@@ -335,6 +335,10 @@ func (a *App) GetVersionInfo() presentation.VersionInfoDTO {
 	return a.api.GetVersionInfo()
 }
 
+func (a *App) GetUpdateStatus() presentation.UpdateStatusDTO {
+	return a.api.GetUpdateStatus()
+}
+
 func (a *App) PlanUpload(sessionID string, localPaths []string, remoteDir string) (presentation.TransferPlanDTO, error) {
 	return a.api.PlanUpload(sessionID, localPaths, remoteDir)
 }

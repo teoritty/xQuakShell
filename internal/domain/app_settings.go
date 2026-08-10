@@ -122,6 +122,7 @@ type AppSettings struct {
 	Plugins            PluginSettings         `json:"plugins"`
 	Embed              EmbedSettings          `json:"embed"`
 	Debug              DebugSettings          `json:"debug"`
+	Updates            UpdateSettings         `json:"updates"`
 }
 
 type PluginSettings struct {

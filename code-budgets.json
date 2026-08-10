@@ -34,6 +34,11 @@
         "symbol": "internal/infra/plugin/ipc/host_server.go::HostServer.HandleRequest",
         "kind": "dispatch-table",
         "reason": "One flat switch over the plugin RPC method names, three or four lines per arm, every arm delegating to a capability proxy. The length is the size of the protocol surface, not of a decision. Splitting it into per-method handlers would scatter the one place where the capability gate, the method name and the proxy it reaches are visible together, which is exactly what a reviewer needs to read in one screen."
+      },
+      {
+        "symbol": "main_compose.go::composeApp",
+        "kind": "composition-root",
+        "reason": "The dependency graph itself: one call per collaborator, no branching beyond nil guards on optional wiring. Its length tracks how many things the application is made of, not how complicated any of them is, and splitting it into wireA/wireB helpers hides the order the graph is built in - which is the one property a reader of a composition root actually needs."
       }
     ]
   },
@@ -269,11 +274,6 @@
         "codeLines": 1,
         "params": 8,
         "nesting": 0
-      },
-      "internal/presentation/wails/api.go::AppAPI.afterVaultOpened": {
-        "codeLines": 26,
-        "params": 0,
-        "nesting": 4
       },
       "internal/presentation/wails/api.go::NewAppAPI": {
         "codeLines": 85,

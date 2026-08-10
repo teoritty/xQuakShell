@@ -37,6 +37,11 @@ var ErrVaultVersionTooNew = errors.New("vault was written by a newer version of 
 // ErrVaultVersionTooOld indicates the vault predates this build's schema and needs migrating.
 var ErrVaultVersionTooOld = errors.New("vault needs migrating to the current schema")
 
+// ErrNoStableRelease indicates the project has no published stable release to compare against —
+// only drafts or pre-releases. It is not a failure the user needs to see: it means there is nothing
+// to upgrade to, which is indistinguishable from being up to date.
+var ErrNoStableRelease = errors.New("no stable release published")
+
 // ErrSessionNotFound indicates no active session exists with the given ID.
 var ErrSessionNotFound = errors.New("session not found")
 
