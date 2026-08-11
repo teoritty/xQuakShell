@@ -1,12 +1,9 @@
 package plugin
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-
-	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // CopyBundle copies a plugin directory tree to dest, landing every file at 0600 except the engine
@@ -82,28 +79,4 @@ func copyFile(src, dest string, mode os.FileMode) error {
 		return err
 	}
 	return out.Close()
-}
-
-// InstallBundle copies sourceDir into dataRoot/plugins/<id>/ and reloads it.
-func InstallBundle(sourceDir, dataRoot string) (domainplugin.InstalledPlugin, error) {
-	plugin, err := LoadPluginDir(sourceDir)
-	if err != nil {
-		return domainplugin.InstalledPlugin{}, fmt.Errorf("load plugin: %w", err)
-	}
-	destDir, err := SafePluginInstallDir(dataRoot, plugin.Manifest.ID)
-	if err != nil {
-		return domainplugin.InstalledPlugin{}, err
-	}
-	if err := os.RemoveAll(destDir); err != nil {
-		return domainplugin.InstalledPlugin{}, fmt.Errorf("prepare install dir: %w", err)
-	}
-	if err := CopyBundle(sourceDir, destDir, plugin.Manifest.Engine.Entry); err != nil {
-		return domainplugin.InstalledPlugin{}, err
-	}
-	installed, err := LoadPluginDir(destDir)
-	if err != nil {
-		return domainplugin.InstalledPlugin{}, err
-	}
-	installed.Source = domainplugin.SourceUser
-	return installed, nil
 }
