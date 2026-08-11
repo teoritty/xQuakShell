@@ -37,6 +37,23 @@ func RunShim(argv []string) {
 		shimFail(err)
 	}
 
+	// The resource limits are applied here, by the shim, and NOT by the host against this pid.
+	//
+	// They cap what the PLUGIN may allocate. Applied from outside they land on whichever process
+	// currently owns the pid, and between the spawn and the execve below that process is this shim
+	// — the host's own binary, which needs more than a plugin does and has no say in when the limit
+	// arrives. On CI that showed up as every plugin failing to start: the shim was a race-instrumented
+	// test binary, ThreadSanitizer's shadow allocation of ~96 MiB hit the 128 MiB RLIMIT_DATA the
+	// host had just set on it, and the process died at exit 66 before main() with the report going
+	// to a stderr nobody was reading.
+	//
+	// Applying them here removes the race rather than widening the limit: rlimits survive execve, so
+	// the plugin gets exactly the cap it was always meant to get, and nothing else is ever subject
+	// to it.
+	if err := ApplyProcessLimits(0); err != nil {
+		shimFail(err)
+	}
+
 	// Landlock domains only ever narrow across execve, so nothing the plugin does after this point
 	// can widen what was just applied — including running this shim again. The environment is
 	// passed through unchanged: it is the one the host built for the plugin, and this process only

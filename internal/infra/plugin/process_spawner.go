@@ -17,12 +17,14 @@ type spawnedProcess struct {
 	// sandbox is the boundary this process actually came up behind, decided by the platform that
 	// created it rather than assumed from what the build can do.
 	sandbox domainplugin.SandboxMode
-	child   childProcess
-	cancel  context.CancelFunc
-	reaper  *processReaper
-	stderr  io.WriteCloser
-	stdin   io.WriteCloser
-	stdout  io.ReadCloser
+	// limitsApplied says the child capped its own resources on the way in.
+	limitsApplied bool
+	child         childProcess
+	cancel        context.CancelFunc
+	reaper        *processReaper
+	stderr        io.WriteCloser
+	stdin         io.WriteCloser
+	stdout        io.ReadCloser
 }
 
 // spawnPluginProcess brings up the plugin binary together with the directories it is allowed to
@@ -72,13 +74,14 @@ func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, se
 	reaper := newProcessReaper(started.child)
 	reaper.Start()
 	return &spawnedProcess{
-		sandbox: started.mode,
-		child:   started.child,
-		cancel:  started.cancel,
-		reaper:  reaper,
-		stderr:  stderrLog,
-		stdin:   started.stdin,
-		stdout:  started.stdout,
+		sandbox:       started.mode,
+		limitsApplied: started.limitsApplied,
+		child:         started.child,
+		cancel:        started.cancel,
+		reaper:        reaper,
+		stderr:        stderrLog,
+		stdin:         started.stdin,
+		stdout:        started.stdout,
 	}, instanceDataDir, nil
 }
 

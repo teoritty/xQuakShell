@@ -31,11 +31,15 @@ type childRequest struct {
 type startedChild struct {
 	// mode is the boundary this process is behind, reported by whichever path created it. It is an
 	// outcome and never an intention: a fallback start says so here.
-	mode   domainplugin.SandboxMode
-	child  childProcess
-	cancel context.CancelFunc
-	stdin  io.WriteCloser
-	stdout io.ReadCloser
+	mode domainplugin.SandboxMode
+	// limitsApplied says the child has already capped its own resources, so the host must not do it
+	// again from outside. Only the shim can: it knows the moment it stops being the host's binary
+	// and becomes the plugin, and a limit applied before that lands on the wrong process.
+	limitsApplied bool
+	child         childProcess
+	cancel        context.CancelFunc
+	stdin         io.WriteCloser
+	stdout        io.ReadCloser
 }
 
 // startExecChild is the os/exec spawn, used on every platform that is not confining this process

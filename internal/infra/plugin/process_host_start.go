@@ -51,7 +51,7 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 		return err
 	}
 
-	job, err := preparePluginSandbox(plugin, spawned.child.Pid())
+	job, err := preparePluginSandbox(plugin, spawned.child.Pid(), spawned.limitsApplied)
 	if err != nil {
 		// The process is not on mp yet, so the deferred teardown below cannot see it. Kill it here.
 		discardSpawnedProcess(spawned, pluginJob{})
