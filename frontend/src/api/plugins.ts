@@ -22,6 +22,13 @@ export interface PluginInfo {
   signed: boolean;
   enabled: boolean;
   /**
+   * The OS-level boundary this plugin's running processes are behind: `enforced`,
+   * `unavailable`, `disabled`, or absent when the plugin is not running. Where a
+   * plugin has several processes the weakest one is reported, because a summary
+   * that showed the confined one would claim containment the user does not have.
+   */
+  sandboxMode?: string;
+  /**
    * Discovery icons (ADR-014), keyed by the plugin's own iconId, each value an
    * already-encoded `data:` URI. They ride along on ListPlugins on purpose:
    * icon bytes are read and cached once when the plugin enters the registry, so

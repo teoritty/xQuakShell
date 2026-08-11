@@ -53,6 +53,7 @@ func (m *PluginManager) EnsureRunningForSession(ctx context.Context, pluginID, s
 		return err
 	}
 	m.TouchActivity(pluginID)
+	m.auditPluginSandbox(pluginID, scope)
 	m.emitStateChange(pluginID, "running", sessionID)
 	return nil
 }

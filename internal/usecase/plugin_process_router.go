@@ -70,6 +70,35 @@ func (m *PluginManager) aggregateProcessState(pluginID string) domainplugin.Proc
 	return m.host.State(pluginID, "")
 }
 
+// aggregateSandboxMode reduces a plugin's running processes to the one mode worth showing for it,
+// and reports "" when none are running: a plugin that is not running has no mode, and the field is
+// about what is happening rather than what would happen on a start that has not been asked for.
+func (m *PluginManager) aggregateSandboxMode(pluginID string) domainplugin.SandboxMode {
+	if m == nil || m.host == nil {
+		return ""
+	}
+	var modes []domainplugin.SandboxMode
+	for _, inst := range m.host.RunningInstances() {
+		if inst.PluginID == pluginID {
+			modes = append(modes, inst.Sandbox)
+		}
+	}
+	return domainplugin.WeakestSandboxMode(modes)
+}
+
+// sandboxModeForScope reports the mode of one process, for the audit line written when it starts.
+func (m *PluginManager) sandboxModeForScope(pluginID, scope string) domainplugin.SandboxMode {
+	if m == nil || m.host == nil {
+		return ""
+	}
+	for _, inst := range m.host.RunningInstances() {
+		if inst.PluginID == pluginID && inst.SessionID == scope {
+			return inst.Sandbox
+		}
+	}
+	return ""
+}
+
 func processStateRank(state domainplugin.ProcessState) int {
 	switch state {
 	case domainplugin.ProcessRunning:

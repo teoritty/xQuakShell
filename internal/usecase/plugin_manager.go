@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "xquakshell/internal/domain/plugin"
 	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // PluginCrashHandler reacts to abnormal plugin process exits.
@@ -24,18 +24,18 @@ type OutboundAuthAuditFunc func(pluginID, method, sanitizedParams string)
 
 // PluginManager orchestrates plugin discovery and process lifecycle (ADR-003).
 type PluginManager struct {
-	registry       *PluginRegistry
-	host           domainplugin.ProcessHost
-	loadBundle     BundleLoader
-	installBundle  BundleInstaller
-	installRoot    string
-	portableData   domain.PortableDataStore
-	bundle         domainplugin.BundlePort
-	portable       domain.PortableRuntime
-	events         *PluginEventBus
-	crashHandler   PluginCrashHandler
-	settingsReader PluginSettingsReader
-	pluginSettings *PluginVaultSettings
+	registry          *PluginRegistry
+	host              domainplugin.ProcessHost
+	loadBundle        BundleLoader
+	installBundle     BundleInstaller
+	installRoot       string
+	portableData      domain.PortableDataStore
+	bundle            domainplugin.BundlePort
+	portable          domain.PortableRuntime
+	events            *PluginEventBus
+	crashHandler      PluginCrashHandler
+	settingsReader    PluginSettingsReader
+	pluginSettings    *PluginVaultSettings
 	startAudit        PluginStartAuditFunc
 	outboundAuthAudit OutboundAuthAuditFunc
 	stateChange       func(pluginID, state, sessionID string)
@@ -43,8 +43,8 @@ type PluginManager struct {
 	processStopped    func(pluginID string)
 	processCrashed    func(pluginID string)
 	processSuspended  func(pluginID string)
-	connChecker    PluginConnectionChecker
-	retention      PluginRetentionChecker
+	connChecker       PluginConnectionChecker
+	retention         PluginRetentionChecker
 
 	mu              sync.Mutex
 	sessionCounts   map[string]int
@@ -82,6 +82,7 @@ func (m *PluginManager) List() []PluginInfo {
 			Signed:               p.Manifest.Signature != "",
 			Enabled:              m.isPluginEnabled(p.Manifest.ID),
 			InstalledReleaseTag:  installedReleaseTag(p),
+			SandboxMode:          string(m.aggregateSandboxMode(p.Manifest.ID)),
 			DiscoveryIcons:       m.registry.DiscoveryIconDataURIs(p.Manifest.ID),
 		})
 	}
@@ -100,6 +101,9 @@ type PluginInfo struct {
 	Signed               bool
 	Enabled              bool
 	InstalledReleaseTag  string
+	// SandboxMode is the OS-level boundary the plugin's running processes are behind, or "" when
+	// none are running. The weakest of them wins — see WeakestSandboxMode.
+	SandboxMode string
 	// DiscoveryIcons carries the plugin's declared discovery icons as iconID -> data URI, already
 	// read from disk (ADR-014). They ride along with the plugin list instead of getting an endpoint
 	// of their own: an icon is a small, static part of what a plugin is, and a fetch-by-id endpoint

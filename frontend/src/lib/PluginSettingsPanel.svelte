@@ -946,7 +946,7 @@
 
             </div>
 
-            <div class="plugin-meta">{plugin.id} · {plugin.source} · {plugin.state}</div>
+            <div class="plugin-meta">{plugin.id} · {plugin.source} · {plugin.state}{plugin.sandboxMode ? (plugin.sandboxMode === 'enforced' ? ' · sandboxed' : ' · not sandboxed') : ''}</div>
 
             {#if plugin.description}
 
