@@ -58,7 +58,10 @@ func TestPluginProcessEnvUsesInstanceTemp(t *testing.T) {
 	env := infraplugin.PluginProcessEnv(instanceDataDir, "com.example.plugin", "")
 
 	want := filepath.Join(instanceDataDir, "tmp")
-	for _, key := range []string{"TEMP", "TMP"} {
+	// TMPDIR belongs here with the other two: it is the name every Unix runtime reads, Go's
+	// os.TempDir included, so a plugin whose TMPDIR was not set wrote to the shared /tmp — which
+	// is outside everything the Landlock ruleset grants it.
+	for _, key := range []string{"TEMP", "TMP", "TMPDIR"} {
 		got, ok := envLookup(env, key)
 		if !ok {
 			t.Fatalf("%s missing from plugin env", key)

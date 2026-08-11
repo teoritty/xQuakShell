@@ -30,6 +30,7 @@ var blockedPluginEnvKeys = map[string]struct{}{
 	"LOCALAPPDATA":     {},
 	"TEMP":             {},
 	"TMP":              {},
+	"TMPDIR":           {},
 	"USER":             {},
 	"USERNAME":         {},
 	"LOGNAME":          {},
@@ -57,8 +58,12 @@ func PluginProcessEnv(instanceDataDir, pluginID, sessionID string) []string {
 		env = append(env, "XQS_PLUGIN_SESSION_ID="+sessionID)
 	}
 
+	// TEMP and TMP are what Windows reads; TMPDIR is what everything else does, including Go's own
+	// os.TempDir. Setting only the first two left every Unix plugin writing to /tmp — harmless
+	// while nothing confined it, and a denied write the moment Landlock did, because the sandbox
+	// grants the plugin's own temp directory and not the shared one.
 	tempDir := PluginInstanceTempDir(instanceDataDir)
-	env = append(env, "TEMP="+tempDir, "TMP="+tempDir)
+	env = append(env, "TEMP="+tempDir, "TMP="+tempDir, "TMPDIR="+tempDir)
 
 	for _, entry := range os.Environ() {
 		key, val, ok := strings.Cut(entry, "=")
