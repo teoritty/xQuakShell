@@ -27,6 +27,18 @@ import (
 // else is built.
 const FlagShim = "--plugin-sandbox"
 
+// ShimFailurePrefix marks the one line the shim writes before giving up.
+//
+// A plugin that dies inside the shim closes its stdout and the host sees "initialize: EOF", which
+// says nothing about why. The reason is on stderr, and plugin stderr is published to the log hub
+// rather than to slog — invisible in a test run and in CI, which is exactly where a sandbox that
+// refuses to apply needs to be visible. The prefix lets the host lift that one line out.
+//
+// A plugin could print this prefix itself. That costs nothing: the line is still redacted, still
+// attributed to that plugin, and a plugin that wants to write a misleading log line has simpler
+// ways.
+const ShimFailurePrefix = "plugin sandbox: "
+
 const (
 	flagDataRoot = "--sandbox-data-root="
 	flagAllowRW  = "--sandbox-allow-rw="

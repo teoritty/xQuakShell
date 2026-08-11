@@ -167,7 +167,10 @@ func (r *ruleset) allow(path string, access uint64) error {
 		// kernel refuses outright; both sides are derived from the same ABI, so it never actually
 		// removes anything.
 		Allowed_access: allowed,
-		Parent_fd:      int32(fd),
+		// #nosec G115 -- the kernel's own type for a descriptor here is __s32, and unix.Open has
+		// just returned this one: a Linux fd is a small non-negative int bounded by RLIMIT_NOFILE,
+		// orders of magnitude below where an int32 stops holding it.
+		Parent_fd: int32(fd),
 	}
 	if _, _, errno := unix.Syscall6(unix.SYS_LANDLOCK_ADD_RULE, uintptr(r.fd),
 		unix.LANDLOCK_RULE_PATH_BENEATH, uintptr(unsafe.Pointer(&attr)), 0, 0, 0); errno != 0 {

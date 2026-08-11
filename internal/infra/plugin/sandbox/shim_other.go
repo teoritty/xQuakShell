@@ -14,6 +14,6 @@ import (
 // shim — and the flag arriving anyway means something is wrong rather than that a plugin should be
 // launched unconfined. Exiting is the same refusal the Linux shim makes for the same reason.
 func RunShim(_ []string) {
-	fmt.Fprintln(os.Stderr, "plugin sandbox: this build has no sandbox shim")
+	fmt.Fprintln(os.Stderr, ShimFailurePrefix+"this build has no sandbox shim")
 	os.Exit(1)
 }

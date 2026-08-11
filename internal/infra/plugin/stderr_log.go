@@ -5,9 +5,11 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 
 	domainplugin "xquakshell/internal/domain/plugin"
 	"xquakshell/internal/infra/loghub"
+	"xquakshell/internal/infra/plugin/sandbox"
 	"xquakshell/internal/pkg/safego"
 )
 
@@ -71,4 +73,14 @@ func (rs *redactingStderrWriter) logLine(line string) {
 	// extra slog.Info produced a duplicate entry in the hub.
 	message, redacted := domainplugin.RedactLogMessage(line)
 	loghub.PublishPluginStderr(rs.pluginID, message, redacted)
+
+	// The sandbox shim's refusal is the one line here that is not plugin output: it is this
+	// application explaining why it would not start the plugin, and it arrives on the same pipe
+	// only because the shim becomes the plugin. Publishing it to the hub alone hides it from every
+	// log a developer or a CI run actually reads, which turns "the plugin will not start" into a
+	// bare "initialize: EOF" with no cause attached. It goes to slog as well.
+	if strings.HasPrefix(message, sandbox.ShimFailurePrefix) {
+		slog.Warn("plugin sandbox refused to start a plugin",
+			"component", "plugin.stderr", "pluginId", rs.pluginID, "detail", message)
+	}
 }
