@@ -270,7 +270,10 @@ Embed sessions serve plugin `ui/` assets and WebSocket tunnels through a **core-
 | WS hijacking | Token required at tunnel upgrade |
 | Memory exhaustion | 64 KiB max frame; 32 MiB/s default bandwidth; inactive tab backpressure |
 
-Mode B (`localEmbedServer`) is opt-in with install consent and loopback-only binding. See [adr/008-session-embed-surfaces.md](adr/008-session-embed-surfaces.md).
+Mode B (`localEmbedServer`), which let a plugin bind its own loopback HTTP port, has been removed
+(`session` capability 2.0.0). The broker above is the only embed path, so a plugin process opens no
+listening socket at all — a precondition for the OS-level isolation work. See
+[adr/008-session-embed-surfaces.md](adr/008-session-embed-surfaces.md).
 
 Tunnel payload bytes are **not** audit-logged. Control events (`session.embed.register`, `session.embed.revoke`, auth failures) may be logged without secrets.
 

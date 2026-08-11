@@ -133,7 +133,6 @@ type PluginSettings struct {
 	TunnelProviderAccessGranted   map[string]bool `json:"tunnelProviderAccessGranted,omitempty"`
 	MultiSessionAccessGranted     map[string]bool `json:"multiSessionAccessGranted,omitempty"`
 	ArbitraryNetworkAccessGranted map[string]bool `json:"arbitraryNetworkAccessGranted,omitempty"`
-	LocalEmbedServerAccessGranted map[string]bool `json:"localEmbedServerAccessGranted,omitempty"`
 	Disabled                      map[string]bool `json:"disabled,omitempty"`
 }
 

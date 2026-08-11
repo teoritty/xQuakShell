@@ -12,6 +12,53 @@ The newest versioned heading is the release being prepared. Only the latest rele
 fixes, including security fixes, ship in a new release rather than as patches to an older one
 (see [SECURITY.md](SECURITY.md)).
 
+## [Unreleased]
+
+### Compatibility
+
+| Axis | Version |
+|---|---|
+| `pluginApi` | 1.0.0 (unchanged) |
+| Capabilities | `session` **2.0.0** · `network` 1.0.0 · `filesystem` 1.0.0 · `events` 1.0.0 · `vault` 1.0.0 · `auth` 1.0.0 · `tunnel` 1.0.0 · `channel` 1.0.0 · `discovery` 1.0.0 · `ui` 1.0.0 |
+| Manifest schema | `capabilities.session.localEmbedServer` removed |
+| `bundleFormat` | 1.0.0 (unchanged) |
+| Vault schema | 3 (unchanged) |
+| Audit schema | 1 (unchanged) |
+
+### BREAKING
+
+**The `session` capability is at 2.0.0, and every plugin that grants `capabilities.session` must
+declare it.** Capability versions are matched on the major, and a plugin that does not name a
+version inherits a baseline derived from its `pluginApi` major — which is still 1, so a manifest
+that grants `session` without saying otherwise now asks for `session 1.0.0` and is refused at the
+handshake. Add:
+
+```json
+"requires": { "pluginApi": "1.0.0", "capabilities": { "session": { "min": "2.0.0" } } }
+```
+
+**`capabilities.session.localEmbedServer` and the `session.reportLocalEmbed` RPC are removed.** This
+was ADR-008 Mode B: an opt-in loopback HTTP server inside the plugin process. It was the only path
+on which a plugin opened a listening socket of its own, and that is incompatible with the OS-level
+isolation being built — a sandbox cannot deny a plugin the network and simultaneously let it serve
+HTTP. Embed sessions use the host-side broker (Mode A), which is what every existing plugin already
+uses.
+
+The removed feature never functioned: `HandlePluginReportLocalEmbed` returned
+`ErrLocalEmbedNotSupported` unconditionally, so no plugin can have depended on working behaviour.
+The manifest field was accepted and the capability gate allowed the call; only the handler refused.
+
+`pluginApi` deliberately did **not** move. It versions the protocol envelope — framing, handshake,
+lifecycle, error space — none of which changed. Bumping it for a change inside one capability is the
+"formally incompatible, factually compatible" rejection ADR-012 exists to prevent, and it would have
+refused every plugin, including those that never touch embed.
+
+### Removed
+
+- `capabilities.session.localEmbedServer` manifest field, its `localEmbedServer` feature id, and the
+  `session.reportLocalEmbed` RPC together with the dead `localEmbedServerAccessGranted` vault
+  settings map, which nothing ever read or wrote.
+
 ## [1.0.0] — 2026-08-10
 
 ### Compatibility

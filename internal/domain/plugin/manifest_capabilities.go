@@ -95,9 +95,6 @@ func (m *Manifest) validateSessionCaps() error {
 	if s.Embed && s.AllowMultiSession {
 		return fmt.Errorf("%w: embed plugins may not use allowMultiSession", ErrInvalidManifest)
 	}
-	if s.LocalEmbedServer && !s.Embed {
-		return fmt.Errorf("%w: localEmbedServer requires embed", ErrInvalidManifest)
-	}
 	if s.RemoteFS && !s.Terminal && !s.Embed {
 		return fmt.Errorf("%w: remoteFs requires terminal or embed session surface", ErrInvalidManifest)
 	}
@@ -208,11 +205,6 @@ func (m *Manifest) SessionSurface() string {
 		return "terminal"
 	}
 	return ""
-}
-
-// RequiresLocalEmbedServerWarning reports whether install should warn about loopback HTTP.
-func (m *Manifest) RequiresLocalEmbedServerWarning() bool {
-	return m.Capabilities.Session != nil && m.Capabilities.Session.LocalEmbedServer
 }
 
 // EmbedEntryForProtocol returns the ui entry for a connection protocol (embed plugins only).
@@ -435,9 +427,6 @@ func (m *Manifest) PermissionSummary() []string {
 	}
 	if m.Capabilities.Session != nil && m.Capabilities.Session.Embed {
 		lines = append(lines, "Render session in embedded browser surface (embed)")
-	}
-	if m.RequiresLocalEmbedServerWarning() {
-		lines = append(lines, "Run local HTTP server for session UI (loopback only)")
 	}
 	if m.RequiresChannelExecConsent() {
 		lines = append(lines, "Run commands over your authenticated session (exec channel)")

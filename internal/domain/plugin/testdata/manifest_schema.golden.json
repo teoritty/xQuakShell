@@ -776,12 +776,6 @@
           "type": "bool"
         },
         {
-          "name": "LocalEmbedServer",
-          "json": "localEmbedServer",
-          "omitempty": true,
-          "type": "bool"
-        },
-        {
           "name": "RemoteFS",
           "json": "remoteFs",
           "omitempty": true,

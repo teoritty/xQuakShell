@@ -77,7 +77,7 @@
         "scriptCodeLines": 304
       },
       "internal/domain/plugin/manifest_capabilities.go": {
-        "codeLines": 413
+        "codeLines": 404
       },
       "internal/infra/sftp/remote_fs.go": {
         "codeLines": 468

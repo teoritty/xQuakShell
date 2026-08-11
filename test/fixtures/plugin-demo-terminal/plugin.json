@@ -10,6 +10,12 @@
   "activationEvents": [
     "onProtocol:demo-terminal"
   ],
+  "requires": {
+    "pluginApi": "1.0.0",
+    "capabilities": {
+      "session": { "min": "2.0.0" }
+    }
+  },
   "capabilities": {
     "session": {
       "terminal": true,

@@ -101,7 +101,3 @@ func (m *SessionManager) HandlePluginTunnelFrame(ctx context.Context, pluginID, 
 func (m *SessionManager) HandlePluginTunnelClose(ctx context.Context, pluginID, sessionID, tunnelID string) error {
 	return m.embed.HandlePluginTunnelClose(ctx, pluginID, sessionID, tunnelID)
 }
-
-func (m *SessionManager) HandlePluginReportLocalEmbed(ctx context.Context, pluginID, sessionID string, raw json.RawMessage) error {
-	return m.embed.HandlePluginReportLocalEmbed(ctx, pluginID, sessionID, raw)
-}

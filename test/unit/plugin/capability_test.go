@@ -32,6 +32,41 @@ func TestGateDeniesFSWithoutCapability(t *testing.T) {
 	}
 }
 
+// TestGateStillRequiresEmbedForTheSurvivingEmbedVerbs pins the neighbours of a removed case.
+//
+// session.reportLocalEmbed sat directly above these in the gate's switch and was deleted with Mode
+// B. Deleting an arm of a switch is the kind of edit that takes the arm below it with it, or merges
+// two conditions into one that is weaker than either — and the result would be an embed verb that
+// authorises without the embed capability. Nothing else asserts these four.
+func TestGateStillRequiresEmbedForTheSurvivingEmbedVerbs(t *testing.T) {
+	withoutEmbed := newGate(t, domainplugin.Manifest{
+		Capabilities: domainplugin.CapabilitySet{
+			Session: &domainplugin.SessionCaps{Terminal: true},
+		},
+	})
+	withEmbed := newGate(t, domainplugin.Manifest{
+		Capabilities: domainplugin.CapabilitySet{
+			Session: &domainplugin.SessionCaps{Embed: true, ConnectProtocols: []string{"demo"}},
+		},
+	})
+
+	for _, method := range []string{
+		"session.registerEmbed", "session.tunnelOpen", "session.tunnelFrame", "session.tunnelClose",
+	} {
+		if withoutEmbed.Allow(method) {
+			t.Errorf("%s allowed without capabilities.session.embed", method)
+		}
+		if !withEmbed.Allow(method) {
+			t.Errorf("%s denied to a plugin that declares embed", method)
+		}
+	}
+
+	// The verb itself is gone: no manifest can bring it back.
+	if withEmbed.Allow("session.reportLocalEmbed") {
+		t.Error("session.reportLocalEmbed is still allowed; the removed verb must not be reachable")
+	}
+}
+
 func TestFSProxyAllowsPluginDataOnly(t *testing.T) {
 	dataDir := t.TempDir()
 	vaultFile := filepath.Join(t.TempDir(), "vault.age")

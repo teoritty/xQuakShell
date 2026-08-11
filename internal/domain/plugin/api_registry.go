@@ -11,6 +11,13 @@ import (
 // regardless of which capabilities it uses, and it moves rarely and strictly by semver
 // (major = breaking, minor = additive-only). It replaces the former, unenforced
 // coreAPIVersion. Do NOT bump this without an ADR update and a golden-surface review.
+//
+// Removing the session capability's localEmbedServer feature did NOT move this number, and the
+// distinction is the entire point of ADR-012: a feature lives inside a capability, capabilities
+// version independently, and bumping the envelope for a change to one of them is the "formally
+// incompatible, factually compatible" failure that scheme exists to prevent. It would have rejected
+// every plugin at the handshake, including the ones that never touched embed at all. The session
+// capability carries that break instead — see hostRegistry.
 const PluginAPIVersion = "1.0.0"
 
 // CapabilityID is the stable identifier of a plugin capability — the CapabilitySet JSON key
@@ -55,11 +62,10 @@ const (
 	FeatVaultGetConnection FeatureID = "getConnection"
 	FeatVaultGetSecret     FeatureID = "getSecret"
 
-	FeatSessionEmbed            FeatureID = "embed"
-	FeatSessionLocalEmbedServer FeatureID = "localEmbedServer"
-	FeatSessionTerminal         FeatureID = "terminal"
-	FeatSessionTunnel           FeatureID = "tunnel"
-	FeatSessionUpdateState      FeatureID = "updateState"
+	FeatSessionEmbed       FeatureID = "embed"
+	FeatSessionTerminal    FeatureID = "terminal"
+	FeatSessionTunnel      FeatureID = "tunnel"
+	FeatSessionUpdateState FeatureID = "updateState"
 
 	FeatAuthProvider FeatureID = "provider"
 
@@ -134,14 +140,18 @@ func NewRegistry(caps map[CapabilityID]CapabilityDescriptor) Registry {
 }
 
 // hostRegistry is the authoritative host contract at this build, built once and never mutated.
-// Every capability starts at 1.0.0 for the release freeze with an explicit feature list mirroring
+// Every capability started at 1.0.0 for the release freeze with an explicit feature list mirroring
 // the gate's method map.
+//
+// session is at 2.0.0 because localEmbedServer was removed from it. A removed feature is breaking
+// (ADR-017), and this is the axis that carries it: a plugin declaring only filesystem or channel
+// capabilities is unaffected, which is what independent capability versions are for.
 var hostRegistry = NewRegistry(map[CapabilityID]CapabilityDescriptor{
 	CapNetwork:    {Version: "1.0.0", Features: []FeatureID{FeatNetworkDial}},
 	CapFilesystem: {Version: "1.0.0", Features: []FeatureID{FeatFilesystemRead, FeatFilesystemWrite}},
 	CapEvents:     {Version: "1.0.0", Features: []FeatureID{FeatEventsPublish, FeatEventsSubscribe}},
 	CapVault:      {Version: "1.0.0", Features: []FeatureID{FeatVaultGetConnection, FeatVaultGetSecret}},
-	CapSession:    {Version: "1.0.0", Features: []FeatureID{FeatSessionEmbed, FeatSessionLocalEmbedServer, FeatSessionTerminal, FeatSessionTunnel, FeatSessionUpdateState}},
+	CapSession:    {Version: "2.0.0", Features: []FeatureID{FeatSessionEmbed, FeatSessionTerminal, FeatSessionTunnel, FeatSessionUpdateState}},
 	CapAuth:       {Version: "1.0.0", Features: []FeatureID{FeatAuthProvider}},
 	CapTunnel:     {Version: "1.0.0", Features: []FeatureID{FeatTunnelBind, FeatTunnelDial}},
 	CapChannel:    {Version: "1.0.0", Features: []FeatureID{FeatChannelOpen}},

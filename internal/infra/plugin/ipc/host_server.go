@@ -141,7 +141,7 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 	// surface.open names a parentSessionId, and "does this plugin hold that session" is a usecase
 	// decision. The later verbs name a surfaceId instead, but routing them anywhere else would put
 	// one verb family behind two dispatchers.
-	case "session.updateState", "session.writeTerminal", "session.registerEmbed", "session.tunnelOpen", "session.tunnelFrame", "session.tunnelClose", "session.reportLocalEmbed", "discovery.publish",
+	case "session.updateState", "session.writeTerminal", "session.registerEmbed", "session.tunnelOpen", "session.tunnelFrame", "session.tunnelClose", "discovery.publish",
 		"surface.open", "surface.write", "surface.updateState", "surface.setTitle", "surface.close",
 		"dialog.open", "dialog.setError", "dialog.close", "discovery.publishDetails":
 		if s.sessions == nil {
