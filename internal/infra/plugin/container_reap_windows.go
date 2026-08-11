@@ -4,10 +4,18 @@ package plugin
 
 import (
 	"log/slog"
+	"sync"
 
 	domainplugin "xquakshell/internal/domain/plugin"
 	"xquakshell/internal/infra/plugin/sandbox"
 )
+
+// sweepOnce keeps the sweep to one pass per process.
+//
+// It is startup housekeeping, and NewProcessHost is not startup: a test suite builds dozens of
+// hosts, and each one re-enumerating and re-deleting the same registry keys is both wasted work and
+// a way for two hosts in the same run to trip over each other's profiles.
+var sweepOnce sync.Once
 
 // SweepOrphanContainers deletes every AppContainer profile this application created and did not
 // clean up.
@@ -20,13 +28,19 @@ import (
 //
 // "None of ours can be in use" is true for this process and assumes the user is not running a
 // second copy of the application. If they are, its plugins keep working: deleting a profile does
-// not revoke a running process's token, and the temp directory the plugin actually uses lives under
-// its own instance directory rather than under the profile. What that copy loses is the Packages
-// folder Windows created for it, which nothing here reads.
+// not revoke a running process's token, its ACEs name a SID derived from the name rather than from
+// the profile, and the temp directory the plugin actually uses lives under its own instance
+// directory. What that copy loses is the Packages folder Windows created for it, which nothing here
+// reads. The one interaction that could have failed a start — a delete landing between another
+// instance's create and its spawn — is handled where it belongs, in CreateContainer.
 //
 // Failures are logged and not returned. This is housekeeping; a profile that will not delete is not
 // a reason to refuse to start.
 func SweepOrphanContainers() {
+	sweepOnce.Do(sweepOrphanContainers)
+}
+
+func sweepOrphanContainers() {
 	if !sandbox.Support().Available {
 		return
 	}

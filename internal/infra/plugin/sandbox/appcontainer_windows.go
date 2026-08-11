@@ -78,6 +78,18 @@ func CreateContainer(name, displayName, description string) (*Container, error) 
 		return nil, err
 	}
 
+	// Twice, because a profile is shared mutable state in the user's registry and another copy of
+	// this application sweeping orphans at ITS startup can delete one between the two halves of
+	// this call. Both halves are idempotent — creating adopts, adopting recreates — so a second
+	// attempt resolves the only interleaving that can fail, and a second failure is a real one.
+	container, err := createOrOpenContainer(name, namePtr, displayPtr, descPtr)
+	if err != nil {
+		return createOrOpenContainer(name, namePtr, displayPtr, descPtr)
+	}
+	return container, nil
+}
+
+func createOrOpenContainer(name string, namePtr, displayPtr, descPtr *uint16) (*Container, error) {
 	var raw *windows.SID
 	hr, _, _ := procCreateAppContainer.Call(
 		uintptr(unsafe.Pointer(namePtr)), uintptr(unsafe.Pointer(displayPtr)),
