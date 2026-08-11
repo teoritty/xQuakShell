@@ -11,7 +11,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"log"
 	"net"
 	"os"
@@ -28,12 +27,19 @@ type probeRequest struct {
 	DialAddr string `json:"dialAddr"`
 }
 
-// probeResult reports one attempt. Denied is the answer the test cares about; Err carries the
-// detail, because "it failed" and "it failed for the reason the sandbox exists" are different
-// results and a test that cannot tell them apart passes for the wrong reason.
+// probeResult reports one attempt.
+//
+// Succeeded is what the tests assert on, rather than "was this a permission error", because a
+// sandbox does not owe anyone a tidy errno. A Windows AppContainer drops a loopback connection and
+// the caller sees a timeout; Landlock returns EACCES; a denied read returns a permission error on
+// both. Insisting on the tidy shape made a genuinely blocked socket read as "not denied".
+//
+// Err carries the detail anyway, because a failure message that only says "it did not succeed"
+// cannot distinguish a boundary that held from a path with a typo in it. What guards against the
+// typo is the unconfined control run, which requires every one of these to succeed.
 type probeResult struct {
 	Attempted bool   `json:"attempted"`
-	Denied    bool   `json:"denied"`
+	Succeeded bool   `json:"succeeded"`
 	Err       string `json:"err,omitempty"`
 }
 
@@ -59,22 +65,15 @@ func probe(req probeRequest) probeReport {
 	}
 }
 
-// attempt runs one probe and classifies the outcome. A permission error is the sandbox working; any
-// other error is reported as not-denied with the detail attached, so a test cannot mistake a typo
-// in a path for a boundary that held.
+// attempt runs one probe and reports whether it got through.
 func attempt(target string, do func() error) probeResult {
 	if target == "" {
 		return probeResult{}
 	}
-	err := do()
-	switch {
-	case err == nil:
-		return probeResult{Attempted: true}
-	case errors.Is(err, os.ErrPermission):
-		return probeResult{Attempted: true, Denied: true, Err: err.Error()}
-	default:
+	if err := do(); err != nil {
 		return probeResult{Attempted: true, Err: err.Error()}
 	}
+	return probeResult{Attempted: true, Succeeded: true}
 }
 
 // main speaks the plugin protocol, except when the test runs it directly with a request on argv.

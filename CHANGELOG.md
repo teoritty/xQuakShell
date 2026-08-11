@@ -55,19 +55,26 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
 
 ### Added
 
-- **Plugin processes are confined by the kernel on Linux.** A plugin now runs inside a Landlock
-  ruleset that grants it read and execute on its own installed files, read and write on its own
-  instance data directory, and read on the system libraries a dynamically linked binary needs.
-  Everything else — your SSH keys, the vault, another plugin's directory, another session's
-  directory — is denied by the kernel rather than by the plugin's good behaviour.
+- **Plugin processes are confined by the operating system on Windows and Linux.** A plugin now runs
+  inside a Windows AppContainer or a Linux Landlock ruleset that grants it read and execute on its
+  own installed files, read and write on its own instance data directory, and nothing else. Your
+  SSH keys, the vault, another plugin's directory and another session's directory are denied by the
+  OS rather than by the plugin's good behaviour.
 
-  Each plugin's settings row says which boundary its running processes are actually behind. Linux
-  reports **sandboxed (files only)**, and that wording is deliberate: Landlock's network rules cover
-  TCP only, and only on kernel 6.7 and newer, so a confined plugin can still open a UDP socket.
-  Windows and macOS still report **not sandboxed** and say why.
+  Each plugin's settings row says which boundary its running processes are actually behind, and the
+  two platforms do not get the same words:
 
-  Requires kernel 5.13 or newer with Landlock enabled. Without it a plugin starts exactly as before
-  and the row says so — an older kernel is not an error.
+  - **Windows** reports **sandboxed**. An AppContainer is granted no network capability, so the
+    plugin has no sockets at all — not outbound, not inbound, not even loopback.
+  - **Linux** reports **sandboxed (files only)**. Landlock's network rules cover TCP only, and only
+    on kernel 6.7 and newer, so a confined plugin can still open a UDP socket. The filesystem side
+    is complete.
+  - **macOS** still reports **not sandboxed**, and says why.
+
+  Linux needs kernel 5.13 or newer with Landlock enabled; Windows needs the AppContainer profile
+  API, which is present on every supported build and needs no administrator rights. Where the
+  platform cannot confine a plugin it starts exactly as before and the row says so — that is not an
+  error.
 
   A plugin that reads or writes outside its own directories will now fail where it used to succeed.
   None of the published plugins do; the host performs every network and filesystem operation on a

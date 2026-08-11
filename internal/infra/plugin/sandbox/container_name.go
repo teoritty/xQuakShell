@@ -5,6 +5,11 @@ import (
 	"encoding/hex"
 )
 
+// ContainerNamePrefix marks a profile as this application's. The orphan sweep deletes profiles by
+// name, so it needs a way to be certain it is only ever deleting ours: without a prefix the sweep
+// would be matching a bare hex string and one day it would match somebody else's.
+const ContainerNamePrefix = "xqs"
+
 // containerNameHexDigits is how much of the digest the name carries. An AppContainer profile name is
 // length- and charset-limited, and 128 bits is far past the point where a birthday collision is a
 // thing that happens: an installation would need on the order of 2^64 distinct plugin instances
@@ -26,8 +31,7 @@ const containerNameHexDigits = 32
 // see PluginInstanceKey, which length-prefixes its parts for exactly that reason.
 func ContainerName(identity string) string {
 	sum := sha256.Sum256([]byte(identity))
-	// A leading letter, because a name is also a registry key and a directory under Packages, and a
-	// purely numeric first character is the kind of thing some Windows API objects to at the worst
-	// possible moment. It costs one character of a name that has room to spare.
-	return "x" + hex.EncodeToString(sum[:])[:containerNameHexDigits]
+	// The prefix also gives the name a leading letter, which a registry key and a directory under
+	// Packages both prefer over a digit.
+	return ContainerNamePrefix + hex.EncodeToString(sum[:])[:containerNameHexDigits]
 }

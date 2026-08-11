@@ -114,8 +114,14 @@ func TestContainerNameIsStableAndFitsAProfileName(t *testing.T) {
 		t.Fatalf("ContainerName is not deterministic: %q then %q; the profile created at start "+
 			"could not be found again at teardown", first, second)
 	}
-	if len(first) != 33 {
-		t.Errorf("ContainerName(%q) = %q, length %d, want 33", identity, first, len(first))
+	if len(first) != 35 {
+		t.Errorf("ContainerName(%q) = %q, length %d, want 35 (a 3-character prefix and 32 hex "+
+			"digits), well inside the profile-name limit", identity, first, len(first))
+	}
+	if !strings.HasPrefix(first, sandbox.ContainerNamePrefix) {
+		t.Errorf("ContainerName(%q) = %q, want the %q prefix; the orphan sweep deletes by name and "+
+			"must never match a profile this application did not create",
+			identity, first, sandbox.ContainerNamePrefix)
 	}
 	for i, r := range first {
 		digit := r >= '0' && r <= '9'

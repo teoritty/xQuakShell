@@ -12,7 +12,6 @@ import (
 	"xquakshell/internal/infra/plugin/ipc"
 )
 
-
 // notifyingBackend raises a terminal close the way a real backend does: from Wire, naming the id
 // it was wired with. Nothing about it is a fake notifier — the func it calls is whatever the
 // composition root handed the attach seam.
@@ -132,8 +131,8 @@ func TestNewConnDeliversBackendCloseToThePluginConn(t *testing.T) {
 	// The pipe is synchronous: the host's write blocks until the plugin reads, so the reader must
 	// be running before anything raises the close.
 	type got struct {
-		id               uint32
-		reason, message  string
+		id              uint32
+		reason, message string
 	}
 	received := make(chan got, 1)
 	go func() {

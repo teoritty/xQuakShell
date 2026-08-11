@@ -5,8 +5,8 @@ package plugin
 import (
 	"fmt"
 
-	domainplugin "xquakshell/internal/domain/plugin"
 	"golang.org/x/sys/unix"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func applyPluginResourceLimits(pid int, _ pluginJob) error {

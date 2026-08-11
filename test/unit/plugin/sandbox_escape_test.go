@@ -28,7 +28,7 @@ type probeReport struct {
 
 type probeOutcome struct {
 	Attempted bool   `json:"attempted"`
-	Denied    bool   `json:"denied"`
+	Succeeded bool   `json:"succeeded"`
 	Err       string `json:"err,omitempty"`
 }
 
@@ -68,7 +68,7 @@ func TestAnUnconfinedEscapeProbeReachesEverythingItTries(t *testing.T) {
 		if !outcome.Attempted {
 			t.Errorf("%s was not attempted; the probe is not probing what the confined tests assume", name)
 		}
-		if outcome.Denied || outcome.Err != "" {
+		if !outcome.Succeeded {
 			t.Errorf("unconfined %s failed (%s); the confined tests below would pass whether or not "+
 				"a sandbox existed", name, outcome.Err)
 		}
@@ -92,17 +92,17 @@ func TestAConfinedPluginCannotReachOutsideItsOwnDirectories(t *testing.T) {
 	defer func() { _ = listener.Close() }()
 	report := runProbe(ctx, t, host, "sess-a", targets)
 
-	if !report.Read.Denied {
-		t.Errorf("the plugin read %s (err %q); a confined plugin must not reach a file outside "+
-			"its own directories", targets.ReadPath, report.Read.Err)
+	if report.Read.Succeeded {
+		t.Errorf("the plugin read %s; a confined plugin must not reach a file outside its own "+
+			"directories", targets.ReadPath)
 	}
-	if !report.Write.Denied {
-		t.Errorf("the plugin wrote into %s (err %q)", targets.WriteDir, report.Write.Err)
+	if report.Write.Succeeded {
+		t.Errorf("the plugin wrote into %s", targets.WriteDir)
 	}
 	// The network is reported separately because the platform delivers it separately: a kernel
 	// below Landlock ABI 4 has no network rules at all, and enforced-partial is exactly that
 	// admission. Asserting denial unconditionally would fail on a machine the code is honest about.
-	if support.Network && !report.Dial.Denied {
+	if support.Network && report.Dial.Succeeded {
 		t.Errorf("the plugin connected to %s; this platform reports network confinement", targets.DialAddr)
 	}
 }
@@ -133,12 +133,12 @@ func TestOneSessionOfAPluginCannotReadAnothersInstanceDirectory(t *testing.T) {
 	}
 
 	report := runProbe(ctx, t, host, "sess-a", escapeTargets{ReadPath: secret, WriteDir: otherDir})
-	if !report.Read.Denied {
-		t.Errorf("session a read %s (err %q); granting the plugin's base directory instead of its "+
-			"instance directory is what this catches", secret, report.Read.Err)
+	if report.Read.Succeeded {
+		t.Errorf("session a read %s; granting the plugin's base directory instead of its instance "+
+			"directory is what this catches", secret)
 	}
-	if !report.Write.Denied {
-		t.Errorf("session a wrote into session b's directory %s (err %q)", otherDir, report.Write.Err)
+	if report.Write.Succeeded {
+		t.Errorf("session a wrote into session b's directory %s", otherDir)
 	}
 }
 

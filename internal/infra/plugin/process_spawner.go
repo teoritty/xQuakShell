@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os/exec"
 
 	domainplugin "xquakshell/internal/domain/plugin"
 )
@@ -46,72 +45,35 @@ func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, se
 	if err := EnsureEntryExecutable(entryPath); err != nil {
 		return nil, "", err
 	}
-	// What actually gets exec'd is the plugin binary on a platform that cannot confine it, and this
-	// binary re-invoked as the sandbox shim on one that can. Both are an ordinary child: the shim
-	// is a process that narrows itself and then becomes the plugin, so the pid, the pipes and
-	// everything keyed by them belong to the plugin by the time anything downstream looks.
-	target, err := resolveSpawnTarget(dataRoot, plugin, entryPath, instanceDataDir)
+	// How the process is created is the platform's business from here. On Linux it is an ordinary
+	// exec of the sandbox shim, which narrows itself and becomes the plugin; on Windows with an
+	// AppContainer it is a hand-built CreateProcessW, because os/exec cannot pass the security
+	// capabilities that make a container a container. Everything downstream — the pid, the pipes,
+	// the reaper, the job — is the same either way, which is what the childProcess seam is for.
+	stderrLog := NewRedactingStderrWriter(plugin.Manifest.ID)
+	started, err := startPluginChild(childRequest{
+		dataRoot:        dataRoot,
+		plugin:          plugin,
+		sessionID:       sessionID,
+		entryPath:       entryPath,
+		instanceDataDir: instanceDataDir,
+		env:             PluginProcessEnv(instanceDataDir, plugin.Manifest.ID, sessionID),
+		stderr:          stderrLog,
+	})
 	if err != nil {
+		_ = stderrLog.Close()
 		return nil, "", err
 	}
-	// The child process is deliberately NOT tied to the caller's context. exec.CommandContext makes
-	// the passed context own the LIFETIME of the child: cancelling it kills the process. Every caller
-	// of Start passes a short-lived request context (a WithTimeout with a `defer cancel()`), so a
-	// plugin used to die the moment the call that started it returned — including a supervisor
-	// restart, which cancelled on its own success path. A plugin process outlives the operation that
-	// started it by definition; only Stop/StopAll/crash teardown may end it.
-	//
-	// The caller's context still bounds the START OPERATION — initializePluginProcess(ctx, …) in
-	// Start keeps using it for the handshake, and a cancellation there fails the start, whose deferred
-	// teardown kills the process explicitly via closeResources(true).
-	//
-	// procCancel is handed to the owner (managedProcess) and fired from closeResources so the
-	// context and its watchdog goroutine are released when the process is gone.
-	procCtx, procCancel := context.WithCancel(context.Background())
 
-	// #nosec G204 -- launching a plugin binary is this package's entire purpose. The target is
-	// either an entry path resolved from the plugin directory and checksum-verified at install
-	// time, or this binary itself with arguments this package built; there is no shell, so neither
-	// can expand into another command.
-	cmd := exec.CommandContext(procCtx, target.path, target.args...)
-	cmd.Env = PluginProcessEnv(instanceDataDir, plugin.Manifest.ID, sessionID)
-	stderrLog := NewRedactingStderrWriter(plugin.Manifest.ID)
-	cmd.Stderr = stderrLog
-	if err := configurePluginCmd(cmd); err != nil {
-		procCancel()
-		_ = stderrLog.Close()
-		return nil, "", fmt.Errorf("configure plugin process: %w", err)
-	}
-
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		procCancel()
-		_ = stderrLog.Close()
-		return nil, "", fmt.Errorf("plugin stdin pipe: %w", err)
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		procCancel()
-		_ = stderrLog.Close()
-		return nil, "", fmt.Errorf("plugin stdout pipe: %w", err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		procCancel()
-		_ = stderrLog.Close()
-		return nil, "", fmt.Errorf("start plugin %s: %w", plugin.Manifest.ID, err)
-	}
-
-	child := newExecChild(cmd)
-	reaper := newProcessReaper(child)
+	reaper := newProcessReaper(started.child)
 	reaper.Start()
 	return &spawnedProcess{
-		child:  child,
-		cancel: procCancel,
+		child:  started.child,
+		cancel: started.cancel,
 		reaper: reaper,
 		stderr: stderrLog,
-		stdin:  stdin,
-		stdout: stdout,
+		stdin:  started.stdin,
+		stdout: started.stdout,
 	}, instanceDataDir, nil
 }
 

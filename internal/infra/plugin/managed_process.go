@@ -64,6 +64,10 @@ func (mp *managedProcess) closeResources(killProcess bool) {
 			mp.cancel()
 		}
 		closePluginJob(mp.job)
+		// Last, because the process must be gone first: on Windows this deletes the AppContainer
+		// profile the instance ran in, which is durable state in the user's registry and would
+		// otherwise accumulate one entry per session for the life of the installation.
+		releaseInstanceContainer(mp.plugin, mp.sessionID)
 	})
 }
 

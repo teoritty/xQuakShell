@@ -359,7 +359,7 @@ func fixturePID(t *testing.T, dataRoot string, plugin domainplugin.InstalledPlug
 	// confined plugin can write. Deriving the path here from the same helpers the host uses is
 	// what keeps the two ends agreeing when the layout moves.
 	instanceDir := PluginInstanceDataDir(dataRoot, plugin.Manifest.ID, "", plugin.Manifest.EffectiveIsolation())
-	pidPath := filepath.Join(PluginInstanceTempDir(instanceDir), "slow-start.pid")
+	pidPath := filepath.Join(PluginInstanceEffectiveTempDir(plugin, "", instanceDir), "slow-start.pid")
 
 	deadline := time.Now().Add(within)
 	for {
