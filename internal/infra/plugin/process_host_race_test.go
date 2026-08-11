@@ -162,7 +162,7 @@ func TestProcessHostStopDuringStarting(t *testing.T) {
 // TestStopDuringStartingLeavesNoLiveProcess is the same scenario as the test above, asked of the OS
 // instead of the host — and the two answers used to differ.
 //
-// Stop takes the reservation, sets ProcessStopping and then reads mp.cmd/mp.reaper, which are nil
+// Stop takes the reservation, sets ProcessStopping and then reads mp.child/mp.reaper, which are nil
 // until Start has spawned AND published. A Stop landing in that window therefore kills nothing,
 // while finalizeProcess drops mp from the registry and burns cleanupOnce, so the teardown can never
 // run again. For as long as the child was owned by the caller's context it died anyway — as a side

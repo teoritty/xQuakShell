@@ -2,23 +2,22 @@ package plugin
 
 import (
 	"context"
-	"os/exec"
 	"sync"
 
 	"xquakshell/internal/pkg/safego"
 )
 
-// processReaper owns the single (*exec.Cmd).Wait call for a plugin child process.
+// processReaper owns the single Wait call for a plugin child process.
 type processReaper struct {
-	cmd    *exec.Cmd
+	child  childProcess
 	exited chan struct{}
 	err    error
 	once   sync.Once
 }
 
-func newProcessReaper(cmd *exec.Cmd) *processReaper {
+func newProcessReaper(child childProcess) *processReaper {
 	return &processReaper{
-		cmd:    cmd,
+		child:  child,
 		exited: make(chan struct{}),
 	}
 }
@@ -31,7 +30,7 @@ func (r *processReaper) Start() {
 }
 
 func (r *processReaper) wait() {
-	r.err = r.cmd.Wait()
+	r.err = r.child.Wait()
 	close(r.exited)
 }
 
@@ -51,9 +50,7 @@ func (r *processReaper) Wait(ctx context.Context) error {
 // delivered, so this is reaping a process that is on its way out. Giving up
 // early would leave a zombie and a plugin the host believes is still running.
 func (r *processReaper) Kill() error {
-	if r.cmd.Process != nil {
-		killPluginProcess(r.cmd.Process.Pid)
-	}
+	killPluginProcess(r.child.Pid())
 	// Detached and unbounded, per the note above: the reap must finish.
 	return r.Wait(context.Background())
 }

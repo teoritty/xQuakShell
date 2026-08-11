@@ -3,7 +3,6 @@ package plugin
 import (
 	"context"
 	"io"
-	"os/exec"
 	"sync"
 
 	domainplugin "xquakshell/internal/domain/plugin"
@@ -15,7 +14,7 @@ type managedProcess struct {
 	key         string
 	plugin      domainplugin.InstalledPlugin
 	sessionID   string
-	cmd         *exec.Cmd
+	child       childProcess
 	cancel      context.CancelFunc
 	reaper      *processReaper
 	stderr      io.WriteCloser
@@ -53,9 +52,9 @@ func (mp *managedProcess) closeResources(killProcess bool) {
 		if mp.conn != nil {
 			mp.conn.Close()
 		}
-		if killProcess && mp.cmd != nil && mp.cmd.Process != nil && mp.reaper != nil {
+		if killProcess && mp.child != nil && mp.reaper != nil {
 			_ = mp.reaper.Kill()
-			untrackPluginPID(mp.cmd.Process.Pid)
+			untrackPluginPID(mp.child.Pid())
 		}
 		// The process context is cancelled unconditionally, after the kill rather than instead of it:
 		// killing is the reaper's job (it also waits), and this only releases the context and the
