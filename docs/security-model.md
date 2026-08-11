@@ -9,9 +9,8 @@ Read this section before the rest of the document, because it bounds everything 
 A plugin is a native executable the host starts as a child process. It runs **as the user who
 started xQuakShell, with that user's full token**. There is no OS-level sandbox: no AppContainer or
 restricted token on Windows, no seccomp, namespaces or Landlock on Linux, no `sandbox_init` on
-macOS. The per-plugin job object (Windows) and the rlimits (Linux) bound *resources* and process
-lifetime; the job's UI restrictions deny the shared USER surface. None of them confine the plugin's
-own filesystem or network syscalls.
+macOS. The per-plugin job object (Windows) and the rlimits (Linux, macOS, BSD) bound *resources* and
+process lifetime. None of them confine the plugin's own filesystem or network syscalls.
 
 What the capability system is: **a gate on the IPC boundary, plus install-time consent and an audit
 trail.** Every plugin→host call — `fs.*`, `net.dial`, `vault.getSecret`, `channel.open`, and the
@@ -115,7 +114,8 @@ Authorization for vault and session data is enforced in the **usecase** layer:
 
 ## Process resource limits
 
-- **Linux / macOS / BSD:** `RLIMIT_AS`, `RLIMIT_NOFILE`, best-effort `RLIMIT_NPROC` via `Prlimit` / `setrlimit` (128 MiB memory cap, same as Windows Job Object).
+- **Linux:** `RLIMIT_DATA` and `RLIMIT_NOFILE` via `Prlimit` (128 MiB memory cap, same as the Windows Job Object). Not `RLIMIT_AS`: it caps virtual address space, and the Go runtime reserves multi-GiB arenas at startup while touching a few MiB, so an AS cap kills a Go plugin before `main()`. `RLIMIT_NPROC` is deliberately not set either — Linux accounts it per-UID, so any small cap fails the plugin's first `clone()` because of processes it does not own.
+- **macOS / BSD:** `RLIMIT_AS`, `RLIMIT_NOFILE`, best-effort `RLIMIT_NPROC` via `Prlimit`.
 - **Windows:** per-process Job Object with `PROCESS_MEMORY` / `JOB_MEMORY` caps (128 MiB) and kill-on-close.
 - Exactly one goroutine calls `cmd.Wait()` per plugin child (`processReaper`).
 
