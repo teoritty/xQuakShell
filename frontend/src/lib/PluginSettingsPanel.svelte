@@ -97,7 +97,7 @@
 
   let errorMessage = '';
 
-  let pluginSettings: PluginSettings = { trustedPublisherKeys: [], requireSignedPlugins: false };
+  let pluginSettings: PluginSettings = { trustedPublisherKeys: [], requireSignedPlugins: false, allowUnsandboxedFallback: false };
 
   let newTrustedKey = '';
 

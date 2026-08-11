@@ -231,8 +231,8 @@
         "nesting": 1
       },
       "internal/infra/plugin/process_host_start.go::ProcessHost.Start": {
-        "codeLines": 91,
-        "params": 3,
+        "codeLines": 87,
+        "params": 4,
         "nesting": 2
       },
       "internal/infra/plugin/process_initializer.go::initializePluginProcess": {

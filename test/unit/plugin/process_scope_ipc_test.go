@@ -24,7 +24,7 @@ type scopedNotifyCall struct {
 	method    string
 }
 
-func (h *scopedNotifyHost) Start(context.Context, domainplugin.InstalledPlugin, string) error {
+func (h *scopedNotifyHost) Start(context.Context, domainplugin.InstalledPlugin, string, domainplugin.SandboxPolicy) error {
 	h.state = domainplugin.ProcessRunning
 	return nil
 }
@@ -253,7 +253,7 @@ type multiInstanceHost struct {
 	stopCount int
 }
 
-func (h *multiInstanceHost) Start(context.Context, domainplugin.InstalledPlugin, string) error {
+func (h *multiInstanceHost) Start(context.Context, domainplugin.InstalledPlugin, string, domainplugin.SandboxPolicy) error {
 	return nil
 }
 

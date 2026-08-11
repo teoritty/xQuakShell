@@ -35,7 +35,7 @@ Most SSH clients force a choice: either you get a polished terminal with no real
 xQuakShell doesn't make you choose:
 
 - **Portable by design.** No installer, no registry, no system-wide state. The vault, audit log, and every installed plugin live next to the executable file. Copy the folder to a USB stick and your whole setup — connections, keys, plugins — moves with it.
-- **A plugin system that tells you what it grants.** Every plugin is a separate OS process, resource-limited (Job Objects on Windows, rlimits on Linux/macOS), talking to the core only through a capability-gated JSON-RPC channel: a plugin declares in its manifest exactly which files, hosts, and vault fields it needs, calls outside that are refused and audit-logged, and the install screen shows you the list before you agree to it. That gate covers what a plugin asks the core to do — it is not an OS sandbox, and a plugin still runs with your privileges, so installing one is a decision about its author. The [Security Model](./docs/security-model.md) states the boundary and its limits precisely.
+- **A plugin system that tells you what it grants.** Every plugin is a separate OS process, resource-limited (Job Objects on Windows, rlimits on Linux/macOS), talking to the core only through a capability-gated JSON-RPC channel: a plugin declares in its manifest exactly which files, hosts, and vault fields it needs, calls outside that are refused and audit-logged, and the install screen shows you the list before you agree to it. On Windows and Linux the operating system confines the process itself as well — an AppContainer or a Landlock ruleset that leaves it reaching nothing but its own directories — and each plugin's settings row says which boundary it is actually behind. macOS has no such confinement, so installing a plugin there is a decision about its author. The [Security Model](./docs/security-model.md) states the boundary and its gaps precisely.
 - **Protocols are contributions, not core features.** SSH ships in the core. Everything else — VNC, Telnet, RDP, Discovery plugins, whatever you need next — is a `SessionConnector` implementation registered through a plugin manifest. You're not waiting on a roadmap to add a protocol; you can build it.
 - **Nothing silently trusts the network.** Strict host-key verification with no auto-accept, an encrypted vault (age + scrypt) instead of plaintext config, and a local audit log that records actions without ever recording secrets.
 
@@ -181,12 +181,20 @@ The plugin boundary is enforced at several layers, not just "trust the manifest"
 | **Ownership checks (IDOR)** | Vault and session access is scoped to the plugin that owns the active session — a plugin can't reach another plugin's or another session's data. |
 | **Secrets** | Vault contents are encrypted at rest (age + scrypt); secret field values never round-trip to plugin logs, audit logs, or the frontend after save. |
 
-**What this table is not.** Every row above governs what a plugin asks the core to do. None of them
-is an OS sandbox: a plugin process runs under your account with your token, so it can reach your
-files and the network directly, whatever its manifest says. Installing a plugin is a decision about
-trusting its author, the same as running any other program. OS-level isolation (AppContainer,
-Landlock) is planned; until it ships, [Security Model → Trust model](./docs/security-model.md#trust-model-and-what-it-does-not-cover)
-is the precise statement of the boundary.
+**OS-level isolation, per platform.** Every row above governs what a plugin asks the core to do. The
+operating system now governs what a plugin does by itself — on two of the three platforms:
+
+| Platform | What a plugin process can reach |
+|---|---|
+| Windows | Its own installed files and its own data directory. No sockets at all, not even loopback. |
+| Linux (kernel 5.13+) | The same, plus the system libraries it needs to start. Its network is unrestricted below kernel 6.7, and TCP-only above it — Landlock has no rule for UDP. |
+| macOS | Everything your account can, including `~/.ssh`. There is no sandbox here and none is planned. |
+
+Each plugin's settings row says which of these it is actually running behind. Where a platform can
+confine a plugin and the attempt fails, the plugin does not start, rather than starting unconfined
+and reporting success. Installing a plugin is still a decision about trusting its author.
+[Security Model → Trust model](./docs/security-model.md#trust-model-and-what-it-does-not-cover) is
+the precise statement of the boundary and its gaps.
 
 Full write-up in [Security Model](./docs/security-model.md) and the [ADRs](./docs/adr/).
 

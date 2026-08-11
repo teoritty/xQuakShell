@@ -40,7 +40,7 @@ func TestProcessHostStartRejectsConcurrentStarting(t *testing.T) {
 	}
 	host.mu.Unlock()
 
-	err := host.Start(context.Background(), plugin, "")
+	err := host.Start(context.Background(), plugin, "", domainplugin.SandboxPolicy{})
 	if !errors.Is(err, domainplugin.ErrPluginAlreadyRunning) {
 		t.Fatalf("expected ErrPluginAlreadyRunning, got %v", err)
 	}
@@ -71,7 +71,7 @@ func TestProcessHostStartConcurrentOnlyOneReservation(t *testing.T) {
 	for i := 0; i < workers; i++ {
 		go func() {
 			defer wg.Done()
-			err := host.Start(context.Background(), plugin, "")
+			err := host.Start(context.Background(), plugin, "", domainplugin.SandboxPolicy{})
 			if err == nil {
 				successes.Add(1)
 				return
@@ -126,7 +126,7 @@ func TestProcessHostStopDuringStarting(t *testing.T) {
 	startDone := make(chan struct{})
 	go func() {
 		close(started)
-		_ = host.Start(context.Background(), plugin, "")
+		_ = host.Start(context.Background(), plugin, "", domainplugin.SandboxPolicy{})
 		close(startDone)
 	}()
 
@@ -184,7 +184,7 @@ func TestStopDuringStartingLeavesNoLiveProcess(t *testing.T) {
 	started := make(chan struct{})
 	go func() {
 		close(started)
-		startDone <- host.Start(context.Background(), plugin, "")
+		startDone <- host.Start(context.Background(), plugin, "", domainplugin.SandboxPolicy{})
 	}()
 
 	// Same timing as TestProcessHostStopDuringStarting: ProcessStarting is set on Start's first
@@ -250,7 +250,7 @@ func TestStopAfterTheChildAnnouncedLeavesNoLiveProcess(t *testing.T) {
 	host := NewProcessHost(HostConfig{DataRoot: dataRoot})
 
 	startDone := make(chan error, 1)
-	go func() { startDone <- host.Start(context.Background(), plugin, "") }()
+	go func() { startDone <- host.Start(context.Background(), plugin, "", domainplugin.SandboxPolicy{}) }()
 
 	pid, announced := fixturePID(t, dataRoot, plugin, 20*time.Second)
 	if !announced {
@@ -319,7 +319,7 @@ func TestStartCancelledDuringHandshakeLeavesNoLiveProcess(t *testing.T) {
 		announced <- pidResult{pid: pid, ok: ok}
 	}()
 
-	if err := host.Start(ctx, plugin, ""); err == nil {
+	if err := host.Start(ctx, plugin, "", domainplugin.SandboxPolicy{}); err == nil {
 		t.Fatal("a Start whose context died mid-handshake must fail")
 	}
 	if st := host.State(manifest.ID, ""); st != domainplugin.ProcessDiscovered {

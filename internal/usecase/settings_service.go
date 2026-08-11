@@ -61,6 +61,27 @@ func (s *SettingsService) SaveSettings(ctx context.Context, settings domain.AppS
 	return nil
 }
 
+// SavePluginSettings persists the plugin section on its own.
+//
+// It exists because SaveSettings deliberately refuses to write that section: the settings dialog
+// does not own it, so SaveSettings carries the stored copy across to stop a theme change from
+// clearing every capability grant. The consequence was that the one handler which DOES own the
+// section could not write it either — SavePluginSettings assembled its struct and SaveSettings
+// discarded it, so "require signed plugins" silently never persisted.
+//
+// The caller is responsible for merging: this writes what it is given, and what it is given must
+// already carry the fields the caller does not own.
+func (s *SettingsService) SavePluginSettings(ctx context.Context, plugins domain.PluginSettings) error {
+	return s.vaultRepo.UpdateData(ctx, func(data *domain.VaultData) error {
+		if data.Settings == nil {
+			defaults := defaultAppSettings()
+			data.Settings = &defaults
+		}
+		data.Settings.Plugins = plugins
+		return nil
+	})
+}
+
 // defaultAppSettings returns factory defaults for a fresh vault.
 func defaultAppSettings() domain.AppSettings {
 	lockout := domain.DefaultLockoutSettings()

@@ -76,6 +76,12 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   platform cannot confine a plugin it starts exactly as before and the row says so — that is not an
   error.
 
+  **Where the platform can confine a plugin and the attempt fails, the plugin does not start.** A
+  sandbox that quietly fell back to an unconfined process whenever it broke would keep reporting
+  success while protecting nobody. `Allow unsandboxed fallback` (off by default) is the escape hatch
+  for a machine the confinement will not work on; a start taken under it is logged and the plugin's
+  row reads **not sandboxed**.
+
   A plugin that reads or writes outside its own directories will now fail where it used to succeed.
   None of the published plugins do; the host performs every network and filesystem operation on a
   plugin's behalf already.
@@ -84,6 +90,11 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
 
 - A plugin's `TMPDIR` was never set, only `TEMP` and `TMP`, so on Linux and macOS every plugin's
   temporary files went to the shared `/tmp` instead of its own instance directory.
+- **Plugin settings could not be saved.** `SaveSettings` deliberately carries the stored plugin
+  section across so that changing the theme cannot clear a capability grant — and that also
+  discarded what the plugin settings dialog itself wrote, so "require signed plugins" silently never
+  persisted. The dialog now writes that section through its own path, merging onto the stored copy
+  rather than replacing it.
 
 ### Removed
 

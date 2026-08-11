@@ -2,6 +2,10 @@
 
 package plugin
 
+import (
+	"xquakshell/internal/infra/plugin/sandbox"
+)
+
 // startPluginChild spawns through os/exec, which is the whole story everywhere but Windows.
 //
 // On Linux the confinement is already in the target: resolveSpawnTarget names the sandbox shim and
@@ -11,7 +15,7 @@ package plugin
 func startPluginChild(req childRequest) (startedChild, error) {
 	target, err := resolveSpawnTarget(req.dataRoot, req.plugin, req.entryPath, req.instanceDataDir)
 	if err != nil {
-		return startedChild{}, err
+		return fallBackOrRefuse(req, err)
 	}
-	return startExecChild(target, req)
+	return startExecChild(target, req, sandbox.Support().Mode())
 }

@@ -14,12 +14,15 @@ import (
 var errStartAbortedByStop = errors.New("plugin start aborted by a concurrent stop")
 
 type spawnedProcess struct {
-	child  childProcess
-	cancel context.CancelFunc
-	reaper *processReaper
-	stderr io.WriteCloser
-	stdin  io.WriteCloser
-	stdout io.ReadCloser
+	// sandbox is the boundary this process actually came up behind, decided by the platform that
+	// created it rather than assumed from what the build can do.
+	sandbox domainplugin.SandboxMode
+	child   childProcess
+	cancel  context.CancelFunc
+	reaper  *processReaper
+	stderr  io.WriteCloser
+	stdin   io.WriteCloser
+	stdout  io.ReadCloser
 }
 
 // spawnPluginProcess brings up the plugin binary together with the directories it is allowed to
@@ -30,7 +33,7 @@ type spawnedProcess struct {
 // It deliberately takes no context: see the comment on procCtx below — the caller's context must
 // not own the child process's lifetime, and an unused ctx parameter here would be an invitation to
 // wire it back in.
-func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, sessionID string) (*spawnedProcess, string, error) {
+func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, sessionID string, policy domainplugin.SandboxPolicy) (*spawnedProcess, string, error) {
 	entryPath, err := ResolveEngineEntryPath(plugin.RootDir, plugin.Manifest.Engine.Entry)
 	if err != nil {
 		return nil, "", fmt.Errorf("resolve plugin entry: %w", err)
@@ -59,6 +62,7 @@ func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, se
 		instanceDataDir: instanceDataDir,
 		env:             PluginProcessEnv(instanceDataDir, plugin.Manifest.ID, sessionID),
 		stderr:          stderrLog,
+		policy:          policy,
 	})
 	if err != nil {
 		_ = stderrLog.Close()
@@ -68,12 +72,13 @@ func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, se
 	reaper := newProcessReaper(started.child)
 	reaper.Start()
 	return &spawnedProcess{
-		child:  started.child,
-		cancel: started.cancel,
-		reaper: reaper,
-		stderr: stderrLog,
-		stdin:  started.stdin,
-		stdout: started.stdout,
+		sandbox: started.mode,
+		child:   started.child,
+		cancel:  started.cancel,
+		reaper:  reaper,
+		stderr:  stderrLog,
+		stdin:   started.stdin,
+		stdout:  started.stdout,
 	}, instanceDataDir, nil
 }
 

@@ -209,7 +209,7 @@ type timeoutAuthHost struct {
 	running []domainplugin.ProcessInstance
 }
 
-func (timeoutAuthHost) Start(context.Context, domainplugin.InstalledPlugin, string) error { return nil }
+func (timeoutAuthHost) Start(context.Context, domainplugin.InstalledPlugin, string, domainplugin.SandboxPolicy) error { return nil }
 func (timeoutAuthHost) Stop(context.Context, string, string) error                        { return nil }
 func (timeoutAuthHost) StopAll(context.Context)                                           {}
 func (timeoutAuthHost) Call(context.Context, string, string, string, json.RawMessage) (json.RawMessage, error) {
@@ -237,7 +237,7 @@ type okAuthHost struct {
 	result  json.RawMessage
 }
 
-func (*okAuthHost) Start(context.Context, domainplugin.InstalledPlugin, string) error { return nil }
+func (*okAuthHost) Start(context.Context, domainplugin.InstalledPlugin, string, domainplugin.SandboxPolicy) error { return nil }
 func (*okAuthHost) Stop(context.Context, string, string) error                        { return nil }
 func (*okAuthHost) StopAll(context.Context)                                           {}
 func (h *okAuthHost) Call(context.Context, string, string, string, json.RawMessage) (json.RawMessage, error) {

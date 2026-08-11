@@ -83,7 +83,7 @@ func TestAConfinedPluginCannotReachOutsideItsOwnDirectories(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	if err := host.Start(ctx, plugin, "sess-a"); err != nil {
+	if err := host.Start(ctx, plugin, "sess-a", domainplugin.SandboxPolicy{}); err != nil {
 		t.Fatalf("start the probe plugin: %v", err)
 	}
 	defer host.StopAll(context.Background())
@@ -118,7 +118,7 @@ func TestOneSessionOfAPluginCannotReadAnothersInstanceDirectory(t *testing.T) {
 	defer cancel()
 
 	for _, session := range []string{"sess-a", "sess-b"} {
-		if err := host.Start(ctx, plugin, session); err != nil {
+		if err := host.Start(ctx, plugin, session, domainplugin.SandboxPolicy{}); err != nil {
 			t.Fatalf("start the probe plugin for %s: %v", session, err)
 		}
 	}

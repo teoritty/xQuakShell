@@ -122,7 +122,7 @@ async function run() {
   noMethod = withoutMethod(fake, 'SavePluginSettings');
   setGateway(noMethod);
   threw = null;
-  try { await savePluginSettings({ trustedPublisherKeys: [], requireSignedPlugins: false }); } catch (e) { threw = e; }
+  try { await savePluginSettings({ trustedPublisherKeys: [], requireSignedPlugins: false, allowUnsandboxedFallback: false }); } catch (e) { threw = e; }
   assert(threw === null, 'savePluginSettings is a silent no-op when absent');
 
   fake = createFakeGateway();
@@ -130,7 +130,7 @@ async function run() {
   setGateway(fake);
   lastError.set(null);
   threw = null;
-  try { await savePluginSettings({ trustedPublisherKeys: [], requireSignedPlugins: true }); } catch (e) { threw = e; }
+  try { await savePluginSettings({ trustedPublisherKeys: [], requireSignedPlugins: true, allowUnsandboxedFallback: false }); } catch (e) { threw = e; }
   assert(threw instanceof Error && threw.message === 'save failed', 'savePluginSettings rethrows the original error');
   assert(get(lastError)?.message === 'Save plugin settings: save failed', 'savePluginSettings sets lastError before rethrowing');
 

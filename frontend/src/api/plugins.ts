@@ -63,6 +63,15 @@ export interface PluginInstallPreview {
 export interface PluginSettings {
   trustedPublisherKeys: string[];
   requireSignedPlugins: boolean;
+  /**
+   * Let a plugin start unconfined when this platform CAN confine it and the
+   * attempt failed. It does not affect a platform that cannot confine at all,
+   * where plugins start unconfined regardless and no opt-in is involved.
+   *
+   * Off by default, and off is the only safe default: the alternative to
+   * refusing a broken sandbox is a silent downgrade nobody finds out about.
+   */
+  allowUnsandboxedFallback: boolean;
 }
 
 export interface PluginPublisherKeyPair {
@@ -133,13 +142,13 @@ export async function selectPluginBundleFile(): Promise<string> {
 export async function getPluginSettings(): Promise<PluginSettings> {
   const app = getGateway();
   if (!app?.GetPluginSettings) {
-    return { trustedPublisherKeys: [], requireSignedPlugins: false };
+    return { trustedPublisherKeys: [], requireSignedPlugins: false, allowUnsandboxedFallback: false };
   }
   try {
     return await app.GetPluginSettings();
   } catch (e) {
     handleError(e, 'Load plugin settings');
-    return { trustedPublisherKeys: [], requireSignedPlugins: false };
+    return { trustedPublisherKeys: [], requireSignedPlugins: false, allowUnsandboxedFallback: false };
   }
 }
 

@@ -22,10 +22,16 @@ type childRequest struct {
 	// stderr receives the child's standard error. The caller owns it and closes it, including when
 	// startPluginChild fails.
 	stderr io.WriteCloser
+	// policy is what to do if this platform can confine the process and the attempt fails. It is
+	// carried rather than decided here: usecase owns the decision, this layer owns the facts.
+	policy domainplugin.SandboxPolicy
 }
 
 // startedChild is a running plugin process and the two pipes the host speaks to it through.
 type startedChild struct {
+	// mode is the boundary this process is behind, reported by whichever path created it. It is an
+	// outcome and never an intention: a fallback start says so here.
+	mode   domainplugin.SandboxMode
 	child  childProcess
 	cancel context.CancelFunc
 	stdin  io.WriteCloser
@@ -34,7 +40,7 @@ type startedChild struct {
 
 // startExecChild is the os/exec spawn, used on every platform that is not confining this process
 // and on Linux where the confinement rides in the argv rather than in how the process is created.
-func startExecChild(target spawnTarget, req childRequest) (startedChild, error) {
+func startExecChild(target spawnTarget, req childRequest, mode domainplugin.SandboxMode) (startedChild, error) {
 	// The child process is deliberately NOT tied to the caller's context. exec.CommandContext makes
 	// the passed context own the LIFETIME of the child: cancelling it kills the process. Every caller
 	// of Start passes a short-lived request context (a WithTimeout with a `defer cancel()`), so a
@@ -76,5 +82,5 @@ func startExecChild(target spawnTarget, req childRequest) (startedChild, error) 
 		procCancel()
 		return startedChild{}, fmt.Errorf("start plugin %s: %w", req.plugin.Manifest.ID, err)
 	}
-	return startedChild{child: newExecChild(cmd), cancel: procCancel, stdin: stdin, stdout: stdout}, nil
+	return startedChild{mode: mode, child: newExecChild(cmd), cancel: procCancel, stdin: stdin, stdout: stdout}, nil
 }

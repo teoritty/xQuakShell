@@ -1,5 +1,7 @@
 package plugin
 
+import "errors"
+
 // SandboxMode reports what OS-level boundary a plugin process is actually running behind.
 //
 // It describes an outcome, never an intention. A process that reports one of the two enforced modes
@@ -33,6 +35,28 @@ const (
 	// SandboxDisabled means the platform can confine the process and the user chose not to.
 	SandboxDisabled SandboxMode = "disabled"
 )
+
+// SandboxPolicy is what the host has decided to do about confinement, handed to the layer that
+// creates processes.
+//
+// It carries a decision and not a setting, which is the whole reason it exists as a type. Whether a
+// user may run a plugin unconfined is a policy question; infra knows only two facts — can this
+// platform confine, and did this attempt succeed — and must not learn which setting governs the
+// answer or where that setting is stored.
+type SandboxPolicy struct {
+	// AllowUnsandboxedFallback permits a start to continue when the platform can confine a plugin
+	// and the attempt failed. It never applies to a platform that cannot confine at all: that case
+	// is not a failure and starts unconfined with no opt-in.
+	AllowUnsandboxedFallback bool
+}
+
+// ErrSandboxUnavailable reports that a platform which can confine a plugin failed to.
+//
+// It is a distinct error because the two cases must never share a code path. "This platform has no
+// sandbox" and "this platform has one and it did not work" look identical from the outside and call
+// for opposite responses — start, and refuse — and collapsing them is exactly how a sandbox stops
+// working for a fraction of users with nobody noticing.
+var ErrSandboxUnavailable = errors.New("the plugin sandbox could not be applied")
 
 // SandboxSupport is what a platform can do, asked once per build and independent of any plugin.
 type SandboxSupport struct {

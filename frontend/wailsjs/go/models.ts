@@ -1612,6 +1612,7 @@ export namespace wails {
 	export class PluginSettingsDTO {
 	    trustedPublisherKeys: string[];
 	    requireSignedPlugins: boolean;
+	    allowUnsandboxedFallback: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PluginSettingsDTO(source);
@@ -1621,6 +1622,7 @@ export namespace wails {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.trustedPublisherKeys = source["trustedPublisherKeys"];
 	        this.requireSignedPlugins = source["requireSignedPlugins"];
+	        this.allowUnsandboxedFallback = source["allowUnsandboxedFallback"];
 	    }
 	}
 	

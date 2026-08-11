@@ -6,47 +6,73 @@ This document summarizes how xQuakShell constrains out-of-process plugins.
 
 Read this section before the rest of the document, because it bounds everything in it.
 
-A plugin is a native executable the host starts as a child process. It runs **as the user who
-started xQuakShell, with that user's full token**. There is no OS-level sandbox: no AppContainer or
-restricted token on Windows, no seccomp, namespaces or Landlock on Linux, no `sandbox_init` on
-macOS. The per-plugin job object (Windows) and the rlimits (Linux, macOS, BSD) bound *resources* and
-process lifetime. None of them confine the plugin's own filesystem or network syscalls.
+A plugin is a native executable the host starts as a child process, running as the user who started
+xQuakShell. **On Windows and Linux the operating system now confines it. On macOS it does not.**
 
-What the capability system is: **a gate on the IPC boundary, plus install-time consent and an audit
-trail.** Every plugin→host call — `fs.*`, `net.dial`, `vault.getSecret`, `channel.open`, and the
-rest — is checked against the manifest, and denied calls are logged without secret material. That
-boundary is real and enforced for everything the plugin asks the *host* to do on its behalf.
+| Platform | Confinement | Files | Network |
+|---|---|---|---|
+| Windows | AppContainer, per plugin instance | own install tree and own instance data directory; nothing else | none at all — no capability SID is granted, so outbound, inbound and loopback are all denied |
+| Linux, kernel 6.7+ | Landlock ABI 4+ | as above, plus read-only system paths a dynamically linked binary needs | TCP bind and connect denied; **UDP and raw sockets are not covered** |
+| Linux, kernel 5.13–6.6 | Landlock ABI 1–3 | as above | **not covered at all** |
+| Linux without Landlock | none | — | — |
+| macOS | none | — | — |
 
-It is not a boundary on what the plugin does by itself. A plugin that chooses to can:
+Each plugin's row in Settings reports which of these its running processes are actually behind, and
+the wording is chosen to avoid overstating: Windows says *sandboxed*, Linux says *sandboxed (files
+only)*, everything else says *not sandboxed* and gives a reason. The mode is written to the audit
+log on every plugin start, including — especially — when the answer is that there is no sandbox.
 
-- read and write any file the user can, including `~/.ssh`, browser profiles, and everything under
-  `<exe>/data` — the manifest `fs` capability governs the `fs.*` RPC surface, not the plugin's own
-  syscalls;
-- open its own sockets, bypassing the `network` capability and its dial policy entirely;
-- read the memory of other processes running as the same user, subject only to OS defaults
-  (`ptrace_scope` on Linux; a same-token `OpenProcess` succeeds on Windows);
-- persist itself outside xQuakShell.
+Where the platform can confine a plugin and the attempt fails, **the plugin does not start.** That
+is deliberate and it is the point of the whole design: a sandbox that quietly fell back to an
+unrestricted process whenever it broke would keep reporting success while protecting nobody, for
+whichever fraction of users hit the breakage. The escape hatch is an explicit setting
+(`allowUnsandboxedFallback`, off by default) for someone whose machine the confinement will not work
+on; a start taken under it is logged at warning level and reports its mode as *disabled*.
 
-**Installing a plugin is therefore equivalent to running a program with your own privileges.** The
-consent screen reports what a plugin has *declared*, and thereby what the host will do for it. It is
-not a containment promise. Install plugins whose authors you trust, on the same judgement you would
-apply to any other executable you run.
+Where the platform cannot confine a plugin at all, it starts exactly as it always did. That is not a
+failure and needs no opt-in.
+
+### What is still outside the boundary
+
+The confinement covers the plugin's own filesystem syscalls, and on Windows its sockets. It does not
+cover:
+
+- **UDP and raw sockets on Linux.** Landlock has no rule for them at any ABI. Nothing in the plugin
+  contract needs a socket — the host dials on the plugin's behalf — but a compromised plugin on
+  Linux can still reach the network.
+- **Anything on macOS.** A plugin there can read and write any file the user can, including
+  `~/.ssh`, and open its own sockets.
+- **Reading the memory of other processes running as the same user**, subject to OS defaults
+  (`ptrace_scope` on Linux). An AppContainer's lowered integrity level blocks this on Windows; a
+  Landlock domain does not.
+
+What the capability system is, and remains: **a gate on the IPC boundary, plus install-time consent
+and an audit trail.** Every plugin→host call — `fs.*`, `net.dial`, `vault.getSecret`, `channel.open`
+— is checked against the manifest, and denied calls are logged without secret material. That gate
+governs what the host does *for* a plugin; the OS confinement governs what the plugin does *itself*.
+They are separate boundaries and both are needed.
+
+**Installing a plugin is still a decision about trust.** The consent screen reports what a plugin has
+declared, and thereby what the host will do for it. On a confined platform the plugin can no longer
+reach your SSH keys behind the host's back; on macOS it can. Install plugins whose authors you
+trust.
 
 ### What the vault is worth against a malicious plugin
 
 Vault contents are encrypted at rest (age + scrypt) and the master password exists only in host
 memory while unlocked, so a plugin cannot read `vault.age` on its own, and `vault.getSecret` is
-gated and audited. But a process running as the user is in a position to attack the host process
-itself. The vault's confidentiality against an installed malicious plugin rests on the same-user
-boundary, not on the cryptography.
+gated and audited.
 
-### Where this is heading
+On Windows and Linux the vault file is now outside everything a plugin process can open. On macOS,
+and on a Linux kernel without Landlock, a process running as the user is in a position to attack the
+host process itself, and the vault's confidentiality against an installed malicious plugin rests on
+the same-user boundary rather than on the cryptography.
 
-OS-level isolation is planned — AppContainer on Windows and Landlock on Linux — with the model
-described above kept as the fallback on platforms or kernels that cannot support it. macOS is not in
-scope for that work, so on macOS this section will keep describing the model in full. This section
-is maintained as the current truth, not as a snapshot: if it still says there is no OS sandbox, then
-there is none in the build you are reading it from.
+### How this section is maintained
+
+It describes the current build, not an intention. If it says a platform confines a plugin, that
+build does; if a row says *none*, there is none. macOS is deliberately out of scope and is expected
+to stay in that row.
 
 ## Session protocols
 

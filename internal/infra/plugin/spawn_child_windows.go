@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 
+	domainplugin "xquakshell/internal/domain/plugin"
+
 	"xquakshell/internal/infra/plugin/sandbox"
 )
 
@@ -21,14 +23,25 @@ import (
 // is returned and the start fails, because exec'ing unconfined after asking for confinement is how a
 // sandbox stops working for a fraction of users with nobody noticing.
 func startPluginChild(req childRequest) (startedChild, error) {
-	if !sandbox.Support().Available {
+	support := sandbox.Support()
+	if !support.Available {
 		target, err := resolveSpawnTarget(req.dataRoot, req.plugin, req.entryPath, req.instanceDataDir)
 		if err != nil {
 			return startedChild{}, err
 		}
-		return startExecChild(target, req)
+		return startExecChild(target, req, support.Mode())
 	}
 
+	started, err := startContainedChild(req, support)
+	if err != nil {
+		return fallBackOrRefuse(req, err)
+	}
+	return started, nil
+}
+
+// startContainedChild is the confined path on its own, so that every way it can fail arrives at one
+// place and gets the same answer from the policy.
+func startContainedChild(req childRequest, support domainplugin.SandboxSupport) (startedChild, error) {
 	image, err := resolvePluginImage(req.entryPath)
 	if err != nil {
 		return startedChild{}, err
@@ -46,6 +59,7 @@ func startPluginChild(req childRequest) (startedChild, error) {
 		return startedChild{}, fmt.Errorf("start plugin %s in its app container: %w", req.plugin.Manifest.ID, err)
 	}
 	return startedChild{
+		mode:  support.Mode(),
 		child: process,
 		// Nothing here is tied to a context. The exec path needs a cancel to release
 		// CommandContext's watchdog goroutine; this process has no such watchdog, and its only end

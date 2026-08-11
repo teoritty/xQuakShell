@@ -26,7 +26,25 @@ type managedProcess struct {
 	negotiated  domainplugin.NegotiatedDescriptor
 	state       domainplugin.ProcessState
 	job         pluginJob
+	// sandbox is the boundary THIS process actually came up behind. It lives here rather than on
+	// the host because the answer is now per process: the same build can confine one plugin and
+	// fail to confine another, and a user who allowed the fallback gets a mix.
+	sandbox     domainplugin.SandboxMode
 	cleanupOnce sync.Once
+}
+
+// adopt takes ownership of everything the spawn produced, in one step.
+//
+// It is one call rather than six assignments because its only caller makes them under the lock that
+// decides whether this Start still owns the reservation — a block that has to stay short enough to
+// read as the atomic step it is, and that the size ratchet on Start keeps honest.
+func (mp *managedProcess) adopt(spawned *spawnedProcess, job pluginJob) {
+	mp.sandbox = spawned.sandbox
+	mp.child = spawned.child
+	mp.cancel = spawned.cancel
+	mp.reaper = spawned.reaper
+	mp.stderr = spawned.stderr
+	mp.job = job
 }
 
 func (mp *managedProcess) closeResources(killProcess bool) {
