@@ -1,11 +1,5 @@
 //go:build windows
 
-// Package sandbox answers one question per platform: can this build confine a plugin process to
-// its own directories, and if not, why not.
-//
-// It deliberately holds no policy. What to do about an answer — start anyway, refuse, or let the
-// user override — is a decision for the usecase layer, which is where the setting that governs it
-// lives. This package reports facts about the operating system.
 package sandbox
 
 import domainplugin "xquakshell/internal/domain/plugin"
