@@ -43,9 +43,9 @@ func InstallFromSource(sourcePath, dataRoot string) (domainplugin.InstalledPlugi
 	if err := MarkUserInstalled(destDir); err != nil {
 		return domainplugin.InstalledPlugin{}, fmt.Errorf("mark user install: %w", err)
 	}
-	if !HasChecksumsFile(destDir) {
+	if err := validateInstalledTree(destDir); err != nil {
 		_ = os.RemoveAll(destDir)
-		return domainplugin.InstalledPlugin{}, fmt.Errorf("user-installed plugins must include %s", bundle.ChecksumsFile)
+		return domainplugin.InstalledPlugin{}, err
 	}
 	installed, err := LoadPluginDir(destDir)
 	if err != nil {
@@ -53,6 +53,25 @@ func InstallFromSource(sourcePath, dataRoot string) (domainplugin.InstalledPlugi
 	}
 	installed.Source = domainplugin.SourceUser
 	return installed, nil
+}
+
+// validateInstalledTree re-hashes the tree that will actually run and checks it against the
+// SHA256SUMS that landed with it.
+//
+// This is deliberately not the same statement as the validation loadSource already performed. That
+// one described the source tree, which for both install routes is a staging directory under the
+// portable temp root — the directory every running plugin receives as its TEMP (process_env.go).
+// A plugin that swapped the entry binary between that validation and CopyBundle would otherwise be
+// installed under the victim plugin's id, inheriting its identity and the consents already granted
+// to it, and the existence check on SHA256SUMS this replaced could not tell the difference.
+//
+// The reserved names are the two files the host itself writes into an installed tree; they are
+// legitimately absent from the author's SHA256SUMS, and omitting either here fails every install.
+func validateInstalledTree(destDir string) error {
+	if err := bundle.ValidateChecksums(destDir, InstallMetaFile, UserInstalledMarker); err != nil {
+		return fmt.Errorf("validate installed plugin: %w", err)
+	}
+	return nil
 }
 
 // ValidatePluginSource validates a plugin directory or bundle without installing.
@@ -63,12 +82,6 @@ func ValidatePluginSource(path string) error {
 	}
 	defer res.cleanup()
 	return res.plugin.Manifest.Validate()
-}
-
-// HasChecksumsFile reports whether SHA256SUMS exists in a plugin tree.
-func HasChecksumsFile(dir string) bool {
-	_, err := os.Stat(filepath.Join(dir, bundle.ChecksumsFile))
-	return err == nil
 }
 
 type loadedSource struct {
