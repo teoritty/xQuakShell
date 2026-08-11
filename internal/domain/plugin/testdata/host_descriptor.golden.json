@@ -44,7 +44,6 @@
       "version": "1.0.0",
       "features": [
         "embed",
-        "localEmbedServer",
         "terminal",
         "tunnel",
         "updateState"

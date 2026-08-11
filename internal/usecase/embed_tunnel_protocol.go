@@ -115,14 +115,6 @@ func (s *EmbedTunnelService) HandlePluginTunnelClose(_ context.Context, pluginID
 	return s.CloseTunnel(sessionID, tunnelID)
 }
 
-// HandlePluginReportLocalEmbed rejects Mode B in v1 broker-default builds.
-func (s *EmbedTunnelService) HandlePluginReportLocalEmbed(_ context.Context, pluginID, sessionID string, _ json.RawMessage) error {
-	if err := s.assertPluginSession(pluginID, sessionID); err != nil {
-		return err
-	}
-	return ErrLocalEmbedNotSupported
-}
-
 func (s *EmbedTunnelService) assertPluginSession(pluginID, sessionID string) error {
 	if s == nil || s.registry == nil {
 		return domain.ErrSessionNotFound

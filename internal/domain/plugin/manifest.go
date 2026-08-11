@@ -97,7 +97,6 @@ type SessionCaps struct {
 	ConnectProtocols       []string `json:"connectProtocols,omitempty"`
 	Terminal               bool     `json:"terminal,omitempty"`
 	Embed                  bool     `json:"embed,omitempty"`
-	LocalEmbedServer       bool     `json:"localEmbedServer,omitempty"`
 	RemoteFS               bool     `json:"remoteFs,omitempty"`
 	AllowMultiSession      bool     `json:"allowMultiSession,omitempty"`
 	MaxTunnelBandwidthKbps int      `json:"maxTunnelBandwidthKbps,omitempty"`

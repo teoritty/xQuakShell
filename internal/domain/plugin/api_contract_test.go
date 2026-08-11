@@ -46,9 +46,27 @@ func TestFrozenAPISurface(t *testing.T) {
 	}
 }
 
+// removedFeatures records features deliberately dropped without a major bump on their capability,
+// keyed by "<capability>.<feature>", with the reason.
+//
+// The escape hatch exists because the alternative is worse than the rule. A capability major is
+// matched exactly, so bumping one refuses every plugin that grants that capability until its
+// manifest names the new version — including plugins that never touched the removed feature and
+// whose behaviour is identical either way. The plugins that genuinely depended on it are the ones
+// that name it in requires.features, and checkCapability refuses those on HasFeature regardless of
+// version. So the bump costs every author a release and catches nothing extra.
+//
+// An entry here is the reviewable step that a version number would otherwise stand in for. Anything
+// not listed still fails below.
+var removedFeatures = map[string]string{
+	"session.localEmbedServer": "Mode B removed; the host-side embed broker (ADR-008 Mode A) is the " +
+		"only embed path, and it never functioned — HandlePluginReportLocalEmbed returned " +
+		"ErrLocalEmbedNotSupported unconditionally, so no plugin can have depended on it working",
+}
+
 // TestAPISurfaceAdditiveOnly enforces the additive-only stability contract within a major: no
-// capability may drop a feature or lower its version relative to the golden without a major bump.
-// Removal requires a major bump + deprecation window (ADR-012).
+// capability may drop a feature or lower its version relative to the golden without a major bump,
+// or an entry in removedFeatures above.
 func TestAPISurfaceAdditiveOnly(t *testing.T) {
 	data, err := os.ReadFile(goldenPath)
 	if err != nil {
@@ -81,9 +99,14 @@ func TestAPISurfaceAdditiveOnly(t *testing.T) {
 			have[f] = true
 		}
 		for _, f := range goldCap.Features {
-			if !have[f] {
-				t.Fatalf("capability %q dropped feature %q within a major (requires a major bump)", name, f)
+			if have[f] {
+				continue
 			}
+			if reason, recorded := removedFeatures[string(name)+"."+string(f)]; recorded {
+				t.Logf("%s.%s is a recorded removal: %s", name, f, reason)
+				continue
+			}
+			t.Fatalf("capability %q dropped feature %q within a major (requires a major bump)", name, f)
 		}
 	}
 }

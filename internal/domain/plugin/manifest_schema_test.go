@@ -204,9 +204,24 @@ func TestManifestSchemaIsFrozen(t *testing.T) {
 	}
 }
 
+// removedSchemaFields records fields deliberately taken out of the published schema, keyed by
+// "<type>.<json name>", with the reason.
+//
+// It exists because the guard below compares the golden against the current shape, and the golden is
+// regenerated from that same shape: removing a field and re-running -update-golden would leave the
+// guard green with nothing to compare, which is the "snapshot regenerated whenever it fails" trap.
+// Naming the removal here is the reviewable step the regeneration cannot perform on its own, and it
+// keeps the guard's teeth for every field not on this list.
+var removedSchemaFields = map[string]string{
+	"SessionCaps.localEmbedServer": "session capability 2.0.0 — Mode B removed; the host-side embed " +
+		"broker (ADR-008 Mode A) is the only embed path, and a plugin that can listen on a socket is " +
+		"one an OS-level sandbox cannot deny the network to",
+}
+
 // The additive-only half. A golden diff shows that something moved; this says which direction is
 // allowed to move. Removing a field or making an optional one required breaks manifests already
-// published against this schema, and both need a major bump on pluginApi plus a deprecation window.
+// published against this schema, and both need a major bump on the owning axis plus an entry in
+// removedSchemaFields above.
 func TestManifestSchemaChangesAreAdditiveOnly(t *testing.T) {
 	data, err := os.ReadFile(manifestGoldenPath)
 	if err != nil {
@@ -233,9 +248,14 @@ func TestManifestSchemaChangesAreAdditiveOnly(t *testing.T) {
 			continue
 		}
 		for _, f := range typ.Fields {
-			if _, ok := fields[f.JSONName]; !ok {
-				t.Errorf("%s.%s was removed; a manifest that declares it stops parsing as intended", typ.Name, f.JSONName)
+			if _, ok := fields[f.JSONName]; ok {
+				continue
 			}
+			if reason, recorded := removedSchemaFields[typ.Name+"."+f.JSONName]; recorded {
+				t.Logf("%s.%s is a recorded removal: %s", typ.Name, f.JSONName, reason)
+				continue
+			}
+			t.Errorf("%s.%s was removed; a manifest that declares it stops parsing as intended", typ.Name, f.JSONName)
 		}
 	}
 

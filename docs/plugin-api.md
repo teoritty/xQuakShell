@@ -92,6 +92,12 @@ never rejects you.
 releases and until the next major of that axis. Deprecation notices are logged once per plugin load,
 so a plugin that will break later says so now, in the log, while there is still time.
 
+One removal has happened without that window: `capabilities.session.localEmbedServer` and
+`session.reportLocalEmbed`, dropped while no third-party plugin existed and while the feature itself
+had never worked — the host refused the call unconditionally from the day it shipped. A deprecation
+window protects working plugins, and there were none to protect. It is recorded in the changelog and
+is not a precedent for anything that functions.
+
 **When a major does land**, your plugin stays installed with its data intact but does not load, and
 the plugins panel says which version it needs and which one is present.
 
@@ -352,11 +358,9 @@ Register handlers for host notifications: `session.tunnelData`, `session.tunnelB
 
 Requires `capabilities.session.embed`, `capabilities.network`, and static assets under `ui/`.
 
-### Mode B — local embed server (opt-in)
+### Mode B — removed
 
-`capabilities.session.localEmbedServer: true` allows `session.reportLocalEmbed` (loopback HTTP in the plugin). **Not recommended for VNC/RDP**; install requires separate consent. Mode A (core broker) is the default and reference path.
-
-See [ADR-008](./adr/008-session-embed-surfaces.md).
+`capabilities.session.localEmbedServer` and `session.reportLocalEmbed` no longer exist. A plugin does not bind sockets; the host-side broker above is the only embed path. See [ADR-008](./adr/008-session-embed-surfaces.md).
 
 ## Channel bus
 
@@ -693,7 +697,6 @@ All methods below require a matching manifest capability unless marked “always
 | `session.tunnelOpen` | `session.embed` | `sessionId`, `tunnelId` | `{"ok":true}` |
 | `session.tunnelFrame` | `session.embed` | `sessionId`, `tunnelId`, `dataBase64`, `eof?` | `{"ok":true}` |
 | `session.tunnelClose` | `session.embed` | `sessionId`, `tunnelId` | `{"ok":true}` |
-| `session.reportLocalEmbed` | `session.embed` + `localEmbedServer` | port, pathPrefix, token | `{"ok":true}` |
 | `events.subscribe` | `events.subscribe` allowlist | `channel` | `{"ok":true}` |
 | `events.publish` | `events.publish` namespace | `channel`, `payload` | `{"ok":true}` — max **100/s** |
 | `view.postMessage` | contributed `views` | `panelId`, `message` | `{"ok":true}` |

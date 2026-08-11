@@ -15,7 +15,6 @@ type PluginEmbedSink interface {
 	HandlePluginTunnelOpen(ctx context.Context, pluginID, sessionID, tunnelID string) error
 	HandlePluginTunnelFrame(ctx context.Context, pluginID, sessionID, tunnelID, dataBase64 string, eof bool) error
 	HandlePluginTunnelClose(ctx context.Context, pluginID, sessionID, tunnelID string) error
-	HandlePluginReportLocalEmbed(ctx context.Context, pluginID, sessionID string, params json.RawMessage) error
 }
 
 // PluginEmbedInbound adapts plugin embed RPC to the session manager.
@@ -82,15 +81,6 @@ func (p *PluginEmbedInbound) TunnelClose(ctx context.Context, pluginID, sessionI
 		return err
 	}
 	return h.HandlePluginTunnelClose(ctx, pluginID, sessionID, tunnelID)
-}
-
-// ReportLocalEmbed records Mode B local server metadata.
-func (p *PluginEmbedInbound) ReportLocalEmbed(ctx context.Context, pluginID, sessionID string, params json.RawMessage) error {
-	h, err := p.handlerOrErr()
-	if err != nil {
-		return err
-	}
-	return h.HandlePluginReportLocalEmbed(ctx, pluginID, sessionID, params)
 }
 
 // NormalizeTunnelIDs returns default tunnel IDs when empty.

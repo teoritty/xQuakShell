@@ -39,10 +39,6 @@ func (h *PluginSessionRPCHandler) handleEmbedVerb(
 			return nil, err
 		}
 		return h.embed.RegisterEmbed(ctx, pluginID, req.SessionID, req.UIEntry, NormalizeTunnelIDs(req.TunnelIDs))
-	case "session.reportLocalEmbed":
-		if err := h.embed.ReportLocalEmbed(ctx, pluginID, named.SessionID, params); err != nil {
-			return nil, err
-		}
 	default:
 		if err := h.handleTunnelVerb(ctx, pluginID, method, params); err != nil {
 			return nil, err

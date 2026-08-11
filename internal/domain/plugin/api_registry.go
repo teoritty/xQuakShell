@@ -55,11 +55,10 @@ const (
 	FeatVaultGetConnection FeatureID = "getConnection"
 	FeatVaultGetSecret     FeatureID = "getSecret"
 
-	FeatSessionEmbed            FeatureID = "embed"
-	FeatSessionLocalEmbedServer FeatureID = "localEmbedServer"
-	FeatSessionTerminal         FeatureID = "terminal"
-	FeatSessionTunnel           FeatureID = "tunnel"
-	FeatSessionUpdateState      FeatureID = "updateState"
+	FeatSessionEmbed       FeatureID = "embed"
+	FeatSessionTerminal    FeatureID = "terminal"
+	FeatSessionTunnel      FeatureID = "tunnel"
+	FeatSessionUpdateState FeatureID = "updateState"
 
 	FeatAuthProvider FeatureID = "provider"
 
@@ -136,12 +135,19 @@ func NewRegistry(caps map[CapabilityID]CapabilityDescriptor) Registry {
 // hostRegistry is the authoritative host contract at this build, built once and never mutated.
 // Every capability starts at 1.0.0 for the release freeze with an explicit feature list mirroring
 // the gate's method map.
+//
+// session dropped the localEmbedServer feature without a major bump — deliberately, and recorded in
+// removedFeatures below. A major would have been ceremony with a real cost and no effect: capability
+// majors are matched exactly, so it would have refused every plugin that grants session until its
+// manifest named the new version, while catching nothing. The plugins that actually depended on the
+// feature are the ones that name it in requires.features, and checkCapability already refuses those
+// on HasFeature, at every version.
 var hostRegistry = NewRegistry(map[CapabilityID]CapabilityDescriptor{
 	CapNetwork:    {Version: "1.0.0", Features: []FeatureID{FeatNetworkDial}},
 	CapFilesystem: {Version: "1.0.0", Features: []FeatureID{FeatFilesystemRead, FeatFilesystemWrite}},
 	CapEvents:     {Version: "1.0.0", Features: []FeatureID{FeatEventsPublish, FeatEventsSubscribe}},
 	CapVault:      {Version: "1.0.0", Features: []FeatureID{FeatVaultGetConnection, FeatVaultGetSecret}},
-	CapSession:    {Version: "1.0.0", Features: []FeatureID{FeatSessionEmbed, FeatSessionLocalEmbedServer, FeatSessionTerminal, FeatSessionTunnel, FeatSessionUpdateState}},
+	CapSession:    {Version: "1.0.0", Features: []FeatureID{FeatSessionEmbed, FeatSessionTerminal, FeatSessionTunnel, FeatSessionUpdateState}},
 	CapAuth:       {Version: "1.0.0", Features: []FeatureID{FeatAuthProvider}},
 	CapTunnel:     {Version: "1.0.0", Features: []FeatureID{FeatTunnelBind, FeatTunnelDial}},
 	CapChannel:    {Version: "1.0.0", Features: []FeatureID{FeatChannelOpen}},

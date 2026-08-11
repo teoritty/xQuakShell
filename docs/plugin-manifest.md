@@ -99,7 +99,6 @@ Runtime IPC methods and session lifecycle are documented in [plugin-api.md](./pl
       "connectProtocols": ["my-protocol"],
       "terminal": true,
       "embed": false,
-      "localEmbedServer": false,
       "remoteFs": false,
       "allowMultiSession": false,
       "maxTunnelBandwidthKbps": 0
@@ -293,7 +292,7 @@ Rules:
 - User-disabled plugins are stored in app settings (`plugins.disabled`).
 - **`terminal: true` requires `isolation: per-session`** unless `allowMultiSession: true` is set (install shows a warning and is audit-logged).
 - **`embed: true` requires `isolation: per-session`**. Mutually exclusive with `terminal: true`. Requires `connectProtocols`. **`allowMultiSession` is rejected** with embed.
-- **`localEmbedServer: true`** requires `embed: true`. Opt-in loopback HTTP server in the plugin (Mode B); install shows a separate consent line. Default path is Mode A (core embed broker).
+- **`localEmbedServer` was removed.** A plugin does not run its own HTTP server; the core embed broker is the only path. A manifest still declaring the field parses — unknown keys are ignored — but the field grants nothing.
 - **`remoteFs: true`** requires `terminal: true` or `embed: true` (adjunct file panel only).
 - **`maxTunnelBandwidthKbps`:** optional per-session tunnel rate cap (0 = host default 32 MiB/s).
 - **`channel.purposes`:** each must be one of the closed enum `exec` / `embed-stream` / `tcp-relay` / `udp-relay`; unknown purposes are rejected at manifest load. `channel.execCommands` requires `exec` to also be declared in `purposes`; every `{placeholder}` in an `argv` template requires a matching, safely-compilable regex in that template's `params`. **`exec` requires install-time user consent**, same as `auth.provider` / `allowArbitraryOutbound` — see [security-model.md](./security-model.md#capability-gate).

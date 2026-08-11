@@ -3,10 +3,8 @@ package usecase
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"xquakshell/internal/domain"
-	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // PluginEmbedBridge forwards host-initiated embed notifications to plugins.
@@ -79,6 +77,3 @@ func (b *PluginEmbedBridge) pluginIDForSession(sessionID string) (string, bool) 
 	}
 	return b.lookup.PluginIDForSession(sessionID)
 }
-
-// ErrLocalEmbedNotSupported indicates Mode B is unavailable in this build path.
-var ErrLocalEmbedNotSupported = fmt.Errorf("%w: local embed server not supported", domainplugin.ErrNotImplemented)

@@ -115,10 +115,10 @@ func (h *PluginSessionRPCHandler) Handle(ctx context.Context, pluginID, method s
 		if err := h.sessions.WriteTerminal(ctx, pluginID, req.SessionID, req.OutputBase64); err != nil {
 			return nil, err
 		}
-	// The embed and tunnel verbs dispatch next door, in plugin_session_rpc_embed.go. They are five
+	// The embed and tunnel verbs dispatch next door, in plugin_session_rpc_embed.go. They are four
 	// variations on one rule — name a session, prove it is yours, forward — and reading them here
 	// buried the three families that differ.
-	case "session.registerEmbed", "session.tunnelOpen", "session.tunnelFrame", "session.tunnelClose", "session.reportLocalEmbed":
+	case "session.registerEmbed", "session.tunnelOpen", "session.tunnelFrame", "session.tunnelClose":
 		return h.handleEmbedVerb(ctx, pluginID, method, params)
 	case "channel.open":
 		if h.channels == nil {
