@@ -89,6 +89,20 @@ func (m *PluginManager) isPluginEnabled(pluginID string) bool {
 	return !settings.Disabled[pluginID]
 }
 
+// auditPluginSandbox records what boundary a plugin process actually came up behind.
+//
+// It is written on every successful start, including — especially — when the answer is that there
+// is none. An audit log that only recorded the confined starts would answer "was this plugin
+// sandboxed?" with silence in exactly the case where the question matters, and silence reads as
+// "no entry" rather than as "no sandbox".
+func (m *PluginManager) auditPluginSandbox(pluginID, scope string) {
+	mode := m.sandboxModeForScope(pluginID, scope)
+	if mode == "" {
+		return
+	}
+	m.auditStart(pluginID, "start", "sandbox="+string(mode), false)
+}
+
 func (m *PluginManager) auditStart(pluginID, reason, detail string, denied bool) {
 	if m.startAudit == nil {
 		return

@@ -40,6 +40,7 @@ func (h *ProcessHost) RunningInstances() []domainplugin.ProcessInstance {
 			PluginID:  mp.plugin.Manifest.ID,
 			SessionID: mp.sessionID,
 			State:     mp.state,
+			Sandbox:   h.sandbox.Mode(),
 		})
 	}
 	return out

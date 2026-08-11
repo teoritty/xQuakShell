@@ -40,6 +40,11 @@ type ProcessInstance struct {
 	PluginID  string
 	SessionID string
 	State     ProcessState
+	// Sandbox is the OS-level boundary this process is actually running behind. It rides here
+	// rather than arriving through a port method of its own because this struct is already how a
+	// running process describes itself across the layer boundary, and the usecase layer must not
+	// learn what an AppContainer or a Landlock ruleset is to display the answer.
+	Sandbox SandboxMode
 }
 
 // SessionRPCAuthorizer enforces plugin session RPC scope and bound sessions (usecase implements).

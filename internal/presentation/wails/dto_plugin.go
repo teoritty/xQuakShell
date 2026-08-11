@@ -13,6 +13,8 @@ type PluginDTO struct {
 	RequiresSecretAccess bool   `json:"requiresSecretAccess"`
 	Signed               bool   `json:"signed"`
 	Enabled              bool   `json:"enabled"`
+	// SandboxMode is "enforced", "unavailable", "disabled", or "" when the plugin is not running.
+	SandboxMode string `json:"sandboxMode,omitempty"`
 	// DiscoveryIcons maps a discovery iconId to a base64 data URI (ADR-014). The frontend renders
 	// these strictly as <img src="...">: inlining an SVG would execute scripts from the plugin's
 	// bundle inside the main window.
@@ -36,6 +38,7 @@ func pluginInfoToDTO(info usecase.PluginInfo) PluginDTO {
 		RequiresSecretAccess: info.RequiresSecretAccess,
 		Signed:               info.Signed,
 		Enabled:              info.Enabled,
+		SandboxMode:          info.SandboxMode,
 		DiscoveryIcons:       info.DiscoveryIcons,
 	}
 }

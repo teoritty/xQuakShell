@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"log/slog"
 	"sync"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	domainplugin "xquakshell/internal/domain/plugin"
 	"xquakshell/internal/infra/plugin/capability"
 	"xquakshell/internal/infra/plugin/ipc"
+	"xquakshell/internal/infra/plugin/sandbox"
 )
 
 const (
@@ -73,12 +75,23 @@ type ProcessHost struct {
 	cfg       HostConfig
 	mu        sync.Mutex
 	processes map[string]*managedProcess
+	// sandbox is what this build can enforce, asked once. It is a property of the build today, not
+	// of any one process: no platform confines a plugin yet, so every process gets the same answer
+	// and Start has nothing to decide. When a platform can enforce, the outcome becomes per-process
+	// — a profile can fail for one plugin and not another — and this moves onto managedProcess,
+	// which is why ProcessInstance already carries it per instance rather than per host.
+	sandbox domainplugin.SandboxSupport
 }
 
 func NewProcessHost(cfg HostConfig) *ProcessHost {
+	support := sandbox.Support()
+	if !support.Available {
+		slog.Info("plugin OS isolation unavailable", "reason", support.Reason)
+	}
 	return &ProcessHost{
 		cfg:       cfg,
 		processes: make(map[string]*managedProcess),
+		sandbox:   support,
 	}
 }
 
