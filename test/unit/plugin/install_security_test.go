@@ -17,7 +17,7 @@ func TestSafePluginInstallDirRejectsTraversalID(t *testing.T) {
 	}
 }
 
-func TestInstallBundleUsesSafePath(t *testing.T) {
+func TestInstallFromSourceUsesSafePath(t *testing.T) {
 	dataRoot := t.TempDir()
 	src := filepath.Join(t.TempDir(), "src")
 	if err := os.MkdirAll(src, 0o700); err != nil {
@@ -34,7 +34,7 @@ func TestInstallBundleUsesSafePath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	installed, err := infraplugin.InstallBundle(src, dataRoot)
+	installed, err := infraplugin.InstallFromSource(src, dataRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,6 +44,33 @@ func TestInstallBundleUsesSafePath(t *testing.T) {
 	want := filepath.Join(dataRoot, "plugins", "com.test.install")
 	if installed.RootDir != want {
 		t.Fatalf("root dir %q want %q", installed.RootDir, want)
+	}
+}
+
+// TestInstallFromSourceRefusesTreeWithoutChecksums pins the property that removing the second
+// install helper established: there is one install path, and it validates. The deleted
+// InstallBundle copied this exact tree into place and reported success, because it never called
+// loadSource — an install route that skipped every check the other one performed.
+func TestInstallFromSourceRefusesTreeWithoutChecksums(t *testing.T) {
+	dataRoot := t.TempDir()
+	src := filepath.Join(t.TempDir(), "src")
+	if err := os.MkdirAll(src, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `{"id":"com.test.nosums","name":"N","version":"1","engine":{"type":"go-binary","entry":"p.exe"}}`
+	if err := os.WriteFile(filepath.Join(src, "plugin.json"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "p.exe"), []byte("stub"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// Deliberately no bundle.WriteChecksums: the tree makes no claim about its own contents.
+
+	if _, err := infraplugin.InstallFromSource(src, dataRoot); err == nil {
+		t.Fatal("InstallFromSource = nil, want error; a tree carrying no SHA256SUMS must not install")
+	}
+	if _, err := os.Stat(filepath.Join(dataRoot, "plugins", "com.test.nosums")); !os.IsNotExist(err) {
+		t.Fatalf("refused install left a tree behind at plugins/com.test.nosums (stat err = %v)", err)
 	}
 }
 
