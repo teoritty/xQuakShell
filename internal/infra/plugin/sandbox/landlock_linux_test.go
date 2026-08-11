@@ -80,16 +80,58 @@ func TestTheInstanceDirectoryGrantNeverIncludesExecute(t *testing.T) {
 const confinedChildEnv = "XQS_TEST_LANDLOCK_CHILD"
 
 func TestApplyLandlockLeavesTheProcessAbleToReachOnlyWhatItWasGranted(t *testing.T) {
+	runConfinedChild(t, "TestConfinedChildProbesItsBoundary")
+}
+
+// TestASecondRulesetCannotWidenTheFirst pins the property the shim's safety rests on.
+//
+// A Landlock domain only ever narrows: a process already inside one that adds a ruleset granting
+// more gets the intersection, not the union. That is what makes it safe for the shim to exec an
+// untrusted binary into the confinement — the plugin can re-invoke the shim, or call the syscalls
+// itself, and cannot talk its way back out. If the kernel ever stopped behaving this way, the shim
+// would be a suggestion rather than a boundary, and this is where that would show up.
+func TestASecondRulesetCannotWidenTheFirst(t *testing.T) {
+	runConfinedChild(t, "TestConfinedChildCannotGrantItselfMore")
+}
+
+func runConfinedChild(t *testing.T, name string) {
+	t.Helper()
 	if _, err := landlockABI(); err != nil {
 		t.Skipf("kernel has no usable Landlock: %v", err)
 	}
 	layout := newProbeLayout(t)
 
-	cmd := exec.Command(os.Args[0], "-test.run=TestConfinedChildProbesItsBoundary", "-test.v")
+	cmd := exec.Command(os.Args[0], "-test.run="+name, "-test.v")
 	cmd.Env = append(os.Environ(), confinedChildEnv+"="+strings.Join(layout, string(os.PathListSeparator)))
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("the confined child did not agree with its boundary: %v\n%s", err, out)
+	}
+}
+
+// childLayout is the child's side of the environment variable: the directories it was granted and
+// the one it must not reach.
+type childLayout struct {
+	root, install, instance, outside string
+}
+
+func readChildLayout(t *testing.T, driver string) (childLayout, bool) {
+	t.Helper()
+	spec := os.Getenv(confinedChildEnv)
+	if spec == "" {
+		t.Skip("child-process body, driven by " + driver)
+		return childLayout{}, false
+	}
+	p := strings.Split(spec, string(os.PathListSeparator))
+	return childLayout{root: p[0], install: p[1], instance: p[2], outside: p[3]}, true
+}
+
+func (l childLayout) shimArgs() ShimArgs {
+	return ShimArgs{
+		DataRoot: l.root,
+		AllowRX:  []string{l.install},
+		AllowRW:  []string{l.instance},
+		Exec:     filepath.Join(l.install, "plugin"),
 	}
 }
 
@@ -117,38 +159,59 @@ func newProbeLayout(t *testing.T) []string {
 // TestConfinedChildProbesItsBoundary is the body of the child process the test above starts, not a
 // test of its own: without the environment variable it has nothing to probe and skips.
 func TestConfinedChildProbesItsBoundary(t *testing.T) {
-	spec := os.Getenv(confinedChildEnv)
-	if spec == "" {
-		t.Skip("child-process body, driven by TestApplyLandlockLeavesTheProcessAbleToReachOnlyWhatItWasGranted")
+	layout, ok := readChildLayout(t, "TestApplyLandlockLeavesTheProcessAbleToReachOnlyWhatItWasGranted")
+	if !ok {
+		return
 	}
-	parts := strings.Split(spec, string(os.PathListSeparator))
-	root, install, instance, outside := parts[0], parts[1], parts[2], parts[3]
-
 	abi, err := landlockABI()
 	if err != nil {
 		t.Fatalf("probe landlock: %v", err)
 	}
-	args := ShimArgs{
-		DataRoot: root,
-		AllowRX:  []string{install},
-		AllowRW:  []string{instance},
-		Exec:     filepath.Join(install, "plugin"),
-	}
-	if err := applyLandlock(abi, args); err != nil {
+	if err := applyLandlock(abi, layout.shimArgs()); err != nil {
 		t.Fatalf("applyLandlock: %v", err)
 	}
 
-	if _, err := os.ReadFile(filepath.Join(install, "plugin.json")); err != nil {
+	if _, err := os.ReadFile(filepath.Join(layout.install, "plugin.json")); err != nil {
 		t.Errorf("reading its own installed file failed: %v; the plugin could not start", err)
 	}
-	if err := os.WriteFile(filepath.Join(instance, "state"), []byte("x"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(layout.instance, "state"), []byte("x"), 0o600); err != nil {
 		t.Errorf("writing its own instance directory failed: %v", err)
 	}
-	if _, err := os.ReadFile(filepath.Join(outside, "id_ed25519")); !errors.Is(err, os.ErrPermission) {
+	if _, err := os.ReadFile(filepath.Join(layout.outside, "id_ed25519")); !errors.Is(err, os.ErrPermission) {
 		t.Errorf("reading outside the grants returned %v, want a permission error; this is the "+
 			"whole point of the ruleset", err)
 	}
-	if err := os.WriteFile(filepath.Join(outside, "dropped"), []byte("x"), 0o600); !errors.Is(err, os.ErrPermission) {
+	if err := os.WriteFile(filepath.Join(layout.outside, "dropped"), []byte("x"), 0o600); !errors.Is(err, os.ErrPermission) {
 		t.Errorf("writing outside the grants returned %v, want a permission error", err)
+	}
+}
+
+// TestConfinedChildCannotGrantItselfMore is the body of the second child process: it confines
+// itself, then does what a hostile plugin would do and applies a ruleset that grants the directory
+// the first one withheld.
+func TestConfinedChildCannotGrantItselfMore(t *testing.T) {
+	layout, ok := readChildLayout(t, "TestASecondRulesetCannotWidenTheFirst")
+	if !ok {
+		return
+	}
+	abi, err := landlockABI()
+	if err != nil {
+		t.Fatalf("probe landlock: %v", err)
+	}
+	if err := applyLandlock(abi, layout.shimArgs()); err != nil {
+		t.Fatalf("applyLandlock: %v", err)
+	}
+
+	wider := layout.shimArgs()
+	wider.AllowRW = append(wider.AllowRW, layout.outside)
+	if err := applyLandlock(abi, wider); err != nil {
+		t.Fatalf("applying a second, wider ruleset failed outright: %v; the interesting answer is "+
+			"that it succeeds and changes nothing", err)
+	}
+
+	if _, err := os.ReadFile(filepath.Join(layout.outside, "id_ed25519")); !errors.Is(err, os.ErrPermission) {
+		t.Errorf("after granting itself the directory, reading it returned %v, want a permission "+
+			"error; a domain that can be widened from inside is not a boundary, and the shim's "+
+			"whole design assumes it cannot be", err)
 	}
 }

@@ -53,6 +53,31 @@ identical either way, while catching nothing the per-feature check does not alre
 removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `removedSchemaFields`
 (`manifest_schema_test.go`) instead, where it is reviewed rather than inferred from a number.
 
+### Added
+
+- **Plugin processes are confined by the kernel on Linux.** A plugin now runs inside a Landlock
+  ruleset that grants it read and execute on its own installed files, read and write on its own
+  instance data directory, and read on the system libraries a dynamically linked binary needs.
+  Everything else — your SSH keys, the vault, another plugin's directory, another session's
+  directory — is denied by the kernel rather than by the plugin's good behaviour.
+
+  Each plugin's settings row says which boundary its running processes are actually behind. Linux
+  reports **sandboxed (files only)**, and that wording is deliberate: Landlock's network rules cover
+  TCP only, and only on kernel 6.7 and newer, so a confined plugin can still open a UDP socket.
+  Windows and macOS still report **not sandboxed** and say why.
+
+  Requires kernel 5.13 or newer with Landlock enabled. Without it a plugin starts exactly as before
+  and the row says so — an older kernel is not an error.
+
+  A plugin that reads or writes outside its own directories will now fail where it used to succeed.
+  None of the published plugins do; the host performs every network and filesystem operation on a
+  plugin's behalf already.
+
+### Fixed
+
+- A plugin's `TMPDIR` was never set, only `TEMP` and `TMP`, so on Linux and macOS every plugin's
+  temporary files went to the shared `/tmp` instead of its own instance directory.
+
 ### Removed
 
 - `capabilities.session.localEmbedServer` manifest field, its `localEmbedServer` feature id, and the
