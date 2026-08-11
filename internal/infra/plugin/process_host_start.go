@@ -125,7 +125,7 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 
 	portableReadOnly := h.cfg.Portable != nil && h.cfg.Portable.DataRootReadOnly()
 	if err := initializePluginProcess(ctx, conn, plugin, dataDir, portableReadOnly, negotiated, negotiationWarnings); err != nil {
-		return err
+		return h.explainStartFailure(mp, err)
 	}
 
 	// Third checkpoint, same shape and same reason as the first two. A Stop landing during the
