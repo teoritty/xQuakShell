@@ -42,3 +42,23 @@ func EnsurePluginInstanceDataDir(dataRoot, pluginID, sessionID string, isolation
 	}
 	return dir, nil
 }
+
+// PluginInstanceTempDir returns the temp directory a plugin process is given as TEMP/TMP.
+//
+// It lives inside the instance data directory rather than beside it, so that everything a plugin
+// process is permitted to write sits under the one root the host already hands it at initialize and
+// already exposes as `${pluginData}`. That single root is what an OS-level sandbox has to grant:
+// a temp directory outside it would have to be granted separately, which is how a sandbox acquires
+// the extra permission that makes it stop being one.
+func PluginInstanceTempDir(instanceDataDir string) string {
+	return filepath.Join(instanceDataDir, "tmp")
+}
+
+// EnsurePluginInstanceTempDir creates the instance temp directory with restrictive permissions.
+func EnsurePluginInstanceTempDir(instanceDataDir string) (string, error) {
+	dir := PluginInstanceTempDir(instanceDataDir)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	return dir, nil
+}

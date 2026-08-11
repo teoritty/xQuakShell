@@ -2,7 +2,6 @@ package plugin
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -43,7 +42,13 @@ var blockedPluginEnvKeys = map[string]struct{}{
 }
 
 // PluginProcessEnv builds a sanitized environment for an out-of-process plugin.
-func PluginProcessEnv(dataRoot, pluginID, sessionID string) []string {
+//
+// instanceDataDir is the plugin's own data directory, not the portable data root. TEMP and TMP
+// point inside it, which is what keeps the host's staging directory (<dataRoot>/tmp, where plugin
+// downloads and bundles are unpacked and verified) out of reach of the processes the host is
+// installing alongside. The caller creates both directories before spawning; this function only
+// names them, so that the path exists in exactly one place (PluginInstanceTempDir).
+func PluginProcessEnv(instanceDataDir, pluginID, sessionID string) []string {
 	env := []string{
 		"XQS_PLUGIN=1",
 		"XQS_PLUGIN_ID=" + pluginID,
@@ -52,7 +57,7 @@ func PluginProcessEnv(dataRoot, pluginID, sessionID string) []string {
 		env = append(env, "XQS_PLUGIN_SESSION_ID="+sessionID)
 	}
 
-	tempDir := filepath.Join(dataRoot, "tmp")
+	tempDir := PluginInstanceTempDir(instanceDataDir)
 	env = append(env, "TEMP="+tempDir, "TMP="+tempDir)
 
 	for _, entry := range os.Environ() {

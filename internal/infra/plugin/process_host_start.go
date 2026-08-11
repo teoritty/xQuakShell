@@ -46,12 +46,12 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	}
 	mp.negotiated = negotiated
 
-	spawned, err := spawnPluginProcess(h.cfg.DataRoot, plugin, sessionID)
+	spawned, dataDir, err := spawnPluginProcess(h.cfg.DataRoot, plugin, sessionID)
 	if err != nil {
 		return err
 	}
 
-	job, dataDir, err := preparePluginSandbox(h.cfg.DataRoot, plugin, sessionID, spawned.cmd.Process.Pid)
+	job, err := preparePluginSandbox(plugin, spawned.cmd.Process.Pid)
 	if err != nil {
 		// The process is not on mp yet, so the deferred teardown below cannot see it. Kill it here.
 		discardSpawnedProcess(spawned, pluginJob{})
