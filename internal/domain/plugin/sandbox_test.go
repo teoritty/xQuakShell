@@ -50,6 +50,18 @@ func TestWeakestSandboxModePicksTheProcessWithTheLeastConfinement(t *testing.T) 
 			modes: []domainplugin.SandboxMode{domainplugin.SandboxEnforced, domainplugin.SandboxEnforced},
 			want:  domainplugin.SandboxEnforced,
 		},
+		{
+			name:  "wholly confined and partly confined",
+			modes: []domainplugin.SandboxMode{domainplugin.SandboxEnforced, domainplugin.SandboxEnforcedPartial},
+			want:  domainplugin.SandboxEnforcedPartial,
+			why:   "a summary rounds a partial guarantee down, never up",
+		},
+		{
+			name:  "partly confined beats not confined at all",
+			modes: []domainplugin.SandboxMode{domainplugin.SandboxEnforcedPartial, domainplugin.SandboxDisabled},
+			want:  domainplugin.SandboxDisabled,
+			why:   "a partial boundary is still a boundary, and no boundary is weaker than one",
+		},
 	}
 
 	for _, tc := range cases {
@@ -67,12 +79,28 @@ func TestWeakestSandboxModePicksTheProcessWithTheLeastConfinement(t *testing.T) 
 }
 
 func TestSandboxSupportModeReportsEnforcedOnlyWhenAvailable(t *testing.T) {
-	if got := (domainplugin.SandboxSupport{Available: true}).Mode(); got != domainplugin.SandboxEnforced {
-		t.Errorf("Mode() = %q for available support, want %q", got, domainplugin.SandboxEnforced)
+	whole := domainplugin.SandboxSupport{Available: true, Network: true}
+	if got := whole.Mode(); got != domainplugin.SandboxEnforced {
+		t.Errorf("Mode() = %q for support covering files and sockets, want %q", got, domainplugin.SandboxEnforced)
 	}
 	unavailable := domainplugin.SandboxSupport{Reason: "not implemented"}
 	if got := unavailable.Mode(); got != domainplugin.SandboxUnavailable {
 		t.Errorf("Mode() = %q for unavailable support, want %q; a platform that cannot confine a "+
 			"process must never report one as confined", got, domainplugin.SandboxUnavailable)
+	}
+}
+
+func TestSandboxSupportModeDoesNotRoundFilesystemOnlyUpToWholeEnforcement(t *testing.T) {
+	filesOnly := domainplugin.SandboxSupport{Available: true, Reason: "kernel is older than 6.7"}
+	if got := filesOnly.Mode(); got != domainplugin.SandboxEnforcedPartial {
+		t.Errorf("Mode() = %q for filesystem-only support, want %q; the network dimension is "+
+			"uncovered and the badge must not claim otherwise", got, domainplugin.SandboxEnforcedPartial)
+	}
+
+	// Network without Available is not a state any probe produces, and the answer still has to be
+	// the safe one: a flag set on a platform that confines nothing must not read as confinement.
+	noneAtAll := domainplugin.SandboxSupport{Network: true}
+	if got := noneAtAll.Mode(); got != domainplugin.SandboxUnavailable {
+		t.Errorf("Mode() = %q for Network without Available, want %q", got, domainplugin.SandboxUnavailable)
 	}
 }

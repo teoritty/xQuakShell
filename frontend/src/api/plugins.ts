@@ -23,9 +23,12 @@ export interface PluginInfo {
   enabled: boolean;
   /**
    * The OS-level boundary this plugin's running processes are behind: `enforced`,
-   * `unavailable`, `disabled`, or absent when the plugin is not running. Where a
-   * plugin has several processes the weakest one is reported, because a summary
-   * that showed the confined one would claim containment the user does not have.
+   * `enforced-partial`, `unavailable`, `disabled`, or absent when the plugin is not
+   * running. `enforced-partial` is a real boundary with a dimension missing — a Linux
+   * kernel below 6.7 confines the filesystem and not the network — and it is a
+   * separate value so the UI cannot round it up. Where a plugin has several processes
+   * the weakest one is reported, because a summary that showed the confined one would
+   * claim containment the user does not have.
    */
   sandboxMode?: string;
   /**
