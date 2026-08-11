@@ -271,7 +271,7 @@ Embed sessions serve plugin `ui/` assets and WebSocket tunnels through a **core-
 | Memory exhaustion | 64 KiB max frame; 32 MiB/s default bandwidth; inactive tab backpressure |
 
 Mode B (`localEmbedServer`), which let a plugin bind its own loopback HTTP port, has been removed
-(`session` capability 2.0.0). The broker above is the only embed path, so a plugin process opens no
+from the `session` capability. The broker above is the only embed path, so a plugin process opens no
 listening socket at all — a precondition for the OS-level isolation work. See
 [adr/008-session-embed-surfaces.md](adr/008-session-embed-surfaces.md).
 

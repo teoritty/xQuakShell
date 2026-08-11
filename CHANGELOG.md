@@ -19,23 +19,13 @@ fixes, including security fixes, ship in a new release rather than as patches to
 | Axis | Version |
 |---|---|
 | `pluginApi` | 1.0.0 (unchanged) |
-| Capabilities | `session` **2.0.0** · `network` 1.0.0 · `filesystem` 1.0.0 · `events` 1.0.0 · `vault` 1.0.0 · `auth` 1.0.0 · `tunnel` 1.0.0 · `channel` 1.0.0 · `discovery` 1.0.0 · `ui` 1.0.0 |
+| Capabilities | `session` 1.0.0 — `localEmbedServer` feature removed · all others 1.0.0, unchanged |
 | Manifest schema | `capabilities.session.localEmbedServer` removed |
 | `bundleFormat` | 1.0.0 (unchanged) |
 | Vault schema | 3 (unchanged) |
 | Audit schema | 1 (unchanged) |
 
 ### BREAKING
-
-**The `session` capability is at 2.0.0, and every plugin that grants `capabilities.session` must
-declare it.** Capability versions are matched on the major, and a plugin that does not name a
-version inherits a baseline derived from its `pluginApi` major — which is still 1, so a manifest
-that grants `session` without saying otherwise now asks for `session 1.0.0` and is refused at the
-handshake. Add:
-
-```json
-"requires": { "pluginApi": "1.0.0", "capabilities": { "session": { "min": "2.0.0" } } }
-```
 
 **`capabilities.session.localEmbedServer` and the `session.reportLocalEmbed` RPC are removed.** This
 was ADR-008 Mode B: an opt-in loopback HTTP server inside the plugin process. It was the only path
@@ -44,14 +34,24 @@ isolation being built — a sandbox cannot deny a plugin the network and simulta
 HTTP. Embed sessions use the host-side broker (Mode A), which is what every existing plugin already
 uses.
 
-The removed feature never functioned: `HandlePluginReportLocalEmbed` returned
-`ErrLocalEmbedNotSupported` unconditionally, so no plugin can have depended on working behaviour.
-The manifest field was accepted and the capability gate allowed the call; only the handler refused.
+**Who is affected:** a plugin that names `localEmbedServer` in
+`requires.capabilities.session.features` is now refused at the handshake with `-32010`. Nothing else
+changes. A plugin that granted `localEmbedServer` in `capabilities` without requiring it by name
+still loads; the field is ignored, and the RPC it used to unlock is gone.
 
-`pluginApi` deliberately did **not** move. It versions the protocol envelope — framing, handshake,
-lifecycle, error space — none of which changed. Bumping it for a change inside one capability is the
-"formally incompatible, factually compatible" rejection ADR-012 exists to prevent, and it would have
-refused every plugin, including those that never touch embed.
+**Nothing that worked stops working.** The removed feature never functioned:
+`HandlePluginReportLocalEmbed` returned `ErrLocalEmbedNotSupported` unconditionally, so the manifest
+field parsed and the capability gate allowed the call while only the handler refused. The documented
+install consent for it did not exist either — the warning was computed and never read, and the
+vault grant map was never written or checked.
+
+**No version axis moved, and that is deliberate.** `pluginApi` versions the protocol envelope —
+framing, handshake, lifecycle, error space — none of which changed. The `session` capability did not
+take a major either: capability majors are matched exactly, so bumping it would refuse every plugin
+that grants `session` until its manifest named the new number, including plugins whose behaviour is
+identical either way, while catching nothing the per-feature check does not already catch. The
+removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `removedSchemaFields`
+(`manifest_schema_test.go`) instead, where it is reviewed rather than inferred from a number.
 
 ### Removed
 

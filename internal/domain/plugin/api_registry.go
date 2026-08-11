@@ -11,13 +11,6 @@ import (
 // regardless of which capabilities it uses, and it moves rarely and strictly by semver
 // (major = breaking, minor = additive-only). It replaces the former, unenforced
 // coreAPIVersion. Do NOT bump this without an ADR update and a golden-surface review.
-//
-// Removing the session capability's localEmbedServer feature did NOT move this number, and the
-// distinction is the entire point of ADR-012: a feature lives inside a capability, capabilities
-// version independently, and bumping the envelope for a change to one of them is the "formally
-// incompatible, factually compatible" failure that scheme exists to prevent. It would have rejected
-// every plugin at the handshake, including the ones that never touched embed at all. The session
-// capability carries that break instead — see hostRegistry.
 const PluginAPIVersion = "1.0.0"
 
 // CapabilityID is the stable identifier of a plugin capability — the CapabilitySet JSON key
@@ -140,18 +133,21 @@ func NewRegistry(caps map[CapabilityID]CapabilityDescriptor) Registry {
 }
 
 // hostRegistry is the authoritative host contract at this build, built once and never mutated.
-// Every capability started at 1.0.0 for the release freeze with an explicit feature list mirroring
+// Every capability starts at 1.0.0 for the release freeze with an explicit feature list mirroring
 // the gate's method map.
 //
-// session is at 2.0.0 because localEmbedServer was removed from it. A removed feature is breaking
-// (ADR-017), and this is the axis that carries it: a plugin declaring only filesystem or channel
-// capabilities is unaffected, which is what independent capability versions are for.
+// session dropped the localEmbedServer feature without a major bump — deliberately, and recorded in
+// removedFeatures below. A major would have been ceremony with a real cost and no effect: capability
+// majors are matched exactly, so it would have refused every plugin that grants session until its
+// manifest named the new version, while catching nothing. The plugins that actually depended on the
+// feature are the ones that name it in requires.features, and checkCapability already refuses those
+// on HasFeature, at every version.
 var hostRegistry = NewRegistry(map[CapabilityID]CapabilityDescriptor{
 	CapNetwork:    {Version: "1.0.0", Features: []FeatureID{FeatNetworkDial}},
 	CapFilesystem: {Version: "1.0.0", Features: []FeatureID{FeatFilesystemRead, FeatFilesystemWrite}},
 	CapEvents:     {Version: "1.0.0", Features: []FeatureID{FeatEventsPublish, FeatEventsSubscribe}},
 	CapVault:      {Version: "1.0.0", Features: []FeatureID{FeatVaultGetConnection, FeatVaultGetSecret}},
-	CapSession:    {Version: "2.0.0", Features: []FeatureID{FeatSessionEmbed, FeatSessionTerminal, FeatSessionTunnel, FeatSessionUpdateState}},
+	CapSession:    {Version: "1.0.0", Features: []FeatureID{FeatSessionEmbed, FeatSessionTerminal, FeatSessionTunnel, FeatSessionUpdateState}},
 	CapAuth:       {Version: "1.0.0", Features: []FeatureID{FeatAuthProvider}},
 	CapTunnel:     {Version: "1.0.0", Features: []FeatureID{FeatTunnelBind, FeatTunnelDial}},
 	CapChannel:    {Version: "1.0.0", Features: []FeatureID{FeatChannelOpen}},

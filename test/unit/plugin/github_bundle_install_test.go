@@ -145,7 +145,6 @@ const embedPluginManifest = `{
   "version": "1.0.0",
   "engine": {"type": "go-binary", "entry": "demo.exe"},
   "isolation": "per-session",
-  "requires": {"pluginApi": "1.0.0", "capabilities": {"session": {"min": "2.0.0"}}},
   "capabilities": {"session": {"connectProtocols": ["demo"], "embed": true}},
   "contributions": {"connectionProtocols": [{"id": "demo", "label": "Demo", "embedEntry": "ui/demo.html"}]}
 }`
@@ -199,7 +198,6 @@ func TestInstallFromGitHubAcceptsAVersionOlderThanTheRepository(t *testing.T) {
   "version": "9.9.9",
   "engine": {"type": "go-binary", "entry": "demo.exe"},
   "isolation": "per-session",
-  "requires": {"pluginApi": "1.0.0", "capabilities": {"session": {"min": "2.0.0"}}},
   "capabilities": {"session": {"connectProtocols": ["demo"], "embed": true}},
   "contributions": {"connectionProtocols": [{"id": "demo", "label": "Demo", "embedEntry": "ui/demo.html"}]}
 }`

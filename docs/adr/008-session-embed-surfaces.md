@@ -30,10 +30,16 @@ Session surface types are mutually exclusive: `terminal` **or** `embed`. Embed r
 - Core version bump to `0.3.0-dev`; plugins declare `"minCoreVersion": "0.3.0"`.
 - Mode B may need Windows firewall helper (Phase 4); Mode A needs no new firewall rules.
 
-## Amendment — Mode B removed (`session` capability 2.0.0)
+## Amendment — Mode B removed
 
 Mode A is unchanged and remains the decision. Mode B — the opt-in `localEmbedServer` loopback HTTP
 server inside the plugin process — is removed, along with `session.reportLocalEmbed`.
+
+The `session` capability keeps version 1.0.0. Capability majors are matched exactly, so bumping it
+would refuse every plugin that grants `session` until its manifest named the new number — including
+plugins that never used Mode B — while catching nothing: a plugin that depended on the feature names
+it in `requires.features`, and the per-feature check refuses that at any version. The removal is
+recorded by name in `removedFeatures` and `removedSchemaFields` instead.
 
 It was the only path on which a plugin process opened a listening socket of its own, which makes it
 incompatible with OS-level plugin isolation: a sandbox that must deny the plugin the network cannot

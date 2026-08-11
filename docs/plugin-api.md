@@ -92,6 +92,12 @@ never rejects you.
 releases and until the next major of that axis. Deprecation notices are logged once per plugin load,
 so a plugin that will break later says so now, in the log, while there is still time.
 
+One removal has happened without that window: `capabilities.session.localEmbedServer` and
+`session.reportLocalEmbed`, dropped while no third-party plugin existed and while the feature itself
+had never worked — the host refused the call unconditionally from the day it shipped. A deprecation
+window protects working plugins, and there were none to protect. It is recorded in the changelog and
+is not a precedent for anything that functions.
+
 **When a major does land**, your plugin stays installed with its data intact but does not load, and
 the plugins panel says which version it needs and which one is present.
 
@@ -354,7 +360,7 @@ Requires `capabilities.session.embed`, `capabilities.network`, and static assets
 
 ### Mode B — removed
 
-`capabilities.session.localEmbedServer` and `session.reportLocalEmbed` no longer exist. A plugin does not bind sockets; the host-side broker above is the only embed path. See [ADR-008](./adr/008-session-embed-surfaces.md) and the changelog entry for the `session` 2.0.0 bump.
+`capabilities.session.localEmbedServer` and `session.reportLocalEmbed` no longer exist. A plugin does not bind sockets; the host-side broker above is the only embed path. See [ADR-008](./adr/008-session-embed-surfaces.md).
 
 ## Channel bus
 
