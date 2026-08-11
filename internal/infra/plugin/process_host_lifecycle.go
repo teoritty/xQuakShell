@@ -28,8 +28,8 @@ func (h *ProcessHost) waitProcess(key string, mp *managedProcess) {
 		mp.state = domainplugin.ProcessStopped
 	}
 	delete(h.processes, key)
-	if mp.cmd != nil && mp.cmd.Process != nil {
-		untrackPluginPID(mp.cmd.Process.Pid)
+	if mp.child != nil {
+		untrackPluginPID(mp.child.Pid())
 	}
 
 	if crashed && h.cfg.OnCrash != nil {

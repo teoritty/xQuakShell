@@ -36,8 +36,8 @@ func (h *ProcessHost) Stop(ctx context.Context, pluginID, sessionID string) erro
 		if waitErr != nil {
 			_ = mp.reaper.Kill()
 		}
-	} else if mp.cmd != nil && mp.cmd.Process != nil {
-		_ = mp.cmd.Process.Kill()
+	} else if mp.child != nil {
+		_ = mp.child.Kill()
 	}
 
 	h.finalizeProcess(key, mp)

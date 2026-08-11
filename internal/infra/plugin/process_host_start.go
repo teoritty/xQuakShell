@@ -51,7 +51,7 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 		return err
 	}
 
-	job, err := preparePluginSandbox(plugin, spawned.cmd.Process.Pid)
+	job, err := preparePluginSandbox(plugin, spawned.child.Pid())
 	if err != nil {
 		// The process is not on mp yet, so the deferred teardown below cannot see it. Kill it here.
 		discardSpawnedProcess(spawned, pluginJob{})
@@ -61,7 +61,7 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	// Handing the process to mp and asking whether the reservation is still ours must be ONE atomic
 	// step, and Start must be prepared to lose it.
 	//
-	// Stop takes mp under this lock, sets ProcessStopping, and only then reads mp.cmd/mp.reaper —
+	// Stop takes mp under this lock, sets ProcessStopping, and only then reads mp.child/mp.reaper —
 	// which, for everything above this point, are still nil. So a Stop landing in the spawn window
 	// kills nothing, finalizeProcess burns cleanupOnce, and mp leaves the registry, while this Start
 	// walks on and reports success. The child used to die anyway, killed by the caller's context on
@@ -74,7 +74,7 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	current, stillRegistered := h.processes[key]
 	abandoned := !stillRegistered || current != mp || mp.state == domainplugin.ProcessStopping
 	if !abandoned {
-		mp.cmd = spawned.cmd
+		mp.child = spawned.child
 		mp.cancel = spawned.cancel
 		mp.reaper = spawned.reaper
 		mp.stderr = spawned.stderr

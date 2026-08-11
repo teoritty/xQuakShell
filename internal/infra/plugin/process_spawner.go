@@ -15,7 +15,7 @@ import (
 var errStartAbortedByStop = errors.New("plugin start aborted by a concurrent stop")
 
 type spawnedProcess struct {
-	cmd    *exec.Cmd
+	child  childProcess
 	cancel context.CancelFunc
 	reaper *processReaper
 	stderr io.WriteCloser
@@ -93,10 +93,11 @@ func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, se
 		return nil, "", fmt.Errorf("start plugin %s: %w", plugin.Manifest.ID, err)
 	}
 
-	reaper := newProcessReaper(cmd)
+	child := newExecChild(cmd)
+	reaper := newProcessReaper(child)
 	reaper.Start()
 	return &spawnedProcess{
-		cmd:    cmd,
+		child:  child,
 		cancel: procCancel,
 		reaper: reaper,
 		stderr: stderrLog,
@@ -126,7 +127,7 @@ func discardSpawnedProcess(spawned *spawnedProcess, job pluginJob) {
 		_ = spawned.stderr.Close()
 	}
 	closePluginJob(job)
-	if spawned.cmd != nil && spawned.cmd.Process != nil {
-		untrackPluginPID(spawned.cmd.Process.Pid)
+	if spawned.child != nil {
+		untrackPluginPID(spawned.child.Pid())
 	}
 }
