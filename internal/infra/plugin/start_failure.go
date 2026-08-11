@@ -2,6 +2,8 @@ package plugin
 
 import (
 	"fmt"
+	"io"
+	"strings"
 	"time"
 )
 
@@ -32,8 +34,24 @@ func (h *ProcessHost) explainStartFailure(mp *managedProcess, err error) error {
 		return err
 	}
 	exit := mp.reaper.ExitErr()
-	if exit == nil {
-		return fmt.Errorf("%w (the plugin process exited cleanly before the handshake finished)", err)
+	how := "exited cleanly before the handshake finished"
+	if exit != nil {
+		how = exit.Error()
 	}
-	return fmt.Errorf("%w (the plugin process %v)", err, exit)
+	return fmt.Errorf("%w (the plugin process %s)%s", err, how, stderrTailSuffix(mp.stderr))
+}
+
+// stderrTailSuffix renders whatever the process said on its way out, or nothing at all when it said
+// nothing. A trailing "; last stderr: []" on every failure would be noise on the many that have no
+// output to show.
+func stderrTailSuffix(stderr io.WriteCloser) string {
+	writer, ok := stderr.(*redactingStderrWriter)
+	if !ok {
+		return ""
+	}
+	tail := writer.Tail()
+	if len(tail) == 0 {
+		return ""
+	}
+	return "; last stderr: " + strings.Join(tail, " | ")
 }
