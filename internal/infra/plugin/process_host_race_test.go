@@ -177,7 +177,8 @@ func TestStopDuringStartingLeavesNoLiveProcess(t *testing.T) {
 	pluginDir := buildSlowStartFixture(t)
 	manifest := readFixtureManifest(t, pluginDir)
 	plugin := domainplugin.InstalledPlugin{Manifest: manifest, RootDir: pluginDir}
-	host := NewProcessHost(HostConfig{DataRoot: t.TempDir()})
+	dataRoot := t.TempDir()
+	host := NewProcessHost(HostConfig{DataRoot: dataRoot})
 
 	startDone := make(chan error, 1)
 	started := make(chan struct{})
@@ -215,7 +216,7 @@ func TestStopDuringStartingLeavesNoLiveProcess(t *testing.T) {
 	// Liveness is checked first, so that a regression is reported as the orphan it is rather than as
 	// a bookkeeping detail.
 	const what = "a Stop that arrived while the plugin was still starting"
-	pid, announced := fixturePID(t, pluginDir, 2*time.Second)
+	pid, announced := fixturePID(t, dataRoot, plugin, 2*time.Second)
 	if announced {
 		assertProcessGone(t, pid, what)
 	}
@@ -245,12 +246,13 @@ func TestStopAfterTheChildAnnouncedLeavesNoLiveProcess(t *testing.T) {
 	pluginDir := buildSlowStartFixture(t)
 	manifest := readFixtureManifest(t, pluginDir)
 	plugin := domainplugin.InstalledPlugin{Manifest: manifest, RootDir: pluginDir}
-	host := NewProcessHost(HostConfig{DataRoot: t.TempDir()})
+	dataRoot := t.TempDir()
+	host := NewProcessHost(HostConfig{DataRoot: dataRoot})
 
 	startDone := make(chan error, 1)
 	go func() { startDone <- host.Start(context.Background(), plugin, "") }()
 
-	pid, announced := fixturePID(t, pluginDir, 20*time.Second)
+	pid, announced := fixturePID(t, dataRoot, plugin, 20*time.Second)
 	if !announced {
 		t.Fatal("the fixture never announced a pid, so there is nothing to judge the kill by")
 	}
@@ -289,7 +291,8 @@ func TestStartCancelledDuringHandshakeLeavesNoLiveProcess(t *testing.T) {
 	pluginDir := buildSlowStartFixture(t)
 	manifest := readFixtureManifest(t, pluginDir)
 	plugin := domainplugin.InstalledPlugin{Manifest: manifest, RootDir: pluginDir}
-	host := NewProcessHost(HostConfig{DataRoot: t.TempDir()})
+	dataRoot := t.TempDir()
+	host := NewProcessHost(HostConfig{DataRoot: dataRoot})
 
 	// Cancel on the fixture's own signal, not on a stopwatch. announcePID is the first statement
 	// in the fixture's main and initialize sleeps 2s after it, so "the pid file exists" means the
@@ -312,7 +315,7 @@ func TestStartCancelledDuringHandshakeLeavesNoLiveProcess(t *testing.T) {
 	announced := make(chan pidResult, 1)
 	go func() {
 		defer cancel()
-		pid, ok := fixturePID(t, pluginDir, 20*time.Second)
+		pid, ok := fixturePID(t, dataRoot, plugin, 20*time.Second)
 		announced <- pidResult{pid: pid, ok: ok}
 	}()
 
@@ -350,9 +353,13 @@ func readFixtureManifest(t *testing.T, pluginDir string) domainplugin.Manifest {
 // reaches its first statement in milliseconds, so an absent pid after a generous wait means the
 // process was killed before it ran — and, since announcePID exits rather than swallowing a write
 // error, it cannot mean a live process that failed to write.
-func fixturePID(t *testing.T, pluginDir string, within time.Duration) (int, bool) {
+func fixturePID(t *testing.T, dataRoot string, plugin domainplugin.InstalledPlugin, within time.Duration) (int, bool) {
 	t.Helper()
-	pidPath := filepath.Join(filepath.Dir(pluginDir), "slow-start.pid")
+	// The fixture writes into the temp directory the host gives it, which is the only place a
+	// confined plugin can write. Deriving the path here from the same helpers the host uses is
+	// what keeps the two ends agreeing when the layout moves.
+	instanceDir := PluginInstanceDataDir(dataRoot, plugin.Manifest.ID, "", plugin.Manifest.EffectiveIsolation())
+	pidPath := filepath.Join(PluginInstanceTempDir(instanceDir), "slow-start.pid")
 
 	deadline := time.Now().Add(within)
 	for {

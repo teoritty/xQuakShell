@@ -11,6 +11,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 
+	"xquakshell/internal/infra/plugin/sandbox"
 	"xquakshell/internal/presentation/logwindow"
 )
 
@@ -35,6 +36,13 @@ func main() {
 	if logwindow.IsViewerMode(os.Args) {
 		logwindow.RunViewerApp(os.Args, assets)
 		return
+	}
+	// The sandbox shim is this binary confining itself and then becoming a plugin. It has to be
+	// dispatched before composeApp for the same reason the log viewer is — nothing it does needs
+	// the application, and building one would be a window, a vault handle and a plugin registry
+	// created only to be discarded at the execve two lines later. RunShim never returns.
+	if sandbox.IsShimMode(os.Args) {
+		sandbox.RunShim(os.Args)
 	}
 
 	app := composeApp()

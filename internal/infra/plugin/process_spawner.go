@@ -46,6 +46,14 @@ func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, se
 	if err := EnsureEntryExecutable(entryPath); err != nil {
 		return nil, "", err
 	}
+	// What actually gets exec'd is the plugin binary on a platform that cannot confine it, and this
+	// binary re-invoked as the sandbox shim on one that can. Both are an ordinary child: the shim
+	// is a process that narrows itself and then becomes the plugin, so the pid, the pipes and
+	// everything keyed by them belong to the plugin by the time anything downstream looks.
+	target, err := resolveSpawnTarget(dataRoot, plugin, entryPath, instanceDataDir)
+	if err != nil {
+		return nil, "", err
+	}
 	// The child process is deliberately NOT tied to the caller's context. exec.CommandContext makes
 	// the passed context own the LIFETIME of the child: cancelling it kills the process. Every caller
 	// of Start passes a short-lived request context (a WithTimeout with a `defer cancel()`), so a
@@ -61,10 +69,11 @@ func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, se
 	// context and its watchdog goroutine are released when the process is gone.
 	procCtx, procCancel := context.WithCancel(context.Background())
 
-	// #nosec G204 -- launching a plugin binary is this package's entire purpose. entryPath
-	// is resolved from the plugin directory and checksum-verified at install time; there
-	// are no arguments and no shell, so the path cannot expand into another command.
-	cmd := exec.CommandContext(procCtx, entryPath)
+	// #nosec G204 -- launching a plugin binary is this package's entire purpose. The target is
+	// either an entry path resolved from the plugin directory and checksum-verified at install
+	// time, or this binary itself with arguments this package built; there is no shell, so neither
+	// can expand into another command.
+	cmd := exec.CommandContext(procCtx, target.path, target.args...)
 	cmd.Env = PluginProcessEnv(instanceDataDir, plugin.Manifest.ID, sessionID)
 	stderrLog := NewRedactingStderrWriter(plugin.Manifest.ID)
 	cmd.Stderr = stderrLog
