@@ -23,19 +23,28 @@ type spawnedProcess struct {
 	stdout io.ReadCloser
 }
 
-// spawnPluginProcess starts the plugin binary. It deliberately takes no context: see the comment on
-// procCtx below — the caller's context must not own the child process's lifetime, and an unused
-// ctx parameter here would be an invitation to wire it back in.
-func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, sessionID string) (*spawnedProcess, error) {
+// spawnPluginProcess brings up the plugin binary together with the directories it is allowed to
+// write, and returns the instance data directory it prepared. The directories are created here
+// rather than by the caller because the temp one's path goes into the child's environment: it has
+// to exist before the child that is already being told about it.
+//
+// It deliberately takes no context: see the comment on procCtx below — the caller's context must
+// not own the child process's lifetime, and an unused ctx parameter here would be an invitation to
+// wire it back in.
+func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, sessionID string) (*spawnedProcess, string, error) {
 	entryPath, err := ResolveEngineEntryPath(plugin.RootDir, plugin.Manifest.Engine.Entry)
 	if err != nil {
-		return nil, fmt.Errorf("resolve plugin entry: %w", err)
+		return nil, "", fmt.Errorf("resolve plugin entry: %w", err)
+	}
+	instanceDataDir, err := preparePluginInstanceDirs(dataRoot, plugin, sessionID)
+	if err != nil {
+		return nil, "", err
 	}
 	// Repairs installs written before CopyBundle preserved the execute bit. Without this the fix
 	// only helps plugins installed after the update, and every plugin already on a Linux disk stays
 	// dead with no hint that reinstalling is what would revive it.
 	if err := EnsureEntryExecutable(entryPath); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	// The child process is deliberately NOT tied to the caller's context. exec.CommandContext makes
 	// the passed context own the LIFETIME of the child: cancelling it kills the process. Every caller
@@ -56,32 +65,32 @@ func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, se
 	// is resolved from the plugin directory and checksum-verified at install time; there
 	// are no arguments and no shell, so the path cannot expand into another command.
 	cmd := exec.CommandContext(procCtx, entryPath)
-	cmd.Env = PluginProcessEnv(dataRoot, plugin.Manifest.ID, sessionID)
+	cmd.Env = PluginProcessEnv(instanceDataDir, plugin.Manifest.ID, sessionID)
 	stderrLog := NewRedactingStderrWriter(plugin.Manifest.ID)
 	cmd.Stderr = stderrLog
 	if err := configurePluginCmd(cmd); err != nil {
 		procCancel()
 		_ = stderrLog.Close()
-		return nil, fmt.Errorf("configure plugin process: %w", err)
+		return nil, "", fmt.Errorf("configure plugin process: %w", err)
 	}
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		procCancel()
 		_ = stderrLog.Close()
-		return nil, fmt.Errorf("plugin stdin pipe: %w", err)
+		return nil, "", fmt.Errorf("plugin stdin pipe: %w", err)
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		procCancel()
 		_ = stderrLog.Close()
-		return nil, fmt.Errorf("plugin stdout pipe: %w", err)
+		return nil, "", fmt.Errorf("plugin stdout pipe: %w", err)
 	}
 
 	if err := cmd.Start(); err != nil {
 		procCancel()
 		_ = stderrLog.Close()
-		return nil, fmt.Errorf("start plugin %s: %w", plugin.Manifest.ID, err)
+		return nil, "", fmt.Errorf("start plugin %s: %w", plugin.Manifest.ID, err)
 	}
 
 	reaper := newProcessReaper(cmd)
@@ -93,7 +102,7 @@ func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, se
 		stderr: stderrLog,
 		stdin:  stdin,
 		stdout: stdout,
-	}, nil
+	}, instanceDataDir, nil
 }
 
 // discardSpawnedProcess tears down a child that Start spawned but will not keep. It is the teardown

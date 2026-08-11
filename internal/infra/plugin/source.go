@@ -60,10 +60,13 @@ func InstallFromSource(sourcePath, dataRoot string) (domainplugin.InstalledPlugi
 //
 // This is deliberately not the same statement as the validation loadSource already performed. That
 // one described the source tree, which for both install routes is a staging directory under the
-// portable temp root — the directory every running plugin receives as its TEMP (process_env.go).
-// A plugin that swapped the entry binary between that validation and CopyBundle would otherwise be
-// installed under the victim plugin's id, inheriting its identity and the consents already granted
-// to it, and the existence check on SHA256SUMS this replaced could not tell the difference.
+// portable temp root; a swap of the entry binary between that validation and CopyBundle would
+// otherwise install under the victim plugin's id, inheriting its identity and the consents already
+// granted to it, and the existence check on SHA256SUMS this replaced could not tell the difference.
+//
+// Plugin processes no longer receive that staging root as their TEMP (process_env.go), which is
+// what closed the practical route to the swap. This check stays because it is the direct statement:
+// the tree that runs is the tree the author signed, whoever else can reach the staging directory.
 //
 // The reserved names are the two files the host itself writes into an installed tree; they are
 // legitimately absent from the author's SHA256SUMS, and omitting either here fails every install.

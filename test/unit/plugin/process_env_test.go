@@ -1,9 +1,11 @@
 package plugin_test
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
+	domainplugin "xquakshell/internal/domain/plugin"
 	infraplugin "xquakshell/internal/infra/plugin"
 )
 
@@ -51,12 +53,46 @@ func TestPluginProcessEnvBlocksSecretsAndProfilePaths(t *testing.T) {
 	}
 }
 
-func TestPluginProcessEnvUsesPortableTemp(t *testing.T) {
+func TestPluginProcessEnvUsesInstanceTemp(t *testing.T) {
+	instanceDataDir := t.TempDir()
+	env := infraplugin.PluginProcessEnv(instanceDataDir, "com.example.plugin", "")
+
+	want := filepath.Join(instanceDataDir, "tmp")
+	for _, key := range []string{"TEMP", "TMP"} {
+		got, ok := envLookup(env, key)
+		if !ok {
+			t.Fatalf("%s missing from plugin env", key)
+		}
+		if got != want {
+			t.Errorf("%s = %q, want %q; a plugin's temp must live inside its own instance data "+
+				"directory, the single root a sandbox can grant it", key, got, want)
+		}
+	}
+}
+
+// TestPluginProcessEnvTempIsNotTheHostStagingDir states the invariant this separation exists for.
+// The host unpacks and verifies plugin downloads under <dataRoot>/tmp; handing a plugin process the
+// same directory as its TEMP put an attacker-writable window inside the install path.
+func TestPluginProcessEnvTempIsNotTheHostStagingDir(t *testing.T) {
 	dataRoot := t.TempDir()
-	env := infraplugin.PluginProcessEnv(dataRoot, "com.example.plugin", "")
-	wantTemp := strings.ReplaceAll(dataRoot+`\tmp`, `\`, `/`)
-	joined := strings.Join(env, "\n")
-	if !strings.Contains(strings.ReplaceAll(joined, `\`, `/`), wantTemp) {
-		t.Fatalf("expected portable TEMP/TMP under data root, got %q", joined)
+	hostStaging := filepath.Join(dataRoot, "tmp")
+
+	instanceDataDir, err := infraplugin.EnsurePluginInstanceDataDir(
+		dataRoot, "com.example.plugin", "sess-1", domainplugin.IsolationPerSession)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := infraplugin.PluginProcessEnv(instanceDataDir, "com.example.plugin", "sess-1")
+
+	got, ok := envLookup(env, "TEMP")
+	if !ok {
+		t.Fatal("TEMP missing from plugin env")
+	}
+	if got == hostStaging {
+		t.Fatalf("TEMP = %q, the host's own staging directory; a plugin able to write there can "+
+			"replace a bundle the host has already verified", got)
+	}
+	if !strings.HasPrefix(got, instanceDataDir) {
+		t.Errorf("TEMP = %q, want a path under the instance data dir %q", got, instanceDataDir)
 	}
 }
