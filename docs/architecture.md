@@ -37,7 +37,11 @@ Three trust boundaries — do not mix:
 |------|-------------|------------------------|-------------|-------------|
 | Host user FS | `HostFileSystem`, `HostAppLauncher` | [`internal/infra/host/host_fs.go`](../internal/infra/host/host_fs.go), `launcher_*.go` | No sandbox root; trusted host UI | `List`, `Stat`, `Remove`, `Mkdir`, `Rename`, `CreateFile`, `OpenDefault`, `OpenWith` — used by `LocalFSService`, `TransferService` |
 | Portable app data | `PortableDataStore` | [`internal/infra/portable/data_store.go`](../internal/infra/portable/data_store.go) | Jailed to `<exe>/data` | `ResolvePath`, `Remove`, `ReadFile`, `EnsureTempDir` — used by plugin install/uninstall and GitHub staging temp |
-| Plugin sandbox | (IPC only) | [`internal/infra/plugin/capability/fs_proxy.go`](../internal/infra/plugin/capability/fs_proxy.go) | Manifest roots + symlink checks | `fs.*` RPC only |
+| Plugin `fs.*` IPC | (IPC only) | [`internal/infra/plugin/capability/fs_proxy.go`](../internal/infra/plugin/capability/fs_proxy.go) | Manifest roots + symlink checks | `fs.*` RPC only |
+
+The third zone is a policy on the `fs.*` RPC surface, not on the plugin process: a plugin reaches
+the filesystem directly with the user's token, so the jail binds what the host will do for it. See
+[security-model.md — Trust model](security-model.md#trust-model-and-what-it-does-not-cover).
 
 Run `make check` to verify zone separation. Canonical rules: [`test/unit/architecture/fs_boundaries.go`](../test/unit/architecture/fs_boundaries.go).
 See [adr/007-host-filesystem-trust.md](adr/007-host-filesystem-trust.md).

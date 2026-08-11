@@ -2,6 +2,52 @@
 
 This document summarizes how xQuakShell constrains out-of-process plugins.
 
+## Trust model, and what it does not cover
+
+Read this section before the rest of the document, because it bounds everything in it.
+
+A plugin is a native executable the host starts as a child process. It runs **as the user who
+started xQuakShell, with that user's full token**. There is no OS-level sandbox: no AppContainer or
+restricted token on Windows, no seccomp, namespaces or Landlock on Linux, no `sandbox_init` on
+macOS. The per-plugin job object (Windows) and the rlimits (Linux, macOS, BSD) bound *resources* and
+process lifetime. None of them confine the plugin's own filesystem or network syscalls.
+
+What the capability system is: **a gate on the IPC boundary, plus install-time consent and an audit
+trail.** Every plugin→host call — `fs.*`, `net.dial`, `vault.getSecret`, `channel.open`, and the
+rest — is checked against the manifest, and denied calls are logged without secret material. That
+boundary is real and enforced for everything the plugin asks the *host* to do on its behalf.
+
+It is not a boundary on what the plugin does by itself. A plugin that chooses to can:
+
+- read and write any file the user can, including `~/.ssh`, browser profiles, and everything under
+  `<exe>/data` — the manifest `fs` capability governs the `fs.*` RPC surface, not the plugin's own
+  syscalls;
+- open its own sockets, bypassing the `network` capability and its dial policy entirely;
+- read the memory of other processes running as the same user, subject only to OS defaults
+  (`ptrace_scope` on Linux; a same-token `OpenProcess` succeeds on Windows);
+- persist itself outside xQuakShell.
+
+**Installing a plugin is therefore equivalent to running a program with your own privileges.** The
+consent screen reports what a plugin has *declared*, and thereby what the host will do for it. It is
+not a containment promise. Install plugins whose authors you trust, on the same judgement you would
+apply to any other executable you run.
+
+### What the vault is worth against a malicious plugin
+
+Vault contents are encrypted at rest (age + scrypt) and the master password exists only in host
+memory while unlocked, so a plugin cannot read `vault.age` on its own, and `vault.getSecret` is
+gated and audited. But a process running as the user is in a position to attack the host process
+itself. The vault's confidentiality against an installed malicious plugin rests on the same-user
+boundary, not on the cryptography.
+
+### Where this is heading
+
+OS-level isolation is planned — AppContainer on Windows and Landlock on Linux — with the model
+described above kept as the fallback on platforms or kernels that cannot support it. macOS is not in
+scope for that work, so on macOS this section will keep describing the model in full. This section
+is maintained as the current truth, not as a snapshot: if it still says there is no OS sandbox, then
+there is none in the build you are reading it from.
+
 ## Session protocols
 
 - Every contributed `connectionProtocols[].id` must appear in `capabilities.session.connectProtocols`.
@@ -68,7 +114,8 @@ Authorization for vault and session data is enforced in the **usecase** layer:
 
 ## Process resource limits
 
-- **Linux / macOS / BSD:** `RLIMIT_AS`, `RLIMIT_NOFILE`, best-effort `RLIMIT_NPROC` via `Prlimit` / `setrlimit` (128 MiB memory cap, same as Windows Job Object).
+- **Linux:** `RLIMIT_DATA` and `RLIMIT_NOFILE` via `Prlimit` (128 MiB memory cap, same as the Windows Job Object). Not `RLIMIT_AS`: it caps virtual address space, and the Go runtime reserves multi-GiB arenas at startup while touching a few MiB, so an AS cap kills a Go plugin before `main()`. `RLIMIT_NPROC` is deliberately not set either — Linux accounts it per-UID, so any small cap fails the plugin's first `clone()` because of processes it does not own.
+- **macOS / BSD:** `RLIMIT_AS`, `RLIMIT_NOFILE`, best-effort `RLIMIT_NPROC` via `Prlimit`.
 - **Windows:** per-process Job Object with `PROCESS_MEMORY` / `JOB_MEMORY` caps (128 MiB) and kill-on-close.
 - Exactly one goroutine calls `cmd.Wait()` per plugin child (`processReaper`).
 
@@ -195,13 +242,16 @@ User-installed plugins **override** bundled plugins with the same manifest `id`.
 
 The host application (Wails UI) operates on the user's filesystem **without a sandbox root** via `domain.HostFileSystem`. This is intentional: an SSH client must list, transfer, and open files anywhere the user can access.
 
-| Caller | FS access | Sandboxed |
-|--------|-----------|-----------|
+| Caller | FS access | Path-jailed |
+|--------|-----------|-------------|
 | Host UI (Local Files, transfers, dialogs) | `HostFileSystem` | No |
 | Portable internal state (temp, layout) | `PortableDataStore` | Yes (`<exe>/data`) |
-| Plugin child process (`fs.*` IPC) | `FSProxy` | Yes (manifest `${pluginData}`) |
+| Plugin `fs.*` IPC | `FSProxy` | Yes (manifest `${pluginData}`) |
 
-Plugins **cannot** invoke Wails host methods or `HostFileSystem`. Their only filesystem surface is manifest-gated IPC.
+Plugins **cannot** invoke Wails host methods or `HostFileSystem`. Their only filesystem surface
+*through the host* is manifest-gated IPC. The jail in the last row is a property of that RPC
+surface, not of the plugin process, which reaches the filesystem directly with the user's token —
+see [Trust model](#trust-model-and-what-it-does-not-cover).
 
 See [adr/007-host-filesystem-trust.md](adr/007-host-filesystem-trust.md).
 

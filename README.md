@@ -35,7 +35,7 @@ Most SSH clients force a choice: either you get a polished terminal with no real
 xQuakShell doesn't make you choose:
 
 - **Portable by design.** No installer, no registry, no system-wide state. The vault, audit log, and every installed plugin live next to the executable file. Copy the folder to a USB stick and your whole setup — connections, keys, plugins — moves with it.
-- **A plugin system you can actually trust.** Every plugin is a separate OS process, sandboxed with memory/handle limits (Job Objects on Windows, rlimits on Linux/macOS), talking to the core only through a capability-gated JSON-RPC channel. A plugin declares in its manifest exactly which files, hosts, and vault fields it needs — anything outside that is rejected before it ever executes, and denied calls are audit-logged. See [Security Model](./docs/security-model.md).
+- **A plugin system that tells you what it grants.** Every plugin is a separate OS process, resource-limited (Job Objects on Windows, rlimits on Linux/macOS), talking to the core only through a capability-gated JSON-RPC channel: a plugin declares in its manifest exactly which files, hosts, and vault fields it needs, calls outside that are refused and audit-logged, and the install screen shows you the list before you agree to it. That gate covers what a plugin asks the core to do — it is not an OS sandbox, and a plugin still runs with your privileges, so installing one is a decision about its author. The [Security Model](./docs/security-model.md) states the boundary and its limits precisely.
 - **Protocols are contributions, not core features.** SSH ships in the core. Everything else — VNC, Telnet, RDP, Discovery plugins, whatever you need next — is a `SessionConnector` implementation registered through a plugin manifest. You're not waiting on a roadmap to add a protocol; you can build it.
 - **Nothing silently trusts the network.** Strict host-key verification with no auto-accept, an encrypted vault (age + scrypt) instead of plaintext config, and a local audit log that records actions without ever recording secrets.
 
@@ -49,13 +49,13 @@ If you manage servers from a laptop that leaves the office, or you need a remote
 - SSH terminal + SFTP file manager (upload/download/rename/delete/create), multi-tab sessions with independent lifecycle.
 - Jump hosts and strict host key verification (no silent auto-accept).
 - Local/remote/dynamic port forwarding.
-- Out-of-process plugin system: sandboxed, capability-gated, versioned IPC handshake, resource-limited, extensible to new connection protocols — installable straight from GitHub or as signed `.xqsp` bundles.
+- Out-of-process plugin system: capability-gated, versioned IPC handshake, resource-limited, extensible to new connection protocols — installable straight from GitHub or as signed `.xqsp` bundles.
 - Local audit log and session lockout, with secret redaction at the IPC boundary.
 - Portable Windows build with bundled WebView2 runtime (`make portable`) — works on clean/offline machines.
 
 ## Official plugins
 
-Protocols beyond SSH are provided by sandboxed, out-of-process plugins installed
+Protocols beyond SSH are provided by out-of-process plugins installed
 from GitHub through the in-app plugin manager. The officially maintained ones:
 
 | Plugin | Protocol | Links |
@@ -170,16 +170,23 @@ desktop entry and icon from `packaging/linux/`.
 
 ## Security
 
-xQuakShell's plugin sandbox is enforced at multiple layers, not just "trust the manifest":
+The plugin boundary is enforced at several layers, not just "trust the manifest":
 
 | Layer | What it enforces |
 |-------|-------------------|
-| **Process isolation** | Each plugin runs as its own OS process; per-plugin or per-session isolation modes; killed on host shutdown or crash, restarted with backoff. |
+| **Process separation** | Each plugin runs as its own OS process; per-plugin or per-session isolation modes; killed on host shutdown or crash, restarted with backoff. |
 | **Capability gate** | Every plugin→core call (`fs.*`, `net.dial`, `vault.getSecret`, …) is checked against the plugin's declared manifest capabilities; unmatched calls are denied and logged, never silently allowed. |
 | **API version handshake** | The core, not the plugin, is the authority on compatibility — a plugin's echoed version is never trusted for enforcement. |
 | **Resource limits** | Memory/handle caps via Job Objects (Windows) or rlimits (Linux/macOS/BSD); oversized IPC frames and file reads/writes are rejected. |
 | **Ownership checks (IDOR)** | Vault and session access is scoped to the plugin that owns the active session — a plugin can't reach another plugin's or another session's data. |
 | **Secrets** | Vault contents are encrypted at rest (age + scrypt); secret field values never round-trip to plugin logs, audit logs, or the frontend after save. |
+
+**What this table is not.** Every row above governs what a plugin asks the core to do. None of them
+is an OS sandbox: a plugin process runs under your account with your token, so it can reach your
+files and the network directly, whatever its manifest says. Installing a plugin is a decision about
+trusting its author, the same as running any other program. OS-level isolation (AppContainer,
+Landlock) is planned; until it ships, [Security Model → Trust model](./docs/security-model.md#trust-model-and-what-it-does-not-cover)
+is the precise statement of the boundary.
 
 Full write-up in [Security Model](./docs/security-model.md) and the [ADRs](./docs/adr/).
 
