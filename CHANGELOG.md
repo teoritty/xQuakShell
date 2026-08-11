@@ -78,9 +78,10 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
 
   **Where the platform can confine a plugin and the attempt fails, the plugin does not start.** A
   sandbox that quietly fell back to an unconfined process whenever it broke would keep reporting
-  success while protecting nobody. `Allow unsandboxed fallback` (off by default) is the escape hatch
-  for a machine the confinement will not work on; a start taken under it is logged and the plugin's
-  row reads **not sandboxed**.
+  success while protecting nobody. **Settings → Plugins → Trust policy** carries the escape hatch for
+  a machine the confinement will not work on — *Start a plugin unconfined if its sandbox cannot be
+  applied*, off by default. A start taken under it is logged and the plugin's row reads **not
+  sandboxed**.
 
   A plugin that reads or writes outside its own directories will now fail where it used to succeed.
   None of the published plugins do; the host performs every network and filesystem operation on a

@@ -61,8 +61,8 @@
         "scriptCodeLines": 415
       },
       "frontend/src/lib/PluginSettingsPanel.svelte": {
-        "codeLines": 1192,
-        "scriptCodeLines": 515
+        "codeLines": 1105,
+        "scriptCodeLines": 459
       },
       "frontend/src/lib/RemoteTree.svelte": {
         "codeLines": 672,
