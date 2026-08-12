@@ -130,11 +130,51 @@ type SFTPClientFactory interface {
 }
 
 // IdentityRepository manages SSH identity (private key) entries in the vault.
+//
+// GetKeyBlob returns the stored wrapped bytes and is deliberately not enough to use a key: the
+// caller still needs the data key or the user's passphrase. Callers that want a usable key go
+// through the use case, not here.
 type IdentityRepository interface {
 	GetAll(ctx context.Context) ([]SSHIdentity, error)
+	Get(ctx context.Context, id string) (*SSHIdentity, error)
 	GetKeyBlob(ctx context.Context, id string) ([]byte, error)
+	GetBlob(ctx context.Context, id string) (*IdentityBlob, error)
 	Import(ctx context.Context, pemData []byte, comment string) (*SSHIdentity, error)
+	Save(ctx context.Context, identity SSHIdentity, blob IdentityBlob) error
+	Update(ctx context.Context, id string, mutate func(*SSHIdentity) error) error
 	Delete(ctx context.Context, id string) error
+}
+
+// KeyMaterial is a private key parsed out of its stored form, together with the metadata derived
+// from it. PEM holds the key in the vault's storage shape, never in cleartext.
+type KeyMaterial struct {
+	PEM         []byte
+	PublicKey   string
+	Fingerprint string
+	KeyType     string
+	Bits        int
+}
+
+// KeyCodec converts private keys between the shape the vault stores and the shapes the outside
+// world uses. Implemented in infra over golang.org/x/crypto/ssh so the domain does not have to
+// know the wire format.
+//
+// Wrap and Unwrap both speak the OpenSSH bcrypt_pbkdf format in either direction, so a key that
+// leaves through Export is a file ssh-keygen would have written.
+type KeyCodec interface {
+	// Generate creates a new private key wrapped under the given passphrase.
+	Generate(spec GeneratedKeySpec, passphrase []byte) (*KeyMaterial, error)
+	// Normalize re-wraps an imported key under the given passphrase, reading it with oldPassphrase
+	// (empty when the import is unprotected). It returns ErrPassphraseRequired when the input is
+	// encrypted and oldPassphrase is empty.
+	Normalize(pemData, oldPassphrase, passphrase []byte, comment string) (*KeyMaterial, error)
+	// Unwrap parses stored bytes into a signer.
+	Unwrap(pemData, passphrase []byte) (Signer, error)
+	// Describe reads public metadata out of stored bytes without needing the passphrase.
+	Describe(pemData []byte) (keyType string, encrypted bool)
+	// Export re-wraps a key for writing outside the vault. An empty passphrase produces an
+	// unprotected key, which is the user's explicit choice at the export screen.
+	Export(pemData, passphrase, exportPassphrase []byte, comment string) ([]byte, error)
 }
 
 // PasswordRepository manages encrypted password entries in the vault.

@@ -54,6 +54,30 @@ var ErrIdentityNotFound = errors.New("SSH identity not found in vault")
 // ErrPassphraseRequired indicates an encrypted private key needs a passphrase to be parsed.
 var ErrPassphraseRequired = errors.New("passphrase required for encrypted private key")
 
+// ErrIdentityInUse indicates a key cannot be deleted because connections still reference it.
+// Deleting it anyway would leave those connections pointing at nothing and failing only at
+// connect time, long after the action that broke them.
+var ErrIdentityInUse = errors.New("SSH identity is still used by connections")
+
+// ErrKeyNotExportable indicates the identity was created with the non-exportable flag set.
+var ErrKeyNotExportable = errors.New("SSH identity is marked non-exportable")
+
+// ErrKeyPassphraseWrong indicates the supplied passphrase did not unwrap the stored key. It is
+// distinct from ErrPassphraseRequired: one means "you gave nothing", the other "you gave the
+// wrong thing", and only the second should count towards a retry limit.
+var ErrKeyPassphraseWrong = errors.New("wrong passphrase for SSH identity")
+
+// ErrMigrationPending indicates the identity still holds its pre-v4 bytes because its passphrase
+// was skipped during migration, and the requested operation needs the normalised form.
+var ErrMigrationPending = errors.New("SSH identity migration is not finished")
+
+// ErrUnsupportedKeyAlgorithm indicates a key generation request named an algorithm or size the
+// application does not produce.
+var ErrUnsupportedKeyAlgorithm = errors.New("unsupported key algorithm or size")
+
+// ErrIdentityNameRequired indicates an identity was saved without a label to show in the UI.
+var ErrIdentityNameRequired = errors.New("SSH identity label must not be empty")
+
 // ErrFolderNotEmpty indicates a folder still contains connections and cannot be deleted directly.
 var ErrFolderNotEmpty = errors.New("folder is not empty")
 

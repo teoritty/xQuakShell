@@ -118,25 +118,99 @@ func (m *memoryPasswordRepo) Delete(_ context.Context, id string) error {
 
 func (m *memoryPasswordRepo) List(context.Context) ([]domain.PasswordBlob, error) { return nil, nil }
 
+// memoryIdentityRepo is a working in-memory IdentityRepository, not a stub: the key manager
+// tests exercise round-trips through it, so Save/Update/Delete have to actually take effect.
 type memoryIdentityRepo struct {
 	idents  []domain.SSHIdentity
+	blobs   map[string]domain.IdentityBlob
 	importN int
+	deleted []string
 }
 
 func (m *memoryIdentityRepo) GetAll(_ context.Context) ([]domain.SSHIdentity, error) {
 	return m.idents, nil
 }
 
-func (m *memoryIdentityRepo) GetKeyBlob(context.Context, string) ([]byte, error) { return nil, nil }
+func (m *memoryIdentityRepo) Get(_ context.Context, id string) (*domain.SSHIdentity, error) {
+	for i := range m.idents {
+		if m.idents[i].ID == id {
+			clone := m.idents[i]
+			return &clone, nil
+		}
+	}
+	return nil, domain.ErrIdentityNotFound
+}
 
-func (m *memoryIdentityRepo) Import(_ context.Context, _ []byte, comment string) (*domain.SSHIdentity, error) {
+func (m *memoryIdentityRepo) GetKeyBlob(ctx context.Context, id string) ([]byte, error) {
+	blob, err := m.GetBlob(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return blob.PEMData, nil
+}
+
+func (m *memoryIdentityRepo) GetBlob(_ context.Context, id string) (*domain.IdentityBlob, error) {
+	blob, ok := m.blobs[id]
+	if !ok {
+		return nil, domain.ErrIdentityNotFound
+	}
+	return &blob, nil
+}
+
+func (m *memoryIdentityRepo) Import(_ context.Context, pemData []byte, comment string) (*domain.SSHIdentity, error) {
 	m.importN++
 	id := domain.SSHIdentity{ID: "id-1", Comment: comment}
 	m.idents = append(m.idents, id)
+	m.putBlob(id.ID, domain.IdentityBlob{PEMData: pemData})
 	return &id, nil
 }
 
-func (m *memoryIdentityRepo) Delete(context.Context, string) error { return nil }
+func (m *memoryIdentityRepo) Save(_ context.Context, identity domain.SSHIdentity, blob domain.IdentityBlob) error {
+	for i := range m.idents {
+		if m.idents[i].ID == identity.ID {
+			m.idents[i] = identity
+			m.putBlob(identity.ID, blob)
+			return nil
+		}
+	}
+	m.idents = append(m.idents, identity)
+	m.putBlob(identity.ID, blob)
+	return nil
+}
+
+func (m *memoryIdentityRepo) Update(_ context.Context, id string, mutate func(*domain.SSHIdentity) error) error {
+	for i := range m.idents {
+		if m.idents[i].ID == id {
+			clone := m.idents[i]
+			if err := mutate(&clone); err != nil {
+				return err
+			}
+			m.idents[i] = clone
+			return nil
+		}
+	}
+	return domain.ErrIdentityNotFound
+}
+
+func (m *memoryIdentityRepo) Delete(_ context.Context, id string) error {
+	m.deleted = append(m.deleted, id)
+	kept := m.idents[:0]
+	for _, ident := range m.idents {
+		if ident.ID != id {
+			kept = append(kept, ident)
+		}
+	}
+	m.idents = kept
+	delete(m.blobs, id)
+	return nil
+}
+
+func (m *memoryIdentityRepo) putBlob(id string, blob domain.IdentityBlob) {
+	if m.blobs == nil {
+		m.blobs = map[string]domain.IdentityBlob{}
+	}
+	m.blobs[id] = blob
+}
 
 func newTestVaultService(conn domain.ConnectionRepository, pw domain.PasswordRepository, ident domain.IdentityRepository, ping *PingManager) *VaultService {
 	return NewVaultService(VaultServiceConfig{

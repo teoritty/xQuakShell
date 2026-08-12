@@ -8,6 +8,7 @@ import (
 	"xquakshell/internal/infra/auditlog"
 	"xquakshell/internal/infra/host"
 	"xquakshell/internal/infra/loghub"
+	"xquakshell/internal/infra/keys"
 	"xquakshell/internal/infra/persistence"
 	infrapinger "xquakshell/internal/infra/pinger"
 	"xquakshell/internal/infra/portable"
@@ -40,7 +41,8 @@ func composeApp() *App {
 
 	vaultRepo := persistence.NewVaultRepo(vaultDir)
 	connRepo := persistence.NewConnectionRepo(vaultRepo)
-	identRepo := persistence.NewIdentityRepo(vaultRepo)
+	keyCodec := keys.NewCodec()
+	identRepo := persistence.NewIdentityRepo(vaultRepo, keyCodec, keys.NewDataKey)
 	passwordRepo := persistence.NewPasswordRepo(vaultRepo)
 	knownHostsRepo := persistence.NewKnownHostsRepo(vaultRepo)
 	sshDialer := infrassh.NewDialer()
