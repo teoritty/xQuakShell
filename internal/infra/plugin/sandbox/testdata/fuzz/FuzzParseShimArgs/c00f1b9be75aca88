@@ -1,0 +1,2 @@
+go test fuzz v1
+string("--sandbox-data-root=\\\\\xe0\\0\n--sandbox-allow-rx=\n--sandbox-allow-rw=\n--sandbox-exec=0")
