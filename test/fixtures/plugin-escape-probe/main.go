@@ -12,76 +12,56 @@ package main
 import (
 	"encoding/json"
 	"log"
-	"net"
 	"os"
-	"path/filepath"
 	"time"
 
+	"xquakshell/test/fixtures/escapeprobe"
 	"xquakshell/test/fixtures/pluginhost"
 )
 
-// probeRequest is what the test asks for: which paths to attack, and where to dial.
-type probeRequest struct {
-	ReadPath string `json:"readPath"`
-	WriteDir string `json:"writeDir"`
-	DialAddr string `json:"dialAddr"`
-}
+// flagPark keeps the process alive doing nothing, so a test can offer it as something to attach to.
+// The ptrace vector needs a victim that is outside the sandbox and expendable: attaching to the
+// test process itself and failing to detach would leave the whole suite stopped.
+const flagPark = "--park"
 
-// probeResult reports one attempt.
-//
-// Succeeded is what the tests assert on, rather than "was this a permission error", because a
-// sandbox does not owe anyone a tidy errno. A Windows AppContainer drops a loopback connection and
-// the caller sees a timeout; Landlock returns EACCES; a denied read returns a permission error on
-// both. Insisting on the tidy shape made a genuinely blocked socket read as "not denied".
-//
-// Err carries the detail anyway, because a failure message that only says "it did not succeed"
-// cannot distinguish a boundary that held from a path with a typo in it. What guards against the
-// typo is the unconfined control run, which requires every one of these to succeed.
-type probeResult struct {
-	Attempted bool   `json:"attempted"`
-	Succeeded bool   `json:"succeeded"`
-	Err       string `json:"err,omitempty"`
-}
+// parkDuration outlives any single test but not a forgotten process. The test kills it; this is the
+// backstop for the run that crashes before it can.
+const parkDuration = 2 * time.Minute
 
-type probeReport struct {
-	Read  probeResult `json:"read"`
-	Write probeResult `json:"write"`
-	Dial  probeResult `json:"dial"`
-}
-
-func probe(req probeRequest) probeReport {
-	return probeReport{
-		Read: attempt(req.ReadPath, func() error { _, err := os.ReadFile(req.ReadPath); return err }),
-		Write: attempt(req.WriteDir, func() error {
-			return os.WriteFile(filepath.Join(req.WriteDir, "escaped"), []byte("x"), 0o600)
-		}),
-		Dial: attempt(req.DialAddr, func() error {
-			conn, err := net.DialTimeout("tcp", req.DialAddr, 2*time.Second)
-			if err == nil {
-				_ = conn.Close()
-			}
-			return err
-		}),
+func probe(req escapeprobe.Request) escapeprobe.Report {
+	vectors := allVectors()
+	report := escapeprobe.Report{Vectors: make(map[string]escapeprobe.Outcome, len(req.Vectors))}
+	for name, target := range req.Vectors {
+		run, known := vectors[name]
+		if !known {
+			// Not "not attempted": an unknown vector means the two binaries disagree about the
+			// contract, and that has to read as a broken probe rather than as a denied attempt.
+			report.Vectors[name] = escapeprobe.Outcome{Err: "this probe has no vector called " + name}
+			continue
+		}
+		report.Vectors[name] = attempt(func() error { return run(target) })
 	}
+	return report
 }
 
-// attempt runs one probe and reports whether it got through.
-func attempt(target string, do func() error) probeResult {
-	if target == "" {
-		return probeResult{}
-	}
+// attempt runs one vector and reports whether it got through.
+func attempt(do func() error) escapeprobe.Outcome {
 	if err := do(); err != nil {
-		return probeResult{Attempted: true, Err: err.Error()}
+		return escapeprobe.Outcome{Attempted: true, Err: err.Error()}
 	}
-	return probeResult{Attempted: true, Succeeded: true}
+	return escapeprobe.Outcome{Attempted: true, Succeeded: true}
 }
 
 // main speaks the plugin protocol, except when the test runs it directly with a request on argv.
 // That direct mode is the control arm: the same probes, the same binary, no sandbox. Without it a
-// probe with a typo in it would report "denied" forever and the confined test would pass on
+// probe with a typo in a path would report "denied" forever and the confined test would pass on
 // nothing.
 func main() {
 	if len(os.Args) > 1 {
+		if os.Args[1] == flagPark {
+			time.Sleep(parkDuration)
+			return
+		}
 		runDirect(os.Args[1])
 		return
 	}
@@ -97,7 +77,7 @@ func main() {
 		return map[string]bool{"ok": true}, nil
 	})
 	host.Register("probe.run", func(params json.RawMessage) (any, error) {
-		var req probeRequest
+		var req escapeprobe.Request
 		if err := json.Unmarshal(params, &req); err != nil {
 			return nil, err
 		}
@@ -110,7 +90,7 @@ func main() {
 }
 
 func runDirect(raw string) {
-	var req probeRequest
+	var req escapeprobe.Request
 	if err := json.Unmarshal([]byte(raw), &req); err != nil {
 		log.Fatalf("escape probe cannot read its request: %v", err)
 	}
@@ -121,4 +101,17 @@ func runDirect(raw string) {
 	if _, err := os.Stdout.Write(out); err != nil {
 		log.Fatalf("escape probe cannot write its report: %v", err)
 	}
+}
+
+// allVectors is every attack this binary knows, portable ones plus whatever this platform adds.
+func allVectors() map[string]func(escapeprobe.Target) error {
+	vectors := portableVectors()
+	for name, run := range platformVectors() {
+		if _, clash := vectors[name]; clash {
+			// Two implementations of one name would make the report depend on map iteration order.
+			log.Fatalf("escape probe defines %s twice", name)
+		}
+		vectors[name] = run
+	}
+	return vectors
 }
