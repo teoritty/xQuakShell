@@ -118,6 +118,33 @@ export interface AppGateway {
 
   GetIdentities(): Promise<Array<wails.IdentityDTO>>;
 
+  // Key-manager bindings. Typed inline rather than through wails.* because these shapes are
+  // generated at build time and the checked-in models lag behind the Go side; GetVersionInfo
+  // already does the same. StoredKeyShape deliberately has no private-key field.
+  GetKeys(): Promise<Array<StoredKeyShape>>;
+
+  GetKeyUsages(arg1: string): Promise<Array<KeyUsageShape>>;
+
+  GenerateKey(arg1: string, arg2: number, arg3: string, arg4: string, arg5: KeyOptionsShape): Promise<StoredKeyShape>;
+
+  ImportKey(arg1: string, arg2: string, arg3: string, arg4: KeyOptionsShape): Promise<StoredKeyShape>;
+
+  RenameKey(arg1: string, arg2: string): Promise<void>;
+
+  SetKeyPolicy(arg1: string, arg2: KeyOptionsShape): Promise<void>;
+
+  ChangeKeyPassphrase(arg1: string, arg2: string, arg3: string): Promise<void>;
+
+  DeleteKey(arg1: string): Promise<void>;
+
+  ExportKey(arg1: string, arg2: string, arg3: string, arg4: string): Promise<string>;
+
+  DeployKey(arg1: string, arg2: string): Promise<{ added: boolean; alreadyPresent: boolean; path: string }>;
+
+  PlanKeyMigration(arg1: string): Promise<{ required: boolean; keys: Array<{ id: string; comment: string; keyType: string }> }>;
+
+  CompleteKeyMigration(arg1: string, arg2: Record<string, string>): Promise<{ fromVersion: number; toVersion: number; converted: string[]; skipped: string[]; backupPath: string }>;
+
   GetKnownHosts(): Promise<Array<wails.KnownHostDTO>>;
 
   GetPingResults(): Promise<Array<wails.PingResultDTO>>;
@@ -371,4 +398,37 @@ export interface RuntimeGateway {
    * lib/openExternal.ts rather than calling this directly.
    */
   BrowserOpenURL(url: string): void;
+}
+
+// Shapes for the key-manager bindings above.
+export interface StoredKeyShape {
+  id: string;
+  comment: string;
+  keyType: string;
+  bits?: number;
+  publicKey?: string;
+  fingerprint?: string;
+  encrypted: boolean;
+  policy?: string;
+  cachePolicy?: string;
+  cacheTtlSeconds?: number;
+  allowPlugins: boolean;
+  nonExportable: boolean;
+  migrationPending: boolean;
+  createdAt?: string;
+  source?: string;
+}
+
+export interface KeyUsageShape {
+  connectionId: string;
+  connectionName: string;
+  username: string;
+  hop?: string;
+}
+
+export interface KeyOptionsShape {
+  cachePolicy: string;
+  cacheTtlSeconds: number;
+  allowPlugins: boolean;
+  nonExportable: boolean;
 }

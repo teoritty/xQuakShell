@@ -29,7 +29,7 @@ function handleError(e: unknown, context?: string) {
 // open and drop the user straight into the app, so both must fill exactly the
 // same stores in the same order; keeping it in one place is what stops the two
 // entry points from drifting apart.
-async function warmupAfterVaultOpened(): Promise<void> {
+export async function warmupAfterVaultOpened(): Promise<void> {
   vaultUnlocked.set(true);
   const p = await getPlatform();
   platform.set(p);

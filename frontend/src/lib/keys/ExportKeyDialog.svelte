@@ -1,0 +1,153 @@
+<script lang="ts">
+  import { createEventDispatcher } from 'svelte';
+  import Modal from '../Modal.svelte';
+  import type { StoredKey } from '../../api/keys';
+
+  export let show = false;
+  export let target: StoredKey | null = null;
+  export let error = '';
+
+  const dispatch = createEventDispatcher();
+
+  let masterPassword = '';
+  let passphrase = '';
+  let exportPassphrase = '';
+  let confirmExport = '';
+  let busy = false;
+
+  function reset() {
+    masterPassword = '';
+    passphrase = '';
+    exportPassphrase = '';
+    confirmExport = '';
+    error = '';
+  }
+
+  function close() {
+    // Every field here holds a secret. Clearing on close keeps them out of the DOM for the rest
+    // of the session rather than until the component happens to be destroyed.
+    reset();
+    dispatch('close');
+  }
+
+  async function submit() {
+    if (!masterPassword) {
+      error = 'Enter your master password to confirm.';
+      return;
+    }
+    if (exportPassphrase !== confirmExport) {
+      error = 'The two passphrases for the exported file do not match.';
+      return;
+    }
+    busy = true;
+    error = '';
+    try {
+      dispatch('submit', { masterPassword, passphrase, exportPassphrase });
+      reset();
+    } finally {
+      busy = false;
+    }
+  }
+</script>
+
+<Modal title="Export {target?.comment || 'key'}" {show} on:close={close}>
+  <p class="warn">
+    The private key will be written to a file outside the vault. Anything that can read that file
+    can log in as you. Delete it once you have moved it where it needs to go.
+  </p>
+
+  <label for="export-master">Master password</label>
+  <input id="export-master" type="password" bind:value={masterPassword} autocomplete="off" />
+
+  {#if target?.policy === 'passphrase'}
+    <label for="export-key-passphrase">This key's passphrase</label>
+    <input id="export-key-passphrase" type="password" bind:value={passphrase} autocomplete="off" />
+  {/if}
+
+  <label for="export-new-passphrase">Protect the exported file with <span class="hint">recommended</span></label>
+  <input id="export-new-passphrase" type="password" bind:value={exportPassphrase} autocomplete="new-password" />
+
+  <label for="export-new-confirm">Repeat</label>
+  <input id="export-new-confirm" type="password" bind:value={confirmExport} autocomplete="new-password" />
+  <p class="explain">Leaving this empty writes an unprotected key file.</p>
+
+  {#if error}<p class="error">{error}</p>{/if}
+
+  <div class="dialog-actions">
+    <button on:click={close}>Cancel</button>
+    <button class="primary" on:click={submit} disabled={busy}>Export</button>
+  </div>
+</Modal>
+
+<style>
+  .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .dialog-actions button {
+    padding: 6px 14px;
+    font-size: 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
+    background: var(--bg-button, rgba(255, 255, 255, 0.06));
+    color: var(--text-primary, #ddd);
+    cursor: pointer;
+  }
+
+  .dialog-actions button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .warn {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    background: var(--warn-bg, rgba(255, 176, 0, 0.14));
+    color: var(--warn-fg, #ffb000);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  label {
+    display: block;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-secondary, #888);
+  }
+
+  .hint {
+    opacity: 0.7;
+  }
+
+  input {
+    width: 100%;
+    padding: 6px 8px;
+    font-size: 13px;
+    border-radius: 4px;
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
+    background: var(--bg-input, rgba(0, 0, 0, 0.25));
+    color: var(--text-primary, #ddd);
+  }
+
+  .explain {
+    margin: 4px 0 0;
+    font-size: 11px;
+    color: var(--text-secondary, #888);
+  }
+
+  .error {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: var(--danger, #ff6b6b);
+  }
+
+  button.primary {
+    background: var(--accent, #4a9eff);
+    color: #fff;
+    border-color: transparent;
+  }
+</style>
