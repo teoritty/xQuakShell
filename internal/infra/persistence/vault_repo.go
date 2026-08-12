@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"runtime"
 	"runtime/debug"
@@ -116,6 +117,12 @@ func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
 	data, err := vault.ReadVaultFile(r.dir, masterPassword)
 	if err != nil {
 		return err
+	}
+	if vault.NeedsMigration(data) {
+		// Refuse rather than migrate silently. A migration rewrites the file and needs
+		// passphrases the unlock screen never asked for, so it belongs to an explicit flow the
+		// user starts and can see the result of.
+		return fmt.Errorf("vault version %d: %w", data.Version, domain.ErrVaultMigrationRequired)
 	}
 
 	// ReadVaultFile -> Decrypt runs the same scrypt KDF as Encrypt (see the

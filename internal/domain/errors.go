@@ -34,8 +34,14 @@ var ErrMasterPasswordTooShort = errors.New("master password is too short")
 // newer version again" and "let it upgrade your data".
 var ErrVaultVersionTooNew = errors.New("vault was written by a newer version of the application")
 
-// ErrVaultVersionTooOld indicates the vault predates this build's schema and needs migrating.
+// ErrVaultVersionTooOld indicates the vault predates the oldest schema this build can migrate.
 var ErrVaultVersionTooOld = errors.New("vault needs migrating to the current schema")
+
+// ErrVaultMigrationRequired indicates the vault opened but is one schema behind, so it must go
+// through the migration flow before anything reads or writes it. It is distinct from
+// ErrVaultVersionTooOld because this one is recoverable in place and the UI acts on it by
+// starting a wizard rather than by telling the user to install another build.
+var ErrVaultMigrationRequired = errors.New("vault must be migrated before it can be opened")
 
 // ErrNoStableRelease indicates the project has no published stable release to compare against —
 // only drafts or pre-releases. It is not a failure the user needs to see: it means there is nothing

@@ -118,13 +118,22 @@ func cloneIdentities(in map[string]SSHIdentity) map[string]SSHIdentity {
 	return out
 }
 
+// cloneKeyBlobs copies every field of a blob, not only the key bytes.
+//
+// Listing them one by one is what makes a forgotten field a compile-time-visible omission rather
+// than silent data loss: every write goes through a clone, so a dropped DataKey would not fail
+// anything at the time — it would quietly persist a vault whose keys can never be opened again.
 func cloneKeyBlobs(in map[string]IdentityBlob) map[string]IdentityBlob {
 	if in == nil {
 		return nil
 	}
 	out := make(map[string]IdentityBlob, len(in))
 	for k, v := range in {
-		out[k] = IdentityBlob{PEMData: cloneBytes(v.PEMData)}
+		out[k] = IdentityBlob{
+			PEMData: cloneBytes(v.PEMData),
+			DataKey: cloneBytes(v.DataKey),
+			Legacy:  v.Legacy,
+		}
 	}
 	return out
 }

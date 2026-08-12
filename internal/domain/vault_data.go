@@ -26,7 +26,16 @@ type PasswordBlob struct {
 }
 
 // CurrentVaultVersion is the latest vault data schema version.
-const CurrentVaultVersion = 3
+const CurrentVaultVersion = 4
+
+// MinMigratableVaultVersion is the oldest schema this build can upgrade in place. A vault below
+// it is refused rather than guessed at, because the fields the migration reads are the ones that
+// version is not guaranteed to have.
+//
+// It is a separate constant from CurrentVaultVersion on purpose: collapsing the two would make
+// every future bump silently drop support for the version before it, and the whole point of a
+// migration is that the previous version keeps opening.
+const MinMigratableVaultVersion = 3
 
 // VaultData is the top-level structure stored inside the encrypted vault file.
 type VaultData struct {

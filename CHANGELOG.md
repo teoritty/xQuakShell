@@ -12,7 +12,7 @@ The newest versioned heading is the release being prepared. Only the latest rele
 fixes, including security fixes, ship in a new release rather than as patches to an older one
 (see [SECURITY.md](SECURITY.md)).
 
-## [Unreleased]
+## [1.1.0] — 2026-08-12
 
 ### Compatibility
 
@@ -22,7 +22,7 @@ fixes, including security fixes, ship in a new release rather than as patches to
 | Capabilities | `session` 1.0.0 — `localEmbedServer` feature removed · all others 1.0.0, unchanged |
 | Manifest schema | `capabilities.session.localEmbedServer` removed |
 | `bundleFormat` | 1.0.0 (unchanged) |
-| Vault schema | 3 (unchanged) |
+| Vault schema | 4 (was 3 — migrated on first unlock) |
 | Audit schema | 1 (unchanged) |
 
 ### BREAKING
@@ -45,7 +45,29 @@ field parsed and the capability gate allowed the call while only the handler ref
 install consent for it did not exist either — the warning was computed and never read, and the
 vault grant map was never written or checked.
 
-**No version axis moved, and that is deliberate.** `pluginApi` versions the protocol envelope —
+**The vault on-disk schema moves from 3 to 4, and every existing vault is migrated.** Private keys
+are no longer stored in the shape they were imported in. Each key is now an OpenSSH private key
+encrypted with bcrypt_pbkdf: an unprotected key you imported is re-wrapped under a random data key
+held in the vault, and a key with its own passphrase keeps that passphrase. Before this, importing
+`~/.ssh/id_ed25519` put a directly usable private key into the vault snapshot, protected only by
+the vault being locked — which it is not while you are using the application.
+
+**What you will see.** The first unlock after upgrading opens a migration screen instead of the
+normal one. It lists every key that carries its own passphrase and asks for each, once. Keys
+without a passphrase are converted with nothing to answer. Before anything is written, the vault is
+copied to `vault.age.v3.bak` in the same directory; that copy is never overwritten and nothing
+deletes it.
+
+**A passphrase you cannot remember does not cost you the vault.** Any key can be skipped. A skipped
+key keeps its original bytes, still authenticates exactly as before, and is marked as needing
+attention in the key manager, where you can finish or delete it later. A passphrase entered wrongly
+is treated the same way rather than failing the upgrade — the alternative would lock you out of
+every connection and known host over one forgotten key.
+
+**Downgrading is not supported.** An older build refuses a schema 4 vault by design. To go back,
+restore `vault.age.v3.bak` over `vault.age`.
+
+**No plugin version axis moved, and that is deliberate.** `pluginApi` versions the protocol envelope —
 framing, handshake, lifecycle, error space — none of which changed. The `session` capability did not
 take a major either: capability majors are matched exactly, so bumping it would refuse every plugin
 that grants `session` until its manifest named the new number, including plugins whose behaviour is
