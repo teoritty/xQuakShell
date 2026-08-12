@@ -6,6 +6,7 @@
   import ExportKeyDialog from './keys/ExportKeyDialog.svelte';
   import KeyPassphraseDialog from './keys/KeyPassphraseDialog.svelte';
   import DeployKeyDialog from './keys/DeployKeyDialog.svelte';
+  import RenameKeyDialog from './keys/RenameKeyDialog.svelte';
   import KeyPolicyFields from './keys/KeyPolicyFields.svelte';
   import { sessions, showError } from '../stores/appState';
   import { defaultKeyOptions, type KeyOptions, type KeyUsage, type StoredKey } from '../api/keys';
@@ -35,6 +36,7 @@
   let showPassphrase = false;
   let showDeploy = false;
   let showPolicy = false;
+  let showRename = false;
   let policyDraft: KeyOptions = { ...defaultKeyOptions };
   let dialogError = '';
   let busy = false;
@@ -62,10 +64,10 @@
     if (ok) showNew = false;
   }
 
-  async function onRename() {
+  async function onRename(event: CustomEvent) {
     if (!selected) return;
-    const name = prompt('Name for this key', selected.comment);
-    if (name && name.trim()) await saveKeyName(selected.id, name.trim());
+    await saveKeyName(selected.id, event.detail);
+    showRename = false;
   }
 
   function openPolicy() {
@@ -177,7 +179,7 @@
           {usages}
           {copied}
           on:copy={copyPublicKey}
-          on:rename={onRename}
+          on:rename={() => (showRename = true)}
           on:policy={openPolicy}
           on:passphrase={() => { dialogError = ''; showPassphrase = true; }}
           on:export={() => { dialogError = ''; showExport = true; }}
@@ -189,6 +191,7 @@
   </div>
 </Modal>
 
+<RenameKeyDialog bind:show={showRename} target={selected} on:submit={onRename} on:close={() => (showRename = false)} />
 <NewKeyDialog bind:show={showNew} on:submit={onCreate} on:close={() => (showNew = false)} />
 <ExportKeyDialog bind:show={showExport} target={selected} error={dialogError} on:submit={onExport} on:close={() => (showExport = false)} />
 <KeyPassphraseDialog bind:show={showPassphrase} target={selected} error={dialogError} on:submit={onPassphrase} on:close={() => (showPassphrase = false)} />
