@@ -78,7 +78,7 @@ func Spawn(c *Container, req SpawnRequest) (*Process, error) {
 	}
 	defer pipes.closeChildEnds()
 
-	attrs, err := windows.NewProcThreadAttributeList(1)
+	attrs, err := windows.NewProcThreadAttributeList(2)
 	if err != nil {
 		pipes.closeParentEnds()
 		return nil, fmt.Errorf("NewProcThreadAttributeList: %w", err)
@@ -90,6 +90,10 @@ func Spawn(c *Container, req SpawnRequest) (*Process, error) {
 		unsafe.Pointer(&caps), unsafe.Sizeof(caps)); err != nil {
 		pipes.closeParentEnds()
 		return nil, fmt.Errorf("UpdateProcThreadAttribute(SECURITY_CAPABILITIES): %w", err)
+	}
+	if err := limitInheritance(attrs, pipes); err != nil {
+		pipes.closeParentEnds()
+		return nil, err
 	}
 
 	pi, err := createProcess(req, pipes, attrs)
@@ -108,6 +112,32 @@ func Spawn(c *Container, req SpawnRequest) (*Process, error) {
 	stderrPipe := os.NewFile(uintptr(pipes.stderrRead), "plugin-stderr")
 	safego.GoNamed("plugin.containerStderr", func() { pumpStderr(stderrPipe, req.Stderr) })
 	return proc, nil
+}
+
+// limitInheritance names the only three handles the child may inherit.
+//
+// CreateProcess below must pass bInheritHandles=TRUE or the pipes never reach the plugin, and TRUE
+// on its own means EVERY inheritable handle the host holds at that instant. A handle is access
+// checked when it is opened and not when it is used, so one that arrives by inheritance answers to
+// nothing the container SID or its ACLs say — it is a hole straight through the sandbox rather than
+// a wider grant inside it.
+//
+// The host manufactures exactly such handles, which is what makes this concrete rather than
+// theoretical: newStdioPipes marks both ends of each pipe inheritable and clears the flag only on
+// the parent's end, so the child ends stay inheritable until closeChildEnds runs. Plugin starts are
+// not serialised — ProcessHost.Start spawns outside its mutex — so a spawn landing inside another
+// spawn's window would hand plugin A the stdin and stdout of plugin B, letting A read what the host
+// sends B and forge what B sends back, capability grants and all.
+//
+// os/exec builds the same list for the unconfined path, which is why that path never had this hole
+// and why this one has to be written out by hand.
+func limitInheritance(attrs *windows.ProcThreadAttributeListContainer, pipes *stdioPipes) error {
+	inherited := []windows.Handle{pipes.stdinRead, pipes.stdoutWrite, pipes.stderrWrite}
+	if err := attrs.Update(windows.PROC_THREAD_ATTRIBUTE_HANDLE_LIST, unsafe.Pointer(&inherited[0]),
+		uintptr(len(inherited))*unsafe.Sizeof(inherited[0])); err != nil {
+		return fmt.Errorf("UpdateProcThreadAttribute(HANDLE_LIST): %w", err)
+	}
+	return nil
 }
 
 func createProcess(req SpawnRequest, pipes *stdioPipes, attrs *windows.ProcThreadAttributeListContainer) (windows.ProcessInformation, error) {
