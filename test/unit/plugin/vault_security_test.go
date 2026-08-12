@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"xquakshell/internal/domain"
 	domainplugin "xquakshell/internal/domain/plugin"
@@ -61,6 +62,18 @@ func (vaultIdentRepo) Import(context.Context, []byte, string) (*domain.SSHIdenti
 	return nil, nil
 }
 func (vaultIdentRepo) Delete(context.Context, string) error { return nil }
+func (vaultIdentRepo) Get(context.Context, string) (*domain.SSHIdentity, error) {
+	return nil, domain.ErrIdentityNotFound
+}
+func (vaultIdentRepo) GetBlob(context.Context, string) (*domain.IdentityBlob, error) {
+	return &domain.IdentityBlob{PEMData: []byte("pem")}, nil
+}
+func (vaultIdentRepo) Save(context.Context, domain.SSHIdentity, domain.IdentityBlob) error {
+	return nil
+}
+func (vaultIdentRepo) Update(context.Context, string, func(*domain.SSHIdentity) error) error {
+	return nil
+}
 
 type vaultSettingsReader struct {
 	granted bool
@@ -222,6 +235,16 @@ func (c *memoryPassphraseCache) Set(identityID, passphrase string) {
 	c.values[identityID] = passphrase
 }
 
+func (c *memoryPassphraseCache) SetWithTTL(identityID, passphrase string, ttl time.Duration) {
+	if ttl <= 0 {
+		c.Forget(identityID)
+		return
+	}
+	c.Set(identityID, passphrase)
+}
+
+func (c *memoryPassphraseCache) Forget(identityID string) { delete(c.values, identityID) }
+
 func (c *memoryPassphraseCache) Clear() { c.values = nil }
 
 type passphraseIdentRepo struct {
@@ -238,6 +261,23 @@ func (passphraseIdentRepo) Import(context.Context, []byte, string) (*domain.SSHI
 	return nil, nil
 }
 func (passphraseIdentRepo) Delete(context.Context, string) error { return nil }
+func (r passphraseIdentRepo) Get(_ context.Context, id string) (*domain.SSHIdentity, error) {
+	for i := range r.idents {
+		if r.idents[i].ID == id {
+			return &r.idents[i], nil
+		}
+	}
+	return nil, domain.ErrIdentityNotFound
+}
+func (passphraseIdentRepo) GetBlob(context.Context, string) (*domain.IdentityBlob, error) {
+	return &domain.IdentityBlob{PEMData: []byte("pem")}, nil
+}
+func (passphraseIdentRepo) Save(context.Context, domain.SSHIdentity, domain.IdentityBlob) error {
+	return nil
+}
+func (passphraseIdentRepo) Update(context.Context, string, func(*domain.SSHIdentity) error) error {
+	return nil
+}
 
 func TestVaultPassphraseRequiresCache(t *testing.T) {
 	registry := usecase.NewPluginRegistry()

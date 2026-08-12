@@ -73,6 +73,18 @@ func (sshTestIdentRepo) Import(context.Context, []byte, string) (*domain.SSHIden
 	return nil, nil
 }
 func (sshTestIdentRepo) Delete(context.Context, string) error { return nil }
+func (sshTestIdentRepo) Get(context.Context, string) (*domain.SSHIdentity, error) {
+	return nil, domain.ErrIdentityNotFound
+}
+func (sshTestIdentRepo) GetBlob(context.Context, string) (*domain.IdentityBlob, error) {
+	return nil, domain.ErrIdentityNotFound
+}
+func (sshTestIdentRepo) Save(context.Context, domain.SSHIdentity, domain.IdentityBlob) error {
+	return nil
+}
+func (sshTestIdentRepo) Update(context.Context, string, func(*domain.SSHIdentity) error) error {
+	return nil
+}
 
 type sshTestPasswordRepo struct {
 	password string
@@ -127,6 +139,20 @@ func (m *mapPassphraseCache) Set(id, passphrase string) {
 		m.m = make(map[string]string)
 	}
 	m.m[id] = passphrase
+}
+
+func (m *mapPassphraseCache) SetWithTTL(id, passphrase string, ttl time.Duration) {
+	if ttl <= 0 {
+		m.Forget(id)
+		return
+	}
+	m.Set(id, passphrase)
+}
+
+func (m *mapPassphraseCache) Forget(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.m, id)
 }
 
 func (m *mapPassphraseCache) Clear() {

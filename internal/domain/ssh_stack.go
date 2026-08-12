@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -40,9 +41,16 @@ func (e *HostKeyVerificationError) Unwrap() error {
 }
 
 // PassphraseCache stores passphrases for encrypted keys in memory during the session lifetime.
+//
+// SetWithTTL exists because a cache that only holds entries until the vault locks cannot express
+// "forget this in fifteen minutes", and an unlocked application left unattended should stop being
+// able to authenticate on its own. Forget is the single-key counterpart of Clear, needed when a
+// key's passphrase changes and the old one must not survive to be tried against the new blob.
 type PassphraseCache interface {
 	Get(identityID string) (passphrase string, ok bool)
 	Set(identityID, passphrase string)
+	SetWithTTL(identityID, passphrase string, ttl time.Duration)
+	Forget(identityID string)
 	Clear()
 }
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"sync"
 	"time"
 
 	gossh "golang.org/x/crypto/ssh"
@@ -199,43 +198,4 @@ func NewPrivateKeySignerFactory() domain.PrivateKeySignerFactory {
 
 func (privateKeySignerFactory) ParsePrivateKeyWithPassphrase(pemBytes []byte, passphrase string) (gossh.Signer, error) {
 	return ParseKeyWithPassphrase(pemBytes, passphrase)
-}
-
-// PassphraseCache stores passphrases for encrypted keys in memory.
-// It is safe for concurrent use.
-type PassphraseCache struct {
-	mu    sync.RWMutex
-	cache map[string]string
-}
-
-var _ domain.PassphraseCache = (*PassphraseCache)(nil)
-
-// NewPassphraseCache creates a new empty passphrase cache.
-func NewPassphraseCache() *PassphraseCache {
-	return &PassphraseCache{cache: make(map[string]string)}
-}
-
-// Get retrieves a cached passphrase for the given identity ID.
-func (c *PassphraseCache) Get(identityID string) (string, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	p, ok := c.cache[identityID]
-	return p, ok
-}
-
-// Set stores a passphrase for the given identity ID.
-func (c *PassphraseCache) Set(identityID, passphrase string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.cache[identityID] = passphrase
-}
-
-// Clear removes all cached passphrases from memory.
-func (c *PassphraseCache) Clear() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for k := range c.cache {
-		c.cache[k] = ""
-		delete(c.cache, k)
-	}
 }
