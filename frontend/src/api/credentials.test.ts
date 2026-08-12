@@ -3,8 +3,6 @@ import { createFakeGateway } from '../backend/fakeGateway';
 import {
   importPassword,
   deletePassword,
-  fetchIdentities,
-  importIdentity,
   importPuTTYPPK,
   importPuTTYRegPreview,
   importPuTTYRegAsConnections,
@@ -29,17 +27,6 @@ async function run() {
   await deletePassword('id1');
   call = fake.calls.find((c) => c.method === 'DeletePassword');
   assert(!!call && call.args[0] === 'id1', 'DeletePassword called with id');
-
-  const identity = { id: 'i1', comment: 'me' };
-  fake.program('GetIdentities', [identity]);
-  const ids = await fetchIdentities();
-  assert(ids.length === 1 && (ids[0] as any).id === 'i1', 'fetchIdentities returns gateway result');
-
-  fake.program('ImportIdentity', 'ident-id');
-  result = await importIdentity('pem', 'comment');
-  assert(result === 'ident-id', 'importIdentity returns id');
-  call = fake.calls.find((c) => c.method === 'ImportIdentity');
-  assert(!!call && call.args[0] === 'pem' && call.args[1] === 'comment', 'ImportIdentity called with args');
 
   fake.program('ImportPuTTYPPK', 'ppk-id');
   result = await importPuTTYPPK('ppk', 'pass');
@@ -71,12 +58,6 @@ async function run() {
   assert(result === '', 'importPassword falls back to empty string');
   assert(get(lastError) !== null, 'importPassword failure reports error');
 
-  fake.program('ImportIdentity', () => { throw new Error('boom'); });
-  lastError.set(null);
-  result = await importIdentity('pem', 'comment');
-  assert(result === '', 'importIdentity falls back to empty string');
-  assert(get(lastError) !== null, 'importIdentity failure reports error');
-
   fake.program('ImportPuTTYPPK', () => { throw new Error('boom'); });
   lastError.set(null);
   result = await importPuTTYPPK('ppk', 'pass');
@@ -101,12 +82,6 @@ async function run() {
   assert(Array.isArray(connsFail) && connsFail.length === 0, 'importPuTTYRegAsConnections falls back to []');
   assert(get(lastError) !== null, 'importPuTTYRegAsConnections failure reports error');
 
-  fake.program('GetIdentities', () => { throw new Error('boom'); });
-  lastError.set(null);
-  const idsFail = await fetchIdentities();
-  assert(Array.isArray(idsFail) && idsFail.length === 0, 'fetchIdentities falls back to []');
-  assert(get(lastError) !== null, 'fetchIdentities failure reports error');
-
   fake.program('DeletePassword', () => { throw new Error('boom'); });
   lastError.set(null);
   await deletePassword('id1'); // should not throw
@@ -118,10 +93,6 @@ async function run() {
   result = await importPassword('pw', 'label');
   assert(result === '', 'importPassword with no gateway returns ""');
   await deletePassword('id1'); // should not throw
-  const idsNoGw = await fetchIdentities();
-  assert(Array.isArray(idsNoGw) && idsNoGw.length === 0, 'fetchIdentities with no gateway returns []');
-  result = await importIdentity('pem', 'comment');
-  assert(result === '', 'importIdentity with no gateway returns ""');
   result = await importPuTTYPPK('ppk', 'pass');
   assert(result === '', 'importPuTTYPPK with no gateway returns ""');
   const previewsNoGw = await importPuTTYRegPreview('reg');

@@ -14,7 +14,7 @@
     dirty: void;
     userschange: ConnectionUser[];
     defaultuserchange: string;
-    keyimport: string;
+    keypick: string;
     keyremove: { userId: string; keyId: string };
     passwordchange: { userId: string; value: string };
     pluginauthchange: { userId: string; value: PluginAuthConfig };
@@ -84,7 +84,7 @@
       on:authmethodchange={(e) => updateAuthMethod(u.id, e.detail)}
       on:pluginauthchange={(e) => updatePluginAuth(u.id, e.detail)}
       on:passwordchange={(e) => dispatch('passwordchange', { userId: u.id, value: e.detail })}
-      on:keyimport={() => dispatch('keyimport', u.id)}
+      on:keypick={() => dispatch('keypick', u.id)}
       on:keyremove={(e) => dispatch('keyremove', { userId: u.id, keyId: e.detail })}
       on:remove={() => removeUser(u.id)}
     >

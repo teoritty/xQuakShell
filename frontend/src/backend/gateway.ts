@@ -116,8 +116,6 @@ export interface AppGateway {
 
   GetFolders(): Promise<Array<wails.FolderDTO>>;
 
-  GetIdentities(): Promise<Array<wails.IdentityDTO>>;
-
   // Key-manager bindings. Typed inline rather than through wails.* because these shapes are
   // generated at build time and the checked-in models lag behind the Go side; GetVersionInfo
   // already does the same. StoredKeyShape deliberately has no private-key field.
@@ -169,8 +167,6 @@ export interface AppGateway {
   GetTempDir(): Promise<string>;
 
   GetUserHomeDir(): Promise<string>;
-
-  ImportIdentity(arg1: string, arg2: string): Promise<string>;
 
   ImportPassword(arg1: string, arg2: string): Promise<string>;
 

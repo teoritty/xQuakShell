@@ -69,11 +69,11 @@ async function run() {
   {
     reset();
     const fake = createFakeGateway();
-    fake.program('GetIdentities', [{ id: 'i1', comment: '', keyType: 'ed25519' }]);
+    fake.program('GetKeys', [{ id: 'i1', comment: '', keyType: 'ed25519', fingerprint: 'SHA256:abc', encrypted: false, allowPlugins: false, nonExportable: false, migrationPending: false }]);
     setGateway(fake);
 
     await refreshIdentities();
-    assert(get(identities).length === 1 && get(identities)[0].id === 'i1', 'refreshIdentities replaces identities store with GetIdentities result');
+    assert(get(identities).length === 1 && get(identities)[0].id === 'i1', 'refreshIdentities fills the identities store from the key manager pool, not a second one');
   }
 
   {

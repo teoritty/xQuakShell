@@ -25,7 +25,7 @@
     defaultuserchange: string;
     hopschange: JumpHop[];
     forwardruleschange: ForwardRule[];
-    keyimport: string;
+    keypick: string;
     keyremove: { userId?: string; hopId?: string; keyId: string };
     passwordchange: { userId?: string; hopId?: string; value: string };
     fieldchange: { fieldId: string; value: unknown };
@@ -40,7 +40,7 @@
     on:dirty={() => dispatch('dirty')}
     on:userschange={(e) => dispatch('userschange', e.detail)}
     on:defaultuserchange={(e) => dispatch('defaultuserchange', e.detail)}
-    on:keyimport={(e) => dispatch('keyimport', e.detail)}
+    on:keypick={(e) => dispatch('keypick', e.detail)}
     on:keyremove={(e) => dispatch('keyremove', e.detail)}
     on:passwordchange={(e) => dispatch('passwordchange', e.detail)}
   />
@@ -50,7 +50,7 @@
     {identities}
     on:dirty={() => dispatch('dirty')}
     on:hopschange={(e) => dispatch('hopschange', e.detail)}
-    on:keyimport={(e) => dispatch('keyimport', e.detail)}
+    on:keypick={(e) => dispatch('keypick', e.detail)}
     on:keyremove={(e) => dispatch('keyremove', e.detail)}
     on:passwordchange={(e) => dispatch('passwordchange', e.detail)}
   />

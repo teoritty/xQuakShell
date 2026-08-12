@@ -343,9 +343,10 @@ func TestVaultServiceFolderPasswordIdentityCRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	identity, err := svc.ImportIdentity(ctx, []byte("pem"), "comment")
-	if err != nil || identity.ID != "id-1" || identRepo.importN != 1 {
-		t.Fatalf("import identity: %+v err=%v n=%d", identity, err, identRepo.importN)
+	// Storing a key now goes through KeyManagerService, which asks for the name and policy this
+	// path never had. VaultService only still lists them, for the connection editor.
+	if err := identRepo.Save(ctx, domain.SSHIdentity{ID: "id-1", Comment: "comment"}, domain.IdentityBlob{}); err != nil {
+		t.Fatalf("seed identity: %v", err)
 	}
 	idents, err := svc.GetAllIdentities(ctx)
 	if err != nil || len(idents) != 1 {

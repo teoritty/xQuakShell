@@ -34,7 +34,7 @@ async function run() {
     fake.program('GetPlatform', 'linux');
     fake.program('GetFolders', [{ id: 'f1', name: 'F', parentId: '', order: 0 }] as Folder[]);
     fake.program('GetAllConnections', [{ id: 'c1', folderId: 'f1', name: 'C', host: 'h', port: 22, order: 0 }] as Connection[]);
-    fake.program('GetIdentities', []);
+    fake.program('GetKeys', []);
     fake.program('GetPluginConnectionProtocols', []);
     // GetSettings deliberately unprogrammed (see library.char.test.ts comment):
     // resolves undefined, getSettings() throws internally and is caught,
@@ -49,15 +49,15 @@ async function run() {
     assert(get(identities).length === 0, 'unlockVault populates identities');
 
     const methods = fake.calls.map((c) => c.method);
-    const expectedSubset = ['UnlockVault', 'GetPlatform', 'GetFolders', 'GetAllConnections', 'GetIdentities', 'GetPluginConnectionProtocols', 'GetSettings'];
+    const expectedSubset = ['UnlockVault', 'GetPlatform', 'GetFolders', 'GetAllConnections', 'GetKeys', 'GetPluginConnectionProtocols', 'GetSettings'];
     for (const m of expectedSubset) {
       assert(methods.includes(m), `unlockVault RPC sequence includes ${m}`);
     }
     assert(methods[0] === 'UnlockVault', 'UnlockVault is the first RPC call');
     assert(methods[1] === 'GetPlatform', 'GetPlatform is the second RPC call');
     assert(methods.indexOf('GetFolders') < methods.indexOf('GetAllConnections'), 'GetFolders happens before GetAllConnections');
-    assert(methods.indexOf('GetAllConnections') < methods.indexOf('GetIdentities'), 'GetAllConnections happens before GetIdentities');
-    assert(methods.indexOf('GetIdentities') < methods.indexOf('GetPluginConnectionProtocols'), 'GetIdentities happens before protocol refresh');
+    assert(methods.indexOf('GetAllConnections') < methods.indexOf('GetKeys'), 'GetAllConnections happens before GetKeys');
+    assert(methods.indexOf('GetKeys') < methods.indexOf('GetPluginConnectionProtocols'), 'GetKeys happens before protocol refresh');
   }
 
   // Missing gateway: original guards before ANY store mutation and returns
@@ -86,7 +86,7 @@ async function run() {
     fake.program('GetPlatform', 'linux');
     fake.program('GetFolders', [] as Folder[]);
     fake.program('GetAllConnections', [] as Connection[]);
-    fake.program('GetIdentities', []);
+    fake.program('GetKeys', []);
     fake.program('GetPluginConnectionProtocols', []);
     setGateway(fake);
 
@@ -98,12 +98,12 @@ async function run() {
     const methods = fake.calls.map((c) => c.method);
     assert(methods[0] === 'CreateVault', 'CreateVault is the first RPC call');
     assert(methods[1] === 'GetPlatform', 'GetPlatform is the second RPC call');
-    for (const m of ['GetFolders', 'GetAllConnections', 'GetIdentities', 'GetPluginConnectionProtocols', 'GetSettings']) {
+    for (const m of ['GetFolders', 'GetAllConnections', 'GetKeys', 'GetPluginConnectionProtocols', 'GetSettings']) {
       assert(methods.includes(m), `createVault RPC sequence includes ${m}`);
     }
     assert(methods.indexOf('GetFolders') < methods.indexOf('GetAllConnections'), 'GetFolders happens before GetAllConnections');
-    assert(methods.indexOf('GetAllConnections') < methods.indexOf('GetIdentities'), 'GetAllConnections happens before GetIdentities');
-    assert(methods.indexOf('GetIdentities') < methods.indexOf('GetPluginConnectionProtocols'), 'GetIdentities happens before protocol refresh');
+    assert(methods.indexOf('GetAllConnections') < methods.indexOf('GetKeys'), 'GetAllConnections happens before GetKeys');
+    assert(methods.indexOf('GetKeys') < methods.indexOf('GetPluginConnectionProtocols'), 'GetKeys happens before protocol refresh');
 
     const call = fake.calls.find((c) => c.method === 'CreateVault');
     assert(!!call && call.args[0] === 'a-good-master-password', 'createVault forwards the master password');

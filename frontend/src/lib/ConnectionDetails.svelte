@@ -10,6 +10,7 @@
   import ConnectionDetailsHeader from './connectionDetails/ConnectionDetailsHeader.svelte';
   import ConnectionBaseFields from './connectionDetails/ConnectionBaseFields.svelte';
   import ConnectionTags from './connectionDetails/ConnectionTags.svelte';
+  import KeyPickerDialog from './keys/KeyPickerDialog.svelte';
   import ConnectionProtocolForm from './connectionDetails/ConnectionProtocolForm.svelte';
   import { connectionDraftStore } from '../stores/connectionDraft';
   import { get } from 'svelte/store';
@@ -27,8 +28,8 @@
   import { adoptPersistedHopIds } from './connectionDetails/hopIds';
   import { adoptPersistedRuleIds } from './connectionDetails/forwardRuleIds';
   import {
-    addIdentityToHop,
-    addIdentityToUser,
+    addIdentityToTarget,
+    identitiesForTarget,
     removeIdentityFromHop,
     removeIdentityFromUser,
     setHopPassword,
@@ -41,7 +42,7 @@
     scheduleAutosave,
     scheduleSavedIndicatorReset,
   } from './connectionDetails/autosave';
-  import { pickAndImportIdentity, importPasswordIfChanged } from './connectionDetails/authSecrets';
+  import { importPasswordIfChanged } from './connectionDetails/authSecrets';
   import type { ConnectionDetailsDraft, SaveStatus } from './connectionDetails/types';
   import type { Connection, ConnectionUser, ForwardRule, JumpHop } from '../stores/appState';
 
@@ -199,12 +200,21 @@
     markDirty();
   }
 
-  async function onUserKeyImport(userId: string) {
-    const editingId = draft.editingId;
-    const kid = await pickAndImportIdentity();
-    if (!kid || draft.editingId !== editingId) return;
-    if (!draft.users.some((u) => u.id === userId)) return;
-    draft.users = addIdentityToUser(draft.users, userId, kid);
+  // Which user or hop asked for a key. The picker is a single dialog shared by all of them, so
+  // the target has to be remembered while it is open rather than passed through it.
+  let keyPickTarget = '';
+  let showKeyPicker = false;
+
+  function onKeyPick(id: string) {
+    keyPickTarget = id;
+    showKeyPicker = true;
+  }
+
+  function onKeyChosen(keyId: string) {
+    showKeyPicker = false;
+    const next = addIdentityToTarget({ users: draft.users, hops: draft.jumpHops }, keyPickTarget, keyId);
+    draft.users = next.users;
+    draft.jumpHops = next.hops;
     markDirty();
   }
 
@@ -217,14 +227,6 @@
     markDirty();
   }
 
-  async function onHopKeyImport(hopId: string) {
-    const editingId = draft.editingId;
-    const kid = await pickAndImportIdentity();
-    if (!kid || draft.editingId !== editingId) return;
-    if (!draft.jumpHops.some((h) => h.id === hopId)) return;
-    draft.jumpHops = addIdentityToHop(draft.jumpHops, hopId, kid);
-    markDirty();
-  }
 
   async function onHopPasswordChange(hopId: string, value: string) {
     const editingId = draft.editingId;
@@ -235,13 +237,6 @@
     markDirty();
   }
 
-  function onKeyImport(id: string) {
-    if (draft.users.some((u) => u.id === id)) {
-      void onUserKeyImport(id);
-      return;
-    }
-    void onHopKeyImport(id);
-  }
 
   function onKeyRemove(detail: { userId?: string; hopId?: string; keyId: string }) {
     if (detail.userId) {
@@ -320,7 +315,7 @@
         on:defaultuserchange={(e) => { draft.defaultUserId = e.detail; }}
         on:hopschange={(e) => setDraftHops(e.detail)}
         on:forwardruleschange={(e) => setDraftForwardRules(e.detail)}
-        on:keyimport={(e) => onKeyImport(e.detail)}
+        on:keypick={(e) => onKeyPick(e.detail)}
         on:keyremove={(e) => onKeyRemove(e.detail)}
         on:passwordchange={(e) => onPasswordChange(e.detail)}
         on:fieldchange={handleFieldChange}
@@ -328,6 +323,13 @@
     {/key}
   </div>
 </div>
+
+<KeyPickerDialog
+  bind:show={showKeyPicker}
+  alreadyChosen={identitiesForTarget({ users: draft.users, hops: draft.jumpHops }, keyPickTarget)}
+  on:pick={(e) => onKeyChosen(e.detail)}
+  on:close={() => (showKeyPicker = false)}
+/>
 {/if}
 
 <style>

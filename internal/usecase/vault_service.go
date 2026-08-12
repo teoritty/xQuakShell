@@ -77,7 +77,3 @@ func (s *VaultService) SetForwardRuleValidator(v *ForwardRuleValidator) {
 func (s *VaultService) GetAllIdentities(ctx context.Context) ([]domain.SSHIdentity, error) {
 	return s.identRepo.GetAll(ctx)
 }
-
-func (s *VaultService) ImportIdentity(ctx context.Context, pemData []byte, comment string) (*domain.SSHIdentity, error) {
-	return s.identRepo.Import(ctx, pemData, comment)
-}

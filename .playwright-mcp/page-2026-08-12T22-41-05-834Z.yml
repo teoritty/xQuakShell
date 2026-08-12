@@ -1,0 +1,31 @@
+- generic [ref=f5e4]:
+  - generic [ref=f5e5]:
+    - generic [ref=f5e6]: Choose a key
+    - button [ref=f5e7] [cursor=pointer]
+  - generic [ref=f5e9]:
+    - paragraph [ref=f5e10]: Keys live in the key manager. Pick one it already holds, or add a new one — either way the private key stays in the vault.
+    - textbox "Search keys" [ref=f5e11]
+    - list [ref=f5e12]:
+      - listitem [ref=f5e13]:
+        - button "home-laptop already added rsa 4096 …G2hI4jK6lM8n" [disabled] [ref=f5e14]:
+          - generic [ref=f5e15]:
+            - generic [ref=f5e16]: home-laptop
+            - generic [ref=f5e17]: already added
+          - generic [ref=f5e18]:
+            - generic [ref=f5e19]: rsa 4096
+            - generic [ref=f5e20]: …G2hI4jK6lM8n
+      - listitem [ref=f5e21]:
+        - button "legacy-bastion-2019 unfinished type unknown" [ref=f5e22] [cursor=pointer]:
+          - generic [ref=f5e23]:
+            - generic [ref=f5e24]: legacy-bastion-2019
+            - generic [ref=f5e25]: unfinished
+          - generic [ref=f5e26]: type unknown
+      - listitem [ref=f5e28]:
+        - button "prod-servers ed25519 …7iJ8kL9mN0oP" [ref=f5e29] [cursor=pointer]:
+          - generic [ref=f5e30]: prod-servers
+          - generic [ref=f5e32]:
+            - generic [ref=f5e33]: ed25519
+            - generic [ref=f5e34]: …7iJ8kL9mN0oP
+    - generic [ref=f5e35]:
+      - button "Add a key…" [ref=f5e36] [cursor=pointer]
+      - button "Cancel" [ref=f5e37] [cursor=pointer]

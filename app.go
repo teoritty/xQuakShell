@@ -203,14 +203,6 @@ func (a *App) ReportRestored() {
 	a.api.ReportRestored()
 }
 
-func (a *App) GetIdentities() ([]presentation.IdentityDTO, error) {
-	return a.api.GetIdentities()
-}
-
-func (a *App) ImportIdentity(pemBase64, comment string) (string, error) {
-	return a.api.ImportIdentity(pemBase64, comment)
-}
-
 func (a *App) GetKeys() ([]presentation.IdentityDTO, error) {
 	return a.api.GetKeys()
 }

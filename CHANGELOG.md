@@ -93,6 +93,12 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   Per key you can also decide how long an entered passphrase is remembered (until the vault locks,
   for a set number of minutes, or never), and whether plugins may read it.
 
+  **A connection picks its key from the manager, not from a file.** Key authentication now offers
+  the keys the manager holds, with their fingerprints, and a way to add a new one without leaving
+  the dialog. The old "Import Key" button, which put a file straight into the vault with no name
+  and no choices, is gone — along with the RPCs behind it, so there is one way in and it is the one
+  that asks the questions that matter.
+
   A key can be marked **never exportable** when you create it. That is permanent by design: a
   promise that a key cannot leave the vault is worth nothing if a checkbox can take it back.
   Exporting any other key asks for your master password and is recorded in the audit log.
