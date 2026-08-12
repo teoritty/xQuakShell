@@ -55,22 +55,31 @@ type target struct {
 var targets = []target{
 	{Label: "domain/discovery", Packages: []string{"./internal/domain/discovery/"}, MinEnv: "MUTATE_DISCOVERY_MIN"},
 	{Label: "domain/plugin", Packages: []string{"./internal/domain/plugin/"}, MinEnv: "MUTATE_DOMAIN_PLUGIN_MIN"},
-	{Label: "infra/plugin/sandbox", Packages: []string{"./internal/infra/plugin/sandbox/"}, MinEnv: "MUTATE_SANDBOX_MIN"},
 }
 
-// The two plugin targets carry the isolation decisions - manifest and sandbox
-// rules in the domain, the ruleset, the ACLs and the shim argv in infra - and
-// their scores must be RECORDED ON LINUX, from the Mutation workflow's
-// update dispatch, never from a developer's machine.
+// domain/plugin carries the manifest rules and the sandbox mode arithmetic, and
+// its score must be RECORDED ON LINUX, from the Mutation workflow's update
+// dispatch, never from a developer's machine. It behaves differently per
+// platform through CurrentPlatformOS and the asset matching built on it, and
+// the two measurements differ by more than the tolerance: Linux scores 80.95%
+// efficacy where Windows scores 80.69%. Recording the local number would gate
+// the nightly on a score nobody has seen the tool produce there.
 //
-// Both behave differently per platform: domain/plugin through CurrentPlatformOS
-// and the asset matching built on it, infra/plugin/sandbox because its Windows
-// and Linux halves are different files with different tests, and the Landlock
-// half runs only where the kernel offers Landlock at all. A Windows-measured
-// number would gate the Linux nightly on a score nobody has seen the tool
-// produce for the thing being checked.
+// ./internal/infra/plugin/sandbox/ cannot be measured by gremlins at all, and
+// the reason is the code itself. Gathering coverage runs the package's tests
+// under instrumentation, those tests apply a Landlock ruleset to a child, and
+// the confined child then cannot write its coverage files:
 //
-// ./internal/domain/ is still absent for the older reason, which remains true:
+//	error: coverage meta-data emit failed: creating meta-data file
+//	/tmp/go-build.../gocoverdir/tmp.covmeta...: permission denied
+//
+// The test binary fails, gremlins exits 1, and the run reports 2.1% coverage of
+// a package whose tests all pass. Granting the coverage directory would mean
+// widening the confinement under test, which is the one change that must not be
+// made to make a measurement work. The escape probe and the ruleset tests are
+// what guard this package.
+//
+// ./internal/domain/ is absent for the older reason, which remains true:
 // gremlins v0.5.0 panics part-way through it ("error, this is temporary",
 // engine/executor.go:167) and leaves no usable report. That panic is
 // package-specific rather than universal - it also hits domain/discovery on

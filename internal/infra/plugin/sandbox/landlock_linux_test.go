@@ -107,10 +107,12 @@ func runConfinedChild(t *testing.T, name string) {
 	if _, err := landlockABI(); err != nil {
 		t.Skipf("kernel has no usable Landlock: %v", err)
 	}
-	layout := newProbeLayout(t)
+	layout, dial := newProbeLayout(t)
 
 	cmd := exec.Command(os.Args[0], "-test.run="+name, "-test.v")
-	cmd.Env = append(os.Environ(), confinedChildEnv+"="+strings.Join(layout, string(os.PathListSeparator)))
+	cmd.Env = append(os.Environ(),
+		confinedChildEnv+"="+strings.Join(layout, string(os.PathListSeparator)),
+		confinedChildDialEnv+"="+dial)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("the confined child did not agree with its boundary: %v\n%s", err, out)
@@ -140,11 +142,17 @@ func TestAConfinedChildCannotOpenATCPConnectionWhereTheKernelHasNetworkRules(t *
 	runConfinedChild(t, "TestConfinedChildCannotDialOut")
 }
 
-// childLayout is the child's side of the environment variable: the directories it was granted, the
+// childLayout is the child's side of the environment variables: the directories it was granted, the
 // one it must not reach, and an address that answers until the ruleset stops it being reachable.
 type childLayout struct {
 	root, install, instance, outside, dial string
 }
+
+// confinedChildDialEnv carries the listener address on its own, and deliberately not in the
+// path list above. On Linux the path list separator is ':', which is also what separates a host
+// from its port, so "127.0.0.1:39121" split into two elements and the child dialled an address
+// with no port. It cost a CI run to find because on Windows the separator is ';'.
+const confinedChildDialEnv = "XQS_TEST_LANDLOCK_DIAL"
 
 func readChildLayout(t *testing.T, driver string) (childLayout, bool) {
 	t.Helper()
@@ -154,7 +162,10 @@ func readChildLayout(t *testing.T, driver string) (childLayout, bool) {
 		return childLayout{}, false
 	}
 	p := strings.Split(spec, string(os.PathListSeparator))
-	return childLayout{root: p[0], install: p[1], instance: p[2], outside: p[3], dial: p[4]}, true
+	return childLayout{
+		root: p[0], install: p[1], instance: p[2], outside: p[3],
+		dial: os.Getenv(confinedChildDialEnv),
+	}, true
 }
 
 func (l childLayout) shimArgs() ShimArgs {
@@ -171,7 +182,7 @@ func (l childLayout) shimArgs() ShimArgs {
 //
 // The listener belongs to the parent and stays open for as long as the child runs, so a refused
 // connection is the ruleset's doing and not a socket that had already gone away.
-func newProbeLayout(t *testing.T) []string {
+func newProbeLayout(t *testing.T) ([]string, string) {
 	t.Helper()
 	root := t.TempDir()
 	install := filepath.Join(root, "install")
@@ -193,7 +204,7 @@ func newProbeLayout(t *testing.T) []string {
 	}
 	t.Cleanup(func() { _ = listener.Close() })
 
-	return []string{root, install, instance, outside, listener.Addr().String()}
+	return []string{root, install, instance, outside}, listener.Addr().String()
 }
 
 // TestConfinedChildCannotDialOut is the body of the child process started above, not a test of its
