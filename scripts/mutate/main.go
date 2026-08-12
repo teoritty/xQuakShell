@@ -54,28 +54,27 @@ type target struct {
 // either uncatchable without a live server or equivalent to the original.
 var targets = []target{
 	{Label: "domain/discovery", Packages: []string{"./internal/domain/discovery/"}, MinEnv: "MUTATE_DISCOVERY_MIN"},
+	{Label: "domain/plugin", Packages: []string{"./internal/domain/plugin/"}, MinEnv: "MUTATE_DOMAIN_PLUGIN_MIN"},
+	{Label: "infra/plugin/sandbox", Packages: []string{"./internal/infra/plugin/sandbox/"}, MinEnv: "MUTATE_SANDBOX_MIN"},
 }
 
-// The obvious next targets are ./internal/domain/plugin/ and
-// ./internal/infra/plugin/sandbox/. Two separate things keep them out.
+// The two plugin targets carry the isolation decisions - manifest and sandbox
+// rules in the domain, the ruleset, the ACLs and the shim argv in infra - and
+// their scores must be RECORDED ON LINUX, from the Mutation workflow's
+// update dispatch, never from a developer's machine.
 //
-// The gremlins v0.5.0 Windows panic ("error, this is temporary",
-// engine/executor.go:167) is real and still reproduces - on ./internal/domain/
-// and on the discovery target above - but it is package-specific, not
-// universal: ./internal/domain/plugin/ completes there in under ten minutes.
-// So the panic alone no longer explains the absence.
+// Both behave differently per platform: domain/plugin through CurrentPlatformOS
+// and the asset matching built on it, infra/plugin/sandbox because its Windows
+// and Linux halves are different files with different tests, and the Landlock
+// half runs only where the kernel offers Landlock at all. A Windows-measured
+// number would gate the Linux nightly on a score nobody has seen the tool
+// produce for the thing being checked.
 //
-// What does is the platform the score has to come from. This gate runs on the
-// nightly's Linux runner, and both packages behave differently there:
-// domain/plugin through CurrentPlatformOS and the asset matching built on it,
-// infra/plugin/sandbox because its Windows and Linux halves are different files
-// with different tests, and the Landlock half runs only where the kernel offers
-// Landlock at all. A number measured on a developer's Windows box would be a
-// score nobody has seen the tool produce for the thing being gated, which is
-// the one way of recording a baseline this file has always refused.
-//
-// Record them with a Linux run of `go run ./scripts/mutate -only=<label>
-// -update`, which is what -only exists for: a full matrix takes hours.
+// ./internal/domain/ is still absent for the older reason, which remains true:
+// gremlins v0.5.0 panics part-way through it ("error, this is temporary",
+// engine/executor.go:167) and leaves no usable report. That panic is
+// package-specific rather than universal - it also hits domain/discovery on
+// Windows, while domain/plugin completes there in under ten minutes.
 
 // score is what one target achieved. Efficacy is the share of covered mutants
 // the tests killed; coverage is the share of mutants the tests reach at all.
