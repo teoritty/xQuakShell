@@ -4,14 +4,14 @@ import "fmt"
 
 // JumpHop describes a single intermediate SSH bastion host in a jump chain.
 type JumpHop struct {
-	ID       string         `json:"id,omitempty"`
-	Host     string         `json:"host"`
-	Port     int            `json:"port"`
-	Username string         `json:"username"`
-	Auth     AuthMethodType `json:"authMethod"`
-	KeyAuth  *KeyAuthConfig      `json:"keyAuth,omitempty"`
-	PassAuth *PasswordAuthConfig `json:"passAuth,omitempty"`
-	PluginAuth *PluginAuthConfig `json:"pluginAuth,omitempty"`
+	ID         string              `json:"id,omitempty"`
+	Host       string              `json:"host"`
+	Port       int                 `json:"port"`
+	Username   string              `json:"username"`
+	Auth       AuthMethodType      `json:"authMethod"`
+	KeyAuth    *KeyAuthConfig      `json:"keyAuth,omitempty"`
+	PassAuth   *PasswordAuthConfig `json:"passAuth,omitempty"`
+	PluginAuth *PluginAuthConfig   `json:"pluginAuth,omitempty"`
 }
 
 // Validate checks that the hop has valid host, port, username, and auth configuration.

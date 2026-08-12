@@ -10,22 +10,22 @@ import (
 
 // InstallPreview describes a plugin before installation.
 type InstallPreview struct {
-	ID                        string
-	Name                      string
-	Version                   string
-	Description               string
-	Signed                    bool
-	SignatureVerified         bool
-	ChecksumPresent           bool
-	RequiresSecretAccess       bool
-	RequiresAuthProviderAccess bool
+	ID                           string
+	Name                         string
+	Version                      string
+	Description                  string
+	Signed                       bool
+	SignatureVerified            bool
+	ChecksumPresent              bool
+	RequiresSecretAccess         bool
+	RequiresAuthProviderAccess   bool
 	RequiresTunnelProviderAccess bool
-	MultiSessionWarning        bool
-	ArbitraryNetworkWarning   bool
-	ExecAccessWarning         bool
-	UnsignedWarning           bool
-	UntrustedSignatureWarning bool
-	Permissions               []string
+	MultiSessionWarning          bool
+	ArbitraryNetworkWarning      bool
+	ExecAccessWarning            bool
+	UnsignedWarning              bool
+	UntrustedSignatureWarning    bool
+	Permissions                  []string
 }
 
 // BundleLoader loads a plugin directory or bundle for preview/install.
@@ -146,21 +146,21 @@ func (m *PluginManager) Install(sourcePath string, policy domainplugin.InstallTr
 func installPreviewFrom(p domainplugin.InstalledPlugin, trust domainplugin.InstallTrustResult) InstallPreview {
 	unsigned := trust.UnsignedWarning || trust.UntrustedSignatureWarning
 	return InstallPreview{
-		ID:                        p.Manifest.ID,
-		Name:                      p.Manifest.Name,
-		Version:                   p.Manifest.Version,
-		Description:               p.Manifest.Description,
-		Signed:                    trust.Signed,
-		SignatureVerified:         trust.SignatureVerified,
-		ChecksumPresent:           trust.ChecksumPresent,
-		RequiresSecretAccess:       p.Manifest.RequiresSecretAccess(),
-		RequiresAuthProviderAccess: p.Manifest.RequiresAuthProviderAccess(),
+		ID:                           p.Manifest.ID,
+		Name:                         p.Manifest.Name,
+		Version:                      p.Manifest.Version,
+		Description:                  p.Manifest.Description,
+		Signed:                       trust.Signed,
+		SignatureVerified:            trust.SignatureVerified,
+		ChecksumPresent:              trust.ChecksumPresent,
+		RequiresSecretAccess:         p.Manifest.RequiresSecretAccess(),
+		RequiresAuthProviderAccess:   p.Manifest.RequiresAuthProviderAccess(),
 		RequiresTunnelProviderAccess: p.Manifest.RequiresTunnelProviderAccess(),
-		MultiSessionWarning:        p.Manifest.RequiresMultiSessionWarning() || trust.MultiSessionWarning,
-		ArbitraryNetworkWarning:   p.Manifest.RequiresArbitraryNetworkWarning() || trust.ArbitraryNetworkWarning,
-		ExecAccessWarning:         p.Manifest.RequiresChannelExecConsent(),
-		UnsignedWarning:           unsigned,
-		UntrustedSignatureWarning: trust.UntrustedSignatureWarning,
-		Permissions:               p.Manifest.PermissionSummary(),
+		MultiSessionWarning:          p.Manifest.RequiresMultiSessionWarning() || trust.MultiSessionWarning,
+		ArbitraryNetworkWarning:      p.Manifest.RequiresArbitraryNetworkWarning() || trust.ArbitraryNetworkWarning,
+		ExecAccessWarning:            p.Manifest.RequiresChannelExecConsent(),
+		UnsignedWarning:              unsigned,
+		UntrustedSignatureWarning:    trust.UntrustedSignatureWarning,
+		Permissions:                  p.Manifest.PermissionSummary(),
 	}
 }

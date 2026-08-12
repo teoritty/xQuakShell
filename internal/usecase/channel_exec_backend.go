@@ -278,7 +278,7 @@ func (b *ChannelExecBackend) CloseRemote() error {
 // is unavoidably a single string — sshd hands it to the remote user's shell as `shell -c
 // <string>` — so *some* serialization to a string is required to invoke it at all. The security
 // property is preserved by POSIX single-quoting every argv element individually (wrapping each
-// in '...', escaping embedded quotes as '\''): inside single quotes a POSIX shell disables all
+// in '...', escaping embedded quotes as '\”): inside single quotes a POSIX shell disables all
 // metacharacter interpretation (;, |, $, `, &&, etc.), so a malicious value like "x; rm -rf /"
 // becomes the literal, inert argument 'x; rm -rf /' — not a second command. The argv array
 // remains the sole source of truth; this function is purely a safe, mechanical serialization of

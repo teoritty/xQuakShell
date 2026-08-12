@@ -20,8 +20,8 @@ type PluginAuthAttempt struct {
 
 // PluginAuthAttemptRegistry tracks in-flight auth attempts for RPC authorization.
 type PluginAuthAttemptRegistry struct {
-	mu       sync.Mutex
-	attempts map[string]PluginAuthAttempt
+	mu        sync.Mutex
+	attempts  map[string]PluginAuthAttempt
 	perPlugin map[string]int
 }
 

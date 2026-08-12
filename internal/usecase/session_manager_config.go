@@ -17,7 +17,7 @@ type SessionManagerConfig struct {
 	PassphraseCache            domain.PassphraseCache
 	HostKeyCallbackBuilder     domain.HostKeyCallbackBuilder
 	JumpTransportBuilder       domain.JumpTransportBuilder
-	PrivateKeySignerFactory    domain.PrivateKeySignerFactory
+	Keys                       *KeyManagerService
 	PTYBridgeFactory           domain.PTYBridgeFactory
 	SFTPClientFactory          domain.SFTPClientFactory
 	Connectors                 []domain.SessionConnector

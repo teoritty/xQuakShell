@@ -20,7 +20,7 @@ func (s *stubConnRepo) GetAllFolders(context.Context) ([]domain.ConnectionFolder
 	return nil, nil
 }
 func (s *stubConnRepo) SaveFolder(context.Context, *domain.ConnectionFolder) error { return nil }
-func (s *stubConnRepo) DeleteFolder(context.Context, string) error               { return nil }
+func (s *stubConnRepo) DeleteFolder(context.Context, string) error                 { return nil }
 func (s *stubConnRepo) GetAllConnections(context.Context) ([]domain.Connection, error) {
 	return s.conns, nil
 }

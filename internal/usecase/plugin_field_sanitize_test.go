@@ -44,9 +44,9 @@ func TestSanitizeFieldGroupsCleansEveryDisplayedString(t *testing.T) {
 	}
 	field := group.Fields[0]
 	for name, value := range map[string]string{
-		"label":       field.Label,
-		"placeholder": field.Placeholder,
-		"description": field.Description,
+		"label":        field.Label,
+		"placeholder":  field.Placeholder,
+		"description":  field.Description,
 		"option label": field.Options[0].Label,
 	} {
 		if containsUnsafe(value) {

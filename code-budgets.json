@@ -440,11 +440,6 @@
         "params": 6,
         "nesting": 0
       },
-      "internal/usecase/ssh_connector.go::SSHConnector.loadSigners": {
-        "codeLines": 36,
-        "params": 2,
-        "nesting": 4
-      },
       "internal/usecase/surface_service.go::NewSurfaceService": {
         "codeLines": 12,
         "params": 6,

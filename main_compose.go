@@ -54,13 +54,23 @@ func composeApp() *App {
 
 	lockoutMgr := usecase.NewIdleLockoutManager(domain.DefaultLockoutSettings())
 
+	passphraseCache := infrassh.NewPassphraseCache()
+	keyManager := usecase.NewKeyManagerService(usecase.KeyManagerConfig{
+		Identities: identRepo,
+		Vault:      vaultRepo,
+		Codec:      keyCodec,
+		Cache:      passphraseCache,
+		NewDataKey: keys.NewDataKey,
+		Audit:      usecase.NewKeyAuditRecorder(auditLogRepo),
+	})
+
 	sshSession := usecase.SSHSessionDeps{
-		PassphraseCache:         infrassh.NewPassphraseCache(),
-		HostKeyCallbackBuilder:  infrassh.NewHostKeyCallbackBuilder(),
-		JumpTransportBuilder:    infrassh.NewJumpTransportBuilder(),
-		PrivateKeySignerFactory: infrassh.NewPrivateKeySignerFactory(),
-		PTYBridgeFactory:        infrassh.NewPTYBridgeFactory(),
-		SFTPClientFactory:       infrasftp.NewSFTPClientFactory(),
+		PassphraseCache:        passphraseCache,
+		HostKeyCallbackBuilder: infrassh.NewHostKeyCallbackBuilder(),
+		JumpTransportBuilder:   infrassh.NewJumpTransportBuilder(),
+		Keys:                   keyManager,
+		PTYBridgeFactory:       infrassh.NewPTYBridgeFactory(),
+		SFTPClientFactory:      infrasftp.NewSFTPClientFactory(),
 	}
 
 	portableRuntime := portable.NewRuntimeAdapter()

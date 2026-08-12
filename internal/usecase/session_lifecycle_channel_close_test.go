@@ -35,11 +35,15 @@ type fakeCloseSSHClient struct {
 	closeCalls int
 }
 
-func (f *fakeCloseSSHClient) OpenDirectTCP(context.Context, string) (net.Conn, error) { return nil, nil }
-func (f *fakeCloseSSHClient) ListenTCP(context.Context, string) (net.Listener, error) { return nil, nil }
-func (f *fakeCloseSSHClient) NewSession() (*gossh.Session, error)                     { return nil, nil }
-func (f *fakeCloseSSHClient) Client() *gossh.Client                                   { return nil }
-func (f *fakeCloseSSHClient) KeepAlive() error                                        { return nil }
+func (f *fakeCloseSSHClient) OpenDirectTCP(context.Context, string) (net.Conn, error) {
+	return nil, nil
+}
+func (f *fakeCloseSSHClient) ListenTCP(context.Context, string) (net.Listener, error) {
+	return nil, nil
+}
+func (f *fakeCloseSSHClient) NewSession() (*gossh.Session, error) { return nil, nil }
+func (f *fakeCloseSSHClient) Client() *gossh.Client               { return nil }
+func (f *fakeCloseSSHClient) KeepAlive() error                    { return nil }
 func (f *fakeCloseSSHClient) Close() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

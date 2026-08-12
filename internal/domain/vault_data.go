@@ -54,12 +54,12 @@ type VaultData struct {
 // NewVaultData returns an empty VaultData at the current schema version.
 func NewVaultData() *VaultData {
 	return &VaultData{
-		Version:     CurrentVaultVersion,
-		Folders:     []ConnectionFolder{},
-		Connections: []Connection{},
-		Identities:  map[string]SSHIdentity{},
-		KeyBlobs:    map[string]IdentityBlob{},
-		KnownHosts:  []string{},
+		Version:       CurrentVaultVersion,
+		Folders:       []ConnectionFolder{},
+		Connections:   []Connection{},
+		Identities:    map[string]SSHIdentity{},
+		KeyBlobs:      map[string]IdentityBlob{},
+		KnownHosts:    []string{},
 		Passwords:     map[string]PasswordBlob{},
 		PluginSecrets: map[string][]byte{},
 		Settings: &AppSettings{

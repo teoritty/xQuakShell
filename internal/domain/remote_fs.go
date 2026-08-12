@@ -39,9 +39,9 @@ type RemoteNode struct {
 	IsDir   bool      `json:"isDir"`
 	Size    int64     `json:"size"`
 	ModTime time.Time `json:"modTime"`
-	Mode    string    `json:"mode,omitempty"`   // e.g. "rwxr-xr-x"
-	Owner   string    `json:"owner,omitempty"`   // owner name or UID
-	Group   string    `json:"group,omitempty"`   // group name or GID
+	Mode    string    `json:"mode,omitempty"`  // e.g. "rwxr-xr-x"
+	Owner   string    `json:"owner,omitempty"` // owner name or UID
+	Group   string    `json:"group,omitempty"` // group name or GID
 }
 
 // ProgressFunc is called during file transfers to report progress.

@@ -7,12 +7,12 @@ func CloneVaultData(in *VaultData) *VaultData {
 		return nil
 	}
 	out := &VaultData{
-		Version:     in.Version,
-		Folders:     cloneFolders(in.Folders),
-		Connections: cloneConnections(in.Connections),
-		Identities:  cloneIdentities(in.Identities),
-		KeyBlobs:    cloneKeyBlobs(in.KeyBlobs),
-		KnownHosts:  cloneStrings(in.KnownHosts),
+		Version:       in.Version,
+		Folders:       cloneFolders(in.Folders),
+		Connections:   cloneConnections(in.Connections),
+		Identities:    cloneIdentities(in.Identities),
+		KeyBlobs:      cloneKeyBlobs(in.KeyBlobs),
+		KnownHosts:    cloneStrings(in.KnownHosts),
 		Passwords:     clonePasswords(in.Passwords),
 		PluginSecrets: clonePluginSecrets(in.PluginSecrets),
 		Settings:      CloneAppSettings(in.Settings),

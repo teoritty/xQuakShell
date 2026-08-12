@@ -59,8 +59,8 @@ func (f *fakeRemoteFS) ChownRecursive(ctx context.Context, _ string, _, _ int, _
 }
 
 // Unused interface methods.
-func (f *fakeRemoteFS) GetWorkingDirectory(context.Context) (string, error)          { return "", nil }
-func (f *fakeRemoteFS) List(context.Context, string) ([]domain.RemoteNode, error)     { return nil, nil }
+func (f *fakeRemoteFS) GetWorkingDirectory(context.Context) (string, error)       { return "", nil }
+func (f *fakeRemoteFS) List(context.Context, string) ([]domain.RemoteNode, error) { return nil, nil }
 func (f *fakeRemoteFS) Upload(context.Context, string, string, domain.ProgressFunc) error {
 	return nil
 }

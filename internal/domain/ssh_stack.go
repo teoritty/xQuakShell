@@ -83,8 +83,3 @@ type JumpTransportBuilder interface {
 		resolveHopAuth JumpHopAuthResolver,
 	) (transport net.Conn, cleanup func(), err error)
 }
-
-// PrivateKeySignerFactory parses PEM private keys, optionally with passphrase.
-type PrivateKeySignerFactory interface {
-	ParsePrivateKeyWithPassphrase(pemBytes []byte, passphrase string) (ssh.Signer, error)
-}

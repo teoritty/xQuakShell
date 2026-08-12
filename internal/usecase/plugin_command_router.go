@@ -8,6 +8,7 @@ import (
 
 	domainplugin "xquakshell/internal/domain/plugin"
 )
+
 // MergedCommand is a plugin-contributed command with owning plugin ID.
 type MergedCommand struct {
 	PluginID string
@@ -173,6 +174,7 @@ func (m *PluginManager) StartPluginManual(ctx context.Context, pluginID string) 
 	}
 	return m.EnsureRunning(ctx, pluginID)
 }
+
 // ActivateStartupPlugins activates plugins with onStartup activation events.
 func (m *PluginManager) ActivateStartupPlugins(ctx context.Context) {
 	if m == nil {
