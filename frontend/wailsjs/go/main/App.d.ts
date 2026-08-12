@@ -83,8 +83,6 @@ export function GetDiscoveryTree(arg1:string):Promise<wails.DiscoverySnapshotDTO
 
 export function GetFolders():Promise<Array<wails.FolderDTO>>;
 
-export function GetIdentities():Promise<Array<wails.IdentityDTO>>;
-
 export function GetKeyUsages(arg1:string):Promise<Array<wails.KeyUsageDTO>>;
 
 export function GetKeys():Promise<Array<wails.IdentityDTO>>;
@@ -116,8 +114,6 @@ export function GetUpdateStatus():Promise<wails.UpdateStatusDTO>;
 export function GetUserHomeDir():Promise<string>;
 
 export function GetVersionInfo():Promise<wails.VersionInfoDTO>;
-
-export function ImportIdentity(arg1:string,arg2:string):Promise<string>;
 
 export function ImportKey(arg1:string,arg2:string,arg3:string,arg4:wails.KeyOptionsDTO):Promise<wails.IdentityDTO>;
 

@@ -162,10 +162,6 @@ export function GetFolders() {
   return window['go']['main']['App']['GetFolders']();
 }
 
-export function GetIdentities() {
-  return window['go']['main']['App']['GetIdentities']();
-}
-
 export function GetKeyUsages(arg1) {
   return window['go']['main']['App']['GetKeyUsages'](arg1);
 }
@@ -228,10 +224,6 @@ export function GetUserHomeDir() {
 
 export function GetVersionInfo() {
   return window['go']['main']['App']['GetVersionInfo']();
-}
-
-export function ImportIdentity(arg1, arg2) {
-  return window['go']['main']['App']['ImportIdentity'](arg1, arg2);
 }
 
 export function ImportKey(arg1, arg2, arg3, arg4) {
