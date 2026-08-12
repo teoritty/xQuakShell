@@ -6,10 +6,31 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 
 	domainplugin "xquakshell/internal/domain/plugin"
 	"xquakshell/internal/infra/plugin/sandbox"
 )
+
+// containerMu serialises creating an AppContainer profile and spawning into it against deleting one.
+//
+// Those are two halves of a single critical section over a name that is global to the user's
+// account, and they are reached from different goroutines by design: a Stop, a crash teardown or a
+// supervisor restart takes an instance down while another Start is bringing one up. A delete landing
+// between prepareContainer and the CreateProcess that follows it fails the spawn with "the system
+// cannot find the file specified" — Windows resolves the profile for the container SID as part of
+// starting the process, and by then there is nothing to resolve. The message names a file and the
+// cause is a profile, which is why it reads as a missing plugin binary and is not one.
+//
+// CreateContainer already answers the other order, a delete landing between its own two halves. That
+// left this one, and it is the one that reaches a user: a plugin that will not come back after a
+// restart, blaming a file that is sitting right where it belongs.
+//
+// One mutex for every container rather than one per name. The contention is a plugin start against a
+// plugin stop — milliseconds, and rare — while a keyed map would have to answer when an entry may be
+// dropped, which has no cheap right answer and buys nothing here. It is a leaf: nothing takes another
+// lock while holding it, and closeResources reaches the delete side without h.mu held.
+var containerMu sync.Mutex
 
 // pluginContainerName is the AppContainer profile name for one plugin process instance.
 //
@@ -92,6 +113,9 @@ func grantContainerAccess(container *sandbox.Container, plugin domainplugin.Inst
 // nothing to revoke from a root nobody named, and guessing one would revoke against whatever
 // relative path it resolved to, so this deletes the profile and stops there.
 func releaseContainer(plugin domainplugin.InstalledPlugin, dataRoot, sessionID string) error {
+	containerMu.Lock()
+	defer containerMu.Unlock()
+
 	if dataRoot != "" && instanceSessionScope(sessionID, plugin.Manifest.EffectiveIsolation()) != "" {
 		revokeContainerAccess(plugin, dataRoot, sessionID)
 	}

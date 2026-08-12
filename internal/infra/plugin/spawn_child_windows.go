@@ -46,6 +46,12 @@ func startContainedChild(req childRequest, support domainplugin.SandboxSupport) 
 	if err != nil {
 		return startedChild{}, err
 	}
+	// Creating the profile and starting the process inside it are one step as far as any other
+	// goroutine is concerned; see containerMu. A teardown that deleted the profile between them
+	// would fail this spawn with an error naming a file that is exactly where it should be.
+	containerMu.Lock()
+	defer containerMu.Unlock()
+
 	container, err := prepareContainer(req.plugin, req.dataRoot, req.sessionID, req.instanceDataDir)
 	if err != nil {
 		return startedChild{}, err

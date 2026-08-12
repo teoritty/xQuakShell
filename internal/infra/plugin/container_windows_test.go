@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"golang.org/x/sys/windows"
+
 	domainplugin "xquakshell/internal/domain/plugin"
 	"xquakshell/internal/infra/plugin/sandbox"
 )
@@ -229,4 +231,90 @@ func TestReleasingAPerPluginContainerKeepsTheAccessItWillNeedAgain(t *testing.T)
 		t.Errorf("%s lost its grant when the profile was deleted; the next start of this plugin "+
 			"has to rewrite the ACL of the entire install tree to put back what it just had", binDir)
 	}
+}
+
+// discardCloser stands in for the redacting stderr writer, which a spawn requires and this test has
+// no use for.
+type discardCloser struct{}
+
+func (discardCloser) Write(p []byte) (int, error) { return len(p), nil }
+func (discardCloser) Close() error                { return nil }
+
+// TestASpawnIsNotRacedByATeardownOfTheSameContainer covers the window between creating a profile and
+// starting a process inside it.
+//
+// A delete landing in that window fails CreateProcess with "the system cannot find the file
+// specified" — the file it cannot find is the profile, not the plugin binary, so the error points at
+// the one thing that is not wrong. It is reached by ordinary use: a Stop, a crash teardown or a
+// supervisor restart runs the delete while another Start is running the create.
+//
+// The deleter runs flat out for as long as the spawns take rather than a fixed number of times,
+// because a race is only demonstrated by a detector dense enough to land inside the window. With the
+// serialisation removed this fails on the first or second spawn; with it in place the window does not
+// exist.
+func TestASpawnIsNotRacedByATeardownOfTheSameContainer(t *testing.T) {
+	if !sandbox.Support().Available {
+		t.Skip("this build cannot create an AppContainer")
+	}
+	const pluginID = "com.xquakshell.spawn-race-probe"
+	dataRoot := t.TempDir()
+	plugin, instanceDir := probeInstall(t, dataRoot, pluginID)
+	entry := copySystemShell(t, filepath.Join(plugin.RootDir, "bin"))
+	t.Cleanup(func() { _ = releaseContainer(plugin, dataRoot, "sess-a") })
+
+	done := make(chan struct{})
+	deleted := make(chan struct{})
+	go func() {
+		defer close(deleted)
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			_ = releaseContainer(plugin, dataRoot, "sess-a")
+		}
+	}()
+
+	req := childRequest{
+		dataRoot:        dataRoot,
+		plugin:          plugin,
+		sessionID:       "sess-a",
+		entryPath:       entry,
+		instanceDataDir: instanceDir,
+		env:             PluginProcessEnv(instanceDir, pluginID, "sess-a"),
+		stderr:          discardCloser{},
+	}
+	for i := range 5 {
+		started, err := startContainedChild(req, sandbox.Support())
+		if err != nil {
+			close(done)
+			<-deleted
+			t.Fatalf("spawn %d raced a teardown of its own container: %v", i, err)
+		}
+		_ = started.stdin.Close()
+		_ = started.child.Kill()
+	}
+	close(done)
+	<-deleted
+}
+
+// copySystemShell puts a real executable inside the plugin's install tree, because the spawn under
+// test needs a process that actually starts: a container that cannot run its image fails for a
+// reason this test is not about.
+func copySystemShell(t *testing.T, dir string) string {
+	t.Helper()
+	system, err := windows.GetSystemDirectory()
+	if err != nil {
+		t.Fatalf("locate the system directory: %v", err)
+	}
+	body, err := os.ReadFile(filepath.Join(system, "cmd.exe"))
+	if err != nil {
+		t.Fatalf("read the system shell: %v", err)
+	}
+	entry := filepath.Join(dir, "plugin.exe")
+	if err := os.WriteFile(entry, body, 0o700); err != nil {
+		t.Fatalf("write the probe binary: %v", err)
+	}
+	return entry
 }
