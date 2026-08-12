@@ -13,14 +13,7 @@ func SecurePathUnderRoots(absPath string, roots []string) (string, error) {
 		return "", ErrPathDenied
 	}
 
-	var matchedRoot string
-	for _, root := range roots {
-		root = filepath.Clean(root)
-		if UnderRoot(root, absPath) {
-			matchedRoot = root
-			break
-		}
-	}
+	matchedRoot := matchRoot(absPath, roots)
 	if matchedRoot == "" {
 		return "", ErrPathDenied
 	}
@@ -82,6 +75,38 @@ func secureNewPath(target, root string) (string, error) {
 		return "", ErrPathDenied
 	}
 	return resolved, nil
+}
+
+// matchRoot picks the root that contains absPath, and returns it in the spelling the rest of this
+// function must walk from.
+//
+// The configured spelling is tried first and answers almost every call. The resolved one is needed
+// because absPath frequently arrives already canonical - VerifyOpenFileUnderRoots hands over what
+// GetFinalPathNameByHandle returned, which is always the long form on Windows - while the root is
+// whatever the caller was configured with. A root spelt C:\Users\RUNNER~1\... then contained
+// nothing, and every read and write a plugin attempted inside its own data directory came back as
+// "plugin capability denied".
+//
+// The match returns the RESOLVED root in that case, not the configured one: the walk below measures
+// segments relative to what it returns, and measuring a canonical path from a root spelt another
+// way produces a relative path full of "..", which this function refuses. Both halves have to speak
+// the same alphabet or neither answer is meaningful.
+func matchRoot(absPath string, roots []string) string {
+	for _, root := range roots {
+		if root = filepath.Clean(root); UnderRoot(root, absPath) {
+			return root
+		}
+	}
+	for _, root := range roots {
+		resolved, err := filepath.EvalSymlinks(filepath.Clean(root))
+		if err != nil {
+			continue
+		}
+		if resolved = filepath.Clean(resolved); UnderRoot(resolved, absPath) {
+			return resolved
+		}
+	}
+	return ""
 }
 
 // underResolvedRoot answers whether a path that has ALREADY been resolved to its canonical form is

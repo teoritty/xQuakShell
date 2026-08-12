@@ -44,12 +44,59 @@ func TestAnEightDotThreeRootStillMatchesItsLongResolvedForm(t *testing.T) {
 
 	got, err := pathsafe.SecurePathUnderRoots(filepath.Join(short, "data.txt"), []string{short})
 	if err != nil {
-		t.Fatalf("SecurePathUnderRoots refused %s inside its own root %s: %v; the short and long "+
-			"spellings name the same directory", "data.txt", short, err)
+		t.Fatalf("SecurePathUnderRoots refused data.txt inside its own root %s: %v; the short and "+
+			"long spellings name the same directory", short, err)
 	}
-	if filepath.Clean(got) != filepath.Clean(wanted) {
-		t.Errorf("resolved to %q, want %q", got, wanted)
+	// Compared in canonical form on both sides. t.TempDir() itself returns the short spelling on a
+	// machine whose account name is long, so a raw string comparison here failed on the CI runner
+	// while passing everywhere else - the same class of mistake this test exists to catch.
+	if got != resolve(t, wanted) {
+		t.Errorf("resolved to %q, want %q", got, resolve(t, wanted))
 	}
+}
+
+// TestAnOpenedFileIsVerifiedAgainstAShortSpeltRoot covers the second place the mismatch bites, and
+// the one every plugin filesystem call goes through.
+//
+// OpenExistingFile re-validates the descriptor after opening it: the path comes back from
+// GetFinalPathNameByHandle, which always answers in canonical long form, and is then checked
+// against the configured roots. With a short-spelt root nothing matched and every read and write a
+// plugin attempted inside its own data directory returned "plugin capability denied".
+func TestAnOpenedFileIsVerifiedAgainstAShortSpeltRoot(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "a-directory-with-a-long-name")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "data.txt"), []byte("payload"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	short := shortPath(t, root)
+	if short == root {
+		t.Skipf("this volume has no 8.3 alias for %s, so the short-name boundary stays unverified here", root)
+	}
+
+	body, err := pathsafe.ReadExistingFile([]string{short}, filepath.Join(short, "data.txt"), 1024)
+	if err != nil {
+		t.Fatalf("ReadExistingFile refused a file inside its own root: %v", err)
+	}
+	if string(body) != "payload" {
+		t.Errorf("read %q, want %q", body, "payload")
+	}
+
+	if err := pathsafe.WriteExistingFile([]string{short}, filepath.Join(short, "new.txt"), []byte("x"), 0o600); err != nil {
+		t.Errorf("WriteExistingFile refused to create a file inside its own root: %v", err)
+	}
+}
+
+func resolve(t *testing.T, path string) string {
+	t.Helper()
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatalf("resolve %s: %v", path, err)
+	}
+	return filepath.Clean(resolved)
 }
 
 func shortPath(t *testing.T, path string) string {

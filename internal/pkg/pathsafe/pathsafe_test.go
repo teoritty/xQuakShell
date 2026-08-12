@@ -91,8 +91,14 @@ func TestARootSpeltDifferentlyFromItsResolvedFormStillMatches(t *testing.T) {
 		t.Fatalf("SecurePathUnderRoots refused a file inside its own root: %v; a root and a "+
 			"resolved path that name the same directory differently are still the same directory", err)
 	}
-	if filepath.Clean(got) != filepath.Clean(wanted) {
-		t.Errorf("resolved to %q, want %q", got, wanted)
+	// Both sides in canonical form: t.TempDir() can itself hand back a spelling that differs from
+	// the resolved one, which is the very thing under test.
+	resolvedWant, err := filepath.EvalSymlinks(wanted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Clean(got) != filepath.Clean(resolvedWant) {
+		t.Errorf("resolved to %q, want %q", got, resolvedWant)
 	}
 }
 
