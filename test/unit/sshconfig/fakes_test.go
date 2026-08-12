@@ -93,6 +93,18 @@ func (f *fakeIdentRepo) GetKeyBlob(context.Context, string) ([]byte, error) {
 	return nil, errors.New("not implemented")
 }
 func (f *fakeIdentRepo) Delete(context.Context, string) error { return nil }
+func (f *fakeIdentRepo) Get(context.Context, string) (*domain.SSHIdentity, error) {
+	return nil, domain.ErrIdentityNotFound
+}
+func (f *fakeIdentRepo) GetBlob(context.Context, string) (*domain.IdentityBlob, error) {
+	return nil, domain.ErrIdentityNotFound
+}
+func (f *fakeIdentRepo) Save(context.Context, domain.SSHIdentity, domain.IdentityBlob) error {
+	return nil
+}
+func (f *fakeIdentRepo) Update(context.Context, string, func(*domain.SSHIdentity) error) error {
+	return nil
+}
 
 // fakeImporter is a scripted domain.SSHConfigImporter. It records every path
 // ReadKeyFile is asked for, which is what lets a test prove the service never

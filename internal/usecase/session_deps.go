@@ -4,10 +4,11 @@ import "xquakshell/internal/domain"
 
 // SSHSessionDeps groups dependencies for SSH session setup (implementations are wired in main).
 type SSHSessionDeps struct {
-	PassphraseCache         domain.PassphraseCache
-	HostKeyCallbackBuilder  domain.HostKeyCallbackBuilder
-	JumpTransportBuilder    domain.JumpTransportBuilder
-	PrivateKeySignerFactory domain.PrivateKeySignerFactory
-	PTYBridgeFactory        domain.PTYBridgeFactory
-	SFTPClientFactory       domain.SFTPClientFactory
+	PassphraseCache        domain.PassphraseCache
+	HostKeyCallbackBuilder domain.HostKeyCallbackBuilder
+	JumpTransportBuilder   domain.JumpTransportBuilder
+	Keys                   *KeyManagerService
+	MigrationDeps          domain.MigrationDeps
+	PTYBridgeFactory       domain.PTYBridgeFactory
+	SFTPClientFactory      domain.SFTPClientFactory
 }

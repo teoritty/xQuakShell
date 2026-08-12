@@ -226,9 +226,9 @@ func TestPluginFieldsServiceClearsHiddenSecretOnAuthTypeChange(t *testing.T) {
 	}
 
 	if err := svc.SavePluginFields(ctx, conn, map[string]string{
-		"auth_type":        "password",
-		"password_active":  "1",
-		"password":         "old-secret",
+		"auth_type":       "password",
+		"password_active": "1",
+		"password":        "old-secret",
 	}); err != nil {
 		t.Fatal(err)
 	}

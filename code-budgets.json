@@ -49,8 +49,8 @@
         "scriptCodeLines": 98
       },
       "frontend/src/lib/ConnectionDetails.svelte": {
-        "codeLines": 310,
-        "scriptCodeLines": 244
+        "codeLines": 307,
+        "scriptCodeLines": 235
       },
       "frontend/src/lib/FileTree.svelte": {
         "codeLines": 545,
@@ -439,11 +439,6 @@
         "codeLines": 1,
         "params": 6,
         "nesting": 0
-      },
-      "internal/usecase/ssh_connector.go::SSHConnector.loadSigners": {
-        "codeLines": 36,
-        "params": 2,
-        "nesting": 4
       },
       "internal/usecase/surface_service.go::NewSurfaceService": {
         "codeLines": 12,

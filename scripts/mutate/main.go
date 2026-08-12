@@ -79,6 +79,13 @@ var targets = []target{
 // made to make a measurement work. The escape probe and the ruleset tests are
 // what guard this package.
 //
+// ./internal/infra/keys/ is absent for the same reason as ./internal/domain/ below, confirmed by
+// trying it: gremlins panics with "error, this is temporary" (engine/executor.go:167) part-way
+// through and exits 1 with no report. The key codec is the most security-critical code added by
+// the key manager, so it was mutation-tested by hand instead - the empty-passphrase guard, the
+// wrong-passphrase branch and both generation size checks were each broken in turn and confirmed
+// to turn a test red. Re-add this target when gremlins can complete the package.
+//
 // ./internal/domain/ is absent for the older reason, which remains true:
 // gremlins v0.5.0 panics part-way through it ("error, this is temporary",
 // engine/executor.go:167) and leaves no usable report. That panic is

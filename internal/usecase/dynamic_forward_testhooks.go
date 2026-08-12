@@ -4,8 +4,8 @@ import (
 	"context"
 	"net"
 
-	domainplugin "xquakshell/internal/domain/plugin"
 	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // TODO(test-hooks): these hooks ship in the release binary because the external package

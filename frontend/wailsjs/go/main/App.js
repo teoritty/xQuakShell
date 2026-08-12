@@ -22,6 +22,10 @@ export function CancelTransfer(arg1) {
   return window['go']['main']['App']['CancelTransfer'](arg1);
 }
 
+export function ChangeKeyPassphrase(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ChangeKeyPassphrase'](arg1, arg2, arg3);
+}
+
 export function Chmod(arg1, arg2, arg3) {
   return window['go']['main']['App']['Chmod'](arg1, arg2, arg3);
 }
@@ -48,6 +52,10 @@ export function CloseSession(arg1) {
 
 export function CloseSurface(arg1) {
   return window['go']['main']['App']['CloseSurface'](arg1);
+}
+
+export function CompleteKeyMigration(arg1, arg2) {
+  return window['go']['main']['App']['CompleteKeyMigration'](arg1, arg2);
 }
 
 export function CopyLocalPath(arg1, arg2) {
@@ -78,8 +86,16 @@ export function DeleteFolder(arg1) {
   return window['go']['main']['App']['DeleteFolder'](arg1);
 }
 
+export function DeleteKey(arg1) {
+  return window['go']['main']['App']['DeleteKey'](arg1);
+}
+
 export function DeletePassword(arg1) {
   return window['go']['main']['App']['DeletePassword'](arg1);
+}
+
+export function DeployKey(arg1, arg2) {
+  return window['go']['main']['App']['DeployKey'](arg1, arg2);
 }
 
 export function DescribeDiscoveryNode(arg1, arg2, arg3) {
@@ -114,8 +130,16 @@ export function ExecuteUpload(arg1, arg2) {
   return window['go']['main']['App']['ExecuteUpload'](arg1, arg2);
 }
 
+export function ExportKey(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['ExportKey'](arg1, arg2, arg3, arg4);
+}
+
 export function FetchGitHubPlugins(arg1) {
   return window['go']['main']['App']['FetchGitHubPlugins'](arg1);
+}
+
+export function GenerateKey(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['GenerateKey'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function GeneratePluginPublisherKeyPair() {
@@ -138,8 +162,12 @@ export function GetFolders() {
   return window['go']['main']['App']['GetFolders']();
 }
 
-export function GetIdentities() {
-  return window['go']['main']['App']['GetIdentities']();
+export function GetKeyUsages(arg1) {
+  return window['go']['main']['App']['GetKeyUsages'](arg1);
+}
+
+export function GetKeys() {
+  return window['go']['main']['App']['GetKeys']();
 }
 
 export function GetKnownHosts() {
@@ -198,8 +226,8 @@ export function GetVersionInfo() {
   return window['go']['main']['App']['GetVersionInfo']();
 }
 
-export function ImportIdentity(arg1, arg2) {
-  return window['go']['main']['App']['ImportIdentity'](arg1, arg2);
+export function ImportKey(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['ImportKey'](arg1, arg2, arg3, arg4);
 }
 
 export function ImportPassword(arg1, arg2) {
@@ -294,6 +322,10 @@ export function PlanDownload(arg1, arg2, arg3) {
   return window['go']['main']['App']['PlanDownload'](arg1, arg2, arg3);
 }
 
+export function PlanKeyMigration(arg1) {
+  return window['go']['main']['App']['PlanKeyMigration'](arg1);
+}
+
 export function PlanLocalCopy(arg1, arg2) {
   return window['go']['main']['App']['PlanLocalCopy'](arg1, arg2);
 }
@@ -340,6 +372,10 @@ export function RemoveLocalPath(arg1) {
 
 export function RemovePath(arg1, arg2) {
   return window['go']['main']['App']['RemovePath'](arg1, arg2);
+}
+
+export function RenameKey(arg1, arg2) {
+  return window['go']['main']['App']['RenameKey'](arg1, arg2);
 }
 
 export function RenameLocalPath(arg1, arg2) {
@@ -436,6 +472,10 @@ export function SetDiscoveryObserved(arg1, arg2) {
 
 export function SetGitHubRepositoryTrust(arg1) {
   return window['go']['main']['App']['SetGitHubRepositoryTrust'](arg1);
+}
+
+export function SetKeyPolicy(arg1, arg2) {
+  return window['go']['main']['App']['SetKeyPolicy'](arg1, arg2);
 }
 
 export function SetPluginEnabled(arg1, arg2) {

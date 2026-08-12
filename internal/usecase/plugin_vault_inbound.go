@@ -28,6 +28,7 @@ type PluginVaultInbound struct {
 	authorizer      PluginVaultAuthorizer
 	settings        PluginSettingsReader
 	auditLogger     domainplugin.VaultAccessAuditLogger
+	keyAudit        KeyManagerAudit
 }
 
 // NewPluginVaultInbound creates a vault inbound adapter.
@@ -47,6 +48,17 @@ func NewPluginVaultInbound(
 		passphraseCache: passphraseCache,
 		settings:        settings,
 	}
+}
+
+// SetKeyAudit binds the key-event recorder after composition.
+//
+// It is a setter rather than a constructor parameter because the constructor is already at the
+// five-parameter limit and grew past it before that limit existed; adding a seventh would make a
+// baselined signature worse rather than better.
+func (p *PluginVaultInbound) SetKeyAudit(a KeyManagerAudit) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.keyAudit = a
 }
 
 // SetAuthorizer binds the session manager after composition.
@@ -151,8 +163,8 @@ func (p *PluginVaultInbound) GetSecret(ctx context.Context, pluginID string, par
 		return nil, err
 	}
 	return json.Marshal(map[string]string{
-		"field":         req.Field,
-		"valueBase64":   base64.StdEncoding.EncodeToString(secret),
+		"field":       req.Field,
+		"valueBase64": base64.StdEncoding.EncodeToString(secret),
 	})
 }
 
@@ -257,15 +269,53 @@ func (p *PluginVaultInbound) resolveSecret(ctx context.Context, conn *domain.Con
 		}
 		return p.passwordRepo.Get(ctx, user.PassAuth.VaultRef)
 	case "privateKey":
-		if user == nil || user.KeyAuth == nil || len(user.KeyAuth.IdentityIDs) == 0 {
-			return nil, domainplugin.ErrCapabilityDenied
-		}
-		return p.identRepo.GetKeyBlob(ctx, user.KeyAuth.IdentityIDs[0])
+		return p.resolvePrivateKey(ctx, conn)
 	case "passphrase":
 		return p.resolveKeyPassphrase(ctx, conn)
 	default:
 		return nil, domainplugin.ErrCapabilityDenied
 	}
+}
+
+// resolvePrivateKey hands a plugin the stored key bytes, but only for a key whose owner has said
+// so.
+//
+// Until the key manager existed there was no way to say otherwise: any plugin holding the vault
+// capability could read any private key belonging to the connection it was invoked for. The
+// capability grant is about the vault as a whole, which is far too coarse a decision for "this
+// third-party binary may read this particular private key", so the answer now lives on the key.
+//
+// The default is off. A key that predates the flag, or whose owner never thought about it, is not
+// handed over — the safe reading of silence is refusal, and a plugin that genuinely needs a key
+// can say so and be granted it explicitly.
+func (p *PluginVaultInbound) resolvePrivateKey(ctx context.Context, conn *domain.Connection) ([]byte, error) {
+	user := conn.DefaultUser()
+	if user == nil || user.KeyAuth == nil || len(user.KeyAuth.IdentityIDs) == 0 {
+		return nil, domainplugin.ErrCapabilityDenied
+	}
+	identityID := user.KeyAuth.IdentityIDs[0]
+	identity, err := p.identRepo.Get(ctx, identityID)
+	if err != nil {
+		return nil, domainplugin.ErrCapabilityDenied
+	}
+	if !identity.AllowPlugins {
+		return nil, domainplugin.ErrCapabilityDenied
+	}
+	p.recordKeyRelease(ctx, identity)
+	return p.identRepo.GetKeyBlob(ctx, identityID)
+}
+
+// recordKeyRelease notes that a private key left the vault for a plugin. It is the only trace of
+// an event the user cannot otherwise observe, so it records the key by fingerprint - never the
+// key, and never the passphrase.
+func (p *PluginVaultInbound) recordKeyRelease(ctx context.Context, identity *domain.SSHIdentity) {
+	p.mu.RLock()
+	audit := p.keyAudit
+	p.mu.RUnlock()
+	if audit == nil {
+		return
+	}
+	audit.RecordKeyEvent(ctx, KeyEventPluginAccess, identity.ID, identity.Fingerprint)
 }
 
 func (p *PluginVaultInbound) resolveKeyPassphrase(ctx context.Context, conn *domain.Connection) ([]byte, error) {
@@ -274,6 +324,12 @@ func (p *PluginVaultInbound) resolveKeyPassphrase(ctx context.Context, conn *dom
 		return nil, domainplugin.ErrCapabilityDenied
 	}
 	identityID := user.KeyAuth.IdentityIDs[0]
+	// The passphrase is gated on the same per-key flag as the key itself. Handing it over on its
+	// own looks harmless only until you notice the plugin can ask for both in either order.
+	identity, err := p.identRepo.Get(ctx, identityID)
+	if err != nil || !identity.AllowPlugins {
+		return nil, domainplugin.ErrCapabilityDenied
+	}
 	encrypted, err := p.identityEncrypted(ctx, identityID)
 	if err != nil {
 		return nil, err

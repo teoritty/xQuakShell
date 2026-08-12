@@ -26,9 +26,9 @@ func newThrottledReader(ctx context.Context, r io.Reader, rateLimitKbps int) io.
 		bytesPerSec = 1
 	}
 	return &throttledReader{
-		r:        r,
-		limiter:  rate.NewLimiter(rate.Limit(bytesPerSec), bytesPerSec*2),
-		ctx:      ctx,
+		r:       r,
+		limiter: rate.NewLimiter(rate.Limit(bytesPerSec), bytesPerSec*2),
+		ctx:     ctx,
 	}
 }
 

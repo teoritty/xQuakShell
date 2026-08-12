@@ -48,12 +48,12 @@ func RunViewerApp(args []string, assets embed.FS) {
 	}
 
 	err := wails.Run(&options.App{
-		Title:     "xQuakShell — Debug Log",
-		Width:     960,
-		Height:    520,
-		MinWidth:  640,
-		MinHeight: 320,
-		AssetServer: assetServer,
+		Title:            "xQuakShell — Debug Log",
+		Width:            960,
+		Height:           520,
+		MinWidth:         640,
+		MinHeight:        320,
+		AssetServer:      assetServer,
 		BackgroundColour: &options.RGBA{R: 30, G: 30, B: 30, A: 255},
 		OnStartup: func(ctx context.Context) {
 			app.startup(ctx)

@@ -7,6 +7,7 @@ import (
 	"xquakshell/internal/domain"
 	"xquakshell/internal/infra/auditlog"
 	"xquakshell/internal/infra/host"
+	"xquakshell/internal/infra/keys"
 	"xquakshell/internal/infra/loghub"
 	"xquakshell/internal/infra/persistence"
 	infrapinger "xquakshell/internal/infra/pinger"
@@ -40,7 +41,8 @@ func composeApp() *App {
 
 	vaultRepo := persistence.NewVaultRepo(vaultDir)
 	connRepo := persistence.NewConnectionRepo(vaultRepo)
-	identRepo := persistence.NewIdentityRepo(vaultRepo)
+	keyCodec := keys.NewCodec()
+	identRepo := persistence.NewIdentityRepo(vaultRepo, keyCodec, keys.NewDataKey)
 	passwordRepo := persistence.NewPasswordRepo(vaultRepo)
 	knownHostsRepo := persistence.NewKnownHostsRepo(vaultRepo)
 	sshDialer := infrassh.NewDialer()
@@ -52,13 +54,24 @@ func composeApp() *App {
 
 	lockoutMgr := usecase.NewIdleLockoutManager(domain.DefaultLockoutSettings())
 
+	passphraseCache := infrassh.NewPassphraseCache()
+	keyManager := usecase.NewKeyManagerService(usecase.KeyManagerConfig{
+		Identities: identRepo,
+		Vault:      vaultRepo,
+		Codec:      keyCodec,
+		Cache:      passphraseCache,
+		NewDataKey: keys.NewDataKey,
+		Audit:      usecase.NewKeyAuditRecorder(auditLogRepo),
+	})
+
 	sshSession := usecase.SSHSessionDeps{
-		PassphraseCache:         infrassh.NewPassphraseCache(),
-		HostKeyCallbackBuilder:  infrassh.NewHostKeyCallbackBuilder(),
-		JumpTransportBuilder:    infrassh.NewJumpTransportBuilder(),
-		PrivateKeySignerFactory: infrassh.NewPrivateKeySignerFactory(),
-		PTYBridgeFactory:        infrassh.NewPTYBridgeFactory(),
-		SFTPClientFactory:       infrasftp.NewSFTPClientFactory(),
+		PassphraseCache:        passphraseCache,
+		HostKeyCallbackBuilder: infrassh.NewHostKeyCallbackBuilder(),
+		JumpTransportBuilder:   infrassh.NewJumpTransportBuilder(),
+		Keys:                   keyManager,
+		MigrationDeps:          domain.MigrationDeps{Codec: keyCodec, NewDataKey: keys.NewDataKey},
+		PTYBridgeFactory:       infrassh.NewPTYBridgeFactory(),
+		SFTPClientFactory:      infrasftp.NewSFTPClientFactory(),
 	}
 
 	portableRuntime := portable.NewRuntimeAdapter()
@@ -76,6 +89,9 @@ func composeApp() *App {
 		PassphraseCache: sshSession.PassphraseCache,
 		ExeDir:          paths.ExeDir(),
 	})
+
+	// Every private key a plugin is allowed to read is recorded, by id and fingerprint only.
+	pluginRuntime.vaultInbound.SetKeyAudit(usecase.NewKeyAuditRecorder(auditLogRepo))
 
 	sshAuth, pluginSessionAudit := wireSSHAuth(pluginRuntime)
 

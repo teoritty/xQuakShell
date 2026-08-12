@@ -39,7 +39,7 @@ func TestVaultDecryptTellsANewerSchemaFromAnOlderOne(t *testing.T) {
 		want    error
 	}{
 		{"newer", domain.CurrentVaultVersion + 1, domain.ErrVaultVersionTooNew},
-		{"older", domain.CurrentVaultVersion - 1, domain.ErrVaultVersionTooOld},
+		{"below the migratable floor", domain.MinMigratableVaultVersion - 1, domain.ErrVaultVersionTooOld},
 	}
 
 	for _, tc := range cases {
@@ -52,6 +52,29 @@ func TestVaultDecryptTellsANewerSchemaFromAnOlderOne(t *testing.T) {
 		if _, err := vault.Decrypt(ciphertext, versionTestPassphrase); !errors.Is(err, tc.want) {
 			t.Errorf("%s vault (version %d): got %v, want %v; the two directions need opposite actions from the user", tc.name, tc.version, err, tc.want)
 		}
+	}
+}
+
+// A migratable vault must decrypt rather than be refused, and must come back carrying its own
+// version. Decrypt returning the current version instead would make the migration invisible to
+// every caller that decides whether to run one.
+func TestVaultDecryptReturnsAMigratableSchemaUntouched(t *testing.T) {
+	data := domain.NewVaultData()
+	data.Version = domain.MinMigratableVaultVersion
+	ciphertext, err := vault.Encrypt(data, versionTestPassphrase)
+	if err != nil {
+		t.Fatalf("encrypt: %v", err)
+	}
+
+	got, err := vault.Decrypt(ciphertext, versionTestPassphrase)
+	if err != nil {
+		t.Fatalf("decrypt a migratable vault: %v", err)
+	}
+	if got.Version != domain.MinMigratableVaultVersion {
+		t.Errorf("version = %d, want %d; Decrypt must not silently upgrade what it reads", got.Version, domain.MinMigratableVaultVersion)
+	}
+	if !vault.NeedsMigration(got) {
+		t.Error("NeedsMigration = false for an old schema; nothing downstream would ever run the migration")
 	}
 }
 

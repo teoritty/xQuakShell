@@ -13,7 +13,7 @@
   const dispatch = createEventDispatcher<{
     dirty: void;
     hopschange: JumpHop[];
-    keyimport: string;
+    keypick: string;
     keyremove: { hopId: string; keyId: string };
     passwordchange: { hopId: string; value: string };
     pluginauthchange: { hopId: string; value: PluginAuthConfig };
@@ -85,7 +85,7 @@
       on:authmethodchange={(e) => updateHopField(hop.id, 'authMethod', e.detail)}
       on:pluginauthchange={(e) => updateHopPluginAuth(hop.id, e.detail)}
       on:passwordchange={(e) => dispatch('passwordchange', { hopId: hop.id, value: e.detail })}
-      on:keyimport={() => dispatch('keyimport', hop.id)}
+      on:keypick={() => dispatch('keypick', hop.id)}
       on:keyremove={(e) => dispatch('keyremove', { hopId: hop.id, keyId: e.detail })}
       on:remove={() => removeHop(hop.id)}
     >

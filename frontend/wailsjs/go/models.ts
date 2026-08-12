@@ -525,6 +525,22 @@ export namespace wails {
 		}
 	}
 	
+	export class DeployResultDTO {
+	    added: boolean;
+	    alreadyPresent: boolean;
+	    path: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DeployResultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.added = source["added"];
+	        this.alreadyPresent = source["alreadyPresent"];
+	        this.path = source["path"];
+	    }
+	}
 	export class DialogFieldOptionDTO {
 	    value: string;
 	    label: string;
@@ -1241,7 +1257,18 @@ export namespace wails {
 	    id: string;
 	    comment: string;
 	    keyType: string;
+	    bits?: number;
+	    publicKey?: string;
+	    fingerprint?: string;
 	    encrypted: boolean;
+	    policy?: string;
+	    cachePolicy?: string;
+	    cacheTtlSeconds?: number;
+	    allowPlugins: boolean;
+	    nonExportable: boolean;
+	    migrationPending: boolean;
+	    createdAt?: string;
+	    source?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new IdentityDTO(source);
@@ -1252,11 +1279,58 @@ export namespace wails {
 	        this.id = source["id"];
 	        this.comment = source["comment"];
 	        this.keyType = source["keyType"];
+	        this.bits = source["bits"];
+	        this.publicKey = source["publicKey"];
+	        this.fingerprint = source["fingerprint"];
 	        this.encrypted = source["encrypted"];
+	        this.policy = source["policy"];
+	        this.cachePolicy = source["cachePolicy"];
+	        this.cacheTtlSeconds = source["cacheTtlSeconds"];
+	        this.allowPlugins = source["allowPlugins"];
+	        this.nonExportable = source["nonExportable"];
+	        this.migrationPending = source["migrationPending"];
+	        this.createdAt = source["createdAt"];
+	        this.source = source["source"];
 	    }
 	}
 	
 	
+	export class KeyOptionsDTO {
+	    cachePolicy: string;
+	    cacheTtlSeconds: number;
+	    allowPlugins: boolean;
+	    nonExportable: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new KeyOptionsDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cachePolicy = source["cachePolicy"];
+	        this.cacheTtlSeconds = source["cacheTtlSeconds"];
+	        this.allowPlugins = source["allowPlugins"];
+	        this.nonExportable = source["nonExportable"];
+	    }
+	}
+	export class KeyUsageDTO {
+	    connectionId: string;
+	    connectionName: string;
+	    username: string;
+	    hop?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new KeyUsageDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.connectionId = source["connectionId"];
+	        this.connectionName = source["connectionName"];
+	        this.username = source["username"];
+	        this.hop = source["hop"];
+	    }
+	}
 	export class KnownHostDTO {
 	    host: string;
 	    keyType: string;
@@ -1297,6 +1371,74 @@ export namespace wails {
 	        this.owner = source["owner"];
 	    }
 	}
+	export class PendingKeyDTO {
+	    id: string;
+	    comment: string;
+	    keyType: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PendingKeyDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.comment = source["comment"];
+	        this.keyType = source["keyType"];
+	    }
+	}
+	export class MigrationPlanDTO {
+	    required: boolean;
+	    keys: PendingKeyDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new MigrationPlanDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.required = source["required"];
+	        this.keys = this.convertValues(source["keys"], PendingKeyDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MigrationReportDTO {
+	    fromVersion: number;
+	    toVersion: number;
+	    converted: string[];
+	    skipped: string[];
+	    backupPath: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MigrationReportDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.fromVersion = source["fromVersion"];
+	        this.toVersion = source["toVersion"];
+	        this.converted = source["converted"];
+	        this.skipped = source["skipped"];
+	        this.backupPath = source["backupPath"];
+	    }
+	}
 	export class NodeDetailsDTO {
 	    sections: DialogSectionDTO[];
 	    values: Record<string, string>;
@@ -1331,6 +1473,7 @@ export namespace wails {
 		    return a;
 		}
 	}
+	
 	
 	export class PingResultDTO {
 	    connectionId: string;

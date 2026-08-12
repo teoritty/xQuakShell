@@ -18,7 +18,7 @@ func TestVaultEncryptDecryptRoundtrip(t *testing.T) {
 	data.Connections = []domain.Connection{
 		{
 			ID: "c1", FolderID: "f1", Name: "Test", Host: "example.com", Port: 22,
-			Users: []domain.ConnectionUser{{ID: "u1", Username: "root", Auth: domain.AuthMethodKey}},
+			Users:         []domain.ConnectionUser{{ID: "u1", Username: "root", Auth: domain.AuthMethodKey}},
 			DefaultUserID: "u1",
 		},
 	}
@@ -75,7 +75,7 @@ func TestVaultFileRoundtrip(t *testing.T) {
 	data.Connections = []domain.Connection{
 		{
 			ID: "c1", Name: "Server", Host: "10.0.0.1", Port: 22,
-			Users: []domain.ConnectionUser{{ID: "u1", Username: "admin", Auth: domain.AuthMethodKey}},
+			Users:         []domain.ConnectionUser{{ID: "u1", Username: "admin", Auth: domain.AuthMethodKey}},
 			DefaultUserID: "u1",
 		},
 	}

@@ -42,13 +42,13 @@ type PasswordAuthConfig struct {
 // ConnectionUser represents one of potentially many users configured for a single connection.
 // Each user has an independent authentication method (key or password).
 type ConnectionUser struct {
-	ID       string         `json:"id"`
-	Username string         `json:"username"`
-	Auth     AuthMethodType `json:"authMethod"`
-	KeyAuth  *KeyAuthConfig      `json:"keyAuth,omitempty"`
-	PassAuth *PasswordAuthConfig `json:"passAuth,omitempty"`
-	PluginAuth *PluginAuthConfig `json:"pluginAuth,omitempty"`
-	Label    string         `json:"label,omitempty"`
+	ID         string              `json:"id"`
+	Username   string              `json:"username"`
+	Auth       AuthMethodType      `json:"authMethod"`
+	KeyAuth    *KeyAuthConfig      `json:"keyAuth,omitempty"`
+	PassAuth   *PasswordAuthConfig `json:"passAuth,omitempty"`
+	PluginAuth *PluginAuthConfig   `json:"pluginAuth,omitempty"`
+	Label      string              `json:"label,omitempty"`
 }
 
 // Validate checks that the user has a non-empty username and a valid auth configuration.

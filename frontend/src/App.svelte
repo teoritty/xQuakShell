@@ -6,6 +6,7 @@
   import VaultUnlock from './lib/VaultUnlock.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
   import KnownHostsManager from './lib/KnownHostsManager.svelte';
+  import KeyManager from './lib/KeyManager.svelte';
   import HostKeyDialog from './lib/HostKeyDialog.svelte';
   import AuditLogView from './lib/AuditLogView.svelte';
   import ErrorDialog from './lib/ErrorDialog.svelte';
@@ -26,9 +27,10 @@
   import { getSettings, applyAppearanceSettings } from './actions/settingsActions';
   import { parseHotkeyEvent } from './hotkeys/hotkeys';
   import { DEFAULT_SESSION_HOTKEYS } from './api/settings';
-  import { Settings, FileText, Shield, MonitorDot, Terminal } from 'lucide-svelte';
+  import { Settings, FileText, Shield, MonitorDot, Terminal, Key } from 'lucide-svelte';
 
   let showKnownHosts = false;
+  let showKeyManager = false;
   let showAuditLog = false;
   let showSettings = false;
   let settingsInitialTab: SettingsTabId = 'about';
@@ -205,6 +207,9 @@
           <button class="ghost top-btn" on:click={() => showKnownHosts = true} title="Known Hosts">
             <Shield size={14} />
           </button>
+          <button class="ghost top-btn" on:click={() => showKeyManager = true} title="SSH Keys">
+            <Key size={14} />
+          </button>
           <button class="ghost top-btn" on:click={() => openSettings()} title="Settings">
             <Settings size={14} />
           </button>
@@ -257,6 +262,7 @@
   </div>
 
   <KnownHostsManager bind:show={showKnownHosts} />
+  <KeyManager bind:show={showKeyManager} />
   <AuditLogView
     bind:show={showAuditLog}
     on:openSettings={(e) => openSettingsFromAudit(e.detail.tab)}

@@ -40,37 +40,37 @@ type SessionManager struct {
 func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 	registry := NewSessionRegistry()
 	sshConnector := NewSSHConnector(SSHConnectorConfig{
-		VaultRepo:               cfg.VaultRepo,
-		IdentRepo:               cfg.IdentRepo,
-		PasswordRepo:            cfg.PasswordRepo,
-		KnownHosts:              cfg.KnownHosts,
-		SSHFactory:              cfg.SSHFactory,
-		PassphraseCache:         cfg.PassphraseCache,
-		HostKeyCallbackBuilder:  cfg.HostKeyCallbackBuilder,
-		JumpTransportBuilder:    cfg.JumpTransportBuilder,
-		PrivateKeySignerFactory: cfg.PrivateKeySignerFactory,
-		PassphraseReq:           cfg.PassphraseReq,
-		AuthProvider:            cfg.AuthProvider,
-		AuthMethodBuilder:       cfg.AuthMethodBuilder,
-		AuthAttempts:            cfg.AuthAttempts,
-		AuthLookup:              cfg.AuthLookup,
-		AuthStarter:             cfg.AuthStarter,
-		AuthGrantReader:         cfg.AuthGrantReader,
+		VaultRepo:              cfg.VaultRepo,
+		IdentRepo:              cfg.IdentRepo,
+		PasswordRepo:           cfg.PasswordRepo,
+		KnownHosts:             cfg.KnownHosts,
+		SSHFactory:             cfg.SSHFactory,
+		PassphraseCache:        cfg.PassphraseCache,
+		HostKeyCallbackBuilder: cfg.HostKeyCallbackBuilder,
+		JumpTransportBuilder:   cfg.JumpTransportBuilder,
+		Keys:                   cfg.Keys,
+		PassphraseReq:          cfg.PassphraseReq,
+		AuthProvider:           cfg.AuthProvider,
+		AuthMethodBuilder:      cfg.AuthMethodBuilder,
+		AuthAttempts:           cfg.AuthAttempts,
+		AuthLookup:             cfg.AuthLookup,
+		AuthStarter:            cfg.AuthStarter,
+		AuthGrantReader:        cfg.AuthGrantReader,
 	})
 	plugins := cfg.PluginBridge
 	if plugins == nil {
 		plugins = NewPluginSessionBridge(PluginSessionBridgeConfig{})
 	}
 	lifecycle := NewSessionLifecycleService(SessionLifecycleConfig{
-		Registry:        registry,
-		ConnRepo:        cfg.ConnRepo,
-		SSHConnector:    sshConnector,
-		Plugins:         plugins,
-		PassphraseCache: cfg.PassphraseCache,
+		Registry:                  registry,
+		ConnRepo:                  cfg.ConnRepo,
+		SSHConnector:              sshConnector,
+		Plugins:                   plugins,
+		PassphraseCache:           cfg.PassphraseCache,
 		DynamicForward:            cfg.DynamicForward,
 		ForwardConnLimiterFactory: cfg.ForwardConnLimiterFactory,
 		OnStateChange:             cfg.OnStateChange,
-		HostKeyRequest:  cfg.HostKeyRequest,
+		HostKeyRequest:            cfg.HostKeyRequest,
 	})
 	io := NewSessionIOService(SessionIOServiceConfig{
 		Registry:          registry,

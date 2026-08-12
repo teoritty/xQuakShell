@@ -13,8 +13,8 @@ import (
 
 	gossh "golang.org/x/crypto/ssh"
 
-	domainplugin "xquakshell/internal/domain/plugin"
 	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 // --- Stubs for SessionManager SSH tests (no network) ---
@@ -53,12 +53,13 @@ func (s sshTestConnRepo) ReorderFolders(context.Context, []string, string) error
 
 type sshTestVaultRepo struct{}
 
-func (sshTestVaultRepo) Exists() bool                         { return true }
-func (sshTestVaultRepo) Create(context.Context, string) error { return nil }
-func (sshTestVaultRepo) Unlock(context.Context, string) error { return nil }
-func (sshTestVaultRepo) Lock()                                {}
-func (sshTestVaultRepo) IsUnlocked() bool                     { return true }
-func (sshTestVaultRepo) GetData() (*domain.VaultData, error) { return domain.NewVaultData(), nil }
+func (sshTestVaultRepo) Exists() bool                                       { return true }
+func (sshTestVaultRepo) Create(context.Context, string) error               { return nil }
+func (sshTestVaultRepo) Unlock(context.Context, string) error               { return nil }
+func (sshTestVaultRepo) VerifyMasterPassword(context.Context, string) error { return nil }
+func (sshTestVaultRepo) Lock()                                              {}
+func (sshTestVaultRepo) IsUnlocked() bool                                   { return true }
+func (sshTestVaultRepo) GetData() (*domain.VaultData, error)                { return domain.NewVaultData(), nil }
 func (sshTestVaultRepo) UpdateData(context.Context, func(*domain.VaultData) error) error {
 	return nil
 }
@@ -73,6 +74,18 @@ func (sshTestIdentRepo) Import(context.Context, []byte, string) (*domain.SSHIden
 	return nil, nil
 }
 func (sshTestIdentRepo) Delete(context.Context, string) error { return nil }
+func (sshTestIdentRepo) Get(context.Context, string) (*domain.SSHIdentity, error) {
+	return nil, domain.ErrIdentityNotFound
+}
+func (sshTestIdentRepo) GetBlob(context.Context, string) (*domain.IdentityBlob, error) {
+	return nil, domain.ErrIdentityNotFound
+}
+func (sshTestIdentRepo) Save(context.Context, domain.SSHIdentity, domain.IdentityBlob) error {
+	return nil
+}
+func (sshTestIdentRepo) Update(context.Context, string, func(*domain.SSHIdentity) error) error {
+	return nil
+}
 
 type sshTestPasswordRepo struct {
 	password string
@@ -129,6 +142,20 @@ func (m *mapPassphraseCache) Set(id, passphrase string) {
 	m.m[id] = passphrase
 }
 
+func (m *mapPassphraseCache) SetWithTTL(id, passphrase string, ttl time.Duration) {
+	if ttl <= 0 {
+		m.Forget(id)
+		return
+	}
+	m.Set(id, passphrase)
+}
+
+func (m *mapPassphraseCache) Forget(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.m, id)
+}
+
 func (m *mapPassphraseCache) Clear() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -149,9 +176,30 @@ func (e errJumpBuilder) BuildChain(context.Context, []domain.JumpHop, string, in
 	return nil, nil, e.err
 }
 
-type stubKeySigner struct{}
+// stubKeyManager stands in for the key manager in tests that authenticate by password and never
+// reach a key. It is built over the real service so a signature change here is a compile error
+// rather than a divergence nobody notices.
+func stubKeyManager() *KeyManagerService {
+	return NewKeyManagerService(KeyManagerConfig{
+		Identities: sshTestIdentRepo{},
+		Codec:      stubCodec{},
+		NewDataKey: func() ([]byte, error) { return []byte("data-key"), nil },
+	})
+}
 
-func (stubKeySigner) ParsePrivateKeyWithPassphrase([]byte, string) (gossh.Signer, error) {
+type stubCodec struct{}
+
+func (stubCodec) Generate(domain.GeneratedKeySpec, []byte) (*domain.KeyMaterial, error) {
+	return nil, errors.New("no key in test")
+}
+func (stubCodec) Normalize([]byte, []byte, []byte, string) (*domain.KeyMaterial, error) {
+	return nil, errors.New("no key in test")
+}
+func (stubCodec) Unwrap([]byte, []byte) (domain.Signer, error) {
+	return nil, errors.New("no key in test")
+}
+func (stubCodec) Describe([]byte) (string, bool) { return "unknown", false }
+func (stubCodec) Export([]byte, []byte, []byte, string) ([]byte, error) {
 	return nil, errors.New("no key in test")
 }
 
@@ -211,17 +259,17 @@ func TestSSHConnectHostKeyUnknown(t *testing.T) {
 	}
 
 	sm := NewSessionManager(SessionManagerConfig{
-		ConnRepo:                sshTestConnRepo{conn: passwordSSHConnection()},
-		VaultRepo:               sshTestVaultRepo{},
-		IdentRepo:               sshTestIdentRepo{},
-		PasswordRepo:            sshTestPasswordRepo{password: "secret"},
-		KnownHosts:              sshTestKnownHosts{},
-		SSHFactory:              errSSHFactory{err: hkErr},
-		PassphraseCache:         &mapPassphraseCache{},
-		HostKeyCallbackBuilder:  acceptAllHostKeys{},
-		JumpTransportBuilder:    neverJumpBuilder{},
-		PrivateKeySignerFactory: stubKeySigner{},
-		OnStateChange:           onChange,
+		ConnRepo:               sshTestConnRepo{conn: passwordSSHConnection()},
+		VaultRepo:              sshTestVaultRepo{},
+		IdentRepo:              sshTestIdentRepo{},
+		PasswordRepo:           sshTestPasswordRepo{password: "secret"},
+		KnownHosts:             sshTestKnownHosts{},
+		SSHFactory:             errSSHFactory{err: hkErr},
+		PassphraseCache:        &mapPassphraseCache{},
+		HostKeyCallbackBuilder: acceptAllHostKeys{},
+		JumpTransportBuilder:   neverJumpBuilder{},
+		Keys:                   stubKeyManager(),
+		OnStateChange:          onChange,
 	})
 
 	_, err := sm.OpenSession(context.Background(), "c1")
@@ -241,17 +289,17 @@ func TestSSHConnectGenericError(t *testing.T) {
 	}
 
 	sm := NewSessionManager(SessionManagerConfig{
-		ConnRepo:                sshTestConnRepo{conn: passwordSSHConnection()},
-		VaultRepo:               sshTestVaultRepo{},
-		IdentRepo:               sshTestIdentRepo{},
-		PasswordRepo:            sshTestPasswordRepo{password: "secret"},
-		KnownHosts:              sshTestKnownHosts{},
-		SSHFactory:              errSSHFactory{err: errors.New("dial refused")},
-		PassphraseCache:         &mapPassphraseCache{},
-		HostKeyCallbackBuilder:  acceptAllHostKeys{},
-		JumpTransportBuilder:    neverJumpBuilder{},
-		PrivateKeySignerFactory: stubKeySigner{},
-		OnStateChange:           onChange,
+		ConnRepo:               sshTestConnRepo{conn: passwordSSHConnection()},
+		VaultRepo:              sshTestVaultRepo{},
+		IdentRepo:              sshTestIdentRepo{},
+		PasswordRepo:           sshTestPasswordRepo{password: "secret"},
+		KnownHosts:             sshTestKnownHosts{},
+		SSHFactory:             errSSHFactory{err: errors.New("dial refused")},
+		PassphraseCache:        &mapPassphraseCache{},
+		HostKeyCallbackBuilder: acceptAllHostKeys{},
+		JumpTransportBuilder:   neverJumpBuilder{},
+		Keys:                   stubKeyManager(),
+		OnStateChange:          onChange,
 	})
 
 	_, err := sm.OpenSession(context.Background(), "c1")
@@ -287,17 +335,17 @@ func TestSSHJumpChainHostKeyUnknown(t *testing.T) {
 	}
 
 	sm := NewSessionManager(SessionManagerConfig{
-		ConnRepo:                sshTestConnRepo{conn: conn},
-		VaultRepo:               sshTestVaultRepo{},
-		IdentRepo:               sshTestIdentRepo{},
-		PasswordRepo:            sshTestPasswordRepo{password: "secret"},
-		KnownHosts:              sshTestKnownHosts{},
-		SSHFactory:              errSSHFactory{}, // not used when jump fails first
-		PassphraseCache:         &mapPassphraseCache{},
-		HostKeyCallbackBuilder:  acceptAllHostKeys{},
-		JumpTransportBuilder:    errJumpBuilder{err: hkErr},
-		PrivateKeySignerFactory: stubKeySigner{},
-		OnStateChange:           onChange,
+		ConnRepo:               sshTestConnRepo{conn: conn},
+		VaultRepo:              sshTestVaultRepo{},
+		IdentRepo:              sshTestIdentRepo{},
+		PasswordRepo:           sshTestPasswordRepo{password: "secret"},
+		KnownHosts:             sshTestKnownHosts{},
+		SSHFactory:             errSSHFactory{}, // not used when jump fails first
+		PassphraseCache:        &mapPassphraseCache{},
+		HostKeyCallbackBuilder: acceptAllHostKeys{},
+		JumpTransportBuilder:   errJumpBuilder{err: hkErr},
+		Keys:                   stubKeyManager(),
+		OnStateChange:          onChange,
 	})
 
 	_, err := sm.OpenSession(context.Background(), "c1")
@@ -338,15 +386,15 @@ func TestOpenSession_RejectsInvalidDefaultUserAuth(t *testing.T) {
 		DefaultUserID: "u1",
 	}
 	sm := NewSessionManager(SessionManagerConfig{
-		ConnRepo:                sshTestConnRepo{conn: conn},
-		VaultRepo:               sshTestVaultRepo{},
-		IdentRepo:               sshTestIdentRepo{},
-		PasswordRepo:            sshTestPasswordRepo{},
-		SSHFactory:              errSSHFactory{},
-		PassphraseCache:         &mapPassphraseCache{},
-		HostKeyCallbackBuilder:  acceptAllHostKeys{},
-		JumpTransportBuilder:    neverJumpBuilder{},
-		PrivateKeySignerFactory: stubKeySigner{},
+		ConnRepo:               sshTestConnRepo{conn: conn},
+		VaultRepo:              sshTestVaultRepo{},
+		IdentRepo:              sshTestIdentRepo{},
+		PasswordRepo:           sshTestPasswordRepo{},
+		SSHFactory:             errSSHFactory{},
+		PassphraseCache:        &mapPassphraseCache{},
+		HostKeyCallbackBuilder: acceptAllHostKeys{},
+		JumpTransportBuilder:   neverJumpBuilder{},
+		Keys:                   stubKeyManager(),
 	})
 
 	_, err := sm.OpenSession(context.Background(), "c1")
@@ -485,7 +533,7 @@ func TestResolvePluginAuth_StarterFails(t *testing.T) {
 		VaultRepo: sshTestVaultRepo{}, IdentRepo: sshTestIdentRepo{}, PasswordRepo: sshTestPasswordRepo{},
 		AuthProvider: noopAuthProvider{}, AuthMethodBuilder: stubAuthBuilder{},
 		AuthAttempts: attempts, AuthLookup: stubAuthLookup{kind: domain.AuthProviderKindKeyboardInteractive},
-		AuthStarter: stubAuthStarter{err: errors.New("plugin down")},
+		AuthStarter:     stubAuthStarter{err: errors.New("plugin down")},
 		AuthGrantReader: stubAuthGrant{granted: true},
 	})
 	_, _, err := c.resolvePluginAuth(context.Background(), "c1", pluginAuthConnection().DefaultUser().PluginAuth)

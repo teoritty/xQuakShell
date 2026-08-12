@@ -36,7 +36,7 @@ import {
   moveConnectionsTo,
   reorderConnectionsIn,
 } from '../api/connections';
-import { fetchIdentities } from '../api/credentials';
+import { fetchKeys } from '../api/keys';
 import { newLocalId } from '../lib/localId';
 import {
   connections, identities,
@@ -50,9 +50,12 @@ export async function refreshAllConnections(): Promise<void> {
   connections.set(result || []);
 }
 
+// The connection editor and the key manager show the same pool, so both read it through the same
+// call. Feeding this from the older GetIdentities RPC is what made the manager look like a place
+// keys were merely listed rather than the place they come from.
 export async function refreshIdentities(): Promise<void> {
   if (!getGateway()) return;
-  const result = await fetchIdentities();
+  const result = await fetchKeys();
   identities.set(result || []);
 }
 

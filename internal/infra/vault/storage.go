@@ -22,6 +22,15 @@ func FilePath(dir string) string {
 	return filepath.Join(dir, vaultFileName)
 }
 
+// BackupPath is where a pre-migration copy of the vault lands, named after the version it holds.
+//
+// It is exported so the UI can tell the user exactly which file to keep, on the one screen where
+// that matters: a migration is the only moment a user might need to go back to the old data, and
+// "a backup was made somewhere" is not something they can act on.
+func BackupPath(dir string, fromVersion int) string {
+	return filepath.Join(dir, fmt.Sprintf("%s.v%d.bak", vaultFileName, fromVersion))
+}
+
 // Exists reports whether a vault file is present in dir.
 func Exists(dir string) bool {
 	_, err := os.Stat(FilePath(dir))
@@ -60,7 +69,7 @@ func ReadVaultFile(dir, passphrase string) (*domain.VaultData, error) {
 // password, so it is exactly as safe at rest as the vault itself.
 func BackupVaultFile(dir string, fromVersion int) error {
 	source := FilePath(dir)
-	target := filepath.Join(dir, fmt.Sprintf("%s.v%d.bak", vaultFileName, fromVersion))
+	target := BackupPath(dir, fromVersion)
 
 	if _, err := os.Stat(target); err == nil {
 		return nil

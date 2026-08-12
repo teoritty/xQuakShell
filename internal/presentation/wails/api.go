@@ -17,6 +17,10 @@ type AppAPI struct {
 	ctx                         context.Context
 	vaultRepo                   domain.VaultRepository
 	vaultSvc                    *usecase.VaultService
+	keys                        *usecase.KeyManagerService
+	keyDeploy                   *usecase.KeyDeployService
+	migrator                    domain.VaultMigrator
+	migrationDeps               domain.MigrationDeps
 	sessions                    *usecase.SessionManager
 	settingsSvc                 *usecase.SettingsService
 	auditSvc                    *usecase.AuditService
@@ -115,19 +119,19 @@ func NewAppAPI(
 	}
 
 	smCfg := usecase.SessionManagerConfig{
-		ConnRepo:                connRepo,
-		VaultRepo:               vaultRepo,
-		IdentRepo:               identRepo,
-		PasswordRepo:            passwordRepo,
-		KnownHosts:              knownHosts,
-		SSHFactory:              sshFactory,
-		PassphraseCache:         sshSession.PassphraseCache,
-		HostKeyCallbackBuilder:  sshSession.HostKeyCallbackBuilder,
-		JumpTransportBuilder:    sshSession.JumpTransportBuilder,
-		PrivateKeySignerFactory: sshSession.PrivateKeySignerFactory,
-		PTYBridgeFactory:        sshSession.PTYBridgeFactory,
-		SFTPClientFactory:       sshSession.SFTPClientFactory,
-		Connectors:              sessionConnectors,
+		ConnRepo:               connRepo,
+		VaultRepo:              vaultRepo,
+		IdentRepo:              identRepo,
+		PasswordRepo:           passwordRepo,
+		KnownHosts:             knownHosts,
+		SSHFactory:             sshFactory,
+		PassphraseCache:        sshSession.PassphraseCache,
+		HostKeyCallbackBuilder: sshSession.HostKeyCallbackBuilder,
+		JumpTransportBuilder:   sshSession.JumpTransportBuilder,
+		Keys:                   sshSession.Keys,
+		PTYBridgeFactory:       sshSession.PTYBridgeFactory,
+		SFTPClientFactory:      sshSession.SFTPClientFactory,
+		Connectors:             sessionConnectors,
 		PluginBridge: usecase.NewPluginSessionBridge(usecase.PluginSessionBridgeConfig{
 			Plugins: pluginMgr,
 			Fields:  pluginFieldsSvc,
@@ -147,7 +151,7 @@ func NewAppAPI(
 		smCfg.AuthStarter = sshAuth.Starter
 		smCfg.AuthGrantReader = sshAuth.GrantReader
 	}
-	api.sessions = usecase.NewSessionManager(smCfg)
+	api.wireSessionsAndKeys(usecase.NewSessionManager(smCfg), vaultRepo, sshSession, auditLogRepo)
 	if pluginInbound != nil && api.sessions.PluginBridge() != nil {
 		pluginInbound.SetHandler(api.sessions.PluginBridge())
 	}
@@ -206,31 +210,6 @@ func (a *AppAPI) Sessions() *usecase.SessionManager {
 // SettingsService exposes the settings service for composition-root wiring, mirroring Sessions.
 func (a *AppAPI) SettingsService() *usecase.SettingsService {
 	return a.settingsSvc
-}
-
-// SetPluginVaultGrant sets the callback used after install to record secret consent.
-func (a *AppAPI) SetPluginVaultGrant(fn func(pluginID string) error) {
-	a.pluginVaultGrant = fn
-}
-
-// SetPluginAuthGrant sets the callback used after install to record auth provider consent.
-func (a *AppAPI) SetPluginAuthGrant(fn func(pluginID string) error) {
-	a.pluginAuthGrant = fn
-}
-
-// SetPluginTunnelGrant sets the callback used after install to record tunnel provider consent.
-func (a *AppAPI) SetPluginTunnelGrant(fn func(pluginID string) error) {
-	a.pluginTunnelGrant = fn
-}
-
-// SetPluginMultiSessionGrant sets the callback used after install to record multi-session consent.
-func (a *AppAPI) SetPluginMultiSessionGrant(fn func(pluginID string) error) {
-	a.pluginMultiSessionGrant = fn
-}
-
-// SetPluginArbitraryNetworkGrant sets the callback used after install to record arbitrary network consent.
-func (a *AppAPI) SetPluginArbitraryNetworkGrant(fn func(pluginID string) error) {
-	a.pluginArbitraryNetworkGrant = fn
 }
 
 // SetForwardRuleValidator wires forward rule validation for save and connect paths.

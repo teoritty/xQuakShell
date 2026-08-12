@@ -97,9 +97,19 @@ func Decrypt(ciphertext []byte, passphrase string) (*domain.VaultData, error) {
 	if data.Version > domain.CurrentVaultVersion {
 		return nil, fmt.Errorf("vault version %d, this build reads %d: %w", data.Version, domain.CurrentVaultVersion, domain.ErrVaultVersionTooNew)
 	}
-	if data.Version < domain.CurrentVaultVersion {
-		return nil, fmt.Errorf("vault version %d, this build reads %d: %w", data.Version, domain.CurrentVaultVersion, domain.ErrVaultVersionTooOld)
+	if data.Version < domain.MinMigratableVaultVersion {
+		return nil, fmt.Errorf("vault version %d, this build migrates from %d: %w", data.Version, domain.MinMigratableVaultVersion, domain.ErrVaultVersionTooOld)
 	}
 
+	// A version between the migratable floor and the current one is returned as it is, carrying
+	// its own Version field. Decrypt deliberately does not upgrade it: a migration rewrites the
+	// file, and doing that from inside a function every read path calls would mean an unlock that
+	// merely inspects the vault could rewrite it. The caller that can take a backup first is the
+	// one allowed to migrate.
 	return &data, nil
+}
+
+// NeedsMigration reports whether decrypted data predates the current schema.
+func NeedsMigration(data *domain.VaultData) bool {
+	return data != nil && data.Version < domain.CurrentVaultVersion
 }

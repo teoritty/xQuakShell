@@ -34,8 +34,14 @@ var ErrMasterPasswordTooShort = errors.New("master password is too short")
 // newer version again" and "let it upgrade your data".
 var ErrVaultVersionTooNew = errors.New("vault was written by a newer version of the application")
 
-// ErrVaultVersionTooOld indicates the vault predates this build's schema and needs migrating.
+// ErrVaultVersionTooOld indicates the vault predates the oldest schema this build can migrate.
 var ErrVaultVersionTooOld = errors.New("vault needs migrating to the current schema")
+
+// ErrVaultMigrationRequired indicates the vault opened but is one schema behind, so it must go
+// through the migration flow before anything reads or writes it. It is distinct from
+// ErrVaultVersionTooOld because this one is recoverable in place and the UI acts on it by
+// starting a wizard rather than by telling the user to install another build.
+var ErrVaultMigrationRequired = errors.New("vault must be migrated before it can be opened")
 
 // ErrNoStableRelease indicates the project has no published stable release to compare against —
 // only drafts or pre-releases. It is not a failure the user needs to see: it means there is nothing
@@ -54,6 +60,30 @@ var ErrIdentityNotFound = errors.New("SSH identity not found in vault")
 // ErrPassphraseRequired indicates an encrypted private key needs a passphrase to be parsed.
 var ErrPassphraseRequired = errors.New("passphrase required for encrypted private key")
 
+// ErrIdentityInUse indicates a key cannot be deleted because connections still reference it.
+// Deleting it anyway would leave those connections pointing at nothing and failing only at
+// connect time, long after the action that broke them.
+var ErrIdentityInUse = errors.New("SSH identity is still used by connections")
+
+// ErrKeyNotExportable indicates the identity was created with the non-exportable flag set.
+var ErrKeyNotExportable = errors.New("SSH identity is marked non-exportable")
+
+// ErrKeyPassphraseWrong indicates the supplied passphrase did not unwrap the stored key. It is
+// distinct from ErrPassphraseRequired: one means "you gave nothing", the other "you gave the
+// wrong thing", and only the second should count towards a retry limit.
+var ErrKeyPassphraseWrong = errors.New("wrong passphrase for SSH identity")
+
+// ErrMigrationPending indicates the identity still holds its pre-v4 bytes because its passphrase
+// was skipped during migration, and the requested operation needs the normalised form.
+var ErrMigrationPending = errors.New("SSH identity migration is not finished")
+
+// ErrUnsupportedKeyAlgorithm indicates a key generation request named an algorithm or size the
+// application does not produce.
+var ErrUnsupportedKeyAlgorithm = errors.New("unsupported key algorithm or size")
+
+// ErrIdentityNameRequired indicates an identity was saved without a label to show in the UI.
+var ErrIdentityNameRequired = errors.New("SSH identity label must not be empty")
+
 // ErrFolderNotEmpty indicates a folder still contains connections and cannot be deleted directly.
 var ErrFolderNotEmpty = errors.New("folder is not empty")
 
@@ -71,6 +101,14 @@ var ErrConnectionNotFound = errors.New("connection not found")
 
 // ErrForwardRuleNotFound indicates the requested forward rule does not exist on the connection.
 var ErrForwardRuleNotFound = errors.New("forward rule not found")
+
+// ErrRemoteFileNotFound indicates a remote path does not exist. It is separate from an empty
+// read because a caller about to rewrite the file needs to know whether it is creating one.
+var ErrRemoteFileNotFound = errors.New("remote file not found")
+
+// ErrRemoteFileTooLarge indicates a whole-file read hit its size cap. The cap protects the
+// process from being pointed at an enormous file by accident or by a hostile server.
+var ErrRemoteFileTooLarge = errors.New("remote file is too large to read whole")
 
 // ErrAuditLogWrite indicates an audit log entry could not be persisted.
 var ErrAuditLogWrite = errors.New("failed to write audit log entry")

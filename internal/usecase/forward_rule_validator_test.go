@@ -68,8 +68,10 @@ type validatorStubConnRepo struct {
 func (s *validatorStubConnRepo) GetAllFolders(context.Context) ([]domain.ConnectionFolder, error) {
 	return nil, nil
 }
-func (s *validatorStubConnRepo) SaveFolder(context.Context, *domain.ConnectionFolder) error { return nil }
-func (s *validatorStubConnRepo) DeleteFolder(context.Context, string) error                   { return nil }
+func (s *validatorStubConnRepo) SaveFolder(context.Context, *domain.ConnectionFolder) error {
+	return nil
+}
+func (s *validatorStubConnRepo) DeleteFolder(context.Context, string) error { return nil }
 func (s *validatorStubConnRepo) GetAllConnections(context.Context) ([]domain.Connection, error) {
 	return s.conns, nil
 }
@@ -80,7 +82,7 @@ func (s *validatorStubConnRepo) GetByID(context.Context, string) (*domain.Connec
 	return nil, domain.ErrConnectionNotFound
 }
 func (s *validatorStubConnRepo) Save(context.Context, *domain.Connection) error { return nil }
-func (s *validatorStubConnRepo) Delete(context.Context, string) error         { return nil }
+func (s *validatorStubConnRepo) Delete(context.Context, string) error           { return nil }
 func (s *validatorStubConnRepo) MoveToFolder(context.Context, []string, string) error {
 	return nil
 }

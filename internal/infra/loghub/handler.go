@@ -20,14 +20,14 @@ func InstallDefault() {
 
 // Handler publishes structured logs to a hub and optionally mirrors them to a writer.
 type Handler struct {
-	hub    *Hub
+	hub      *Hub
 	fallback slog.Handler
 }
 
 // NewHandler creates a hub-backed slog handler with stderr/text fallback.
 func NewHandler(hub *Hub, w io.Writer) *Handler {
 	return &Handler{
-		hub: hub,
+		hub:      hub,
 		fallback: slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelDebug}),
 	}
 }

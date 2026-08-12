@@ -1,9 +1,11 @@
-// Atomic credentials/identity RPC wrappers. Each function is a thin wrapper
-// around a single backend RPC call, routed through callBackend for uniform
-// error handling. No store access here — orchestration (refreshIdentities in
-// stores/api.ts) combines fetchIdentities with the `identities` store.
+// Atomic credentials RPC wrappers. Each function is a thin wrapper around a single backend RPC
+// call, routed through callBackend for uniform error handling, with no store access.
+//
+// Keys are deliberately absent: they are reached through api/keys.ts, which is the one door into
+// the key manager's pool. The listing and file-import wrappers that used to live here were a
+// second way in, and having two is how the manager ended up looking like a viewer for ~/.ssh.
 import { callBackend, callBackendVoid } from '../backend/callBackend';
-import type { Connection, SSHIdentityMeta } from '../stores/appState';
+import type { Connection } from '../stores/appState';
 
 export interface PuTTYSessionPreview {
   name: string;
@@ -18,14 +20,6 @@ export async function importPassword(password: string, label: string): Promise<s
 
 export async function deletePassword(id: string): Promise<void> {
   return callBackendVoid('Delete password', (app) => app.DeletePassword(id));
-}
-
-export async function fetchIdentities(): Promise<SSHIdentityMeta[]> {
-  return callBackend('Refresh identities', [] as SSHIdentityMeta[], (app) => app.GetIdentities());
-}
-
-export async function importIdentity(pemBase64: string, comment: string): Promise<string> {
-  return callBackend('Import identity', '', (app) => app.ImportIdentity(pemBase64, comment));
 }
 
 export async function importPuTTYPPK(ppkBase64: string, passphrase: string): Promise<string> {

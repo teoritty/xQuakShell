@@ -103,26 +103,6 @@ func (a *AppAPI) DeletePassword(id string) error {
 
 // --- Identities ---
 
-func (a *AppAPI) GetIdentities() ([]IdentityDTO, error) {
-	ids, err := a.vaultSvc.GetAllIdentities(a.reqCtx())
-	if err != nil {
-		return nil, err
-	}
-	return IdentitiesToDTO(ids), nil
-}
-
-func (a *AppAPI) ImportIdentity(pemBase64, comment string) (string, error) {
-	pemData, err := base64.StdEncoding.DecodeString(pemBase64)
-	if err != nil {
-		return "", fmt.Errorf("decode pem base64: %w", err)
-	}
-	identity, err := a.vaultSvc.ImportIdentity(a.reqCtx(), pemData, comment)
-	if err != nil {
-		return "", err
-	}
-	return identity.ID, nil
-}
-
 func (a *AppAPI) ImportPuTTYPPK(ppkBase64, passphrase string) (string, error) {
 	if a.puttyImport == nil {
 		return "", fmt.Errorf("putty import unavailable")

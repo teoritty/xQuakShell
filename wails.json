@@ -16,7 +16,7 @@
   "info": {
     "companyName": "",
     "productName": "xQuakShell",
-    "productVersion": "1.0.0",
+    "productVersion": "1.1.0",
     "copyright": "Copyright 2026",
     "comments": "Portable SSH client with encrypted vault, terminal, SFTP, bastion chains and audit logging"
   }

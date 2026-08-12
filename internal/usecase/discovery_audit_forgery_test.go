@@ -95,13 +95,13 @@ func TestDiscoveryAuditRejectsNewlinesInNodeIDs(t *testing.T) {
 func TestDiscoveryAuditResistsExoticSeparators(t *testing.T) {
 	exotic := []string{
 		"\n", "\r", "\t", "\v", "\f", // C0 controls
-		"",                                     // NEL, a C1 control that ends a line
-		" ", " ",                           // LINE / PARAGRAPH SEPARATOR
-		" ", " ", "᠎", " ",       // NBSP, ogham space, MVS, EN QUAD
-		"​", "­",                           // ZWSP, SOFT HYPHEN
-		"‎", "‏", "؜",                 // LRM, RLM, ALM
-		"⁦", "‮",                           // LRI, RLO
-		"", "",                           // FILE / RECORD SEPARATOR
+		"",      // NEL, a C1 control that ends a line
+		" ", " ", // LINE / PARAGRAPH SEPARATOR
+		" ", " ", "᠎", " ", // NBSP, ogham space, MVS, EN QUAD
+		"​", "­", // ZWSP, SOFT HYPHEN
+		"‎", "‏", "؜", // LRM, RLM, ALM
+		"⁦", "‮", // LRI, RLO
+		"", "", // FILE / RECORD SEPARATOR
 		"=", ",", " ",
 	}
 	var ids []string

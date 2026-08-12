@@ -50,6 +50,7 @@ func (h *stubProcessHost) State(string, string) domainplugin.ProcessState {
 	return domainplugin.ProcessStopped
 }
 func (h *stubProcessHost) RunningInstances() []domainplugin.ProcessInstance { return h.instances }
+
 // BindSession mirrors the production authorizer on the one rule this file depends on: an empty
 // session id authorizes nothing and is refused. A stub that accepted it would let the supervisor's
 // broken branch look healthy here while failing in the app — which is how the defect this stub now
@@ -60,7 +61,7 @@ func (h *stubProcessHost) BindSession(_, sessionID string) error {
 	}
 	return nil
 }
-func (h *stubProcessHost) UnbindSession(string, string)                     {}
+func (h *stubProcessHost) UnbindSession(string, string) {}
 
 // lifecycleHooks records which of the three host-internal lifecycle hooks fired. They are collected
 // together because the interesting assertion is always which ONE of them ran: the three demand

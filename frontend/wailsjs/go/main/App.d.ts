@@ -13,6 +13,8 @@ export function CancelPluginDialog(arg1:string):Promise<void>;
 
 export function CancelTransfer(arg1:string):Promise<void>;
 
+export function ChangeKeyPassphrase(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function Chmod(arg1:string,arg2:string,arg3:number):Promise<void>;
 
 export function ChmodRecursive(arg1:string,arg2:string,arg3:number,arg4:string):Promise<void>;
@@ -26,6 +28,8 @@ export function ClearAuditLog(arg1:string):Promise<void>;
 export function CloseSession(arg1:string):Promise<void>;
 
 export function CloseSurface(arg1:string):Promise<void>;
+
+export function CompleteKeyMigration(arg1:string,arg2:Record<string, string>):Promise<wails.MigrationReportDTO>;
 
 export function CopyLocalPath(arg1:string,arg2:string):Promise<void>;
 
@@ -41,7 +45,11 @@ export function DeleteConnection(arg1:string):Promise<void>;
 
 export function DeleteFolder(arg1:string):Promise<void>;
 
+export function DeleteKey(arg1:string):Promise<void>;
+
 export function DeletePassword(arg1:string):Promise<void>;
+
+export function DeployKey(arg1:string,arg2:string):Promise<wails.DeployResultDTO>;
 
 export function DescribeDiscoveryNode(arg1:string,arg2:string,arg3:string):Promise<wails.NodeDetailsDTO>;
 
@@ -59,7 +67,11 @@ export function ExecutePluginCommand(arg1:string,arg2:string,arg3:json.RawMessag
 
 export function ExecuteUpload(arg1:string,arg2:wails.ExecutePlanDTO):Promise<void>;
 
+export function ExportKey(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
+
 export function FetchGitHubPlugins(arg1:wails.FetchGitHubPluginsRequest):Promise<wails.GitHubPluginListDTO>;
+
+export function GenerateKey(arg1:string,arg2:number,arg3:string,arg4:string,arg5:wails.KeyOptionsDTO):Promise<wails.IdentityDTO>;
 
 export function GeneratePluginPublisherKeyPair():Promise<wails.PluginPublisherKeyPairDTO>;
 
@@ -71,7 +83,9 @@ export function GetDiscoveryTree(arg1:string):Promise<wails.DiscoverySnapshotDTO
 
 export function GetFolders():Promise<Array<wails.FolderDTO>>;
 
-export function GetIdentities():Promise<Array<wails.IdentityDTO>>;
+export function GetKeyUsages(arg1:string):Promise<Array<wails.KeyUsageDTO>>;
+
+export function GetKeys():Promise<Array<wails.IdentityDTO>>;
 
 export function GetKnownHosts():Promise<Array<wails.KnownHostDTO>>;
 
@@ -101,7 +115,7 @@ export function GetUserHomeDir():Promise<string>;
 
 export function GetVersionInfo():Promise<wails.VersionInfoDTO>;
 
-export function ImportIdentity(arg1:string,arg2:string):Promise<string>;
+export function ImportKey(arg1:string,arg2:string,arg3:string,arg4:wails.KeyOptionsDTO):Promise<wails.IdentityDTO>;
 
 export function ImportPassword(arg1:string,arg2:string):Promise<string>;
 
@@ -149,6 +163,8 @@ export function PingPlugin(arg1:string):Promise<wails.PluginPingResultDTO>;
 
 export function PlanDownload(arg1:string,arg2:Array<string>,arg3:string):Promise<wails.TransferPlanDTO>;
 
+export function PlanKeyMigration(arg1:string):Promise<wails.MigrationPlanDTO>;
+
 export function PlanLocalCopy(arg1:Array<string>,arg2:string):Promise<wails.TransferPlanDTO>;
 
 export function PlanUpload(arg1:string,arg2:Array<string>,arg3:string):Promise<wails.TransferPlanDTO>;
@@ -172,6 +188,8 @@ export function RemoveKnownHost(arg1:string):Promise<void>;
 export function RemoveLocalPath(arg1:string):Promise<void>;
 
 export function RemovePath(arg1:string,arg2:string):Promise<void>;
+
+export function RenameKey(arg1:string,arg2:string):Promise<void>;
 
 export function RenameLocalPath(arg1:string,arg2:string):Promise<void>;
 
@@ -220,6 +238,8 @@ export function SendTerminalInput(arg1:string,arg2:string,arg3:string):Promise<v
 export function SetDiscoveryObserved(arg1:string,arg2:Array<string>):Promise<void>;
 
 export function SetGitHubRepositoryTrust(arg1:wails.SetGitHubRepositoryTrustRequest):Promise<void>;
+
+export function SetKeyPolicy(arg1:string,arg2:wails.KeyOptionsDTO):Promise<void>;
 
 export function SetPluginEnabled(arg1:string,arg2:boolean):Promise<void>;
 

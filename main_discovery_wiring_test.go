@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"xquakshell/internal/domain"
+	"xquakshell/internal/infra/keys"
 	"xquakshell/internal/infra/loghub"
 	"xquakshell/internal/infra/persistence"
 	infrapinger "xquakshell/internal/infra/pinger"
@@ -28,7 +29,7 @@ func composeDiscoveryRuntime(t *testing.T) (*presentation.AppAPI, *pluginRuntime
 	t.Helper()
 	vaultRepo := persistence.NewVaultRepo(t.TempDir())
 	connRepo := persistence.NewConnectionRepo(vaultRepo)
-	identRepo := persistence.NewIdentityRepo(vaultRepo)
+	identRepo := persistence.NewIdentityRepo(vaultRepo, keys.NewCodec(), keys.NewDataKey)
 	passwordRepo := persistence.NewPasswordRepo(vaultRepo)
 	knownHosts := persistence.NewKnownHostsRepo(vaultRepo)
 

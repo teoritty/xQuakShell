@@ -84,13 +84,6 @@ type ConnectionDTO struct {
 	ForwardRules       []ForwardRuleDTO `json:"forwardRules,omitempty"`
 }
 
-type IdentityDTO struct {
-	ID        string `json:"id"`
-	Comment   string `json:"comment"`
-	KeyType   string `json:"keyType"`
-	Encrypted bool   `json:"encrypted"`
-}
-
 type KnownHostDTO struct {
 	Host        string `json:"host"`
 	KeyType     string `json:"keyType"`
@@ -281,18 +274,6 @@ func ConnectionsToDTO(cs []domain.Connection) []ConnectionDTO {
 	result := make([]ConnectionDTO, len(cs))
 	for i, c := range cs {
 		result[i] = ConnectionToDTO(c)
-	}
-	return result
-}
-
-func IdentityToDTO(id domain.SSHIdentity) IdentityDTO {
-	return IdentityDTO{ID: id.ID, Comment: id.Comment, KeyType: id.KeyType, Encrypted: id.Encrypted}
-}
-
-func IdentitiesToDTO(ids []domain.SSHIdentity) []IdentityDTO {
-	result := make([]IdentityDTO, len(ids))
-	for i, id := range ids {
-		result[i] = IdentityToDTO(id)
 	}
 	return result
 }

@@ -7,9 +7,9 @@ import (
 
 func encodeTunnelData(sessionID, tunnelID string, data []byte) ([]byte, error) {
 	payload := map[string]string{
-		"sessionId":    sessionID,
-		"tunnelId":     tunnelID,
-		"dataBase64":   base64.StdEncoding.EncodeToString(data),
+		"sessionId":  sessionID,
+		"tunnelId":   tunnelID,
+		"dataBase64": base64.StdEncoding.EncodeToString(data),
 	}
 	return json.Marshal(payload)
 }

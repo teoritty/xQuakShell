@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	infraplugin "xquakshell/internal/infra/plugin"
 	"xquakshell/internal/infra/loghub"
+	infraplugin "xquakshell/internal/infra/plugin"
 )
 
 func TestRedactingStderrWriterRedactsSecrets(t *testing.T) {

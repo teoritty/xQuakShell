@@ -23,42 +23,41 @@ type PluginAuthMethodLookup interface {
 
 // SSHConnector performs SSH handshake with optional plugin-provided authentication.
 type SSHConnector struct {
-	vaultRepo       domain.VaultRepository
-	identRepo       domain.IdentityRepository
-	passwordRepo    domain.PasswordRepository
-	knownHosts      domain.KnownHostsRepository
-	sshFactory      domain.SSHClientFactory
-	passphraseCache domain.PassphraseCache
-	hostKeyCB       domain.HostKeyCallbackBuilder
-	jumpTransport   domain.JumpTransportBuilder
-	keySigner       domain.PrivateKeySignerFactory
-	passphraseReq   PassphraseRequestFunc
-	authProvider    domain.PluginAuthProvider
+	vaultRepo         domain.VaultRepository
+	identRepo         domain.IdentityRepository
+	passwordRepo      domain.PasswordRepository
+	knownHosts        domain.KnownHostsRepository
+	sshFactory        domain.SSHClientFactory
+	hostKeyCB         domain.HostKeyCallbackBuilder
+	jumpTransport     domain.JumpTransportBuilder
+	keys              *KeyManagerService
+	passphraseReq     PassphraseRequestFunc
+	authProvider      domain.PluginAuthProvider
 	authMethodBuilder domain.PluginAuthMethodBuilder
-	authAttempts    *PluginAuthAttemptRegistry
-	authLookup      PluginAuthMethodLookup
-	authStarter     PluginAuthStarter
-	authGrant       PluginAuthGrantReader
+	authAttempts      *PluginAuthAttemptRegistry
+	authLookup        PluginAuthMethodLookup
+	authStarter       PluginAuthStarter
+	authGrant         PluginAuthGrantReader
 }
 
 // SSHConnectorConfig holds dependencies for SSHConnector.
 type SSHConnectorConfig struct {
-	VaultRepo               domain.VaultRepository
-	IdentRepo               domain.IdentityRepository
-	PasswordRepo            domain.PasswordRepository
-	KnownHosts              domain.KnownHostsRepository
-	SSHFactory              domain.SSHClientFactory
-	PassphraseCache         domain.PassphraseCache
-	HostKeyCallbackBuilder  domain.HostKeyCallbackBuilder
-	JumpTransportBuilder    domain.JumpTransportBuilder
-	PrivateKeySignerFactory domain.PrivateKeySignerFactory
-	PassphraseReq           PassphraseRequestFunc
-	AuthProvider            domain.PluginAuthProvider
-	AuthMethodBuilder       domain.PluginAuthMethodBuilder
-	AuthAttempts            *PluginAuthAttemptRegistry
-	AuthLookup              PluginAuthMethodLookup
-	AuthStarter             PluginAuthStarter
-	AuthGrantReader         PluginAuthGrantReader
+	VaultRepo              domain.VaultRepository
+	IdentRepo              domain.IdentityRepository
+	PasswordRepo           domain.PasswordRepository
+	KnownHosts             domain.KnownHostsRepository
+	SSHFactory             domain.SSHClientFactory
+	PassphraseCache        domain.PassphraseCache
+	HostKeyCallbackBuilder domain.HostKeyCallbackBuilder
+	JumpTransportBuilder   domain.JumpTransportBuilder
+	Keys                   *KeyManagerService
+	PassphraseReq          PassphraseRequestFunc
+	AuthProvider           domain.PluginAuthProvider
+	AuthMethodBuilder      domain.PluginAuthMethodBuilder
+	AuthAttempts           *PluginAuthAttemptRegistry
+	AuthLookup             PluginAuthMethodLookup
+	AuthStarter            PluginAuthStarter
+	AuthGrantReader        PluginAuthGrantReader
 }
 
 // NewSSHConnector creates an SSH connector with the given dependencies.
@@ -69,10 +68,9 @@ func NewSSHConnector(cfg SSHConnectorConfig) *SSHConnector {
 		passwordRepo:      cfg.PasswordRepo,
 		knownHosts:        cfg.KnownHosts,
 		sshFactory:        cfg.SSHFactory,
-		passphraseCache:   cfg.PassphraseCache,
 		hostKeyCB:         cfg.HostKeyCallbackBuilder,
 		jumpTransport:     cfg.JumpTransportBuilder,
-		keySigner:         cfg.PrivateKeySignerFactory,
+		keys:              cfg.Keys,
 		passphraseReq:     cfg.PassphraseReq,
 		authProvider:      cfg.AuthProvider,
 		authMethodBuilder: cfg.AuthMethodBuilder,
@@ -315,7 +313,13 @@ func (c *SSHConnector) authMethodKind(pluginID, authMethodID string) (string, er
 	return kind, nil
 }
 
-// loadSigners reads private keys by their IDs and parses them into SSH signers.
+// loadSigners turns identity IDs into SSH signers, prompting for a passphrase where the key's
+// own policy requires one.
+//
+// It goes through the key manager rather than parsing repository bytes itself. From schema 4 the
+// stored bytes are always wrapped, and what unwraps them — a vault-held data key or the user's
+// passphrase — is the key's policy to decide. Parsing here would have to re-implement that
+// decision, and would get the per-key caching rules wrong the moment they diverged.
 func (c *SSHConnector) loadSigners(ctx context.Context, identityIDs []string) ([]domain.Signer, error) {
 	if len(identityIDs) == 0 {
 		return nil, nil
@@ -323,49 +327,48 @@ func (c *SSHConnector) loadSigners(ctx context.Context, identityIDs []string) ([
 
 	signers := make([]domain.Signer, 0, len(identityIDs))
 	for _, idRef := range identityIDs {
-		pemData, err := c.identRepo.GetKeyBlob(ctx, idRef)
+		signer, err := c.signerFor(ctx, idRef)
 		if err != nil {
-			return nil, fmt.Errorf("load key %s: %w", idRef, err)
+			return nil, err
 		}
-
-		passphrase, _ := c.passphraseCache.Get(idRef)
-		signer, err := c.keySigner.ParsePrivateKeyWithPassphrase(pemData, passphrase)
-		if err != nil {
-			if err == domain.ErrPassphraseRequired && c.passphraseReq != nil {
-				identMeta, metaErr := c.getIdentityMeta(idRef)
-				comment := idRef
-				if metaErr != nil {
-					slog.Debug("getIdentityMeta failed", "id", idRef, "err", metaErr)
-				} else if identMeta != nil {
-					comment = identMeta.Comment
-				}
-				pp, ppErr := c.passphraseReq(idRef, comment)
-				if ppErr != nil {
-					return nil, fmt.Errorf("passphrase request for %s: %w", idRef, ppErr)
-				}
-				signer, err = c.keySigner.ParsePrivateKeyWithPassphrase(pemData, pp)
-				if err != nil {
-					return nil, fmt.Errorf("parse key %s with passphrase: %w", idRef, err)
-				}
-				c.passphraseCache.Set(idRef, pp)
-			} else {
-				return nil, fmt.Errorf("parse key %s: %w", idRef, err)
-			}
-		}
-
 		signers = append(signers, signer)
 	}
 	return signers, nil
 }
 
-func (c *SSHConnector) getIdentityMeta(id string) (*domain.SSHIdentity, error) {
-	data, err := c.vaultRepo.GetData()
+// signerFor produces one signer, asking the user for a passphrase only when the cached one is
+// absent or no longer opens the key.
+func (c *SSHConnector) signerFor(ctx context.Context, idRef string) (domain.Signer, error) {
+	signer, err := c.keys.Signer(ctx, idRef)
+	if err == nil {
+		return signer, nil
+	}
+	needsPassphrase := errors.Is(err, domain.ErrPassphraseRequired) || errors.Is(err, domain.ErrKeyPassphraseWrong)
+	if !needsPassphrase || c.passphraseReq == nil {
+		return nil, fmt.Errorf("load key %s: %w", idRef, err)
+	}
+
+	pp, ppErr := c.passphraseReq(idRef, c.identityLabel(ctx, idRef))
+	if ppErr != nil {
+		return nil, fmt.Errorf("passphrase request for %s: %w", idRef, ppErr)
+	}
+	signer, err = c.keys.SignerWithPassphrase(ctx, idRef, pp)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse key %s with passphrase: %w", idRef, err)
 	}
-	ident, ok := data.Identities[id]
-	if !ok {
-		return nil, domain.ErrIdentityNotFound
+	return signer, nil
+}
+
+// identityLabel is what the passphrase prompt calls the key. It falls back to the raw id rather
+// than failing: being unable to name a key is no reason to refuse to ask for its passphrase.
+func (c *SSHConnector) identityLabel(ctx context.Context, idRef string) string {
+	identity, err := c.identRepo.Get(ctx, idRef)
+	if err != nil {
+		slog.Debug("identity lookup for passphrase prompt failed", "id", idRef, "err", err)
+		return idRef
 	}
-	return &ident, nil
+	if identity.Comment == "" {
+		return idRef
+	}
+	return identity.Comment
 }

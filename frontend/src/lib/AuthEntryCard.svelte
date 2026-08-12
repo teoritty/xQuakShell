@@ -10,12 +10,12 @@
   export let keyAuth: KeyAuthConfig | undefined = undefined;
   export let passAuth: PassAuthConfig | undefined = undefined;
   export let pluginAuth: PluginAuthConfig | undefined = undefined;
-  export let identities: { id: string; comment: string; keyType: string }[] = [];
+  export let identities: { id: string; comment: string; keyType: string; fingerprint?: string }[] = [];
 
   const dispatch = createEventDispatcher<{
     authmethodchange: string;
     passwordchange: string;
-    keyimport: void;
+    keypick: void;
     keyremove: string;
     pluginauthchange: PluginAuthConfig;
     remove: void;
@@ -98,16 +98,19 @@
     <div class="keys-list">
       {#each (keyAuth?.identityIds || []) as keyId}
         {@const meta = identities.find(i => i.id === keyId)}
-        <div class="key-item">
+        <div class="key-item" title={meta?.fingerprint || ''}>
           <KeyRound size={11} />
           <span class="key-name">{meta?.comment || keyId.slice(0, 8)}</span>
+          {#if meta?.keyType && meta.keyType !== 'openssh' && meta.keyType !== 'unknown'}
+            <span class="key-type">{meta.keyType}</span>
+          {/if}
           <button class="ghost key-remove" on:click={() => dispatch('keyremove', keyId)}>
             <X size={10} />
           </button>
         </div>
       {/each}
-      <button class="secondary tiny-btn" on:click={() => dispatch('keyimport')}>
-        <Plus size={11} /> Import Key
+      <button class="secondary tiny-btn" on:click={() => dispatch('keypick')}>
+        <Plus size={11} /> Choose key
       </button>
     </div>
   {:else if authMethod === 'plugin'}
@@ -219,6 +222,11 @@
     background: var(--bg-secondary);
     border-radius: 2px;
     color: var(--text-secondary);
+  }
+
+  .key-type {
+    color: var(--text-secondary);
+    font-size: 10px;
   }
 
   .key-name {

@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	domainplugin "xquakshell/internal/domain/plugin"
-	"xquakshell/internal/infra/plugin/bundle"
 	infraplugin "xquakshell/internal/infra/plugin"
+	"xquakshell/internal/infra/plugin/bundle"
 )
 
 func TestValidateIDRejectsUnsafe(t *testing.T) {

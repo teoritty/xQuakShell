@@ -70,7 +70,7 @@ func TestBuildPublicKeyLazyPrepare(t *testing.T) {
 	pubBlob := testSSHPublicKeyBlob(t)
 	prepareCalls := 0
 	provider := &staticKeyProvider{
-		blob: pubBlob,
+		blob:      pubBlob,
 		onPrepare: func() { prepareCalls++ },
 	}
 	method := domain.PluginAuthMethod{PluginID: "p", AuthMethodID: "m", Kind: domain.AuthProviderKindPublicKey}
@@ -92,7 +92,7 @@ func TestSignWithAlgorithmPassesPreferredAlgo(t *testing.T) {
 	pubBlob := testSSHPublicKeyBlob(t)
 	var got []string
 	provider := &staticKeyProvider{
-		blob: pubBlob,
+		blob:   pubBlob,
 		onSign: func(algorithms []string) { got = algorithms },
 	}
 	method := domain.PluginAuthMethod{PluginID: "p", AuthMethodID: "m", Kind: domain.AuthProviderKindPublicKey}

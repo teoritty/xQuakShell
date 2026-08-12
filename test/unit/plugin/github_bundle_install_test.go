@@ -64,9 +64,11 @@ func (d *bundleDownloader) DownloadAssetContent(_ context.Context, _, _, _, _ st
 // not what these tests are about, so every call succeeds and nothing is spawned.
 type idleProcessHost struct{}
 
-func (idleProcessHost) Start(context.Context, domainplugin.InstalledPlugin, string, domainplugin.SandboxPolicy) error { return nil }
-func (idleProcessHost) Stop(context.Context, string, string) error                        { return nil }
-func (idleProcessHost) StopAll(context.Context)                                           {}
+func (idleProcessHost) Start(context.Context, domainplugin.InstalledPlugin, string, domainplugin.SandboxPolicy) error {
+	return nil
+}
+func (idleProcessHost) Stop(context.Context, string, string) error { return nil }
+func (idleProcessHost) StopAll(context.Context)                    {}
 func (idleProcessHost) Call(context.Context, string, string, string, json.RawMessage) (json.RawMessage, error) {
 	return nil, nil
 }

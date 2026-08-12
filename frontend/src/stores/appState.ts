@@ -8,10 +8,14 @@ export interface Folder {
   order: number;
 }
 
+// The key manager's listing, as the connection editor needs it. The optional fields are the ones
+// only schema 4 keys carry; a key skipped by the upgrade has none of them yet.
 export interface SSHIdentityMeta {
   id: string;
   comment: string;
   keyType: string;
+  fingerprint?: string;
+  migrationPending?: boolean;
 }
 
 export interface KeyAuthConfig {
