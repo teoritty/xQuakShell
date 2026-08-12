@@ -207,3 +207,10 @@ func (s *failingOpSessions) GetRemoteFS(string) (domain.RemoteFS, error) { retur
 func (s *failingOpSessions) GetSessionContext(string) (context.Context, error) {
 	return context.Background(), nil
 }
+
+func (*fakeRemoteFS) ReadSmallFile(context.Context, string, int64) ([]byte, error) {
+	return nil, domain.ErrRemoteFileNotFound
+}
+func (*fakeRemoteFS) WriteSmallFile(context.Context, string, []byte, os.FileMode) error {
+	return nil
+}

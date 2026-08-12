@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"testing"
 
 	"xquakshell/internal/domain"
@@ -461,3 +462,17 @@ func TestCancelRegistryTerminatedSetIsBounded(t *testing.T) {
 
 // Compile-time guard: walkRemoteFS must remain a full domain.RemoteFS.
 var _ domain.RemoteFS = (*walkRemoteFS)(nil)
+
+func (*walkRemoteFS) ReadSmallFile(context.Context, string, int64) ([]byte, error) {
+	return nil, domain.ErrRemoteFileNotFound
+}
+func (*walkRemoteFS) WriteSmallFile(context.Context, string, []byte, os.FileMode) error {
+	return nil
+}
+
+func (*singleFileRemoteFS) ReadSmallFile(context.Context, string, int64) ([]byte, error) {
+	return nil, domain.ErrRemoteFileNotFound
+}
+func (*singleFileRemoteFS) WriteSmallFile(context.Context, string, []byte, os.FileMode) error {
+	return nil
+}

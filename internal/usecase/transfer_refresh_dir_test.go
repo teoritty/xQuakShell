@@ -290,3 +290,10 @@ func TestBatchCaptionNeverLeaksIntoRefreshDir(t *testing.T) {
 		}
 	}
 }
+
+func (progressingRemoteFS) ReadSmallFile(context.Context, string, int64) ([]byte, error) {
+	return nil, domain.ErrRemoteFileNotFound
+}
+func (progressingRemoteFS) WriteSmallFile(context.Context, string, []byte, os.FileMode) error {
+	return nil
+}

@@ -25,7 +25,7 @@ func sanitizeLocalPath(p string) string {
 
 // RemoteFS implements domain.RemoteFS using an SFTP client.
 type RemoteFS struct {
-	client       *sftp.Client
+	client        *sftp.Client
 	rateLimitKbps int // 0 = unlimited
 
 	// readDirFn is a test seam for downloadRecursive: it defaults to

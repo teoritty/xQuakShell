@@ -102,5 +102,13 @@ var ErrConnectionNotFound = errors.New("connection not found")
 // ErrForwardRuleNotFound indicates the requested forward rule does not exist on the connection.
 var ErrForwardRuleNotFound = errors.New("forward rule not found")
 
+// ErrRemoteFileNotFound indicates a remote path does not exist. It is separate from an empty
+// read because a caller about to rewrite the file needs to know whether it is creating one.
+var ErrRemoteFileNotFound = errors.New("remote file not found")
+
+// ErrRemoteFileTooLarge indicates a whole-file read hit its size cap. The cap protects the
+// process from being pointed at an enormous file by accident or by a hostile server.
+var ErrRemoteFileTooLarge = errors.New("remote file is too large to read whole")
+
 // ErrAuditLogWrite indicates an audit log entry could not be persisted.
 var ErrAuditLogWrite = errors.New("failed to write audit log entry")

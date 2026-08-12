@@ -108,6 +108,16 @@ type RemoteFS interface {
 	// changed entry for progress reporting; it must not block.
 	ChownRecursive(ctx context.Context, path string, uid, gid int, applyTo ApplyTarget, onEach func()) error
 
+	// ReadSmallFile returns the whole contents of a remote file, refusing anything larger than
+	// maxBytes. The cap is not an optimisation: this reads into memory, and a caller pointed at
+	// a multi-gigabyte file by accident or by a hostile server would otherwise exhaust it.
+	// A missing file is reported as ErrRemoteFileNotFound rather than an empty result, because
+	// "absent" and "empty" call for different actions when the caller is about to rewrite it.
+	ReadSmallFile(ctx context.Context, path string, maxBytes int64) ([]byte, error)
+
+	// WriteSmallFile replaces a remote file's contents, creating it with mode if it is new.
+	WriteSmallFile(ctx context.Context, path string, data []byte, mode os.FileMode) error
+
 	// Close releases the underlying SFTP connection.
 	Close() error
 }
