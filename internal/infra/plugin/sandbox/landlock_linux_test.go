@@ -245,10 +245,20 @@ func TestConfinedChildCannotDialOut(t *testing.T) {
 		t.Errorf("dialing %s after the ruleset returned %v, want a permission error", layout.dial, err)
 	}
 
-	if listener, err := net.Listen("tcp", "127.0.0.1:0"); err == nil {
+	// The other half of the network mask, asked at the parent's own address rather than at port 0.
+	// Landlock permits binding to port 0 on purpose - the kernel picks the port, so nothing is
+	// being claimed - and a first attempt at this assertion failed in CI for exactly that reason.
+	//
+	// Binding a port the parent already holds is refused either way, so the errno is the whole
+	// assertion: unconfined it is EADDRINUSE, and only a ruleset that handles BIND_TCP turns it
+	// into a permission error.
+	if listener, err := net.Listen("tcp", layout.dial); err == nil {
 		_ = listener.Close()
-		t.Errorf("the confined process bound a listening socket; the ruleset handles BIND_TCP "+
-			"as well and grants that to nothing either")
+		t.Errorf("the confined process bound %s, which the parent is listening on", layout.dial)
+	} else if !errors.Is(err, os.ErrPermission) {
+		t.Errorf("binding %s returned %v, want a permission error; anything else means the bind "+
+			"was refused by the address already being in use and BIND_TCP was never consulted",
+			layout.dial, err)
 	}
 }
 

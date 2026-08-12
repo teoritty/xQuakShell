@@ -1,6 +1,7 @@
 package pathsafe_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -52,6 +53,46 @@ func TestPathsThatAreNotUTF8AreRefusedRatherThanReasonedAbout(t *testing.T) {
 	if !pathsafe.UnderRoot(root, filepath.Join(root, "данные")) {
 		t.Error("UnderRoot refused a valid non-ASCII path; the guard is on invalid UTF-8, not on " +
 			"characters outside ASCII")
+	}
+}
+
+// TestARootSpeltDifferentlyFromItsResolvedFormStillMatches covers the bug that made the plugin
+// filesystem boundary refuse legitimate access.
+//
+// SecurePathUnderRoots resolves the final path with EvalSymlinks and then asked whether the RAW
+// root prefixed it. Those are two spellings of the same directory whenever the root is reached
+// through a link - or, on Windows, whenever it carries an 8.3 short name, which every user with a
+// long account name has in their temp path. The CI runner is one of them: it refused
+// C:\Users\RUNNER~1\... against a target that resolved to C:\Users\runneradmin\..., and thirty-odd
+// tests failed with "path access denied" and "plugin capability denied".
+//
+// The link here stands in for the short name: both make EvalSymlinks return a different string for
+// the same directory, which is the whole of the defect.
+func TestARootSpeltDifferentlyFromItsResolvedFormStillMatches(t *testing.T) {
+	base := t.TempDir()
+	real := filepath.Join(base, "real")
+	if err := os.MkdirAll(real, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	wanted := filepath.Join(real, "data.txt")
+	if err := os.WriteFile(wanted, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	root := filepath.Join(base, "root")
+	if err := os.Symlink(real, root); err != nil {
+		t.Skipf("this machine would not let the test create a symlink (%v), so the mismatched-"+
+			"spelling boundary stays unverified here; the Windows form of it is in "+
+			"pathsafe_shortpath_windows_test.go", err)
+	}
+
+	got, err := pathsafe.SecurePathUnderRoots(filepath.Join(root, "data.txt"), []string{root})
+	if err != nil {
+		t.Fatalf("SecurePathUnderRoots refused a file inside its own root: %v; a root and a "+
+			"resolved path that name the same directory differently are still the same directory", err)
+	}
+	if filepath.Clean(got) != filepath.Clean(wanted) {
+		t.Errorf("resolved to %q, want %q", got, wanted)
 	}
 }
 

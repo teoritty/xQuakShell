@@ -59,7 +59,7 @@ func SecurePathUnderRoots(absPath string, roots []string) (string, error) {
 				return "", err
 			}
 			eval = filepath.Clean(eval)
-			if !UnderRoot(matchedRoot, eval) {
+			if !underResolvedRoot(matchedRoot, eval) {
 				return "", ErrPathDenied
 			}
 			return eval, nil
@@ -78,8 +78,34 @@ func secureNewPath(target, root string) (string, error) {
 		return "", err
 	}
 	resolved := filepath.Join(evalParent, filepath.Base(target))
-	if !UnderRoot(root, resolved) {
+	if !underResolvedRoot(root, resolved) {
 		return "", ErrPathDenied
 	}
 	return resolved, nil
+}
+
+// underResolvedRoot answers whether a path that has ALREADY been resolved to its canonical form is
+// inside root, comparing the two in the same spelling.
+//
+// The plain comparison is tried first and answers almost every call. It fails on a root and a
+// resolved path that name the same directory differently, and on Windows that is not exotic:
+// EvalSymlinks returns the canonical long name, so a root handed in as C:\Users\RUNNER~1\... never
+// prefixes a target that came back as C:\Users\runneradmin\.... Every user whose profile directory
+// has an 8.3 short name - which is every user whose account name is long enough - was refused
+// access to their own plugin data, and the CI runner is one of them.
+//
+// Resolving the root and comparing canonical against canonical is not a loosening. A path whose
+// real location is inside the root's real location IS inside the root; the previous comparison was
+// simply asking the question in two different alphabets. Everything that made this check a boundary
+// is untouched: the per-segment walk above still refuses a symlink anywhere below the root, so a
+// link inside the tree cannot lead out of it, and a root that cannot be resolved at all is refused.
+func underResolvedRoot(root, resolved string) bool {
+	if UnderRoot(root, resolved) {
+		return true
+	}
+	rootEval, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return false
+	}
+	return UnderRoot(filepath.Clean(rootEval), resolved)
 }
