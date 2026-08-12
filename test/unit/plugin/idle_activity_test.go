@@ -115,7 +115,7 @@ type recordingPluginHost struct {
 	stopCount int
 }
 
-func (h *recordingPluginHost) Start(context.Context, domainplugin.InstalledPlugin, string) error {
+func (h *recordingPluginHost) Start(context.Context, domainplugin.InstalledPlugin, string, domainplugin.SandboxPolicy) error {
 	h.state = domainplugin.ProcessRunning
 	return nil
 }

@@ -134,6 +134,23 @@ type PluginSettings struct {
 	MultiSessionAccessGranted     map[string]bool `json:"multiSessionAccessGranted,omitempty"`
 	ArbitraryNetworkAccessGranted map[string]bool `json:"arbitraryNetworkAccessGranted,omitempty"`
 	Disabled                      map[string]bool `json:"disabled,omitempty"`
+
+	// AllowUnsandboxedFallback lets a plugin start unconfined on a platform that CAN confine it and
+	// failed to.
+	//
+	// It exists because the alternative to refusing is worse: a silent downgrade means the sandbox
+	// stops working for a fraction of users and nobody finds out. Refusing is loud, and this is the
+	// escape hatch for someone whose machine the confinement will not work on — a policy-locked
+	// registry, a filesystem that will not take the ACL — who would otherwise have no way to run a
+	// plugin at all.
+	//
+	// It does NOT cover the platform that cannot confine at all. macOS and a kernel without
+	// Landlock start plugins unconfined regardless; that is not a failure and needs no opt-in.
+	//
+	// Default false, and false is the only safe default: a setting that ships enabled is a sandbox
+	// that ships optional. It is a security setting (CLAUDE.md §2.2) — it changes only through
+	// saveSettings, enabling it is audit-logged, and no plugin-facing RPC may read or write it.
+	AllowUnsandboxedFallback bool `json:"allowUnsandboxedFallback,omitempty"`
 }
 
 func DefaultPluginSettings() PluginSettings {

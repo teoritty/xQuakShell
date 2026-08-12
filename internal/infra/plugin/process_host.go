@@ -88,6 +88,11 @@ func NewProcessHost(cfg HostConfig) *ProcessHost {
 	if !support.Available {
 		slog.Info("plugin OS isolation unavailable", "reason", support.Reason)
 	}
+	// Startup is the one moment when no plugin of ours is running, so it is the only safe time to
+	// delete the durable per-instance state a crash or a power loss left behind. Nothing here can
+	// fail the construction: this is housekeeping, and a profile that will not delete is not a
+	// reason to refuse to start.
+	SweepOrphanContainers()
 	return &ProcessHost{
 		cfg:       cfg,
 		processes: make(map[string]*managedProcess),

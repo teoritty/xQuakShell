@@ -62,7 +62,10 @@ type AuthAttemptAuthorizer interface {
 
 // ProcessHost manages out-of-process plugin lifecycles (infra implements this port).
 type ProcessHost interface {
-	Start(ctx context.Context, plugin InstalledPlugin, sessionID string) error
+	// Start brings a plugin process up. The policy is the host's decision about what to do if this
+	// platform can confine the process and the confinement fails; the implementation executes it and
+	// does not decide it.
+	Start(ctx context.Context, plugin InstalledPlugin, sessionID string, policy SandboxPolicy) error
 	Stop(ctx context.Context, pluginID, sessionID string) error
 	StopAll(ctx context.Context)
 	Call(ctx context.Context, pluginID, sessionID, method string, params json.RawMessage) (json.RawMessage, error)

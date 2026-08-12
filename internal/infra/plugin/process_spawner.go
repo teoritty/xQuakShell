@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os/exec"
 
 	domainplugin "xquakshell/internal/domain/plugin"
 )
@@ -15,12 +14,21 @@ import (
 var errStartAbortedByStop = errors.New("plugin start aborted by a concurrent stop")
 
 type spawnedProcess struct {
-	child  childProcess
-	cancel context.CancelFunc
-	reaper *processReaper
-	stderr io.WriteCloser
-	stdin  io.WriteCloser
-	stdout io.ReadCloser
+	// sandbox is the boundary this process actually came up behind, decided by the platform that
+	// created it rather than assumed from what the build can do.
+	sandbox domainplugin.SandboxMode
+	// limitsApplied says the child capped its own resources on the way in.
+	limitsApplied bool
+	// dataRoot is where this instance's directories and its durable permissions were rooted. The
+	// teardown needs it to take those permissions back and is reached from places that have no
+	// access to the host's configuration, so it travels with the process that they were written for.
+	dataRoot string
+	child    childProcess
+	cancel   context.CancelFunc
+	reaper   *processReaper
+	stderr   io.WriteCloser
+	stdin    io.WriteCloser
+	stdout   io.ReadCloser
 }
 
 // spawnPluginProcess brings up the plugin binary together with the directories it is allowed to
@@ -31,7 +39,7 @@ type spawnedProcess struct {
 // It deliberately takes no context: see the comment on procCtx below — the caller's context must
 // not own the child process's lifetime, and an unused ctx parameter here would be an invitation to
 // wire it back in.
-func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, sessionID string) (*spawnedProcess, string, error) {
+func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, sessionID string, policy domainplugin.SandboxPolicy) (*spawnedProcess, string, error) {
 	entryPath, err := ResolveEngineEntryPath(plugin.RootDir, plugin.Manifest.Engine.Entry)
 	if err != nil {
 		return nil, "", fmt.Errorf("resolve plugin entry: %w", err)
@@ -46,63 +54,39 @@ func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, se
 	if err := EnsureEntryExecutable(entryPath); err != nil {
 		return nil, "", err
 	}
-	// The child process is deliberately NOT tied to the caller's context. exec.CommandContext makes
-	// the passed context own the LIFETIME of the child: cancelling it kills the process. Every caller
-	// of Start passes a short-lived request context (a WithTimeout with a `defer cancel()`), so a
-	// plugin used to die the moment the call that started it returned — including a supervisor
-	// restart, which cancelled on its own success path. A plugin process outlives the operation that
-	// started it by definition; only Stop/StopAll/crash teardown may end it.
-	//
-	// The caller's context still bounds the START OPERATION — initializePluginProcess(ctx, …) in
-	// Start keeps using it for the handshake, and a cancellation there fails the start, whose deferred
-	// teardown kills the process explicitly via closeResources(true).
-	//
-	// procCancel is handed to the owner (managedProcess) and fired from closeResources so the
-	// context and its watchdog goroutine are released when the process is gone.
-	procCtx, procCancel := context.WithCancel(context.Background())
-
-	// #nosec G204 -- launching a plugin binary is this package's entire purpose. entryPath
-	// is resolved from the plugin directory and checksum-verified at install time; there
-	// are no arguments and no shell, so the path cannot expand into another command.
-	cmd := exec.CommandContext(procCtx, entryPath)
-	cmd.Env = PluginProcessEnv(instanceDataDir, plugin.Manifest.ID, sessionID)
+	// How the process is created is the platform's business from here. On Linux it is an ordinary
+	// exec of the sandbox shim, which narrows itself and becomes the plugin; on Windows with an
+	// AppContainer it is a hand-built CreateProcessW, because os/exec cannot pass the security
+	// capabilities that make a container a container. Everything downstream — the pid, the pipes,
+	// the reaper, the job — is the same either way, which is what the childProcess seam is for.
 	stderrLog := NewRedactingStderrWriter(plugin.Manifest.ID)
-	cmd.Stderr = stderrLog
-	if err := configurePluginCmd(cmd); err != nil {
-		procCancel()
-		_ = stderrLog.Close()
-		return nil, "", fmt.Errorf("configure plugin process: %w", err)
-	}
-
-	stdin, err := cmd.StdinPipe()
+	started, err := startPluginChild(childRequest{
+		dataRoot:        dataRoot,
+		plugin:          plugin,
+		sessionID:       sessionID,
+		entryPath:       entryPath,
+		instanceDataDir: instanceDataDir,
+		env:             PluginProcessEnv(instanceDataDir, plugin.Manifest.ID, sessionID),
+		stderr:          stderrLog,
+		policy:          policy,
+	})
 	if err != nil {
-		procCancel()
 		_ = stderrLog.Close()
-		return nil, "", fmt.Errorf("plugin stdin pipe: %w", err)
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		procCancel()
-		_ = stderrLog.Close()
-		return nil, "", fmt.Errorf("plugin stdout pipe: %w", err)
+		return nil, "", err
 	}
 
-	if err := cmd.Start(); err != nil {
-		procCancel()
-		_ = stderrLog.Close()
-		return nil, "", fmt.Errorf("start plugin %s: %w", plugin.Manifest.ID, err)
-	}
-
-	child := newExecChild(cmd)
-	reaper := newProcessReaper(child)
+	reaper := newProcessReaper(started.child)
 	reaper.Start()
 	return &spawnedProcess{
-		child:  child,
-		cancel: procCancel,
-		reaper: reaper,
-		stderr: stderrLog,
-		stdin:  stdin,
-		stdout: stdout,
+		sandbox:       started.mode,
+		limitsApplied: started.limitsApplied,
+		dataRoot:      dataRoot,
+		child:         started.child,
+		cancel:        started.cancel,
+		reaper:        reaper,
+		stderr:        stderrLog,
+		stdin:         started.stdin,
+		stdout:        started.stdout,
 	}, instanceDataDir, nil
 }
 

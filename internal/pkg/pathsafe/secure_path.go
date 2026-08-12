@@ -13,14 +13,7 @@ func SecurePathUnderRoots(absPath string, roots []string) (string, error) {
 		return "", ErrPathDenied
 	}
 
-	var matchedRoot string
-	for _, root := range roots {
-		root = filepath.Clean(root)
-		if UnderRoot(root, absPath) {
-			matchedRoot = root
-			break
-		}
-	}
+	matchedRoot := matchRoot(absPath, roots)
 	if matchedRoot == "" {
 		return "", ErrPathDenied
 	}
@@ -59,7 +52,7 @@ func SecurePathUnderRoots(absPath string, roots []string) (string, error) {
 				return "", err
 			}
 			eval = filepath.Clean(eval)
-			if !UnderRoot(matchedRoot, eval) {
+			if !underResolvedRoot(matchedRoot, eval) {
 				return "", ErrPathDenied
 			}
 			return eval, nil
@@ -78,8 +71,66 @@ func secureNewPath(target, root string) (string, error) {
 		return "", err
 	}
 	resolved := filepath.Join(evalParent, filepath.Base(target))
-	if !UnderRoot(root, resolved) {
+	if !underResolvedRoot(root, resolved) {
 		return "", ErrPathDenied
 	}
 	return resolved, nil
+}
+
+// matchRoot picks the root that contains absPath, and returns it in the spelling the rest of this
+// function must walk from.
+//
+// The configured spelling is tried first and answers almost every call. The resolved one is needed
+// because absPath frequently arrives already canonical - VerifyOpenFileUnderRoots hands over what
+// GetFinalPathNameByHandle returned, which is always the long form on Windows - while the root is
+// whatever the caller was configured with. A root spelt C:\Users\RUNNER~1\... then contained
+// nothing, and every read and write a plugin attempted inside its own data directory came back as
+// "plugin capability denied".
+//
+// The match returns the RESOLVED root in that case, not the configured one: the walk below measures
+// segments relative to what it returns, and measuring a canonical path from a root spelt another
+// way produces a relative path full of "..", which this function refuses. Both halves have to speak
+// the same alphabet or neither answer is meaningful.
+func matchRoot(absPath string, roots []string) string {
+	for _, root := range roots {
+		if root = filepath.Clean(root); UnderRoot(root, absPath) {
+			return root
+		}
+	}
+	for _, root := range roots {
+		resolved, err := filepath.EvalSymlinks(filepath.Clean(root))
+		if err != nil {
+			continue
+		}
+		if resolved = filepath.Clean(resolved); UnderRoot(resolved, absPath) {
+			return resolved
+		}
+	}
+	return ""
+}
+
+// underResolvedRoot answers whether a path that has ALREADY been resolved to its canonical form is
+// inside root, comparing the two in the same spelling.
+//
+// The plain comparison is tried first and answers almost every call. It fails on a root and a
+// resolved path that name the same directory differently, and on Windows that is not exotic:
+// EvalSymlinks returns the canonical long name, so a root handed in as C:\Users\RUNNER~1\... never
+// prefixes a target that came back as C:\Users\runneradmin\.... Every user whose profile directory
+// has an 8.3 short name - which is every user whose account name is long enough - was refused
+// access to their own plugin data, and the CI runner is one of them.
+//
+// Resolving the root and comparing canonical against canonical is not a loosening. A path whose
+// real location is inside the root's real location IS inside the root; the previous comparison was
+// simply asking the question in two different alphabets. Everything that made this check a boundary
+// is untouched: the per-segment walk above still refuses a symlink anywhere below the root, so a
+// link inside the tree cannot lead out of it, and a root that cannot be resolved at all is refused.
+func underResolvedRoot(root, resolved string) bool {
+	if UnderRoot(root, resolved) {
+		return true
+	}
+	rootEval, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return false
+	}
+	return UnderRoot(filepath.Clean(rootEval), resolved)
 }

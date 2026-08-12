@@ -8,7 +8,7 @@ import (
 )
 
 // Start launches the plugin binary and sends initialize.
-func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPlugin, sessionID string) error {
+func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPlugin, sessionID string, policy domainplugin.SandboxPolicy) error {
 	key := processKey(plugin, sessionID)
 
 	h.mu.Lock()
@@ -46,12 +46,12 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	}
 	mp.negotiated = negotiated
 
-	spawned, dataDir, err := spawnPluginProcess(h.cfg.DataRoot, plugin, sessionID)
+	spawned, dataDir, err := spawnPluginProcess(h.cfg.DataRoot, plugin, sessionID, policy)
 	if err != nil {
 		return err
 	}
 
-	job, err := preparePluginSandbox(plugin, spawned.child.Pid())
+	job, err := preparePluginSandbox(plugin, spawned.child.Pid(), spawned.limitsApplied)
 	if err != nil {
 		// The process is not on mp yet, so the deferred teardown below cannot see it. Kill it here.
 		discardSpawnedProcess(spawned, pluginJob{})
@@ -74,11 +74,7 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	current, stillRegistered := h.processes[key]
 	abandoned := !stillRegistered || current != mp || mp.state == domainplugin.ProcessStopping
 	if !abandoned {
-		mp.child = spawned.child
-		mp.cancel = spawned.cancel
-		mp.reaper = spawned.reaper
-		mp.stderr = spawned.stderr
-		mp.job = job
+		mp.adopt(spawned, job)
 	}
 	h.mu.Unlock()
 
@@ -129,7 +125,7 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 
 	portableReadOnly := h.cfg.Portable != nil && h.cfg.Portable.DataRootReadOnly()
 	if err := initializePluginProcess(ctx, conn, plugin, dataDir, portableReadOnly, negotiated, negotiationWarnings); err != nil {
-		return err
+		return h.explainStartFailure(mp, err)
 	}
 
 	// Third checkpoint, same shape and same reason as the first two. A Stop landing during the

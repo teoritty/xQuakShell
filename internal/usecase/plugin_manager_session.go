@@ -49,7 +49,7 @@ func (m *PluginManager) EnsureRunningForSession(ctx context.Context, pluginID, s
 		return err
 	}
 	m.emitStateChange(pluginID, "starting", sessionID)
-	if err := m.host.Start(ctx, plugin, scope); err != nil {
+	if err := m.host.Start(ctx, plugin, scope, m.sandboxPolicy()); err != nil {
 		return err
 	}
 	m.TouchActivity(pluginID)

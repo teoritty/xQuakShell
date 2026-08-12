@@ -15,17 +15,9 @@
     pingPlugin,
     setPluginEnabled,
 
-    getPluginSettings,
-
-    savePluginSettings,
-
-    generatePluginPublisherKeyPair,
-
     type PluginInfo,
 
     type PluginInstallPreview,
-
-    type PluginSettings,
 
   } from '../api/plugins';
 
@@ -56,6 +48,7 @@
   import { installPlugin, installGitHubPlugin, uninstallGitHubPlugin } from '../actions/protocolActions';
 
   import ConfirmDialog from './ConfirmDialog.svelte';
+  import PluginTrustPolicy from './PluginTrustPolicy.svelte';
   import Modal from './Modal.svelte';
   import GitHubReadmePanel from './GitHubReadmePanel.svelte';
   import { formatPublishedDate } from './githubReadme';
@@ -96,12 +89,6 @@
   let grantExecAccess = false;
 
   let errorMessage = '';
-
-  let pluginSettings: PluginSettings = { trustedPublisherKeys: [], requireSignedPlugins: false };
-
-  let newTrustedKey = '';
-
-  let settingsBusy = false;
 
   let activeTab: 'installed' | 'github' = 'installed';
 
@@ -253,27 +240,9 @@
 
     refreshPlugins();
 
-    loadPluginSettings();
-
     loadGitHubRepositories();
 
   });
-
-
-
-  async function loadPluginSettings() {
-
-    try {
-
-      pluginSettings = await getPluginSettings();
-
-    } catch (e) {
-
-      errorMessage = e instanceof Error ? e.message : 'Failed to load plugin settings';
-
-    }
-
-  }
 
 
 
@@ -438,96 +407,6 @@
   }
 
 
-
-  async function saveTrustSettings() {
-
-    settingsBusy = true;
-
-    errorMessage = '';
-
-    try {
-
-      await savePluginSettings(pluginSettings);
-
-    } catch (e) {
-
-      errorMessage = e instanceof Error ? e.message : 'Failed to save plugin settings';
-
-    } finally {
-
-      settingsBusy = false;
-
-    }
-
-  }
-
-
-
-  async function addTrustedKey() {
-
-    const key = newTrustedKey.trim();
-
-    if (!key) return;
-
-    if (pluginSettings.trustedPublisherKeys.includes(key)) {
-
-      newTrustedKey = '';
-
-      return;
-
-    }
-
-    pluginSettings = {
-
-      ...pluginSettings,
-
-      trustedPublisherKeys: [...pluginSettings.trustedPublisherKeys, key],
-
-    };
-
-    newTrustedKey = '';
-
-    await saveTrustSettings();
-
-  }
-
-
-
-  async function removeTrustedKey(key: string) {
-
-    pluginSettings = {
-
-      ...pluginSettings,
-
-      trustedPublisherKeys: pluginSettings.trustedPublisherKeys.filter((k) => k !== key),
-
-    };
-
-    await saveTrustSettings();
-
-  }
-
-
-
-  async function generatePublisherKeys() {
-
-    errorMessage = '';
-
-    try {
-
-      const pair = await generatePluginPublisherKeyPair();
-
-      if (!pair.publicKey) return;
-
-      newTrustedKey = pair.publicKey;
-
-    } catch (e) {
-
-      errorMessage = e instanceof Error ? e.message : 'Key generation failed';
-
-    }
-
-  }
 
   async function loadGitHubRepositories(forceRefresh = false) {
     if (githubReposLoadPromise) {
@@ -851,55 +730,7 @@
 
 
   {#if showAdvanced}
-  <div class="trust-panel">
-
-    <h4>Trust policy</h4>
-
-    <label class="checkbox-row">
-
-      <input type="checkbox" bind:checked={pluginSettings.requireSignedPlugins} on:change={saveTrustSettings} />
-
-      Require signed plugins from trusted publishers
-
-    </label>
-
-    <div class="trusted-keys">
-
-      <label for="trusted-key">Trusted publisher keys (base64 Ed25519 public keys)</label>
-
-      <div class="key-row">
-
-        <input id="trusted-key" class="key-input" bind:value={newTrustedKey} placeholder="Paste public key…" />
-
-        <button type="button" class="btn-secondary" disabled={settingsBusy} on:click={addTrustedKey}>Add</button>
-
-        <button type="button" class="btn-secondary" disabled={settingsBusy} on:click={generatePublisherKeys}>Generate pair</button>
-
-      </div>
-
-      {#if pluginSettings.trustedPublisherKeys.length > 0}
-
-        <ul class="key-list">
-
-          {#each pluginSettings.trustedPublisherKeys as key (key)}
-
-            <li>
-
-              <code>{key.slice(0, 24)}…</code>
-
-              <button type="button" class="link-btn" on:click={() => removeTrustedKey(key)}>Remove</button>
-
-            </li>
-
-          {/each}
-
-        </ul>
-
-      {/if}
-
-    </div>
-
-  </div>
+    <PluginTrustPolicy onError={(m) => (errorMessage = m)} />
   {/if}
 
 
@@ -946,7 +777,7 @@
 
             </div>
 
-            <div class="plugin-meta">{plugin.id} · {plugin.source} · {plugin.state}{plugin.sandboxMode ? (plugin.sandboxMode === 'enforced' ? ' · sandboxed' : ' · not sandboxed') : ''}</div>
+            <div class="plugin-meta">{plugin.id} · {plugin.source} · {plugin.state}{plugin.sandboxMode ? (plugin.sandboxMode === 'enforced' ? ' · sandboxed' : plugin.sandboxMode === 'enforced-partial' ? ' · sandboxed (files only)' : ' · not sandboxed') : ''}</div>
 
             {#if plugin.description}
 
@@ -1430,23 +1261,16 @@
 
   .muted { color: var(--text-secondary); font-size: 11px; margin: 0; }
 
-  .trust-panel { border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 
-  .trust-panel h4 { margin: 0; font-size: 12px; }
 
-    .trusted-keys { display: flex; flex-direction: column; gap: 6px; }
 
-  .trusted-keys label { font-size: 12px; color: var(--text-secondary); }
 
-  .key-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
   .key-input { flex: 1; min-width: 200px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border-color); background: transparent; color: inherit; }
   .key-input.invalid { border-color: var(--danger); }
   .field-error { margin: 0; font-size: 12px; color: var(--danger); }
 
-  .key-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 
-  .key-list li { display: flex; align-items: center; gap: 8px; }
 
   .link-btn { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px; padding: 0; }
 

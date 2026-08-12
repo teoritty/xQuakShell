@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"unsafe"
 
-	domainplugin "xquakshell/internal/domain/plugin"
 	"golang.org/x/sys/windows"
+	domainplugin "xquakshell/internal/domain/plugin"
 )
 
 func createPluginJob() (pluginJob, error) {

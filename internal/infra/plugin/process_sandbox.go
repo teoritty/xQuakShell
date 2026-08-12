@@ -23,7 +23,7 @@ func preparePluginInstanceDirs(dataRoot string, plugin domainplugin.InstalledPlu
 
 // preparePluginSandbox applies the OS-level bounds on the spawned process. It needs a pid, so it
 // necessarily runs after the spawn — which is why the directories are a separate step above.
-func preparePluginSandbox(plugin domainplugin.InstalledPlugin, pid int) (pluginJob, error) {
+func preparePluginSandbox(plugin domainplugin.InstalledPlugin, pid int, limitsApplied bool) (pluginJob, error) {
 	job, err := createPluginJob()
 	if err != nil {
 		return pluginJob{}, fmt.Errorf("create plugin job: %w", err)
@@ -31,6 +31,9 @@ func preparePluginSandbox(plugin domainplugin.InstalledPlugin, pid int) (pluginJ
 	if err := assignProcessToJob(job, pid); err != nil {
 		closePluginJob(job)
 		return pluginJob{}, fmt.Errorf("assign plugin %s to job: %w", plugin.Manifest.ID, err)
+	}
+	if limitsApplied {
+		return job, nil
 	}
 	if err := applyPluginResourceLimits(pid, job); err != nil {
 		closePluginJob(job)

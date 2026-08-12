@@ -1,0 +1,13 @@
+{
+  "id": "com.xquakshell.fixture-escape-probe",
+  "name": "Escape Probe",
+  "version": "0.1.0",
+  "isolation": "per-session",
+  "engine": {
+    "type": "go-binary",
+    "entry": "plugin-escape-probe"
+  },
+  "activationEvents": [
+    "onStartup"
+  ]
+}

@@ -13,9 +13,18 @@ const (
 	vaultTmpName  = "vault.age.tmp"
 )
 
+// FilePath is where the vault lives inside a vault directory.
+//
+// Every read, write and backup below goes through it rather than joining the name again, so there
+// is one answer to "which file is the vault" and a test can ask for it instead of hardcoding a
+// second copy that would keep passing after the real one moved.
+func FilePath(dir string) string {
+	return filepath.Join(dir, vaultFileName)
+}
+
 // Exists reports whether a vault file is present in dir.
 func Exists(dir string) bool {
-	_, err := os.Stat(filepath.Join(dir, vaultFileName))
+	_, err := os.Stat(FilePath(dir))
 	return err == nil
 }
 
@@ -25,7 +34,7 @@ func Exists(dir string) bool {
 // a read. Synthesizing an empty vault here would make a typo on the unlock
 // screen indistinguishable from deliberately choosing a new master password.
 func ReadVaultFile(dir, passphrase string) (*domain.VaultData, error) {
-	path := filepath.Join(dir, vaultFileName)
+	path := FilePath(dir)
 
 	ciphertext, err := os.ReadFile(path)
 	if err != nil {
@@ -50,7 +59,7 @@ func ReadVaultFile(dir, passphrase string) (*domain.VaultData, error) {
 // The copy carries no plaintext; it is the same age-encrypted file under the same master
 // password, so it is exactly as safe at rest as the vault itself.
 func BackupVaultFile(dir string, fromVersion int) error {
-	source := filepath.Join(dir, vaultFileName)
+	source := FilePath(dir)
 	target := filepath.Join(dir, fmt.Sprintf("%s.v%d.bak", vaultFileName, fromVersion))
 
 	if _, err := os.Stat(target); err == nil {
@@ -91,7 +100,7 @@ func WriteVaultFile(dir, passphrase string, data *domain.VaultData) error {
 	}
 
 	tmpPath := filepath.Join(dir, vaultTmpName)
-	finalPath := filepath.Join(dir, vaultFileName)
+	finalPath := FilePath(dir)
 
 	f, err := os.Create(tmpPath)
 	if err != nil {

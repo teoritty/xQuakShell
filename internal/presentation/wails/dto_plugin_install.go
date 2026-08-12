@@ -68,10 +68,18 @@ func (a *AppAPI) pluginTrustPolicy() (domainplugin.InstallTrustPolicy, error) {
 	return policy, nil
 }
 
-// PluginSettingsDTO is the plugin section of application settings.
+// PluginSettingsDTO is the part of the plugin settings section the settings dialog owns.
+//
+// It is deliberately not the whole section. The capability grants and the disabled-plugin list are
+// established by install-time consent, never travel here, and are merged back by the caller — a DTO
+// that carried them would let a settings save rewrite decisions the user made somewhere else.
 type PluginSettingsDTO struct {
 	TrustedPublisherKeys []string `json:"trustedPublisherKeys"`
 	RequireSignedPlugins bool     `json:"requireSignedPlugins"`
+	// AllowUnsandboxedFallback lets a plugin start unconfined when this platform CAN confine it and
+	// the attempt failed. It does not affect a platform that cannot confine at all, where plugins
+	// start unconfined regardless.
+	AllowUnsandboxedFallback bool `json:"allowUnsandboxedFallback"`
 }
 
 func pluginSettingsToDTO(s domain.PluginSettings) PluginSettingsDTO {
@@ -80,20 +88,25 @@ func pluginSettingsToDTO(s domain.PluginSettings) PluginSettingsDTO {
 		keys = []string{}
 	}
 	return PluginSettingsDTO{
-		TrustedPublisherKeys: keys,
-		RequireSignedPlugins: s.RequireSignedPlugins,
+		TrustedPublisherKeys:     keys,
+		RequireSignedPlugins:     s.RequireSignedPlugins,
+		AllowUnsandboxedFallback: s.AllowUnsandboxedFallback,
 	}
 }
 
-func dtoToPluginSettings(dto PluginSettingsDTO) domain.PluginSettings {
+// dtoToPluginSettings folds the dialog's three fields onto the stored section, leaving everything
+// else exactly as it was. Building a fresh struct here instead would clear every capability grant
+// and the disabled-plugin list on each save.
+func dtoToPluginSettings(dto PluginSettingsDTO, current domain.PluginSettings) domain.PluginSettings {
 	keys := dto.TrustedPublisherKeys
 	if keys == nil {
 		keys = []string{}
 	}
-	return domain.PluginSettings{
-		TrustedPublisherKeys: keys,
-		RequireSignedPlugins: dto.RequireSignedPlugins,
-	}
+	merged := current
+	merged.TrustedPublisherKeys = keys
+	merged.RequireSignedPlugins = dto.RequireSignedPlugins
+	merged.AllowUnsandboxedFallback = dto.AllowUnsandboxedFallback
+	return merged
 }
 
 // GetPluginSettings returns plugin trust/install settings.
@@ -120,8 +133,7 @@ func (a *AppAPI) SavePluginSettings(dto PluginSettingsDTO) error {
 	if err != nil {
 		return err
 	}
-	settings.Plugins = dtoToPluginSettings(dto)
-	return a.settingsSvc.SaveSettings(a.reqCtx(), settings)
+	return a.settingsSvc.SavePluginSettings(a.reqCtx(), dtoToPluginSettings(dto, settings.Plugins))
 }
 
 // GeneratePluginPublisherKeyPair returns a new Ed25519 key pair for plugin signing.

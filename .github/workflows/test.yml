@@ -6,8 +6,19 @@ on:
   pull_request:
 
 jobs:
+  # Both operating systems this application ships on, because half of the plugin isolation only
+  # exists on one of them. The AppContainer profile, its ACLs, the job object and the Windows arm of
+  # the sandbox escape probe are Windows-only code that no Linux runner compiles, let alone runs;
+  # Landlock is the mirror image. A single-platform matrix meant every one of those was tested only
+  # on whichever machine the author happened to be using.
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      # One platform failing must not cancel the other. When a test breaks on exactly one OS, the
+      # other one's result is the most useful thing in the run.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
 
@@ -37,10 +48,15 @@ jobs:
       - name: Unit tests
         run: go test ./... -race -count=1
 
+      # Linux only, and not because they would fail elsewhere: the floors and the benchmark
+      # thresholds are platform-independent, so running them twice buys a second identical number
+      # and a slower pull request.
       - name: Plugin coverage gates
+        if: runner.os == 'Linux'
         run: go run ./scripts/coverage
 
       - name: Benchmark smoke
+        if: runner.os == 'Linux'
         run: go test ./test/bench/... -bench=. -benchtime=100ms
 
   # Relative links between documents, the files they point at, and the headings they point into.

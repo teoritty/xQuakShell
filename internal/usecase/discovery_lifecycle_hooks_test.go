@@ -23,7 +23,7 @@ type stubProcessHost struct {
 	starts int
 }
 
-func (h *stubProcessHost) Start(context.Context, domainplugin.InstalledPlugin, string) error {
+func (h *stubProcessHost) Start(context.Context, domainplugin.InstalledPlugin, string, domainplugin.SandboxPolicy) error {
 	h.mu.Lock()
 	h.starts++
 	h.mu.Unlock()

@@ -163,18 +163,28 @@ func verifyPluginIntegrity(dir string, manifest domainplugin.Manifest) error {
 func SearchPaths(exeDir, dataRoot string) []string {
 	paths := make([]string, 0, 2)
 	if dataRoot != "" {
-		paths = append(paths, filepath.Join(dataRoot, "plugins"))
+		paths = append(paths, PluginsRoot(dataRoot))
 	}
 	if exeDir != "" {
-		paths = append(paths, filepath.Join(exeDir, "plugins"))
+		paths = append(paths, PluginsRoot(exeDir))
 	}
 	return paths
+}
+
+// PluginsRoot is the directory every plugin's install tree and data live under, whether the root
+// given is the data root or the directory beside the executable.
+//
+// It is one function rather than a join at each call site because the sandbox bounds what a plugin
+// process may write by this path: a second spelling of it that drifted would either deny a plugin
+// its own directory or grant it something outside the plugin tree.
+func PluginsRoot(root string) string {
+	return filepath.Join(root, "plugins")
 }
 
 // PluginDataDir returns the writable data directory for a plugin instance.
 func PluginDataDir(dataRoot, pluginID string) string {
 	safeID := strings.ReplaceAll(pluginID, string(filepath.Separator), "_")
-	return filepath.Join(dataRoot, "plugins", safeID, "data")
+	return filepath.Join(PluginsRoot(dataRoot), safeID, "data")
 }
 
 func detectInstallSource(dir string) domainplugin.InstallSource {

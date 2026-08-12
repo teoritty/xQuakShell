@@ -53,6 +53,68 @@ identical either way, while catching nothing the per-feature check does not alre
 removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `removedSchemaFields`
 (`manifest_schema_test.go`) instead, where it is reviewed rather than inferred from a number.
 
+### Added
+
+- **Plugin processes are confined by the operating system on Windows and Linux.** A plugin now runs
+  inside a Windows AppContainer or a Linux Landlock ruleset that grants it read and execute on its
+  own installed files, read and write on its own instance data directory, and nothing else. Your
+  SSH keys, the vault, another plugin's directory and another session's directory are denied by the
+  OS rather than by the plugin's good behaviour.
+
+  Each plugin's settings row says which boundary its running processes are actually behind, and the
+  two platforms do not get the same words:
+
+  - **Windows** reports **sandboxed**. An AppContainer is granted no network capability, so the
+    plugin has no sockets at all — not outbound, not inbound, not even loopback.
+  - **Linux** reports **sandboxed (files only)**. Landlock's network rules cover TCP only, and only
+    on kernel 6.7 and newer, so a confined plugin can still open a UDP socket. The filesystem side
+    is complete.
+  - **macOS** still reports **not sandboxed**, and says why.
+
+  Linux needs kernel 5.13 or newer with Landlock enabled; Windows needs the AppContainer profile
+  API, which is present on every supported build and needs no administrator rights. Where the
+  platform cannot confine a plugin it starts exactly as before and the row says so — that is not an
+  error.
+
+  **Where the platform can confine a plugin and the attempt fails, the plugin does not start.** A
+  sandbox that quietly fell back to an unconfined process whenever it broke would keep reporting
+  success while protecting nobody. **Settings → Plugins → Trust policy** carries the escape hatch for
+  a machine the confinement will not work on — *Start a plugin unconfined if its sandbox cannot be
+  applied*, off by default. A start taken under it is logged and the plugin's row reads **not
+  sandboxed**.
+
+  A plugin that reads or writes outside its own directories will now fail where it used to succeed.
+  None of the published plugins do; the host performs every network and filesystem operation on a
+  plugin's behalf already.
+
+### Fixed
+
+- A plugin's `TMPDIR` was never set, only `TEMP` and `TMP`, so on Linux and macOS every plugin's
+  temporary files went to the shared `/tmp` instead of its own instance directory.
+- **Plugin settings could not be saved.** `SaveSettings` deliberately carries the stored plugin
+  section across so that changing the theme cannot clear a capability grant — and that also
+  discarded what the plugin settings dialog itself wrote, so "require signed plugins" silently never
+  persisted. The dialog now writes that section through its own path, merging onto the stored copy
+  rather than replacing it.
+- **On Windows, a plugin could be refused access to its own files if your account name is long.**
+  Windows gives such a profile an 8.3 alias — `C:\Users\RUNNER~1\…` alongside
+  `C:\Users\runneradmin\…` — and the checks that keep a path inside its allowed directory resolved
+  one side of the comparison to the canonical long form while leaving the other in whatever spelling
+  it arrived. The two never matched, so reading or writing inside the plugin's own data directory
+  came back as `plugin capability denied`, an installed plugin's own binary could be reported as
+  escaping its bundle, and its UI assets were served as `403`. The same comparison guards SFTP and
+  the local file manager.
+
+  **Who is affected:** anyone on Windows whose account name is longer than eight characters or
+  contains a space, which is most people. Both sides are now compared in the same spelling.
+- **A path that is not valid UTF-8 could hang the check that decides whether a path escaped its
+  root.** Windows accepts such a string as a UNC volume name and hands back a replacement character
+  when it resolves it, after which the standard library's path comparison spins forever. This is
+  hardening rather than a defect anyone hit: the roots involved come from the application's own
+  configuration and not from anything a user or a remote host supplies, and no shipped code path is
+  known to reach it. It was found by fuzzing the plugin sandbox's arguments. Such a path is now
+  refused outright, in the deny direction, on every entry point.
+
 ### Removed
 
 - `capabilities.session.localEmbedServer` manifest field, its `localEmbedServer` feature id, and the

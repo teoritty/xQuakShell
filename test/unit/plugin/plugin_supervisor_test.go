@@ -14,7 +14,7 @@ type disabledPluginHost struct {
 	state domainplugin.ProcessState
 }
 
-func (disabledPluginHost) Start(context.Context, domainplugin.InstalledPlugin, string) error {
+func (disabledPluginHost) Start(context.Context, domainplugin.InstalledPlugin, string, domainplugin.SandboxPolicy) error {
 	return nil
 }
 func (disabledPluginHost) Stop(context.Context, string, string) error { return nil }

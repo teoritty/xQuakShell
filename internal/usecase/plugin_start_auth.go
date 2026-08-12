@@ -89,6 +89,28 @@ func (m *PluginManager) isPluginEnabled(pluginID string) bool {
 	return !settings.Disabled[pluginID]
 }
 
+// sandboxPolicy is this host's decision about what to do when a platform that can confine a plugin
+// fails to.
+//
+// The decision lives here and only here. Infra reports two facts — can this platform confine, and
+// did this attempt succeed — and must not learn which setting governs the answer; that is what
+// keeps "may a plugin run unconfined" a policy question rather than a property of a syscall
+// wrapper.
+//
+// An unreadable settings store answers no. A read error is not consent, and defaulting to the
+// permissive side of a security setting because the file would not open is how an escape hatch
+// becomes the normal path.
+func (m *PluginManager) sandboxPolicy() domainplugin.SandboxPolicy {
+	if m.settingsReader == nil {
+		return domainplugin.SandboxPolicy{}
+	}
+	settings, err := m.settingsReader.PluginSettings()
+	if err != nil {
+		return domainplugin.SandboxPolicy{}
+	}
+	return domainplugin.SandboxPolicy{AllowUnsandboxedFallback: settings.AllowUnsandboxedFallback}
+}
+
 // auditPluginSandbox records what boundary a plugin process actually came up behind.
 //
 // It is written on every successful start, including — especially — when the answer is that there

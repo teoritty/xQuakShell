@@ -11,9 +11,13 @@ import (
 )
 
 type managedProcess struct {
-	key         string
-	plugin      domainplugin.InstalledPlugin
-	sessionID   string
+	key       string
+	plugin    domainplugin.InstalledPlugin
+	sessionID string
+	// dataRoot is carried so that teardown can find the durable permissions the start wrote. On
+	// Windows the grants live on paths derived from it, and closeResources is reached from paths
+	// that have no access to the host's configuration.
+	dataRoot    string
 	child       childProcess
 	cancel      context.CancelFunc
 	reaper      *processReaper
@@ -26,7 +30,26 @@ type managedProcess struct {
 	negotiated  domainplugin.NegotiatedDescriptor
 	state       domainplugin.ProcessState
 	job         pluginJob
+	// sandbox is the boundary THIS process actually came up behind. It lives here rather than on
+	// the host because the answer is now per process: the same build can confine one plugin and
+	// fail to confine another, and a user who allowed the fallback gets a mix.
+	sandbox     domainplugin.SandboxMode
 	cleanupOnce sync.Once
+}
+
+// adopt takes ownership of everything the spawn produced, in one step.
+//
+// It is one call rather than six assignments because its only caller makes them under the lock that
+// decides whether this Start still owns the reservation — a block that has to stay short enough to
+// read as the atomic step it is, and that the size ratchet on Start keeps honest.
+func (mp *managedProcess) adopt(spawned *spawnedProcess, job pluginJob) {
+	mp.sandbox = spawned.sandbox
+	mp.dataRoot = spawned.dataRoot
+	mp.child = spawned.child
+	mp.cancel = spawned.cancel
+	mp.reaper = spawned.reaper
+	mp.stderr = spawned.stderr
+	mp.job = job
 }
 
 func (mp *managedProcess) closeResources(killProcess bool) {
@@ -64,6 +87,10 @@ func (mp *managedProcess) closeResources(killProcess bool) {
 			mp.cancel()
 		}
 		closePluginJob(mp.job)
+		// Last, because the process must be gone first: on Windows this deletes the AppContainer
+		// profile the instance ran in, which is durable state in the user's registry and would
+		// otherwise accumulate one entry per session for the life of the installation.
+		releaseInstanceContainer(mp.plugin, mp.sessionID, mp.dataRoot)
 	})
 }
 

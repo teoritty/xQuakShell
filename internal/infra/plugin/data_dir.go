@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,10 +13,38 @@ import (
 // For per-session isolation the path is scoped under the plugin data root by session ID.
 func PluginInstanceDataDir(dataRoot, pluginID, sessionID string, isolation domainplugin.IsolationMode) string {
 	base := PluginDataDir(dataRoot, pluginID)
-	if isolation == domainplugin.IsolationPerSession && strings.TrimSpace(sessionID) != "" {
-		return filepath.Join(base, sanitizeSessionSegment(sessionID))
+	if scope := instanceSessionScope(sessionID, isolation); scope != "" {
+		return filepath.Join(base, sanitizeSessionSegment(scope))
 	}
 	return base
+}
+
+// instanceSessionScope reports the session that scopes one plugin process, or "" when the process
+// is scoped to the plugin alone.
+//
+// Everything that must be per-instance asks this one question, and that is the point rather than
+// tidiness. On Windows a plugin instance also gets an AppContainer whose SID carries the ACEs on
+// that data directory; if the two disagreed about whether a session scopes this process, one
+// session's container SID would end up holding an ACE on another session's directory — and ADR-003
+// exists precisely so those two sessions cannot see each other's files.
+func instanceSessionScope(sessionID string, isolation domainplugin.IsolationMode) string {
+	if isolation != domainplugin.IsolationPerSession {
+		return ""
+	}
+	return strings.TrimSpace(sessionID)
+}
+
+// PluginInstanceKey names one plugin process instance for anything that has to be scoped to exactly
+// what PluginInstanceDataDir is scoped to.
+//
+// The parts are length-prefixed rather than joined by a separator. A separator has to be a byte
+// that cannot appear in either part, and neither a plugin id (written by a plugin author) nor a
+// session id offers that guarantee for free; length prefixes need no such assumption, so no pair of
+// distinct identities can render to the same key. That matters because the key is hashed into an
+// AppContainer name, and two instances sharing one share every ACE granted to it.
+func PluginInstanceKey(pluginID, sessionID string, isolation domainplugin.IsolationMode) string {
+	scope := instanceSessionScope(sessionID, isolation)
+	return fmt.Sprintf("%d:%s%d:%s", len(pluginID), pluginID, len(scope), scope)
 }
 
 func sanitizeSessionSegment(sessionID string) string {

@@ -1519,6 +1519,7 @@ export namespace wails {
 	    requiresSecretAccess: boolean;
 	    signed: boolean;
 	    enabled: boolean;
+	    sandboxMode?: string;
 	    discoveryIcons?: Record<string, string>;
 	
 	    static createFrom(source: any = {}) {
@@ -1536,6 +1537,7 @@ export namespace wails {
 	        this.requiresSecretAccess = source["requiresSecretAccess"];
 	        this.signed = source["signed"];
 	        this.enabled = source["enabled"];
+	        this.sandboxMode = source["sandboxMode"];
 	        this.discoveryIcons = source["discoveryIcons"];
 	    }
 	}
@@ -1612,6 +1614,7 @@ export namespace wails {
 	export class PluginSettingsDTO {
 	    trustedPublisherKeys: string[];
 	    requireSignedPlugins: boolean;
+	    allowUnsandboxedFallback: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PluginSettingsDTO(source);
@@ -1621,6 +1624,7 @@ export namespace wails {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.trustedPublisherKeys = source["trustedPublisherKeys"];
 	        this.requireSignedPlugins = source["requireSignedPlugins"];
+	        this.allowUnsandboxedFallback = source["allowUnsandboxedFallback"];
 	    }
 	}
 	

@@ -39,7 +39,7 @@ func TestAPluginProcessOutlivesTheCallThatStartedIt(t *testing.T) {
 	func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		if err := host.Start(ctx, plugin, ""); err != nil {
+		if err := host.Start(ctx, plugin, "", domainplugin.SandboxPolicy{}); err != nil {
 			t.Fatalf("start echo plugin: %v", err)
 		}
 	}()
