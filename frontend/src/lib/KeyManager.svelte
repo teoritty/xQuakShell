@@ -39,6 +39,7 @@
   let showRename = false;
   let policyDraft: KeyOptions = { ...defaultKeyOptions };
   let dialogError = '';
+  let deployNotice = '';
   let busy = false;
 
   $: selected = $storedKeys.find((key) => key.id === $selectedKeyId) || null;
@@ -152,8 +153,9 @@
     try {
       const result = await publishKey(event.detail, selected.id);
       if (result) {
-        showDeploy = false;
-        showError(result.alreadyPresent ? 'That key was already authorised on this server.' : `Key added to ${result.path}.`);
+        deployNotice = result.alreadyPresent
+          ? 'That key was already authorised on this server — nothing was changed.'
+          : `Added to ${result.path}.`;
       }
     } catch (e) {
       dialogError = e instanceof Error ? e.message : String(e);
@@ -183,7 +185,7 @@
           on:policy={openPolicy}
           on:passphrase={() => { dialogError = ''; showPassphrase = true; }}
           on:export={() => { dialogError = ''; showExport = true; }}
-          on:deploy={() => { dialogError = ''; showDeploy = true; }}
+          on:deploy={() => { dialogError = ''; deployNotice = ''; showDeploy = true; }}
           on:delete={onDelete}
         />
       {/if}
@@ -195,7 +197,7 @@
 <NewKeyDialog bind:show={showNew} on:submit={onCreate} on:close={() => (showNew = false)} />
 <ExportKeyDialog bind:show={showExport} target={selected} error={dialogError} on:submit={onExport} on:close={() => (showExport = false)} />
 <KeyPassphraseDialog bind:show={showPassphrase} target={selected} error={dialogError} on:submit={onPassphrase} on:close={() => (showPassphrase = false)} />
-<DeployKeyDialog bind:show={showDeploy} target={selected} sessions={$sessions} error={dialogError} {busy} on:submit={onDeploy} on:close={() => (showDeploy = false)} />
+<DeployKeyDialog bind:show={showDeploy} target={selected} sessions={$sessions} error={dialogError} notice={deployNotice} {busy} on:submit={onDeploy} on:close={() => (showDeploy = false)} />
 
 <Modal title="Settings for {selected?.comment || 'key'}" show={showPolicy} on:close={() => (showPolicy = false)}>
   <KeyPolicyFields bind:options={policyDraft} showNonExportable={!selected?.nonExportable} hasPassphrase={selected?.policy === 'passphrase'} />

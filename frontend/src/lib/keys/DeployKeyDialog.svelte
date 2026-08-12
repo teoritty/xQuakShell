@@ -8,6 +8,9 @@
   export let target: StoredKey | null = null;
   export let sessions: Session[] = [];
   export let error = '';
+  // The outcome is shown in the dialog rather than through the error toast: publishing succeeds
+  // far more often than it fails, and reporting a success on the error channel is a lie about it.
+  export let notice = '';
   export let busy = false;
 
   const dispatch = createEventDispatcher();
@@ -39,12 +42,13 @@
     </p>
   {/if}
 
+  {#if notice}<p class="notice">{notice}</p>{/if}
   {#if error}<p class="error">{error}</p>{/if}
 
   <div class="dialog-actions">
     <button on:click={() => dispatch('close')}>Cancel</button>
     <button class="primary" on:click={() => dispatch('submit', sessionId)} disabled={busy || ready.length === 0}>
-      {busy ? 'Publishing…' : 'Publish'}
+      {busy ? 'Publishing…' : notice ? 'Publish again' : 'Publish'}
     </button>
   </div>
 </Modal>
@@ -104,6 +108,16 @@
     margin: 8px 0 0;
     font-size: 12px;
     color: var(--danger, #ff6b6b);
+  }
+
+  .notice {
+    margin: 10px 0 0;
+    padding: 8px 10px;
+    border-radius: 4px;
+    background: var(--ok-bg, rgba(74, 158, 255, 0.14));
+    color: var(--ok-fg, #7ab8ff);
+    font-size: 12px;
+    line-height: 1.45;
   }
 
   button.primary {
