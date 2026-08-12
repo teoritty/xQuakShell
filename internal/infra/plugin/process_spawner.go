@@ -19,12 +19,16 @@ type spawnedProcess struct {
 	sandbox domainplugin.SandboxMode
 	// limitsApplied says the child capped its own resources on the way in.
 	limitsApplied bool
-	child         childProcess
-	cancel        context.CancelFunc
-	reaper        *processReaper
-	stderr        io.WriteCloser
-	stdin         io.WriteCloser
-	stdout        io.ReadCloser
+	// dataRoot is where this instance's directories and its durable permissions were rooted. The
+	// teardown needs it to take those permissions back and is reached from places that have no
+	// access to the host's configuration, so it travels with the process that they were written for.
+	dataRoot string
+	child    childProcess
+	cancel   context.CancelFunc
+	reaper   *processReaper
+	stderr   io.WriteCloser
+	stdin    io.WriteCloser
+	stdout   io.ReadCloser
 }
 
 // spawnPluginProcess brings up the plugin binary together with the directories it is allowed to
@@ -76,6 +80,7 @@ func spawnPluginProcess(dataRoot string, plugin domainplugin.InstalledPlugin, se
 	return &spawnedProcess{
 		sandbox:       started.mode,
 		limitsApplied: started.limitsApplied,
+		dataRoot:      dataRoot,
 		child:         started.child,
 		cancel:        started.cancel,
 		reaper:        reaper,

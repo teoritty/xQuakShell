@@ -10,5 +10,7 @@ import domainplugin "xquakshell/internal/domain/plugin"
 // of the two mechanisms, not an omission here.
 func SweepOrphanContainers() {}
 
-// releaseInstanceContainer has nothing to release: a Landlock ruleset dies with the process.
-func releaseInstanceContainer(_ domainplugin.InstalledPlugin, _ string) {}
+// releaseInstanceContainer has nothing to release: a Landlock ruleset dies with the process, and it
+// leaves nothing on disk to take back either — the rules were held in a descriptor, never written
+// as durable permissions the way an AppContainer's ACEs are.
+func releaseInstanceContainer(_ domainplugin.InstalledPlugin, _, _ string) {}

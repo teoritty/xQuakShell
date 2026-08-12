@@ -59,7 +59,7 @@ func TestAPreparedContainerHoldsTwoGrantsAndNoOthers(t *testing.T) {
 		t.Fatalf("prepareContainer: %v", err)
 	}
 	t.Cleanup(func() {
-		if err := releaseContainer(plugin, "sess-a"); err != nil {
+		if err := releaseContainer(plugin, dataRoot, "sess-a"); err != nil {
 			t.Errorf("the profile was left behind: %v", err)
 		}
 	})
@@ -121,7 +121,7 @@ func TestAConfinedPluginsTempDirectoryStaysInsideItsInstanceDirectory(t *testing
 	if _, err := prepareContainer(plugin, dataRoot, "sess-a", instanceDir); err != nil {
 		t.Fatalf("prepareContainer: %v", err)
 	}
-	t.Cleanup(func() { _ = releaseContainer(plugin, "sess-a") })
+	t.Cleanup(func() { _ = releaseContainer(plugin, dataRoot, "sess-a") })
 
 	tempDir := PluginInstanceEffectiveTempDir(plugin, "sess-a", instanceDir)
 	if !pathIsUnder(instanceDir, tempDir) {
@@ -140,4 +140,93 @@ func pathIsUnder(root, target string) bool {
 	rel, err := filepath.Rel(root, target)
 	return err == nil && rel != ".." && !filepath.IsAbs(rel) &&
 		(len(rel) < 2 || rel[:2] != "..")
+}
+
+// grantState reads whether the container still holds a grant, failing the test if the question
+// itself cannot be answered — an unreadable DACL is not the same as an absent ACE, and reporting it
+// as one would turn a broken check into a passing test.
+func grantState(t *testing.T, container *sandbox.Container, path string, mask uint32) bool {
+	t.Helper()
+	held, err := container.HasGrant(path, mask)
+	if err != nil {
+		t.Fatalf("read the dacl of %s: %v", path, err)
+	}
+	return held
+}
+
+// TestReleasingASessionScopedContainerTakesItsAccessBackWithIt is what keeps a plugin installable
+// for the life of the installation rather than for the first fifteen hundred connections.
+//
+// A session-scoped container's name comes from a fresh random session id, so its SID is used once
+// and never again. Deleting the profile without revoking its ACEs left one permanent entry per
+// connection on every install-tree path; a DACL is capped at 64 KB, and past that the grant fails,
+// which fails the start — for good, and surviving a reinstall, because the ACL belongs to the plugin
+// directory and not to the application.
+func TestReleasingASessionScopedContainerTakesItsAccessBackWithIt(t *testing.T) {
+	if !sandbox.Support().Available {
+		t.Skip("this build cannot create an AppContainer")
+	}
+	const pluginID = "com.xquakshell.revoke-probe"
+	dataRoot := t.TempDir()
+	plugin, instanceDir := probeInstall(t, dataRoot, pluginID)
+	binDir := filepath.Join(plugin.RootDir, "bin")
+
+	container, err := prepareContainer(plugin, dataRoot, "sess-a", instanceDir)
+	if err != nil {
+		t.Fatalf("prepareContainer: %v", err)
+	}
+	t.Cleanup(func() { _ = releaseContainer(plugin, dataRoot, "sess-a") })
+
+	if !grantState(t, container, binDir, sandbox.AccessReadExecute) {
+		t.Fatalf("%s carries no grant before the release; this test would prove nothing", binDir)
+	}
+
+	if err := releaseContainer(plugin, dataRoot, "sess-a"); err != nil {
+		t.Fatalf("releaseContainer: %v", err)
+	}
+
+	if grantState(t, container, binDir, sandbox.AccessReadExecute) {
+		t.Errorf("%s still names the container SID after its profile was deleted; the ACE outlived "+
+			"the identity it was written for and nothing will ever remove it", binDir)
+	}
+	if grantState(t, container, instanceDir, sandbox.AccessReadWrite) {
+		t.Errorf("%s still names the container SID after its profile was deleted", instanceDir)
+	}
+}
+
+// TestReleasingAPerPluginContainerKeepsTheAccessItWillNeedAgain is the other half of the rule, and
+// it is a test rather than a comment because the two are one line apart.
+//
+// A per-plugin container answers to the same name at every start for the life of the installation.
+// Revoking its ACEs on the way out would mean rewriting the ACL of the whole install subtree on the
+// way back in, every single start, to restore exactly what was just removed — the cost EnsureGrant
+// exists to avoid, reintroduced by a cleanup aimed at a problem this mode does not have.
+func TestReleasingAPerPluginContainerKeepsTheAccessItWillNeedAgain(t *testing.T) {
+	if !sandbox.Support().Available {
+		t.Skip("this build cannot create an AppContainer")
+	}
+	const pluginID = "com.xquakshell.keep-probe"
+	dataRoot := t.TempDir()
+	plugin, _ := probeInstall(t, dataRoot, pluginID)
+	plugin.Manifest.Isolation = domainplugin.IsolationPerPlugin
+	binDir := filepath.Join(plugin.RootDir, "bin")
+
+	instanceDir, err := EnsurePluginInstanceDataDir(dataRoot, pluginID, "sess-a", domainplugin.IsolationPerPlugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	container, err := prepareContainer(plugin, dataRoot, "sess-a", instanceDir)
+	if err != nil {
+		t.Fatalf("prepareContainer: %v", err)
+	}
+	t.Cleanup(func() { _ = releaseContainer(plugin, dataRoot, "sess-a") })
+
+	if err := releaseContainer(plugin, dataRoot, "sess-a"); err != nil {
+		t.Fatalf("releaseContainer: %v", err)
+	}
+
+	if !grantState(t, container, binDir, sandbox.AccessReadExecute) {
+		t.Errorf("%s lost its grant when the profile was deleted; the next start of this plugin "+
+			"has to rewrite the ACL of the entire install tree to put back what it just had", binDir)
+	}
 }

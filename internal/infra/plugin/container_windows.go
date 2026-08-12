@@ -4,6 +4,7 @@ package plugin
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
 	domainplugin "xquakshell/internal/domain/plugin"
@@ -72,12 +73,61 @@ func grantContainerAccess(container *sandbox.Container, plugin domainplugin.Inst
 	return nil
 }
 
-// releaseContainer deletes the profile for one instance.
+// releaseContainer deletes the profile for one instance, and takes its ACEs back with it when the
+// identity behind them will never be used again.
 //
 // Profiles persist in the user's registry until deleted, and a per-session container means one
 // profile per session, so a long-running installation that never reaped would accumulate thousands
 // of them. Every teardown path calls this and they overlap by design; deleting a profile that is
 // already gone is success.
-func releaseContainer(plugin domainplugin.InstalledPlugin, sessionID string) error {
+//
+// The ACEs are only revoked for a session-scoped identity, and the asymmetry is the point. A
+// per-plugin container keeps one name for the life of the installation, so its ACE is written once
+// and matches on every later start — revoking it would buy nothing and cost a full subtree ACL
+// rewrite on every single start, which is exactly what EnsureGrant exists to avoid. A session
+// scoped one is used by one connection and then never again, so its ACE is pure residue.
+//
+// An empty dataRoot means the caller never got as far as owning a running process — a start that
+// lost its reservation to a concurrent stop tears down an instance it never adopted. There is
+// nothing to revoke from a root nobody named, and guessing one would revoke against whatever
+// relative path it resolved to, so this deletes the profile and stops there.
+func releaseContainer(plugin domainplugin.InstalledPlugin, dataRoot, sessionID string) error {
+	if dataRoot != "" && instanceSessionScope(sessionID, plugin.Manifest.EffectiveIsolation()) != "" {
+		revokeContainerAccess(plugin, dataRoot, sessionID)
+	}
 	return sandbox.DeleteContainer(pluginContainerName(plugin, sessionID))
+}
+
+// revokeContainerAccess takes back the two grants prepareContainer wrote.
+//
+// It addresses the container by name rather than by holding the one the spawn made: the SID is a
+// pure function of the name, so the teardown does not have to be handed anything the start created,
+// and a start that failed halfway through its grants is cleaned up by the same code.
+//
+// Nothing here is fatal. A plugin being uninstalled has already lost the directory the ACE was
+// written on, and an ACE on a directory that no longer exists is not a leak; a revoke that fails for
+// any other reason must still not stop the profile deletion behind it, or a failure that leaves
+// residue would also leave the registry entry that residue is measured against.
+func revokeContainerAccess(plugin domainplugin.InstalledPlugin, dataRoot, sessionID string) {
+	container, err := sandbox.OpenContainer(pluginContainerName(plugin, sessionID))
+	if err != nil {
+		slog.Warn("plugin sandbox: could not address an app container to revoke its access",
+			"pluginId", plugin.Manifest.ID, "err", err)
+		return
+	}
+	granted, err := installReadPaths(dataRoot, plugin)
+	if err != nil {
+		granted = nil
+	}
+	isolation := plugin.Manifest.EffectiveIsolation()
+	granted = append(granted, PluginInstanceDataDir(dataRoot, plugin.Manifest.ID, sessionID, isolation))
+	for _, path := range granted {
+		if _, err := os.Stat(path); err != nil {
+			continue
+		}
+		if err := container.Revoke(path); err != nil {
+			slog.Warn("plugin sandbox: could not revoke an app container's access",
+				"pluginId", plugin.Manifest.ID, "path", path, "err", err)
+		}
+	}
 }

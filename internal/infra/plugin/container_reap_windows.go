@@ -61,15 +61,18 @@ func sweepOrphanContainers() {
 
 // releaseInstanceContainer deletes one instance's profile as its process goes away.
 //
-// This is the path that keeps profiles from accumulating in normal operation; the startup sweep is
-// only for what a crash skipped. It is safe for a plugin that will start again — the name is a pure
-// function of the identity, so the next start recreates the same profile with the same SID, and the
-// ACEs already written for it stay valid in the meantime.
-func releaseInstanceContainer(plugin domainplugin.InstalledPlugin, sessionID string) {
+// This is the path that keeps profiles and their ACEs from accumulating in normal operation; the
+// startup sweep is only for what a crash skipped. It is safe for a plugin that will start again —
+// the name is a pure function of the identity, so a per-plugin instance recreates the same profile
+// with the same SID and the ACEs already written for it stay valid in the meantime.
+//
+// dataRoot is here so the ACEs can be found: they were written on paths derived from it, and a
+// teardown that knows only the identity can delete the profile while leaving the marks it made.
+func releaseInstanceContainer(plugin domainplugin.InstalledPlugin, sessionID, dataRoot string) {
 	if !sandbox.Support().Available {
 		return
 	}
-	if err := releaseContainer(plugin, sessionID); err != nil {
+	if err := releaseContainer(plugin, dataRoot, sessionID); err != nil {
 		slog.Warn("plugin sandbox: could not delete an app container profile",
 			"pluginId", plugin.Manifest.ID, "err", err)
 	}

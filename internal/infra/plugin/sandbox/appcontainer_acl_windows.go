@@ -49,6 +49,43 @@ func (c *Container) Grant(path string, mask uint32) error {
 	return nil
 }
 
+// Revoke removes every access this container was granted on path.
+//
+// It exists because an ACE outlives the profile it was written for. DeleteContainer takes the
+// registry entry and the Packages directory; the ACEs stay, and nothing else in this package ever
+// removed one — so an identity that is used once and never again leaves a permanent mark on the
+// directory it touched. With per-session isolation that identity is a fresh 128-bit session id, so
+// the marks accumulate one per connection, on every entry of the install tree, for the life of the
+// installation. A DACL is capped at 64 KB; past roughly fifteen hundred of them SetNamedSecurityInfo
+// starts refusing, which fails the grant, which fails the start — permanently, and surviving a
+// reinstall, because the ACL belongs to the plugin directory rather than to the application.
+//
+// REVOKE_ACCESS is the whole mechanism: SetEntriesInAcl drops every ACE naming the trustee, so the
+// access mask and the inheritance flags are deliberately not repeated here. Getting them wrong
+// cannot leave a partial grant behind, because they are not read.
+func (c *Container) Revoke(path string) error {
+	existing, err := currentDACL(path)
+	if err != nil {
+		return err
+	}
+	merged, err := windows.ACLFromEntries([]windows.EXPLICIT_ACCESS{{
+		AccessMode: windows.REVOKE_ACCESS,
+		Trustee: windows.TRUSTEE{
+			TrusteeForm:  windows.TRUSTEE_IS_SID,
+			TrusteeType:  windows.TRUSTEE_IS_GROUP,
+			TrusteeValue: windows.TrusteeValueFromSID(c.sid),
+		},
+	}}, existing)
+	if err != nil {
+		return fmt.Errorf("build dacl for %s: %w", path, err)
+	}
+	if err := windows.SetNamedSecurityInfo(path, windows.SE_FILE_OBJECT,
+		windows.DACL_SECURITY_INFORMATION, nil, nil, merged, nil); err != nil {
+		return fmt.Errorf("set dacl on %s: %w", path, err)
+	}
+	return nil
+}
+
 // EnsureGrant applies the grant only when it is not already there.
 //
 // Verify-then-repair rather than reapply-always, and the difference is measured in plugin start
