@@ -2,5 +2,9 @@
   "domain/discovery": {
     "efficacy": 100,
     "coverage": 94.28571428571428
+  },
+  "domain/plugin": {
+    "efficacy": 80.95238095238095,
+    "coverage": 76.82926829268293
   }
 }
