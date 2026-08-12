@@ -304,7 +304,9 @@ func TestVaultPassphraseRequiresCache(t *testing.T) {
 		registry,
 		vaultConnRepo{conn: conn},
 		vaultPasswordRepo{},
-		passphraseIdentRepo{idents: []domain.SSHIdentity{{ID: "id1", Encrypted: true}}},
+		// AllowPlugins is what this test is about serving; without it the passphrase is refused
+		// regardless of the cache, which is the subject of its own test.
+		passphraseIdentRepo{idents: []domain.SSHIdentity{{ID: "id1", Encrypted: true, AllowPlugins: true}}},
 		vaultSettingsReader{granted: true},
 		&memoryPassphraseCache{values: map[string]string{"id1": "secret-pass"}},
 	)
