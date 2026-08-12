@@ -13,6 +13,19 @@ on:
   schedule:
     - cron: '17 3 * * *' # 03:17 UTC, off the hour so it does not queue behind everything else
   workflow_dispatch:
+    inputs:
+      # Recording a baseline needs a run on the platform that will check it, and this is that
+      # platform. A score for a package whose behaviour differs by OS is worthless if it was
+      # measured somewhere else, so the numbers are produced here and committed by hand from the
+      # artifact - the workflow has read-only permissions and does not push.
+      update:
+        description: 'Re-record the baseline and upload it as an artifact instead of gating on it'
+        type: boolean
+        default: false
+      only:
+        description: 'Comma-separated target labels to measure (empty means all of them)'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -46,10 +59,41 @@ jobs:
           npm ci
           npm run build
 
+      # Not part of the merge gate: a fuzz target is a search, not an assertion, and a search that
+      # finds nothing tonight may find something tomorrow on the same code. The seed corpus in
+      # testdata is what protects the pull request; this is what grows it. One minute per target is
+      # enough to keep finding new inputs on a corpus this small.
+      - name: Fuzz the sandbox shim argv parser
+        if: ${{ !inputs.update }}
+        run: go test ./internal/infra/plugin/sandbox/ -run=FuzzParseShimArgs -fuzz=FuzzParseShimArgs -fuzztime=60s
+
+      # The label list goes through the environment rather than into the command line. A dispatch
+      # input interpolated straight into `run:` is a shell injection with extra steps, and the fact
+      # that only a collaborator can trigger it is not the same as it being safe.
       - name: Mutation testing (Go)
-        run: go run ./scripts/mutate
+        if: ${{ !inputs.update }}
+        env:
+          ONLY: ${{ inputs.only }}
+        run: go run ./scripts/mutate -only="$ONLY"
+
+      - name: Re-record the mutation baseline
+        if: ${{ inputs.update }}
+        env:
+          ONLY: ${{ inputs.only }}
+        run: go run ./scripts/mutate -update -only="$ONLY"
+
+      - name: Upload the re-recorded baseline
+        if: ${{ inputs.update }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-baseline
+          path: scripts/mutate/baseline.json
+          if-no-files-found: error
 
   frontend:
+    # A baseline re-record is about the Go table; running 1997 Stryker mutants alongside it would
+    # cost two hours and produce nothing anyone asked for.
+    if: ${{ !inputs.update }}
     runs-on: ubuntu-latest
     # A measured local run is 1997 mutants in about 2h15m, and every mutant
     # reruns the whole suite. 120 would cut it off just short of the finish.

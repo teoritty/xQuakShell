@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -55,12 +56,26 @@ var targets = []target{
 	{Label: "domain/discovery", Packages: []string{"./internal/domain/discovery/"}, MinEnv: "MUTATE_DISCOVERY_MIN"},
 }
 
-// The obvious next targets are ./internal/domain/ and ./internal/domain/plugin/,
-// which are not listed yet because gremlins v0.5.0 panics part-way through both
-// on Windows ("error, this is temporary", engine/executor.go:167) and leaves no
-// usable report. Add them once a run completes on the nightly's Linux runner,
-// or once the tool is upgraded past the bug - not by pinning a score nobody has
-// seen the tool produce.
+// The obvious next targets are ./internal/domain/plugin/ and
+// ./internal/infra/plugin/sandbox/. Two separate things keep them out.
+//
+// The gremlins v0.5.0 Windows panic ("error, this is temporary",
+// engine/executor.go:167) is real and still reproduces - on ./internal/domain/
+// and on the discovery target above - but it is package-specific, not
+// universal: ./internal/domain/plugin/ completes there in under ten minutes.
+// So the panic alone no longer explains the absence.
+//
+// What does is the platform the score has to come from. This gate runs on the
+// nightly's Linux runner, and both packages behave differently there:
+// domain/plugin through CurrentPlatformOS and the asset matching built on it,
+// infra/plugin/sandbox because its Windows and Linux halves are different files
+// with different tests, and the Landlock half runs only where the kernel offers
+// Landlock at all. A number measured on a developer's Windows box would be a
+// score nobody has seen the tool produce for the thing being gated, which is
+// the one way of recording a baseline this file has always refused.
+//
+// Record them with a Linux run of `go run ./scripts/mutate -only=<label>
+// -update`, which is what -only exists for: a full matrix takes hours.
 
 // score is what one target achieved. Efficacy is the share of covered mutants
 // the tests killed; coverage is the share of mutants the tests reach at all.
@@ -77,16 +92,21 @@ const tolerance = 0.05
 
 func main() {
 	update := flag.Bool("update", false, "re-record the baseline from this run")
+	only := flag.String("only", "", "comma-separated target labels to run; empty runs all of them")
 	flag.Parse()
 
-	if err := run(*update); err != nil {
+	if err := run(*update, *only); err != nil {
 		fmt.Fprintf(os.Stderr, "mutate: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(update bool) error {
+func run(update bool, only string) error {
 	baseline, err := loadBaseline()
+	if err != nil {
+		return err
+	}
+	selected, err := selectTargets(only)
 	if err != nil {
 		return err
 	}
@@ -100,7 +120,7 @@ func run(update bool) error {
 	measured := map[string]score{}
 	var failures []string
 
-	for _, t := range targets {
+	for _, t := range selected {
 		got, err := t.measure(reportDir)
 		if err != nil {
 			return fmt.Errorf("%s: %w", t.Label, err)
@@ -119,7 +139,12 @@ func run(update bool) error {
 	}
 
 	if update {
-		return writeBaseline(measured)
+		// Merged, never substituted. A -only run measures a subset, and writing that subset over
+		// the file would delete the ratchet for every target it did not touch: those entries would
+		// stop being checked, and the next regression in them would pass unnoticed. Losing a
+		// recorded score is a silent failure, so it is the one thing this must not do.
+		maps.Copy(baseline, measured)
+		return writeBaseline(baseline)
 	}
 
 	// Every target runs before anything is reported, so one regression cannot
@@ -131,6 +156,39 @@ func run(update bool) error {
 		return fmt.Errorf("%d mutation gate(s) failed", len(failures))
 	}
 	return nil
+}
+
+// selectTargets narrows the run to the labels named in -only.
+//
+// A full matrix is measured in hours, so re-recording one target after changing
+// its tests is otherwise a whole night's work. An unknown label is an error
+// rather than an empty run: a typo that measured nothing would report success
+// and re-record nothing, which is indistinguishable from a run that worked.
+func selectTargets(only string) ([]target, error) {
+	if strings.TrimSpace(only) == "" {
+		return targets, nil
+	}
+	byLabel := map[string]target{}
+	for _, t := range targets {
+		byLabel[t.Label] = t
+	}
+
+	var selected []target
+	for label := range strings.SplitSeq(only, ",") {
+		label = strings.TrimSpace(label)
+		if label == "" {
+			continue
+		}
+		t, known := byLabel[label]
+		if !known {
+			return nil, fmt.Errorf("-only names %q, which is not a target in this table", label)
+		}
+		selected = append(selected, t)
+	}
+	if len(selected) == 0 {
+		return nil, fmt.Errorf("-only was given but named no target")
+	}
+	return selected, nil
 }
 
 // drift fails on a drop and equally on an unrecorded rise. A gate that only
