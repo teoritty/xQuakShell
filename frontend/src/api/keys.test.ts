@@ -51,7 +51,7 @@ async function run() {
   // would catch someone adding a convenience field to the DTO later.
   const forbidden = ['privateKey', 'pem', 'pemData', 'secret', 'blob'];
   for (const field of forbidden) {
-    assert(!(field in (keys[0] as Record<string, unknown>)), `listing must not carry ${field}`);
+    assert(!(field in (keys[0] as unknown as Record<string, unknown>)), `listing must not carry ${field}`);
   }
 
   // An unrecognised policy from an older backend falls back to the pre-policy behaviour rather
