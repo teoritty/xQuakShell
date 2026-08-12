@@ -1,0 +1,16 @@
+# Line endings are decided here, not by each machine's core.autocrlf.
+#
+# Several tests compare a file on disk byte for byte against bytes this code just produced: the
+# frozen plugin API surface and the plugin.json schema golden (ADR-012, ADR-017), and the packaging
+# scripts that must stay POSIX shell. A checkout that rewrote their newlines as CRLF failed every
+# one of them.
+#
+# That is exactly what a Windows CI runner does - it sets core.autocrlf=true - and exactly what a
+# developer with core.autocrlf=false never sees. The two disagreed silently until the test suite
+# started running on Windows in CI, so the answer belongs in the repository rather than in each
+# clone's configuration.
+* text=auto eol=lf
+
+# The two interpreters that genuinely need CRLF: cmd.exe misparses a batch file without it.
+*.bat text eol=crlf
+*.cmd text eol=crlf
