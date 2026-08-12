@@ -96,6 +96,24 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   discarded what the plugin settings dialog itself wrote, so "require signed plugins" silently never
   persisted. The dialog now writes that section through its own path, merging onto the stored copy
   rather than replacing it.
+- **On Windows, a plugin could be refused access to its own files if your account name is long.**
+  Windows gives such a profile an 8.3 alias — `C:\Users\RUNNER~1\…` alongside
+  `C:\Users\runneradmin\…` — and the checks that keep a path inside its allowed directory resolved
+  one side of the comparison to the canonical long form while leaving the other in whatever spelling
+  it arrived. The two never matched, so reading or writing inside the plugin's own data directory
+  came back as `plugin capability denied`, an installed plugin's own binary could be reported as
+  escaping its bundle, and its UI assets were served as `403`. The same comparison guards SFTP and
+  the local file manager.
+
+  **Who is affected:** anyone on Windows whose account name is longer than eight characters or
+  contains a space, which is most people. Both sides are now compared in the same spelling.
+- **A path that is not valid UTF-8 could hang the check that decides whether a path escaped its
+  root.** Windows accepts such a string as a UNC volume name and hands back a replacement character
+  when it resolves it, after which the standard library's path comparison spins forever. This is
+  hardening rather than a defect anyone hit: the roots involved come from the application's own
+  configuration and not from anything a user or a remote host supplies, and no shipped code path is
+  known to reach it. It was found by fuzzing the plugin sandbox's arguments. Such a path is now
+  refused outright, in the deny direction, on every entry point.
 
 ### Removed
 
