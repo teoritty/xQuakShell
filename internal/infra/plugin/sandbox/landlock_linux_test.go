@@ -4,11 +4,13 @@ package sandbox
 
 import (
 	"errors"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -42,9 +44,15 @@ func TestHandledAccessNetIsEmptyUntilTheKernelHasNetworkRules(t *testing.T) {
 				abi, got)
 		}
 	}
+	// The other half of the condition, which went unwritten for a while: a kernel that HAS network
+	// rules must have them named. Only asserting the empty case leaves a handledAccessNet that
+	// returns 0 forever passing, and a ruleset that handles no network right confines no socket.
 	want := uint64(unix.LANDLOCK_ACCESS_NET_BIND_TCP | unix.LANDLOCK_ACCESS_NET_CONNECT_TCP)
-	if got := handledAccessNet(abiNetwork); got != want {
-		t.Errorf("handledAccessNet(%d) = %#x, want %#x", abiNetwork, got, want)
+	for _, abi := range []int{abiNetwork, abiIoctlDev, abiIoctlDev + 4} {
+		if got := handledAccessNet(abi); got != want {
+			t.Errorf("handledAccessNet(%d) = %#x, want %#x; a kernel at or above %d governs TCP "+
+				"and a ruleset that does not say so leaves it open", abi, got, want, abiNetwork)
+		}
 	}
 }
 
@@ -109,10 +117,33 @@ func runConfinedChild(t *testing.T, name string) {
 	}
 }
 
-// childLayout is the child's side of the environment variable: the directories it was granted and
-// the one it must not reach.
+// TestAConfinedChildCannotOpenATCPConnectionWhereTheKernelHasNetworkRules is the only automated
+// check of the network half of this confinement, and on most machines it does not run.
+//
+// Landlock governs TCP from ABI 4 (kernel 6.7) onward, and applyLandlock adds no network rule at
+// all: naming the right in the ruleset and granting it to nothing is what denies every connect. The
+// mask tests above assert the naming; only this one asserts that the kernel then refuses a socket.
+//
+// Support() reports Network false on every Linux kernel by design — Landlock covers no UDP and no
+// raw socket, so the product never claims whole network confinement — which means no test driven by
+// the exported contract can ever reach this. It has to be asked of the ruleset directly.
+func TestAConfinedChildCannotOpenATCPConnectionWhereTheKernelHasNetworkRules(t *testing.T) {
+	abi, err := landlockABI()
+	if err != nil {
+		t.Skipf("kernel has no usable Landlock (%v); its network rules are UNVERIFIED here", err)
+	}
+	if abi < abiNetwork {
+		t.Skipf("this kernel reports Landlock ABI %d and TCP rules need ABI %d, so the network "+
+			"half of the confinement is UNVERIFIED on this machine; it runs where the kernel is "+
+			"6.7 or newer", abi, abiNetwork)
+	}
+	runConfinedChild(t, "TestConfinedChildCannotDialOut")
+}
+
+// childLayout is the child's side of the environment variable: the directories it was granted, the
+// one it must not reach, and an address that answers until the ruleset stops it being reachable.
 type childLayout struct {
-	root, install, instance, outside string
+	root, install, instance, outside, dial string
 }
 
 func readChildLayout(t *testing.T, driver string) (childLayout, bool) {
@@ -123,7 +154,7 @@ func readChildLayout(t *testing.T, driver string) (childLayout, bool) {
 		return childLayout{}, false
 	}
 	p := strings.Split(spec, string(os.PathListSeparator))
-	return childLayout{root: p[0], install: p[1], instance: p[2], outside: p[3]}, true
+	return childLayout{root: p[0], install: p[1], instance: p[2], outside: p[3], dial: p[4]}, true
 }
 
 func (l childLayout) shimArgs() ShimArgs {
@@ -135,8 +166,11 @@ func (l childLayout) shimArgs() ShimArgs {
 	}
 }
 
-// newProbeLayout builds the directories the child is granted and the one it must not reach, and
-// returns them in the order the child reads them.
+// newProbeLayout builds the directories the child is granted, the one it must not reach and a
+// listener it may try to reach, and returns them in the order the child reads them.
+//
+// The listener belongs to the parent and stays open for as long as the child runs, so a refused
+// connection is the ruleset's doing and not a socket that had already gone away.
 func newProbeLayout(t *testing.T) []string {
 	t.Helper()
 	root := t.TempDir()
@@ -153,8 +187,63 @@ func newProbeLayout(t *testing.T) []string {
 			t.Fatalf("write %s: %v", file, err)
 		}
 	}
-	return []string{root, install, instance, outside}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen for the confined child to dial: %v", err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+
+	return []string{root, install, instance, outside, listener.Addr().String()}
 }
+
+// TestConfinedChildCannotDialOut is the body of the child process started above, not a test of its
+// own: without the environment variable it has nothing to probe and skips.
+func TestConfinedChildCannotDialOut(t *testing.T) {
+	layout, ok := readChildLayout(t, "TestAConfinedChildCannotOpenATCPConnectionWhereTheKernelHasNetworkRules")
+	if !ok {
+		return
+	}
+	abi, err := landlockABI()
+	if err != nil {
+		t.Fatalf("probe landlock: %v", err)
+	}
+
+	// The control, in the same process and against the same address: a dial that was already
+	// failing would make every assertion below pass for the wrong reason.
+	conn, err := net.DialTimeout("tcp", layout.dial, dialWait)
+	if err != nil {
+		t.Fatalf("dialing %s before the ruleset failed: %v; nothing below would mean anything",
+			layout.dial, err)
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatalf("close the control connection: %v", err)
+	}
+
+	if err := applyLandlock(abi, layout.shimArgs()); err != nil {
+		t.Fatalf("applyLandlock: %v", err)
+	}
+
+	if conn, err := net.DialTimeout("tcp", layout.dial, dialWait); err == nil {
+		_ = conn.Close()
+		t.Errorf("the confined process connected to %s; on ABI %d the ruleset handles "+
+			"CONNECT_TCP and grants it to nothing, so this connection must not exist", layout.dial, abi)
+	} else if !errors.Is(err, os.ErrPermission) {
+		// A refusal for some other reason is not evidence of confinement. It is how a network
+		// test quietly stops testing the network — the address went away, the port was reused —
+		// and the control dial above cannot rule that out for the second attempt.
+		t.Errorf("dialing %s after the ruleset returned %v, want a permission error", layout.dial, err)
+	}
+
+	if listener, err := net.Listen("tcp", "127.0.0.1:0"); err == nil {
+		_ = listener.Close()
+		t.Errorf("the confined process bound a listening socket; the ruleset handles BIND_TCP "+
+			"as well and grants that to nothing either")
+	}
+}
+
+// dialWait is long enough that a slow runner is not mistaken for a boundary, and short enough that
+// a test which is genuinely blocked does not hold the suite.
+const dialWait = 5 * time.Second
 
 // TestConfinedChildProbesItsBoundary is the body of the child process the test above starts, not a
 // test of its own: without the environment variable it has nothing to probe and skips.
