@@ -77,6 +77,26 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
 
 ### Added
 
+- **A key manager, so your SSH keys can live in the vault instead of in `~/.ssh`.** Generate a key
+  (ed25519, RSA or ECDSA), import one you already have, rename it, change or remove its passphrase,
+  delete it, export it, and publish its public half to a server you are already connected to. Each
+  key shows its SHA256 fingerprint and its public key, and lists the connections using it.
+
+  Every key is stored encrypted, in the format `ssh-keygen` writes. You choose what protects each
+  one:
+
+  - **The vault** — unlocking the vault is enough to use the key. This is what an imported key with
+    no passphrase of its own becomes; it is no longer kept as a plain file inside the vault.
+  - **A passphrase you set** — the key stays shut even while the vault is open. Nothing stored
+    anywhere opens it without you.
+
+  Per key you can also decide how long an entered passphrase is remembered (until the vault locks,
+  for a set number of minutes, or never), and whether plugins may read it.
+
+  A key can be marked **never exportable** when you create it. That is permanent by design: a
+  promise that a key cannot leave the vault is worth nothing if a checkbox can take it back.
+  Exporting any other key asks for your master password and is recorded in the audit log.
+
 - **Plugin processes are confined by the operating system on Windows and Linux.** A plugin now runs
   inside a Windows AppContainer or a Linux Landlock ruleset that grants it read and execute on its
   own installed files, read and write on its own instance data directory, and nothing else. Your
@@ -110,6 +130,16 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   plugin's behalf already.
 
 ### Fixed
+
+- **A plugin can no longer read any private key belonging to a connection it was invoked for.**
+  Holding the vault capability used to be enough to be handed the raw private key, and the cached
+  passphrase with it — a decision far too coarse for "this third-party binary may read this
+  particular key". Both are now off unless you turn them on for that key, including for keys that
+  predate the setting, and every release is recorded in the audit log by fingerprint.
+
+- **A remembered key passphrase can now be made to expire.** It used to be held until the vault
+  locked, with no way to bound it, so an unlocked machine left unattended went on being able to
+  authenticate indefinitely.
 
 - A plugin's `TMPDIR` was never set, only `TEMP` and `TMP`, so on Linux and macOS every plugin's
   temporary files went to the shared `/tmp` instead of its own instance directory.
