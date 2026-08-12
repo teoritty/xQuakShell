@@ -211,6 +211,54 @@ func (a *App) ImportIdentity(pemBase64, comment string) (string, error) {
 	return a.api.ImportIdentity(pemBase64, comment)
 }
 
+func (a *App) GetKeys() ([]presentation.IdentityDTO, error) {
+	return a.api.GetKeys()
+}
+
+func (a *App) GetKeyUsages(id string) ([]presentation.KeyUsageDTO, error) {
+	return a.api.GetKeyUsages(id)
+}
+
+func (a *App) GenerateKey(algorithm string, bits int, comment, passphrase string, opts presentation.KeyOptionsDTO) (presentation.IdentityDTO, error) {
+	return a.api.GenerateKey(algorithm, bits, comment, passphrase, opts)
+}
+
+func (a *App) ImportKey(pemBase64, passphrase, comment string, opts presentation.KeyOptionsDTO) (presentation.IdentityDTO, error) {
+	return a.api.ImportKey(pemBase64, passphrase, comment, opts)
+}
+
+func (a *App) RenameKey(id, comment string) error {
+	return a.api.RenameKey(id, comment)
+}
+
+func (a *App) SetKeyPolicy(id string, opts presentation.KeyOptionsDTO) error {
+	return a.api.SetKeyPolicy(id, opts)
+}
+
+func (a *App) ChangeKeyPassphrase(id, oldPassphrase, newPassphrase string) error {
+	return a.api.ChangeKeyPassphrase(id, oldPassphrase, newPassphrase)
+}
+
+func (a *App) DeleteKey(id string) error {
+	return a.api.DeleteKey(id)
+}
+
+func (a *App) ExportKey(id, masterPassword, passphrase, exportPassphrase string) (string, error) {
+	return a.api.ExportKey(id, masterPassword, passphrase, exportPassphrase)
+}
+
+func (a *App) DeployKey(sessionID, identityID string) (presentation.DeployResultDTO, error) {
+	return a.api.DeployKey(sessionID, identityID)
+}
+
+func (a *App) PlanKeyMigration(masterPassword string) (presentation.MigrationPlanDTO, error) {
+	return a.api.PlanKeyMigration(masterPassword)
+}
+
+func (a *App) CompleteKeyMigration(masterPassword string, answers map[string]string) (presentation.MigrationReportDTO, error) {
+	return a.api.CompleteKeyMigration(masterPassword, answers)
+}
+
 func (a *App) ImportPuTTYPPK(ppkBase64, passphrase string) (string, error) {
 	return a.api.ImportPuTTYPPK(ppkBase64, passphrase)
 }

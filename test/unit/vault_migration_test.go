@@ -15,8 +15,8 @@ import (
 	"xquakshell/internal/infra/vault"
 )
 
-func migrationDeps() persistence.MigrationDeps {
-	return persistence.MigrationDeps{Codec: keys.NewCodec(), NewDataKey: keys.NewDataKey}
+func migrationDeps() domain.MigrationDeps {
+	return domain.MigrationDeps{Codec: keys.NewCodec(), NewDataKey: keys.NewDataKey}
 }
 
 // v3Key produces the bytes a schema 3 vault held: an OpenSSH private key, protected or not,
@@ -85,12 +85,15 @@ func TestPlanNamesOnlyTheKeysThatNeedAPassphrase(t *testing.T) {
 	})
 
 	repo := persistence.NewVaultRepo(dir)
-	pending, err := repo.PlanMigration(context.Background(), versionTestPassphrase, migrationDeps())
+	plan, err := repo.PlanMigration(context.Background(), versionTestPassphrase, migrationDeps())
 	if err != nil {
 		t.Fatalf("plan: %v", err)
 	}
-	if len(pending) != 1 || pending[0].ID != "protected" {
-		t.Fatalf("pending = %+v, want exactly the protected key; asking for a passphrase the key does not have wastes the user's time, and missing one strands the key", pending)
+	if !plan.Required {
+		t.Fatal("plan says no migration is due for a v3 vault; the wizard would never open and the vault would stay unopenable")
+	}
+	if len(plan.Keys) != 1 || plan.Keys[0].ID != "protected" {
+		t.Fatalf("pending = %+v, want exactly the protected key; asking for a passphrase the key does not have wastes the user's time, and missing one strands the key", plan.Keys)
 	}
 	if repo.IsUnlocked() {
 		t.Error("planning left the repo unlocked; a plan must not open the vault for use")

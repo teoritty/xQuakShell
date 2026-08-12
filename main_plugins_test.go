@@ -57,12 +57,13 @@ type grantVault struct {
 	data domain.VaultData
 }
 
-func (*grantVault) Exists() bool                          { return true }
-func (*grantVault) Create(context.Context, string) error  { return nil }
-func (*grantVault) Unlock(context.Context, string) error  { return nil }
-func (*grantVault) Lock()                                 {}
-func (*grantVault) IsUnlocked() bool                      { return true }
-func (v *grantVault) GetData() (*domain.VaultData, error) { return &v.data, nil }
+func (*grantVault) Exists() bool                                       { return true }
+func (*grantVault) Create(context.Context, string) error               { return nil }
+func (*grantVault) Unlock(context.Context, string) error               { return nil }
+func (*grantVault) VerifyMasterPassword(context.Context, string) error { return nil }
+func (*grantVault) Lock()                                              {}
+func (*grantVault) IsUnlocked() bool                                   { return true }
+func (v *grantVault) GetData() (*domain.VaultData, error)              { return &v.data, nil }
 func (v *grantVault) UpdateData(_ context.Context, mutate func(*domain.VaultData) error) error {
 	return mutate(&v.data)
 }

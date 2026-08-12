@@ -60,10 +60,10 @@ func TestManualStartAuthorizeWhenPluginEnabled(t *testing.T) {
 	})
 
 	mustRegister(t, registry, domainplugin.InstalledPlugin{Manifest: domainplugin.Manifest{
-		ID:      "com.test.enabled",
-		Name:    "Enabled",
-		Version: "1",
-		Engine:  domainplugin.EngineConfig{Type: "go-binary", Entry: "p.exe"},
+		ID:               "com.test.enabled",
+		Name:             "Enabled",
+		Version:          "1",
+		Engine:           domainplugin.EngineConfig{Type: "go-binary", Entry: "p.exe"},
 		ActivationEvents: []string{"onManual"},
 	}})
 
@@ -83,10 +83,10 @@ func TestManualStartDeniedWithoutOnManual(t *testing.T) {
 	})
 
 	mustRegister(t, registry, domainplugin.InstalledPlugin{Manifest: domainplugin.Manifest{
-		ID:      "com.test.nomanual",
-		Name:    "No Manual",
-		Version: "1",
-		Engine:  domainplugin.EngineConfig{Type: "go-binary", Entry: "p.exe"},
+		ID:               "com.test.nomanual",
+		Name:             "No Manual",
+		Version:          "1",
+		Engine:           domainplugin.EngineConfig{Type: "go-binary", Entry: "p.exe"},
 		ActivationEvents: []string{"onStartup"},
 	}})
 

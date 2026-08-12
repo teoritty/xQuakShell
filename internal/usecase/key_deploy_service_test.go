@@ -87,7 +87,7 @@ type deploySessions struct {
 	err error
 }
 
-func (s deploySessions) RemoteFSForSession(string) (domain.RemoteFS, error) {
+func (s deploySessions) GetRemoteFS(string) (domain.RemoteFS, error) {
 	if s.err != nil {
 		return nil, s.err
 	}

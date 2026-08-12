@@ -18,6 +18,10 @@ type VaultRepository interface {
 	Exists() bool
 	Create(ctx context.Context, masterPassword string) error
 	Unlock(ctx context.Context, masterPassword string) error
+	// VerifyMasterPassword re-authenticates the user without disturbing the open vault. Unlock
+	// cannot be reused for this: it replaces the in-memory snapshot and clears the dirty flag,
+	// so re-authenticating with it would discard any change not yet flushed to disk.
+	VerifyMasterPassword(ctx context.Context, masterPassword string) error
 	Lock()
 	IsUnlocked() bool
 	GetData() (*VaultData, error)

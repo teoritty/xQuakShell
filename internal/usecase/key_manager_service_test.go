@@ -58,12 +58,13 @@ type keyTestVault struct {
 	data *domain.VaultData
 }
 
-func (s keyTestVault) Exists() bool                         { return true }
-func (s keyTestVault) Create(context.Context, string) error { return nil }
-func (s keyTestVault) Unlock(context.Context, string) error { return nil }
-func (s keyTestVault) Lock()                                {}
-func (s keyTestVault) IsUnlocked() bool                     { return true }
-func (s keyTestVault) GetData() (*domain.VaultData, error)  { return s.data, nil }
+func (s keyTestVault) Exists() bool                                       { return true }
+func (s keyTestVault) Create(context.Context, string) error               { return nil }
+func (s keyTestVault) Unlock(context.Context, string) error               { return nil }
+func (s keyTestVault) VerifyMasterPassword(context.Context, string) error { return nil }
+func (s keyTestVault) Lock()                                              {}
+func (s keyTestVault) IsUnlocked() bool                                   { return true }
+func (s keyTestVault) GetData() (*domain.VaultData, error)                { return s.data, nil }
 func (s keyTestVault) UpdateData(context.Context, func(*domain.VaultData) error) error {
 	return nil
 }

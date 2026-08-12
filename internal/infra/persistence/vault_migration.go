@@ -11,19 +11,13 @@ import (
 	"xquakshell/internal/pkg/safego"
 )
 
-// MigrationDeps carries what a schema upgrade needs beyond the vault file itself.
-type MigrationDeps struct {
-	Codec      domain.KeyCodec
-	NewDataKey func() ([]byte, error)
-}
-
 // PlanMigration decrypts the vault and reports which keys need a passphrase before it can be
 // upgraded, without writing anything.
 //
 // It is a separate call from CompleteMigration so the wizard can collect every passphrase in one
 // pass. The alternative — asking mid-rewrite — would leave a half-migrated vault on disk if the
 // user closed the window at the wrong moment.
-func (r *VaultRepo) PlanMigration(_ context.Context, masterPassword string, deps MigrationDeps) ([]vault.PendingKey, error) {
+func (r *VaultRepo) PlanMigration(_ context.Context, masterPassword string, deps domain.MigrationDeps) (*domain.MigrationPlan, error) {
 	r.mu.RLock()
 	dir := r.dir
 	r.mu.RUnlock()
@@ -35,9 +29,9 @@ func (r *VaultRepo) PlanMigration(_ context.Context, masterPassword string, deps
 	defer releaseScryptPages()
 
 	if !vault.NeedsMigration(data) {
-		return nil, nil
+		return &domain.MigrationPlan{}, nil
 	}
-	return vault.PlanMigration(data, deps.Codec), nil
+	return &domain.MigrationPlan{Required: true, Keys: vault.PlanMigration(data, deps.Codec)}, nil
 }
 
 // CompleteMigration upgrades the vault on disk and leaves the repository unlocked on success.
@@ -48,7 +42,7 @@ func (r *VaultRepo) PlanMigration(_ context.Context, masterPassword string, deps
 // after a crash cannot replace the original with already-migrated bytes.
 //
 // answers maps identity ID to passphrase; an ID the user skipped is simply absent.
-func (r *VaultRepo) CompleteMigration(_ context.Context, masterPassword string, answers map[string]string, deps MigrationDeps) (*vault.MigrationReport, error) {
+func (r *VaultRepo) CompleteMigration(_ context.Context, masterPassword string, answers map[string]string, deps domain.MigrationDeps) (*domain.MigrationReport, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

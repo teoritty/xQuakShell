@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	modKernel32                 = windows.NewLazySystemDLL("kernel32.dll")
+	modKernel32                  = windows.NewLazySystemDLL("kernel32.dll")
 	procGetFinalPathNameByHandle = modKernel32.NewProc("GetFinalPathNameByHandleW")
 )
 

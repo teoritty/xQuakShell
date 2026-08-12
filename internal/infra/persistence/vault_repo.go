@@ -149,6 +149,26 @@ func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
 	return nil
 }
 
+// VerifyMasterPassword reports whether masterPassword opens the vault on disk, changing nothing.
+//
+// It decrypts the file and throws the result away. That costs a full scrypt pass, which is the
+// point: an attacker who reached this call gets the same work factor as the unlock screen, and
+// there is nothing cheaper to compare against because the master password is never stored.
+func (r *VaultRepo) VerifyMasterPassword(_ context.Context, masterPassword string) error {
+	r.mu.RLock()
+	dir := r.dir
+	r.mu.RUnlock()
+
+	if _, err := vault.ReadVaultFile(dir, masterPassword); err != nil {
+		return err
+	}
+	safego.GoNamed("vault.verifyGC", func() {
+		runtime.GC()
+		debug.FreeOSMemory()
+	})
+	return nil
+}
+
 // Lock flushes pending changes, then clears decrypted data from memory.
 func (r *VaultRepo) Lock() {
 	r.flushNow()

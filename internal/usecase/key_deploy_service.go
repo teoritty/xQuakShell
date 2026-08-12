@@ -11,7 +11,7 @@ import (
 
 // KeyDeploySessionPort resolves the remote filesystem of an already-authenticated session.
 type KeyDeploySessionPort interface {
-	RemoteFSForSession(sessionID string) (domain.RemoteFS, error)
+	GetRemoteFS(sessionID string) (domain.RemoteFS, error)
 }
 
 // KeyDeployService appends a public key to a server's authorized_keys.
@@ -58,7 +58,7 @@ func (s *KeyDeployService) Deploy(ctx context.Context, sessionID, identityID str
 	if err != nil {
 		return nil, err
 	}
-	fs, err := s.sessions.RemoteFSForSession(sessionID)
+	fs, err := s.sessions.GetRemoteFS(sessionID)
 	if err != nil {
 		return nil, err
 	}

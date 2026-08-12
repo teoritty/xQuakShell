@@ -14,11 +14,12 @@ type memVault struct {
 	data domain.VaultData
 }
 
-func (m *memVault) Exists() bool                             { return true }
-func (m *memVault) Create(_ context.Context, _ string) error { return nil }
-func (m *memVault) Unlock(_ context.Context, _ string) error { return nil }
-func (m *memVault) Lock()                                    {}
-func (m *memVault) GetData() (*domain.VaultData, error)      { return &m.data, nil }
+func (m *memVault) Exists() bool                                           { return true }
+func (m *memVault) Create(_ context.Context, _ string) error               { return nil }
+func (m *memVault) Unlock(_ context.Context, _ string) error               { return nil }
+func (m *memVault) VerifyMasterPassword(_ context.Context, _ string) error { return nil }
+func (m *memVault) Lock()                                                  {}
+func (m *memVault) GetData() (*domain.VaultData, error)                    { return &m.data, nil }
 func (m *memVault) UpdateData(_ context.Context, fn func(*domain.VaultData) error) error {
 	return fn(&m.data)
 }

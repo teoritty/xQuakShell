@@ -16,11 +16,11 @@ import (
 )
 
 const (
-	jsonRPCVersion      = "2.0"
-	defaultCallTimeout  = 5 * time.Second
-	maxFrameBytes       = 256 << 10
-	frameHeaderLen      = 9
-	frameKindJSONRPC    = 0x01
+	jsonRPCVersion     = "2.0"
+	defaultCallTimeout = 5 * time.Second
+	maxFrameBytes      = 256 << 10
+	frameHeaderLen     = 9
+	frameKindJSONRPC   = 0x01
 )
 
 // Message is a JSON-RPC 2.0 frame.

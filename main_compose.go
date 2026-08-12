@@ -7,8 +7,8 @@ import (
 	"xquakshell/internal/domain"
 	"xquakshell/internal/infra/auditlog"
 	"xquakshell/internal/infra/host"
-	"xquakshell/internal/infra/loghub"
 	"xquakshell/internal/infra/keys"
+	"xquakshell/internal/infra/loghub"
 	"xquakshell/internal/infra/persistence"
 	infrapinger "xquakshell/internal/infra/pinger"
 	"xquakshell/internal/infra/portable"
@@ -69,6 +69,7 @@ func composeApp() *App {
 		HostKeyCallbackBuilder: infrassh.NewHostKeyCallbackBuilder(),
 		JumpTransportBuilder:   infrassh.NewJumpTransportBuilder(),
 		Keys:                   keyManager,
+		MigrationDeps:          domain.MigrationDeps{Codec: keyCodec, NewDataKey: keys.NewDataKey},
 		PTYBridgeFactory:       infrassh.NewPTYBridgeFactory(),
 		SFTPClientFactory:      infrasftp.NewSFTPClientFactory(),
 	}
@@ -88,6 +89,9 @@ func composeApp() *App {
 		PassphraseCache: sshSession.PassphraseCache,
 		ExeDir:          paths.ExeDir(),
 	})
+
+	// Every private key a plugin is allowed to read is recorded, by id and fingerprint only.
+	pluginRuntime.vaultInbound.SetKeyAudit(usecase.NewKeyAuditRecorder(auditLogRepo))
 
 	sshAuth, pluginSessionAudit := wireSSHAuth(pluginRuntime)
 

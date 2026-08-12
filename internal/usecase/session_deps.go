@@ -8,6 +8,7 @@ type SSHSessionDeps struct {
 	HostKeyCallbackBuilder domain.HostKeyCallbackBuilder
 	JumpTransportBuilder   domain.JumpTransportBuilder
 	Keys                   *KeyManagerService
+	MigrationDeps          domain.MigrationDeps
 	PTYBridgeFactory       domain.PTYBridgeFactory
 	SFTPClientFactory      domain.SFTPClientFactory
 }

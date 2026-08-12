@@ -7,24 +7,6 @@ import (
 	"xquakshell/internal/domain"
 )
 
-// PendingKey names a v3 identity whose passphrase the migration needs before it can rewrite the
-// key. Only the metadata a user needs to recognise the key is carried; nothing here is secret.
-type PendingKey struct {
-	ID      string `json:"id"`
-	Comment string `json:"comment"`
-	KeyType string `json:"keyType"`
-}
-
-// MigrationReport records what a migration did, so the UI can tell the user which keys still need
-// attention instead of reporting a bare success.
-type MigrationReport struct {
-	FromVersion int      `json:"fromVersion"`
-	ToVersion   int      `json:"toVersion"`
-	Converted   []string `json:"converted"`
-	Skipped     []string `json:"skipped"`
-	BackupPath  string   `json:"backupPath"`
-}
-
 // PlanMigration lists the identities whose passphrase the user must supply, without changing
 // anything. It exists so the wizard can ask for every passphrase in one pass rather than
 // interrupting a half-finished rewrite.
@@ -33,11 +15,11 @@ type MigrationReport struct {
 // Encrypted flag: that flag was set by v3's header sniffing, which reported "openssh" for every
 // modern key and could not see whether one was protected. Trusting it would put unprotected keys
 // in the wizard and leave protected ones out of it.
-func PlanMigration(data *domain.VaultData, codec domain.KeyCodec) []PendingKey {
+func PlanMigration(data *domain.VaultData, codec domain.KeyCodec) []domain.PendingKey {
 	if !NeedsMigration(data) {
 		return nil
 	}
-	pending := make([]PendingKey, 0)
+	pending := make([]domain.PendingKey, 0)
 	for id, identity := range data.Identities {
 		blob, ok := data.KeyBlobs[id]
 		if !ok || identity.Policy != "" && !blob.Legacy {
@@ -46,7 +28,7 @@ func PlanMigration(data *domain.VaultData, codec domain.KeyCodec) []PendingKey {
 		if _, encrypted := codec.Describe(blob.PEMData); !encrypted {
 			continue
 		}
-		pending = append(pending, PendingKey{ID: id, Comment: identity.Comment, KeyType: identity.KeyType})
+		pending = append(pending, domain.PendingKey{ID: id, Comment: identity.Comment, KeyType: identity.KeyType})
 	}
 	return pending
 }
@@ -62,15 +44,15 @@ func PlanMigration(data *domain.VaultData, codec domain.KeyCodec) []PendingKey {
 // passphrase turns out to be wrong is recorded as skipped rather than failing the migration: the
 // user can retry it afterwards from the key manager, and refusing to open the vault over it would
 // be the same dead end.
-func MigrateToCurrent(data *domain.VaultData, codec domain.KeyCodec, newDataKey func() ([]byte, error), answers map[string]string) (*MigrationReport, error) {
+func MigrateToCurrent(data *domain.VaultData, codec domain.KeyCodec, newDataKey func() ([]byte, error), answers map[string]string) (*domain.MigrationReport, error) {
 	if data == nil {
 		return nil, domain.ErrVaultNotFound
 	}
 	if !NeedsMigration(data) {
-		return &MigrationReport{FromVersion: data.Version, ToVersion: data.Version}, nil
+		return &domain.MigrationReport{FromVersion: data.Version, ToVersion: data.Version}, nil
 	}
 
-	report := &MigrationReport{FromVersion: data.Version, ToVersion: domain.CurrentVaultVersion}
+	report := &domain.MigrationReport{FromVersion: data.Version, ToVersion: domain.CurrentVaultVersion}
 	for id := range data.Identities {
 		identity := data.Identities[id]
 		blob := data.KeyBlobs[id]

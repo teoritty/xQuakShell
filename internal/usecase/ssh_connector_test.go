@@ -53,12 +53,13 @@ func (s sshTestConnRepo) ReorderFolders(context.Context, []string, string) error
 
 type sshTestVaultRepo struct{}
 
-func (sshTestVaultRepo) Exists() bool                         { return true }
-func (sshTestVaultRepo) Create(context.Context, string) error { return nil }
-func (sshTestVaultRepo) Unlock(context.Context, string) error { return nil }
-func (sshTestVaultRepo) Lock()                                {}
-func (sshTestVaultRepo) IsUnlocked() bool                     { return true }
-func (sshTestVaultRepo) GetData() (*domain.VaultData, error)  { return domain.NewVaultData(), nil }
+func (sshTestVaultRepo) Exists() bool                                       { return true }
+func (sshTestVaultRepo) Create(context.Context, string) error               { return nil }
+func (sshTestVaultRepo) Unlock(context.Context, string) error               { return nil }
+func (sshTestVaultRepo) VerifyMasterPassword(context.Context, string) error { return nil }
+func (sshTestVaultRepo) Lock()                                              {}
+func (sshTestVaultRepo) IsUnlocked() bool                                   { return true }
+func (sshTestVaultRepo) GetData() (*domain.VaultData, error)                { return domain.NewVaultData(), nil }
 func (sshTestVaultRepo) UpdateData(context.Context, func(*domain.VaultData) error) error {
 	return nil
 }
