@@ -62,6 +62,24 @@
     max-width: 60vw;
   }
 
+  /* The key manager is a list beside a details pane. At the default 560px the two columns fight
+     for the same gutter and every row truncates, which is what a browsing surface must not do. */
+  .modal-content:global(.key-manager) {
+    width: min(1040px, 92vw);
+    max-width: min(1040px, 92vw);
+    max-height: 86vh;
+  }
+
+  /* Both panes own their own padding so the divider between them reaches the dialog border. */
+  .modal-content:global(.key-manager) .modal-body {
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+  }
+
   .modal-content.settings-modal {
     width: 680px;
     max-width: 680px;

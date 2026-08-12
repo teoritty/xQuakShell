@@ -48,7 +48,7 @@
   fieldset {
     margin: 10px 0 0;
     padding: 8px 10px 10px;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     display: flex;
     flex-direction: column;
@@ -58,31 +58,22 @@
   legend {
     padding: 0 4px;
     font-size: 11px;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
 
   label {
     font-size: 12px;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
   }
 
-  select,
-  input[type='number'] {
-    padding: 5px 8px;
-    font-size: 13px;
-    border-radius: 4px;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
-    background: var(--bg-input, rgba(0, 0, 0, 0.25));
-    color: var(--text-primary, #ddd);
-  }
 
   .check {
     display: flex;
     gap: 8px;
     align-items: flex-start;
-    color: var(--text-primary, #ddd);
+    color: var(--text-primary);
     margin-top: 4px;
   }
 
@@ -95,6 +86,6 @@
     margin-top: 2px;
     font-size: 11px;
     line-height: 1.4;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
   }
 </style>

@@ -164,20 +164,7 @@
     margin-top: 14px;
   }
 
-  .dialog-actions button {
-    padding: 6px 14px;
-    font-size: 12px;
-    border-radius: 4px;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
-    background: var(--bg-button, rgba(255, 255, 255, 0.06));
-    color: var(--text-primary, #ddd);
-    cursor: pointer;
-  }
 
-  .dialog-actions button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
 
   .tabs {
     display: flex;
@@ -192,13 +179,13 @@
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
     cursor: pointer;
   }
 
   .tabs button.active {
-    color: var(--text-primary, #ddd);
-    border-bottom-color: var(--accent, #4a9eff);
+    color: var(--text-primary);
+    border-bottom-color: var(--accent);
   }
 
   .body {
@@ -209,7 +196,7 @@
 
   label {
     font-size: 12px;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
     margin-top: 6px;
   }
 
@@ -217,32 +204,18 @@
     opacity: 0.7;
   }
 
-  input,
-  select {
-    padding: 6px 8px;
-    font-size: 13px;
-    border-radius: 4px;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
-    background: var(--bg-input, rgba(0, 0, 0, 0.25));
-    color: var(--text-primary, #ddd);
-  }
 
   .explain {
     margin: 2px 0 0;
     font-size: 11px;
     line-height: 1.45;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
   }
 
   .error {
     margin: 8px 0 0;
     font-size: 12px;
-    color: var(--danger, #ff6b6b);
+    color: var(--danger);
   }
 
-  button.primary {
-    background: var(--accent, #4a9eff);
-    color: #fff;
-    border-color: transparent;
-  }
 </style>

@@ -61,68 +61,41 @@
     margin-top: 14px;
   }
 
-  .dialog-actions button {
-    padding: 6px 14px;
-    font-size: 12px;
-    border-radius: 4px;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
-    background: var(--bg-button, rgba(255, 255, 255, 0.06));
-    color: var(--text-primary, #ddd);
-    cursor: pointer;
-  }
 
-  .dialog-actions button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
 
   label {
     display: block;
     margin-bottom: 4px;
     font-size: 12px;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
   }
 
-  select {
-    width: 100%;
-    padding: 6px 8px;
-    font-size: 13px;
-    border-radius: 4px;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
-    background: var(--bg-input, rgba(0, 0, 0, 0.25));
-    color: var(--text-primary, #ddd);
-  }
 
   .explain {
     margin: 8px 0 0;
     font-size: 11px;
     line-height: 1.5;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
   }
 
   code {
-    font-family: var(--font-mono, monospace);
+    font-family: var(--font-mono);
   }
 
   .error {
     margin: 8px 0 0;
     font-size: 12px;
-    color: var(--danger, #ff6b6b);
+    color: var(--danger);
   }
 
   .notice {
     margin: 10px 0 0;
     padding: 8px 10px;
     border-radius: 4px;
-    background: var(--ok-bg, rgba(74, 158, 255, 0.14));
-    color: var(--ok-fg, #7ab8ff);
+    background: var(--accent-muted);
+    color: var(--text-bright);
     font-size: 12px;
     line-height: 1.45;
   }
 
-  button.primary {
-    background: var(--accent, #4a9eff);
-    color: #fff;
-    border-color: transparent;
-  }
 </style>

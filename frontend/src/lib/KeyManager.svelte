@@ -168,13 +168,17 @@
 <Modal title="SSH Keys" {show} contentClass="key-manager" on:close={() => (show = false)}>
   <div class="layout">
     <aside>
-      <input class="search" placeholder="Search by name or fingerprint" bind:value={filter} />
+      <div class="rail-head">
+        <input class="search" placeholder="Search keys" bind:value={filter} />
+      </div>
       <KeyList keys={$storedKeys} bind:selectedId={$selectedKeyId} {filter} />
-      <button class="add" on:click={() => (showNew = true)}>+ Add a key</button>
+      <div class="rail-foot">
+        <button class="secondary" on:click={() => (showNew = true)}>Add a key</button>
+      </div>
     </aside>
-    <section>
+    <section class="pane">
       {#if $keysLoading && $storedKeys.length === 0}
-        <div class="loading">Loading…</div>
+        <div class="loading">Loading keys…</div>
       {:else}
         <KeyDetails
           key={selected}
@@ -215,73 +219,52 @@
     margin-top: 14px;
   }
 
-  .dialog-actions button {
-    padding: 6px 14px;
-    font-size: 12px;
-    border-radius: 4px;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
-    background: var(--bg-button, rgba(255, 255, 255, 0.06));
-    color: var(--text-primary, #ddd);
-    cursor: pointer;
-  }
 
-  .dialog-actions button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
 
   .layout {
     display: grid;
-    grid-template-columns: minmax(200px, 260px) 1fr;
-    min-height: 380px;
-    max-height: 60vh;
+    grid-template-columns: 288px 1fr;
+    flex: 1;
+    min-height: 0;
   }
 
   aside {
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    min-height: 0;
+    border-right: 1px solid var(--border-color);
+    background: var(--bg-primary);
+  }
+
+  .rail-head {
+    padding: 10px 10px 8px;
+  }
+
+  .rail-foot {
+    padding: 8px 10px;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .rail-foot button {
+    width: 100%;
   }
 
   .search {
-    margin: 0 8px 8px;
-    padding: 5px 8px;
-    font-size: 12px;
-    border-radius: 4px;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
-    background: var(--bg-input, rgba(0, 0, 0, 0.25));
-    color: var(--text-primary, #ddd);
+    width: 100%;
   }
 
-  .add {
-    margin: 8px;
-    padding: 6px;
-    font-size: 12px;
-    border-radius: 4px;
-    border: 1px dashed var(--border, rgba(255, 255, 255, 0.2));
-    background: transparent;
-    color: var(--text-secondary, #aaa);
-    cursor: pointer;
-  }
 
-  .add:hover {
-    color: var(--text-primary, #ddd);
-    border-color: var(--accent, #4a9eff);
-  }
 
-  section {
-    overflow-y: auto;
+  .pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
   }
 
   .loading {
-    padding: 20px;
+    padding: 28px 20px;
     font-size: 12px;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
   }
 
-  button.primary {
-    background: var(--accent, #4a9eff);
-    color: #fff;
-    border-color: transparent;
-  }
 </style>

@@ -47,42 +47,19 @@
     margin-top: 14px;
   }
 
-  .dialog-actions button {
-    padding: 6px 14px;
-    font-size: 12px;
-    border-radius: 4px;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
-    background: var(--bg-button, rgba(255, 255, 255, 0.06));
-    color: var(--text-primary, #ddd);
-    cursor: pointer;
-  }
 
   label {
     display: block;
     margin-bottom: 4px;
     font-size: 12px;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
   }
 
-  input {
-    width: 100%;
-    padding: 6px 8px;
-    font-size: 13px;
-    border-radius: 4px;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
-    background: var(--bg-input, rgba(0, 0, 0, 0.25));
-    color: var(--text-primary, #ddd);
-  }
 
   .error {
     margin: 8px 0 0;
     font-size: 12px;
-    color: var(--danger, #ff6b6b);
+    color: var(--danger);
   }
 
-  button.primary {
-    background: var(--accent, #4a9eff);
-    color: #fff;
-    border-color: transparent;
-  }
 </style>

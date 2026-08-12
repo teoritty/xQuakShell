@@ -81,26 +81,13 @@
     margin-top: 14px;
   }
 
-  .dialog-actions button {
-    padding: 6px 14px;
-    font-size: 12px;
-    border-radius: 4px;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
-    background: var(--bg-button, rgba(255, 255, 255, 0.06));
-    color: var(--text-primary, #ddd);
-    cursor: pointer;
-  }
 
-  .dialog-actions button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
 
   .intro {
     margin: 0 0 10px;
     font-size: 12px;
     line-height: 1.5;
-    color: var(--text-secondary, #aaa);
+    color: var(--text-secondary);
   }
 
   .keys {
@@ -127,7 +114,7 @@
 
   .name {
     font-size: 13px;
-    color: var(--text-primary, #ddd);
+    color: var(--text-primary);
   }
 
   .skip {
@@ -135,29 +122,14 @@
     gap: 5px;
     align-items: center;
     font-size: 11px;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
   }
 
-  input[type='password'] {
-    width: 100%;
-    margin-top: 4px;
-    padding: 6px 8px;
-    font-size: 13px;
-    border-radius: 4px;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
-    background: var(--bg-input, rgba(0, 0, 0, 0.25));
-    color: var(--text-primary, #ddd);
-  }
 
   .error {
     margin: 8px 0 0;
     font-size: 12px;
-    color: var(--danger, #ff6b6b);
+    color: var(--danger);
   }
 
-  button.primary {
-    background: var(--accent, #4a9eff);
-    color: #fff;
-    border-color: transparent;
-  }
 </style>

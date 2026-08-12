@@ -87,27 +87,14 @@
     margin-top: 14px;
   }
 
-  .dialog-actions button {
-    padding: 6px 14px;
-    font-size: 12px;
-    border-radius: 4px;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
-    background: var(--bg-button, rgba(255, 255, 255, 0.06));
-    color: var(--text-primary, #ddd);
-    cursor: pointer;
-  }
 
-  .dialog-actions button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
 
   .warn {
     margin: 0 0 10px;
     padding: 8px 10px;
     border-radius: 4px;
-    background: var(--warn-bg, rgba(255, 176, 0, 0.14));
-    color: var(--warn-fg, #ffb000);
+    background: rgba(196, 144, 64, 0.16);
+    color: var(--warning);
     font-size: 12px;
     line-height: 1.45;
   }
@@ -116,38 +103,24 @@
     display: block;
     margin-top: 8px;
     font-size: 12px;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
   }
 
   .hint {
     opacity: 0.7;
   }
 
-  input {
-    width: 100%;
-    padding: 6px 8px;
-    font-size: 13px;
-    border-radius: 4px;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
-    background: var(--bg-input, rgba(0, 0, 0, 0.25));
-    color: var(--text-primary, #ddd);
-  }
 
   .explain {
     margin: 4px 0 0;
     font-size: 11px;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
   }
 
   .error {
     margin: 8px 0 0;
     font-size: 12px;
-    color: var(--danger, #ff6b6b);
+    color: var(--danger);
   }
 
-  button.primary {
-    background: var(--accent, #4a9eff);
-    color: #fff;
-    border-color: transparent;
-  }
 </style>

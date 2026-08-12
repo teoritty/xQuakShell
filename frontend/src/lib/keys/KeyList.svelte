@@ -17,8 +17,16 @@
     );
   });
 
-  function describe(key: StoredKey): string {
+  function algorithm(key: StoredKey): string {
+    if (key.keyType === 'openssh' || key.keyType === 'unknown') return 'type unknown';
     return key.bits ? `${key.keyType} ${key.bits}` : key.keyType;
+  }
+
+  // The tail of a fingerprint is what distinguishes two keys at a glance; the SHA256: prefix is
+  // the same on every one of them and only costs width in a narrow rail.
+  function shortFingerprint(key: StoredKey): string {
+    const raw = (key.fingerprint || '').replace(/^SHA256:/, '');
+    return raw ? `…${raw.slice(-12)}` : 'no fingerprint';
   }
 </script>
 
@@ -32,17 +40,23 @@
         aria-selected={key.id === selectedId}
         on:click={() => (selectedId = key.id)}
       >
-        <span class="key-name">{key.comment || key.id}</span>
-        <span class="key-meta">
-          <span class="key-type">{describe(key)}</span>
-          {#if key.policy === 'passphrase'}<span class="badge" title="Needs its passphrase to be used">passphrase</span>{/if}
-          {#if key.nonExportable}<span class="badge">sealed</span>{/if}
-          {#if key.migrationPending}<span class="badge warn" title="Upgrade not finished">unfinished</span>{/if}
+        <span class="line-top">
+          <span class="key-name">{key.comment || key.id}</span>
+          {#if key.migrationPending}
+            <span class="badge warn" title="Upgrade not finished">unfinished</span>
+          {:else if key.policy === 'passphrase'}
+            <span class="badge" title="Needs its passphrase to be used">passphrase</span>
+          {/if}
+          {#if key.nonExportable}<span class="badge" title="Can never leave the vault">sealed</span>{/if}
+        </span>
+        <span class="line-bottom">
+          <span class="algorithm">{algorithm(key)}</span>
+          <span class="fingerprint">{shortFingerprint(key)}</span>
         </span>
       </button>
     </li>
   {:else}
-    <li class="empty">{filter ? 'No key matches that search.' : 'No keys stored yet.'}</li>
+    <li class="empty">{filter ? 'No key matches that search.' : 'No keys yet. Add one below.'}</li>
   {/each}
 </ul>
 
@@ -53,64 +67,91 @@
     padding: 0;
     overflow-y: auto;
     flex: 1;
+    min-height: 0;
   }
 
   .key-row {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
     width: 100%;
-    padding: 8px 10px;
+    padding: 9px 12px 9px 10px;
     background: transparent;
     border: none;
     border-left: 2px solid transparent;
-    color: var(--text-primary, #ddd);
+    border-radius: 0;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
     text-align: left;
-    cursor: pointer;
-    font: inherit;
   }
 
   .key-row:hover {
-    background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+    background: var(--bg-hover);
+    border-color: transparent;
+    border-bottom-color: var(--border-color);
   }
 
   .key-row.selected {
-    background: var(--bg-selected, rgba(255, 255, 255, 0.08));
-    border-left-color: var(--accent, #4a9eff);
+    background: var(--bg-active);
+    border-left-color: var(--accent);
+  }
+
+  .line-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
   }
 
   .key-name {
+    flex: 1;
+    min-width: 0;
     font-size: 13px;
+    color: var(--text-bright);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .key-meta {
+  .line-bottom {
     display: flex;
-    gap: 6px;
-    align-items: center;
+    align-items: baseline;
+    gap: 8px;
     font-size: 11px;
-    color: var(--text-secondary, #888);
+    color: var(--text-secondary);
+    min-width: 0;
+  }
+
+  .algorithm {
+    flex-shrink: 0;
+  }
+
+  .fingerprint {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .badge {
-    padding: 0 5px;
-    border-radius: 3px;
-    background: var(--bg-badge, rgba(255, 255, 255, 0.1));
+    flex-shrink: 0;
+    padding: 1px 5px;
+    border-radius: 2px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
     font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
   }
 
   .badge.warn {
-    background: var(--warn-bg, rgba(255, 176, 0, 0.18));
-    color: var(--warn-fg, #ffb000);
+    background: rgba(196, 144, 64, 0.16);
+    color: var(--warning);
   }
 
   .empty {
-    padding: 14px 10px;
-    color: var(--text-secondary, #888);
+    padding: 16px 12px;
+    color: var(--text-secondary);
     font-size: 12px;
+    line-height: 1.5;
   }
 </style>
