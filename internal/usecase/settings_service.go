@@ -128,13 +128,33 @@ func defaultAppSettings() domain.AppSettings {
 	}
 }
 
+const (
+	// maxConcurrentTransfers and maxTransferConnectionTimeoutSec mirror the bounds the settings
+	// dialog puts on its number inputs. Keeping the same numbers means no existing configuration
+	// changes; enforcing them here means the bound holds for a caller that never opened the dialog.
+	maxConcurrentTransfers          = 16
+	maxTransferConnectionTimeoutSec = 300
+)
+
 // normalizeSettings fills in missing/invalid values with sensible defaults.
 func normalizeSettings(s domain.AppSettings) domain.AppSettings {
+	// Both of these carried a floor and no ceiling, unlike every other numeric setting in this
+	// function. The ceilings are the ones the settings dialog already offers - min/max on a number
+	// input - and that is the point: an HTML attribute constrains the dialog, not the RPC behind
+	// it, so anything reaching the Wails bridge could write whatever it liked. MaxConcurrent
+	// becomes the transfer slot count directly, so a large one is that many concurrent SFTP
+	// operations with their goroutines and buffers.
 	if s.Transfer.ConnectionTimeoutSec <= 0 {
 		s.Transfer.ConnectionTimeoutSec = 15
 	}
+	if s.Transfer.ConnectionTimeoutSec > maxTransferConnectionTimeoutSec {
+		s.Transfer.ConnectionTimeoutSec = maxTransferConnectionTimeoutSec
+	}
 	if s.Transfer.MaxConcurrent <= 0 {
 		s.Transfer.MaxConcurrent = 4
+	}
+	if s.Transfer.MaxConcurrent > maxConcurrentTransfers {
+		s.Transfer.MaxConcurrent = maxConcurrentTransfers
 	}
 
 	defHotkeys := domain.DefaultSessionHotkeysSettings()

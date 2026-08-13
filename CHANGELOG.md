@@ -319,6 +319,13 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
 
 ### Fixed
 
+- **The number of concurrent transfers and the transfer connection timeout are now bounded on the
+  backend.** Both had a floor and no ceiling, unlike every other numeric setting. The settings
+  dialog offers 1–16 and 5–300 seconds, but an HTML `max` attribute constrains the dialog, not the
+  RPC behind it — and the concurrency figure becomes the transfer slot count directly, so an
+  out-of-range value is that many simultaneous SFTP operations with their goroutines and buffers.
+  The stored bounds are the ones the dialog already showed, so no existing configuration changes.
+
 - **A plugin can no longer read any private key belonging to a connection it was invoked for.**
   Holding the vault capability used to be enough to be handed the raw private key, and the cached
   passphrase with it — a decision far too coarse for "this third-party binary may read this
