@@ -1,7 +1,6 @@
 package plugin
 
 import (
-	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -36,7 +35,10 @@ func IsBroadFilesystemPattern(pattern string) bool {
 		return false
 	}
 
-	unix := filepath.ToSlash(trimmed)
+	// Separators are normalised by hand rather than with filepath.ToSlash, which is a no-op on
+	// Linux: a manifest is inspected wherever the install happens, and a Windows-authored "C:\\"
+	// has to be recognised on a Linux CI runner as readily as on the machine it targets.
+	unix := strings.ReplaceAll(trimmed, "\\", "/")
 	if unix == "/" || unix == "//" || unix == "~" || unix == "~/" {
 		return true
 	}

@@ -20,6 +20,7 @@ func TestIsBroadFilesystemPatternCatchesWholeFilesystemGrants(t *testing.T) {
 		"~",
 		"~/",
 		"..",
+		`..\..`,
 		"../..",
 		"../../etc",
 		"data/../..",
