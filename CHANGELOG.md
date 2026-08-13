@@ -288,6 +288,19 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   saying whatever it liked and erase the one above it. Control characters are now stripped; tabs and
   ordinary text, including non-Latin scripts, are untouched.
 
+- **A plugin can no longer flood the application with concurrent requests.** Every request a plugin
+  sent was handled on its own goroutine with no ceiling, and only log writes were rate limited — so a
+  plugin could issue them as fast as the pipe carried them and the application grew a goroutine for
+  each one. A plugin's own process is memory-capped; the application is not. At most 64 of a
+  plugin's requests are now handled at once, and the rest are answered with a rate-limit error
+  rather than queued.
+
+- **A recursive permission change no longer widens itself when something goes wrong.** Recursive
+  chmod and chown take a scope — files, directories, or both — and an unrecognised value became
+  *both*, the widest of the three. So a typo, or a mismatch between the interface and the backend,
+  quietly applied the change to everything under the directory instead of the part you asked for.
+  An unrecognised scope is now an error, and a scope that was never set changes nothing at all.
+
 - **Asking the application to open a downloaded file no longer runs it.** "Open with the system
   default application" handed the path straight to the operating system, and for an executable the
   operating system's answer is to run it — so anything that could put a file on your disk and then

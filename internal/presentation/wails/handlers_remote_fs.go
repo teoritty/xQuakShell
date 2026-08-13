@@ -56,14 +56,21 @@ func (a *AppAPI) RenamePath(sessionID, oldPath, newPath string) error {
 }
 
 // applyTargetFromString maps the "files"|"dirs"|"both" wire value to domain.ApplyTarget.
-func applyTargetFromString(applyTo string) domain.ApplyTarget {
+//
+// An unrecognised value is an error rather than a default. It used to return ApplyBoth, so a
+// frontend that sent a typo, or one built against a newer set of choices than this backend knows,
+// silently got the widest scope on a recursive chmod or chown. The two sides disagreeing is exactly
+// the moment not to guess: the caller can be told, and the user can be asked again.
+func applyTargetFromString(applyTo string) (domain.ApplyTarget, error) {
 	switch applyTo {
 	case "files":
-		return domain.ApplyFilesOnly
+		return domain.ApplyFilesOnly, nil
 	case "dirs":
-		return domain.ApplyDirsOnly
+		return domain.ApplyDirsOnly, nil
+	case "both":
+		return domain.ApplyBoth, nil
 	default:
-		return domain.ApplyBoth
+		return domain.ApplyTargetUnspecified, fmt.Errorf("unknown apply target %q: expected files, dirs or both", applyTo)
 	}
 }
 
@@ -89,7 +96,11 @@ func (a *AppAPI) ChmodRecursive(sessionID, remotePath string, mode uint32, apply
 	if a.remoteOpSvc == nil {
 		return fmt.Errorf("remote operation service unavailable")
 	}
-	return a.remoteOpSvc.ChmodRecursive(sessionID, remotePath, os.FileMode(mode), applyTargetFromString(applyTo), a.emitTransferProgress)
+	target, err := applyTargetFromString(applyTo)
+	if err != nil {
+		return err
+	}
+	return a.remoteOpSvc.ChmodRecursive(sessionID, remotePath, os.FileMode(mode), target, a.emitTransferProgress)
 }
 
 // ChownRecursive applies uid/gid recursively under remotePath, filtered by
@@ -98,7 +109,11 @@ func (a *AppAPI) ChownRecursive(sessionID, remotePath string, uid, gid int, appl
 	if a.remoteOpSvc == nil {
 		return fmt.Errorf("remote operation service unavailable")
 	}
-	return a.remoteOpSvc.ChownRecursive(sessionID, remotePath, uid, gid, applyTargetFromString(applyTo), a.emitTransferProgress)
+	target, err := applyTargetFromString(applyTo)
+	if err != nil {
+		return err
+	}
+	return a.remoteOpSvc.ChownRecursive(sessionID, remotePath, uid, gid, target, a.emitTransferProgress)
 }
 
 // --- Known Hosts ---
