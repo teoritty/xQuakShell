@@ -319,6 +319,14 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
 
 ### Fixed
 
+- **A plugin can no longer exhaust the application's memory by listing a directory, or ask the
+  filesystem for a file of exabytes.** Listing read every entry of a directory before anything was
+  filtered, and a plugin can fill a directory it is allowed to write to; the plugin's own process is
+  memory-capped, the application is not. Listings are now bounded, and a directory past the bound is
+  refused with a distinct error rather than quietly returned short. Separately, a write at an offset
+  near the maximum of a 64-bit integer wrapped the size check into a negative number and passed it,
+  reaching a seek far beyond any legal file size. The offset is now bounded before it is added to.
+
 - **"Do not allow private networks" now covers the networks Go does not call private.** A plugin
   granted arbitrary outbound access, with private networks declined, could still reach anything in
   `100.64.0.0/10` — the range Tailscale, ZeroTier and carrier-grade NAT use, which is to say the

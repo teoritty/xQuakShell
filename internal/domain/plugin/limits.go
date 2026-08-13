@@ -9,6 +9,12 @@ const (
 	MaxWriteBytes = MaxFrameBytes
 	// MaxFileBytes is the maximum sandboxed file size reachable via chunked I/O.
 	MaxFileBytes = 16 << 20
+	// MaxListEntries bounds one fs.list response. The directory is read whole before anything is
+	// filtered, so without a cap the host holds every entry of whatever the plugin points at - and
+	// a plugin can manufacture that directory itself inside its own data root. The plugin process
+	// is memory-capped by its job object or rlimit; the host is not, which is what makes an
+	// unbounded listing the host's problem rather than the plugin's.
+	MaxListEntries = 10000
 
 	// MaxBundleUncompressedBytes is the total uncompressed size limit for .xqsp archives.
 	MaxBundleUncompressedBytes = 64 << 20

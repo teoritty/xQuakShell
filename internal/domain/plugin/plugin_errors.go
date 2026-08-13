@@ -27,6 +27,12 @@ var (
 	// ErrRateLimited indicates a plugin exceeded a resource rate limit.
 	ErrRateLimited = errors.New("plugin event rate limited")
 
+	// ErrDirectoryTooLarge indicates fs.list found more entries than one response may carry. It is
+	// distinct from ErrCapabilityDenied because the plugin was allowed to read this directory —
+	// the answer, not the permission, is the problem, and a plugin that cannot tell the two apart
+	// will retry forever against a limit that will never move.
+	ErrDirectoryTooLarge = errors.New("plugin directory listing too large")
+
 	// ErrHandleNotFound indicates a net handle is unknown or not owned by the caller.
 	ErrHandleNotFound = errors.New("plugin handle not found")
 

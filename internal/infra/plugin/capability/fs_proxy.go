@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	domainplugin "xquakshell/internal/domain/plugin"
 	"xquakshell/internal/infra/portable"
@@ -171,6 +172,14 @@ func (p *FSProxy) write(params json.RawMessage) (json.RawMessage, error) {
 		if *req.Offset < 0 {
 			return nil, fmt.Errorf("invalid fs.write params: negative offset")
 		}
+		// The offset is bounded before it is added to, not after. offset + len(data) is int64
+		// arithmetic on a number the plugin chose: an offset near MaxInt64 wraps to a negative
+		// sum, which then passes the MaxFileBytes check below and reaches WriteFileChunk, where
+		// the seek asks the filesystem for a file of exabytes. An offset past MaxFileBytes can
+		// never produce a legal file, so it is refused on its own.
+		if *req.Offset > domainplugin.MaxFileBytes {
+			return nil, domainplugin.ErrCapabilityDenied
+		}
 		resultingSize = *req.Offset + int64(len(data))
 	}
 	if resultingSize > domainplugin.MaxFileBytes {
@@ -213,9 +222,15 @@ func (p *FSProxy) list(params json.RawMessage) (json.RawMessage, error) {
 	}
 	defer dir.Close()
 
-	entries, err := dir.ReadDir(-1)
-	if err != nil {
+	// One entry past the cap, so a directory at exactly the limit is served whole and one entry
+	// larger is refused rather than silently truncated. A truncated listing is worse than no
+	// listing: the plugin cannot tell it is missing entries and neither can the user.
+	entries, err := dir.ReadDir(domainplugin.MaxListEntries + 1)
+	if err != nil && err != io.EOF {
 		return nil, fmt.Errorf("fs.list: %w", err)
+	}
+	if len(entries) > domainplugin.MaxListEntries {
+		return nil, fmt.Errorf("fs.list: %w", domainplugin.ErrDirectoryTooLarge)
 	}
 	out := make([]fsEntry, 0, len(entries))
 	for _, e := range entries {
