@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"time"
 
@@ -111,20 +112,30 @@ func walkRemoteSource(ctx context.Context, fs domain.RemoteFS, root string, onSc
 	if err := scan(); err != nil {
 		return nil, err
 	}
-	var recur func(dir, rel string) error
-	recur = func(dir, rel string) error {
+	// The tree below is the server's to invent, and an infinitely deep or endlessly wide one costs
+	// it nothing to serve. Without these bounds the recursion runs until the stack gives out and
+	// `out` grows until the process does. Exceeding either is an error rather than a truncation: a
+	// plan that quietly listed half a directory would copy half of it and report success.
+	var recur func(dir, rel string, depth int) error
+	recur = func(dir, rel string, depth int) error {
+		if depth > domain.MaxRemoteWalkDepth {
+			return fmt.Errorf("%w: %s at depth %d", domain.ErrRemoteWalkTooDeep, dir, depth)
+		}
 		entries, err := fs.List(ctx, dir)
 		if err != nil {
 			return err
 		}
 		for _, e := range entries {
+			if len(out) >= domain.MaxRemoteWalkEntries {
+				return fmt.Errorf("%w: stopped at %d entries", domain.ErrRemoteWalkTooLarge, len(out))
+			}
 			childRel := rel + "/" + e.Name
 			if err := scan(); err != nil {
 				return err
 			}
 			if e.IsDir {
 				out = append(out, sourceEntry{AbsPath: e.Path, Rel: childRel, IsDir: true})
-				if err := recur(e.Path, childRel); err != nil {
+				if err := recur(e.Path, childRel, depth+1); err != nil {
 					return err
 				}
 				continue
@@ -133,7 +144,7 @@ func walkRemoteSource(ctx context.Context, fs domain.RemoteFS, root string, onSc
 		}
 		return nil
 	}
-	if err := recur(root, base); err != nil {
+	if err := recur(root, base, 0); err != nil {
 		return nil, err
 	}
 	return out, nil

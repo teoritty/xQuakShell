@@ -295,6 +295,13 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   plugin's requests are now handled at once, and the rest are answered with a rate-limit error
   rather than queued.
 
+- **A hostile server can no longer hang the client with an endless directory tree.** Walking a remote
+  directory — to plan a download, or to apply a recursive permission change — recursed as far as the
+  server said the tree went, and the structure is the server's to invent. A tree with no bottom costs
+  a compromised or malicious server nothing to serve, and the client either ran out of stack or grew
+  its file list until it ran out of memory; stopping it needed you to notice and cancel. Walks now
+  stop at a depth and an entry count, and say so rather than quietly returning half a tree.
+
 ### Fixed
 
 - **A plugin can no longer read any private key belonging to a connection it was invoked for.**
