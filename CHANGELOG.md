@@ -281,6 +281,13 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   is given a `SHA256SUMS`, so its later absence is not a plugin that shipped without one; it is a
   plugin that had one and does not any more, and that now refuses to load.
 
+- **A plugin can no longer flood the application with concurrent requests.** Every request a plugin
+  sent was handled on its own goroutine with no ceiling, and only log writes were rate limited — so a
+  plugin could issue them as fast as the pipe carried them and the application grew a goroutine for
+  each one. A plugin's own process is memory-capped; the application is not. At most 64 of a
+  plugin's requests are now handled at once, and the rest are answered with a rate-limit error
+  rather than queued.
+
 ### Fixed
 
 - **A plugin can no longer read any private key belonging to a connection it was invoked for.**

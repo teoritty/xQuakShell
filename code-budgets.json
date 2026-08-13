@@ -221,7 +221,7 @@
         "nesting": 0
       },
       "internal/infra/plugin/ipc/conn.go::Conn.readLoop": {
-        "codeLines": 63,
+        "codeLines": 56,
         "params": 0,
         "nesting": 4
       },
