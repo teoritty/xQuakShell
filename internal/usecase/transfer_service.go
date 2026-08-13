@@ -355,8 +355,11 @@ func (s *TransferService) downloadFile(parentCtx context.Context, sessionID, rem
 	state := "completed"
 	if err != nil {
 		if ctx.Err() == context.Canceled {
+			// No cleanup here on purpose. The download writes to a temp file and renames it into
+			// place only when it is complete, so a cancelled one has already removed its own
+			// partial file - and localPath is now either absent or the user's previous copy,
+			// which cancelling a download must never delete.
 			state = "cancelled"
-			_ = s.hostFS.Remove(localPath)
 		} else {
 			state = "failed"
 		}

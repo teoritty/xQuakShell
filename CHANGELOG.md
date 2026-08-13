@@ -319,6 +319,15 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
 
 ### Fixed
 
+- **A download that fails partway no longer destroys the file it was replacing.** The local file was
+  opened and truncated before the first byte arrived, so a dropped connection left you with neither
+  the old copy nor the new one — and what remained wore the real name, with nothing to say it was
+  incomplete: a truncated archive, a config missing its tail, a binary that no longer runs. A
+  dropped connection costs a hostile server nothing to arrange. Downloads now write alongside the
+  destination and take its name only once the last byte has landed, so an interrupted one leaves
+  what was already there untouched. Downloaded files are also no longer created readable by every
+  other account on the machine.
+
 - **The number of concurrent transfers and the transfer connection timeout are now bounded on the
   backend.** Both had a floor and no ceiling, unlike every other numeric setting. The settings
   dialog offers 1–16 and 5–300 seconds, but an HTML `max` attribute constrains the dialog, not the

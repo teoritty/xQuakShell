@@ -170,18 +170,18 @@ func (fs *RemoteFS) Download(ctx context.Context, remotePath, localPath string, 
 	}
 	totalSize := stat.Size()
 
-	localFile, err := os.Create(localPath)
+	target, err := newDownloadTarget(localPath)
 	if err != nil {
 		return fmt.Errorf("sftp download create local %s: %w", localPath, err)
 	}
-	defer localFile.Close()
+	defer target.Discard()
 
 	// WriteTo owns the (concurrent) read side and writes to our writer
 	// sequentially, in offset order, so the destination is the stream we
 	// wrap: progress + cancellation, with the throttle underneath.
-	var dst io.Writer = localFile
+	var dst io.Writer = target.file
 	if fs.rateLimitKbps > 0 {
-		dst = newThrottledWriter(ctx, localFile, fs.rateLimitKbps)
+		dst = newThrottledWriter(ctx, target.file, fs.rateLimitKbps)
 	}
 	metered := &progressWriter{w: dst, ctx: ctx, total: totalSize, progress: progress}
 
@@ -191,7 +191,7 @@ func (fs *RemoteFS) Download(ctx context.Context, remotePath, localPath string, 
 		}
 		return fmt.Errorf("sftp download %s: %w", remotePath, err)
 	}
-	return nil
+	return target.Commit()
 }
 
 // computeLocalDirSize returns the total size of all files in the directory (recursive).
