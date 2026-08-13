@@ -135,6 +135,9 @@ func (d *Dialer) Create(ctx context.Context, cfg domain.SSHClientConfig) (domain
 		HostKeyCallback: cfg.HostKeyCallback,
 		Timeout:         timeout,
 	}
+	// What this client will negotiate is a decision this application owns, not one to inherit
+	// from whichever version of x/crypto/ssh happens to be vendored. See crypto_policy.go.
+	applyCryptoPolicy(sshConfig)
 
 	var conn net.Conn
 	var err error
