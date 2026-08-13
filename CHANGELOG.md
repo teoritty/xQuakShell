@@ -241,6 +241,19 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   refuses its owner after N wrong guesses is a denial of service anyone who can reach the prompt can
   trigger. Repeated failures are logged.
 
+- **A plugin can no longer raise its own resource limits.** `channel.maxConcurrent`,
+  `channel.maxThroughputKbps` and a tunnel provider's `maxConcurrentChannels` were read out of
+  `plugin.json` and used as the host's limit whenever they were greater than zero — but
+  `plugin.json` is the plugin's own file, so a plugin asking for a million concurrent channels got
+  a million. Declaring *less* than the host default still works and is still honoured; declaring
+  more is now capped.
+
+- **The install screen now names the filesystem paths a plugin is asking for.** It used to say
+  "Read files in declared sandbox paths" and list none of them, while nothing validated what was
+  declared — so a plugin asking for `/` or `C:\` was presented to you in the language of a sandbox.
+  The paths are listed the way the outbound network patterns always have been, and a grant that
+  covers your whole filesystem or home directory is called out as such.
+
 - **Uninstalling a plugin now revokes what you granted it.** Capability grants — secret access,
   auth provider, tunnel provider, multi-session, arbitrary network — were stored against the
   plugin's id and left behind when the plugin was removed, along with its disabled marker. The id

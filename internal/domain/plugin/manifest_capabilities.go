@@ -390,14 +390,7 @@ func (m *Manifest) RequiresChannelExecConsent() bool {
 // PermissionSummary returns human-readable install-time permission lines.
 func (m *Manifest) PermissionSummary() []string {
 	var lines []string
-	if m.Capabilities.FS != nil {
-		if len(m.Capabilities.FS.Read) > 0 {
-			lines = append(lines, "Read files in declared sandbox paths")
-		}
-		if len(m.Capabilities.FS.Write) > 0 {
-			lines = append(lines, "Write files in declared sandbox paths")
-		}
-	}
+	lines = append(lines, m.filesystemPermissionLines()...)
 	if m.Capabilities.Network != nil {
 		n := m.Capabilities.Network
 		if n.AllowArbitraryOutbound {
