@@ -53,6 +53,7 @@ type AppAPI struct {
 	forwardRules                *usecase.ForwardRuleValidator
 	logWindow                   *logwindow.Manager
 	logLevel                    domain.LogLevelController
+	unlockThrottle              domain.UnlockThrottle
 	updateSvc                   *usecase.UpdateService
 }
 
@@ -337,16 +338,6 @@ func (a *AppAPI) VaultExists() bool {
 func (a *AppAPI) CreateVault(masterPassword string) error {
 	if err := a.vaultRepo.Create(a.reqCtx(), masterPassword); err != nil {
 		return err
-	}
-	a.afterVaultOpened()
-	return nil
-}
-
-// UnlockVault decrypts the vault with the given master password.
-// After unlocking, applies persisted settings (e.g. lockout) to the running managers.
-func (a *AppAPI) UnlockVault(masterPassword string) error {
-	if err := a.vaultRepo.Unlock(a.reqCtx(), masterPassword); err != nil {
-		return vaultUnlockUserError(err)
 	}
 	a.afterVaultOpened()
 	return nil
