@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"xquakshell/internal/domain"
@@ -119,14 +120,13 @@ func (m *PluginManager) Install(sourcePath string, policy domainplugin.InstallTr
 	if err != nil {
 		return domainplugin.InstalledPlugin{}, err
 	}
-	if installed.Manifest.RequiresMultiSessionWarning() && !grantMultiSession {
-		return domainplugin.InstalledPlugin{}, fmt.Errorf("multi-session consent required for this plugin")
-	}
-	if installed.Manifest.RequiresArbitraryNetworkAccess() && !grantArbitraryNetworkAccess {
-		return domainplugin.InstalledPlugin{}, fmt.Errorf("arbitrary network access consent required for this plugin")
-	}
-	if installed.Manifest.RequiresChannelExecConsent() && !grantExecAccess {
-		return domainplugin.InstalledPlugin{}, fmt.Errorf("exec channel consent required for this plugin")
+	// A refused install must leave nothing behind. installBundle has already written the plugin
+	// into installRoot by this point, and Discovery.Discover() adopts whatever it finds there on
+	// the next start - so returning an error without removing the files turned "the user declined"
+	// into "the user declined, and it installed anyway after a restart".
+	if err := consentError(installed.Manifest, grantMultiSession, grantArbitraryNetworkAccess, grantExecAccess); err != nil {
+		m.discardInstalledFiles(installed)
+		return domainplugin.InstalledPlugin{}, err
 	}
 	if err := m.registry.Register(installed); err != nil {
 		return domainplugin.InstalledPlugin{}, err
@@ -162,5 +162,37 @@ func installPreviewFrom(p domainplugin.InstalledPlugin, trust domainplugin.Insta
 		UnsignedWarning:              unsigned,
 		UntrustedSignatureWarning:    trust.UntrustedSignatureWarning,
 		Permissions:                  p.Manifest.PermissionSummary(),
+	}
+}
+
+// consentError reports the first install-time consent the caller did not supply.
+//
+// These three are checked here and nowhere else at install time, which is why the rollback above
+// matters: the runtime grant maps gate what an installed plugin may reach, but nothing else gates
+// whether it is installed and running at all.
+func consentError(manifest domainplugin.Manifest, grantMultiSession, grantArbitraryNetworkAccess, grantExecAccess bool) error {
+	switch {
+	case manifest.RequiresMultiSessionWarning() && !grantMultiSession:
+		return fmt.Errorf("multi-session consent required for this plugin")
+	case manifest.RequiresArbitraryNetworkAccess() && !grantArbitraryNetworkAccess:
+		return fmt.Errorf("arbitrary network access consent required for this plugin")
+	case manifest.RequiresChannelExecConsent() && !grantExecAccess:
+		return fmt.Errorf("exec channel consent required for this plugin")
+	}
+	return nil
+}
+
+// discardInstalledFiles removes a plugin tree that was written to disk before an install was
+// refused. A failure is logged and not returned: the caller is already returning the refusal, and
+// that is the answer the user needs to see.
+func (m *PluginManager) discardInstalledFiles(installed domainplugin.InstalledPlugin) {
+	if m.portableData == nil || installed.RootDir == "" {
+		slog.Error("cannot remove the files of a refused install",
+			"plugin", installed.Manifest.ID, "rootDir", installed.RootDir)
+		return
+	}
+	if err := m.portableData.Remove(installed.RootDir); err != nil {
+		slog.Error("failed to remove the files of a refused install",
+			"plugin", installed.Manifest.ID, "rootDir", installed.RootDir, "error", err)
 	}
 }
