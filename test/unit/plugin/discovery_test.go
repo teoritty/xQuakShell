@@ -222,3 +222,74 @@ func TestDiscoverySkipsIncompatiblePluginAPI(t *testing.T) {
 		t.Fatalf("expected incompatible plugin skipped, got %d", len(plugins))
 	}
 }
+
+// writeUserPluginDir lays out a user-installed plugin exactly as an install leaves it: manifest,
+// binary, SHA256SUMS, and the marker that says a user put it there.
+func writeUserPluginDir(t *testing.T, pluginID string) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "plugins", "p")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `{
+		"id": "` + pluginID + `",
+		"name": "Plugin",
+		"version": "1.0.0",
+		"engine": {"type": "go-binary", "entry": "p.exe"}
+	}`
+	if err := os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "p.exe"), []byte("original"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeChecksumsFile(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := infraplugin.MarkUserInstalled(dir); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// TestDiscoveryRejectsTamperedUserPlugin covers editing a file. This covers deleting the list it
+// would have been checked against, which used to be the way to switch the check off entirely:
+// verifyPluginIntegrity fell through to nil whenever the tree simply had no SHA256SUMS, so anyone
+// who could edit the binary could also remove the evidence and the plugin loaded silently.
+func TestDiscoveryRejectsAUserPluginWithItsChecksumsDeleted(t *testing.T) {
+	dir := writeUserPluginDir(t, "com.test.stripped")
+
+	if err := os.Remove(filepath.Join(dir, "SHA256SUMS")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "p.exe"), []byte("tampered"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := infraplugin.LoadPluginDir(dir); err == nil {
+		t.Fatal("a user-installed plugin loaded after its SHA256SUMS was deleted; removing the evidence disabled the check")
+	}
+}
+
+// Deleting the checksums is refused even when nothing else was touched. The file's absence is the
+// contradiction - an install always writes one - so it does not need a second symptom to be wrong.
+func TestDiscoveryRejectsAUserPluginWithNoChecksumsAtAll(t *testing.T) {
+	dir := writeUserPluginDir(t, "com.test.nosums")
+
+	if err := os.Remove(filepath.Join(dir, "SHA256SUMS")); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := infraplugin.LoadPluginDir(dir); err == nil {
+		t.Fatal("a user-installed plugin with no SHA256SUMS loaded")
+	}
+}
+
+// The ordinary case has to keep working, or every installed plugin stops loading.
+func TestDiscoveryAcceptsAnIntactUserPlugin(t *testing.T) {
+	dir := writeUserPluginDir(t, "com.test.intact")
+
+	if _, err := infraplugin.LoadPluginDir(dir); err != nil {
+		t.Fatalf("LoadPluginDir on an intact user plugin = %v, want nil", err)
+	}
+}

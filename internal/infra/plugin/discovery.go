@@ -95,7 +95,7 @@ func loadPluginDir(dir string) (domainplugin.InstalledPlugin, error) {
 	}
 
 	source := detectInstallSource(dir)
-	if err := verifyPluginIntegrity(dir, manifest); err != nil {
+	if err := verifyPluginIntegrity(dir, manifest, source); err != nil {
 		return domainplugin.InstalledPlugin{}, fmt.Errorf("plugin integrity check failed: %w", err)
 	}
 
@@ -145,8 +145,25 @@ func loadPluginDir(dir string) (domainplugin.InstalledPlugin, error) {
 	}, nil
 }
 
-func verifyPluginIntegrity(dir string, manifest domainplugin.Manifest) error {
+// verifyPluginIntegrity checks an on-disk plugin tree against its own SHA256SUMS before it loads.
+//
+// The source argument is what closes the hole. This used to fall through to nil whenever the tree
+// simply had no SHA256SUMS, which made deleting the file a way to switch the check off: anyone who
+// could edit a plugin's binary could also remove the list it would have been checked against, and
+// the modified plugin loaded silently.
+//
+// A user-installed plugin always has one. Both install paths require it - bundle.RequireChecksums
+// in loadSource for a local .xqsp, and the mandatory release checksum for a GitHub install - so its
+// absence at load time is not a plugin that shipped without checksums. It is a plugin that had
+// them and does not any more, which is the one case worth refusing.
+//
+// A bundled plugin is left as it was. It ships inside the application rather than being installed,
+// so there is no earlier moment that guaranteed a SHA256SUMS for its absence to contradict.
+func verifyPluginIntegrity(dir string, manifest domainplugin.Manifest, source domainplugin.InstallSource) error {
 	if manifest.Signature != "" {
+		return bundle.RequireChecksums(dir, InstallMetaFile, UserInstalledMarker)
+	}
+	if source == domainplugin.SourceUser {
 		return bundle.RequireChecksums(dir, InstallMetaFile, UserInstalledMarker)
 	}
 	if bundle.HasChecksums(dir) {

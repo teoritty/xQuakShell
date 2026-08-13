@@ -274,6 +274,13 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   files stayed, and the next start of the application discovered them and loaded the plugin you had
   just declined. A refused install is now cleaned up.
 
+- **Deleting a plugin's `SHA256SUMS` no longer disables its integrity check.** An installed plugin is
+  verified against that list every time it loads, but the check fell through to "fine" whenever the
+  list simply was not there — so anyone able to edit a plugin's files could also remove the file they
+  would have been checked against, and the modified plugin loaded silently. Every plugin you install
+  is given a `SHA256SUMS`, so its later absence is not a plugin that shipped without one; it is a
+  plugin that had one and does not any more, and that now refuses to load.
+
 ### Fixed
 
 - **A plugin can no longer read any private key belonging to a connection it was invoked for.**
