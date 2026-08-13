@@ -301,6 +301,15 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   quietly applied the change to everything under the directory instead of the part you asked for.
   An unrecognised scope is now an error, and a scope that was never set changes nothing at all.
 
+- **A remote file whose name lies about what it is no longer reaches your disk.** The SFTP server
+  controls every byte of a directory listing, and three shapes were getting through: a name carrying
+  a right-to-left override, which renders `gnp.<RLO>exe` as `exe.png` so the extension you read is
+  not the extension the file has; a Windows device name like `CON` or `NUL.log`, where writing the
+  download opens the console and the transfer reports success having stored nothing; and a trailing
+  dot or space, which Windows silently strips so `report.txt.` overwrites `report.txt`. Ordinary
+  names in any script — Arabic, Hebrew, Cyrillic, CJK — are unaffected, and the Windows rules apply
+  only on Windows, where they are rules.
+
 ### Fixed
 
 - **A plugin can no longer read any private key belonging to a connection it was invoked for.**
