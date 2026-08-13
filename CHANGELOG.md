@@ -241,6 +241,13 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   refuses its owner after N wrong guesses is a denial of service anyone who can reach the prompt can
   trigger. Repeated failures are logged.
 
+- **Uninstalling a plugin now revokes what you granted it.** Capability grants — secret access,
+  auth provider, tunnel provider, multi-session, arbitrary network — were stored against the
+  plugin's id and left behind when the plugin was removed, along with its disabled marker. The id
+  is chosen by the plugin author and verified against nothing, so anything installed later under
+  that id inherited consent you gave to something else. Uninstalling is the natural way to take a
+  permission back, and now it does.
+
 ### Fixed
 
 - **A plugin can no longer read any private key belonging to a connection it was invoked for.**
