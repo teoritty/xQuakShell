@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -88,12 +89,16 @@ func TestOpenWithSystemOpensAnOrdinaryDocument(t *testing.T) {
 func TestTheRefusalNamesTheFile(t *testing.T) {
 	svc := newOpenTestService(&recordingLauncher{})
 
-	err := svc.OpenWithSystem(`C:\Users\me\Downloads\invoice.pdf.exe`, "")
+	// The path is assembled with the running platform's separator. filepath.Base only recognises
+	// the separator of the OS it runs on, so a literal Windows path leaves the whole string as its
+	// own base name on Linux and this assertion would be testing nothing there.
+	dir := filepath.Join("home", "me", "Downloads")
+	err := svc.OpenWithSystem(filepath.Join(dir, "invoice.pdf.exe"), "")
 
 	if err == nil || !strings.Contains(err.Error(), "invoice.pdf.exe") {
 		t.Fatalf("err = %v, want it to name invoice.pdf.exe", err)
 	}
-	if strings.Contains(err.Error(), `C:\Users\me`) {
+	if strings.Contains(err.Error(), dir) {
 		t.Errorf("err = %v; it leaks the containing directory", err)
 	}
 }
