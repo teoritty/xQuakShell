@@ -123,9 +123,12 @@ async function run() {
   fake.program('ResolveHostKey', undefined);
   setGateway(fake);
   pendingHostKey.set({ sessionId: 's', host: 'h', fingerprint: 'f', keyType: 'k' } as any);
-  await resolveHostKeyRpc('sess-1', 'accept', 'host1', 'key1');
+  await resolveHostKeyRpc('sess-1', 'accept');
   const rhkCall = fake.calls.find((c) => c.method === 'ResolveHostKey');
-  assert(!!rhkCall && rhkCall.args[0] === 'sess-1' && rhkCall.args[1] === 'accept' && rhkCall.args[2] === 'host1' && rhkCall.args[3] === 'key1', 'resolveHostKeyRpc forwards args');
+  assert(!!rhkCall && rhkCall.args[0] === 'sess-1' && rhkCall.args[1] === 'accept', 'resolveHostKeyRpc forwards the session and the action');
+  // The host and the key are NOT sent. The backend reads them from the session's pending state,
+  // so a caller cannot name which key to trust for which host.
+  assert(rhkCall!.args.length === 2, 'resolveHostKeyRpc sends only the session id and the action');
   assert(get(pendingHostKey) === null, 'resolveHostKeyRpc clears pendingHostKey on success');
 
   // resolveHostKeyRpc: swallows failure via handleError, does not clear pendingHostKey
@@ -134,7 +137,7 @@ async function run() {
   setGateway(fake);
   lastError.set(null);
   pendingHostKey.set({ sessionId: 's', host: 'h', fingerprint: 'f', keyType: 'k' } as any);
-  await resolveHostKeyRpc('sess-1', 'accept', 'host1', 'key1');
+  await resolveHostKeyRpc('sess-1', 'accept');
   assert(get(lastError)?.message === 'Resolve host key: resolve failed', 'resolveHostKeyRpc reports failure via handleError');
   assert(get(pendingHostKey) !== null, 'resolveHostKeyRpc does not clear pendingHostKey on failure');
 

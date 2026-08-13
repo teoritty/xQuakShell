@@ -71,11 +71,20 @@ export async function getPlatform(): Promise<string> {
   }
 }
 
-export async function resolveHostKeyRpc(sessionId: string, action: string, host: string, authorizedKey: string): Promise<void> {
+/**
+ * Answer the host key prompt for a session. `action` is 'add' or 'replace'.
+ *
+ * The host and the key are deliberately NOT arguments: the backend reads them from the session's
+ * own pending state. They used to be passed from here, which meant the frontend told the backend
+ * which key to trust for which host - so anything reaching window.go could swap the recorded key
+ * for a production host it had never connected to. The user's decision is the only part of this
+ * the UI is entitled to supply.
+ */
+export async function resolveHostKeyRpc(sessionId: string, action: string): Promise<void> {
   const app = getGateway();
   if (!app) return;
   try {
-    await app.ResolveHostKey(sessionId, action, host, authorizedKey);
+    await app.ResolveHostKey(sessionId, action);
     pendingHostKey.set(null);
   } catch (e) {
     handleError(e, 'Resolve host key');
