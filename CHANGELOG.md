@@ -281,6 +281,13 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   is given a `SHA256SUMS`, so its later absence is not a plugin that shipped without one; it is a
   plugin that had one and does not any more, and that now refuses to load.
 
+- **A plugin can no longer write terminal control characters into the log.** Its output reaches the
+  log window, the application log and the process stderr a developer or a CI job reads. The window
+  renders it as text, but a terminal obeys what it is sent — a carriage return rewrites the line
+  already printed and an escape sequence clears the screen, so a plugin could compose a log line
+  saying whatever it liked and erase the one above it. Control characters are now stripped; tabs and
+  ordinary text, including non-Latin scripts, are untouched.
+
 - **A plugin can no longer flood the application with concurrent requests.** Every request a plugin
   sent was handled on its own goroutine with no ceiling, and only log writes were rate limited — so a
   plugin could issue them as fast as the pipe carried them and the application grew a goroutine for
