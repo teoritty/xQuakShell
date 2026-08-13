@@ -49,6 +49,11 @@ func (r *recordingGitHubClient) GetReleaseByTag(_ context.Context, _, _, tag str
 
 type recordingDownloader struct {
 	lastTag string
+	// checksums is served by DownloadAssetContent when set. Without it the fetch fails, and a
+	// failed SHA256SUMS fetch now aborts the metadata load instead of being treated as "this
+	// release published no checksums" - so a test that wants the load to succeed has to say what
+	// the checksums file contains.
+	checksums []byte
 }
 
 func (d *recordingDownloader) DownloadAsset(_ context.Context, req domainplugin.AssetDownloadRequest) (domainplugin.DownloadedAsset, func(), error) {
@@ -58,6 +63,9 @@ func (d *recordingDownloader) DownloadAsset(_ context.Context, req domainplugin.
 
 func (d *recordingDownloader) DownloadAssetContent(_ context.Context, _, _, tag, _ string) ([]byte, error) {
 	d.lastTag = tag
+	if d.checksums != nil {
+		return d.checksums, nil
+	}
 	return nil, errors.New("download disabled in test")
 }
 
@@ -236,7 +244,9 @@ func TestFetchPluginMetadataForRelease_LoadsChecksumsForInstall(t *testing.T) {
 			},
 		},
 	}
-	downloader := &recordingDownloader{}
+	downloader := &recordingDownloader{
+		checksums: []byte("0123456789abcdef  demo-windows-amd64.exe\n"),
+	}
 	svc := newTestGitHubPluginService(t, client, downloader, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil)
 
 	if _, err := svc.FetchPluginMetadataForRelease(context.Background(), "https://github.com/user/repo", "v1.0.0"); err != nil {
@@ -244,6 +254,30 @@ func TestFetchPluginMetadataForRelease_LoadsChecksumsForInstall(t *testing.T) {
 	}
 	if downloader.lastTag != "v1.0.0" {
 		t.Fatalf("expected checksum download for release metadata, got tag %q", downloader.lastTag)
+	}
+}
+
+// The release lists SHA256SUMS and fetching it fails. That must stop the install, not fall through
+// to "this release published no checksums" - which is what it used to do, silently turning the
+// download's only integrity check off for anyone able to fail a single HTTPS request.
+func TestFetchPluginMetadataForRelease_ChecksumFetchFailureAbortsTheLoad(t *testing.T) {
+	client := &recordingGitHubClient{
+		manifest: []byte(testManifest),
+		releases: []domainplugin.GitHubRelease{
+			{
+				TagName: "v1.0.0",
+				Assets: []domainplugin.GitHubReleaseAsset{
+					{Name: "SHA256SUMS"},
+					{Name: "demo-windows-amd64.exe"},
+				},
+			},
+		},
+	}
+	downloader := &recordingDownloader{}
+	svc := newTestGitHubPluginService(t, client, downloader, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil)
+
+	if _, err := svc.FetchPluginMetadataForRelease(context.Background(), "https://github.com/user/repo", "v1.0.0"); err == nil {
+		t.Fatal("a failed SHA256SUMS fetch was accepted; the install would proceed unverified")
 	}
 }
 

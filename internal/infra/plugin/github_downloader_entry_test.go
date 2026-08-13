@@ -129,3 +129,77 @@ func TestEntryNameCandidates(t *testing.T) {
 		})
 	}
 }
+
+// The decoy attack this closes: an archive carrying both a/xqs-vnc and bin/xqs-vnc used to
+// install a/xqs-vnc, because the search matched on base name across the whole tree and took
+// whichever filepath.Walk reached first - and "a" sorts before "bin". Whoever writes the archive
+// picks the name that sorts first, and their file is the one that gets +x and gets spawned.
+func TestFindEntryExecutableIgnoresADecoyEarlierInWalkOrder(t *testing.T) {
+	dir := writeExtractedTree(t, "a/xqs-vnc", "bin/xqs-vnc")
+
+	got, err := findEntryExecutable(dir, "bin/xqs-vnc", "xqs-vnc-linux-amd64.tar.gz")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := filepath.Join("bin", "xqs-vnc")
+	if !strings.HasSuffix(got, want) {
+		t.Fatalf("picked %q, want the declared path %q; a decoy sorting earlier must not win", got, want)
+	}
+}
+
+// A file with the right name at the wrong path is not the entry. Accepting it is what turned the
+// declared path into a hint, and a hint is not a containment check.
+func TestFindEntryExecutableRefusesAMatchAtAnotherPath(t *testing.T) {
+	dir := writeExtractedTree(t, "vendor/deep/xqs-vnc")
+
+	if _, err := findEntryExecutable(dir, "bin/xqs-vnc", "xqs-vnc-linux-amd64.tar.gz"); err == nil {
+		t.Fatal("expected an error: the entry exists only at a path the manifest does not declare")
+	}
+}
+
+// `tar czf x.tgz myplugin-1.2.0/` is how release tarballs are usually built, and engine.entry is
+// relative to the plugin rather than to that wrapper.
+func TestFindEntryExecutableLooksThroughASoleWrapperDirectory(t *testing.T) {
+	dir := writeExtractedTree(t, "xqs-vnc-1.2.0/bin/xqs-vnc", "xqs-vnc-1.2.0/README.md")
+
+	got, err := findEntryExecutable(dir, "bin/xqs-vnc", "xqs-vnc-linux-amd64.tar.gz")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.HasSuffix(got, filepath.Join("xqs-vnc-1.2.0", "bin", "xqs-vnc")) {
+		t.Fatalf("picked %q, want the entry inside the wrapper directory", got)
+	}
+}
+
+// Two entries at the root mean this is not the wrapper shape, and picking one of them would be
+// the base-name search coming back in through a side door.
+func TestFindEntryExecutableDoesNotGuessAmongSeveralTopLevelEntries(t *testing.T) {
+	dir := writeExtractedTree(t, "real-1.2.0/bin/xqs-vnc", "evil/bin/xqs-vnc")
+
+	if _, err := findEntryExecutable(dir, "bin/xqs-vnc", "xqs-vnc-linux-amd64.tar.gz"); err == nil {
+		t.Fatal("expected an error: with two top-level directories there is no unambiguous wrapper")
+	}
+}
+
+// engine.entry reaches this function straight from a downloaded manifest, so it is attacker input.
+func TestFindEntryExecutableRefusesATraversingEntry(t *testing.T) {
+	dir := writeExtractedTree(t, "bin/xqs-vnc")
+
+	for _, entry := range []string{"../outside", "bin/../../outside", "/etc/passwd"} {
+		t.Run(entry, func(t *testing.T) {
+			if _, err := findEntryExecutable(dir, entry, "asset.tar.gz"); err == nil {
+				t.Fatalf("engine.entry %q escaped the archive root without an error", entry)
+			}
+		})
+	}
+}
+
+// A directory named like the entry is not an executable, and returning it would fail much later
+// at spawn with an error naming nothing useful.
+func TestFindEntryExecutableRefusesADirectoryAtTheEntryPath(t *testing.T) {
+	dir := writeExtractedTree(t, "bin/xqs-vnc/placeholder")
+
+	if _, err := findEntryExecutable(dir, "bin/xqs-vnc", "asset.tar.gz"); err == nil {
+		t.Fatal("expected an error: the declared entry path is a directory")
+	}
+}

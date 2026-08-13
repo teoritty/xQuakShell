@@ -153,6 +153,18 @@ type PluginSettings struct {
 	AllowUnsandboxedFallback bool `json:"allowUnsandboxedFallback,omitempty"`
 }
 
+// DefaultPluginSettings is the plugin policy a vault starts life with.
+//
+// RequireSignedPlugins is on. A plugin is arbitrary code running on the user's machine, and the
+// default decides it for everyone who never opens the settings dialog - which is most people. It
+// shipped off because the field is a bool with `omitempty`, so false was simply the zero value
+// nobody chose.
+//
+// This only reaches a NEW vault. An existing one carries its own stored value and keeps it: false
+// there may well have been a deliberate choice, and silently overriding a security setting a user
+// picked is its own kind of wrong. What protects those installations is that the checksum on a
+// release asset is now mandatory regardless of this flag (ErrChecksumUnavailable), and that
+// turning this off now costs the master password (PluginTrustWeakened).
 func DefaultPluginSettings() PluginSettings {
-	return PluginSettings{}
+	return PluginSettings{RequireSignedPlugins: true}
 }
