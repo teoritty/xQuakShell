@@ -10,9 +10,14 @@ import (
 //
 // It is a var, not a const, so release builds can stamp the git tag into it at link time with
 // -ldflags "-X xquakshell/internal/presentation/wails.AppVersion=<version>" (see
-// .github/workflows/release.yml). The literal below is the fallback for dev builds; it is the
-// single Go source of truth so the UI carries no duplicated literal.
-var AppVersion = "1.0.0"
+// .github/workflows/release.yml). The literal below is the fallback for every build that does not
+// stamp it, `make build` included; it is the single Go source of truth so the UI carries no
+// duplicated literal.
+//
+// It must equal wails.json's productVersion, and a release test holds it there. It sat at 1.0.0
+// through the 1.1.0 release because CI always overrides it: a locally built application reported
+// 1.0.0 and its own update check then offered it the release it had just been built from.
+var AppVersion = "1.1.0"
 
 // VersionInfoDTO carries the three distinct versions surfaced in the About panel: the application
 // release, the plugin core (backend engine) version, and the frozen plugin API envelope version

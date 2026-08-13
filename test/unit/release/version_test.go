@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"xquakshell/internal/presentation/wails"
 )
 
 // wails.json's productVersion is stamped into the Windows executable's resource block, where
@@ -71,6 +73,20 @@ func TestProductVersionMatchesTheChangelog(t *testing.T) {
 	if got != want {
 		t.Errorf("wails.json info.productVersion = %q, newest changelog version is %q; "+
 			"the Windows executable would report a version nobody released", got, want)
+	}
+}
+
+// The Go literal is what every build that does not pass -ldflags reports, which is `make build`,
+// `go build`, and `wails dev`. Nothing overrode it for a year because CI always does, so a locally
+// built application announced itself as 1.0.0 and its own update check then offered it the release
+// it had just been built from. Tying it to wails.json - which TestProductVersionMatchesTheChangelog
+// already ties to the changelog - means one bump moves all three.
+func TestAppVersionFallbackMatchesWailsJSON(t *testing.T) {
+	want := readWailsConfig(t).Info.ProductVersion
+	if wails.AppVersion != want {
+		t.Errorf("wails.AppVersion = %q, wails.json productVersion = %q; an unstamped build would "+
+			"report a version that is not this one and check for updates against it",
+			wails.AppVersion, want)
 	}
 }
 
