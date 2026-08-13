@@ -152,6 +152,35 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   on, or taking a grant away go through without a prompt. A security control that charges you to
   switch it on is one that stays off.
 
+### Security
+
+- **The host key you accept is now the one the server actually presented.** The prompt used to send
+  the host name and the key back to the backend as arguments, so the frontend was telling the
+  backend what to trust. Anything reaching the Wails bridge could call it with a host it had never
+  connected to and a key of its own, and silently replace the recorded key for, say, your production
+  server. The backend now reads both from the session that is waiting on the prompt; the only thing
+  the UI supplies is your answer.
+
+- **`AddKnownHost` is gone.** It wrote an arbitrary host-and-key pair straight into the vault with no
+  connection, no prompt and no confirmation — and nothing in the UI used it. Trust for a host the
+  user had never reached could be planted in advance, and the first-connection prompt then never
+  appeared because the key already matched. Removing a known host is unchanged.
+
+- **A host with more than one key no longer raises a false "host key changed" alarm.** OpenSSH keeps
+  several keys per host — commonly Ed25519 and RSA — and the check stopped at the first entry whose
+  host matched. If the server negotiated the key recorded second, you were told the host key had
+  changed and you might be under attack, on a perfectly good connection. Every recorded key for the
+  host is now considered; a mismatch is reported only when none of them match.
+
+- **Accepting a changed key keeps the host's other keys.** It used to delete every entry for the
+  host. Combined with the false alarm above, one spurious warning permanently destroyed a key you
+  had verified. Only the key of the same type is replaced.
+
+- **Hashed `known_hosts` entries are understood.** Trust imported from an OpenSSH file written with
+  `HashKnownHosts` matched nothing, so hosts you had already verified came back as unknown and you
+  were walked through first-contact verification again — which is exactly the moment worth
+  attacking.
+
 ### Fixed
 
 - **A plugin can no longer read any private key belonging to a connection it was invoked for.**

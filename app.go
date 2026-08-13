@@ -163,8 +163,8 @@ func (a *App) DeletePassword(id string) error {
 	return a.api.DeletePassword(id)
 }
 
-func (a *App) ResolveHostKey(sessionID, action, host, authorizedKey string) error {
-	return a.api.ResolveHostKey(sessionID, action, host, authorizedKey)
+func (a *App) ResolveHostKey(sessionID, action string) error {
+	return a.api.ResolveHostKey(sessionID, action)
 }
 
 func (a *App) SearchAuditLog(query, sessionID, connectionID, category string, limit, offset int) ([]presentation.AuditEntryDTO, error) {
@@ -409,10 +409,6 @@ func (a *App) CancelTransfer(transferID string) {
 
 func (a *App) GetKnownHosts() ([]presentation.KnownHostDTO, error) {
 	return a.api.GetKnownHosts()
-}
-
-func (a *App) AddKnownHost(host, authorizedKey string) error {
-	return a.api.AddKnownHost(host, authorizedKey)
 }
 
 func (a *App) RemoveKnownHost(host string) error {

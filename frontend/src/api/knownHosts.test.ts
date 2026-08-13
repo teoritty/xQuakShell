@@ -1,6 +1,6 @@
 import { setGateway } from '../backend/context';
 import { createFakeGateway } from '../backend/fakeGateway';
-import { addKnownHost, removeKnownHost } from './knownHosts';
+import { removeKnownHost } from './knownHosts';
 import { lastError } from '../stores/appState';
 import { get } from 'svelte/store';
 
@@ -11,14 +11,13 @@ async function run() {
   setGateway(fake);
   lastError.set(null);
 
-  fake.program('AddKnownHost', undefined);
-  await addKnownHost('host1', 'keyBase64');
-  let call = fake.calls.find((c) => c.method === 'AddKnownHost');
-  assert(!!call && call.args[0] === 'host1' && call.args[1] === 'keyBase64', 'AddKnownHost called with args');
-
+  // There is deliberately no addKnownHost wrapper. Writing trust for a host is only reachable
+  // through resolveHostKeyRpc, which acts on a key the backend saw in a real handshake. A binding
+  // that took a host and a key from the frontend let anything holding window.go pre-seed trust for
+  // a host the user had never connected to, and the TOFU prompt then never fired.
   fake.program('RemoveKnownHost', undefined);
   await removeKnownHost('host1');
-  call = fake.calls.find((c) => c.method === 'RemoveKnownHost');
+  let call = fake.calls.find((c) => c.method === 'RemoveKnownHost');
   assert(!!call && call.args[0] === 'host1', 'RemoveKnownHost called with host');
 
   assert(get(lastError) === null, 'no error reported for successful calls');
@@ -28,10 +27,6 @@ async function run() {
   setGateway(fake);
   lastError.set(null);
 
-  fake.program('AddKnownHost', () => { throw new Error('boom'); });
-  await addKnownHost('host1', 'keyBase64'); // should not throw
-  assert(get(lastError) !== null, 'addKnownHost failure reports error');
-
   fake.program('RemoveKnownHost', () => { throw new Error('boom'); });
   lastError.set(null);
   await removeKnownHost('host1'); // should not throw
@@ -40,7 +35,6 @@ async function run() {
   // no gateway
   setGateway(null as any);
   lastError.set(null);
-  await addKnownHost('host1', 'keyBase64'); // should not throw
   await removeKnownHost('host1'); // should not throw
   assert(get(lastError) === null, 'no error reported when gateway is missing');
 

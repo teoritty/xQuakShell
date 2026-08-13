@@ -120,3 +120,11 @@ var ErrAuditLogWrite = errors.New("failed to write audit log entry")
 // the Wails bridge, and telling untrusted code which of the two it hit turns this check into
 // an oracle for the master password.
 var ErrPluginTrustReauthRequired = errors.New("changing plugin trust settings requires the master password")
+
+// ErrNoPendingHostKey indicates a host key decision was submitted for a session that is not
+// waiting on one.
+//
+// It is refused rather than treated as a plain "add": without a pending key from a real handshake
+// there is nothing for the user's decision to be about, and accepting it would let the caller
+// write trust for a host nobody connected to.
+var ErrNoPendingHostKey = errors.New("session has no host key awaiting verification")
