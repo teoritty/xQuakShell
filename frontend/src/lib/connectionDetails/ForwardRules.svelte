@@ -53,6 +53,15 @@
     dispatch('dirty');
   }
 
+  // Presentational only: it decides whether to show the acknowledgement, never whether the rule
+  // is allowed. domain.ForwardRule.Validate is the authority and refuses the rule regardless of
+  // what this returns.
+  function isLoopbackBind(addr: string): boolean {
+    const host = (addr || '').trim();
+    if (!host) return true;
+    return host === '127.0.0.1' || host === '::1' || host === 'localhost' || host.startsWith('127.');
+  }
+
   function providersForPlugin(pluginId: string) {
     return tunnelProviders.filter((p) => p.pluginId === pluginId);
   }
@@ -119,6 +128,19 @@
           </div>
           {#if ruleError(rule.id, 'targetHost')}
             <p class="connection-detail-field-error">{ruleError(rule.id, 'targetHost')}</p>
+          {/if}
+          {#if rule.kind === 'remote' && !isLoopbackBind(rule.bindAddress)}
+            <!-- Only shown for a rule that already binds beyond loopback. There is no bind-address
+                 field in this form, so such a rule arrived by import or from an older vault; the
+                 backend refuses it until it is acknowledged, and without this it could not be. -->
+            <label class="gateway-ack">
+              <input
+                type="checkbox"
+                checked={rule.allowRemoteGateway ?? false}
+                on:change={(e) => updateRuleField(rule.id, 'allowRemoteGateway', e.currentTarget.checked)}
+              />
+              Publish on <code>{rule.bindAddress}</code> — reachable from the server's network, not just the server
+            </label>
           {/if}
         {:else}
           <div class="forward-rule-target-row">
@@ -267,6 +289,8 @@
     flex-shrink: 0;
   }
 
+  .gateway-ack { display: flex; align-items: center; gap: 8px; font-size: 11px; line-height: 1.4; }
+  .gateway-ack code { font-size: 11px; }
   .consent-hint {
     font-size: 9px;
     color: var(--text-secondary);

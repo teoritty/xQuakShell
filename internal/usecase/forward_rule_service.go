@@ -52,6 +52,11 @@ func (r *ForwardRuleRunner) startLocal(ctx context.Context, rule domain.ForwardR
 	if err != nil {
 		return fmt.Errorf("listen local forward %s: %w", rule.ID, err)
 	}
+	// The rule validated as loopback-only against its bind string. Check the address the kernel
+	// actually handed back, because "localhost" resolves to whatever the resolver says.
+	if err := verifyLoopbackListener(ln, rule.ID); err != nil {
+		return err
+	}
 	r.mu.Lock()
 	r.active[rule.ID] = ln
 	r.mu.Unlock()

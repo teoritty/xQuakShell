@@ -204,6 +204,21 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   were walked through first-contact verification again — which is exactly the moment worth
   attacking.
 
+- **A remote forward that binds beyond the SSH server's loopback now has to be asked for.** Such a
+  rule publishes whatever its target resolves to *on your machine* to every host that can reach the
+  server — a target of `127.0.0.1:22` means your own SSH daemon, on the server's network. It was
+  reachable by writing one string into a saved connection, with nothing to acknowledge and nothing
+  shown. Ordinary loopback remote forwards are unaffected.
+
+  **If you already have such a rule** it will refuse to start until you tick the new acknowledgement
+  on it, in the connection's forward rules.
+
+- **A loopback-only forward now verifies where it actually bound.** The rule was checked as a
+  string, and `localhost` means whatever the resolver says it means — a line in the hosts file
+  points it at an external interface and a forward the validator called loopback-only listens to
+  the local network. The listener's real address is now checked, and one that landed somewhere
+  routable is closed rather than served.
+
 - **The SSH algorithms this client will negotiate are now written down instead of inherited.** They
   used to be whatever the vendored crypto library defaulted to, which moves when the dependency is
   bumped, with no review and nothing that fails when it does. SHA-1 host key signatures (`ssh-rsa`),
