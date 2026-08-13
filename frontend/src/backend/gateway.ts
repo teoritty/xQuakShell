@@ -7,6 +7,16 @@ import type { wails } from '../../wailsjs/go/models';
 // value over the Wails bridge; there is no corresponding exported TS type.
 type RawMessage = any;
 
+// Mirrors internal/presentation/wails.PluginSettingsSaveResultDTO. `reauthRequired` is a
+// result rather than a thrown error because the caller acts on it: it re-asks for the master
+// password and retries. Which changes need that password is decided in Go
+// (domain.PluginTrustWeakened) and deliberately not mirrored here — a second copy of the rule
+// would drift, and the drifted copy is the one an attacker aims at.
+export interface PluginSettingsSaveResult {
+  saved: boolean;
+  reauthRequired: boolean;
+}
+
 // --- Transfer conflict planning (FileZilla-style existing-file handling) ---
 // Mirrors the Go DTOs in internal/presentation/wails/dto_transfers.go. Defined
 // here (the backend seam) rather than in api/ so the dependency direction stays
@@ -330,7 +340,10 @@ export interface AppGateway {
 
   SaveFolder(arg1: wails.FolderDTO): Promise<wails.FolderDTO>;
 
-  SavePluginSettings(arg1: wails.PluginSettingsDTO): Promise<void>;
+  SavePluginSettings(
+    arg1: wails.PluginSettingsDTO,
+    arg2: string,
+  ): Promise<PluginSettingsSaveResult>;
 
   SaveSettings(arg1: wails.AppSettingsDTO): Promise<void>;
 

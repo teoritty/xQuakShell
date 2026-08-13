@@ -137,6 +137,21 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
 
 ### Security
 
+- **Changing the plugin trust policy now asks for your master password.** Adding a trusted publisher
+  key, turning off *Require signed plugins*, allowing the unsandboxed fallback, or granting a plugin
+  a capability all take effect only after the password is re-entered.
+
+  These settings are the root of trust for plugin signatures: the list of trusted publisher keys is
+  the only thing a manifest signature is ever checked against. They were writable through the same
+  Wails bridge the UI uses, with no confirmation, so anything that got hold of that bridge — a script
+  injected into the UI, a plugin with a WebView — could add its own key and then install its own
+  plugin showing a *signature verified* badge. The master password never crosses that bridge, which
+  is what makes it the right thing to ask for.
+
+  **Tightening the policy still costs nothing.** Revoking a key, turning the signature requirement
+  on, or taking a grant away go through without a prompt. A security control that charges you to
+  switch it on is one that stays off.
+
 - **A plugin release asset is no longer installed without a checksum to verify it against.** If a
   release publishes no `SHA256SUMS` (or `checksums.txt`), or leaves the asset you are installing out
   of it, the install now stops. The `.xqsp` bundle path has always required checksums; the

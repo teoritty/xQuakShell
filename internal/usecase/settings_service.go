@@ -71,7 +71,24 @@ func (s *SettingsService) SaveSettings(ctx context.Context, settings domain.AppS
 //
 // The caller is responsible for merging: this writes what it is given, and what it is given must
 // already carry the fields the caller does not own.
-func (s *SettingsService) SavePluginSettings(ctx context.Context, plugins domain.PluginSettings) error {
+//
+// masterPassword is required only when the change weakens the trust anchor (see
+// domain.PluginTrustWeakened) and is ignored otherwise. The gate lives here rather than in the
+// handler because the handler is one caller of many that could appear: this section holds the
+// root of trust for plugin signatures and the sandbox opt-out, and a check that a second caller
+// can forget to make is not a check.
+func (s *SettingsService) SavePluginSettings(ctx context.Context, plugins domain.PluginSettings, masterPassword string) error {
+	current, err := s.GetSettings()
+	if err != nil {
+		return err
+	}
+	if domain.PluginTrustWeakened(current.Plugins, plugins) {
+		// The underlying error is dropped on purpose: a wrong password and a locked vault must
+		// look identical from the bridge, or this becomes a master-password oracle.
+		if err := s.vaultRepo.VerifyMasterPassword(ctx, masterPassword); err != nil {
+			return domain.ErrPluginTrustReauthRequired
+		}
+	}
 	return s.vaultRepo.UpdateData(ctx, func(data *domain.VaultData) error {
 		if data.Settings == nil {
 			defaults := defaultAppSettings()
