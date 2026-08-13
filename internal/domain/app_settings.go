@@ -168,3 +168,43 @@ type PluginSettings struct {
 func DefaultPluginSettings() PluginSettings {
 	return PluginSettings{RequireSignedPlugins: true}
 }
+
+// RevokePluginGrants removes every capability grant and the disabled marker recorded for a plugin.
+//
+// A grant is consent given to a particular plugin. When that plugin is gone, the consent has no
+// subject left, and leaving it behind means the next thing installed under the same id inherits a
+// decision the user made about something else. plugin.id is chosen by the plugin author and
+// verified against nothing, so "the same id" is not a coincidence an attacker has to wait for.
+//
+// It returns the names of the grants that were actually revoked, so the caller can log what the
+// user is losing rather than announcing a revocation that removed nothing.
+func (p *PluginSettings) RevokePluginGrants(pluginID string) []string {
+	if p == nil || pluginID == "" {
+		return nil
+	}
+	maps := []struct {
+		name  string
+		grant map[string]bool
+	}{
+		{"secret", p.SecretAccessGranted},
+		{"authProvider", p.AuthProviderAccessGranted},
+		{"tunnelProvider", p.TunnelProviderAccessGranted},
+		{"multiSession", p.MultiSessionAccessGranted},
+		{"arbitraryNetwork", p.ArbitraryNetworkAccessGranted},
+	}
+	var revoked []string
+	for _, m := range maps {
+		if m.grant == nil {
+			continue
+		}
+		if m.grant[pluginID] {
+			revoked = append(revoked, m.name)
+		}
+		delete(m.grant, pluginID)
+	}
+	// The disabled marker is not a grant, but it is keyed the same way and is equally stale once
+	// the plugin is gone: leaving it would silently disable a different plugin installed later
+	// under that id.
+	delete(p.Disabled, pluginID)
+	return revoked
+}

@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"xquakshell/internal/domain"
 )
@@ -172,4 +173,30 @@ func (s *PluginVaultSettings) SetPluginEnabled(ctx context.Context, pluginID str
 		}
 		return nil
 	})
+}
+
+// RevokeAllGrants clears every capability grant recorded for a plugin.
+//
+// It is called when a plugin is uninstalled. Consent was given to that plugin; once it is gone the
+// consent has no subject, and anything installed later under the same id would inherit a decision
+// the user made about something else.
+func (s *PluginVaultSettings) RevokeAllGrants(ctx context.Context, pluginID string) error {
+	if s == nil || s.vault == nil || pluginID == "" {
+		return nil
+	}
+	var revoked []string
+	err := s.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		if data.Settings == nil {
+			return nil
+		}
+		revoked = data.Settings.Plugins.RevokePluginGrants(pluginID)
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("revoke plugin grants for %s: %w", pluginID, err)
+	}
+	if len(revoked) > 0 {
+		slog.Info("plugin grants revoked on uninstall", "component", "plugin", "plugin", pluginID, "grants", revoked)
+	}
+	return nil
 }

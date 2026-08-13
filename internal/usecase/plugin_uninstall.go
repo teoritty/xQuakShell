@@ -52,6 +52,18 @@ func (m *PluginManager) UninstallPlugin(ctx context.Context, pluginID string, re
 		return err
 	}
 
+	// Revoke last, after the plugin is definitely gone. Doing it earlier would drop the user's
+	// consent on a plugin that then failed to uninstall and is still running under it.
+	//
+	// A failure here is logged rather than returned: the files and the registry entry are already
+	// gone, so returning an error would report a failed uninstall that in fact happened, and the
+	// user's next move - trying again - hits "plugin not found" and never gets the grants cleared.
+	if m.pluginSettings != nil {
+		if err := m.pluginSettings.RevokeAllGrants(ctx, pluginID); err != nil {
+			slog.Error("failed to revoke plugin grants after uninstall", "plugin", pluginID, "error", err)
+		}
+	}
+
 	return nil
 }
 
