@@ -26,12 +26,13 @@ func TestCryptoPolicyExcludesBrokenAlgorithms(t *testing.T) {
 		because string
 	}{
 		{
-			name:   "host key algorithms",
-			list:   hostKeyAlgorithms,
-			// These identifiers are deprecated upstream, which is exactly why they are named here:
-			// the assertion is that they never reappear in the policy.
-			//nolint:staticcheck // SA1019: naming the withdrawn algorithms is the assertion
-			banned: []string{gossh.KeyAlgoRSA, gossh.InsecureKeyAlgoDSA, gossh.InsecureCertAlgoDSAv01, gossh.CertAlgoRSAv01},
+			name: "host key algorithms",
+			list: hostKeyAlgorithms,
+			// Wire names as literals, unlike the policy itself, which uses the library's constants
+			// so a rename breaks the build. Here the opposite is wanted: a withdrawn algorithm's
+			// constant is eventually deleted upstream, and this assertion has to outlive that. What
+			// must never appear on the wire is the string, not the identifier that spells it.
+			banned: []string{"ssh-rsa", "ssh-dss", "ssh-dss-cert-v01@openssh.com", "ssh-rsa-cert-v01@openssh.com"},
 			// ssh-rsa is RSA-with-SHA-1; OpenSSH disabled it by default in 8.8.
 			because: "it signs with SHA-1",
 		},
@@ -44,13 +45,13 @@ func TestCryptoPolicyExcludesBrokenAlgorithms(t *testing.T) {
 		{
 			name:    "ciphers",
 			list:    ciphers,
-			banned:  []string{gossh.InsecureCipherAES128CBC, gossh.InsecureCipherTripleDESCBC, gossh.InsecureCipherRC4, gossh.InsecureCipherRC4128, gossh.InsecureCipherRC4256},
+			banned:  []string{"aes128-cbc", "3des-cbc", "arcfour", "arcfour128", "arcfour256"},
 			because: "CBC and RC4 have no place in a new connection",
 		},
 		{
 			name:    "MACs",
 			list:    macs,
-			banned:  []string{gossh.HMACSHA1, gossh.InsecureHMACSHA196},
+			banned:  []string{"hmac-sha1", "hmac-sha1-96", "hmac-md5"},
 			because: "it is SHA-1",
 		},
 	}
