@@ -231,6 +231,13 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   `ssh-rsa`. The connection now stops before the trust prompt, because accepting it would record a
   key an attacker can factor as the thing every later connection is checked against.
 
+- **A plugin can no longer raise its own resource limits.** `channel.maxConcurrent`,
+  `channel.maxThroughputKbps` and a tunnel provider's `maxConcurrentChannels` were read out of
+  `plugin.json` and used as the host's limit whenever they were greater than zero — but
+  `plugin.json` is the plugin's own file, so a plugin asking for a million concurrent channels got
+  a million. Declaring *less* than the host default still works and is still honoured; declaring
+  more is now capped.
+
 ### Fixed
 
 - **A plugin can no longer read any private key belonging to a connection it was invoked for.**
