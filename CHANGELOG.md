@@ -219,6 +219,18 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   the local network. The listener's real address is now checked, and one that landed somewhere
   routable is closed rather than served.
 
+- **The SSH algorithms this client will negotiate are now written down instead of inherited.** They
+  used to be whatever the vendored crypto library defaulted to, which moves when the dependency is
+  bumped, with no review and nothing that fails when it does. SHA-1 host key signatures (`ssh-rsa`),
+  DSA, the SHA-1 key exchanges, CBC ciphers, RC4 and HMAC-SHA1 are all excluded; everything a
+  current OpenSSH server offers is kept.
+
+- **A server offering an RSA host key below 2048 bits is refused.** Algorithm negotiation cannot
+  catch this — `rsa-sha2-256` is a sound signature algorithm and says nothing about the size of the
+  key signing with it — so a 1024-bit host key arrived through a policy that correctly refused
+  `ssh-rsa`. The connection now stops before the trust prompt, because accepting it would record a
+  key an attacker can factor as the thing every later connection is checked against.
+
 - **Master password attempts are now rate-limited.** There was no limit of any kind: the unlock
   call went straight through to the vault, so anything that could reach the Wails bridge could guess
   in a loop as fast as the machine allowed. The key derivation made each guess expensive but never

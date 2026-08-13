@@ -26,6 +26,15 @@ func (c *HostKeyChecker) HostKeyCallback() gossh.HostKeyCallback {
 	return func(hostname string, remote net.Addr, key gossh.PublicKey) error {
 		host := normalizeHostPort(hostname, remote)
 
+		// Refuse a key too weak to mean anything before asking whether it is trusted. Algorithm
+		// negotiation cannot express this: rsa-sha2-256 is a sound algorithm and says nothing
+		// about the modulus underneath it, so a 1024-bit host key arrives through a policy that
+		// correctly excluded ssh-rsa. Trusting one on first contact would record a key an
+		// attacker can factor as the thing every later connection is checked against.
+		if err := checkHostKeyStrength(key); err != nil {
+			return fmt.Errorf("host %s: %w", host, err)
+		}
+
 		err := c.repo.Check(host, key)
 		if err != nil {
 			return &domain.HostKeyVerificationError{
