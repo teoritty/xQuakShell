@@ -11,20 +11,35 @@ import (
 type ApplyTarget int
 
 const (
-	ApplyBoth ApplyTarget = iota
+	// ApplyTargetUnspecified is the zero value, and it deliberately is not one of the three real
+	// choices.
+	//
+	// ApplyBoth used to sit here. That made the widest possible scope the value a caller gets by
+	// forgetting to set the field - on a RECURSIVE chmod or chown, where the difference between
+	// "the files under this directory" and "everything under this directory" is the difference
+	// between the operation the user asked for and one they did not.
+	ApplyTargetUnspecified ApplyTarget = iota
+	ApplyBoth
 	ApplyFilesOnly
 	ApplyDirsOnly
 )
 
 // Matches reports whether an entry with the given isDir should be changed.
+//
+// Every arm is named, and anything unrecognised changes NOTHING. The previous default returned
+// true, so an unspecified or unknown target applied the operation to every entry it walked. For a
+// recursive permission change the safe direction is doing too little: a user who sees nothing
+// happen tries again, while one whose whole tree changed mode has no such signal.
 func (a ApplyTarget) Matches(isDir bool) bool {
 	switch a {
+	case ApplyBoth:
+		return true
 	case ApplyFilesOnly:
 		return !isDir
 	case ApplyDirsOnly:
 		return isDir
 	default:
-		return true
+		return false
 	}
 }
 
