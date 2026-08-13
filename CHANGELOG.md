@@ -295,6 +295,12 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   plugin's requests are now handled at once, and the rest are answered with a rate-limit error
   rather than queued.
 
+- **A recursive permission change no longer widens itself when something goes wrong.** Recursive
+  chmod and chown take a scope — files, directories, or both — and an unrecognised value became
+  *both*, the widest of the three. So a typo, or a mismatch between the interface and the backend,
+  quietly applied the change to everything under the directory instead of the part you asked for.
+  An unrecognised scope is now an error, and a scope that was never set changes nothing at all.
+
 ### Fixed
 
 - **A plugin can no longer read any private key belonging to a connection it was invoked for.**
