@@ -63,6 +63,13 @@ coverage.out
 coverage.html
 *.test
 vendor/
+# `go build ./scripts/mutate` drops its binary in the repository root, and one
+# such 3.7 MB executable was committed and tagged into a release before this.
+/mutate
+/mutate.exe
+
+# --- Agent tooling scratch ---
+.playwright-mcp/
 
 # --- Wails / frontend generated ---
 frontend/package.json.md5
