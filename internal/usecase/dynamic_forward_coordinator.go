@@ -148,6 +148,11 @@ func (c *DynamicForwardCoordinator) startDynamicRule(ctx context.Context, sf *se
 	if err != nil {
 		return fmt.Errorf("listen dynamic forward %s: %w", rule.ID, err)
 	}
+	// Same reason as the local forward: a dynamic forward is loopback-only by validation, and
+	// the validation ran against a string the resolver gets the final say over.
+	if err := verifyLoopbackListener(ln, rule.ID); err != nil {
+		return err
+	}
 	sf.listeners[rule.ID] = ln
 	safego.GoNamed("dynamicForward.accept", func() {
 		for {
