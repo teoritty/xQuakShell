@@ -24,7 +24,15 @@ frontend/dist/
 # requestedExecutionLevel, adding longPathAware, hard-coding version fields —
 # it must be force-added (`git add -f`) or un-ignored here, or the change will
 # live only on your machine and CI will silently build without it.
-build/
+#
+# info.json is exactly that case and is tracked: the embedded default keys its
+# string table to language 0000, which GetFileVersionInfo cannot resolve, so
+# every field on the exe's Details tab came out blank. An untracked fix would
+# have been invisible to CI, which builds from a fresh checkout with no build/.
+build/*
+!build/windows/
+build/windows/*
+!build/windows/info.json
 
 # --- Dependencies ---
 frontend/node_modules/
@@ -63,6 +71,13 @@ coverage.out
 coverage.html
 *.test
 vendor/
+# `go build ./scripts/mutate` drops its binary in the repository root, and one
+# such 3.7 MB executable was committed and tagged into a release before this.
+/mutate
+/mutate.exe
+
+# --- Agent tooling scratch ---
+.playwright-mcp/
 
 # --- Wails / frontend generated ---
 frontend/package.json.md5

@@ -172,6 +172,11 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   configuration and not from anything a user or a remote host supplies, and no shipped code path is
   known to reach it. It was found by fuzzing the plugin sandbox's arguments. Such a path is now
   refused outright, in the deny direction, on every entry point.
+- **The Windows executable now carries a readable version.** Its properties dialog showed no
+  product name, product version or copyright, because the version resource Wails ships by default
+  labels its string table with the language-neutral id `0000`, which `VerQueryValue` cannot look
+  up. The build now labels it `0409` and stamps the numeric product version as well as the file
+  version, so the Details tab agrees with the version the About panel reports.
 
 ### Removed
 
