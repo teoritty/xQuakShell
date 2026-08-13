@@ -248,6 +248,12 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   a million. Declaring *less* than the host default still works and is still honoured; declaring
   more is now capped.
 
+- **The install screen now names the filesystem paths a plugin is asking for.** It used to say
+  "Read files in declared sandbox paths" and list none of them, while nothing validated what was
+  declared — so a plugin asking for `/` or `C:\` was presented to you in the language of a sandbox.
+  The paths are listed the way the outbound network patterns always have been, and a grant that
+  covers your whole filesystem or home directory is called out as such.
+
 - **Declining a plugin install no longer leaves it on disk.** The plugin was copied into place
   before your consent was checked, and a refusal returned an error without removing it — so the
   files stayed, and the next start of the application discovered them and loaded the plugin you had
