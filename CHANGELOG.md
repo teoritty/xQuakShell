@@ -319,6 +319,13 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
 
 ### Fixed
 
+- **A plugin's channel can no longer be pointed somewhere it was never authorized for.** Each
+  channel resolves and checks its destination when it is opened, and the code required — in a
+  comment — that every open get its own backend to hold that decision. Nothing enforced it, so a
+  wiring change that shared one backend would have let a second channel overwrite the destination
+  the first was approved for: the authorization still happens, for a target that is no longer the
+  one in use. Every backend now refuses to be authorized twice.
+
 - **A plugin can no longer exhaust the application's memory by listing a directory, or ask the
   filesystem for a file of exabytes.** Listing read every entry of a directory before anything was
   filtered, and a plugin can fill a directory it is allowed to write to; the plugin's own process is

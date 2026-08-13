@@ -25,10 +25,11 @@ type ChannelRelayBackend struct {
 	resolver ipResolver
 	audit    domainplugin.ChannelAuditRecorder
 
-	mu     sync.Mutex
-	target string // canonical resolved host:port, set by Authorize, dialed by Wire
-	conn   net.Conn
-	closed bool
+	mu         sync.Mutex
+	authorized bool
+	target     string // canonical resolved host:port, set by Authorize, dialed by Wire
+	conn       net.Conn
+	closed     bool
 }
 
 // NewChannelRelayBackend creates a tcp-relay backend for one channel.open request. caps is the
@@ -98,6 +99,11 @@ func (b *ChannelRelayBackend) Authorize(purpose, _ string, hint string) error {
 	for _, addr := range addrs {
 		if shouldAllowResolvedIP(allowArbitrary, allowPrivate, patternHost, addr.IP) {
 			b.mu.Lock()
+			if b.authorized {
+				b.mu.Unlock()
+				return domainplugin.ErrChannelBackendReused
+			}
+			b.authorized = true
 			b.target = net.JoinHostPort(addr.IP.String(), portStr)
 			b.mu.Unlock()
 			return nil

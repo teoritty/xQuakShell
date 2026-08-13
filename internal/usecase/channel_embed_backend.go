@@ -79,8 +79,11 @@ type ChannelEmbedBackend struct {
 	mu              sync.Mutex
 	parentSessionID string
 	tunnelID        string
-	unsubscribe     func()
-	closed          bool
+	// authorized marks that a target has been resolved into this backend. It is a field of its
+	// own rather than a test on tunnelID, which the constructor pre-fills with the default.
+	authorized  bool
+	unsubscribe func()
+	closed      bool
 }
 
 // NewChannelEmbedBackend creates an embed-stream backend for one channel.open request.
@@ -127,9 +130,13 @@ func (b *ChannelEmbedBackend) Authorize(purpose, parentSessionID, hint string) e
 	}
 
 	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.authorized {
+		return domainplugin.ErrChannelBackendReused
+	}
+	b.authorized = true
 	b.parentSessionID = parentSessionID
 	b.tunnelID = tunnelID
-	b.mu.Unlock()
 	return nil
 }
 

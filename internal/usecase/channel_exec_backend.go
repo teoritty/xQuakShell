@@ -59,6 +59,7 @@ type ChannelExecBackend struct {
 
 	mu              sync.Mutex
 	argv            []string
+	authorized      bool
 	parentSessionID string
 	session         execSession
 	closed          bool
@@ -98,9 +99,13 @@ func (b *ChannelExecBackend) Authorize(purpose, parentSessionID, hint string) er
 	}
 
 	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.authorized {
+		return domainplugin.ErrChannelBackendReused
+	}
+	b.authorized = true
 	b.argv = argv
 	b.parentSessionID = parentSessionID
-	b.mu.Unlock()
 	return nil
 }
 

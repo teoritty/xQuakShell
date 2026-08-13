@@ -28,11 +28,12 @@ type ChannelUDPRelayBackend struct {
 	idleTimeout time.Duration
 	onIdleReap  func() // test hook, invoked in addition to the real close path
 
-	mu      sync.Mutex
-	target  string // canonical resolved host:port, set by Authorize, dialed by Wire
-	conn    *net.UDPConn
-	closed  bool
-	idleTmr *time.Timer
+	mu         sync.Mutex
+	authorized bool
+	target     string // canonical resolved host:port, set by Authorize, dialed by Wire
+	conn       *net.UDPConn
+	closed     bool
+	idleTmr    *time.Timer
 }
 
 // NewChannelUDPRelayBackend creates a udp-relay backend for one channel.open request. caps is
@@ -101,6 +102,11 @@ func (b *ChannelUDPRelayBackend) Authorize(purpose, _ string, hint string) error
 	for _, addr := range addrs {
 		if shouldAllowResolvedIP(allowArbitrary, allowPrivate, patternHost, addr.IP) {
 			b.mu.Lock()
+			if b.authorized {
+				b.mu.Unlock()
+				return domainplugin.ErrChannelBackendReused
+			}
+			b.authorized = true
 			b.target = net.JoinHostPort(addr.IP.String(), portStr)
 			b.mu.Unlock()
 			return nil

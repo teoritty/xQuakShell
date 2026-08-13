@@ -27,6 +27,14 @@ var (
 	// ErrRateLimited indicates a plugin exceeded a resource rate limit.
 	ErrRateLimited = errors.New("plugin event rate limited")
 
+	// ErrChannelBackendReused indicates a second Authorize on a backend that already carries an
+	// authorized target. The backends are single-use because Authorize is where the target is
+	// resolved and checked: authorizing twice into one instance replaces what the first channel
+	// was cleared for, and the bytes then flow somewhere nobody approved. The resolver is required
+	// to return a fresh backend per channel.open; this is that requirement enforced rather than
+	// documented.
+	ErrChannelBackendReused = errors.New("plugin channel backend already authorized")
+
 	// ErrDirectoryTooLarge indicates fs.list found more entries than one response may carry. It is
 	// distinct from ErrCapabilityDenied because the plugin was allowed to read this directory —
 	// the answer, not the permission, is the problem, and a plugin that cannot tell the two apart
