@@ -269,6 +269,11 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   the file everything else is checked against. A chain that starts on TLS must stay on it, and a
   redirect onto anything that is not HTTP or HTTPS is refused outright.
 
+- **Declining a plugin install no longer leaves it on disk.** The plugin was copied into place
+  before your consent was checked, and a refusal returned an error without removing it — so the
+  files stayed, and the next start of the application discovered them and loaded the plugin you had
+  just declined. A refused install is now cleaned up.
+
 - **Deleting a plugin's `SHA256SUMS` no longer disables its integrity check.** An installed plugin is
   verified against that list every time it loads, but the check fell through to "fine" whenever the
   list simply was not there — so anyone able to edit a plugin's files could also remove the file they
