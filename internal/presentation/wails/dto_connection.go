@@ -61,6 +61,9 @@ type ForwardRuleDTO struct {
 	PluginID    string `json:"pluginId,omitempty"`
 	ProviderID  string `json:"providerId,omitempty"`
 	Enabled     bool   `json:"enabled"`
+	// AllowRemoteGateway carries the user's acknowledgement that a remote forward may bind beyond
+	// the SSH server's loopback. Without it domain.ForwardRule.Validate refuses such a rule.
+	AllowRemoteGateway bool `json:"allowRemoteGateway,omitempty"`
 }
 
 type ConnectionDTO struct {
@@ -185,6 +188,8 @@ func forwardRuleToDTO(r domain.ForwardRule) ForwardRuleDTO {
 		PluginID:    r.PluginID,
 		ProviderID:  r.ProviderID,
 		Enabled:     r.Enabled,
+
+		AllowRemoteGateway: r.AllowRemoteGateway,
 	}
 }
 
@@ -258,6 +263,8 @@ func forwardRuleFromDTO(d ForwardRuleDTO) domain.ForwardRule {
 		PluginID:    d.PluginID,
 		ProviderID:  d.ProviderID,
 		Enabled:     d.Enabled,
+
+		AllowRemoteGateway: d.AllowRemoteGateway,
 	}
 }
 

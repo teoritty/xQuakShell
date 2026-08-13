@@ -120,3 +120,11 @@ var ErrAuditLogWrite = errors.New("failed to write audit log entry")
 // the Wails bridge, and telling untrusted code which of the two it hit turns this check into
 // an oracle for the master password.
 var ErrPluginTrustReauthRequired = errors.New("changing plugin trust settings requires the master password")
+
+// ErrForwardBindNotLoopback indicates a forward that promised a loopback-only listener actually
+// bound to a routable address.
+//
+// The promise is validated as a string, and a string is not a fact: "localhost" means whatever the
+// resolver says it means, so a hosts-file entry can point a loopback-only forward at an external
+// interface. This is raised when what the kernel bound disagrees with what the rule claimed.
+var ErrForwardBindNotLoopback = errors.New("forward listener did not bind to loopback")
