@@ -499,8 +499,8 @@ func (a *App) GetPluginSettings() (presentation.PluginSettingsDTO, error) {
 	return a.api.GetPluginSettings()
 }
 
-func (a *App) SavePluginSettings(dto presentation.PluginSettingsDTO) error {
-	return a.api.SavePluginSettings(dto)
+func (a *App) SavePluginSettings(dto presentation.PluginSettingsDTO, masterPassword string) (presentation.PluginSettingsSaveResultDTO, error) {
+	return a.api.SavePluginSettings(dto, masterPassword)
 }
 
 func (a *App) GeneratePluginPublisherKeyPair() (presentation.PluginPublisherKeyPairDTO, error) {

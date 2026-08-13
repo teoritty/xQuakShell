@@ -134,6 +134,35 @@ async function run() {
   assert(threw instanceof Error && threw.message === 'save failed', 'savePluginSettings rethrows the original error');
   assert(get(lastError)?.message === 'Save plugin settings: save failed', 'savePluginSettings sets lastError before rethrowing');
 
+  // The master password reaches the backend verbatim, and only when the caller supplies one.
+  // Sending a password on every save would train the UI to prompt for it constantly; sending
+  // none when the user typed one would make the confirm button silently do nothing.
+  fake = createFakeGateway();
+  fake.program('SavePluginSettings', { saved: true, reauthRequired: false });
+  setGateway(fake);
+  const trustSettings = { trustedPublisherKeys: [], requireSignedPlugins: true, allowUnsandboxedFallback: false };
+  await savePluginSettings(trustSettings);
+  let saveCall = fake.calls.find((c) => c.method === 'SavePluginSettings');
+  assert(saveCall?.args[1] === '', 'savePluginSettings sends an empty password when none is given');
+
+  fake = createFakeGateway();
+  fake.program('SavePluginSettings', { saved: true, reauthRequired: false });
+  setGateway(fake);
+  await savePluginSettings(trustSettings, 'master-pw');
+  saveCall = fake.calls.find((c) => c.method === 'SavePluginSettings');
+  assert(saveCall?.args[1] === 'master-pw', 'savePluginSettings forwards the master password unchanged');
+
+  // reauthRequired is a result, not a throw: the caller re-prompts and retries on it, so
+  // turning it into an exception here would break the retry and surface a scary error instead.
+  fake = createFakeGateway();
+  fake.program('SavePluginSettings', { saved: false, reauthRequired: true });
+  setGateway(fake);
+  lastError.set(null);
+  const refused = await savePluginSettings(trustSettings);
+  assert(refused.reauthRequired === true, 'savePluginSettings surfaces reauthRequired to the caller');
+  assert(refused.saved === false, 'a refused save does not report itself as saved');
+  assert(get(lastError) === null, 'a reauth prompt is not an error and must not set lastError');
+
   // generatePluginPublisherKeyPair: default empty when absent; pass-through; fallback on failure
   fake = createFakeGateway();
   noMethod = withoutMethod(fake, 'GeneratePluginPublisherKeyPair');

@@ -9,7 +9,10 @@
 // lives in actions/protocolActions.ts (installPlugin), which wraps this
 // function.
 import { getGateway } from '../backend/context';
+import type { PluginSettingsSaveResult } from '../backend/gateway';
 import { showError } from '../stores/appState';
+
+export type { PluginSettingsSaveResult };
 
 export interface PluginInfo {
   id: string;
@@ -152,11 +155,22 @@ export async function getPluginSettings(): Promise<PluginSettings> {
   }
 }
 
-export async function savePluginSettings(settings: PluginSettings): Promise<void> {
+/**
+ * Persist plugin trust settings.
+ *
+ * `masterPassword` is only consulted by the backend when the change weakens the trust anchor —
+ * adding a publisher key, dropping the signature requirement, opting out of the sandbox. Callers
+ * send an empty string first and retry with the password only if the result asks for it, so the
+ * rule for which changes need it stays in Go and is never duplicated here.
+ */
+export async function savePluginSettings(
+  settings: PluginSettings,
+  masterPassword = '',
+): Promise<PluginSettingsSaveResult> {
   const app = getGateway();
-  if (!app?.SavePluginSettings) return;
+  if (!app?.SavePluginSettings) return { saved: false, reauthRequired: false };
   try {
-    await app.SavePluginSettings(settings);
+    return await app.SavePluginSettings(settings, masterPassword);
   } catch (e) {
     handleError(e, 'Save plugin settings');
     throw e;

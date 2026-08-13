@@ -21,6 +21,13 @@
   let newTrustedKey = '';
   let busy = false;
 
+  // Set when the backend refused the last save for want of the master password. The backend
+  // decides that, not this component: a copy of the rule here would drift from the Go one, and
+  // the drifted copy is the one that lets a weakening change through.
+  let reauthPrompt = false;
+  let masterPassword = '';
+  let reauthFailed = false;
+
   onMount(loadSettings);
 
   async function loadSettings() {
@@ -31,15 +38,39 @@
     }
   }
 
-  async function save() {
+  async function save(password = '') {
     busy = true;
     try {
-      await savePluginSettings(settings);
+      const result = await savePluginSettings(settings, password);
+      if (result.reauthRequired) {
+        // A refusal after the user typed something means that something was wrong. The backend
+        // will not say whether the password was wrong or the vault locked, on purpose.
+        reauthFailed = password !== '';
+        reauthPrompt = true;
+        return;
+      }
+      reauthPrompt = false;
+      reauthFailed = false;
+      masterPassword = '';
     } catch (e) {
       onError(e instanceof Error ? e.message : 'Failed to save plugin settings');
     } finally {
       busy = false;
     }
+  }
+
+  async function confirmReauth() {
+    if (!masterPassword) return;
+    await save(masterPassword);
+  }
+
+  // Reverting the edit is the only honest way out: the controls are bound to `settings`, so
+  // leaving them showing a change the vault never took would misreport the policy in force.
+  async function cancelReauth() {
+    reauthPrompt = false;
+    reauthFailed = false;
+    masterPassword = '';
+    await loadSettings();
   }
 
   async function addTrustedKey() {
@@ -76,13 +107,41 @@
 <div class="trust-panel">
   <h4>Trust policy</h4>
 
+  {#if reauthPrompt}
+    <div class="reauth" role="group" aria-label="Confirm trust change">
+      <p class="reauth-text">
+        This change lowers what a plugin has to prove before it runs. Enter your master password to
+        confirm it.
+      </p>
+      <div class="key-row">
+        <!-- svelte-ignore a11y-autofocus -->
+        <input
+          type="password"
+          class="key-input"
+          autofocus
+          bind:value={masterPassword}
+          placeholder="Master password"
+          aria-label="Master password"
+          on:keydown={(e) => e.key === 'Enter' && confirmReauth()}
+        />
+        <button type="button" class="btn-secondary" disabled={busy || !masterPassword} on:click={confirmReauth}>
+          Confirm
+        </button>
+        <button type="button" class="btn-secondary" disabled={busy} on:click={cancelReauth}>Cancel</button>
+      </div>
+      {#if reauthFailed}
+        <p class="reauth-error">Could not confirm. Check the password and that the vault is unlocked.</p>
+      {/if}
+    </div>
+  {/if}
+
   <label class="checkbox-row">
-    <input type="checkbox" bind:checked={settings.requireSignedPlugins} on:change={save} />
+    <input type="checkbox" bind:checked={settings.requireSignedPlugins} on:change={() => save()} />
     Require signed plugins from trusted publishers
   </label>
 
   <label class="checkbox-row">
-    <input type="checkbox" bind:checked={settings.allowUnsandboxedFallback} on:change={save} />
+    <input type="checkbox" bind:checked={settings.allowUnsandboxedFallback} on:change={() => save()} />
     Start a plugin unconfined if its sandbox cannot be applied
   </label>
   <p class="setting-hint">
@@ -114,6 +173,9 @@
 <style>
   .trust-panel { border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
   .trust-panel h4 { margin: 0; font-size: 12px; }
+  .reauth { border: 1px solid var(--accent); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .reauth-text { margin: 0; font-size: 12px; line-height: 1.4; }
+  .reauth-error { margin: 0; font-size: 11px; color: var(--error-color, #e06c75); }
   .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
   .setting-hint { margin: -4px 0 0 24px; font-size: 11px; color: var(--text-secondary); line-height: 1.4; }
   .trusted-keys { display: flex; flex-direction: column; gap: 6px; }

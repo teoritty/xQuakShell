@@ -2,6 +2,7 @@ package wails
 
 import (
 	"crypto/ed25519"
+	"errors"
 	"fmt"
 
 	"xquakshell/internal/domain"
@@ -121,19 +122,40 @@ func (a *AppAPI) GetPluginSettings() (PluginSettingsDTO, error) {
 	return pluginSettingsToDTO(settings.Plugins), nil
 }
 
+// PluginSettingsSaveResultDTO reports how a trust-settings save ended.
+//
+// ReauthRequired is a result rather than an error because it is an expected outcome the UI acts
+// on, and because it keeps the policy in one place: the frontend does not decide which changes
+// need a password, it asks and retries. A second copy of that rule in Svelte would drift from the
+// one in domain.PluginTrustWeakened, and the copy that drifts is the one attackers use.
+type PluginSettingsSaveResultDTO struct {
+	Saved          bool `json:"saved"`
+	ReauthRequired bool `json:"reauthRequired"`
+}
+
 // SavePluginSettings persists plugin trust/install settings.
-func (a *AppAPI) SavePluginSettings(dto PluginSettingsDTO) error {
+//
+// masterPassword is only consulted when the change weakens the trust anchor; a strengthening
+// change goes through with an empty string and the UI never prompts for it.
+func (a *AppAPI) SavePluginSettings(dto PluginSettingsDTO, masterPassword string) (PluginSettingsSaveResultDTO, error) {
 	if a.settingsSvc == nil {
-		return fmt.Errorf("settings unavailable")
+		return PluginSettingsSaveResultDTO{}, fmt.Errorf("settings unavailable")
 	}
 	if _, err := domainplugin.ParseTrustedPublisherKeys(dto.TrustedPublisherKeys); err != nil {
-		return err
+		return PluginSettingsSaveResultDTO{}, err
 	}
 	settings, err := a.settingsSvc.GetSettings()
 	if err != nil {
-		return err
+		return PluginSettingsSaveResultDTO{}, err
 	}
-	return a.settingsSvc.SavePluginSettings(a.reqCtx(), dtoToPluginSettings(dto, settings.Plugins))
+	err = a.settingsSvc.SavePluginSettings(a.reqCtx(), dtoToPluginSettings(dto, settings.Plugins), masterPassword)
+	if errors.Is(err, domain.ErrPluginTrustReauthRequired) {
+		return PluginSettingsSaveResultDTO{ReauthRequired: true}, nil
+	}
+	if err != nil {
+		return PluginSettingsSaveResultDTO{}, err
+	}
+	return PluginSettingsSaveResultDTO{Saved: true}, nil
 }
 
 // GeneratePluginPublisherKeyPair returns a new Ed25519 key pair for plugin signing.
