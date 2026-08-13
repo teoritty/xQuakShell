@@ -315,6 +315,18 @@ func (a *AppAPI) ReportRestored() {
 }
 
 func (a *AppAPI) onLockoutTriggered() {
+	a.lockNow()
+}
+
+// lockNow performs the whole lock sequence, and exists so that the two ways a vault gets locked -
+// the user asking and the idle timer firing - cannot drift apart. They were separate copies of the
+// same four steps: whoever adds a fifth one would have had to remember both, and the copy easiest
+// to forget is the timer, which is the one that runs when nobody is watching.
+//
+// Order matters. Closing the sessions first is what clears the key passphrase cache and tears down
+// the live SSH connections while the vault data they were built from still exists; locking first
+// would leave both alive with nothing to reconcile them against.
+func (a *AppAPI) lockNow() {
 	a.sessions.CloseAll()
 	if a.auditSvc != nil {
 		a.auditSvc.OnVaultLocked()
@@ -396,14 +408,7 @@ func (a *AppAPI) afterVaultOpened() {
 
 // LockVault re-locks the vault and clears sensitive data from memory.
 func (a *AppAPI) LockVault() {
-	a.sessions.CloseAll()
-	if a.auditSvc != nil {
-		a.auditSvc.OnVaultLocked()
-	}
-	a.vaultRepo.Lock()
-	if a.ctx != nil {
-		wailsrt.EventsEmit(a.ctx, EventVaultLocked, nil)
-	}
+	a.lockNow()
 }
 
 // IsVaultUnlocked returns true if the vault is currently unlocked.
