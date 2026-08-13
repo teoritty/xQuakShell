@@ -60,7 +60,7 @@
   async function handleHostKeyAccept() {
     if (!hostKeySessionId || !hostKeyKeyBase64) return;
     const action = hostKeyMismatch ? 'replace' : 'add';
-    await resolveHostKey(hostKeySessionId, action, hostKeyHost, hostKeyKeyBase64);
+    await resolveHostKey(hostKeySessionId, action);
     pendingHostKey.set(null);
   }
 
