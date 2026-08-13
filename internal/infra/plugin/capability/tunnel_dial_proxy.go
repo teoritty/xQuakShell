@@ -26,10 +26,13 @@ type TunnelDialProxy struct {
 
 // NewTunnelDialProxy creates a tunnel dial proxy with a channel limit from manifest (0 = default).
 func NewTunnelDialProxy(pluginID string, caps *domainplugin.TunnelCaps, inbound domainplugin.TunnelInboundPort) *TunnelDialProxy {
-	max := domainplugin.DefaultMaxTunnelChannels
-	if caps != nil && caps.MaxConcurrentChannels > 0 {
-		max = caps.MaxConcurrentChannels
+	declared := 0
+	if caps != nil {
+		declared = caps.MaxConcurrentChannels
 	}
+	// Each of these is a live SSH channel on the user's own connection, so a manifest cannot vote
+	// itself more of them than the host ceiling allows.
+	max := domainplugin.EffectiveMaxTunnelChannels(declared)
 	return &TunnelDialProxy{
 		pluginID: pluginID,
 		inbound:  inbound,
