@@ -177,6 +177,16 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   kind of wrong. Those installations are covered by the mandatory checksum above and by the master
   password now being required to turn the setting off.
 
+- **Master password attempts are now rate-limited.** There was no limit of any kind: the unlock
+  call went straight through to the vault, so anything that could reach the Wails bridge could guess
+  in a loop as fast as the machine allowed. The key derivation made each guess expensive but never
+  made the ten-thousandth harder than the first.
+
+  Three attempts cost nothing; after that the wait doubles from one second, capped at thirty. It is
+  a delay and not a lockout, and the count is deliberately not written to disk — a vault that
+  refuses its owner after N wrong guesses is a denial of service anyone who can reach the prompt can
+  trigger. Repeated failures are logged.
+
 ### Fixed
 
 - **A plugin can no longer read any private key belonging to a connection it was invoked for.**

@@ -120,3 +120,10 @@ var ErrAuditLogWrite = errors.New("failed to write audit log entry")
 // the Wails bridge, and telling untrusted code which of the two it hit turns this check into
 // an oracle for the master password.
 var ErrPluginTrustReauthRequired = errors.New("changing plugin trust settings requires the master password")
+
+// ErrUnlockThrottled indicates too many consecutive master password failures; the next attempt is
+// refused until the backoff elapses.
+//
+// It is a delay, not a lockout. A vault that refuses its owner permanently after N wrong guesses is
+// a denial of service anyone who can reach the prompt can trigger.
+var ErrUnlockThrottled = errors.New("too many failed unlock attempts")
