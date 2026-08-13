@@ -44,30 +44,6 @@ func (fs *RemoteFS) readDir(dir string) ([]os.FileInfo, error) {
 	return fs.client.ReadDir(dir)
 }
 
-// safeEntryName validates a filename taken from a remote directory listing.
-// The SFTP server controls these bytes completely, so a name is accepted only
-// if it is a single, inert path segment. Rejecting here — at the adapter
-// boundary — is what lets every consumer of RemoteFS treat RemoteNode.Name as
-// a trusted component. pkg/sftp already applies path.Base, but path.Base only
-// understands forward slashes: a name like `..\..\evil.exe` reaches us intact
-// and escapes once filepath.Join cleans it on Windows.
-func safeEntryName(name string) bool {
-	if name == "" || name == "." || name == ".." {
-		return false
-	}
-	if strings.ContainsAny(name, `/\`) {
-		return false
-	}
-	// Windows resolves ADS and drive-relative syntax inside a single segment.
-	if strings.ContainsRune(name, ':') {
-		return false
-	}
-	if strings.ContainsRune(name, 0) {
-		return false
-	}
-	return true
-}
-
 // NewRemoteFSWithRateLimit creates RemoteFS with optional transfer speed limit (Kbps, 0 = unlimited).
 func NewRemoteFSWithRateLimit(client *sftp.Client, rateLimitKbps int) *RemoteFS {
 	return &RemoteFS{client: client, rateLimitKbps: rateLimitKbps}

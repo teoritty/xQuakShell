@@ -80,7 +80,7 @@
         "codeLines": 397
       },
       "internal/infra/sftp/remote_fs.go": {
-        "codeLines": 468
+        "codeLines": 453
       },
       "internal/usecase/embed_tunnel_service.go": {
         "codeLines": 458
