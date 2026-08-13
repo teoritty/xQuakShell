@@ -114,7 +114,14 @@ func (d *BinaryDownloader) fetchAssetFile(ctx context.Context, tempDir string, r
 	}
 
 	actualChecksum := hex.EncodeToString(hasher.Sum(nil))
-	if req.ExpectedChecksum != "" && !strings.EqualFold(actualChecksum, req.ExpectedChecksum) {
+	if req.ExpectedChecksum == "" {
+		if !req.AllowUnverified {
+			return "", fmt.Errorf("%w: release %s lists no SHA256SUMS entry for %s",
+				domainplugin.ErrChecksumUnavailable, req.Tag, req.AssetName)
+		}
+		return tempFile, nil
+	}
+	if !strings.EqualFold(actualChecksum, req.ExpectedChecksum) {
 		return "", fmt.Errorf("checksum mismatch: expected %s, got %s", req.ExpectedChecksum, actualChecksum)
 	}
 	return tempFile, nil
@@ -131,6 +138,8 @@ func (d *BinaryDownloader) DownloadAssetContent(
 		Repo:      repo,
 		Tag:       tag,
 		AssetName: assetName,
+		// SHA256SUMS is the one asset with nothing to verify itself against; it is the listing.
+		AllowUnverified: true,
 	})
 	if err != nil {
 		return nil, err
@@ -146,42 +155,59 @@ func isSupportedArchive(assetName string) bool {
 		strings.HasSuffix(lower, ".tgz")
 }
 
-// findEntryExecutable picks the plugin binary out of an extracted release archive by name.
+// findEntryExecutable resolves the manifest's engine.entry to a file inside an extracted release
+// archive, as a path.
 //
-// Selecting it by mode bits, as this used to, does not work: both extractors force the execute
+// Selecting it by mode bits, as this once did, does not work: both extractors force the execute
 // bit onto every entry — they have to, because an archive written on Windows carries none — so
-// "the first file that looks executable" is really "the first file in walk order", which
-// installs a README or a licence as the plugin and only fails much later, at spawn. The manifest
-// already states what the entry is called, and that is the only trustworthy answer here.
+// "the first file that looks executable" is really "the first file in walk order", which installs
+// a README as the plugin and only fails much later, at spawn.
+//
+// Searching for the base name anywhere in the tree, which is what replaced it, is worse. It threw
+// away the path the manifest declares and kept only the last segment, then took whichever match
+// filepath.Walk reached first — so an archive carrying both a/plug and bin/plug installs a/plug,
+// because "a" sorts before "bin". Anyone who can write the archive (its author, or a man in the
+// middle on a release with no SHA256SUMS) plants a decoy beside the real binary and the decoy is
+// what gets the execute bit and gets spawned. It also meant this path applied none of the
+// containment ResolveEngineEntryPath applies everywhere else.
+//
+// So the entry is resolved as what it is: a relative path under the archive root. The single
+// concession is the wrapper directory - `tar czf x.tgz myplugin-1.2.0/` is how release tarballs
+// are usually built, and the manifest path is relative to the plugin, not to that wrapper. It is
+// only tried when the root holds exactly one entry and that entry is a directory, so it can never
+// become a search: two candidates mean the archive is not the shape this understands, and
+// guessing between them is how the decoy got in.
 func findEntryExecutable(dir, entryName, assetName string) (string, error) {
-	candidates := entryNameCandidates(entryName)
-	if len(candidates) == 0 {
+	if strings.TrimSpace(entryName) == "" {
 		return "", fmt.Errorf("cannot pick a binary out of release asset %q: the manifest declares no engine.entry", assetName)
 	}
-	wanted := make(map[string]struct{}, len(candidates))
-	for _, candidate := range candidates {
-		wanted[strings.ToLower(filepath.Base(filepath.FromSlash(candidate)))] = struct{}{}
+
+	roots := []string{dir}
+	if wrapper, ok := soleWrapperDir(dir); ok {
+		roots = append(roots, wrapper)
 	}
 
-	var found string
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	for _, root := range roots {
+		for _, candidate := range entryNameCandidates(entryName) {
+			resolved, err := ResolveEngineEntryPath(root, candidate)
+			if err != nil {
+				// A traversing or absolute engine.entry is a property of the manifest, not of the
+				// root being tried, so it fails the install rather than moving on to the next one.
+				return "", err
+			}
+			if info, statErr := os.Stat(resolved); statErr == nil && !info.IsDir() {
+				return resolved, nil
+			}
 		}
-		if info.IsDir() {
-			return nil
-		}
-		if _, ok := wanted[strings.ToLower(info.Name())]; !ok {
-			return nil
-		}
-		found = path
-		return filepath.SkipAll
-	})
-	if err != nil && err != filepath.SkipAll {
-		return "", err
 	}
-	if found == "" {
-		return "", fmt.Errorf("release asset %q contains no %s (looked for %v)", assetName, entryName, candidates)
+	return "", fmt.Errorf("release asset %q does not contain %q at the path its manifest declares", assetName, entryName)
+}
+
+// soleWrapperDir returns the one directory an archive root contains, when that is all it contains.
+func soleWrapperDir(dir string) (string, bool) {
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 1 || !entries[0].IsDir() {
+		return "", false
 	}
-	return found, nil
+	return filepath.Join(dir, entries[0].Name()), true
 }
