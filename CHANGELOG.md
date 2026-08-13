@@ -231,6 +231,16 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   `ssh-rsa`. The connection now stops before the trust prompt, because accepting it would record a
   key an attacker can factor as the thing every later connection is checked against.
 
+- **Master password attempts are now rate-limited.** There was no limit of any kind: the unlock
+  call went straight through to the vault, so anything that could reach the Wails bridge could guess
+  in a loop as fast as the machine allowed. The key derivation made each guess expensive but never
+  made the ten-thousandth harder than the first.
+
+  Three attempts cost nothing; after that the wait doubles from one second, capped at thirty. It is
+  a delay and not a lockout, and the count is deliberately not written to disk — a vault that
+  refuses its owner after N wrong guesses is a denial of service anyone who can reach the prompt can
+  trigger. Repeated failures are logged.
+
 - **A plugin can no longer raise its own resource limits.** `channel.maxConcurrent`,
   `channel.maxThroughputKbps` and a tunnel provider's `maxConcurrentChannels` were read out of
   `plugin.json` and used as the host's limit whenever they were greater than zero — but
