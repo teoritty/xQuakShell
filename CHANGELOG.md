@@ -261,6 +261,14 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   that id inherited consent you gave to something else. Uninstalling is the natural way to take a
   permission back, and now it does.
 
+- **A plugin download can no longer be redirected off TLS.** The URL for a release asset arrives
+  inside the GitHub API response rather than being built locally, and it was followed with the
+  default HTTP client — which walks up to ten redirects anywhere, including from `https` to plain
+  `http`, and says nothing. The asset itself is checksum-verified now, but `SHA256SUMS` is fetched
+  by the one path that cannot be (it is the list), so the transport is the only thing protecting
+  the file everything else is checked against. A chain that starts on TLS must stay on it, and a
+  redirect onto anything that is not HTTP or HTTPS is refused outright.
+
 - **Declining a plugin install no longer leaves it on disk.** The plugin was copied into place
   before your consent was checked, and a refusal returned an error without removing it — so the
   files stayed, and the next start of the application discovered them and loaded the plugin you had
