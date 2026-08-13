@@ -254,6 +254,13 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   The paths are listed the way the outbound network patterns always have been, and a grant that
   covers your whole filesystem or home directory is called out as such.
 
+- **Uninstalling a plugin now revokes what you granted it.** Capability grants — secret access,
+  auth provider, tunnel provider, multi-session, arbitrary network — were stored against the
+  plugin's id and left behind when the plugin was removed, along with its disabled marker. The id
+  is chosen by the plugin author and verified against nothing, so anything installed later under
+  that id inherited consent you gave to something else. Uninstalling is the natural way to take a
+  permission back, and now it does.
+
 - **Declining a plugin install no longer leaves it on disk.** The plugin was copied into place
   before your consent was checked, and a refusal returned an error without removing it — so the
   files stayed, and the next start of the application discovered them and loaded the plugin you had
