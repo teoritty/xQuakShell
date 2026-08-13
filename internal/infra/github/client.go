@@ -34,9 +34,41 @@ func NewClient() *Client {
 // NewClientWithBaseURL creates a client for the given GitHub API base URL.
 func NewClientWithBaseURL(baseURL string) *Client {
 	return &Client{
-		httpClient: &http.Client{Timeout: DefaultTimeout},
-		baseURL:    baseURL,
+		httpClient: &http.Client{
+			Timeout:       DefaultTimeout,
+			CheckRedirect: refuseTransportDowngrade,
+		},
+		baseURL: baseURL,
 	}
+}
+
+// ErrInsecureRedirect indicates a redirect tried to move the request off TLS, or onto a scheme
+// this client does not speak.
+var ErrInsecureRedirect = errors.New("refusing redirect that drops TLS")
+
+// refuseTransportDowngrade stops a redirect chain from silently leaving TLS.
+//
+// Release asset downloads follow BrowserDownloadURL, which arrives inside an API response rather
+// than being built here, and the default http.Client follows wherever it points - including from
+// https to plain http, across up to ten hops, with nothing reported. The asset itself is now
+// checksum-verified, but SHA256SUMS is fetched by the one path that cannot be (it is the listing),
+// so the transport is the only thing protecting the file everything else is checked against.
+//
+// A request that STARTS on http is left alone: that is httptest in the unit tests and a plain-HTTP
+// GitHub Enterprise base someone configured deliberately. What is refused is a chain that began on
+// https and does not stay there - a downgrade nobody asked for - and any hop onto a scheme that is
+// neither.
+func refuseTransportDowngrade(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return fmt.Errorf("%w: stopped after %d redirects", ErrInsecureRedirect, len(via))
+	}
+	if req.URL.Scheme != "http" && req.URL.Scheme != "https" {
+		return fmt.Errorf("%w: redirect to unsupported scheme %q", ErrInsecureRedirect, req.URL.Scheme)
+	}
+	if via[0].URL.Scheme == "https" && req.URL.Scheme != "https" {
+		return fmt.Errorf("%w: %s redirected to %s", ErrInsecureRedirect, via[0].URL.Host, req.URL.Scheme)
+	}
+	return nil
 }
 
 // Release is the subset of the GitHub releases API response this client reads.
