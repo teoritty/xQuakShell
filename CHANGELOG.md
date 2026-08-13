@@ -309,6 +309,15 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   on that path. Opening a file in an editor you named is unchanged: the file is an argument to the
   program you chose, so nothing runs it.
 
+- **A remote file whose name lies about what it is no longer reaches your disk.** The SFTP server
+  controls every byte of a directory listing, and three shapes were getting through: a name carrying
+  a right-to-left override, which renders `gnp.<RLO>exe` as `exe.png` so the extension you read is
+  not the extension the file has; a Windows device name like `CON` or `NUL.log`, where writing the
+  download opens the console and the transfer reports success having stored nothing; and a trailing
+  dot or space, which Windows silently strips so `report.txt.` overwrites `report.txt`. Ordinary
+  names in any script — Arabic, Hebrew, Cyrillic, CJK — are unaffected, and the Windows rules apply
+  only on Windows, where they are rules.
+
 ### Fixed
 
 - **A plugin can no longer read any private key belonging to a connection it was invoked for.**
