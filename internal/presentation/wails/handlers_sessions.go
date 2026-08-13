@@ -147,11 +147,14 @@ func clampPTYDimension(v int) uint32 {
 
 // ResolveHostKey handles the user's decision on a pending host key verification.
 // action is "add" or "replace"; after resolving, retries the session connection.
-func (a *AppAPI) ResolveHostKey(sessionID, action, host, authorizedKey string) error {
+//
+// The host and the key are read from the session's pending state rather than taken as arguments -
+// see usecase.HostKeyService.ResolveHostKey for why the caller is not entitled to supply them.
+func (a *AppAPI) ResolveHostKey(sessionID, action string) error {
 	if a.hostKeys == nil {
 		return fmt.Errorf("host key service unavailable")
 	}
-	return a.hostKeys.ResolveHostKey(a.reqCtx(), sessionID, action, host, authorizedKey)
+	return a.hostKeys.ResolveHostKey(a.reqCtx(), sessionID, action)
 }
 
 // ReportEmbedViewport forwards pixel dimensions to the plugin process.
