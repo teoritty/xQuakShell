@@ -42,11 +42,14 @@ type Conn struct {
 	// channelThroughputKbps is the manifest's channel.maxThroughputKbps for this plugin,
 	// applied to every channel this conn opens.
 	channelThroughputKbps int
-	closeCh               chan struct{}
-	closeOnce             sync.Once
-	wg                    sync.WaitGroup
-	readErr               error
-	mu                    sync.Mutex
+	// inFlight is a counting semaphore over inbound plugin requests: one slot held for the life of
+	// each dispatched goroutine. See domainplugin.MaxConcurrentPluginRequests.
+	inFlight  chan struct{}
+	closeCh   chan struct{}
+	closeOnce sync.Once
+	wg        sync.WaitGroup
+	readErr   error
+	mu        sync.Mutex
 }
 
 type messageResult struct {
@@ -77,6 +80,7 @@ func NewConn(readFrom io.Reader, writeTo io.Writer, onNotify func(string, json.R
 		writeCloser:           wc,
 		readCloser:            rc,
 		pending:               make(map[string]chan messageResult),
+		inFlight:              make(chan struct{}, domainplugin.MaxConcurrentPluginRequests),
 		onNotify:              onNotify,
 		onRequest:             onRequest,
 		closeCh:               make(chan struct{}),
@@ -229,14 +233,7 @@ func (c *Conn) readLoop() {
 				continue
 			}
 			if c.onRequest != nil {
-				c.wg.Add(1)
-				reqID := *msg.ID
-				reqMethod := msg.Method
-				reqParams := append(json.RawMessage(nil), msg.Params...)
-				safego.GoNamed("ipc.handleRequest", func() {
-					defer c.wg.Done()
-					c.handleIncomingRequest(reqID, reqMethod, reqParams)
-				})
+				c.dispatchInboundRequest(*msg.ID, msg.Method, append(json.RawMessage(nil), msg.Params...))
 			}
 			continue
 		}
@@ -351,4 +348,27 @@ func EncodeParams(v any) (json.RawMessage, error) {
 		return nil, fmt.Errorf("encode rpc params: %w", err)
 	}
 	return data, nil
+}
+
+// dispatchInboundRequest runs one plugin request on its own goroutine, or refuses it when the
+// plugin already has MaxConcurrentPluginRequests outstanding.
+//
+// The refusal is deliberate, and so is its being non-blocking. Waiting for a slot here would stall
+// the read loop, and the read loop is also what delivers responses to the host's OWN outbound calls
+// - so a plugin could deadlock the connection by filling the semaphore and then never answering
+// anything. Refusing keeps the loop moving and tells the plugin, in the reply it is already waiting
+// for, to slow down.
+func (c *Conn) dispatchInboundRequest(id RPCID, method string, params json.RawMessage) {
+	select {
+	case c.inFlight <- struct{}{}:
+	default:
+		_ = c.enc.WriteMessage(NewErrorResponse(id, *rateLimitedError(method)))
+		return
+	}
+	c.wg.Add(1)
+	safego.GoNamed("ipc.handleRequest", func() {
+		defer c.wg.Done()
+		defer func() { <-c.inFlight }()
+		c.handleIncomingRequest(id, method, params)
+	})
 }
