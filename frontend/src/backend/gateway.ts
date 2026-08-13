@@ -76,8 +76,6 @@ export interface ExecutePlanDTO {
 export interface AppGateway {
   AddGitHubRepository(arg1: wails.AddGitHubRepositoryRequest): Promise<void>;
 
-  AddKnownHost(arg1: string, arg2: string): Promise<void>;
-
   CancelTransfer(arg1: string): Promise<void>;
 
   Chmod(arg1: string, arg2: string, arg3: number): Promise<void>;
@@ -334,7 +332,7 @@ export interface AppGateway {
 
   ReportRestored(): Promise<void>;
 
-  ResolveHostKey(arg1: string, arg2: string, arg3: string, arg4: string): Promise<void>;
+  ResolveHostKey(arg1: string, arg2: string): Promise<void>;
 
   SaveConnection(arg1: wails.ConnectionDTO): Promise<wails.ConnectionDTO>;
 

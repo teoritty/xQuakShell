@@ -118,14 +118,6 @@ func (a *AppAPI) GetKnownHosts() ([]KnownHostDTO, error) {
 	return KnownHostsToDTO(entries), nil
 }
 
-// AddKnownHost adds a known host entry from an authorized_key formatted string.
-func (a *AppAPI) AddKnownHost(host, authorizedKey string) error {
-	if a.hostKeys == nil {
-		return fmt.Errorf("host key service unavailable")
-	}
-	return a.hostKeys.Add(a.reqCtx(), host, authorizedKey)
-}
-
 // RemoveKnownHost removes a known host entry by host pattern.
 func (a *AppAPI) RemoveKnownHost(host string) error {
 	if a.hostKeys == nil {
