@@ -319,6 +319,16 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
 
 ### Fixed
 
+- **"Do not allow private networks" now covers the networks Go does not call private.** A plugin
+  granted arbitrary outbound access, with private networks declined, could still reach anything in
+  `100.64.0.0/10` — the range Tailscale, ZeroTier and carrier-grade NAT use, which is to say the
+  user's own machines — because the standard library's definition of "private" is RFC 1918 and
+  nothing else. The same held for `0.0.0.0/8`, which reaches the local host on Linux and macOS, and
+  for an IPv4 address smuggled inside an IPv6 one: `64:ff9b::7f00:1` and `2002:7f00:1::` are
+  127.0.0.1 on a network that routes them, and both read as ordinary public addresses. All of these
+  are refused now. A plugin whose manifest names such an address outright still reaches it — that is
+  consent you gave when you installed it.
+
 - **A download that fails partway no longer destroys the file it was replacing.** The local file was
   opened and truncated before the first byte arrived, so a dropped connection left you with neither
   the old copy nor the new one — and what remained wore the real name, with nothing to say it was
