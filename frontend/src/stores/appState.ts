@@ -42,6 +42,12 @@ export interface ForwardRule {
   pluginId?: string;
   providerId?: string;
   enabled: boolean;
+  /**
+   * Acknowledges that a remote forward may bind beyond the SSH server's loopback. The backend
+   * refuses such a rule without it, so a rule written straight into a saved connection cannot
+   * publish a local service to the server's network unnoticed.
+   */
+  allowRemoteGateway?: boolean;
 }
 
 export interface ConnectionUser {

@@ -129,6 +129,14 @@ var ErrPluginTrustReauthRequired = errors.New("changing plugin trust settings re
 // write trust for a host nobody connected to.
 var ErrNoPendingHostKey = errors.New("session has no host key awaiting verification")
 
+// ErrForwardBindNotLoopback indicates a forward that promised a loopback-only listener actually
+// bound to a routable address.
+//
+// The promise is validated as a string, and a string is not a fact: "localhost" means whatever the
+// resolver says it means, so a hosts-file entry can point a loopback-only forward at an external
+// interface. This is raised when what the kernel bound disagrees with what the rule claimed.
+var ErrForwardBindNotLoopback = errors.New("forward listener did not bind to loopback")
+
 // ErrUnlockThrottled indicates too many consecutive master password failures; the next attempt is
 // refused until the backoff elapses.
 //
