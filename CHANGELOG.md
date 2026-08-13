@@ -152,6 +152,31 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   on, or taking a grant away go through without a prompt. A security control that charges you to
   switch it on is one that stays off.
 
+- **A plugin release asset is no longer installed without a checksum to verify it against.** If a
+  release publishes no `SHA256SUMS` (or `checksums.txt`), or leaves the asset you are installing out
+  of it, the install now stops. The `.xqsp` bundle path has always required checksums; the
+  bare-binary path skipping them was an asymmetry rather than a policy, and it left TLS to
+  github.com as the only thing between a tampered release and your machine.
+
+- **A failed `SHA256SUMS` download is now an error instead of "this release has no checksums".**
+  The two were the same value internally, so a rate limit, a 5xx, or a dropped connection silently
+  turned integrity checking off and nothing reported it. Failing one HTTPS request — not forging it,
+  just failing it — was enough to get an unverified install.
+
+- **The plugin binary inside a release archive is taken from the path the manifest declares.** It
+  used to be found by searching the whole extracted tree for the file's *base* name and taking
+  whichever the directory walk reached first. An archive containing both `a/plug` and `bin/plug`
+  installed `a/plug`, because `a` sorts before `bin` — so whoever wrote the archive could plant a
+  decoy beside the real binary and the decoy is what got the execute bit and got launched. A
+  tarball wrapped in a single top-level directory, which is how they are usually built, still works;
+  anything more ambiguous is now refused rather than guessed.
+
+- **A new vault requires signed plugins by default.** This was off because the setting is a boolean
+  that defaults to false, not because anyone chose it. Existing vaults keep whatever they have —
+  false there may have been deliberate, and overriding a security setting a user picked is its own
+  kind of wrong. Those installations are covered by the mandatory checksum above and by the master
+  password now being required to turn the setting off.
+
 ### Fixed
 
 - **A plugin can no longer read any private key belonging to a connection it was invoked for.**

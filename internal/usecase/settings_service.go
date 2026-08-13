@@ -120,6 +120,11 @@ func defaultAppSettings() domain.AppSettings {
 		AuditLog:       domain.DefaultAuditLogSettings(),
 		UIScalePercent: 100,
 		Debug:          domain.DefaultDebugSettings(),
+		// GetSettings returns this whole struct for a vault with no stored settings, and the
+		// install path reads RequireSignedPlugins straight off it. Leaving the section zero here
+		// meant a fresh vault reported "unsigned plugins are fine" no matter what
+		// DefaultPluginSettings says.
+		Plugins: domain.DefaultPluginSettings(),
 	}
 }
 

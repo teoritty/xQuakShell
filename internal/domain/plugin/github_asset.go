@@ -34,8 +34,13 @@ type AssetDownloadRequest struct {
 	// AssetName is the release asset file name, as listed by the GitHub API.
 	AssetName string
 	// ExpectedChecksum is this asset's entry in the release-level SHA256SUMS. Empty means the
-	// release published none and the download cannot be verified against it.
+	// release published none, or listed none for this asset, and the download cannot be verified.
 	ExpectedChecksum string
+	// AllowUnverified permits a download with no ExpectedChecksum. It exists for exactly one
+	// asset - SHA256SUMS itself, which cannot appear in its own listing - and setting it anywhere
+	// else reopens the hole this field was added to close: an install whose only integrity
+	// guarantee is that TLS to github.com held.
+	AllowUnverified bool
 	// EntryName is the manifest's engine.entry. It is what identifies the plugin binary inside a
 	// release archive; without it an archive offers no way to tell the binary from a README.
 	EntryName string

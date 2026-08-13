@@ -91,6 +91,15 @@ var (
 	// ErrPlatformNotSupported indicates no binary exists for the current platform.
 	ErrPlatformNotSupported = errors.New("plugin does not support current platform")
 
+	// ErrChecksumUnavailable indicates a release asset was to be installed with nothing to verify
+	// it against, because the release published no SHA256SUMS or left this asset out of it.
+	//
+	// Installing anyway is what this refuses. A plugin is arbitrary code on the user's machine and
+	// the .xqsp path has always required checksums (bundle.RequireChecksums); the bare-binary path
+	// skipping them was an asymmetry, not a policy, and it left TLS to github.com as the only
+	// thing standing between a tampered release and an install.
+	ErrChecksumUnavailable = errors.New("release asset cannot be verified: no SHA256SUMS entry")
+
 	// ErrBundleIdentityMismatch indicates a downloaded release bundle declares a different plugin
 	// than the repository's xqsp.json did.
 	ErrBundleIdentityMismatch = errors.New("release bundle does not match the repository manifest")
