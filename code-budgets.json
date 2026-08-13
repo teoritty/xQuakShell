@@ -80,7 +80,7 @@
         "codeLines": 397
       },
       "internal/infra/sftp/remote_fs.go": {
-        "codeLines": 453
+        "codeLines": 418
       },
       "internal/usecase/embed_tunnel_service.go": {
         "codeLines": 458
@@ -259,11 +259,6 @@
         "codeLines": 48,
         "params": 6,
         "nesting": 3
-      },
-      "internal/infra/sftp/remote_fs.go::RemoteFS.walkApply": {
-        "codeLines": 32,
-        "params": 4,
-        "nesting": 4
       },
       "internal/infra/ssh/transport.go::BuildTransportChain": {
         "codeLines": 48,

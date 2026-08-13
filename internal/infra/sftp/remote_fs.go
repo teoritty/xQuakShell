@@ -2,7 +2,6 @@ package sftp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -505,45 +504,6 @@ func (fs *RemoteFS) ChownRecursive(ctx context.Context, rootPath string, uid, gi
 		tick(onEach)
 		return nil
 	})
-}
-
-// walkApply applies fn to rootPath (always) and, if rootPath is a directory,
-// recursively to every descendant, skipping symlinked directories to avoid
-// loops. It collects per-item errors into a joined error rather than
-// aborting on the first failure.
-func (fs *RemoteFS) walkApply(ctx context.Context, rootPath string, isRoot bool, fn func(p string, isDir bool) error) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-	}
-	rootPath = sanitizeRemotePath(rootPath)
-	stat, err := fs.client.Lstat(rootPath)
-	if err != nil {
-		return fmt.Errorf("sftp stat %s: %w", rootPath, err)
-	}
-	var errs []error
-	isDir := stat.IsDir()
-	isSymlink := stat.Mode()&os.ModeSymlink != 0
-	if isRoot || !isSymlink {
-		if err := fn(rootPath, isDir); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	if isDir && (isRoot || !isSymlink) {
-		entries, err := fs.client.ReadDir(rootPath)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("sftp readdir %s: %w", rootPath, err))
-		} else {
-			for _, entry := range entries {
-				childPath := path.Join(rootPath, entry.Name())
-				if err := fs.walkApply(ctx, childPath, false, fn); err != nil {
-					errs = append(errs, err)
-				}
-			}
-		}
-	}
-	return errors.Join(errs...)
 }
 
 // Close releases the underlying SFTP connection.
