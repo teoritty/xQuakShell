@@ -288,6 +288,14 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   saying whatever it liked and erase the one above it. Control characters are now stripped; tabs and
   ordinary text, including non-Latin scripts, are untouched.
 
+- **Asking the application to open a downloaded file no longer runs it.** "Open with the system
+  default application" handed the path straight to the operating system, and for an executable the
+  operating system's answer is to run it — so anything that could put a file on your disk and then
+  ask for it to be opened had a way to execute code as you. Executables, script hosts, installers,
+  and the shapes that only look like documents (`.lnk`, `.url`, `invoice.pdf.exe`) are now refused
+  on that path. Opening a file in an editor you named is unchanged: the file is an argument to the
+  program you chose, so nothing runs it.
+
 ### Fixed
 
 - **A plugin can no longer read any private key belonging to a connection it was invoked for.**

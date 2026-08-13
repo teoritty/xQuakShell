@@ -143,3 +143,11 @@ var ErrForwardBindNotLoopback = errors.New("forward listener did not bind to loo
 // It is a delay, not a lockout. A vault that refuses its owner permanently after N wrong guesses is
 // a denial of service anyone who can reach the prompt can trigger.
 var ErrUnlockThrottled = errors.New("too many failed unlock attempts")
+
+// ErrExecutableSystemOpen indicates a request to open a file with its default application was
+// refused because the operating system would run it rather than show it.
+//
+// The distinction the refusal rests on: opening with a NAMED application passes the file as an
+// argument, so `notepad payload.exe` displays bytes. Opening with the default association is the
+// operating system deciding what to do, and for an executable it decides to run it.
+var ErrExecutableSystemOpen = errors.New("refusing to open an executable file with the system default application")
