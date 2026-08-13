@@ -112,3 +112,11 @@ var ErrRemoteFileTooLarge = errors.New("remote file is too large to read whole")
 
 // ErrAuditLogWrite indicates an audit log entry could not be persisted.
 var ErrAuditLogWrite = errors.New("failed to write audit log entry")
+
+// ErrPluginTrustReauthRequired indicates a plugin-settings change would weaken the plugin
+// trust anchor and the master password supplied with it did not verify.
+//
+// It deliberately does not distinguish a wrong password from a locked vault: the caller is
+// the Wails bridge, and telling untrusted code which of the two it hit turns this check into
+// an oracle for the master password.
+var ErrPluginTrustReauthRequired = errors.New("changing plugin trust settings requires the master password")
