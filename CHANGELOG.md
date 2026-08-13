@@ -248,6 +248,11 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   a million. Declaring *less* than the host default still works and is still honoured; declaring
   more is now capped.
 
+- **Declining a plugin install no longer leaves it on disk.** The plugin was copied into place
+  before your consent was checked, and a refusal returned an error without removing it — so the
+  files stayed, and the next start of the application discovered them and loaded the plugin you had
+  just declined. A refused install is now cleaned up.
+
 ### Fixed
 
 - **A plugin can no longer read any private key belonging to a connection it was invoked for.**
