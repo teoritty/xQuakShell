@@ -92,16 +92,18 @@ func NewChannelProxy(
 	resolve ChannelBackendResolver,
 	audit domainplugin.ChannelAuditRecorder,
 ) *ChannelProxy {
-	max := domainplugin.DefaultMaxConcurrentChannels
+	declaredMax := 0
 	purposes := make(map[string]struct{})
 	if caps != nil {
-		if caps.MaxConcurrent > 0 {
-			max = caps.MaxConcurrent
-		}
+		declaredMax = caps.MaxConcurrent
 		for _, p := range caps.Purposes {
 			purposes[strings.TrimSpace(p)] = struct{}{}
 		}
 	}
+	// The manifest may ask for fewer channels than the host default, never more than its ceiling:
+	// this number comes out of the plugin's own file, so taking it at face value let a plugin
+	// grant itself as much of the host as it cared to name.
+	max := domainplugin.EffectiveMaxConcurrentChannels(declaredMax)
 	return &ChannelProxy{
 		pluginID: pluginID,
 		purposes: purposes,

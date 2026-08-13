@@ -92,13 +92,15 @@ func notifyChannelClose(conn *ipc.Conn, pluginID string, channelID uint32, reaso
 	}
 }
 
-// channelThroughputKbps resolves the manifest's declared per-channel bandwidth cap, falling back
-// to the host default when the manifest is silent.
+// channelThroughputKbps resolves the manifest's declared per-channel bandwidth cap against the
+// host default, which is also the ceiling: a plugin may rate-limit itself further, but declaring a
+// larger number only means switching its own limiter off, and it used to be able to.
 func channelThroughputKbps(caps *domainplugin.ChannelCaps) int {
-	if caps == nil || caps.MaxThroughputKbps <= 0 {
-		return domainplugin.DefaultChannelThroughputKbps
+	declared := 0
+	if caps != nil {
+		declared = caps.MaxThroughputKbps
 	}
-	return caps.MaxThroughputKbps
+	return domainplugin.EffectiveChannelThroughputKbps(declared)
 }
 
 // channelInboundAdapter adapts a single process's ChannelProxy (params-only Open/Close) to
