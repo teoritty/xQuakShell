@@ -241,6 +241,10 @@ func (r *VaultRepo) ensureVaultDataLocked() {
 			Lockout:  domain.DefaultLockoutSettings(),
 			Terminal: domain.DefaultTerminalSettings(),
 			Theme:    "dark",
+			// Without this the plugin section arrives as its zero value, which reads as "unsigned
+			// plugins are fine" - a security default nobody chose. domain.NewVaultData already
+			// gets this right; this branch is the other way a Settings struct comes into being.
+			Plugins: domain.DefaultPluginSettings(),
 		}
 	}
 	if r.data.Settings.Terminal.FontFamily == "" {

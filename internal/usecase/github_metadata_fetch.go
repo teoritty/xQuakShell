@@ -127,7 +127,10 @@ func (s *GitHubPluginService) FetchPluginMetadataForRelease(ctx context.Context,
 	}
 
 	readmeContent := s.fetchReadmeForRelease(ctx, owner, repo, releaseTag)
-	checksums := s.loadReleaseChecksums(ctx, owner, repo, release)
+	checksums, err := s.loadReleaseChecksums(ctx, owner, repo, release)
+	if err != nil {
+		return nil, err
+	}
 	platforms := domainplugin.ExtractPlatformsFromAssets(release.Assets, checksums)
 	if len(platforms) == 0 {
 		return nil, fmt.Errorf("%w: no release assets match supported platform naming", domainplugin.ErrInvalidPluginMetadata)
