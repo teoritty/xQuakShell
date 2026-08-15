@@ -20,6 +20,8 @@
 #   Scheduled runs  GitLab has no `on: schedule` in the config file. The nightly, mutation and
 #                   external-link jobs are here; their cron lives in Build > Pipeline schedules and
 #                   selects a job through the SCHEDULE variable. See docs/gitlab-migration.md.
+#                   That runbook has since been deleted; the schedule table now lives beside the
+#                   scheduled jobs at the bottom of this file, which is the only copy.
 
 # ---------------------------------------------------------------------------
 # Pipeline admission
@@ -47,6 +49,11 @@
 # refs/merge-requests/N/head, which is never a protected ref, so a protected runner refuses the job
 # while selecting a runner - before a line of the submitted YAML is read. docs/gitlab-migration.md
 # carries the full model.
+#
+# That runbook no longer exists. The rest of the model is not restated here because it is not
+# configuration: it is four project settings - fork pipelines off, shared runners off, job token
+# scoped to this project, and protected branches `*` with protected tags `v*`. The last one is the
+# pair to ref_protected: without it no ref is protected, so neither runner accepts anything.
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_SOURCE_PROJECT_PATH != $CI_PROJECT_PATH
@@ -576,6 +583,19 @@ release:publish:
 # GitLab has no `on: schedule` in the config file, so the cron lives in Build > Pipeline schedules
 # and each schedule sets SCHEDULE to pick exactly one job. Three schedules reproduce the three
 # scheduled GitHub workflows; docs/gitlab-migration.md has the cron expressions to enter.
+#
+# That runbook was deleted, so the expressions are here and this is the only copy. Create these
+# under Build > Pipeline schedules, each with the one variable shown; the times match the GitHub
+# workflows they replace.
+#
+#   Nightly build      0 1 * * *    SCHEDULE=nightly           replaces nightly.yml
+#   Mutation testing   17 3 * * *   SCHEDULE=mutation          replaces mutation.yml
+#   External links     0 7 * * 1    SCHEDULE=links             replaces links.yml
+#
+# A fourth is created INACTIVE and run by hand from the schedule list when a mutation baseline
+# needs re-recording: SCHEDULE=mutation-update. It uploads scripts/mutate/baseline.json as an
+# artifact and stops there. Committing it stays a manual step, because a job that pushes to its own
+# repository is a job that can rewrite the thing it was measuring.
 #
 # None of these is a merge gate, and none should become one. A mutation run reruns a test suite
 # once per mutant and takes tens of minutes to hours; blocking a merge on it makes the gate the
