@@ -35,6 +35,7 @@ type pluginRuntime struct {
 	dialogs             *usecase.DialogService
 	nodeDetails         *usecase.DiscoveryDetailsService
 	discoveryEmit       *discoveryEmitHolder
+	peerTrustInbound    *peerTrustInboundHolder
 	viewRelay           *usecase.PluginViewRelay
 	vaultInbound        *usecase.PluginVaultInbound
 	vaultSettings       *usecase.PluginVaultSettings
@@ -110,10 +111,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	// which needs this session RPC factory. The holder closes that cycle the same way
 	// sessionRegistryHolder does — the port is resolved at CALL time, and a plugin process cannot
 	// call discovery.publish before it has been started by the very manager that fills it in.
-	discoveryInbound := newDiscoveryInboundHolder()
-	surfaceInbound := newSurfaceInboundHolder()
-	dialogInbound := newDialogInboundHolder()
-	detailsInbound := newDetailsInboundHolder()
+	late := newLateBoundPorts()
 
 	// The process host, the manager that drives it and the supervisor that restarts it. Assembled
 	// in main_plugin_host.go: what a plugin process is allowed to reach is one subject, and it is
@@ -130,14 +128,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		Vault:           vaultInbound,
 		Views:           viewInbound,
 		Events:          eventBus,
-		SessionRPC: sessionRPCPorts{
-			Sessions:  inbound,
-			Embed:     embedInbound,
-			Discovery: discoveryInbound,
-			Surfaces:  surfaceInbound,
-			Dialogs:   dialogInbound,
-			Details:   detailsInbound,
-		},
+		SessionRPC:      late.sessionRPC(inbound, embedInbound),
 		ChannelBus:      channelBus,
 		SessionRegistry: sessionRegistry,
 		EmbedTunnels:    embedTunnels,
@@ -159,7 +150,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		Registry: registry,
 		Sessions: sessionRegistry,
 		Audit:    pluginAudit,
-	}, discoveryInbound)
+	}, late.discovery)
 
 	// The ADR-015 services, and the process-lifecycle answers they share with discovery, are
 	// assembled next door in main_plugin_ui.go.
@@ -171,7 +162,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		Store:    discovery.store,
 		Leader:   discovery.leader,
 		Pace:     discovery.pace,
-	}, surfaceInbound, dialogInbound, detailsInbound)
+	}, late.surfaces, late.dialogs, late.details)
 	wirePluginProcessLifecycle(manager, supervisor, discovery.observer, discovery.service, discovery.leader, ui)
 
 	pluginDiscovery := infraplugin.NewDiscovery(infraplugin.SearchPaths(deps.ExeDir, dataRoot))
@@ -220,6 +211,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		dialogs:             ui.dialogs,
 		nodeDetails:         ui.nodeDetails,
 		discoveryEmit:       discovery.emit,
+		peerTrustInbound:    late.peerTrust,
 		viewInbound:         viewInbound,
 		viewRelay:           viewRelay,
 		vaultInbound:        vaultInbound,
@@ -232,6 +224,38 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		host:                host,
 		assets:              compositeAssets,
 		cancel:              cancel,
+	}
+}
+
+// protocolLookup returns the plugin protocol registry, or nothing.
+//
+// The registry of an absent manager must not be returned: a typed nil inside an interface passes a
+// nil check and panics on the first call. Here the empty interface is handed back explicitly - the
+// same thing NewAppAPI does.
+func (r *pluginRuntime) protocolLookup() domain.ConnectionProtocolLookup {
+	if r == nil || r.manager == nil {
+		return nil
+	}
+	return r.manager.Registry()
+}
+
+// wirePeerTrust hands the trust service to both of its consumers: the plugin RPC through the
+// holder, and presentation through the AppAPI. The audit sink is attached here too.
+//
+// All three ends are tied here and only here. One without the other would mean either a question
+// nobody can close, or a button with nothing behind it, or a security decision nothing records.
+func (r *pluginRuntime) wirePeerTrust(
+	api *presentation.AppAPI,
+	svc *usecase.PeerTrustService,
+	audit usecase.PeerTrustAuditFunc,
+) {
+	if r == nil || api == nil || svc == nil {
+		return
+	}
+	svc.SetAuditRecorder(audit)
+	api.SetPeerTrustService(svc)
+	if r.peerTrustInbound != nil {
+		r.peerTrustInbound.set(svc)
 	}
 }
 

@@ -25,6 +25,7 @@ type PluginSessionRPCHandler struct {
 	surfaces  domainplugin.SurfaceInboundPort
 	dialogs   domainplugin.DialogInboundPort
 	details   domainplugin.DiscoveryDetailsInboundPort
+	peerTrust domainplugin.PeerTrustInboundPort
 	scope     PluginSessionScope
 	auth      domainplugin.SessionRPCAuthorizer
 }
@@ -42,6 +43,7 @@ type PluginSessionRPCPorts struct {
 	Surfaces  domainplugin.SurfaceInboundPort
 	Dialogs   domainplugin.DialogInboundPort
 	Details   domainplugin.DiscoveryDetailsInboundPort
+	PeerTrust domainplugin.PeerTrustInboundPort
 }
 
 // NewPluginSessionRPCHandler creates a session RPC handler with mandatory scope enforcement.
@@ -58,6 +60,7 @@ func NewPluginSessionRPCHandler(
 		surfaces:  ports.Surfaces,
 		dialogs:   ports.Dialogs,
 		details:   ports.Details,
+		peerTrust: ports.PeerTrust,
 		scope:     scope,
 		auth:      auth,
 	}
@@ -120,6 +123,11 @@ func (h *PluginSessionRPCHandler) Handle(ctx context.Context, pluginID, method s
 	// buried the three families that differ.
 	case "session.registerEmbed", "session.tunnelOpen", "session.tunnelFrame", "session.tunnelClose":
 		return h.handleEmbedVerb(ctx, pluginID, method, params)
+	case "trust.verifyPeer":
+		// Parsing, authorization and decoding live in plugin_session_rpc_trust.go, next to the
+		// explanation of the order those checks come in. The scope comes from h.scope there, so
+		// the dispatcher's pluginID is deliberately not forwarded.
+		return h.handleVerifyPeer(ctx, params)
 	case "channel.open":
 		if h.channels == nil {
 			return nil, domainplugin.ErrCapabilityDenied
@@ -205,13 +213,11 @@ var _ domainplugin.SessionRPCHandler = (*PluginSessionRPCHandler)(nil)
 // since each plugin process gets its own ChannelProxy (ADR-011) rather than a shared one.
 // discovery is shared rather than per-process: unlike a channel, a discovery subtree belongs to a
 // connection and outlives any one plugin process, so there is exactly one service behind it.
+// ports.Channels is ignored: a channel belongs to a process rather than to the set, and is
+// supplied per call. Everything else is taken by field name, for the same reason the set exists on
+// the handler itself.
 func NewPluginSessionRPCHandlerFactory(
-	inbound domainplugin.SessionInboundPort,
-	embed *PluginEmbedInbound,
-	discovery domainplugin.DiscoveryInboundPort,
-	surfaces domainplugin.SurfaceInboundPort,
-	dialogs domainplugin.DialogInboundPort,
-	details domainplugin.DiscoveryDetailsInboundPort,
+	ports PluginSessionRPCPorts,
 	auth domainplugin.SessionRPCAuthorizer,
 ) domainplugin.SessionRPCHandlerFactory {
 	return func(plugin domainplugin.InstalledPlugin, processSessionID string, channels domainplugin.ChannelInboundPort) domainplugin.SessionRPCHandler {
@@ -219,15 +225,9 @@ func NewPluginSessionRPCHandlerFactory(
 		if plugin.Manifest.Capabilities.Session != nil {
 			allowMulti = plugin.Manifest.Capabilities.Session.AllowMultiSession
 		}
-		return NewPluginSessionRPCHandler(PluginSessionRPCPorts{
-			Sessions:  inbound,
-			Embed:     embed,
-			Channels:  channels,
-			Discovery: discovery,
-			Surfaces:  surfaces,
-			Dialogs:   dialogs,
-			Details:   details,
-		}, auth, PluginSessionScope{
+		perProcess := ports
+		perProcess.Channels = channels
+		return NewPluginSessionRPCHandler(perProcess, auth, PluginSessionScope{
 			PluginID:          plugin.Manifest.ID,
 			ProcessSessionID:  processSessionID,
 			Isolation:         plugin.Manifest.EffectiveIsolation(),

@@ -8,6 +8,8 @@
   import KnownHostsManager from './lib/KnownHostsManager.svelte';
   import KeyManager from './lib/KeyManager.svelte';
   import HostKeyDialog from './lib/HostKeyDialog.svelte';
+  import PeerTrustPrompt from './lib/PeerTrustPrompt.svelte';
+  import PeerTrustManager from './lib/PeerTrustManager.svelte';
   import AuditLogView from './lib/AuditLogView.svelte';
   import ErrorDialog from './lib/ErrorDialog.svelte';
   import ConflictDialog from './lib/ConflictDialog.svelte';
@@ -27,9 +29,10 @@
   import { getSettings, applyAppearanceSettings } from './actions/settingsActions';
   import { parseHotkeyEvent } from './hotkeys/hotkeys';
   import { DEFAULT_SESSION_HOTKEYS } from './api/settings';
-  import { Settings, FileText, Shield, MonitorDot, Terminal, Key } from 'lucide-svelte';
+  import { Settings, FileText, Shield, Fingerprint, MonitorDot, Terminal, Key } from 'lucide-svelte';
 
   let showKnownHosts = false;
+  let showPeerTrust = false;
   let showKeyManager = false;
   let showAuditLog = false;
   let showSettings = false;
@@ -207,6 +210,9 @@
           <button class="ghost top-btn" on:click={() => showKnownHosts = true} title="Known Hosts">
             <Shield size={14} />
           </button>
+          <button class="ghost top-btn" on:click={() => showPeerTrust = true} title="Trusted Peers">
+            <Fingerprint size={14} />
+          </button>
           <button class="ghost top-btn" on:click={() => showKeyManager = true} title="SSH Keys">
             <Key size={14} />
           </button>
@@ -262,6 +268,7 @@
   </div>
 
   <KnownHostsManager bind:show={showKnownHosts} />
+  <PeerTrustManager bind:show={showPeerTrust} />
   <KeyManager bind:show={showKeyManager} />
   <AuditLogView
     bind:show={showAuditLog}
@@ -270,6 +277,8 @@
   <SettingsDialog bind:show={showSettings} initialTab={settingsInitialTab} />
   <ScriptsDialog bind:show={showScripts} />
   <PluginCommandPalette bind:this={commandPalette} />
+  <PeerTrustPrompt />
+
   {#if showHostKeyDialog}
     <HostKeyDialog
       show={showHostKeyDialog}

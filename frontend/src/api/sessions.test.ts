@@ -7,6 +7,7 @@ import {
   reportEmbedActivity,
   getPlatform,
   resolveHostKeyRpc,
+  resolvePeerTrustRpc,
 } from './sessions';
 import { lastError, pendingHostKey } from '../stores/appState';
 import { get } from 'svelte/store';
@@ -140,6 +141,31 @@ async function run() {
   await resolveHostKeyRpc('sess-1', 'accept');
   assert(get(lastError)?.message === 'Resolve host key: resolve failed', 'resolveHostKeyRpc reports failure via handleError');
   assert(get(pendingHostKey) !== null, 'resolveHostKeyRpc does not clear pendingHostKey on failure');
+
+  // resolvePeerTrustRpc: forwards the session, the action and the fingerprint that was displayed
+  fake = createFakeGateway();
+  fake.program('ResolvePeerTrust', undefined);
+  setGateway(fake);
+  const trusted = await resolvePeerTrustRpc('sess-1', 'trust', 'SHA256:abc');
+  assert(trusted, 'resolvePeerTrustRpc reports success when the backend accepted the decision');
+  const rptCall = fake.calls.find((c) => c.method === 'ResolvePeerTrust');
+  assert(
+    !!rptCall && rptCall.args[0] === 'sess-1' && rptCall.args[1] === 'trust' && rptCall.args[2] === 'SHA256:abc',
+    'resolvePeerTrustRpc forwards the session, the action and the fingerprint',
+  );
+  // The subject and the material are NOT sent: the backend reads them from the session's own
+  // pending decision. The fingerprint travels only so the backend can refuse a stale answer.
+  assert(rptCall!.args.length === 3, 'resolvePeerTrustRpc sends nothing beyond session, action and fingerprint');
+
+  // resolvePeerTrustRpc: a failed call reports the error and says the decision was not taken,
+  // so the caller keeps the dialog on screen instead of dropping a question still pending.
+  fake = createFakeGateway();
+  fake.program('ResolvePeerTrust', () => { throw new Error('stale'); });
+  setGateway(fake);
+  lastError.set(null);
+  const refused = await resolvePeerTrustRpc('sess-1', 'trust', 'SHA256:abc');
+  assert(!refused, 'resolvePeerTrustRpc reports failure so the dialog stays up');
+  assert(get(lastError)?.message === 'Resolve peer trust: stale', 'resolvePeerTrustRpc reports failure via handleError');
 
   console.log('sessions.test.ts passed');
 }

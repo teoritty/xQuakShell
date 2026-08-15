@@ -9,15 +9,23 @@ import (
 
 // sessionEntry holds runtime state for a single session (tab).
 type sessionEntry struct {
-	info                domain.ConnectionSession
-	ctx                 context.Context
-	cancel              context.CancelFunc
-	sshClient           domain.SSHClient
-	remoteFS            domain.RemoteFS
-	ptyBridge           domain.TerminalPTYBridge
-	ptyCols             uint32
-	ptyRows             uint32
-	hostKeyInfo         *domain.HostKeyInfo
+	info        domain.ConnectionSession
+	ctx         context.Context
+	cancel      context.CancelFunc
+	sshClient   domain.SSHClient
+	remoteFS    domain.RemoteFS
+	ptyBridge   domain.TerminalPTYBridge
+	ptyCols     uint32
+	ptyRows     uint32
+	hostKeyInfo *domain.HostKeyInfo
+	// peerTrustPrompt is the decision about the remote identity this session is waiting on.
+	//
+	// Separate from hostKeyInfo, which belongs to the SSH path. One field shared between them
+	// would mean a change to one dialog silently altered the other.
+	//
+	// Written and read only through SessionRegistry.Mutate / Read: a plugin process drives the
+	// writer, so an unlocked read here is a race an attacker gets to schedule.
+	peerTrustPrompt     *PeerTrustPrompt
 	connectionID        string
 	pluginID            string
 	pluginOutput        chan []byte
@@ -122,6 +130,29 @@ func (r *SessionRegistry) Mutate(id string, fn func(entry *sessionEntry)) bool {
 	}
 	fn(entry)
 	r.mu.Unlock()
+	return true
+}
+
+// Read runs fn under the read lock IF the session still exists, and is the safe way to read a
+// field that changes during a session's life.
+//
+// Get is not that way, despite looking like it: it returns the *pointer* to the entry, so every
+// field access after it happens outside the lock and races the writers that go through Mutate.
+// That is tolerable for a field written once at creation (pluginID, connectionID) and a data race
+// for anything else. Peer trust is the "anything else" case - the writer is driven by a plugin
+// process, so the timing is chosen by the less trusted side.
+//
+// The SSH host key pending value has the same shape and still reads through Get. Migrating it is
+// a separate change; this door is open for it.
+func (r *SessionRegistry) Read(id string, fn func(entry *sessionEntry)) bool {
+	r.mu.RLock()
+	entry, ok := r.sessions[id]
+	if !ok {
+		r.mu.RUnlock()
+		return false
+	}
+	fn(entry)
+	r.mu.RUnlock()
 	return true
 }
 

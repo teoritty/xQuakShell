@@ -12,6 +12,42 @@ The newest versioned heading is the release being prepared. Only the latest rele
 fixes, including security fixes, ship in a new release rather than as patches to an older one
 (see [SECURITY.md](SECURITY.md)).
 
+## [1.2.0]
+
+### Compatibility
+
+| Axis | Version |
+|---|---|
+| `pluginApi` | 1.0.0 (unchanged) |
+| Capabilities | `session` 1.0.0 — gains the `trust.verifyPeer` RPC, gated on an existing capability; all others 1.0.0, unchanged |
+| Manifest schema | unchanged |
+| `bundleFormat` | 1.0.0 (unchanged) |
+| Vault schema | 4 (unchanged — `peerTrust` is an additive, omitted-when-empty field) |
+| Audit schema | 1 (unchanged) |
+
+### BREAKING
+
+*Nothing.*
+
+### Added
+
+**Peer trust: `known_hosts` for protocols that are not SSH.** A plugin that has observed the
+identity of the peer it connected to can ask the host whether it is trusted, through the new
+`trust.verifyPeer` RPC. An unknown or changed identity stops the session in a new `trust-required`
+state and asks the user, showing a `SHA256:` fingerprint the host computes itself. Answering
+"trust" records the material in the vault and reconnects; answering "reject" fails the session.
+
+The mechanism is deliberately separate from `known_hosts` in every layer — its own vault field, its
+own repository, its own dialog — so that no path exists from a plugin to the trust the SSH client
+reads. What is trusted is decided by the host and not by the caller: the subject comes from the
+connection record, the scope from the session binding, and the fingerprint is computed from the
+bytes that will be stored. A plugin that names a subject other than the one its session connects to
+is refused rather than prompted for.
+
+**Trusted Peers**, a new screen next to Known Hosts, lists every recorded identity and revokes any
+of them; the next connection to a revoked peer asks again. Trust questions, decisions and
+revocations are written to the audit log, without the material.
+
 ## [1.1.0] — 2026-08-12
 
 ### Compatibility

@@ -8,6 +8,13 @@ const (
 	SessionConnecting SessionState = "connecting"
 	// SessionHostKeyRequired means a host key decision is needed from the user.
 	SessionHostKeyRequired SessionState = "hostkey-required"
+	// SessionTrustRequired means a plugin session is waiting on the user's
+	// decision about the identity of the remote peer.
+	//
+	// A state of its own rather than a reuse of SessionHostKeyRequired: that
+	// one belongs to the SSH path, and sharing it would mean a change to one
+	// dialog silently altered the other.
+	SessionTrustRequired SessionState = "trust-required"
 	// SessionReady means SSH, PTY and SFTP are initialized and usable.
 	SessionReady SessionState = "ready"
 	// SessionError means the session encountered an unrecoverable error.

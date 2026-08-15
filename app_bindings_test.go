@@ -32,6 +32,7 @@ var notBound = map[string]string{
 	"SetSurfaceService":              "wiring",
 	"SetDialogService":               "wiring",
 	"SetNodeDetailsService":          "wiring",
+	"SetPeerTrustService":            "wiring",
 	"Sessions":                       "wiring: accessor for the composition root",
 	"SettingsService":                "wiring: accessor for the composition root",
 

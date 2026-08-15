@@ -24,12 +24,19 @@ type sessionRPCPorts struct {
 	Surfaces  domainplugin.SurfaceInboundPort
 	Dialogs   domainplugin.DialogInboundPort
 	Details   domainplugin.DiscoveryDetailsInboundPort
+	PeerTrust domainplugin.PeerTrustInboundPort
 }
 
 func (p sessionRPCPorts) factory(auth domainplugin.SessionRPCAuthorizer) domainplugin.SessionRPCHandlerFactory {
-	return usecase.NewPluginSessionRPCHandlerFactory(
-		p.Sessions, p.Embed, p.Discovery, p.Surfaces, p.Dialogs, p.Details, auth,
-	)
+	return usecase.NewPluginSessionRPCHandlerFactory(usecase.PluginSessionRPCPorts{
+		Sessions:  p.Sessions,
+		Embed:     p.Embed,
+		Discovery: p.Discovery,
+		Surfaces:  p.Surfaces,
+		Dialogs:   p.Dialogs,
+		Details:   p.Details,
+		PeerTrust: p.PeerTrust,
+	}, auth)
 }
 
 // pluginHostDeps is what the host and its manager need from the rest of the composition.

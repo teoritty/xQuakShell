@@ -126,6 +126,17 @@ func composeApp() *App {
 	if bridge := api.Sessions().PluginBridge(); bridge != nil {
 		pluginRuntime.setSessionRecoverer(bridge)
 	}
+	// Trust in the identity of a remote peer: stored in the vault, scoped to the plugin that owns
+	// the session, and subject-ported by the same rule that reaches the plugin in session.connect.
+	//
+	// The audit sink is minted here rather than carried out of the plugin runtime: a
+	// PluginAuditWriter is a formatter over the audit repository and holds nothing else, so a
+	// second one writing to the same log is the same sink, not a second one.
+	pluginRuntime.wirePeerTrust(api, usecase.NewPeerTrustService(
+		persistence.NewPeerTrustRepo(vaultRepo),
+		api.Sessions(),
+		pluginRuntime.protocolLookup(),
+	), usecase.NewPluginAuditWriter(auditLogRepo).PeerTrustFunc())
 	pluginRuntime.wireEmbed(api)
 
 	return &App{api: api, plugins: pluginRuntime}

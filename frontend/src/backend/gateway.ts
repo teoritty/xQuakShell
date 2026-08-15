@@ -334,6 +334,12 @@ export interface AppGateway {
 
   ResolveHostKey(arg1: string, arg2: string): Promise<void>;
 
+  ResolvePeerTrust(arg1: string, arg2: string, arg3: string): Promise<void>;
+
+  GetPeerTrust(): Promise<Array<{ scope: string; subject: string; fingerprint: string; addedAt: string }>>;
+
+  RemovePeerTrust(arg1: string, arg2: string): Promise<void>;
+
   SaveConnection(arg1: wails.ConnectionDTO): Promise<wails.ConnectionDTO>;
 
   SaveFolder(arg1: wails.FolderDTO): Promise<wails.FolderDTO>;

@@ -48,7 +48,18 @@ type VaultData struct {
 
 	Passwords     map[string]PasswordBlob `json:"passwords,omitempty"`
 	PluginSecrets map[string][]byte       `json:"pluginSecrets,omitempty"`
-	Settings      *AppSettings            `json:"settings,omitempty"`
+
+	// PeerTrust is what plugins trust about the identity of a remote peer.
+	//
+	// Deliberately apart from KnownHosts. That field holds OpenSSH-format lines and is read by
+	// the SSH path; one shared list would mean a plugin can plant a key for an SSH host.
+	//
+	// The field is additive and omitempty, so the schema version does not move: an older vault
+	// opens as an empty list, and a newer one still reads on the previous build. Passwords and
+	// PluginSecrets were added the same way.
+	PeerTrust []PeerTrustEntry `json:"peerTrust,omitempty"`
+
+	Settings *AppSettings `json:"settings,omitempty"`
 }
 
 // NewVaultData returns an empty VaultData at the current schema version.
@@ -62,6 +73,7 @@ func NewVaultData() *VaultData {
 		KnownHosts:    []string{},
 		Passwords:     map[string]PasswordBlob{},
 		PluginSecrets: map[string][]byte{},
+		PeerTrust:     []PeerTrustEntry{},
 		Settings: &AppSettings{
 			Lockout:        DefaultLockoutSettings(),
 			Terminal:       DefaultTerminalSettings(),

@@ -82,6 +82,12 @@ func (g *Gate) Allow(method string) bool {
 		return s != nil && (s.Terminal || s.Embed)
 	case "session.registerEmbed", "session.tunnelOpen", "session.tunnelFrame", "session.tunnelClose":
 		return g.manifest.Capabilities.Session != nil && g.manifest.Capabilities.Session.Embed
+	case "trust.verifyPeer":
+		// Asking the user about a remote identity is for the plugin whose connection leads
+		// there. No separate capability and no separate install-time consent screen: this does
+		// not widen what the user already agreed to by opening a connection over that protocol.
+		s := g.manifest.Capabilities.Session
+		return s != nil && len(s.ConnectProtocols) > 0
 	case "events.publish":
 		return g.manifest.Capabilities.Events != nil && len(g.manifest.Capabilities.Events.Publish) > 0
 	case "events.subscribe":

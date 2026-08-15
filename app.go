@@ -167,6 +167,18 @@ func (a *App) ResolveHostKey(sessionID, action string) error {
 	return a.api.ResolveHostKey(sessionID, action)
 }
 
+func (a *App) ResolvePeerTrust(sessionID, action, fingerprint string) error {
+	return a.api.ResolvePeerTrust(sessionID, action, fingerprint)
+}
+
+func (a *App) GetPeerTrust() ([]presentation.PeerTrustDTO, error) {
+	return a.api.GetPeerTrust()
+}
+
+func (a *App) RemovePeerTrust(scope, subject string) error {
+	return a.api.RemovePeerTrust(scope, subject)
+}
+
 func (a *App) SearchAuditLog(query, sessionID, connectionID, category string, limit, offset int) ([]presentation.AuditEntryDTO, error) {
 	return a.api.SearchAuditLog(query, sessionID, connectionID, category, limit, offset)
 }

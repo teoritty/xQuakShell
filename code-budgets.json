@@ -84,9 +84,6 @@
       },
       "internal/usecase/embed_tunnel_service.go": {
         "codeLines": 458
-      },
-      "internal/usecase/session_lifecycle_service.go": {
-        "codeLines": 351
       }
     },
     "functions": {
@@ -131,7 +128,7 @@
         "nesting": 1
       },
       "frontend/src/events/subscribe.ts::subscribeToEvents": {
-        "codeLines": 160,
+        "codeLines": 158,
         "params": 0,
         "nesting": 2
       },
@@ -405,11 +402,6 @@
         "params": 2,
         "nesting": 4
       },
-      "internal/usecase/plugin_session_rpc.go::NewPluginSessionRPCHandlerFactory": {
-        "codeLines": 20,
-        "params": 7,
-        "nesting": 1
-      },
       "internal/usecase/plugin_vault_inbound.go::NewPluginVaultInbound": {
         "codeLines": 8,
         "params": 6,
@@ -456,7 +448,7 @@
         "nesting": 0
       },
       "main_plugins.go::newPluginRuntime": {
-        "codeLines": 140,
+        "codeLines": 131,
         "params": 3,
         "nesting": 1
       }

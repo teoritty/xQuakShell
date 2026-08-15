@@ -15,6 +15,7 @@ func CloneVaultData(in *VaultData) *VaultData {
 		KnownHosts:    cloneStrings(in.KnownHosts),
 		Passwords:     clonePasswords(in.Passwords),
 		PluginSecrets: clonePluginSecrets(in.PluginSecrets),
+		PeerTrust:     clonePeerTrust(in.PeerTrust),
 		Settings:      CloneAppSettings(in.Settings),
 	}
 	return out
@@ -214,6 +215,22 @@ func cloneBoolMap(in map[string]bool) map[string]bool {
 	out := make(map[string]bool, len(in))
 	for k, v := range in {
 		out[k] = v
+	}
+	return out
+}
+
+// clonePeerTrust copies trust entries together with their material.
+//
+// The material is copied rather than reused: a slice in the clone sharing its array with the
+// original would let an edit of the clone silently change stored trust.
+func clonePeerTrust(in []PeerTrustEntry) []PeerTrustEntry {
+	if in == nil {
+		return nil
+	}
+	out := make([]PeerTrustEntry, len(in))
+	for i := range in {
+		out[i] = in[i]
+		out[i].Material = append([]byte(nil), in[i].Material...)
 	}
 	return out
 }

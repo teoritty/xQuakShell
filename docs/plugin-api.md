@@ -217,6 +217,10 @@ Plugin → host (`capabilities.session.terminal: true` required):
 | `"ready"` | UI shows terminal; output stream attached |
 | `"error"` | UI shows error; optional `error` string → `errorMessage` |
 
+`"trust-required"` also exists, but a plugin cannot send it. The host sets it while a peer trust
+question is on screen and moves the session out of it when the user answers — see
+[Peer trust](#peer-trust).
+
 Calling `session.writeTerminal` before `"ready"` buffers output in the host (channel depth 128), but the user does not see the terminal until state is `ready`.
 
 ### Terminal I/O (as implemented)
@@ -361,6 +365,44 @@ Requires `capabilities.session.embed`, `capabilities.network`, and static assets
 ### Mode B — removed
 
 `capabilities.session.localEmbedServer` and `session.reportLocalEmbed` no longer exist. A plugin does not bind sockets; the host-side broker above is the only embed path. See [ADR-008](./adr/008-session-embed-surfaces.md).
+
+## Peer trust
+
+`known_hosts` for protocols that are not SSH. A plugin that has observed the identity of the peer
+it connected to — a certificate, a public key, a fingerprintable blob — asks the host whether it is
+trusted, and the host either answers yes or puts the question to the user.
+
+```json
+→ {"method":"trust.verifyPeer","params":{
+     "sessionId":"...","subject":"10.0.0.5:3389","materialBase64":"MFkwEwYH..."}}
+← {"trusted":false}
+```
+
+**The answer is immediate, and `false` does not mean "wait".** It means the connection must not
+proceed. If a question was raised, the session moves to `trust-required` and the user is asked;
+answering "trust" stores the material and the host retries the session, which runs `session.connect`
+again — the plugin sees a fresh connect, asks once more, and this time gets `{"trusted":true}`.
+Answering "reject" fails the session with an error.
+
+What the host decides, and a plugin therefore must not:
+
+- **The subject.** `subject` in the request is the plugin's own belief and is only compared against
+  the connection record (`host:port`, with the protocol's default port applied). A disagreement is
+  an error, not a prompt. Everything shown and stored is the host's version.
+- **The fingerprint.** Computed by the host from the material, as `SHA256:<base64>`. A plugin
+  cannot supply one, which is what makes the value shown and the value stored the same value.
+- **The scope.** Trust is recorded per plugin. There is no scope field in the request; the host
+  takes it from the session binding, so no plugin can write into another's.
+
+Limits and refusals:
+
+- Material is at most **64 KiB**, and must not be empty.
+- A session already waiting on a *different* question refuses a second one (`-32603`). A repeat
+  with the same material is accepted and changes nothing.
+- A session that is not connecting refuses the question — an established session cannot be dragged
+  back into `trust-required`.
+- The user manages recorded identities in **Trusted Peers**, and revoking one makes the next
+  connection ask again.
 
 ## Channel bus
 
@@ -697,6 +739,7 @@ All methods below require a matching manifest capability unless marked “always
 | `session.tunnelOpen` | `session.embed` | `sessionId`, `tunnelId` | `{"ok":true}` |
 | `session.tunnelFrame` | `session.embed` | `sessionId`, `tunnelId`, `dataBase64`, `eof?` | `{"ok":true}` |
 | `session.tunnelClose` | `session.embed` | `sessionId`, `tunnelId` | `{"ok":true}` |
+| `trust.verifyPeer` | `session.connectProtocols` (non-empty) + active session ownership | `sessionId`, `subject`, `materialBase64` | `{"trusted":bool}` — see [Peer trust](#peer-trust) |
 | `events.subscribe` | `events.subscribe` allowlist | `channel` | `{"ok":true}` |
 | `events.publish` | `events.publish` namespace | `channel`, `payload` | `{"ok":true}` — max **100/s** |
 | `view.postMessage` | contributed `views` | `panelId`, `message` | `{"ok":true}` |
@@ -838,6 +881,8 @@ The core validates the binary matches the host OS at install time.
 - `StartPlugin(pluginId)` — manual start (audit-logged, respects disabled flag, idempotent if already running)
 - `SetPluginEnabled(pluginId, enabled)` — toggle plugin; disabling stops the process
 - `PingPlugin(pluginId)` — ping RPC (does not auto-start)
+- `ResolvePeerTrust(sessionId, action, fingerprint)` — answer a peer trust question; `action` is `trust` or `reject`, and `fingerprint` is the one that was displayed (a stale one is refused)
+- `GetPeerTrust()` / `RemovePeerTrust(scope, subject)` — the Trusted Peers screen: list and revoke
 
 ### Frontend events
 
@@ -848,6 +893,7 @@ The core validates the binary matches the host OS at install time.
 - `PluginDialogOpened` / `PluginDialogClosed` / `PluginDialogError` — plugin modals
 - `PluginNodeDetails` — a plugin pushed a newer property panel for a discovery node
 - `PluginViewMessage` — plugin → host view relay
+- `PeerTrustRequired` — `{ sessionId, subject, fingerprint, mismatch }` when a session needs a peer trust decision
 
 ## RPC error codes
 

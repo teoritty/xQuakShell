@@ -11,6 +11,7 @@ const (
 	EventFoldersUpdated             = "FoldersUpdated"
 	EventConnectionsUpdated         = "ConnectionsUpdated"
 	EventHostKeyRequired            = "HostKeyRequired"
+	EventPeerTrustRequired          = "PeerTrustRequired"
 	EventSFTPReady                  = "SFTPReady"
 	EventTerminalReady              = "TerminalReady"
 	EventPingUpdated                = "PingUpdated"

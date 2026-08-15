@@ -91,7 +91,7 @@ export interface Connection {
   storedSecretFields?: string[];
 }
 
-export type SessionState = 'connecting' | 'hostkey-required' | 'ready' | 'error' | 'closed';
+export type SessionState = 'connecting' | 'hostkey-required' | 'trust-required' | 'ready' | 'error' | 'closed';
 
 export interface SessionEmbed {
   uiUrl: string;
@@ -156,6 +156,20 @@ export interface HostKeyEvent {
   keyType: string;
   fingerprint: string;
   keyBase64: string;
+  mismatch: boolean;
+}
+
+/**
+ * A session waiting on a decision about the remote peer's identity, raised by a plugin protocol.
+ *
+ * Deliberately not HostKeyEvent: that one carries an SSH key and its type, and the two dialogs must
+ * stay separable. This one carries no key material at all - the backend keeps it and records it
+ * from there, so the UI cannot name what it is trusting.
+ */
+export interface PeerTrustEvent {
+  sessionId: string;
+  subject: string;
+  fingerprint: string;
   mismatch: boolean;
 }
 
@@ -238,6 +252,29 @@ function saveExpandedFolders(set: Set<string>) {
 export const expandedFolderIds = writable<Set<string>>(loadExpandedFolders());
 expandedFolderIds.subscribe(saveExpandedFolders);
 export const pendingHostKey = writable<HostKeyEvent | null>(null);
+/**
+ * Trust questions waiting for an answer, oldest first.
+ *
+ * A queue rather than the single slot pendingHostKey uses, because two sessions can each be
+ * stopped by one: with one slot the second question overwrites the first, and the first session
+ * waits forever on a dialog that no longer exists. The backend already refuses to replace a live
+ * question on one session; this is the same rule on the screen, across sessions.
+ *
+ * A question for a session that is already queued replaces that entry rather than appending: a
+ * plugin retrying its handshake re-raises the same question, and two identical dialogs in a row is
+ * how a user learns to dismiss them.
+ */
+export const pendingPeerTrust = writable<PeerTrustEvent[]>([]);
+
+/** Queue a trust question, replacing any the same session already has. */
+export function enqueuePeerTrust(event: PeerTrustEvent): void {
+  pendingPeerTrust.update((queue) => [...queue.filter((q) => q.sessionId !== event.sessionId), event]);
+}
+
+/** Drop a session's trust question - answered, or the session is gone. */
+export function dropPeerTrust(sessionId: string): void {
+  pendingPeerTrust.update((queue) => queue.filter((q) => q.sessionId !== sessionId));
+}
 // updateStatus is the last release check the backend performed. It is a store rather than a
 // per-component fetch because two places render it — the banner and the About panel — and a
 // second fetch would report a check that never ran.

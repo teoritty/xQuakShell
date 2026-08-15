@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	domainplugin "xquakshell/internal/domain/plugin"
+	"xquakshell/internal/usecase"
 )
 
 // Late-bound ports for the plugin runtime.
@@ -167,5 +168,82 @@ func (h *discoveryEmitHolder) notify(connectionID, nodeID string) {
 	h.mu.Unlock()
 	if emit != nil {
 		emit(connectionID, nodeID)
+	}
+}
+
+// peerTrustInboundHolder late-binds the peer trust service into the session RPC factory, for the
+// same forced ordering the holders above exist for: the service needs the session manager, and the
+// session manager is built inside the AppAPI that is created from this runtime.
+//
+// A miss returns ErrCapabilityDenied, never (false, nil). The difference matters here more than
+// anywhere else in this file: a nil answer would read as "this peer is not trusted", which is the
+// same answer an unknown host gets, and a plugin calling before composition finished would put a
+// trust dialog in front of the user with nothing behind it. Denied says what actually happened.
+type peerTrustInboundHolder struct {
+	mu   sync.Mutex
+	port domainplugin.PeerTrustInboundPort
+}
+
+func newPeerTrustInboundHolder() *peerTrustInboundHolder { return &peerTrustInboundHolder{} }
+
+func (h *peerTrustInboundHolder) set(port domainplugin.PeerTrustInboundPort) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.port = port
+}
+
+func (h *peerTrustInboundHolder) VerifyPeer(
+	ctx context.Context,
+	pluginID, sessionID, subject string,
+	material []byte,
+) (bool, error) {
+	h.mu.Lock()
+	port := h.port
+	h.mu.Unlock()
+	if port == nil {
+		return false, domainplugin.ErrCapabilityDenied
+	}
+	return port.VerifyPeer(ctx, pluginID, sessionID, subject, material)
+}
+
+var _ domainplugin.PeerTrustInboundPort = (*peerTrustInboundHolder)(nil)
+
+// lateBoundPorts is every session RPC port that cannot exist yet when the plugin host is built.
+//
+// One value instead of five locals: they are created together, filled in together once the
+// services they stand for exist, and handed to the factory together. Kept apart, each new one
+// added three more lines to the composition function for no decision of its own.
+type lateBoundPorts struct {
+	discovery *discoveryInboundHolder
+	surfaces  *surfaceInboundHolder
+	dialogs   *dialogInboundHolder
+	details   *detailsInboundHolder
+	peerTrust *peerTrustInboundHolder
+}
+
+func newLateBoundPorts() lateBoundPorts {
+	return lateBoundPorts{
+		discovery: newDiscoveryInboundHolder(),
+		surfaces:  newSurfaceInboundHolder(),
+		dialogs:   newDialogInboundHolder(),
+		details:   newDetailsInboundHolder(),
+		peerTrust: newPeerTrustInboundHolder(),
+	}
+}
+
+// sessionRPC names what a plugin process may address. The two ports that exist by now are
+// arguments; everything else is a holder resolved at call time.
+func (l lateBoundPorts) sessionRPC(
+	sessions domainplugin.SessionInboundPort,
+	embed *usecase.PluginEmbedInbound,
+) sessionRPCPorts {
+	return sessionRPCPorts{
+		Sessions:  sessions,
+		Embed:     embed,
+		Discovery: l.discovery,
+		Surfaces:  l.surfaces,
+		Dialogs:   l.dialogs,
+		Details:   l.details,
+		PeerTrust: l.peerTrust,
 	}
 }

@@ -214,25 +214,16 @@ func (s *SessionLifecycleService) GetAllSessions() []domain.ConnectionSession {
 	return result
 }
 
-// RetrySession re-attempts the SSH connection for a session in hostkey-required state.
+// RetrySession re-attempts the connection for a session waiting on the user's
+// decision. Which states qualify, and why, is explained where the transition
+// itself lives: takeWaitingSessionForRetry.
 func (s *SessionLifecycleService) RetrySession(ctx context.Context, sessionID string) error {
-	var info domain.ConnectionSession
-	var connID string
-	transitioned := s.registry.CompareAndTransition(
-		sessionID,
-		domain.SessionHostKeyRequired, domain.SessionConnecting,
-		func(e *sessionEntry) {
-			e.info.ErrorMessage = ""
-			e.hostKeyInfo = nil
-			info = e.info
-			connID = e.connectionID
-		},
-	)
+	info, connID, transitioned := s.takeWaitingSessionForRetry(sessionID)
 	if !transitioned {
 		if _, ok := s.registry.Get(sessionID); !ok {
 			return domain.ErrSessionNotFound
 		}
-		return fmt.Errorf("session %s not in hostkey-required state", sessionID)
+		return fmt.Errorf("session %s is not waiting on a hostkey or trust decision", sessionID)
 	}
 	s.notifyStateChange(info)
 

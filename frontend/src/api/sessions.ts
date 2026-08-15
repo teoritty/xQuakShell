@@ -90,3 +90,34 @@ export async function resolveHostKeyRpc(sessionId: string, action: string): Prom
     handleError(e, 'Resolve host key');
   }
 }
+
+/**
+ * Answer the peer trust prompt for a session. `action` is 'trust' or 'reject'.
+ *
+ * Returns whether the backend accepted the decision, and touches no store of its own: the pending
+ * prompt belongs to the component that shows it. A dialog dismissed on a call that failed would
+ * leave the session waiting on an answer with nothing left on screen to give it.
+ *
+ * The subject and the material are not arguments, for the same reason they are not arguments to
+ * resolveHostKeyRpc: the backend reads them from the session's own pending decision. The user's
+ * answer is the only part of this the UI is entitled to supply.
+ *
+ * The fingerprint is the exception, and it travels the other way: it is what the dialog displayed,
+ * echoed back so the backend can refuse an answer that no longer matches the pending question. It
+ * is not a claim about what to trust - the backend compares it and stores its own copy either way.
+ */
+export async function resolvePeerTrustRpc(
+  sessionId: string,
+  action: string,
+  fingerprint: string,
+): Promise<boolean> {
+  const app = getGateway();
+  if (!app) return false;
+  try {
+    await app.ResolvePeerTrust(sessionId, action, fingerprint);
+    return true;
+  } catch (e) {
+    handleError(e, 'Resolve peer trust');
+    return false;
+  }
+}

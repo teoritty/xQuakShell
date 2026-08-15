@@ -2,10 +2,10 @@ import { writable } from 'svelte/store';
 import { getRuntime } from '../backend/context';
 import {
   folders, connections, sessions, identities,
-  vaultUnlocked, transfers, transferCompleted, pendingHostKey,
+  vaultUnlocked, transfers, transferCompleted, pendingHostKey, enqueuePeerTrust,
   pingResults, editingFiles, activeTabId, updateStatus,
   type Session, type SessionEmbed,
-  type TransferItem, type HostKeyEvent, type PingResult,
+  type TransferItem, type HostKeyEvent, type PeerTrustEvent, type PingResult,
 } from '../stores/appState';
 import {
   appendPendingTerminalOutput,
@@ -42,6 +42,25 @@ import { nodeDetailsTarget, requestNodeDetailsReload } from '../stores/nodeDetai
 // so any (re)mounting FileTree can recover the session's ready state + initial
 // path. Value = the session's initial remote path.
 export const sftpReadyPaths = writable<Map<string, string>>(new Map());
+
+/**
+ * The two "do you trust this?" prompts: the SSH host key, and the remote identity a plugin
+ * protocol presents.
+ *
+ * They are registered here rather than in the main list because they are one subject. Both put a
+ * question in front of the user that stops a connection until it is answered, and a change to how
+ * one of them is raised should be read next to the other - not found by scrolling a list of every
+ * event the app has.
+ */
+function subscribeTrustPrompts(rt: NonNullable<ReturnType<typeof getRuntime>>): void {
+  rt.EventsOn('HostKeyRequired', (data: HostKeyEvent) => {
+    pendingHostKey.set(data);
+  });
+
+  rt.EventsOn('PeerTrustRequired', (data: PeerTrustEvent) => {
+    enqueuePeerTrust(data);
+  });
+}
 
 export function subscribeToEvents(): void {
   const rt = getRuntime();
@@ -199,9 +218,7 @@ export function subscribeToEvents(): void {
     });
   });
 
-  rt.EventsOn('HostKeyRequired', (data: HostKeyEvent) => {
-    pendingHostKey.set(data);
-  });
+  subscribeTrustPrompts(rt);
 
   // The backend runs the check once the vault opens and emits only when there is something to
   // report, so this listener is the whole of the banner's plumbing. GetUpdateStatus covers the

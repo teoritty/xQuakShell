@@ -142,8 +142,13 @@ func newUIRig(t *testing.T) *uiRig {
 
 	host := infraplugin.NewProcessHost(infraplugin.HostConfig{
 		DataRoot: t.TempDir(),
-		SessionRPC: usecase.NewPluginSessionRPCHandlerFactory(
-			usecase.NewPluginSessionInbound(), nil, discoveryHolder, surfaceHolder, dialogHolder, detailsHolder, authorizer),
+		SessionRPC: usecase.NewPluginSessionRPCHandlerFactory(usecase.PluginSessionRPCPorts{
+			Sessions:  usecase.NewPluginSessionInbound(),
+			Discovery: discoveryHolder,
+			Surfaces:  surfaceHolder,
+			Dialogs:   dialogHolder,
+			Details:   detailsHolder,
+		}, authorizer),
 		SessionAuthorizer: authorizer,
 	})
 	rig.manager = usecase.NewPluginManagerWithConfig(usecase.PluginManagerConfig{

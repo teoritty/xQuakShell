@@ -234,6 +234,36 @@ func joinAuditTokens(ids []string) string {
 	return strings.Join(safe, ",")
 }
 
+func (w *PluginAuditWriter) PeerTrustFunc() PeerTrustAuditFunc {
+	return func(entry PeerTrustAuditEntry) {
+		w.append(formatPeerTrustAuditLine(entry))
+	}
+}
+
+// formatPeerTrustAuditLine renders a trust question, decision or revocation.
+//
+// The subject and the fingerprint go through safeAuditValue for the reason the discovery
+// formatter documents: the subject is host:port derived by the core, but the error string can
+// interpolate values a plugin chose, and one unescaped '=' forges a field.
+//
+// sessionId= is written even when empty. A revocation genuinely has no session, and a field that
+// silently disappears makes a log a reader cannot parse positionally.
+func formatPeerTrustAuditLine(entry PeerTrustAuditEntry) string {
+	flag := "allowed"
+	if !entry.Allowed {
+		flag = "denied"
+	}
+	line := "[plugin] action=" + entry.Action + " pluginId=" + entry.Scope +
+		" sessionId=" + entry.SessionID +
+		" subject=" + safeAuditValue(entry.Subject) +
+		" fingerprint=" + safeAuditValue(entry.Fingerprint) +
+		" result=" + flag
+	if entry.Error != "" {
+		line += " detail=" + safeAuditValue(entry.Error)
+	}
+	return line
+}
+
 func (w *PluginAuditWriter) SessionBindFunc() SessionBindAuditFunc {
 	return func(pluginID, sessionID, action string, allowed bool, detail string) {
 		w.append(formatPluginSessionBindAuditLine(pluginID, sessionID, action, allowed, detail))
