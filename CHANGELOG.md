@@ -12,7 +12,7 @@ The newest versioned heading is the release being prepared. Only the latest rele
 fixes, including security fixes, ship in a new release rather than as patches to an older one
 (see [SECURITY.md](SECURITY.md)).
 
-## [1.2.0]
+## [1.2.0] — 2026-08-16
 
 ### Compatibility
 
