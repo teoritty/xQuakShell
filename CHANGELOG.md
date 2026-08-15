@@ -348,6 +348,14 @@ removal is recorded by name in `removedFeatures` (`api_contract_test.go`) and `r
   its file list until it ran out of memory; stopping it needed you to notice and cancel. Walks now
   stop at a depth and an entry count, and say so rather than quietly returning half a tree.
 
+- **Asking the application to open a downloaded file no longer runs it.** "Open with the system
+  default application" handed the path straight to the operating system, and for an executable the
+  operating system's answer is to run it — so anything that could put a file on your disk and then
+  ask for it to be opened had a way to execute code as you. Executables, script hosts, installers,
+  and the shapes that only look like documents (`.lnk`, `.url`, `invoice.pdf.exe`) are now refused
+  on that path. Opening a file in an editor you named is unchanged: the file is an argument to the
+  program you chose, so nothing runs it.
+
 - **A remote file whose name lies about what it is no longer reaches your disk.** The SFTP server
   controls every byte of a directory listing, and three shapes were getting through: a name carrying
   a right-to-left override, which renders `gnp.<RLO>exe` as `exe.png` so the extension you read is

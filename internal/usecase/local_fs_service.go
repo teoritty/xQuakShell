@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -107,7 +108,17 @@ func (s *LocalFSService) OpenWithSystem(localPath, editorPath string) error {
 	}
 	editorPath = strings.TrimSpace(editorPath)
 	if editorPath != "" {
+		// A named application receives the file as an argument, so `notepad payload.exe` displays
+		// bytes rather than running them. The user chose the program; nothing here decides.
 		return s.launcher.OpenWith(editorPath, abs)
+	}
+	// The default association is the operating system deciding what to do with the file, and for an
+	// executable it decides to run it. That turns this method into a way to execute anything the
+	// caller can first put on disk - and the caller is the Wails bridge, which a script in the UI
+	// reaches. Downloading a file and asking politely for it to be opened should not be a way to
+	// run it.
+	if domain.IsExecutableForSystemOpen(abs) {
+		return fmt.Errorf("%s: %w", filepath.Base(abs), domain.ErrExecutableSystemOpen)
 	}
 	return s.launcher.OpenDefault(abs)
 }
