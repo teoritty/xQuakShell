@@ -86,7 +86,16 @@ variables:
   # cache paths under CI_PROJECT_DIR.
   GOPATH: "$CI_PROJECT_DIR/.go"
   GOFLAGS: "-mod=readonly"
-  GIT_DEPTH: "0"
+  # GIT_DEPTH: "0"
+  #
+  # 0 means unlimited: every job cloned the entire history. Nothing here needs it - the only code
+  # in this repository that shells out to git is scripts/budgets, and `git ls-files` reads the
+  # index rather than the history, so it is unaffected by a shallow clone.
+  #
+  # It was actively harmful on the Windows runner, where git's schannel backend fails a large
+  # transfer with "server closed abruptly (missing close_notify)" often enough to be the top cause
+  # of red jobs. A full clone maximises the surface for that. 20 is GitLab's own default depth.
+  GIT_DEPTH: "20"
 
 # ---------------------------------------------------------------------------
 # Job templates
