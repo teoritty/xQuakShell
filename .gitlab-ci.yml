@@ -84,7 +84,22 @@ variables:
   WAILS_VERSION: "v2.13.0"
   # GOPATH inside the project directory is what makes the module cache cacheable: GitLab can only
   # cache paths under CI_PROJECT_DIR.
-  GOPATH: "$CI_PROJECT_DIR/.go"
+  # GOPATH: "$CI_PROJECT_DIR/.go"
+  #
+  # That traded a cache for two broken gates, and the gates were right. Putting a dependency tree
+  # inside the checkout means every test that walks the checkout walks the dependencies too:
+  #
+  #   TestCompositionRoot            "parse .go: read /builds/.../.go: is a directory" - the
+  #                                  directory is literally named `.go`, so it matches the *.go
+  #                                  suffix the parser selects on.
+  #   TestLinkCheckCoversEveryDocument  found 70-odd README.md files under .go/pkg/mod and asked,
+  #                                  correctly, why the link gate does not cover them.
+  #
+  # Renaming it would fix the first and not the second. GOPATH belongs outside the checkout, which
+  # is where the golang image already puts it, so this now simply does not override it. The cost is
+  # a module download per job; the alternative is a checkout that no longer describes the project.
+  #
+  # GOPATH is therefore left at the image default, /go, and no longer set here at all.
   GOFLAGS: "-mod=readonly"
   # GIT_DEPTH: "0"
   #
@@ -103,12 +118,17 @@ variables:
 
 .go:
   image: golang:${GO_VERSION}
-  cache:
-    key:
-      files:
-        - go.sum
-    paths:
-      - .go/pkg/mod
+  # cache:
+  #   key:
+  #     files:
+  #       - go.sum
+  #   paths:
+  #     - .go/pkg/mod
+  #
+  # Removed with the GOPATH override above: a GitLab cache path must live under CI_PROJECT_DIR, and
+  # nothing that a test walks may live there. Restoring a Go cache means finding somewhere outside
+  # the checkout that GitLab will cache, and there is no such place - so this stays uncached until
+  # slow jobs make the problem worth solving properly.
   before_script:
     - go version
 
@@ -213,7 +233,7 @@ docs:links:
   script:
     - >
       lychee --offline --include-fragments --no-progress
-      '*.md' 'docs/**/*.md' 'packaging/**/*.md' '.github/**/*.md' 'frontend/README.md'
+      '*.md' 'docs/**/*.md' 'packaging/**/*.md' '.github/**/*.md' '.gitlab/**/*.md' 'frontend/README.md'
 
 # ---------------------------------------------------------------------------
 # Stage: test
@@ -241,6 +261,17 @@ go:test:windows:
     - .windows
     - .needs-frontend-dist
   stage: test
+  # -race on Windows is implemented in the cgo runtime, so the toolchain refuses it outright with
+  # "-race requires cgo; enable cgo by setting CGO_ENABLED=1". GitHub's windows-latest image ships
+  # a mingw-w64 gcc and has cgo on by default, which is why test.yml never had to say this.
+  #
+  # Dropping -race here instead would be the wrong trade: the Windows-only code - AppContainer, its
+  # ACLs, the job object - is exercised by no other job on any platform, so this is the only place
+  # a data race in it can be detected at all.
+  #
+  # The runner therefore needs a C compiler: choco install -y mingw.
+  variables:
+    CGO_ENABLED: "1"
   script:
     - go test ./test/unit/architecture/... -count=1
     - go test ./... -race -count=1
@@ -269,6 +300,17 @@ sec:go:
     - .needs-frontend-dist
   stage: security
   script:
+    # - apt-get update -qq && apt-get install -y -qq jq
+    #
+    # The image's sources point at http://deb.debian.org, and port 80 to Fastly does not survive
+    # this network - apt then warns rather than failing, carries on with no index, and the job dies
+    # four lines later on "Unable to locate package jq". Rewriting the sources to https fixes it and
+    # is worth doing on its own merits: an unauthenticated plaintext fetch of packages that are
+    # about to run as root in the job is not something to keep because it happened to work.
+    #
+    # Two paths because trixie moved to the deb822 format and older images still use sources.list.
+    - sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true
+    - sed -i 's|http://|https://|g' /etc/apt/sources.list 2>/dev/null || true
     - apt-get update -qq && apt-get install -y -qq jq
 
     # Reports only vulnerabilities whose vulnerable symbols are reachable from this code, so a
@@ -632,7 +674,7 @@ links:external:
     # as a dead link would make the weekly result depend on who else ran this hour.
     - >
       lychee --cache --max-cache-age 1d --no-progress --accept 200,206,429
-      '*.md' 'docs/**/*.md' 'packaging/**/*.md' '.github/**/*.md' 'frontend/README.md'
+      '*.md' 'docs/**/*.md' 'packaging/**/*.md' '.github/**/*.md' '.gitlab/**/*.md' 'frontend/README.md'
 
 # Mutation testing answers a question line coverage cannot: would the tests have noticed if the
 # code were wrong? A red run here is not a broken build - it means a test stopped catching
