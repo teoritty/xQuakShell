@@ -604,29 +604,62 @@ release:publish:
       artifacts: true
       optional: true
   script:
+    # Superseded, kept because both faults are easy to reintroduce:
+    #
+    #   1. The first block cd's into dist and writes ../release-links.args, so the file lands in the
+    #      project root; the second block runs in the same shell, is therefore still in dist, and
+    #      reads release-links.args from there. Under set -eu that is a failed job - on a tag, which
+    #      is permanent. Nothing in the pipeline would have caught it before it happened.
+    #   2. eval on a string holding JSON. It survives only while no filename and no field contains a
+    #      space, and the quoting that would make it safe is unreadable.
+    #
+    # - |
+    #   set -eu
+    #   version="${CI_COMMIT_TAG#v}"
+    #   base="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/xquakshell/${version}"
+    #   cd dist
+    #   sha256sum * > SHA256SUMS
+    #   cat SHA256SUMS
+    #   links=""
+    #   for f in *; do
+    #     curl --fail --silent --show-error --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file "$f" "${base}/${f}"
+    #     links="${links} --assets-link {\"name\":\"${f}\",\"url\":\"${base}/${f}\"}"
+    #   done
+    #   echo "$links" > ../release-links.args
+    # - |
+    #   set -eu
+    #   name="$CI_COMMIT_TAG"
+    #   case "$CI_COMMIT_TAG" in *-*) name="$CI_COMMIT_TAG (pre-release)" ;; esac
+    #   eval release-cli create --name "'$name'" --tag-name "$CI_COMMIT_TAG" \
+    #     --description "\"See CHANGELOG.md for the ${CI_COMMIT_TAG#v} entry.\"" \
+    #     $(cat release-links.args)
     - |
       set -eu
       version="${CI_COMMIT_TAG#v}"
       base="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/xquakshell/${version}"
+
       cd dist
       # Runs before SHA256SUMS exists, so the glob cannot include the file being written.
       sha256sum * > SHA256SUMS
       cat SHA256SUMS
-      links=""
+
+      # One block, and positional parameters rather than a string handed to eval: every argument is
+      # carried whole, so a space anywhere in a name cannot split it into two, and there is no
+      # second shell invocation to get the working directory wrong between.
+      set --
       for f in *; do
-        curl --fail --silent --show-error --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file "$f" "${base}/${f}"
-        links="${links} --assets-link {\"name\":\"${f}\",\"url\":\"${base}/${f}\"}"
+        curl --fail --silent --show-error --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+          --upload-file "$f" "${base}/${f}"
+        set -- "$@" --assets-link "{\"name\":\"${f}\",\"url\":\"${base}/${f}\"}"
       done
-      echo "$links" > ../release-links.args
-    - |
-      set -eu
+
       # Tagged with a suffix (v1.0.0-rc.1) is a pre-release; GitLab has no flag for that, so the
       # distinction lives in the release name rather than a checkbox.
       name="$CI_COMMIT_TAG"
       case "$CI_COMMIT_TAG" in *-*) name="$CI_COMMIT_TAG (pre-release)" ;; esac
-      eval release-cli create --name "'$name'" --tag-name "$CI_COMMIT_TAG" \
-        --description "\"See CHANGELOG.md for the ${CI_COMMIT_TAG#v} entry.\"" \
-        $(cat release-links.args)
+
+      release-cli create --name "$name" --tag-name "$CI_COMMIT_TAG" \
+        --description "Release notes: ${CI_PROJECT_URL}/-/blob/${CI_COMMIT_TAG}/CHANGELOG.md" "$@"
 
 # ---------------------------------------------------------------------------
 # Scheduled work
