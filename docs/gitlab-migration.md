@@ -53,9 +53,18 @@ carries one anyway, so that jobs can be pinned to it later without re-registerin
 | Linux | `docker` | `xquakshell-linux` | **yes** | `ref_protected` | the other 17 jobs |
 | Windows | `shell` (pwsh) | `xquakshell-windows` | no | `ref_protected` | `go:test:windows`, `release:windows` |
 
+<!-- Superseded: pinned 18.x, and the runners in use are 19.2.2.
+
 Install [GitLab Runner](https://docs.gitlab.com/runner/install/) 18.x — the official binary, not a
 distribution package, which lags. Register each runner from **Settings - CI/CD - Runners - New
 project runner**, which issues a `glrt-` authentication token.
+-->
+
+Install [GitLab Runner](https://docs.gitlab.com/runner/install/) 19.x — the official binary, not a
+distribution package, which lags. Create each runner in **Settings - CI/CD - Runners - New project
+runner**: that form is where tags, protected, untagged jobs and the timeout are set, and it issues
+the `glrt-` authentication token that `register` then consumes. The order is not interchangeable —
+see the table below the install commands.
 
 The Windows runner uses the `shell` executor because a Wails Windows build needs the real Windows
 SDK and the WebView2 fixed runtime, and containerising that buys nothing. That choice has a
@@ -85,6 +94,14 @@ gitlab-runner.exe register --non-interactive --url https://gitlab.com/ --token "
 Both runners register `ref_protected`. Why that applies to the Linux runner too, and not only to
 the Windows machine, is the subject of the next section.
 
+<!-- Superseded a second time. These commands were written for the pre-16.0 registration flow and
+     are rejected outright by a modern runner with:
+
+       FATAL: Runner configuration other than name and executor configuration is reserved
+       (specifically --locked, --access-level, --run-untagged, --maximum-timeout, --paused,
+       --tag-list, and --maintenance-note) and cannot be specified when registering with a runner
+       authentication token.
+
 ```sh
 # Linux, docker executor.
 #
@@ -109,6 +126,46 @@ gitlab-runner register --non-interactive \
 # Windows, shell executor. --run-untagged=false keeps this machine from grabbing Linux jobs and
 # failing them; the tag must match .gitlab-ci.yml byte for byte.
 gitlab-runner.exe register --non-interactive --url https://gitlab.com/ --token "glrt-REDACTED" --executor shell --shell pwsh --tag-list "xquakshell-windows" --run-untagged=false --locked=true --access-level ref_protected --maximum-timeout 7200
+```
+-->
+
+**With a `glrt-` authentication token, everything except the executor is configured on the GitLab
+server, before the token exists.** Tags, untagged jobs, protected, locking and the job timeout are
+fields in the **Settings - CI/CD - Runners - New project runner** form; passing them to `register`
+is a fatal error, not a deprecation warning. Fill the form first, then register with what is left.
+
+| Form field | Linux | Windows |
+|---|---|---|
+| Platform | Linux | Windows |
+| Tags | `xquakshell-linux` | `xquakshell-windows` |
+| Run untagged jobs | **checked** | unchecked |
+| Protected | **checked** | **checked** |
+| Lock to current projects | checked | checked |
+| Maximum job timeout | `21600` | `7200` |
+
+`Run untagged jobs` differs between the two and is the field most easily got wrong. 17 of the 19
+jobs in `.gitlab-ci.yml` carry no tag, and a runner with a tag stops accepting untagged jobs unless
+this is on — so the Linux runner would sit idle while the jobs it exists for went to gitlab.com's
+shared runners. The Windows runner has it off for the mirror-image reason: it must never pick up a
+Linux job and fail it.
+
+An existing runner does not need re-creating to change any of these — **Settings - CI/CD - Runners**,
+pick the runner, **Edit**.
+
+```sh
+# Linux, docker executor.
+gitlab-runner register --non-interactive \
+  --url https://gitlab.com/ \
+  --token "glrt-REDACTED" \
+  --executor docker \
+  --docker-image alpine:3.20
+```
+
+```powershell
+# Windows, shell executor. --config is explicit because register writes config.toml to the CURRENT
+# directory, not next to the executable, and a config that lands somewhere the service does not
+# read looks exactly like a registration that never happened.
+.\gitlab-runner.exe register --config C:\r\config.toml --non-interactive --url https://gitlab.com/ --token "glrt-REDACTED" --executor shell --shell pwsh
 ```
 
 `concurrent` has no registration flag; set it in `config.toml` afterwards — `2` on the Linux
