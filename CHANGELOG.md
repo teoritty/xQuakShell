@@ -56,15 +56,20 @@ embed broker — and `.wasm` responses carry an explicit `application/wasm`.
 
 **A plugin could occasionally start on Linux with no sandbox while being reported as sandboxed.**
 Landlock confines a thread rather than a whole process, and the shim that applies the confinement
-did not hold the thread it had just confined. Go is free to move the work to another thread at any
-moment, so between the confinement and the moment the plugin binary replaced the shim, that move
-could happen — and the plugin then started outside the sandbox, with the shim exiting successfully
-and the sandbox status reading as enforced. Whether it happened depended on machine load, which is
-why it survived: on an idle machine the work stays where it was, and everything looks correct.
+did not check it was still on the thread it had confined. Go is free to move the work to another
+thread at any moment, so between the confinement and the moment the plugin binary replaced the
+shim, that move could happen — and the plugin then started outside the sandbox, with the shim
+exiting successfully and the sandbox status reading as enforced. Whether it happened depended on
+machine load, which is why it survived: on an idle machine the work stays where it was, and
+everything looks correct.
 
-The confinement now pins itself to the thread it applied to, so the plugin that starts is always
-the one inside the domain. Nothing about the rules themselves changed, and a plugin that was
-confined stays confined exactly as before.
+The shim now records which thread it confined and refuses to start the plugin from any other one.
+A plugin that would previously have started unsandboxed and silently now does not start at all,
+and says why in the log — the same trade the sandbox already makes for every other failure it can
+detect, because a plugin that is missing is a problem you can see.
+
+Nothing about the rules themselves changed, and a plugin that was confined stays confined exactly
+as before.
 
 ## [1.1.0] — 2026-08-12
 

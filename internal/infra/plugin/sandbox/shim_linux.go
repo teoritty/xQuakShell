@@ -33,7 +33,8 @@ func RunShim(argv []string) {
 	if abi < abiFilesystem {
 		shimFail(fmt.Errorf("kernel reports landlock ABI %d, which cannot confine a filesystem", abi))
 	}
-	if err := applyLandlock(abi, args); err != nil {
+	confined, err := applyLandlock(abi, args)
+	if err != nil {
 		shimFail(err)
 	}
 
@@ -54,11 +55,41 @@ func RunShim(argv []string) {
 		shimFail(err)
 	}
 
+	// The last thing before the exec, and deliberately so.
+	//
+	// The domain sits on a thread, not on this process, and Go may move this goroutine to another
+	// thread at any scheduling point — ApplyProcessLimits above is two syscalls' worth of them.
+	// Exec'ing from a thread that was never confined produces a plugin with no filesystem and no
+	// network restriction at all, while the shim exits zero and the host reports the plugin as
+	// sandboxed, because it asked for a sandbox and the process came up. Nothing else in this
+	// function would notice.
+	//
+	// This does not prevent the move; it refuses to act on it. That is the same trade every other
+	// failure here makes — a plugin that does not start is loud, diagnosable and recoverable, and an
+	// unconfined one is none of those. A pin would prevent it, and cannot be used: see restrictSelf.
+	//
+	// A window remains between this check and the execve, inside unix.Exec, where argv and envp are
+	// built. It is not zero and is not claimed to be.
+	if err := confinementStillHolds(confined); err != nil {
+		shimFail(err)
+	}
+
 	// Landlock domains only ever narrow across execve, so nothing the plugin does after this point
 	// can widen what was just applied — including running this shim again. The environment is
 	// passed through unchanged: it is the one the host built for the plugin, and this process only
 	// ever existed to stand between the two.
 	shimFail(fmt.Errorf("exec %s: %w", args.Exec, unix.Exec(args.Exec, []string{args.Exec}, os.Environ())))
+}
+
+// confinementStillHolds reports whether the caller is still on the thread the Landlock domain was
+// committed onto. Split out of RunShim so the refusal branch can be tested: RunShim itself ends in
+// an execve and cannot be called from a test that expects to return.
+func confinementStillHolds(confined int) error {
+	if got := unix.Gettid(); got != confined {
+		return fmt.Errorf("landlock was applied to thread %d but this is thread %d; "+
+			"exec'ing here would start the plugin outside the sandbox", confined, got)
+	}
+	return nil
 }
 
 func shimFail(err error) {

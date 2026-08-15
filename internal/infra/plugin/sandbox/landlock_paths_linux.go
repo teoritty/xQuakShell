@@ -44,29 +44,30 @@ var (
 // is why its only caller exits rather than continuing.
 //
 // "Process" above is the word that hid a bug for as long as it stood: Landlock confines a THREAD.
-// applyLandlock confines the calling goroutine's thread and pins the goroutine to it, so the
-// sentence is true of everything that goroutine does next and of anything it execs, and false of
-// any other goroutine in the process. See restrictSelf, which does the pinning and says why.
-func applyLandlock(abi int, args ShimArgs) error {
+// applyLandlock confines the calling goroutine's thread, and returns which thread that was, because
+// Go may move the goroutine off it at any scheduling point. The sentence above is true only for as
+// long as the caller is still on the returned thread, and it is the caller's job to check that
+// before it relies on it - see RunShim.
+func applyLandlock(abi int, args ShimArgs) (int, error) {
 	rs, err := newRuleset(abi)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer rs.close()
 
 	// Order is not significant to the kernel; these are grouped by who they are for.
 	for _, path := range args.AllowRX {
 		if err := rs.allow(path, accessReadExecute(abi)); err != nil {
-			return err
+			return 0, err
 		}
 	}
 	for _, path := range args.AllowRW {
 		if err := rs.allow(path, accessReadWrite(abi)); err != nil {
-			return err
+			return 0, err
 		}
 	}
 	if err := allowSystemPaths(rs, abi); err != nil {
-		return err
+		return 0, err
 	}
 	return rs.restrictSelf()
 }

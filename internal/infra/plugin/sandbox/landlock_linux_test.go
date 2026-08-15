@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -104,69 +103,31 @@ func TestASecondRulesetCannotWidenTheFirst(t *testing.T) {
 	runConfinedChild(t, "TestConfinedChildCannotGrantItselfMore")
 }
 
-// TestConfinementStaysWithTheGoroutineThatAskedForIt covers the mechanism the two tests above only
-// covered by accident.
+// TestTheShimWillNotExecFromAThreadItDidNotConfine covers the guard the shim relies on, and does it
+// without depending on the scheduler.
 //
-// Landlock confines a thread, not a process, and Go moves a goroutine between OS threads whenever
-// it feels like it. For as long as restrictSelf did not pin the goroutine, every assertion made
-// after applyLandlock was a coin flip: it held while the goroutine happened to stay put and passed,
-// and the moment the scheduler moved it the work ran on a thread with no domain at all. The network
-// test found this the honest way - red on a busy runner, green on a retry of the same commit.
+// Landlock commits its domain onto a thread, not onto the process, and Go moves a goroutine between
+// threads at any scheduling point. The shim therefore records which thread it confined and refuses
+// to exec from any other, because exec'ing from an unconfined thread starts the plugin with no
+// restrictions at all while the shim exits zero and the host reports it as sandboxed.
 //
-// The same window is what the shim runs through between applyLandlock and its execve, and there the
-// failure is silent: a plugin with no confinement, reported to the user as sandboxed.
-func TestConfinementStaysWithTheGoroutineThatAskedForIt(t *testing.T) {
-	runConfinedChild(t, "TestConfinedChildStaysOnItsConfinedThread")
-}
+// Provoking a real migration would make this a test of the scheduler's mood. The refusal itself is
+// what has to be correct, so it is asked directly: the thread it was given, and a thread it was not.
+func TestTheShimWillNotExecFromAThreadItDidNotConfine(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 
-func TestConfinedChildStaysOnItsConfinedThread(t *testing.T) {
-	layout, ok := readChildLayout(t, "TestConfinementStaysWithTheGoroutineThatAskedForIt")
-	if !ok {
-		return
-	}
-	abi, err := landlockABI()
-	if err != nil {
-		t.Fatalf("probe landlock: %v", err)
-	}
-	if err := applyLandlock(abi, layout.shimArgs()); err != nil {
-		t.Fatalf("applyLandlock: %v", err)
+	here := unix.Gettid()
+	if err := confinementStillHolds(here); err != nil {
+		t.Errorf("confinementStillHolds(%d) = %v on that very thread; the shim would refuse every "+
+			"correct exec and no plugin would ever start", here, err)
 	}
 
-	// The thread the domain was committed onto. Every assertion any confined code makes is only
-	// about this one.
-	confined := unix.Gettid()
-
-	// Hand the scheduler every reason to move this goroutine: blocking syscalls release the P, so
-	// each sleeper below is a thread the runtime may resume this goroutine on instead of the one it
-	// left. An unpinned goroutine does not survive this reliably, which is the point - the failure
-	// it reproduces was itself a matter of load.
-	var wg sync.WaitGroup
-	for i := 0; i < 16; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			time.Sleep(time.Millisecond)
-		}()
-	}
-	for i := 0; i < 64; i++ {
-		runtime.Gosched()
-		var st unix.Stat_t
-		_ = unix.Stat(layout.install, &st)
-	}
-	wg.Wait()
-	runtime.GC()
-
-	if got := unix.Gettid(); got != confined {
-		t.Fatalf("the goroutine moved from thread %d to %d after Landlock was applied; the domain "+
-			"stayed behind on %d and everything from here runs unconfined", confined, got, confined)
-	}
-
-	// The invariant restated as an outcome, so a future change that keeps the thread but loses the
-	// domain does not pass on the tid check alone. Deliberately not a path under /etc: the system
-	// grants make the whole of it readable, so an assertion there would pass unconfined.
-	if _, err := os.ReadFile(filepath.Join(layout.outside, "id_ed25519")); !errors.Is(err, os.ErrPermission) {
-		t.Errorf("reading outside the grants after the scheduling churn returned %v, want a "+
-			"permission error", err)
+	// Any tid this thread is not. Negative rather than "here+1", which the kernel may well have
+	// handed to a real thread of this process.
+	if err := confinementStillHolds(-1); err == nil {
+		t.Error("confinementStillHolds(-1) = nil; the shim would exec the plugin from a thread that " +
+			"was never confined and report it as sandboxed")
 	}
 }
 
@@ -229,6 +190,17 @@ func readChildLayout(t *testing.T, driver string) (childLayout, bool) {
 		t.Skip("child-process body, driven by " + driver)
 		return childLayout{}, false
 	}
+
+	// Every child below applies Landlock and then keeps working in the same process, which is the
+	// one thing production never does — the shim execs instead, and guards the thread rather than
+	// holding it. A test that carries on has to hold the thread, or it is asserting against whatever
+	// thread the scheduler last handed it: that is how the network child came to fail on a loaded
+	// runner and pass on a retry of the same commit.
+	//
+	// Never unlocked. These processes exist to be confined and then to exit, and the lock costs them
+	// nothing: they run under no RLIMIT_DATA, which is the whole reason the shim cannot do the same.
+	runtime.LockOSThread()
+
 	p := strings.Split(spec, string(os.PathListSeparator))
 	return childLayout{
 		root: p[0], install: p[1], instance: p[2], outside: p[3],
@@ -298,7 +270,7 @@ func TestConfinedChildCannotDialOut(t *testing.T) {
 		t.Fatalf("close the control connection: %v", err)
 	}
 
-	if err := applyLandlock(abi, layout.shimArgs()); err != nil {
+	if _, err := applyLandlock(abi, layout.shimArgs()); err != nil {
 		t.Fatalf("applyLandlock: %v", err)
 	}
 
@@ -345,7 +317,7 @@ func TestConfinedChildProbesItsBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("probe landlock: %v", err)
 	}
-	if err := applyLandlock(abi, layout.shimArgs()); err != nil {
+	if _, err := applyLandlock(abi, layout.shimArgs()); err != nil {
 		t.Fatalf("applyLandlock: %v", err)
 	}
 
@@ -376,13 +348,13 @@ func TestConfinedChildCannotGrantItselfMore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("probe landlock: %v", err)
 	}
-	if err := applyLandlock(abi, layout.shimArgs()); err != nil {
+	if _, err := applyLandlock(abi, layout.shimArgs()); err != nil {
 		t.Fatalf("applyLandlock: %v", err)
 	}
 
 	wider := layout.shimArgs()
 	wider.AllowRW = append(wider.AllowRW, layout.outside)
-	if err := applyLandlock(abi, wider); err != nil {
+	if _, err := applyLandlock(abi, wider); err != nil {
 		t.Fatalf("applying a second, wider ruleset failed outright: %v; the interesting answer is "+
 			"that it succeeds and changes nothing", err)
 	}
