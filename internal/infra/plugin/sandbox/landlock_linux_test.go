@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -102,6 +103,34 @@ func TestASecondRulesetCannotWidenTheFirst(t *testing.T) {
 	runConfinedChild(t, "TestConfinedChildCannotGrantItselfMore")
 }
 
+// TestTheShimWillNotExecFromAThreadItDidNotConfine covers the guard the shim relies on, and does it
+// without depending on the scheduler.
+//
+// Landlock commits its domain onto a thread, not onto the process, and Go moves a goroutine between
+// threads at any scheduling point. The shim therefore records which thread it confined and refuses
+// to exec from any other, because exec'ing from an unconfined thread starts the plugin with no
+// restrictions at all while the shim exits zero and the host reports it as sandboxed.
+//
+// Provoking a real migration would make this a test of the scheduler's mood. The refusal itself is
+// what has to be correct, so it is asked directly: the thread it was given, and a thread it was not.
+func TestTheShimWillNotExecFromAThreadItDidNotConfine(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	here := unix.Gettid()
+	if err := confinementStillHolds(here); err != nil {
+		t.Errorf("confinementStillHolds(%d) = %v on that very thread; the shim would refuse every "+
+			"correct exec and no plugin would ever start", here, err)
+	}
+
+	// Any tid this thread is not. Negative rather than "here+1", which the kernel may well have
+	// handed to a real thread of this process.
+	if err := confinementStillHolds(-1); err == nil {
+		t.Error("confinementStillHolds(-1) = nil; the shim would exec the plugin from a thread that " +
+			"was never confined and report it as sandboxed")
+	}
+}
+
 func runConfinedChild(t *testing.T, name string) {
 	t.Helper()
 	if _, err := landlockABI(); err != nil {
@@ -161,6 +190,17 @@ func readChildLayout(t *testing.T, driver string) (childLayout, bool) {
 		t.Skip("child-process body, driven by " + driver)
 		return childLayout{}, false
 	}
+
+	// Every child below applies Landlock and then keeps working in the same process, which is the
+	// one thing production never does — the shim execs instead, and guards the thread rather than
+	// holding it. A test that carries on has to hold the thread, or it is asserting against whatever
+	// thread the scheduler last handed it: that is how the network child came to fail on a loaded
+	// runner and pass on a retry of the same commit.
+	//
+	// Never unlocked. These processes exist to be confined and then to exit, and the lock costs them
+	// nothing: they run under no RLIMIT_DATA, which is the whole reason the shim cannot do the same.
+	runtime.LockOSThread()
+
 	p := strings.Split(spec, string(os.PathListSeparator))
 	return childLayout{
 		root: p[0], install: p[1], instance: p[2], outside: p[3],
@@ -230,7 +270,7 @@ func TestConfinedChildCannotDialOut(t *testing.T) {
 		t.Fatalf("close the control connection: %v", err)
 	}
 
-	if err := applyLandlock(abi, layout.shimArgs()); err != nil {
+	if _, err := applyLandlock(abi, layout.shimArgs()); err != nil {
 		t.Fatalf("applyLandlock: %v", err)
 	}
 
@@ -277,7 +317,7 @@ func TestConfinedChildProbesItsBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("probe landlock: %v", err)
 	}
-	if err := applyLandlock(abi, layout.shimArgs()); err != nil {
+	if _, err := applyLandlock(abi, layout.shimArgs()); err != nil {
 		t.Fatalf("applyLandlock: %v", err)
 	}
 
@@ -308,13 +348,13 @@ func TestConfinedChildCannotGrantItselfMore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("probe landlock: %v", err)
 	}
-	if err := applyLandlock(abi, layout.shimArgs()); err != nil {
+	if _, err := applyLandlock(abi, layout.shimArgs()); err != nil {
 		t.Fatalf("applyLandlock: %v", err)
 	}
 
 	wider := layout.shimArgs()
 	wider.AllowRW = append(wider.AllowRW, layout.outside)
-	if err := applyLandlock(abi, wider); err != nil {
+	if _, err := applyLandlock(abi, wider); err != nil {
 		t.Fatalf("applying a second, wider ruleset failed outright: %v; the interesting answer is "+
 			"that it succeeds and changes nothing", err)
 	}
