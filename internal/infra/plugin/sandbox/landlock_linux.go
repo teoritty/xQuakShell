@@ -5,6 +5,7 @@ package sandbox
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -213,12 +214,30 @@ func (r *ruleset) allowIfPresent(path string, access uint64) error {
 	return err
 }
 
-// restrictSelf puts the calling process inside the ruleset, for good.
+// restrictSelf puts the calling goroutine's thread inside the ruleset, for good, and pins the
+// goroutine to that thread so nothing it does afterwards escapes.
+//
+// Superseded first line, kept because it is the assumption that produced the bug:
+// "restrictSelf puts the calling process inside the ruleset, for good."
+//
+// Both syscalls below are per-thread, not per-process: PR_SET_NO_NEW_PRIVS sets a task attribute
+// and landlock_restrict_self commits a domain onto the calling task's credentials. Go schedules a
+// goroutine across OS threads at will, so without the lock the confinement lands on one thread and
+// the work that was supposed to be confined can run on another. That is not theoretical - the
+// network confinement test failed exactly this way, intermittently, and passed on a retry with no
+// change to the code.
+//
+// The lock is never released. Every caller is a process that has nothing left to do but exec the
+// plugin, and unlocking would hand back the one guarantee this function exists to make. It also
+// closes the same gap in RunShim, where the window between here and the execve spans
+// ApplyProcessLimits: an exec from a migrated thread produces a plugin running with no domain at
+// all, reported to the user as sandboxed because the shim exited zero.
 //
 // PR_SET_NO_NEW_PRIVS is not optional bookkeeping: landlock_restrict_self refuses with EPERM
 // without it, because a domain that a setuid binary could exec its way out of would not be a
 // domain. It is also what makes the confinement survive the execve into the plugin.
 func (r *ruleset) restrictSelf() error {
+	runtime.LockOSThread()
 	if err := unix.Prctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
 		return fmt.Errorf("prctl(PR_SET_NO_NEW_PRIVS): %w", err)
 	}

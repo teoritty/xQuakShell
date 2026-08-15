@@ -42,6 +42,11 @@ var (
 // nothing else. It does not return on success in any useful sense — the process it was called in is
 // permanently narrower afterwards — and every error it returns leaves the process unconfined, which
 // is why its only caller exits rather than continuing.
+//
+// "Process" above is the word that hid a bug for as long as it stood: Landlock confines a THREAD.
+// applyLandlock confines the calling goroutine's thread and pins the goroutine to it, so the
+// sentence is true of everything that goroutine does next and of anything it execs, and false of
+// any other goroutine in the process. See restrictSelf, which does the pinning and says why.
 func applyLandlock(abi int, args ShimArgs) error {
 	rs, err := newRuleset(abi)
 	if err != nil {

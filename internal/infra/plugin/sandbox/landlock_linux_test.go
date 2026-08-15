@@ -8,7 +8,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -100,6 +102,72 @@ func TestApplyLandlockLeavesTheProcessAbleToReachOnlyWhatItWasGranted(t *testing
 // would be a suggestion rather than a boundary, and this is where that would show up.
 func TestASecondRulesetCannotWidenTheFirst(t *testing.T) {
 	runConfinedChild(t, "TestConfinedChildCannotGrantItselfMore")
+}
+
+// TestConfinementStaysWithTheGoroutineThatAskedForIt covers the mechanism the two tests above only
+// covered by accident.
+//
+// Landlock confines a thread, not a process, and Go moves a goroutine between OS threads whenever
+// it feels like it. For as long as restrictSelf did not pin the goroutine, every assertion made
+// after applyLandlock was a coin flip: it held while the goroutine happened to stay put and passed,
+// and the moment the scheduler moved it the work ran on a thread with no domain at all. The network
+// test found this the honest way - red on a busy runner, green on a retry of the same commit.
+//
+// The same window is what the shim runs through between applyLandlock and its execve, and there the
+// failure is silent: a plugin with no confinement, reported to the user as sandboxed.
+func TestConfinementStaysWithTheGoroutineThatAskedForIt(t *testing.T) {
+	runConfinedChild(t, "TestConfinedChildStaysOnItsConfinedThread")
+}
+
+func TestConfinedChildStaysOnItsConfinedThread(t *testing.T) {
+	layout, ok := readChildLayout(t, "TestConfinementStaysWithTheGoroutineThatAskedForIt")
+	if !ok {
+		return
+	}
+	abi, err := landlockABI()
+	if err != nil {
+		t.Fatalf("probe landlock: %v", err)
+	}
+	if err := applyLandlock(abi, layout.shimArgs()); err != nil {
+		t.Fatalf("applyLandlock: %v", err)
+	}
+
+	// The thread the domain was committed onto. Every assertion any confined code makes is only
+	// about this one.
+	confined := unix.Gettid()
+
+	// Hand the scheduler every reason to move this goroutine: blocking syscalls release the P, so
+	// each sleeper below is a thread the runtime may resume this goroutine on instead of the one it
+	// left. An unpinned goroutine does not survive this reliably, which is the point - the failure
+	// it reproduces was itself a matter of load.
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			time.Sleep(time.Millisecond)
+		}()
+	}
+	for i := 0; i < 64; i++ {
+		runtime.Gosched()
+		var st unix.Stat_t
+		_ = unix.Stat(layout.install, &st)
+	}
+	wg.Wait()
+	runtime.GC()
+
+	if got := unix.Gettid(); got != confined {
+		t.Fatalf("the goroutine moved from thread %d to %d after Landlock was applied; the domain "+
+			"stayed behind on %d and everything from here runs unconfined", confined, got, confined)
+	}
+
+	// The invariant restated as an outcome, so a future change that keeps the thread but loses the
+	// domain does not pass on the tid check alone. Deliberately not a path under /etc: the system
+	// grants make the whole of it readable, so an assertion there would pass unconfined.
+	if _, err := os.ReadFile(filepath.Join(layout.outside, "id_ed25519")); !errors.Is(err, os.ErrPermission) {
+		t.Errorf("reading outside the grants after the scheduling churn returned %v, want a "+
+			"permission error", err)
+	}
 }
 
 func runConfinedChild(t *testing.T, name string) {
