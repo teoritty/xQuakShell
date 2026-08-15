@@ -48,6 +48,10 @@ is refused rather than prompted for.
 of them; the next connection to a revoked peer asks again. Trust questions, decisions and
 revocations are written to the audit log, without the material.
 
+**Plugin UI assets may now include `.wasm`.** The plugin asset CSP gains `'wasm-unsafe-eval'` —
+the narrow opt-in that permits WebAssembly compilation and nothing else, already in force on the
+embed broker — and `.wasm` responses carry an explicit `application/wasm`.
+
 ## [1.1.0] — 2026-08-12
 
 ### Compatibility

@@ -77,7 +77,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'")
+	// 'wasm-unsafe-eval' is what lets a plugin UI instantiate a .wasm module it fetched, and it is
+	// the narrow opt-in rather than the old 'unsafe-eval': it permits WebAssembly compilation and
+	// nothing else - no eval, no Function(), no inline script. The embed broker already runs with
+	// exactly this, so the two surfaces agree. Without it the allowlisted .wasm file is served and
+	// then refused by the renderer, which is the worst of both: shipped and silently inert.
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'")
+
+	// The MIME type is set here rather than left to http.ServeContent. On Windows the type table
+	// is read from the registry, where any installer may have claimed .wasm - and a wrong type
+	// makes WebAssembly.instantiateStreaming refuse a file that downloaded perfectly.
+	if strings.EqualFold(filepath.Ext(rel), ".wasm") {
+		w.Header().Set("Content-Type", "application/wasm")
+	}
 
 	resolved, err := pathsafe.SecurePathUnderRoots(absTarget, []string{absRoot})
 	if err != nil {

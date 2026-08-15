@@ -22,6 +22,10 @@ var allowedAssetExtensions = map[string]struct{}{
 	".map":   {},
 	".json":  {},
 	".ico":   {},
+	// Served with an explicit application/wasm and instantiable only because the CSP in
+	// handler.go carries 'wasm-unsafe-eval'. All three move together; an entry here alone ships a
+	// file the renderer will refuse.
+	".wasm": {},
 }
 
 var blockedAssetBasenames = map[string]struct{}{
