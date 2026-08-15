@@ -18,7 +18,12 @@ import (
 // The release workflow makes the third comparison — tag against both of these — because a tag does
 // not exist on an ordinary commit and there would be nothing here to compare against.
 
-var changelogHeading = regexp.MustCompile(`(?m)^## \[([^\]]+)\](?:\s*—\s*(.+))?$`)
+// The trailing \r? is load-bearing on a CRLF checkout, which is every Windows one. In (?m) mode $
+// matches before the \n and leaves the \r unconsumed, so a DATED heading still matched - the date
+// group swallowed it - while an UNDATED one silently did not. The entry being prepared is exactly
+// the undated one, so the gate read the previous release as the newest and reported a mismatch
+// against a version that was correctly recorded.
+var changelogHeading = regexp.MustCompile(`(?m)^## \[([^\]]+)\](?:\s*—\s*(.+?))?\r?$`)
 
 type changelogEntry struct {
 	version string
