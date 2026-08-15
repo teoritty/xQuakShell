@@ -33,6 +33,20 @@
 # This duplicates the project setting "Run pipelines for merge request from forks" being off. That
 # is deliberate. A setting lives in a web UI where a future click can undo it silently; this line
 # is in git, reviewed, and reverting it leaves a diff.
+#
+# CORRECTION to the paragraph above, which overstated what this rule is worth. It is NOT the
+# strongest control and must not be relied on as one: a merge request pipeline is assembled from
+# the .gitlab-ci.yml of the SOURCE branch, so on a fork merge request this file is one the fork's
+# author controls and can delete the rule from. What the rule actually buys is protection against
+# the accident - the project setting flipped by a stray click, or a collaborator enabling fork
+# pipelines without understanding the consequence - which is worth having in git and is a different
+# claim from stopping an attacker.
+#
+# The two controls that an outside author genuinely cannot reach are the project setting itself and
+# --access-level ref_protected on BOTH runners: a merge request pipeline runs on
+# refs/merge-requests/N/head, which is never a protected ref, so a protected runner refuses the job
+# while selecting a runner - before a line of the submitted YAML is read. docs/gitlab-migration.md
+# carries the full model.
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_SOURCE_PROJECT_PATH != $CI_PROJECT_PATH
@@ -110,6 +124,11 @@ variables:
 # Register that runner as PROTECTED. The tag says which runner; protected says which refs may
 # reach it. Without the protected flag, any branch in this project - including one pushed by a
 # future collaborator - executes on the owner's physical machine.
+#
+# The Linux runner is registered protected too, and the paragraph above is the reason it has to be:
+# with gitlab.com's shared runners disabled for this project, an unprotected Linux runner would be
+# the one runner still willing to take an untrusted job. That moves the exposure off the Windows
+# machine rather than closing it.
 .windows:
   tags:
     - xquakshell-windows
