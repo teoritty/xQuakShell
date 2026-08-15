@@ -46,6 +46,9 @@ WAILS_VERSION := v2.13.0
 
 # Versions are pinned (never @latest) so local runs and CI agree.
 # Keep in sync with .github/workflows/security.yml.
+# And with .gitlab-ci.yml, which pins the same three versions for the mirror. Three copies now,
+# so a bump that moves only two leaves one platform gating on a different finding set than the
+# other two - which reads as a flaky gate rather than the drift it is.
 GOVULNCHECK_VERSION := v1.6.0
 GOSEC_VERSION       := v2.28.0
 STATICCHECK_VERSION := v0.7.0
@@ -148,6 +151,11 @@ test: check test-go test-frontend
 # a green pipeline. Keep it in step with .github/workflows/test.yml and the `go`
 # job of security.yml; `test` is the shorter loop for while you work.
 #
+# The GitLab mirror runs the same set from .gitlab-ci.yml, split across the `architecture`,
+# `frontend:*`, `go:test` and `sec:go` jobs. Same commands, different job boundaries - the split
+# exists there to build the frontend once instead of once per job, and changes nothing about
+# what is checked.
+#
 # gosec is here and govulncheck is not, and the split is the point. gosec is a
 # static analyser over the tree you already have, so once its module is in the
 # build cache it costs a minute and no network. govulncheck has to fetch the
@@ -207,6 +215,8 @@ govulncheck:
 	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
 
 # The flags must stay byte-identical to the gosec step in .github/workflows/security.yml.
+# The `sec:go` job in .gitlab-ci.yml carries a third copy of the same invocation and gates on it
+# the same way, so drift here is now a green light for two red pipelines rather than one.
 # That workflow gates on zero findings from the same invocation, so any drift here
 # turns this target into a green light for a red pipeline - which is exactly the
 # failure it was added to prevent. The three excluded rules are justified at
