@@ -497,6 +497,16 @@ release:linux:
         # Without this tag Wails links 4.0 regardless of what is installed.
         BUILD_TAGS: "-tags webkit2_41"
   before_script:
+    # - apt-get update -qq
+    #
+    # Same failure sec:go already carries: the image's sources point at http://deb.debian.org, port
+    # 80 to Fastly does not survive this network, and apt only warns - so the job dies two lines
+    # later on "Unable to locate package libgtk-3-dev". Rewriting the sources to https fixes it and
+    # is worth doing anyway: these packages are installed as root in the job.
+    #
+    # Two paths because trixie moved to the deb822 format and older images still use sources.list.
+    - sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true
+    - sed -i 's|http://|https://|g' /etc/apt/sources.list 2>/dev/null || true
     - apt-get update -qq
     - apt-get install -y -qq curl libgtk-3-dev "$DEV_PACKAGE"
     - curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
