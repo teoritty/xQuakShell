@@ -613,6 +613,12 @@ release:publish:
     - job: release:windows
       artifacts: true
       optional: true
+  before_script:
+    # The release-cli image carries release-cli and busybox and nothing else, so the upload below
+    # died with "curl: not found" on the first tag that reached this job - after every archive had
+    # already been built. busybox wget is no substitute: the generic package registry takes a PUT
+    # and wget cannot send one. The image is Alpine-based, so apk is the way to get curl.
+    - apk add --no-cache curl
   script:
     # Superseded, kept because both faults are easy to reintroduce:
     #
