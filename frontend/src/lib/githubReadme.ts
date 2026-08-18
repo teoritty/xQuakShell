@@ -1,36 +1,48 @@
 import DOMPurify from 'dompurify';
 import { Marked } from 'marked';
 
-export interface GitHubRepoRef {
-  owner: string;
-  repo: string;
-}
+import { parseForgeRepoRef, type Forge, type ForgeRepoRef } from './forgeRepo';
+
+export type ReadmeForge = Forge;
+export type GitHubRepoRef = ForgeRepoRef;
 
 export function parseGitHubRepoRef(repositoryUrl: string): GitHubRepoRef | null {
-  try {
-    const parsed = new URL(repositoryUrl.trim().replace(/\/+$/, ''));
-    const parts = parsed.pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
-    if (parts.length < 2) return null;
-    return { owner: parts[0], repo: parts[1] };
-  } catch {
-    return null;
-  }
+  return parseForgeRepoRef(repositoryUrl);
 }
+
+// rawFileUrl builds the URL that serves a repository file as bytes. The two forges have nothing in
+// common here: GitHub serves raw files from a separate host, GitLab from a "/-/raw/" route on the
+// repository's own URL.
+function rawFileUrl(forge: ReadmeForge, owner: string, repo: string, ref: string, path: string): string {
+  if (forge === 'gitlab') {
+    return `https://gitlab.com/${owner}/${repo}/-/raw/${ref}/${path}`;
+  }
+  return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`;
+}
+
+// BLOB_PATTERNS matches a link to a file's rendered page, which a README author writes because it
+// is what the browser gives them when they copy the address. Left alone, an <img> pointing at it
+// renders the HTML page instead of the image.
+const BLOB_PATTERNS: Record<ReadmeForge, RegExp> = {
+  github: /^https?:\/\/github\.com\/[^/]+\/[^/]+\/blob\/([^/]+)\/(.+)$/i,
+  gitlab: /^https?:\/\/gitlab\.com\/(?:.+?)\/-\/blob\/([^/]+)\/(.+)$/i,
+};
 
 export function resolveGitHubReadmeUrl(
   href: string | null | undefined,
   owner: string,
   repo: string,
   ref: string,
+  forge: ReadmeForge = 'github',
 ): string {
   if (!href) return '';
   const trimmed = href.trim();
   if (!trimmed) return '';
   if (/^data:/i.test(trimmed)) return trimmed;
   if (/^https?:\/\//i.test(trimmed)) {
-    const blobMatch = trimmed.match(/^https?:\/\/github\.com\/[^/]+\/[^/]+\/blob\/([^/]+)\/(.+)$/i);
+    const blobMatch = trimmed.match(BLOB_PATTERNS[forge]);
     if (blobMatch) {
-      return `https://raw.githubusercontent.com/${owner}/${repo}/${blobMatch[1]}/${blobMatch[2]}`;
+      return rawFileUrl(forge, owner, repo, blobMatch[1], blobMatch[2]);
     }
     return trimmed;
   }
@@ -38,7 +50,7 @@ export function resolveGitHubReadmeUrl(
 
   const branch = ref || 'main';
   const relativePath = trimmed.replace(/^\.\//, '').replace(/^\//, '');
-  return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${relativePath}`;
+  return rawFileUrl(forge, owner, repo, branch, relativePath);
 }
 
 function escapeHtml(value: string): string {
@@ -49,7 +61,7 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function createMarkedParser(owner: string, repo: string, ref: string): Marked {
+function createMarkedParser(owner: string, repo: string, ref: string, forge: ReadmeForge): Marked {
   const branch = ref || 'main';
 
   return new Marked({
@@ -57,12 +69,12 @@ function createMarkedParser(owner: string, repo: string, ref: string): Marked {
     breaks: true,
     renderer: {
       image({ href, title, text }) {
-        const src = owner && repo ? resolveGitHubReadmeUrl(href, owner, repo, branch) : (href ?? '');
+        const src = owner && repo ? resolveGitHubReadmeUrl(href, owner, repo, branch, forge) : (href ?? '');
         const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
         return `<img src="${escapeHtml(src)}" alt="${escapeHtml(text ?? '')}"${titleAttr} loading="lazy" />`;
       },
       link({ href, title, tokens }) {
-        const resolved = href && owner && repo ? resolveGitHubReadmeUrl(href, owner, repo, branch) : (href ?? '');
+        const resolved = href && owner && repo ? resolveGitHubReadmeUrl(href, owner, repo, branch, forge) : (href ?? '');
         const text = this.parser.parseInline(tokens);
         const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
         return `<a href="${escapeHtml(resolved || '#')}" target="_blank" rel="noopener noreferrer"${titleAttr}>${text}</a>`;
@@ -77,7 +89,7 @@ export function renderGitHubReadme(markdown: string, repositoryUrl: string, ref:
   const repoRef = parseGitHubRepoRef(repositoryUrl);
   const owner = repoRef?.owner ?? '';
   const repo = repoRef?.repo ?? '';
-  const parser = createMarkedParser(owner, repo, ref);
+  const parser = createMarkedParser(owner, repo, ref, repoRef?.forge ?? 'github');
   const raw = parser.parse(markdown, { async: false }) as string;
 
   return DOMPurify.sanitize(raw, {

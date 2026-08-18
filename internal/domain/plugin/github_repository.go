@@ -31,8 +31,9 @@ func (r *GitHubRepository) Validate() error {
 		return fmt.Errorf("%w: must use HTTPS", ErrInvalidRepositoryURL)
 	}
 
-	if parsed.Host != "github.com" {
-		return fmt.Errorf("%w: only github.com is supported", ErrInvalidRepositoryURL)
+	if _, ok := ForgeForHost(parsed.Host); !ok {
+		return fmt.Errorf("%w: only %s are supported", ErrInvalidRepositoryURL,
+			strings.Join(SupportedForgeHosts(), " and "))
 	}
 
 	path := parsed.Path
@@ -48,7 +49,7 @@ func NormalizeURL(rawURL string) (string, error) {
 	rawURL = strings.TrimRight(rawURL, "/")
 
 	if !strings.HasPrefix(rawURL, "http") {
-		rawURL = "https://github.com/" + strings.TrimPrefix(rawURL, "github.com/")
+		rawURL = "https://" + prefixHostForBareRef(rawURL)
 	}
 
 	parsed, err := url.Parse(rawURL)
@@ -63,21 +64,49 @@ func NormalizeURL(rawURL string) (string, error) {
 	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
+// prefixHostForBareRef supplies the host for input that carried no scheme.
+//
+// "gitlab.com/group/proj" already names its host and only needs the scheme; "group/proj" names none
+// and gets DefaultForge's, which is what every repository registered before forge support was added
+// meant when it was stored.
+func prefixHostForBareRef(rawURL string) string {
+	for host := range forgeHosts {
+		if rawURL == host || strings.HasPrefix(rawURL, host+"/") {
+			return rawURL
+		}
+	}
+	return defaultForgeHost() + "/" + rawURL
+}
+
+func defaultForgeHost() string {
+	for host, forge := range forgeHosts {
+		if forge == DefaultForge {
+			return host
+		}
+	}
+	return "github.com"
+}
+
+// Forge reports which platform hosts this repository. An unparseable URL reports DefaultForge;
+// Validate is what rejects it, and reporting an error here would force every caller that only
+// wants to label a row in the UI to handle one.
+func (r *GitHubRepository) Forge() Forge {
+	ref, err := ParseRepoRef(r.URL)
+	if err != nil {
+		return DefaultForge
+	}
+	return ref.Forge
+}
+
+// ParseGitHubURL splits a repository URL into its namespace and project.
+//
+// The name predates GitLab support and is kept because it is what the whole plugin stack calls;
+// the parsing itself is forge-aware, so a GitLab subgroup path resolves to the full namespace
+// rather than its first segment. Callers that need to know WHICH forge answered use ParseRepoRef.
 func ParseGitHubURL(repoURL string) (owner, repo string, err error) {
-	normalized, err := NormalizeURL(repoURL)
+	ref, err := ParseRepoRef(repoURL)
 	if err != nil {
 		return "", "", err
 	}
-
-	parsed, err := url.Parse(normalized)
-	if err != nil {
-		return "", "", err
-	}
-
-	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
-	if len(parts) < 2 {
-		return "", "", fmt.Errorf("%w: invalid path format", ErrInvalidRepositoryURL)
-	}
-
-	return parts[0], parts[1], nil
+	return ref.Owner, ref.Repo, nil
 }

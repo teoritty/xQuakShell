@@ -5,10 +5,16 @@ import (
 	"time"
 )
 
-// GitHubReleaseAsset names a binary or checksum file in a GitHub release.
+// GitHubReleaseAsset names a binary or checksum file in a release.
 type GitHubReleaseAsset struct {
-	Name          string
+	Name string
+	// DownloadCount is GitHub's per-asset counter. GitLab's releases API publishes no equivalent,
+	// so a GitLab asset reports 0 and the UI shows no download figure rather than a wrong one.
 	DownloadCount int
+	// DownloadURL is where the asset is actually fetched from. It is carried on the asset rather
+	// than rebuilt from owner/repo/tag because neither forge's URL is derivable: GitHub's is
+	// browser_download_url and GitLab's is a release link record the publisher controls entirely.
+	DownloadURL string
 }
 
 // GitHubRelease is a published GitHub release used for plugin discovery and install.

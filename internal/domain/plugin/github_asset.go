@@ -28,6 +28,9 @@ func ClassifyReleaseAsset(assetName string) ReleaseAssetKind {
 
 // AssetDownloadRequest names one release asset to fetch.
 type AssetDownloadRequest struct {
+	// Forge selects the platform this release lives on. The zero value is not a valid forge, so a
+	// caller that forgets it gets a routing error rather than a silent fetch against GitHub.
+	Forge Forge
 	Owner string
 	Repo  string
 	Tag   string
@@ -39,11 +42,16 @@ type AssetDownloadRequest struct {
 	// AllowUnverified permits a download with no ExpectedChecksum. It exists for exactly one
 	// asset - SHA256SUMS itself, which cannot appear in its own listing - and setting it anywhere
 	// else reopens the hole this field was added to close: an install whose only integrity
-	// guarantee is that TLS to github.com held.
+	// guarantee is that TLS to the forge held.
 	AllowUnverified bool
 	// EntryName is the manifest's engine.entry. It is what identifies the plugin binary inside a
 	// release archive; without it an archive offers no way to tell the binary from a README.
 	EntryName string
+}
+
+// Ref is the repository this request addresses.
+func (r AssetDownloadRequest) Ref() RepoRef {
+	return RepoRef{Forge: r.Forge, Owner: r.Owner, Repo: r.Repo}
 }
 
 // DownloadedAsset is a release asset that now exists on local disk.

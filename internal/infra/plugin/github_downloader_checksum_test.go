@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	domainplugin "xquakshell/internal/domain/plugin"
+	infraforge "xquakshell/internal/infra/forge"
 	infragithub "xquakshell/internal/infra/github"
 )
 
@@ -43,9 +44,14 @@ func releaseServer(t *testing.T, assetName string, assetBody []byte) *httptest.S
 	return srv
 }
 
+// newTestDownloader points the GitHub arm of a real router at the test server, so these tests
+// exercise the same routing a production download goes through.
 func newTestDownloader(t *testing.T, srv *httptest.Server) *BinaryDownloader {
 	t.Helper()
-	return NewBinaryDownloader(infragithub.NewClientWithBaseURL(srv.URL), t.TempDir())
+	router := infraforge.NewRouterWithClients(map[domainplugin.Forge]infraforge.Client{
+		domainplugin.ForgeGitHub: infragithub.NewUseCaseClient(infragithub.NewClientWithBaseURL(srv.URL)),
+	})
+	return NewBinaryDownloader(router, t.TempDir())
 }
 
 func sha256Hex(b []byte) string {
@@ -55,7 +61,7 @@ func sha256Hex(b []byte) string {
 
 // The hole this closes: an empty ExpectedChecksum used to skip verification entirely, so a release
 // with no SHA256SUMS - or one whose SHA256SUMS fetch merely failed - installed with TLS to
-// github.com as the only thing standing between a tampered asset and the user's machine. The .xqsp
+// the forge as the only thing standing between a tampered asset and the user's machine. The .xqsp
 // path has always required checksums; the bare-binary path skipping them was an asymmetry.
 func TestFetchAssetRefusesAnAssetWithNoExpectedChecksum(t *testing.T) {
 	body := []byte("plugin binary")
@@ -63,7 +69,7 @@ func TestFetchAssetRefusesAnAssetWithNoExpectedChecksum(t *testing.T) {
 	d := newTestDownloader(t, srv)
 
 	_, cleanup, err := d.DownloadAsset(context.Background(), domainplugin.AssetDownloadRequest{
-		Owner: "o", Repo: "r", Tag: "v1.0.0",
+		Forge: domainplugin.ForgeGitHub, Owner: "o", Repo: "r", Tag: "v1.0.0",
 		AssetName: "xqs-demo-linux-amd64",
 		EntryName: "xqs-demo",
 	})
@@ -80,7 +86,7 @@ func TestFetchAssetAcceptsAMatchingChecksum(t *testing.T) {
 	d := newTestDownloader(t, srv)
 
 	asset, cleanup, err := d.DownloadAsset(context.Background(), domainplugin.AssetDownloadRequest{
-		Owner: "o", Repo: "r", Tag: "v1.0.0",
+		Forge: domainplugin.ForgeGitHub, Owner: "o", Repo: "r", Tag: "v1.0.0",
 		AssetName:        "xqs-demo-linux-amd64",
 		ExpectedChecksum: sha256Hex(body),
 		EntryName:        "xqs-demo",
@@ -100,7 +106,7 @@ func TestFetchAssetRejectsAMismatchedChecksum(t *testing.T) {
 	d := newTestDownloader(t, srv)
 
 	_, cleanup, err := d.DownloadAsset(context.Background(), domainplugin.AssetDownloadRequest{
-		Owner: "o", Repo: "r", Tag: "v1.0.0",
+		Forge: domainplugin.ForgeGitHub, Owner: "o", Repo: "r", Tag: "v1.0.0",
 		AssetName:        "xqs-demo-linux-amd64",
 		ExpectedChecksum: sha256Hex([]byte("the binary the author published")),
 		EntryName:        "xqs-demo",
@@ -122,7 +128,7 @@ func TestDownloadAssetContentIsTheOnlyUnverifiedPath(t *testing.T) {
 	srv := releaseServer(t, "SHA256SUMS", sums)
 	d := newTestDownloader(t, srv)
 
-	got, err := d.DownloadAssetContent(context.Background(), "o", "r", "v1.0.0", "SHA256SUMS")
+	got, err := d.DownloadAssetContent(context.Background(), domainplugin.RepoRef{Forge: domainplugin.ForgeGitHub, Owner: "o", Repo: "r"}, "v1.0.0", "SHA256SUMS")
 	if err != nil {
 		t.Fatalf("DownloadAssetContent err = %v, want nil", err)
 	}

@@ -49,14 +49,14 @@ If you manage servers from a laptop that leaves the office, or you need a remote
 - SSH terminal + SFTP file manager (upload/download/rename/delete/create), multi-tab sessions with independent lifecycle.
 - Jump hosts and strict host key verification (no silent auto-accept).
 - Local/remote/dynamic port forwarding.
-- Out-of-process plugin system: capability-gated, versioned IPC handshake, resource-limited, extensible to new connection protocols — installable straight from GitHub or as signed `.xqsp` bundles.
+- Out-of-process plugin system: capability-gated, versioned IPC handshake, resource-limited, extensible to new connection protocols — installable straight from GitHub or GitLab, or as signed `.xqsp` bundles.
 - Local audit log and session lockout, with secret redaction at the IPC boundary.
 - Portable Windows build with bundled WebView2 runtime (`make portable`) — works on clean/offline machines.
 
 ## Official plugins
 
 Protocols beyond SSH are provided by out-of-process plugins installed
-from GitHub through the in-app plugin manager. The officially maintained ones:
+from GitHub or GitLab through the in-app plugin manager. The officially maintained ones:
 
 | Plugin | Protocol | Links |
 |--------|----------|-------|
@@ -84,8 +84,9 @@ Want to build your own? Start with the [Plugin API Reference](./docs/plugin-api.
 
 ## Download
 
-Every release publishes portable archives — unpack and run, no installer, no system-wide state.
-`SHA256SUMS` covers every archive: `sha256sum -c SHA256SUMS --ignore-missing`.
+Releases are published on GitLab: <https://gitlab.com/teoritty/xQuakShell/-/releases>. Every release
+publishes portable archives — unpack and run, no installer, no system-wide state. `SHA256SUMS`
+covers every archive: `sha256sum -c SHA256SUMS --ignore-missing`.
 
 | Platform | Archive | Pick this one when |
 |----------|---------|--------------------|
@@ -94,7 +95,7 @@ Every release publishes portable archives — unpack and run, no installer, no s
 | Linux | `…-linux-amd64-webkit4.1.tar.gz` | Ubuntu 22.04+, Debian 12+, Fedora 40+, Arch — start here |
 | Linux | `…-linux-amd64-webkit4.0.tar.gz` | Older systems still carrying the webkit2gtk-4.0 runtime |
 
-There is also a rolling [`nightly`](https://github.com/teoritty/xQuakShell/releases/tag/nightly)
+There is also a rolling [`nightly`](https://github.com/teoritty/xQuakShell/releases/tag/nightly) on GitHub
 pre-release, rebuilt from `main` whenever it moves and carrying the same four archives. It is
 replaced in place, so its links always point at the newest build and never at the one you tested
 yesterday. Use a tagged release for anything you rely on.

@@ -41,10 +41,11 @@ Install via **Settings → Plugins → Install folder…** or **Install bundle�
 
 Installed plugins are copied to `data/plugins/<id>/` under the xQuakShell executable directory (ADR-006 portable layout).
 
-## Publishing a GitHub release (ADR-016)
+## Publishing a release (ADR-016)
 
-**Add GitHub repository** reads `xqsp.json` from the repository and downloads one release asset per
-platform. Name assets `<name>-<os>-<arch>` so the host can match them:
+**Add repository** reads `xqsp.json` from the repository and downloads one release asset per
+platform. Both `github.com` and `gitlab.com` are accepted, and the host in the URL selects which API
+is spoken; no other host is. Name assets `<name>-<os>-<arch>` so the host can match them:
 
 | Asset | Carries | Install |
 |---|---|---|
@@ -56,6 +57,10 @@ platform. Name assets `<name>-<os>-<arch>` so the host can match them:
   only a bare binary is refused at install: the binary carries no `ui/` tree, so those files would
   be missing and every request for them would 404.
 - Where a release publishes both shapes for a platform, the bundle is chosen.
+- **On GitLab**, a release asset is a link record rather than an upload, so its **name** is what the
+  host matches on — publish each asset under the same `<name>-<os>-<arch>` name it would carry on
+  GitHub. GitLab reports no per-asset download count, so none is shown. A release marked *upcoming*
+  is dated in the future and is skipped rather than offered.
 - The bundle's `plugin.json` must declare the same `id` as the repository's `xqsp.json`; a mismatch
   is refused. A differing `version` is accepted and logged.
 - Add a release-level `SHA256SUMS` listing every asset — the host verifies the download against it.
@@ -456,7 +461,7 @@ Opening and closing a channel is negotiated over JSON-RPC; only data flows as bi
 | `tcp-relay` | Dials a target through the existing `TunnelDialProxy` allowlist/dial policy — for cases that are genuinely a fresh TCP dial, not exec. |
 | `udp-relay` | Dials a target UDP endpoint directly from the host (`net.DialUDP`), validated against a `udp:`-prefixed allowlist entry (same dial-policy core as `tcp-relay`). SSH has no native UDP forwarding, so this is a direct host→target dial, not tunnelled through the parent SSH chain (matches topologies like mosh: SSH launches `mosh-server`, then UDP flows host↔server directly). Still bound to `parentSessionId` for ownership/lifecycle even though the dial is direct. One UDP datagram maps to exactly one `kind=0x02` frame. |
 
-**Declaring the `exec` purpose requires install-time user consent.** It runs commands over the connection the user authenticated, so the install prompt asks for it explicitly and the install is **refused** without it — on both the local and GitHub install paths. There is no runtime prompt and no way to add the grant afterwards: an installed plugin declaring `exec` is one whose exec access the user granted, which is exactly what the host relies on when it authorizes an `exec` channel.
+**Declaring the `exec` purpose requires install-time user consent.** It runs commands over the connection the user authenticated, so the install prompt asks for it explicitly and the install is **refused** without it — on both the local and repository install paths. There is no runtime prompt and no way to add the grant afterwards: an installed plugin declaring `exec` is one whose exec access the user granted, which is exactly what the host relies on when it authorizes an `exec` channel.
 
 **`embed-stream` frames are capped at 64 KiB, not 1 MiB.** The general `kind=0x02` ceiling is 1 MiB, but this one purpose is lower, because the embed surface behind it has always had a 64 KiB frame limit and because credit is counted in frames: with an 8-frame window, a 1 MiB cap would park 8 MiB per channel in host memory. The host enforces this on ingress, so an oversize frame never reaches the embed surface — it is refused as a **protocol violation** (fail-fast, exactly like any other oversized `length`), never as `ErrRateLimited`/backpressure: it is deterministic, and retrying it will never help. Chunk in the plugin, where you know what a frame means; RFB, for one, sends rectangles rather than screens.
 

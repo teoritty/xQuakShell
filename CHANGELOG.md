@@ -12,6 +12,58 @@ The newest versioned heading is the release being prepared. Only the latest rele
 fixes, including security fixes, ship in a new release rather than as patches to an older one
 (see [SECURITY.md](SECURITY.md)).
 
+## [1.2.1] — 2026-08-18
+
+### Compatibility
+
+| Axis | Version |
+|---|---|
+| `pluginApi` | 1.0.0 (unchanged) |
+| Capabilities | 1.0.0, unchanged |
+| Manifest schema | unchanged |
+| `bundleFormat` | 1.0.0 (unchanged) |
+| Vault schema | 4 (unchanged) |
+| Audit schema | 1 (unchanged) |
+
+### BREAKING
+
+*Nothing.*
+
+### Added
+
+**Plugins can be installed from GitLab, not only GitHub.** A repository is registered by its URL as
+before, and the host in that URL now selects which API is spoken: `github.com` and `gitlab.com` are
+both accepted, everything else is still refused. Nothing about an existing repository changes — a
+registration stored as a bare `owner/repo` still means GitHub, which is what it meant when it was
+written.
+
+The two platforms agree on almost nothing underneath, and the differences are handled rather than
+papered over. A GitLab namespace may nest, so `gitlab.com/group/subgroup/plugin` addresses the
+project it names instead of being truncated to its first two segments. GitLab publishes no
+`/releases/latest` endpoint, so the newest published release is picked from the list and a release
+dated in the future is skipped rather than offered as an upgrade. GitLab release assets are link
+records with no download counter, so no download figure is shown for them instead of a wrong one.
+Rate limiting, which GitLab reports with different headers and a different status code than GitHub,
+is reported to the user as a rate limit on both.
+
+Plugin README rendering resolves relative images and links against whichever forge the plugin came
+from — GitLab serves raw files from a route on the repository itself, GitHub from a separate host —
+and install provenance records which of the two a plugin was installed from.
+
+**The application's own update check now reads GitLab releases.** Which platform it reads is one
+constant in the composition root (`updateRepoForge`), because a build follows exactly one release
+stream, and it follows wherever releases are actually published. From this release that is GitLab.
+
+A 1.2.0 build checks GitHub and will therefore not offer this release; update from
+<https://gitlab.com/teoritty/xQuakShell/-/releases> once, and the check follows the right stream
+from then on.
+
+### Changed
+
+**Plugin repository URLs are validated against both hosts.** The Plugins tab is now labelled
+*Repositories* rather than *GitHub*, and the add-repository field accepts a GitLab URL instead of
+reporting it as malformed before it ever reaches the backend.
+
 ## [1.2.0] — 2026-08-16
 
 ### Compatibility
