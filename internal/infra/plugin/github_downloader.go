@@ -11,24 +11,31 @@ import (
 	"strings"
 
 	domainplugin "xquakshell/internal/domain/plugin"
-	infragithub "xquakshell/internal/infra/github"
 )
 
-// BinaryDownloader downloads and verifies plugin binaries from GitHub Releases.
+// ReleaseSource is the slice of a forge the downloader needs: resolve a tag to its assets, then
+// fetch one of them. It is an interface rather than a concrete client because the release being
+// downloaded may live on either platform, and the router supplied at wiring time is what knows.
+type ReleaseSource interface {
+	GetReleaseByTag(ctx context.Context, repo domainplugin.RepoRef, tag string) (*domainplugin.GitHubRelease, error)
+	DownloadAsset(ctx context.Context, forge domainplugin.Forge, downloadURL string) (io.ReadCloser, error)
+}
+
+// BinaryDownloader downloads and verifies plugin binaries from a forge's releases.
 type BinaryDownloader struct {
-	githubClient *infragithub.Client
-	tempDir      string
+	releases ReleaseSource
+	tempDir  string
 }
 
 // NewBinaryDownloader creates a new downloader using tempBase for staging directories.
 // When tempBase is empty, os.TempDir() is used.
-func NewBinaryDownloader(githubClient *infragithub.Client, tempBase string) *BinaryDownloader {
+func NewBinaryDownloader(releases ReleaseSource, tempBase string) *BinaryDownloader {
 	if tempBase == "" {
 		tempBase = os.TempDir()
 	}
 	return &BinaryDownloader{
-		githubClient: githubClient,
-		tempDir:      tempBase,
+		releases: releases,
+		tempDir:  tempBase,
 	}
 }
 
@@ -44,7 +51,7 @@ func (d *BinaryDownloader) DownloadAsset(
 	req domainplugin.AssetDownloadRequest,
 ) (domainplugin.DownloadedAsset, func(), error) {
 	noop := func() {}
-	if d == nil || d.githubClient == nil {
+	if d == nil || d.releases == nil {
 		return domainplugin.DownloadedAsset{}, noop, fmt.Errorf("plugin downloader unavailable")
 	}
 
@@ -81,17 +88,17 @@ func (d *BinaryDownloader) DownloadAsset(
 // fetchAssetFile downloads the asset into tempDir and verifies it against the release-level
 // SHA256SUMS entry, when the release published one.
 func (d *BinaryDownloader) fetchAssetFile(ctx context.Context, tempDir string, req domainplugin.AssetDownloadRequest) (string, error) {
-	release, err := d.githubClient.GetReleaseByTag(ctx, req.Owner, req.Repo, req.Tag)
+	release, err := d.releases.GetReleaseByTag(ctx, req.Ref(), req.Tag)
 	if err != nil {
 		return "", err
 	}
 
-	asset, err := infragithub.FindAsset(release.Assets, req.AssetName)
+	asset, err := findReleaseAsset(release.Assets, req.AssetName)
 	if err != nil {
 		return "", err
 	}
 
-	reader, err := d.githubClient.DownloadAsset(ctx, asset.BrowserDownloadURL)
+	reader, err := d.releases.DownloadAsset(ctx, req.Forge, asset.DownloadURL)
 	if err != nil {
 		return "", err
 	}
@@ -127,15 +134,27 @@ func (d *BinaryDownloader) fetchAssetFile(ctx context.Context, tempDir string, r
 	return tempFile, nil
 }
 
+// findReleaseAsset returns the asset with the given name, in the domain shape both forges map onto.
+func findReleaseAsset(assets []domainplugin.GitHubReleaseAsset, name string) (*domainplugin.GitHubReleaseAsset, error) {
+	for i := range assets {
+		if assets[i].Name == name {
+			return &assets[i], nil
+		}
+	}
+	return nil, fmt.Errorf("%w: %s", domainplugin.ErrReleaseAssetNotFound, name)
+}
+
 // DownloadAssetContent downloads a release asset and returns its contents. It is used for the
 // small text assets of a release (SHA256SUMS), which are never archives, so it needs no entry name.
 func (d *BinaryDownloader) DownloadAssetContent(
 	ctx context.Context,
-	owner, repo, tag, assetName string,
+	repo domainplugin.RepoRef,
+	tag, assetName string,
 ) ([]byte, error) {
 	asset, cleanup, err := d.DownloadAsset(ctx, domainplugin.AssetDownloadRequest{
-		Owner:     owner,
-		Repo:      repo,
+		Forge:     repo.Forge,
+		Owner:     repo.Owner,
+		Repo:      repo.Repo,
 		Tag:       tag,
 		AssetName: assetName,
 		// SHA256SUMS is the one asset with nothing to verify itself against; it is the listing.

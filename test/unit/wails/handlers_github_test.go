@@ -18,7 +18,7 @@ type stubGitHubAPIClient struct {
 	releaseErr error
 }
 
-func (s *stubGitHubAPIClient) GetFileContent(_ context.Context, _, _, path, _ string) ([]byte, error) {
+func (s *stubGitHubAPIClient) GetFileContent(_ context.Context, _ domainplugin.RepoRef, path, _ string) ([]byte, error) {
 	if path == domainplugin.XQSPManifestFile {
 		if len(s.manifest) == 0 {
 			return nil, errors.New("file not found: xqsp.json")
@@ -28,8 +28,8 @@ func (s *stubGitHubAPIClient) GetFileContent(_ context.Context, _, _, path, _ st
 	return nil, errors.New("file not found: " + path)
 }
 
-func (s *stubGitHubAPIClient) GetLatestRelease(_ context.Context, _, _ string) (*domainplugin.GitHubRelease, error) {
-	releases, err := s.ListPublishedReleases(context.Background(), "", "")
+func (s *stubGitHubAPIClient) GetLatestRelease(_ context.Context, _ domainplugin.RepoRef) (*domainplugin.GitHubRelease, error) {
+	releases, err := s.ListPublishedReleases(context.Background(), domainplugin.RepoRef{})
 	if err != nil || len(releases) == 0 {
 		return nil, s.releaseErr
 	}
@@ -37,14 +37,14 @@ func (s *stubGitHubAPIClient) GetLatestRelease(_ context.Context, _, _ string) (
 	return &release, nil
 }
 
-func (s *stubGitHubAPIClient) ListPublishedReleases(_ context.Context, _, _ string) ([]domainplugin.GitHubRelease, error) {
+func (s *stubGitHubAPIClient) ListPublishedReleases(_ context.Context, _ domainplugin.RepoRef) ([]domainplugin.GitHubRelease, error) {
 	if s.releaseErr != nil {
 		return nil, s.releaseErr
 	}
 	return s.releases, nil
 }
 
-func (s *stubGitHubAPIClient) GetReleaseByTag(_ context.Context, _, _, tag string) (*domainplugin.GitHubRelease, error) {
+func (s *stubGitHubAPIClient) GetReleaseByTag(_ context.Context, _ domainplugin.RepoRef, tag string) (*domainplugin.GitHubRelease, error) {
 	for i := range s.releases {
 		if s.releases[i].TagName == tag {
 			release := s.releases[i]

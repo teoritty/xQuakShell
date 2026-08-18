@@ -52,6 +52,7 @@
   import Modal from './Modal.svelte';
   import GitHubReadmePanel from './GitHubReadmePanel.svelte';
   import { formatPublishedDate } from './githubReadme';
+  import { isSupportedRepositoryURL } from './forgeRepo';
   import {
     defaultReleaseTagForPlugin,
     formatInstalledVersion,
@@ -59,7 +60,7 @@
     githubPluginStatusLabel,
   } from './pluginDisplay';
   import { createSingleFlightRunner } from './repoFetchSingleFlight';
-  import { Puzzle, ShieldAlert, BadgeCheck, FileArchive, FolderOpen, Github, RefreshCw } from 'lucide-svelte';
+  import { Puzzle, ShieldAlert, BadgeCheck, FileArchive, FolderOpen, GitBranch, RefreshCw } from 'lucide-svelte';
 
   export let showAdvanced = false;
 
@@ -155,30 +156,7 @@
 
   let pendingUninstallPlugin: GitHubPluginMetadata | null = null;
 
-  function isGitHubRepositoryURL(value: string): boolean {
-    const trimmed = value.trim();
-    if (!trimmed) return false;
-
-    let url = trimmed.replace(/\/+$/, '');
-    if (!/^https?:\/\//i.test(url)) {
-      url = `https://github.com/${url.replace(/^github\.com\/?/i, '')}`;
-    }
-
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol !== 'https:') return false;
-      if (parsed.hostname !== 'github.com') return false;
-
-      const parts = parsed.pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
-      if (parts.length < 2) return false;
-      if (!/^[\w.-]+$/.test(parts[0]) || !/^[\w.-]+$/.test(parts[1])) return false;
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  $: newRepoURLValid = isGitHubRepositoryURL(newRepoURL);
+  $: newRepoURLValid = isSupportedRepositoryURL(newRepoURL);
   $: showNewRepoURLError = newRepoURL.trim().length > 0 && !newRepoURLValid;
 
   function defaultReleaseTag(plugin: GitHubPluginMetadata): string {
@@ -419,7 +397,7 @@
         repositories = await listGitHubRepositories();
         await Promise.all(repositories.map((repo) => refreshRepoPlugins(repo.url, forceRefresh)));
       } catch (e) {
-        errorMessage = e instanceof Error ? e.message : 'Failed to load GitHub repositories';
+        errorMessage = e instanceof Error ? e.message : 'Failed to load plugin repositories';
       } finally {
         reposLoading = false;
         githubReposLoadPromise = null;
@@ -681,7 +659,7 @@
       Installed
     </button>
     <button type="button" class="tab-btn" class:active={activeTab === 'github'} on:click={() => activeTab = 'github'}>
-      <Github size={14} /> GitHub
+      <GitBranch size={14} /> Repositories
     </button>
   </div>
 
@@ -816,18 +794,18 @@
   {:else}
 
   <div class="section-header">
-    <h3>GitHub Repositories</h3>
+    <h3>Plugin Repositories</h3>
     <button type="button" class="btn-secondary" on:click={showAddRepoDialog}>Add Repository</button>
   </div>
 
   <p class="section-desc">
-    Discover and install plugins from public GitHub repositories with xqsp.json manifests.
+    Discover and install plugins from public GitHub or GitLab repositories with xqsp.json manifests.
   </p>
 
   {#if reposLoading}
     <p class="muted">Loading repositories…</p>
   {:else if repositories.length === 0}
-    <p class="muted">No GitHub repositories added yet.</p>
+    <p class="muted">No plugin repositories added yet.</p>
   {:else}
     <ul class="repo-list">
       {#each repositories as repo (repo.url)}
@@ -1013,13 +991,13 @@
       <input
         type="text"
         bind:value={newRepoURL}
-        placeholder="https://github.com/user/repo"
+        placeholder="https://github.com/user/repo or https://gitlab.com/group/repo"
         class="key-input"
         class:invalid={showNewRepoURLError}
         disabled={addRepoBusy}
       />
       {#if showNewRepoURLError}
-        <p class="field-error">Enter a valid GitHub repository URL (https://github.com/owner/repo)</p>
+        <p class="field-error">Enter a valid GitHub or GitLab repository URL (https://github.com/owner/repo)</p>
       {/if}
       <div class="dialog-actions">
         <button type="button" class="btn-secondary" on:click={closeAddRepoDialog} disabled={addRepoBusy}>Cancel</button>

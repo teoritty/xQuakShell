@@ -20,10 +20,13 @@ func (d *checksumDownloader) DownloadAsset(context.Context, domainplugin.AssetDo
 	return domainplugin.DownloadedAsset{}, func() {}, errors.New("not used in this test")
 }
 
-func (d *checksumDownloader) DownloadAssetContent(context.Context, string, string, string, string) ([]byte, error) {
+func (d *checksumDownloader) DownloadAssetContent(context.Context, domainplugin.RepoRef, string, string) ([]byte, error) {
 	d.calls++
 	return d.content, d.err
 }
+
+// testRepoRef is any valid ref; these tests are about the checksum listing, not about routing.
+var testRepoRef = domainplugin.RepoRef{Forge: domainplugin.ForgeGitHub, Owner: "o", Repo: "r"}
 
 func releaseWithAssets(names ...string) *domainplugin.GitHubRelease {
 	release := &domainplugin.GitHubRelease{TagName: "v1.0.0"}
@@ -41,7 +44,7 @@ func TestLoadReleaseChecksums_FetchFailureIsAnErrorNotAnAbsence(t *testing.T) {
 	downloader := &checksumDownloader{err: errors.New("403 rate limit exceeded")}
 	svc := &GitHubPluginService{downloader: downloader}
 
-	got, err := svc.loadReleaseChecksums(context.Background(), "o", "r", releaseWithAssets("SHA256SUMS", "xqs-demo-linux-amd64"))
+	got, err := svc.loadReleaseChecksums(context.Background(), testRepoRef, releaseWithAssets("SHA256SUMS", "xqs-demo-linux-amd64"))
 
 	if err == nil {
 		t.Fatal("a failed SHA256SUMS fetch returned no error; it is indistinguishable from a release with no checksums")
@@ -58,7 +61,7 @@ func TestLoadReleaseChecksums_NoChecksumsAssetIsNotAnError(t *testing.T) {
 	downloader := &checksumDownloader{}
 	svc := &GitHubPluginService{downloader: downloader}
 
-	got, err := svc.loadReleaseChecksums(context.Background(), "o", "r", releaseWithAssets("xqs-demo-linux-amd64"))
+	got, err := svc.loadReleaseChecksums(context.Background(), testRepoRef, releaseWithAssets("xqs-demo-linux-amd64"))
 
 	if err != nil {
 		t.Fatalf("loadReleaseChecksums err = %v, want nil when the release lists no checksums asset", err)
@@ -77,7 +80,7 @@ func TestLoadReleaseChecksums_ParsesAPublishedListing(t *testing.T) {
 	}
 	svc := &GitHubPluginService{downloader: downloader}
 
-	got, err := svc.loadReleaseChecksums(context.Background(), "o", "r", releaseWithAssets("SHA256SUMS"))
+	got, err := svc.loadReleaseChecksums(context.Background(), testRepoRef, releaseWithAssets("SHA256SUMS"))
 
 	if err != nil {
 		t.Fatalf("loadReleaseChecksums err = %v, want nil", err)
@@ -92,7 +95,7 @@ func TestLoadReleaseChecksums_ChecksumsTxtFailureIsAlsoAnError(t *testing.T) {
 	downloader := &checksumDownloader{err: errors.New("connection reset")}
 	svc := &GitHubPluginService{downloader: downloader}
 
-	if _, err := svc.loadReleaseChecksums(context.Background(), "o", "r", releaseWithAssets("checksums.txt")); err == nil {
+	if _, err := svc.loadReleaseChecksums(context.Background(), testRepoRef, releaseWithAssets("checksums.txt")); err == nil {
 		t.Fatal("a failed checksums.txt fetch returned no error")
 	}
 }

@@ -1,4 +1,4 @@
-package github
+package gitlab
 
 import (
 	"context"
@@ -7,12 +7,12 @@ import (
 	domainplugin "xquakshell/internal/domain/plugin"
 )
 
-// UseCaseClient adapts the GitHub REST client to usecase ports with domain DTOs.
+// UseCaseClient adapts the GitLab REST client to the usecase port with domain DTOs.
 type UseCaseClient struct {
 	inner *Client
 }
 
-// NewUseCaseClient wraps a GitHub API client for the usecase layer.
+// NewUseCaseClient wraps a GitLab API client for the usecase layer.
 func NewUseCaseClient(inner *Client) *UseCaseClient {
 	return &UseCaseClient{inner: inner}
 }
@@ -22,7 +22,7 @@ func (c *UseCaseClient) GetFileContent(ctx context.Context, repo domainplugin.Re
 	return c.inner.GetFileContent(ctx, repo.Owner, repo.Repo, path, ref)
 }
 
-// GetLatestRelease fetches the latest release for a repository.
+// GetLatestRelease fetches the latest published release for a repository.
 func (c *UseCaseClient) GetLatestRelease(ctx context.Context, repo domainplugin.RepoRef) (*domainplugin.GitHubRelease, error) {
 	release, err := c.inner.GetLatestRelease(ctx, repo.Owner, repo.Repo)
 	if err != nil {

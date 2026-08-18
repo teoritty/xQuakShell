@@ -25,7 +25,7 @@ func (s *GitHubPluginService) downloadAsset(
 // release published none", so a rate limit, a 5xx or a dropped connection silently turned the
 // download's integrity check off. Anyone able to fail one HTTPS request - not forge it, just fail
 // it - got an unverified install out of it, and nothing anywhere said so.
-func (s *GitHubPluginService) loadReleaseChecksums(ctx context.Context, owner, repo string, release *domainplugin.GitHubRelease) (map[string]string, error) {
+func (s *GitHubPluginService) loadReleaseChecksums(ctx context.Context, repoRef domainplugin.RepoRef, release *domainplugin.GitHubRelease) (map[string]string, error) {
 	if release == nil || s.downloader == nil {
 		return nil, nil
 	}
@@ -33,7 +33,7 @@ func (s *GitHubPluginService) loadReleaseChecksums(ctx context.Context, owner, r
 		if asset.Name != "SHA256SUMS" && asset.Name != "checksums.txt" {
 			continue
 		}
-		data, err := s.downloader.DownloadAssetContent(ctx, owner, repo, release.TagName, asset.Name)
+		data, err := s.downloader.DownloadAssetContent(ctx, repoRef, release.TagName, asset.Name)
 		if err != nil {
 			return nil, fmt.Errorf("release %s publishes %s but it could not be fetched: %w", release.TagName, asset.Name, err)
 		}

@@ -16,16 +16,20 @@ import (
 type recordingGitHubClient struct {
 	manifest []byte
 	releases []domainplugin.GitHubRelease
+	// seenRefs records every ref the service routed here, so a test can assert the forge survived
+	// the trip from repository URL to API call.
+	seenRefs []domainplugin.RepoRef
 }
 
-func (r *recordingGitHubClient) GetFileContent(_ context.Context, _, _, path, _ string) ([]byte, error) {
+func (r *recordingGitHubClient) GetFileContent(_ context.Context, ref domainplugin.RepoRef, path, _ string) ([]byte, error) {
+	r.seenRefs = append(r.seenRefs, ref)
 	if path == domainplugin.XQSPManifestFile {
 		return r.manifest, nil
 	}
 	return nil, errors.New("file not found: " + path)
 }
 
-func (r *recordingGitHubClient) GetLatestRelease(_ context.Context, _, _ string) (*domainplugin.GitHubRelease, error) {
+func (r *recordingGitHubClient) GetLatestRelease(_ context.Context, _ domainplugin.RepoRef) (*domainplugin.GitHubRelease, error) {
 	if len(r.releases) == 0 {
 		return nil, domainplugin.ErrNoReleases
 	}
@@ -33,11 +37,11 @@ func (r *recordingGitHubClient) GetLatestRelease(_ context.Context, _, _ string)
 	return &release, nil
 }
 
-func (r *recordingGitHubClient) ListPublishedReleases(_ context.Context, _, _ string) ([]domainplugin.GitHubRelease, error) {
+func (r *recordingGitHubClient) ListPublishedReleases(_ context.Context, _ domainplugin.RepoRef) ([]domainplugin.GitHubRelease, error) {
 	return r.releases, nil
 }
 
-func (r *recordingGitHubClient) GetReleaseByTag(_ context.Context, _, _, tag string) (*domainplugin.GitHubRelease, error) {
+func (r *recordingGitHubClient) GetReleaseByTag(_ context.Context, _ domainplugin.RepoRef, tag string) (*domainplugin.GitHubRelease, error) {
 	for i := range r.releases {
 		if r.releases[i].TagName == tag {
 			release := r.releases[i]
@@ -61,7 +65,7 @@ func (d *recordingDownloader) DownloadAsset(_ context.Context, req domainplugin.
 	return domainplugin.DownloadedAsset{}, func() {}, errors.New("download disabled in test")
 }
 
-func (d *recordingDownloader) DownloadAssetContent(_ context.Context, _, _, tag, _ string) ([]byte, error) {
+func (d *recordingDownloader) DownloadAssetContent(_ context.Context, _ domainplugin.RepoRef, tag, _ string) ([]byte, error) {
 	d.lastTag = tag
 	if d.checksums != nil {
 		return d.checksums, nil
@@ -306,5 +310,49 @@ func TestInvalidateMetadataCache_ClearsRepoAndTagEntries(t *testing.T) {
 	}
 	if _, found, _ := cache.Get(ctx, "metadata:https://github.com/user/repo:v1.0.0"); found {
 		t.Fatal("expected tag metadata cache cleared")
+	}
+}
+
+// The service resolves a repository URL to a RepoRef and hands it to the client; the forge in that
+// ref is the only thing telling the router which platform to speak to. If it is lost anywhere along
+// the way a GitLab repository is queried against api.github.com, which answers 404 rather than
+// failing loudly, so the user is told their repository does not exist.
+func TestFetchPluginMetadata_CarriesTheForgeToTheClient(t *testing.T) {
+	cases := []struct {
+		repoURL string
+		want    domainplugin.Forge
+		owner   string
+		repo    string
+	}{
+		{"https://github.com/user/repo", domainplugin.ForgeGitHub, "user", "repo"},
+		{"https://gitlab.com/user/repo", domainplugin.ForgeGitLab, "user", "repo"},
+		{"https://gitlab.com/group/subgroup/repo", domainplugin.ForgeGitLab, "group/subgroup", "repo"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.repoURL, func(t *testing.T) {
+			client := &recordingGitHubClient{
+				manifest: []byte(testManifest),
+				releases: []domainplugin.GitHubRelease{
+					{TagName: "v1.0.0", Assets: []domainplugin.GitHubReleaseAsset{{Name: currentPlatformAssetName()}}},
+				},
+			}
+			svc := newTestGitHubPluginService(t, client, nil, infracache.NewMemoryCache(domainplugin.DefaultCacheTTL), nil)
+
+			if _, err := svc.FetchPluginMetadata(context.Background(), tc.repoURL, false); err != nil {
+				t.Fatalf("FetchPluginMetadata err = %v, want nil", err)
+			}
+
+			if len(client.seenRefs) == 0 {
+				t.Fatal("the client was never called")
+			}
+			got := client.seenRefs[0]
+			if got.Forge != tc.want {
+				t.Errorf("forge = %q, want %q", got.Forge, tc.want)
+			}
+			if got.Owner != tc.owner || got.Repo != tc.repo {
+				t.Errorf("owner/repo = %q/%q, want %q/%q", got.Owner, got.Repo, tc.owner, tc.repo)
+			}
+		})
 	}
 }

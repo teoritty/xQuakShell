@@ -9,6 +9,7 @@ func ToDomainRelease(r Release) domainplugin.GitHubRelease {
 		assets[i] = domainplugin.GitHubReleaseAsset{
 			Name:          r.Assets[i].Name,
 			DownloadCount: r.Assets[i].DownloadCount,
+			DownloadURL:   r.Assets[i].BrowserDownloadURL,
 		}
 	}
 	return domainplugin.GitHubRelease{

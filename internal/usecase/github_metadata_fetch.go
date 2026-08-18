@@ -22,12 +22,12 @@ func (s *GitHubPluginService) FetchPluginMetadata(ctx context.Context, repoURL s
 		return cached, nil
 	}
 
-	owner, repo, err := domainplugin.ParseGitHubURL(normalizedURL)
+	repoRef, err := domainplugin.ParseRepoRef(normalizedURL)
 	if err != nil {
 		return nil, err
 	}
 
-	manifestContent, err := s.apiClient.GetFileContent(ctx, owner, repo, domainplugin.XQSPManifestFile, "")
+	manifestContent, err := s.apiClient.GetFileContent(ctx, repoRef, domainplugin.XQSPManifestFile, "")
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return nil, domainplugin.ErrPluginManifestNotFound
@@ -40,14 +40,14 @@ func (s *GitHubPluginService) FetchPluginMetadata(ctx context.Context, repoURL s
 		return nil, err
 	}
 
-	readmeContent, _ := s.apiClient.GetFileContent(ctx, owner, repo, "README.md", "")
+	readmeContent, _ := s.apiClient.GetFileContent(ctx, repoRef, "README.md", "")
 
-	releases, err := s.apiClient.ListPublishedReleases(ctx, owner, repo)
+	releases, err := s.apiClient.ListPublishedReleases(ctx, repoRef)
 	if err != nil {
 		return nil, err
 	}
 	if len(releases) == 0 {
-		return nil, fmt.Errorf("%w in %s/%s", domainplugin.ErrNoReleases, owner, repo)
+		return nil, fmt.Errorf("%w in %s", domainplugin.ErrNoReleases, repoRef.ProjectPath())
 	}
 
 	availableReleases := domainplugin.BuildReleaseSummaries(releases)
@@ -106,17 +106,17 @@ func (s *GitHubPluginService) FetchPluginMetadataForRelease(ctx context.Context,
 		return cached, nil
 	}
 
-	owner, repo, err := domainplugin.ParseGitHubURL(normalizedURL)
+	repoRef, err := domainplugin.ParseRepoRef(normalizedURL)
 	if err != nil {
 		return nil, err
 	}
 
-	release, err := s.apiClient.GetReleaseByTag(ctx, owner, repo, releaseTag)
+	release, err := s.apiClient.GetReleaseByTag(ctx, repoRef, releaseTag)
 	if err != nil {
 		return nil, err
 	}
 
-	manifestContent, err := s.fetchManifestForRelease(ctx, owner, repo, releaseTag)
+	manifestContent, err := s.fetchManifestForRelease(ctx, repoRef, releaseTag)
 	if err != nil {
 		return nil, err
 	}
@@ -126,8 +126,8 @@ func (s *GitHubPluginService) FetchPluginMetadataForRelease(ctx context.Context,
 		return nil, err
 	}
 
-	readmeContent := s.fetchReadmeForRelease(ctx, owner, repo, releaseTag)
-	checksums, err := s.loadReleaseChecksums(ctx, owner, repo, release)
+	readmeContent := s.fetchReadmeForRelease(ctx, repoRef, releaseTag)
+	checksums, err := s.loadReleaseChecksums(ctx, repoRef, release)
 	if err != nil {
 		return nil, err
 	}
@@ -163,15 +163,15 @@ func (s *GitHubPluginService) FetchPluginMetadataForRelease(ctx context.Context,
 	return metadata, nil
 }
 
-func (s *GitHubPluginService) fetchManifestForRelease(ctx context.Context, owner, repo, releaseTag string) ([]byte, error) {
-	manifestContent, err := s.apiClient.GetFileContent(ctx, owner, repo, domainplugin.XQSPManifestFile, releaseTag)
+func (s *GitHubPluginService) fetchManifestForRelease(ctx context.Context, repoRef domainplugin.RepoRef, releaseTag string) ([]byte, error) {
+	manifestContent, err := s.apiClient.GetFileContent(ctx, repoRef, domainplugin.XQSPManifestFile, releaseTag)
 	if err == nil {
 		return manifestContent, nil
 	}
 	if !strings.Contains(err.Error(), "not found") {
 		return nil, err
 	}
-	manifestContent, err = s.apiClient.GetFileContent(ctx, owner, repo, domainplugin.XQSPManifestFile, "")
+	manifestContent, err = s.apiClient.GetFileContent(ctx, repoRef, domainplugin.XQSPManifestFile, "")
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return nil, domainplugin.ErrPluginManifestNotFound
@@ -181,10 +181,10 @@ func (s *GitHubPluginService) fetchManifestForRelease(ctx context.Context, owner
 	return manifestContent, nil
 }
 
-func (s *GitHubPluginService) fetchReadmeForRelease(ctx context.Context, owner, repo, releaseTag string) string {
-	readmeContent, _ := s.apiClient.GetFileContent(ctx, owner, repo, "README.md", releaseTag)
+func (s *GitHubPluginService) fetchReadmeForRelease(ctx context.Context, repoRef domainplugin.RepoRef, releaseTag string) string {
+	readmeContent, _ := s.apiClient.GetFileContent(ctx, repoRef, "README.md", releaseTag)
 	if len(readmeContent) == 0 {
-		readmeContent, _ = s.apiClient.GetFileContent(ctx, owner, repo, "README.md", "")
+		readmeContent, _ = s.apiClient.GetFileContent(ctx, repoRef, "README.md", "")
 	}
 	return string(readmeContent)
 }

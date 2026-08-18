@@ -56,7 +56,7 @@ func (d *bundleDownloader) DownloadAsset(_ context.Context, req domainplugin.Ass
 	}, func() {}, nil
 }
 
-func (d *bundleDownloader) DownloadAssetContent(_ context.Context, _, _, _, _ string) ([]byte, error) {
+func (d *bundleDownloader) DownloadAssetContent(_ context.Context, _ domainplugin.RepoRef, _, _ string) ([]byte, error) {
 	return nil, errors.New("no checksum asset in test")
 }
 

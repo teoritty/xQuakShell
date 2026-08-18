@@ -39,14 +39,15 @@ func (s *GitHubPluginService) downloadAndStage(
 		return "", func() {}, err
 	}
 
-	owner, repoName, err := domainplugin.ParseGitHubURL(normalizedURL)
+	repoRef, err := domainplugin.ParseRepoRef(normalizedURL)
 	if err != nil {
 		return "", func() {}, err
 	}
 
 	asset, assetCleanup, err := s.downloadAsset(ctx, domainplugin.AssetDownloadRequest{
-		Owner:            owner,
-		Repo:             repoName,
+		Forge:            repoRef.Forge,
+		Owner:            repoRef.Owner,
+		Repo:             repoRef.Repo,
 		Tag:              metadata.LatestRelease,
 		AssetName:        platformInfo.AssetName,
 		ExpectedChecksum: platformInfo.Checksum,
@@ -79,7 +80,7 @@ func (s *GitHubPluginService) downloadAndStage(
 	}
 	if s.installMetaWriter != nil {
 		if err := s.installMetaWriter.Write(staged.Dir, domainplugin.PluginInstallMeta{
-			Source:        domainplugin.InstallMetaSourceGitHub,
+			Source:        domainplugin.InstallMetaSourceForForge(repoRef.Forge),
 			RepositoryURL: normalizedURL,
 			ReleaseTag:    installTag,
 		}); err != nil {

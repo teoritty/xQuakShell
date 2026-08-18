@@ -6,7 +6,7 @@ import (
 	"xquakshell/internal/domain"
 	domainplugin "xquakshell/internal/domain/plugin"
 	infracache "xquakshell/internal/infra/cache"
-	infragithub "xquakshell/internal/infra/github"
+	infraforge "xquakshell/internal/infra/forge"
 	infrapersistence "xquakshell/internal/infra/persistence"
 	infraplugin "xquakshell/internal/infra/plugin"
 	"xquakshell/internal/usecase"
@@ -38,16 +38,19 @@ func buildGitHubServices(
 	if err != nil {
 		log.Printf("WARNING: github repo storage init failed: %v", err)
 	}
-	githubClient := infragithub.NewUseCaseClient(infragithub.NewClient())
+	// One router serves both roles: it is the API client the plugin service calls, and the release
+	// source the downloader fetches assets through. Sharing it keeps a repository registered on one
+	// forge from having its metadata read there and its binaries fetched somewhere else.
+	forgeRouter := infraforge.NewRouter()
 	tempDir := ""
 	if portableData != nil {
 		if dir, err := portableData.EnsureTempDir(); err == nil {
 			tempDir = dir
 		} else {
-			log.Printf("WARNING: portable temp dir unavailable for GitHub downloads: %v", err)
+			log.Printf("WARNING: portable temp dir unavailable for plugin downloads: %v", err)
 		}
 	}
-	githubDownloader := infraplugin.NewBinaryDownloader(infragithub.NewClient(), tempDir)
+	githubDownloader := infraplugin.NewBinaryDownloader(forgeRouter, tempDir)
 	githubStager := infraplugin.NewGitHubPluginStager(tempDir)
 
 	var githubRepoService *usecase.GitHubRepositoryService
@@ -55,7 +58,7 @@ func buildGitHubServices(
 	if githubRepoStorage != nil {
 		githubRepoService = usecase.NewGitHubRepositoryService(githubRepoStorage, githubCache)
 		githubPluginService = usecase.NewGitHubPluginService(
-			githubClient,
+			forgeRouter,
 			githubDownloader,
 			githubStager,
 			infraplugin.InstallMetaWriter{},
