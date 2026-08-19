@@ -156,6 +156,7 @@ export namespace wails {
 	    pluginId?: string;
 	    providerId?: string;
 	    enabled: boolean;
+	    allowRemoteGateway?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new ForwardRuleDTO(source);
@@ -172,6 +173,7 @@ export namespace wails {
 	        this.pluginId = source["pluginId"];
 	        this.providerId = source["providerId"];
 	        this.enabled = source["enabled"];
+	        this.allowRemoteGateway = source["allowRemoteGateway"];
 	    }
 	}
 	export class JumpHopDTO {
@@ -1474,6 +1476,24 @@ export namespace wails {
 		}
 	}
 	
+	export class PeerTrustDTO {
+	    scope: string;
+	    subject: string;
+	    fingerprint: string;
+	    addedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PeerTrustDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.scope = source["scope"];
+	        this.subject = source["subject"];
+	        this.fingerprint = source["fingerprint"];
+	        this.addedAt = source["addedAt"];
+	    }
+	}
 	
 	export class PingResultDTO {
 	    connectionId: string;
@@ -1768,6 +1788,48 @@ export namespace wails {
 	        this.trustedPublisherKeys = source["trustedPublisherKeys"];
 	        this.requireSignedPlugins = source["requireSignedPlugins"];
 	        this.allowUnsandboxedFallback = source["allowUnsandboxedFallback"];
+	    }
+	}
+	export class PluginSettingsSaveResultDTO {
+	    saved: boolean;
+	    reauthRequired: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginSettingsSaveResultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.saved = source["saved"];
+	        this.reauthRequired = source["reauthRequired"];
+	    }
+	}
+	export class PluginSourceDTO {
+	    id: string;
+	    kind: string;
+	    displayName: string;
+	    trusted: boolean;
+	    removable: boolean;
+	    available: boolean;
+	    unavailableReason?: string;
+	    addedAt?: string;
+	    lastFetchedAt?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginSourceDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kind = source["kind"];
+	        this.displayName = source["displayName"];
+	        this.trusted = source["trusted"];
+	        this.removable = source["removable"];
+	        this.available = source["available"];
+	        this.unavailableReason = source["unavailableReason"];
+	        this.addedAt = source["addedAt"];
+	        this.lastFetchedAt = source["lastFetchedAt"];
 	    }
 	}
 	
