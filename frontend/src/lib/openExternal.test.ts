@@ -26,9 +26,9 @@ function fakeRuntime(): { runtime: RuntimeGateway; opened: string[] } {
 const live = fakeRuntime();
 setRuntime(live.runtime);
 
-assert(openExternal('https://github.com/teoritty/xQuakShell/releases/'), 'an https link is opened');
+assert(openExternal('https://gitlab.com/teoritty/xQuakShell/-/releases'), 'an https link is opened');
 assert(
-  live.opened.length === 1 && live.opened[0] === 'https://github.com/teoritty/xQuakShell/releases/',
+  live.opened.length === 1 && live.opened[0] === 'https://gitlab.com/teoritty/xQuakShell/-/releases',
   `runtime saw ${JSON.stringify(live.opened)}; the URL must reach BrowserOpenURL unchanged`
 );
 
@@ -63,27 +63,33 @@ setRuntime(links.runtime);
 
 assert(openReleasesPage(), 'Check for Updates opens the releases page');
 assert(
-  links.opened[0] === 'https://github.com/teoritty/xQuakShell/releases/',
-  `releases URL = ${links.opened[0]}; the owner is teoritty, not xQuakShell`
+  links.opened[0] === 'https://gitlab.com/teoritty/xQuakShell/-/releases',
+  `releases URL = ${links.opened[0]}; releases ship on GitLab, and its paths carry the /-/ infix`
 );
 
 assert(openNewIssue(), 'Report an Issue opens a bare new-issue form');
 assert(
-  links.opened[1] === 'https://github.com/teoritty/xQuakShell/issues/new',
+  links.opened[1] === 'https://gitlab.com/teoritty/xQuakShell/-/issues/new',
   `issue URL = ${links.opened[1]}; a bare call must not append an empty query`
 );
 
 // The error dialog prefills the form with the message and stack trace, and those contain
-// characters (&, #, newlines) that a hand-built query string mangles.
+// characters (&, #, newlines) that a hand-built query string mangles. GitLab reads the fields
+// under issue[...]; GitHub's bare title/body open the form empty, which is a silent failure -
+// the user files a report and the diagnostics are simply absent.
 assert(openNewIssue('boom & crash', 'line1\nline2#end'), 'a prefilled report opens');
 const prefilled = new URL(links.opened[2]);
 assert(
-  prefilled.searchParams.get('title') === 'boom & crash',
-  `title round-trips, got ${prefilled.searchParams.get('title')}`
+  prefilled.searchParams.get('issue[title]') === 'boom & crash',
+  `title round-trips under GitLab's field name, got ${prefilled.searchParams.get('issue[title]')}`
 );
 assert(
-  prefilled.searchParams.get('body') === 'line1\nline2#end',
-  `body round-trips through encoding, got ${JSON.stringify(prefilled.searchParams.get('body'))}`
+  prefilled.searchParams.get('issue[description]') === 'line1\nline2#end',
+  `body round-trips through encoding, got ${JSON.stringify(prefilled.searchParams.get('issue[description]'))}`
+);
+assert(
+  prefilled.searchParams.get('title') === null && prefilled.searchParams.get('body') === null,
+  "GitHub's bare title/body must not be sent: GitLab ignores them and the form opens empty"
 );
 
 // --- no runtime is a no-op, not a crash: unit tests and the log viewer window have none ---

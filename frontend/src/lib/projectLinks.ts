@@ -4,9 +4,15 @@ import { openExternal } from './openExternal';
 // already drifted: ErrorDialog pointed at github.com/xQuakShell/xQuakShell, an owner that does not
 // exist, so its "Report an Issue" button would have reached a 404 even once it started opening a
 // browser at all.
-const REPO_URL = 'https://github.com/teoritty/xQuakShell';
-export const RELEASES_URL = `${REPO_URL}/releases/`;
-export const NEW_ISSUE_URL = `${REPO_URL}/issues/new`;
+const REPO_URL = 'https://gitlab.com/teoritty/xQuakShell';
+export const RELEASES_URL = `${REPO_URL}/-/releases`;
+export const NEW_ISSUE_URL = `${REPO_URL}/-/issues/new`;
+
+// GitLab namespaces a prefilled issue form's fields, where GitHub takes them bare. Sending
+// GitHub's ?title=&body= here is not an error the user ever sees - the form just opens empty and
+// the report arrives with the message and stack trace missing.
+const ISSUE_TITLE_PARAM = 'issue[title]';
+const ISSUE_BODY_PARAM = 'issue[description]';
 
 /** Opens the releases page, which is what "Check for Updates" means here - there is no updater. */
 export function openReleasesPage(): boolean {
@@ -22,7 +28,7 @@ export function openReleasesPage(): boolean {
  */
 export function openNewIssue(title?: string, body?: string): boolean {
   const url = new URL(NEW_ISSUE_URL);
-  if (title) url.searchParams.set('title', title);
-  if (body) url.searchParams.set('body', body);
+  if (title) url.searchParams.set(ISSUE_TITLE_PARAM, title);
+  if (body) url.searchParams.set(ISSUE_BODY_PARAM, body);
   return openExternal(url.toString());
 }

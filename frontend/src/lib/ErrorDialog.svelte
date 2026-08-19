@@ -2,7 +2,7 @@
   import Modal from './Modal.svelte';
   import { Copy, ExternalLink } from 'lucide-svelte';
   import { lastError, clearError } from '../stores/appState';
-  import { openExternal } from './openExternal';
+  import { openNewIssue } from './projectLinks';
 
   let copied = false;
 
@@ -19,21 +19,17 @@
     });
   }
 
-  // teoritty/xQuakShell, not xQuakShell/xQuakShell. This pointed at an org that does not exist, so
-  // even once the button started opening a browser it would have landed on a 404 - and the report
-  // it was collecting a stack trace for would never have arrived.
-  const GITHUB_ISSUES_URL = 'https://github.com/teoritty/xQuakShell/issues/new';
-
+  // The URL and its query belong to projectLinks, not here. A second copy of the address is what
+  // sent this button to a non-existent owner once already, and a hand-built query string is what
+  // mangled the stack trace it was collecting - a trace is exactly the payload full of the
+  // characters (&, #, newlines) that only URLSearchParams encodes correctly.
   function openIssue() {
     if (!$lastError) return;
-    const title = encodeURIComponent($lastError.message.slice(0, 100));
-    const body = encodeURIComponent(
+    const body =
       `**Error:** ${$lastError.message}\n\n` +
       ($lastError.details ? `**Details:**\n\`\`\`\n${$lastError.details}\n\`\`\`\n\n` : '') +
-      '---\n*Please describe what you were doing when this error occurred.*'
-    );
-    const url = `${GITHUB_ISSUES_URL}?title=${title}&body=${body}`;
-    openExternal(url);
+      '---\n*Please describe what you were doing when this error occurred.*';
+    openNewIssue($lastError.message.slice(0, 100), body);
   }
 </script>
 
@@ -52,7 +48,7 @@
       </button>
       <button class="secondary" on:click={openIssue}>
         <ExternalLink size={13} />
-        Open issue on GitHub
+        Open issue on GitLab
       </button>
       <button class="primary" on:click={clearError}>Close</button>
     </div>
