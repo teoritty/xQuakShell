@@ -73,8 +73,8 @@
         "scriptCodeLines": 220
       },
       "frontend/src/lib/SettingsDialog.svelte": {
-        "codeLines": 885,
-        "scriptCodeLines": 304
+        "codeLines": 883,
+        "scriptCodeLines": 302
       },
       "internal/domain/plugin/manifest_capabilities.go": {
         "codeLines": 397

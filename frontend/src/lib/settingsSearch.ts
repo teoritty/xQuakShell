@@ -6,8 +6,7 @@ export type SettingsTabId =
   | 'hotkeys'
   | 'network'
   | 'plugins'
-  | 'security'
-  | 'terminal';
+  | 'security';
 
 export interface SettingsSectionIndex {
   tabId: SettingsTabId;
@@ -46,6 +45,14 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
     tabId: 'appearance',
     sectionId: 'scale',
     terms: ['Appearance', 'Interface scale', 'UI scale', 'Zoom', 'Magnification', 'percent', 'Scale'],
+  },
+  {
+    // The terminal font lives under Appearance, not under a tab of its own: it was the only
+    // section Terminal ever had, and a one-section tab reads as a missing feature rather than a
+    // category. 'Terminal' stays in the terms so the old search still lands here.
+    tabId: 'appearance',
+    sectionId: 'font',
+    terms: ['Appearance', 'Terminal', 'Terminal Font', 'Font Family', 'Font Size', 'Font Color'],
   },
   {
     tabId: 'audit',
@@ -125,11 +132,6 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
       'Lock when application is minimized',
     ],
   },
-  {
-    tabId: 'terminal',
-    sectionId: 'font',
-    terms: ['Terminal', 'Terminal Font', 'Font Family', 'Font Size', 'Font Color'],
-  },
 ];
 
 export const SETTINGS_TAB_LABELS: Record<SettingsTabId, string> = {
@@ -141,7 +143,6 @@ export const SETTINGS_TAB_LABELS: Record<SettingsTabId, string> = {
   network: 'Network',
   plugins: 'Plugins',
   security: 'Security',
-  terminal: 'Terminal',
 };
 
 export function normalizeSearchQuery(query: string): string {

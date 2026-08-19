@@ -28,7 +28,6 @@
   } from './uiScale';
   import {
     Shield,
-    Terminal,
     Palette,
     Info,
     Save,
@@ -123,7 +122,6 @@
     { id: 'network', label: 'Network', icon: Wifi },
     { id: 'plugins', label: 'Plugins', icon: Puzzle },
     { id: 'security', label: 'Security', icon: Shield },
-    { id: 'terminal', label: 'Terminal', icon: Terminal },
   ];
 
   $: isSearching = searchQuery.trim().length > 0;
@@ -433,6 +431,37 @@
             </div>
           {/if}
 
+          {#if isSearching ? shouldShowSettingsSection('appearance', 'font', searchViewState) : activeTab === 'appearance'}
+            {#if sectionTabLabel('appearance', 'font')}
+              <div class="section-tab-label">{SETTINGS_TAB_LABELS.appearance}</div>
+            {/if}
+            <div class="section">
+              <h4>Terminal font</h4>
+              <label class="setting-row">
+                <span>Font family</span>
+                <select bind:value={terminalFontFamily}>
+                  {#each monoFonts as font}
+                    <option value={font} style="font-family: {font}">{font.split(',')[0].trim()}</option>
+                  {/each}
+                </select>
+              </label>
+              <label class="setting-row">
+                <span>Font size (px)</span>
+                <input type="number" bind:value={terminalFontSize} min="8" max="32" />
+              </label>
+              <label class="setting-row">
+                <span>Font color</span>
+                <div class="color-picker-row">
+                  <input type="color" bind:value={terminalFontColor} class="color-input" />
+                  <input type="text" bind:value={terminalFontColor} class="color-hex" placeholder="#cccccc" />
+                </div>
+              </label>
+              <div class="font-preview" style="font-family: {terminalFontFamily}; font-size: calc({terminalFontSize}px * var(--ui-scale)); color: {terminalFontColor};">
+                user@server:~$ ls -la
+              </div>
+            </div>
+          {/if}
+
           {#if isSearching ? shouldShowSettingsSection('audit', 'general', searchViewState) : activeTab === 'audit'}
             {#if sectionTabLabel('audit', 'general')}
               <div class="section-tab-label">{SETTINGS_TAB_LABELS.audit}</div>
@@ -664,37 +693,6 @@
                 <input type="checkbox" bind:checked={lockOnMinimize} />
                 Lock when application is minimized
               </label>
-            </div>
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('terminal', 'font', searchViewState) : activeTab === 'terminal'}
-            {#if sectionTabLabel('terminal', 'font')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.terminal}</div>
-            {/if}
-            <div class="section">
-              <h4>Terminal font</h4>
-              <label class="setting-row">
-                <span>Font family</span>
-                <select bind:value={terminalFontFamily}>
-                  {#each monoFonts as font}
-                    <option value={font} style="font-family: {font}">{font.split(',')[0].trim()}</option>
-                  {/each}
-                </select>
-              </label>
-              <label class="setting-row">
-                <span>Font size (px)</span>
-                <input type="number" bind:value={terminalFontSize} min="8" max="32" />
-              </label>
-              <label class="setting-row">
-                <span>Font color</span>
-                <div class="color-picker-row">
-                  <input type="color" bind:value={terminalFontColor} class="color-input" />
-                  <input type="text" bind:value={terminalFontColor} class="color-hex" placeholder="#cccccc" />
-                </div>
-              </label>
-              <div class="font-preview" style="font-family: {terminalFontFamily}; font-size: calc({terminalFontSize}px * var(--ui-scale)); color: {terminalFontColor};">
-                user@server:~$ ls -la
-              </div>
             </div>
           {/if}
 
