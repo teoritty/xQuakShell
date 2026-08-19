@@ -143,7 +143,7 @@
   .chip {
     font-size: 11px;
     padding: 2px 7px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
     border-radius: 10px;
   }
 
@@ -168,7 +168,7 @@
   }
 
   .badge.warn {
-    color: var(--warning, #d29922);
+    color: var(--warning);
   }
 
   .date {
@@ -183,7 +183,7 @@
   }
 
   .note.warn {
-    color: var(--warning, #d29922);
+    color: var(--warning);
   }
 
   .readme {

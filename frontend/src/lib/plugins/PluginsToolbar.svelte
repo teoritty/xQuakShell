@@ -9,6 +9,12 @@
   import { MoreHorizontal, Search } from 'lucide-svelte';
 
   export let query = '';
+  /**
+   * Hidden on the sections that have nothing to search. A search box that silently does nothing
+   * is worse than no search box: the user types, sees no change, and concludes the search is
+   * broken rather than inapplicable.
+   */
+  export let searchable = true;
 
   const dispatch = createEventDispatcher();
 
@@ -21,10 +27,19 @@
 </script>
 
 <div class="plugins-toolbar">
-  <div class="search-box">
-    <Search size={13} />
-    <input type="text" placeholder="Search plugins…" bind:value={query} on:input={() => dispatch('search', { query })} />
-  </div>
+  {#if searchable}
+    <div class="search-box">
+      <Search size={13} />
+      <input
+        type="text"
+        placeholder="Search by name, description or source"
+        bind:value={query}
+        on:input={() => dispatch('search', { query })}
+      />
+    </div>
+  {:else}
+    <div class="toolbar-spacer"></div>
+  {/if}
   <div class="menu-wrap">
     <button class="ghost icon-btn" title="More actions" on:click={() => (menuOpen = !menuOpen)}>
       <MoreHorizontal size={15} />
@@ -55,7 +70,7 @@
     gap: 6px;
     flex: 1;
     padding: 4px 8px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
     border-radius: 5px;
     background: var(--bg-secondary);
     color: var(--text-secondary);
@@ -67,7 +82,11 @@
     background: transparent;
     outline: none;
     font-size: 12px;
-    color: var(--text);
+    color: var(--text-primary);
+  }
+
+  .toolbar-spacer {
+    flex: 1;
   }
 
   .menu-wrap {
@@ -81,9 +100,9 @@
     z-index: 10;
     min-width: 190px;
     padding: 4px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
-    background: var(--bg-elevated, var(--bg-secondary));
+    background: var(--bg-tertiary);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
   }
 
@@ -101,13 +120,13 @@
   }
 
   .menu-item:hover {
-    background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+    background: var(--bg-hover);
   }
 
   .menu-sep {
     height: 1px;
     margin: 4px 2px;
-    background: var(--border);
+    background: var(--border-color);
   }
 
   .icon-btn {

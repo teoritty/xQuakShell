@@ -1,42 +1,61 @@
 <script lang="ts">
   // One plugin row, in both lists. It renders and dispatches; every decision about what an action
   // means belongs to the section that owns the data.
+  //
+  // The chip row is the point of the card. In an SSH client the question about a third-party
+  // plugin is not "what version is it" but "what can it reach" - whether it is signed, whether the
+  // OS is containing it, whether it can read the vault. Those sit on the face of the card rather
+  // than behind a details dialog nobody opens.
   import { createEventDispatcher } from 'svelte';
-  import { ShieldCheck, ShieldAlert, Info } from 'lucide-svelte';
+  import { Info } from 'lucide-svelte';
 
   export let name: string;
   export let version = '';
   export let description = '';
-  /** Where it came from, shown under the name: a repository URL or a source display name. */
+  /** Where it came from, shown under the name: a repository URL or an author. */
   export let origin = '';
-  export let signed: boolean | null = null;
-  /** Right-hand status text, e.g. "Installed 1.2.0" or "Not installed". */
+  /** Colour of the leading state dot. `none` omits it, for lists where state is not a property. */
+  export let state: 'active' | 'attention' | 'idle' | 'none' = 'none';
+  export let chips: { label: string; tone: 'good' | 'warn' | 'bad' | 'neutral' }[] = [];
   export let status = '';
   export let statusKind: 'installed' | 'not-installed' | 'warning' = 'not-installed';
-  export let disabled = false;
+  export let dimmed = false;
   export let showDetails = false;
 
   const dispatch = createEventDispatcher();
+
+  /** Two letters carry more identity at 24px than a generic puzzle icon repeated down the list. */
+  $: initials = name.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase() || '??';
 </script>
 
-<div class="plugin-card" class:disabled>
+<div class="plugin-card" class:dimmed>
+  <div class="card-avatar" class:active={state === 'active'} class:attention={state === 'attention'}>
+    {initials}
+  </div>
+
   <div class="card-main">
     <div class="card-head">
       <span class="card-name">{name}</span>
       {#if version}<span class="card-version">{version}</span>{/if}
-      {#if signed !== null}
-        <span class="card-signed" class:unsigned={!signed} title={signed ? 'Signed by a trusted publisher' : 'Not signed'}>
-          {#if signed}<ShieldCheck size={12} />{:else}<ShieldAlert size={12} />{/if}
-        </span>
-      {/if}
     </div>
     {#if description}<div class="card-desc">{description}</div>{/if}
     {#if origin}<div class="card-origin">{origin}</div>{/if}
+    {#if chips.length}
+      <div class="card-chips">
+        {#each chips as chip (chip.label)}
+          <span class="chip chip-{chip.tone}">{chip.label}</span>
+        {/each}
+      </div>
+    {/if}
   </div>
 
   <div class="card-side">
     {#if status}
-      <span class="card-status" class:installed={statusKind === 'installed'} class:warning={statusKind === 'warning'}>
+      <span
+        class="card-status"
+        class:installed={statusKind === 'installed'}
+        class:warning={statusKind === 'warning'}
+      >
         {status}
       </span>
     {/if}
@@ -55,20 +74,55 @@
   .plugin-card {
     display: flex;
     align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-secondary);
+    gap: 11px;
+    padding: 11px 13px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    background: var(--bg-primary);
+    transition: border-color 0.12s ease, background 0.12s ease;
   }
 
-  .plugin-card.disabled {
-    opacity: 0.55;
+  .plugin-card:hover {
+    border-color: var(--border-focus);
+    background: var(--bg-tertiary);
+  }
+
+  .plugin-card.dimmed .card-avatar,
+  .plugin-card.dimmed .card-main {
+    opacity: 0.62;
+  }
+
+  .card-avatar {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    /* The state colour lives on the avatar's edge rather than as a separate dot: one object
+       carrying identity and status reads faster than two competing for the same gutter. */
+    box-shadow: inset 0 0 0 1px var(--border-color);
+  }
+
+  .card-avatar.active {
+    color: var(--success);
+    box-shadow: inset 0 0 0 1px var(--success);
+  }
+
+  .card-avatar.attention {
+    color: var(--warning);
+    box-shadow: inset 0 0 0 1px var(--warning);
   }
 
   .card-main {
     min-width: 0;
+    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 3px;
@@ -76,39 +130,68 @@
 
   .card-head {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: 7px;
   }
 
   .card-name {
     font-weight: 600;
     font-size: 13px;
+    color: var(--text-bright);
   }
 
   .card-version {
-    font-size: 11px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
     color: var(--text-secondary);
-  }
-
-  .card-signed {
-    display: inline-flex;
-    color: var(--success, #3fb950);
-  }
-
-  .card-signed.unsigned {
-    color: var(--warning, #d29922);
   }
 
   .card-desc {
     font-size: 12px;
-    color: var(--text-secondary);
+    color: var(--text-primary);
     overflow-wrap: anywhere;
   }
 
   .card-origin {
     font-size: 11px;
-    color: var(--text-tertiary, var(--text-secondary));
+    color: var(--text-secondary);
     overflow-wrap: anywhere;
+  }
+
+  .card-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 3px;
+  }
+
+  .chip {
+    font-size: 10px;
+    line-height: 1.6;
+    padding: 0 6px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+
+  .chip-neutral {
+    background: var(--bg-input);
+    color: var(--text-secondary);
+  }
+
+  .chip-good {
+    color: var(--success);
+    border-color: rgba(90, 158, 94, 0.4);
+  }
+
+  .chip-warn {
+    color: var(--warning);
+    border-color: rgba(196, 144, 64, 0.45);
+  }
+
+  .chip-bad {
+    color: var(--danger);
+    border-color: rgba(197, 80, 80, 0.45);
   }
 
   .card-side {
@@ -126,11 +209,11 @@
   }
 
   .card-status.installed {
-    color: var(--success, #3fb950);
+    color: var(--success);
   }
 
   .card-status.warning {
-    color: var(--warning, #d29922);
+    color: var(--warning);
   }
 
   .card-actions {

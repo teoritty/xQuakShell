@@ -89,7 +89,7 @@
   .error {
     margin: 0;
     font-size: 11px;
-    color: var(--danger, #f85149);
+    color: var(--danger);
   }
 
   .banner {
@@ -98,8 +98,8 @@
     gap: 7px;
     padding: 8px 10px;
     border-radius: 5px;
-    background: rgba(210, 153, 34, 0.12);
-    color: var(--warning, #d29922);
+    background: rgba(196, 144, 64, 0.14);
+    color: var(--warning);
     font-size: 11.5px;
     line-height: 1.45;
   }

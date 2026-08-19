@@ -1,7 +1,8 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { Plus, RefreshCw, Trash2 } from 'lucide-svelte';
-  import { sourceStatus } from './pluginsView';
+  import SectionHeading from './SectionHeading.svelte';
+  import { forgeSources, sourceStatus } from './pluginsView';
   import type { PluginSourceDTO } from '../../api/pluginSources';
 
   export let sources: PluginSourceDTO[] = [];
@@ -10,6 +11,8 @@
 
   const dispatch = createEventDispatcher();
 
+  $: repositories = forgeSources(sources);
+
   function fetchedLabel(source: PluginSourceDTO): string {
     if (!source.lastFetchedAt) return 'Never fetched';
     const when = new Date(source.lastFetchedAt);
@@ -17,44 +20,55 @@
   }
 </script>
 
-<div class="sources-head">
-  <p class="hint">
-    Trust decides whether a source's plugins may install without an extra confirmation. It is not
-    a check on the plugin itself — signature and permission checks run either way.
-  </p>
-  <button class="secondary small" disabled={busy} on:click={() => dispatch('addSource')}>
+<SectionHeading
+  title="Sources"
+  subtitle="Repositories you have registered as places to install plugins from."
+  count={repositories.length ? String(repositories.length) : ''}
+>
+  <button slot="action" class="secondary small" disabled={busy} on:click={() => dispatch('addSource')}>
     <Plus size={12} />
     Add repository
   </button>
-</div>
+</SectionHeading>
 
-<div class="source-list">
-  {#each sources as source (source.id)}
-    {@const status = sourceStatus(source)}
-    <div class="source-row" class:unavailable={!source.available}>
-      <div class="source-main">
-        <div class="source-name">
-          {source.displayName}
-          <span class="source-kind">{source.kind === 'marketplace' ? 'Marketplace' : 'Repository'}</span>
-        </div>
-        <div class="source-id">{source.id}</div>
-        <div class="source-meta">
-          <span class="source-status" class:bad={status.kind !== 'trusted'}>{status.text}</span>
-          {#if source.kind === 'forge'}
-            <span class="source-fetched">{fetchedLabel(source)}</span>
-          {/if}
-        </div>
-      </div>
+<p class="trust-note">
+  Trusting a repository removes the extra confirmation before its plugins install. It is a
+  statement about the people who publish there — signature, permission and platform checks run
+  either way.
+</p>
 
-      <div class="source-actions">
-        {#if source.available && source.kind === 'forge'}
-          <label class="trust-toggle" title="Trusted">
+{#if repositories.length === 0}
+  <div class="empty">
+    <p class="empty-title">No repositories yet</p>
+    <p class="empty-body">
+      Add a GitHub or GitLab repository that publishes an xqsp.json and releases for your platform.
+    </p>
+    <button class="secondary" disabled={busy} on:click={() => dispatch('addSource')}>
+      <Plus size={12} />
+      Add repository
+    </button>
+  </div>
+{:else}
+  <div class="source-list">
+    {#each repositories as source (source.id)}
+      {@const status = sourceStatus(source)}
+      <div class="source-row">
+        <div class="source-main">
+          <div class="source-name">
+            {source.displayName}
+            <span class="source-status status-{status.kind}">{status.text}</span>
+          </div>
+          <div class="source-id">{source.id}</div>
+          <div class="source-meta">{fetchedLabel(source)}</div>
+        </div>
+
+        <div class="source-actions">
+          <label class="trust-toggle">
             <input
               type="checkbox"
               checked={source.trusted}
               disabled={busy}
-              on:change={(e) =>
-                dispatch('setTrust', { source, trusted: e.currentTarget.checked })}
+              on:change={(e) => dispatch('setTrust', { source, trusted: e.currentTarget.checked })}
             />
             Trusted
           </label>
@@ -66,42 +80,33 @@
           >
             <RefreshCw size={13} />
           </button>
-        {/if}
-        {#if source.removable}
           <button
             class="ghost icon-btn danger"
-            title="Remove"
+            title="Remove repository"
             disabled={busy}
             on:click={() => dispatch('removeSource', { source })}
           >
             <Trash2 size={13} />
           </button>
-        {/if}
+        </div>
       </div>
-    </div>
-  {/each}
-</div>
+    {/each}
+  </div>
+{/if}
 
 <style>
-  .sources-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-
-  .hint {
-    margin: 0;
-    font-size: 11px;
+  .trust-note {
+    margin: 0 0 14px;
+    max-width: 64ch;
+    font-size: 11.5px;
+    line-height: 1.5;
     color: var(--text-secondary);
-    max-width: 46ch;
   }
 
   .source-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
   }
 
   .source-row {
@@ -109,14 +114,15 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-secondary);
+    padding: 11px 13px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    background: var(--bg-primary);
+    transition: border-color 0.12s ease;
   }
 
-  .source-row.unavailable {
-    opacity: 0.7;
+  .source-row:hover {
+    border-color: var(--border-focus);
   }
 
   .source-main {
@@ -129,53 +135,58 @@
   .source-name {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     font-size: 13px;
     font-weight: 600;
+    color: var(--text-bright);
   }
 
-  .source-kind {
+  .source-status {
     font-size: 10px;
     font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-secondary);
+    padding: 0 6px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+  }
+
+  .status-trusted {
+    color: var(--success);
+    border-color: rgba(90, 158, 94, 0.4);
+  }
+
+  .status-untrusted,
+  .status-unavailable {
+    color: var(--warning);
+    border-color: rgba(196, 144, 64, 0.45);
   }
 
   .source-id {
+    font-family: var(--font-mono);
     font-size: 11px;
     color: var(--text-secondary);
     overflow-wrap: anywhere;
   }
 
   .source-meta {
-    display: flex;
-    gap: 10px;
     font-size: 11px;
     color: var(--text-secondary);
-  }
-
-  .source-status {
-    color: var(--success, #3fb950);
-  }
-
-  .source-status.bad {
-    color: var(--warning, #d29922);
   }
 
   .source-actions {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
     flex-shrink: 0;
   }
 
   .trust-toggle {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     font-size: 11px;
     white-space: nowrap;
+    color: var(--text-secondary);
+    cursor: pointer;
   }
 
   .icon-btn {
@@ -185,7 +196,29 @@
   }
 
   .icon-btn.danger:hover:not(:disabled) {
-    color: var(--danger, #f85149);
+    color: var(--danger);
+  }
+
+  .empty {
+    padding: 26px 20px;
+    border: 1px dashed var(--border-color);
+    border-radius: 6px;
+    text-align: center;
+  }
+
+  .empty-title {
+    margin: 0 0 5px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-bright);
+  }
+
+  .empty-body {
+    margin: 0 auto 12px;
+    max-width: 48ch;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text-secondary);
   }
 
   .small {

@@ -1,18 +1,26 @@
-// The Plugins screen's rail, search and grouping, asserted without mounting a component.
+// The Plugins screen's rail, grouping, search and source partitioning, asserted without mounting
+// a component.
 //
-// The load-bearing case is buildBrowseGroups: a source that is unavailable, erroring or still
-// loading must survive a search that its (absent) contents cannot match, because those three
-// states are properties of the source rather than of its plugins. Dropping them is how a broken
-// repository comes to look like an empty one.
+// Two cases carry most of the weight. groupInstalled decides what a user sees first, and a
+// disabled plugin must never be promoted to "needs attention" - it is not running, so whatever is
+// wrong with it is not happening now, and promoting it buries the one that is failing.
+// forgeSources decides that the marketplace never appears in a list whose every control would be
+// inert on it.
 import type { PluginSourceDTO } from '../../api/pluginSources';
 import type { GitHubPluginMetadata } from '../../api/githubPlugins';
 import type { PluginInfo } from '../../api/plugins';
 import {
   buildBrowseGroups,
   buildRail,
-  canInstallFrom,
+  countNeedsAttention,
   filterInstalled,
+  forgeSources,
+  groupInstalled,
+  hasUpdate,
+  marketplaceSource,
   matchesQuery,
+  pluginRunState,
+  sandboxSummary,
   sourceStatus,
 } from './pluginsView';
 
@@ -31,6 +39,15 @@ function source(over: Partial<PluginSourceDTO> = {}): PluginSourceDTO {
     ...over,
   };
 }
+
+const market = source({
+  id: 'https://api.xquakshell.ru',
+  kind: 'marketplace',
+  displayName: 'xQuakShell Marketplace',
+  removable: false,
+  available: false,
+  unavailableReason: 'not serving yet',
+});
 
 function entry(over: Partial<GitHubPluginMetadata> = {}): GitHubPluginMetadata {
   return {
@@ -55,26 +72,6 @@ function entry(over: Partial<GitHubPluginMetadata> = {}): GitHubPluginMetadata {
   };
 }
 
-// --- the rail ---
-
-const rail = buildRail(4, 3);
-assert(rail.length === 4, `rail has ${rail.length} items, want 4`);
-assert(rail[0].id === 'installed' && rail[0].count === 4, 'Installed carries its count');
-assert(rail[2].id === 'sources' && rail[2].count === 3, 'Sources carries its count');
-assert(
-  rail[3].id === 'security' && rail[3].count === undefined,
-  'Security carries no badge: a number there reads as a count of problems, not of keys',
-);
-assert(rail[1].count === undefined, 'Browse has nothing to count until a source has answered');
-
-// --- search ---
-
-assert(matchesQuery(['SFTP Sync'], ''), 'an empty query matches everything');
-assert(matchesQuery(['SFTP Sync'], '  '), 'a whitespace query is an empty query');
-assert(matchesQuery(['SFTP Sync'], 'sftp'), 'search is case-insensitive');
-assert(!matchesQuery(['SFTP Sync'], 'rsync'), 'a non-substring does not match');
-assert(matchesQuery([undefined, 'sync'], 'sync'), 'an absent field is skipped, not a crash');
-
 function plugin(over: Partial<PluginInfo> = {}): PluginInfo {
   return {
     id: 'a',
@@ -86,21 +83,114 @@ function plugin(over: Partial<PluginInfo> = {}): PluginInfo {
     requiresSecretAccess: false,
     signed: true,
     enabled: true,
+    sandboxMode: 'enforced',
     ...over,
   };
 }
 
-const installed: PluginInfo[] = [
-  plugin(),
-  plugin({ id: 'b', name: 'K8s Tunnel', description: 'clusters', source: 'https://gitlab.com/x/y' }),
-];
-assert(filterInstalled(installed, 'k8s').length === 1, 'installed search narrows by name');
-assert(filterInstalled(installed, 'clusters')[0].id === 'b', 'installed search covers description');
+// --- run state ---
+
+assert(pluginRunState(plugin()) === 'active', 'enabled, running and sandboxed is active');
+assert(pluginRunState(plugin({ enabled: false })) === 'disabled', 'disabled outranks everything');
 assert(
-  filterInstalled(installed, 'gitlab.com')[0].id === 'b',
-  'installed search covers source: "which of these came from that repository" precedes removing it',
+  pluginRunState(plugin({ enabled: false, state: 'crashed', sandboxMode: 'unavailable' })) ===
+    'disabled',
+  'a disabled plugin is never promoted to attention: it is not running, so nothing is happening',
 );
-assert(filterInstalled(installed, '').length === 2, 'an empty search keeps every installed plugin');
+assert(
+  pluginRunState(plugin({ state: 'stopped' })) === 'attention',
+  'enabled but not running needs attention',
+);
+assert(
+  pluginRunState(plugin({ sandboxMode: 'unavailable' })) === 'attention',
+  'running with no sandbox needs attention',
+);
+assert(
+  pluginRunState(plugin({ sandboxMode: 'enforced-partial' })) === 'attention',
+  'partial confinement needs attention and must never round up to active',
+);
+
+// --- grouping ---
+
+const installed = [
+  plugin({ id: 'a', name: 'Zeta' }),
+  plugin({ id: 'b', name: 'Alpha' }),
+  plugin({ id: 'c', name: 'Broken', state: 'stopped' }),
+  plugin({ id: 'd', name: 'Off', enabled: false }),
+];
+
+const groups = groupInstalled(installed, '');
+assert(groups.length === 3, `got ${groups.length} groups, want attention/active/disabled`);
+assert(groups[0].id === 'attention', 'attention comes first: the top of the list is what gets read');
+assert(groups[1].id === 'active' && groups[2].id === 'disabled', 'then active, then disabled');
+assert(
+  groups[1].plugins.map((p) => p.name).join(',') === 'Alpha,Zeta',
+  `active group order was ${groups[1].plugins.map((p) => p.name)}; within a group, sort by name`,
+);
+assert(countNeedsAttention(installed) === 1, 'one plugin needs attention');
+
+const healthy = groupInstalled([plugin()], '');
+assert(
+  healthy.length === 1 && healthy[0].id === 'active',
+  'empty groups are dropped: a permanent "Needs attention (0)" teaches people to ignore it',
+);
+
+const searched = groupInstalled(installed, 'alpha');
+assert(
+  searched.length === 1 && searched[0].plugins.length === 1,
+  'search narrows the groups and drops the ones left empty',
+);
+
+// --- sandbox chip ---
+
+assert(sandboxSummary('enforced')?.tone === 'good', 'full confinement reads good');
+assert(sandboxSummary('enforced-partial')?.tone === 'warn', 'partial confinement reads as a warning');
+assert(
+  sandboxSummary('enforced-partial')?.label !== 'Sandboxed',
+  'partial confinement must not claim containment the user does not have',
+);
+assert(sandboxSummary('unavailable')?.tone === 'bad', 'no sandbox reads bad');
+assert(sandboxSummary(undefined) === null, 'a plugin that is not running has no sandbox chip');
+
+// --- rail ---
+
+const rail = buildRail({ installed: 4, sources: 3, needsAttention: 1 });
+assert(rail.length === 5, `rail has ${rail.length} items, want 5`);
+assert(rail[0].id === 'installed' && rail[0].count === 4, 'Installed carries its count');
+assert(rail[0].alert === true, 'Installed shows the alert dot when something needs attention');
+assert(rail[2].id === 'sources' && rail[2].count === 3, 'Sources carries its count');
+assert(rail[3].id === 'marketplace', 'the marketplace is its own destination');
+assert(
+  rail[4].id === 'security' && rail[4].count === undefined,
+  'Security carries no count: a number there reads as problems, not as trusted keys',
+);
+assert(
+  buildRail({ installed: 4, sources: 3, needsAttention: 0 })[0].alert === false,
+  'no alert dot when nothing needs attention',
+);
+
+// --- search ---
+
+assert(matchesQuery(['SFTP Sync'], ''), 'an empty query matches everything');
+assert(matchesQuery(['SFTP Sync'], '  '), 'a whitespace query is an empty query');
+assert(matchesQuery(['SFTP Sync'], 'sftp'), 'search is case-insensitive');
+assert(!matchesQuery(['SFTP Sync'], 'rsync'), 'a non-substring does not match');
+assert(matchesQuery([undefined, 'sync'], 'sync'), 'an absent field is skipped, not a crash');
+assert(
+  filterInstalled([plugin({ source: 'https://gitlab.com/x/y' })], 'gitlab.com').length === 1,
+  'installed search covers source: "which came from that repository" precedes removing it',
+);
+
+// --- source partitioning ---
+
+const all = [source({ id: 'repo-1' }), market, source({ id: 'repo-2' })];
+assert(forgeSources(all).length === 2, 'forgeSources keeps only the registered repositories');
+assert(
+  forgeSources(all).every((s) => s.kind === 'forge'),
+  'the marketplace never reaches a list whose trust, refresh and remove controls are inert on it',
+);
+assert(marketplaceSource(all)?.id === market.id, 'the marketplace is found for its own page');
+assert(marketplaceSource([source()]) === null, 'and is null when the backend did not send it');
 
 // --- source status ---
 
@@ -116,54 +206,47 @@ assert(
   'a missing reason still produces a label rather than an empty badge',
 );
 
-assert(canInstallFrom(source()), 'an available source can be installed from');
-assert(!canInstallFrom(source({ available: false })), 'an unavailable source cannot');
-
 // --- browse grouping ---
 
 const forge = source({ id: 'repo-1' });
-const market = source({
-  id: 'market',
-  kind: 'marketplace',
-  available: false,
-  removable: false,
-  unavailableReason: 'not serving yet',
-});
 
-const groups = buildBrowseGroups(
-  [forge, market],
-  { 'repo-1': [entry()] },
-  {},
-  {},
-  'sftp',
-);
-assert(groups.length === 2, `got ${groups.length} groups, want the forge match and the dead source`);
-assert(groups[0].source.id === 'repo-1' && groups[0].plugins.length === 1, 'the match is present');
+const browse = buildBrowseGroups([forge, market], { 'repo-1': [entry()] }, {}, {}, 'sftp');
 assert(
-  groups[1].source.id === 'market' && groups[1].plugins.length === 0,
-  'an unavailable source is listed with no plugins, not dropped',
+  browse.length === 1 && browse[0].source.id === 'repo-1',
+  'Browse lists repositories only; the marketplace has its own page',
 );
 
-const noMatch = buildBrowseGroups([forge, market], { 'repo-1': [entry()] }, {}, {}, 'nothing');
-assert(
-  noMatch.length === 1 && noMatch[0].source.id === 'market',
-  'an available source whose plugins all fail the search is dropped; the unavailable one stays',
-);
+const noMatch = buildBrowseGroups([forge], { 'repo-1': [entry()] }, {}, {}, 'nothing');
+assert(noMatch.length === 0, 'a repository whose plugins all fail the search is dropped');
 
 const erroring = buildBrowseGroups([forge], {}, { 'repo-1': 'rate limited' }, {}, 'zzz');
 assert(
   erroring.length === 1 && erroring[0].error === 'rate limited',
-  'an errored source survives a search it cannot match, or the failure is invisible',
+  'an errored repository survives a search it cannot match, or the failure is invisible',
 );
 
 const loading = buildBrowseGroups([forge], {}, {}, { 'repo-1': true }, 'zzz');
 assert(
   loading.length === 1 && loading[0].loading,
-  'a loading source survives a search, or the row flickers out mid-fetch',
+  'a loading repository survives a search, or the row flickers out mid-fetch',
 );
 
-const quiet = buildBrowseGroups([forge], {}, {}, {}, '');
-assert(quiet.length === 0, 'an available, idle, empty source contributes no group');
+// --- updates ---
+
+assert(
+  hasUpdate(entry({ installed: true, installedReleaseTag: 'v1.1.0', latestRelease: 'v1.2.0' })),
+  'an installed plugin behind the newest release has an update',
+);
+assert(
+  !hasUpdate(entry({ installed: true, installedReleaseTag: 'v1.2.0', latestRelease: 'v1.2.0' })),
+  'a plugin on the newest release has none',
+);
+assert(!hasUpdate(entry({ installed: false })), 'a plugin that is not installed cannot have one');
+assert(
+  !hasUpdate(entry({ installed: true, installedReleaseTag: '', latestRelease: 'v1.2.0' })),
+  'an unknown installed tag is not an update: it is missing information, and offering "Update" ' +
+    'from it would reinstall on every open',
+);
 
 // eslint-disable-next-line no-console
 console.log('pluginsView: OK');

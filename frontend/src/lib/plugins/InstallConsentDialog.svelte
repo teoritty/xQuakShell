@@ -131,13 +131,13 @@
   }
 
   .banner.caution {
-    background: rgba(210, 153, 34, 0.12);
-    color: var(--warning, #d29922);
+    background: rgba(196, 144, 64, 0.14);
+    color: var(--warning);
   }
 
   .banner.critical {
-    background: rgba(248, 81, 73, 0.12);
-    color: var(--danger, #f85149);
+    background: rgba(197, 80, 80, 0.14);
+    color: var(--danger);
   }
 
   .consent-list {

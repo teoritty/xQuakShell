@@ -8,11 +8,19 @@
   import InstalledSection from './InstalledSection.svelte';
   import BrowseSection from './BrowseSection.svelte';
   import SourcesSection from './SourcesSection.svelte';
+  import MarketplaceSection from './MarketplaceSection.svelte';
   import SecuritySection from './SecuritySection.svelte';
   import PluginDetails from './PluginDetails.svelte';
   import AddSourceDialog from './AddSourceDialog.svelte';
   import InstallFlow from './InstallFlow.svelte';
-  import { buildRail, type PluginsSectionId } from './pluginsView';
+  import {
+    buildRail,
+    countNeedsAttention,
+    forgeSources,
+    marketplaceSource,
+    type PluginsSectionId,
+  } from './pluginsView';
+  import { Boxes, Compass, GitBranch, Store, ShieldCheck } from 'lucide-svelte';
   import {
     fetchSourceCatalog,
     loadPluginsScreen,
@@ -57,7 +65,20 @@
   }
   $: if (!show) loadedOnce = false;
 
-  $: rail = buildRail(plugins.length, sources.length);
+  const RAIL_ICONS = {
+    installed: Boxes,
+    browse: Compass,
+    sources: GitBranch,
+    marketplace: Store,
+    security: ShieldCheck,
+  };
+
+  $: rail = buildRail({
+    installed: plugins.length,
+    sources: forgeSources(sources).length,
+    needsAttention: countNeedsAttention(plugins),
+  });
+  $: market = marketplaceSource(sources);
 
   function fail(message: string) {
     errorMessage = message;
@@ -171,6 +192,7 @@
 <Modal title="Plugins" {show} contentClass="plugins-modal" on:close={() => (show = false)}>
   <PluginsToolbar
     bind:query
+    searchable={section === 'installed' || section === 'browse'}
     on:installFolder={() => pickAndInstall(selectPluginSourceDir)}
     on:installBundle={() => pickAndInstall(selectPluginBundleFile)}
     on:refreshAll={() => void Promise.all(sources.map((s) => refreshSource(s, true)))}
@@ -186,8 +208,17 @@
   <div class="plugins-body">
     <nav class="rail">
       {#each rail as item (item.id)}
-        <button class="rail-item" class:active={section === item.id} on:click={() => (section = item.id)}>
-          <span>{item.label}</span>
+        <button
+          class="rail-item"
+          class:active={section === item.id}
+          aria-current={section === item.id ? 'page' : undefined}
+          on:click={() => (section = item.id)}
+        >
+          <svelte:component this={RAIL_ICONS[item.id]} size={14} />
+          <span class="rail-label">{item.label}</span>
+          {#if item.alert}
+            <span class="rail-alert" title="Something needs attention"></span>
+          {/if}
           {#if item.count !== undefined}<span class="rail-count">{item.count}</span>{/if}
         </button>
       {/each}
@@ -221,6 +252,7 @@
             detailsSource = e.detail.source;
           }}
           on:install={(e) => installFlow.fromSource(e.detail.source, e.detail.plugin, e.detail.releaseTag)}
+          on:goToSources={() => (section = 'sources')}
         />
       {:else if section === 'sources'}
         <SourcesSection
@@ -233,6 +265,8 @@
             mutateSource(() => setGitHubRepositoryTrust(e.detail.source.id, e.detail.trusted))}
           on:removeSource={(e) => mutateSource(() => removeGitHubRepository(e.detail.source.id))}
         />
+      {:else if section === 'marketplace'}
+        <MarketplaceSection source={market} on:goToSources={() => (section = 'sources')} />
       {:else}
         <SecuritySection onError={fail} />
       {/if}
@@ -290,8 +324,8 @@
     margin-bottom: 10px;
     padding: 7px 10px;
     border-radius: 5px;
-    background: rgba(248, 81, 73, 0.12);
-    color: var(--danger, #f85149);
+    background: rgba(197, 80, 80, 0.14);
+    color: var(--danger);
     font-size: 11.5px;
   }
 
@@ -302,27 +336,29 @@
 
   .plugins-body {
     display: flex;
-    gap: 14px;
-    min-height: 52vh;
-    max-height: 62vh;
+    gap: 18px;
+    min-height: 54vh;
+    max-height: 64vh;
   }
 
   .rail {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    width: 150px;
+    gap: 1px;
+    width: 168px;
     flex-shrink: 0;
+    padding-right: 14px;
+    border-right: 1px solid var(--border-color);
   }
 
   .rail-item {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
     padding: 6px 9px;
     border: none;
-    border-radius: 5px;
+    border-left: 2px solid transparent;
+    border-radius: 4px;
     background: transparent;
     color: var(--text-secondary);
     font-size: 12px;
@@ -331,20 +367,43 @@
   }
 
   .rail-item:hover {
-    background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   .rail-item.active {
-    background: var(--bg-secondary);
-    color: var(--text);
+    background: var(--bg-active);
+    border-left-color: var(--accent);
+    color: var(--text-bright);
     font-weight: 600;
   }
 
+  .rail-item:focus-visible {
+    outline: 1px solid var(--border-focus);
+    outline-offset: -1px;
+  }
+
+  .rail-label {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* A dot, not a number: "4" and "4, one of which is broken" must not look alike. */
+  .rail-alert {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--warning);
+    flex-shrink: 0;
+  }
+
   .rail-count {
-    font-size: 10.5px;
-    padding: 0 6px;
-    border-radius: 8px;
-    background: var(--bg-elevated, rgba(255, 255, 255, 0.08));
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 0 5px;
+    border-radius: 3px;
+    background: var(--bg-input);
+    color: var(--text-secondary);
   }
 
   .section-pane {

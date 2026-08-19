@@ -4,22 +4,14 @@
   // that re-auth path is security-critical and already correct - the backend decides when a
   // password is required, and a second copy of that rule here is the one that would drift.
   import PluginTrustPolicy from '../PluginTrustPolicy.svelte';
+  import SectionHeading from './SectionHeading.svelte';
 
   export let onError: (message: string) => void = () => {};
 </script>
 
-<p class="hint">
-  These settings apply to every plugin, whatever source it came from. They are checked at install
-  time and again at every start.
-</p>
+<SectionHeading
+  title="Security"
+  subtitle="Rules applied to every plugin, whatever source it came from. Checked when a plugin installs and again every time it starts."
+/>
 
 <PluginTrustPolicy {onError} />
-
-<style>
-  .hint {
-    margin: 0 0 12px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    max-width: 60ch;
-  }
-</style>
