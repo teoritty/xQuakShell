@@ -14,6 +14,8 @@
   import ErrorDialog from './lib/ErrorDialog.svelte';
   import ConflictDialog from './lib/ConflictDialog.svelte';
   import SettingsDialog from './lib/SettingsDialog.svelte';
+  import PluginsDialog from './lib/plugins/PluginsDialog.svelte';
+  import TopBarActions from './lib/TopBarActions.svelte';
   import type { SettingsTabId } from './lib/settingsSearch';
   import ScriptsDialog from './lib/ScriptsDialog.svelte';
   import PluginCommandPalette from './lib/PluginCommandPalette.svelte';
@@ -29,13 +31,14 @@
   import { getSettings, applyAppearanceSettings } from './actions/settingsActions';
   import { parseHotkeyEvent } from './hotkeys/hotkeys';
   import { DEFAULT_SESSION_HOTKEYS } from './api/settings';
-  import { Settings, FileText, Shield, Fingerprint, MonitorDot, Terminal, Key } from 'lucide-svelte';
+  import { Settings, MonitorDot } from 'lucide-svelte';
 
   let showKnownHosts = false;
   let showPeerTrust = false;
   let showKeyManager = false;
   let showAuditLog = false;
   let showSettings = false;
+  let showPlugins = false;
   let settingsInitialTab: SettingsTabId = 'about';
   let showScripts = false;
   let commandPalette: PluginCommandPalette;
@@ -200,26 +203,15 @@
     <div class="main-area">
       <div class="top-bar">
         <div class="top-bar-spacer"></div>
-        <div class="top-bar-actions">
-          <button class="ghost top-btn" on:click={() => showScripts = true} title="Scripts">
-            <Terminal size={14} />
-          </button>
-          <button class="ghost top-btn" on:click={() => showAuditLog = true} title="Audit Log">
-            <FileText size={14} />
-          </button>
-          <button class="ghost top-btn" on:click={() => showKnownHosts = true} title="Known Hosts">
-            <Shield size={14} />
-          </button>
-          <button class="ghost top-btn" on:click={() => showPeerTrust = true} title="Trusted Peers">
-            <Fingerprint size={14} />
-          </button>
-          <button class="ghost top-btn" on:click={() => showKeyManager = true} title="SSH Keys">
-            <Key size={14} />
-          </button>
-          <button class="ghost top-btn" on:click={() => openSettings()} title="Settings">
-            <Settings size={14} />
-          </button>
-        </div>
+        <TopBarActions
+          on:scripts={() => (showScripts = true)}
+          on:audit={() => (showAuditLog = true)}
+          on:knownHosts={() => (showKnownHosts = true)}
+          on:peerTrust={() => (showPeerTrust = true)}
+          on:keys={() => (showKeyManager = true)}
+          on:plugins={() => (showPlugins = true)}
+          on:settings={() => openSettings()}
+        />
       </div>
       <div class="session-area">
         {#if $sessions.length === 0}
@@ -275,6 +267,7 @@
     on:openSettings={(e) => openSettingsFromAudit(e.detail.tab)}
   />
   <SettingsDialog bind:show={showSettings} initialTab={settingsInitialTab} />
+  <PluginsDialog bind:show={showPlugins} />
   <ScriptsDialog bind:show={showScripts} />
   <PluginCommandPalette bind:this={commandPalette} />
   <PeerTrustPrompt />
@@ -351,21 +344,6 @@
   .top-bar-spacer {
     flex: 1;
     min-width: 0;
-  }
-  .top-bar-actions {
-    display: flex;
-    align-items: center;
-    padding: 0 4px;
-    gap: 1px;
-    flex-shrink: 0;
-  }
-
-  .top-btn {
-    padding: 4px 6px;
-    border-radius: 2px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
   }
 
   .session-area {
