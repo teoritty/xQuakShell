@@ -547,6 +547,10 @@ func (a *App) ReleasePluginViewPanel(token string) {
 	a.api.ReleasePluginViewPanel(token)
 }
 
+func (a *App) ListPluginSources() ([]presentation.PluginSourceDTO, error) {
+	return a.api.ListPluginSources()
+}
+
 func (a *App) ListGitHubRepositories() ([]presentation.GitHubRepositoryDTO, error) {
 	return a.api.ListGitHubRepositories()
 }

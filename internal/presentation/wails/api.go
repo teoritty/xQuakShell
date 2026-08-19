@@ -41,6 +41,7 @@ type AppAPI struct {
 	viewRelay                   *usecase.PluginViewRelay
 	githubRepoService           *usecase.GitHubRepositoryService
 	githubPluginService         *usecase.GitHubPluginService
+	pluginCatalog               *usecase.PluginCatalogService
 	pluginVaultGrant            func(pluginID string) error
 	pluginAuthGrant             func(pluginID string) error
 	pluginTunnelGrant           func(pluginID string) error
@@ -241,6 +242,16 @@ func (a *AppAPI) OnEmbedReady(desc domain.SessionEmbedDescriptor) {
 func (a *AppAPI) SetGitHubServices(repoSvc *usecase.GitHubRepositoryService, pluginSvc *usecase.GitHubPluginService) {
 	a.githubRepoService = repoSvc
 	a.githubPluginService = pluginSvc
+}
+
+// SetPluginCatalog wires the source-aware catalog router.
+//
+// It is set separately from SetGitHubServices rather than added to it: the catalog outlives the
+// forge services conceptually - it is what a second, non-forge source is reached through - and
+// bundling the two would make the marketplace's availability depend on GitHub storage having
+// opened successfully.
+func (a *AppAPI) SetPluginCatalog(catalog *usecase.PluginCatalogService) {
+	a.pluginCatalog = catalog
 }
 
 // SetPluginManager wires the plugin manager for handler delegation.
