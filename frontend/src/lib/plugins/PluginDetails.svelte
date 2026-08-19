@@ -14,7 +14,12 @@
   $: releases = plugin?.availableReleases ?? [];
 </script>
 
-<Modal title={plugin?.name || 'Plugin'} {show} on:close={() => dispatch('close')}>
+<Modal
+  title={plugin?.name || 'Plugin'}
+  {show}
+  contentClass="plugin-details-modal"
+  on:close={() => dispatch('close')}
+>
   {#if plugin}
     <div class="details">
       <dl class="facts">
