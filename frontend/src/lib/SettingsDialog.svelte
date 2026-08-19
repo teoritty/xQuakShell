@@ -2,7 +2,6 @@
   import { onDestroy, onMount } from 'svelte';
   import Modal from './Modal.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
-  import PluginSettingsPanel from './PluginSettingsPanel.svelte';
   import { CONFLICT_ACTIONS } from './transfer/conflictActions';
   import { getSettings, saveSettings } from '../actions/settingsActions';
   import { DEFAULT_SESSION_HOTKEYS } from '../api/settings';
@@ -36,7 +35,6 @@
     Keyboard,
     FileText,
     Search,
-    Puzzle,
   } from 'lucide-svelte';
 
   export let show = false;
@@ -120,7 +118,6 @@
     { id: 'files', label: 'Files', icon: FileEdit },
     { id: 'hotkeys', label: 'Hotkeys', icon: Keyboard },
     { id: 'network', label: 'Network', icon: Wifi },
-    { id: 'plugins', label: 'Plugins', icon: Puzzle },
     { id: 'security', label: 'Security', icon: Shield },
   ];
 
@@ -129,9 +126,6 @@
   $: visibleTabs = isSearching
     ? tabs.filter((tab) => tabHasSearchMatches(tab.id, searchQuery))
     : tabs;
-  $: showSaveButton = !(!isSearching && activeTab === 'plugins');
-
-  let pluginsAdvancedMode = false;
 
   let settingsWasOpen = false;
   $: if (show && !settingsWasOpen) {
@@ -278,7 +272,6 @@
 
   function closeSettings() {
     applyUiScalePercent(uiScaleAtOpen);
-    pluginsAdvancedMode = false;
     show = false;
   }
 
@@ -696,33 +689,17 @@
             </div>
           {/if}
 
-          {#if isSearching ? shouldShowSettingsSection('plugins', 'manage', searchViewState) : activeTab === 'plugins'}
-            {#if sectionTabLabel('plugins', 'manage')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.plugins}</div>
-            {/if}
-            <PluginSettingsPanel showAdvanced={pluginsAdvancedMode} />
-          {/if}
         {/if}
       </div>
     </div>
 
     <div class="settings-footer">
-      <div class="settings-footer-left">
-        {#if !isSearching && activeTab === 'plugins'}
-          <label class="advanced-toggle">
-            <input type="checkbox" bind:checked={pluginsAdvancedMode} />
-            Advanced
-          </label>
-        {/if}
-      </div>
       <div class="settings-footer-actions">
         <button class="secondary" on:click={closeSettings}>Cancel</button>
-        {#if showSaveButton}
-          <button class="primary" on:click={handleSave} disabled={saving}>
-            <Save size={13} />
-            {saving ? 'Saving...' : 'Save'}
-          </button>
-        {/if}
+        <button class="primary" on:click={handleSave} disabled={saving}>
+          <Save size={13} />
+          {saving ? 'Saving...' : 'Save'}
+        </button>
       </div>
     </div>
   </Modal>
@@ -910,23 +887,11 @@
     padding: 10px 16px;
     border-top: 1px solid var(--border-color);
   }
-  .settings-footer-left {
-    min-width: 0;
-  }
   .settings-footer-actions {
     display: flex;
     justify-content: flex-end;
     gap: 6px;
     margin-left: auto;
-  }
-  .advanced-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    user-select: none;
   }
   .settings-footer button {
     padding: 4px 14px;

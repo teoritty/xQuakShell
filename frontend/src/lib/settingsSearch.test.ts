@@ -23,12 +23,28 @@ assert(
   `the terminal font section belongs to appearance, not '${fontSections[0].tabId}'`,
 );
 
+// Both removed tabs are asserted the same way: a label with no sections behind it renders an
+// empty tab, and a section with no label crashes the header that reads SETTINGS_TAB_LABELS[tabId].
 const tabIds = new Set<string>(SETTINGS_SECTION_INDEX.map((s) => s.tabId));
-assert(!tabIds.has('terminal'), 'no section may still claim the removed terminal tab');
-assert(
-  !Object.prototype.hasOwnProperty.call(SETTINGS_TAB_LABELS, 'terminal'),
-  'the terminal tab label must be gone, or the tab renders with no sections behind it',
-);
+for (const gone of ['terminal', 'plugins']) {
+  assert(!tabIds.has(gone), `no section may still claim the removed ${gone} tab`);
+  assert(
+    !Object.prototype.hasOwnProperty.call(SETTINGS_TAB_LABELS, gone),
+    `the ${gone} tab label must be gone, or the tab renders with no sections behind it`,
+  );
+}
+
+// Every remaining label has sections, and every section has a label. Either half failing is a tab
+// the user can select and find empty.
+for (const tabId of Object.keys(SETTINGS_TAB_LABELS)) {
+  assert(tabIds.has(tabId), `tab '${tabId}' is labelled but has no sections`);
+}
+for (const tabId of tabIds) {
+  assert(
+    Object.prototype.hasOwnProperty.call(SETTINGS_TAB_LABELS, tabId),
+    `sections claim tab '${tabId}', which has no label`,
+  );
+}
 
 // --- searching: the old word still finds the moved section ---
 

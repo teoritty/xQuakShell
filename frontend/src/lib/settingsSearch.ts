@@ -5,7 +5,6 @@ export type SettingsTabId =
   | 'files'
   | 'hotkeys'
   | 'network'
-  | 'plugins'
   | 'security';
 
 export interface SettingsSectionIndex {
@@ -117,11 +116,6 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
     terms: ['File Transfer', 'Speed limit', 'Connection timeout', 'Max concurrent transfers'],
   },
   {
-    tabId: 'plugins',
-    sectionId: 'manage',
-    terms: ['Plugins', 'Install plugin', 'Extension', 'Verified', 'Permissions'],
-  },
-  {
     tabId: 'security',
     sectionId: 'lockout',
     terms: [
@@ -141,7 +135,6 @@ export const SETTINGS_TAB_LABELS: Record<SettingsTabId, string> = {
   files: 'Files',
   hotkeys: 'Hotkeys',
   network: 'Network',
-  plugins: 'Plugins',
   security: 'Security',
 };
 

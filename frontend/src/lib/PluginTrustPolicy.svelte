@@ -1,10 +1,7 @@
 <script lang="ts">
-  // The plugin trust policy, lifted out of PluginSettingsPanel.
-  //
-  // It moved because the panel is at its size budget and the sandbox toggle below had nowhere to
-  // go, but it belongs here on its own merits: nothing else in the panel reads any of this state,
-  // and every one of these controls answers the same question — how much is this installation
-  // willing to trust a plugin before it runs.
+  // The plugin trust policy: every control here answers one question — how much is this
+  // installation willing to trust a plugin before it runs. Nothing else on the Plugins screen
+  // reads any of this state, which is why it is a component and not a section of one.
   import { onMount } from 'svelte';
   import {
     getPluginSettings,
@@ -13,8 +10,8 @@
     type PluginSettings,
   } from '../api/plugins';
 
-  // onError hands failures back to the panel, which owns the one place errors are shown. A second
-  // error line inside this box would be a worse UI than the one it replaced.
+  // onError hands failures up to the screen, which owns the one place errors are shown. A second
+  // error line inside this box would compete with that one for the user's attention.
   export let onError: (message: string) => void = () => {};
 
   let settings: PluginSettings = { trustedPublisherKeys: [], requireSignedPlugins: false, allowUnsandboxedFallback: false };
