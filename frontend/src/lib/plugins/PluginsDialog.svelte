@@ -2,9 +2,9 @@
   // The Plugins screen: rail on the left, one section on the right, and the dialogs that overlay
   // both. It owns the screen's data and routes events; every rendering decision belongs to a
   // section, and every multi-RPC sequence to actions/pluginsActions.
-  import { MoreHorizontal, Search } from 'lucide-svelte';
   import Modal from '../Modal.svelte';
   import ConfirmDialog from '../ConfirmDialog.svelte';
+  import PluginsToolbar from './PluginsToolbar.svelte';
   import InstalledSection from './InstalledSection.svelte';
   import BrowseSection from './BrowseSection.svelte';
   import SourcesSection from './SourcesSection.svelte';
@@ -31,7 +31,6 @@
 
   let section: PluginsSectionId = 'installed';
   let query = '';
-  let menuOpen = false;
   let errorMessage = '';
   let busy = false;
   let busyPluginId = '';
@@ -49,6 +48,7 @@
   let detailsPlugin: GitHubPluginMetadata | null = null;
   let detailsSource: PluginSourceDTO | null = null;
   let uninstallTarget: PluginInfo | null = null;
+  let uninstallRemoveData = false;
 
   let loadedOnce = false;
   $: if (show && !loadedOnce) {
@@ -115,9 +115,15 @@
   const ping = (plugin: PluginInfo) =>
     withPluginBusy(plugin.id, () => pingPlugin(plugin.id));
 
-  async function confirmUninstall(removeData: boolean) {
-    const target = uninstallTarget;
+  function closeUninstall() {
     uninstallTarget = null;
+    uninstallRemoveData = false;
+  }
+
+  async function confirmUninstall() {
+    const target = uninstallTarget;
+    const removeData = uninstallRemoveData;
+    closeUninstall();
     if (!target) return;
     await withPluginBusy(target.id, async () => {
       plugins = await removePlugin(target.id, removeData);
@@ -126,7 +132,6 @@
   }
 
   async function pickAndInstall(pick: () => Promise<string>) {
-    menuOpen = false;
     const path = await pick();
     if (path) await installFlow.fromPath(path);
   }
@@ -136,9 +141,13 @@
     try {
       await addGitHubRepository(url, trusted);
       addSourceOpen = false;
+      const before = new Set(sources.map((s) => s.id));
       sources = await listPluginSources();
-      const added = sources.find((s) => s.id.endsWith(url.replace(/^https?:\/\//, '')));
-      if (added) await refreshSource(added, true);
+      // The backend normalises the URL it stores, so the typed string is not a key. Whichever
+      // source is new is the one to fetch - matching on the raw input would miss a repository
+      // registered as https://github.com/o/r after the user typed "o/r".
+      const added = sources.filter((s) => !before.has(s.id));
+      await Promise.all(added.map((s) => refreshSource(s, true)));
     } catch (e) {
       fail(e instanceof Error ? e.message : 'Failed to add repository');
     } finally {
@@ -160,38 +169,12 @@
 </script>
 
 <Modal title="Plugins" {show} contentClass="plugins-modal" on:close={() => (show = false)}>
-  <div class="plugins-toolbar">
-    <div class="search-box">
-      <Search size={13} />
-      <input type="text" placeholder="Search plugins…" bind:value={query} />
-    </div>
-    <div class="menu-wrap">
-      <button class="ghost icon-btn" title="More actions" on:click={() => (menuOpen = !menuOpen)}>
-        <MoreHorizontal size={15} />
-      </button>
-      {#if menuOpen}
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="menu" on:mouseleave={() => (menuOpen = false)}>
-          <button class="menu-item" on:click={() => pickAndInstall(selectPluginSourceDir)}>
-            Install from folder…
-          </button>
-          <button class="menu-item" on:click={() => pickAndInstall(selectPluginBundleFile)}>
-            Install from bundle…
-          </button>
-          <div class="menu-sep"></div>
-          <button
-            class="menu-item"
-            on:click={() => {
-              menuOpen = false;
-              void Promise.all(sources.map((s) => refreshSource(s, true)));
-            }}
-          >
-            Refresh all sources
-          </button>
-        </div>
-      {/if}
-    </div>
-  </div>
+  <PluginsToolbar
+    bind:query
+    on:installFolder={() => pickAndInstall(selectPluginSourceDir)}
+    on:installBundle={() => pickAndInstall(selectPluginBundleFile)}
+    on:refreshAll={() => void Promise.all(sources.map((s) => refreshSource(s, true)))}
+  />
 
   {#if errorMessage}
     <div class="screen-error">
@@ -280,87 +263,25 @@
   on:add={(e) => addSource(e.detail.url, e.detail.trusted)}
 />
 
+<!-- The "delete data" choice rides in ConfirmDialog's body slot rather than its requireCheckbox
+     prop: that prop is a gate on the confirm button (tick to proceed), and its confirm event
+     carries no detail, so an optional answer cannot travel that way. -->
 <ConfirmDialog
   show={uninstallTarget !== null}
   critical={true}
   title="Uninstall plugin"
   message={`Remove ${uninstallTarget?.name ?? ''}?`}
-  requireCheckbox={false}
-  checkboxLabel="Also delete this plugin's stored data"
   confirmLabel="Uninstall"
-  on:cancel={() => (uninstallTarget = null)}
-  on:confirm={(e) => confirmUninstall(e.detail?.checked === true)}
-/>
+  on:cancel={closeUninstall}
+  on:confirm={confirmUninstall}
+>
+  <label slot="body" class="remove-data">
+    <input type="checkbox" bind:checked={uninstallRemoveData} />
+    Also delete this plugin's stored data
+  </label>
+</ConfirmDialog>
 
 <style>
-  .plugins-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-  }
-
-  .search-box {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex: 1;
-    padding: 4px 8px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-  }
-
-  .search-box input {
-    flex: 1;
-    border: none;
-    background: transparent;
-    outline: none;
-    font-size: 12px;
-    color: var(--text);
-  }
-
-  .menu-wrap {
-    position: relative;
-  }
-
-  .menu {
-    position: absolute;
-    right: 0;
-    top: calc(100% + 4px);
-    z-index: 10;
-    min-width: 190px;
-    padding: 4px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-elevated, var(--bg-secondary));
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
-  }
-
-  .menu-item {
-    display: block;
-    width: 100%;
-    padding: 6px 9px;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    color: inherit;
-    font-size: 12px;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .menu-item:hover {
-    background: var(--bg-hover, rgba(255, 255, 255, 0.06));
-  }
-
-  .menu-sep {
-    height: 1px;
-    margin: 4px 2px;
-    background: var(--border);
-  }
-
   .screen-error {
     display: flex;
     align-items: center;
@@ -439,9 +360,12 @@
     color: var(--text-secondary);
   }
 
-  .icon-btn {
-    display: inline-flex;
+  .remove-data {
+    display: flex;
     align-items: center;
-    padding: 4px;
+    gap: 7px;
+    margin-top: 8px;
+    font-size: 12px;
+    cursor: pointer;
   }
 </style>
