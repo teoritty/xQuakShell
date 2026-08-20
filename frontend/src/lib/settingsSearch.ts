@@ -126,6 +126,22 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
       'Lock when application is minimized',
     ],
   },
+  {
+    // 'Plugins' is in the terms because this is where someone searching for plugin settings now
+    // lands: the Plugins screen no longer has a Security page for them to find it on.
+    tabId: 'security',
+    sectionId: 'plugins',
+    terms: [
+      'Security',
+      'Plugins',
+      'Plugin trust policy',
+      'Require signed plugins from trusted publishers',
+      'Trusted publisher keys',
+      'Ed25519',
+      'Sandbox',
+      'Start a plugin unconfined',
+    ],
+  },
 ];
 
 export const SETTINGS_TAB_LABELS: Record<SettingsTabId, string> = {

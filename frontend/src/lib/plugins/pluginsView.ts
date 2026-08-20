@@ -4,19 +4,15 @@ import type { PluginInfo } from '../../api/plugins';
 import type { GitHubPluginMetadata } from '../../api/githubPlugins';
 import type { PluginSourceDTO } from '../../api/pluginSources';
 
-export type PluginsSectionId =
-  | 'installed'
-  | 'browse'
-  | 'sources'
-  | 'marketplace'
-  | 'security';
+// The trust policy is deliberately absent: it lives in Settings → Security, with the lockout and
+// the rest of the installation-wide policy, rather than in a screen about individual plugins.
+export type PluginsSectionId = 'installed' | 'browse' | 'sources' | 'marketplace';
 
 export const PLUGINS_SECTION_ORDER: PluginsSectionId[] = [
   'installed',
   'browse',
   'sources',
   'marketplace',
-  'security',
 ];
 
 export const PLUGINS_SECTION_LABELS: Record<PluginsSectionId, string> = {
@@ -24,7 +20,6 @@ export const PLUGINS_SECTION_LABELS: Record<PluginsSectionId, string> = {
   browse: 'Browse',
   sources: 'Sources',
   marketplace: 'Marketplace',
-  security: 'Security',
 };
 
 export interface RailItem {
@@ -45,9 +40,10 @@ export interface RailCounts {
 /**
  * Builds the left rail.
  *
- * Security carries no count on purpose: a number next to it would be read as a count of problems,
- * and it is a count of trusted keys. Installed carries an alert dot instead of folding the
- * attention count into its badge - "4" and "4, one of which is broken" must not look the same.
+ * Installed carries an alert dot instead of folding the attention count into its badge - "4" and
+ * "4, one of which is broken" must not look the same. Browse and Marketplace carry no count: what
+ * they hold is a remote answer that may not have arrived, and a badge would report a fetch state
+ * as a quantity.
  */
 export function buildRail(counts: RailCounts): RailItem[] {
   return PLUGINS_SECTION_ORDER.map((id) => ({
@@ -184,10 +180,6 @@ export function sandboxSummary(mode: string | undefined): SandboxSummary | null 
  */
 export function forgeSources(sources: PluginSourceDTO[]): PluginSourceDTO[] {
   return sources.filter((s) => s.kind === 'forge');
-}
-
-export function marketplaceSource(sources: PluginSourceDTO[]): PluginSourceDTO | null {
-  return sources.find((s) => s.kind === 'marketplace') ?? null;
 }
 
 export interface SourceStatus {

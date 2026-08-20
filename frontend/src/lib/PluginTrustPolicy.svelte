@@ -1,7 +1,8 @@
 <script lang="ts">
   // The plugin trust policy: every control here answers one question — how much is this
-  // installation willing to trust a plugin before it runs. Nothing else on the Plugins screen
-  // reads any of this state, which is why it is a component and not a section of one.
+  // installation willing to trust a plugin before it runs. Nothing else in Settings reads any of
+  // this state, and it saves on its own rather than through the dialog's Save button, which is why
+  // it is a component and not inline markup.
   import { onMount } from 'svelte';
   import {
     getPluginSettings,
@@ -101,9 +102,9 @@
   }
 </script>
 
+<!-- No heading and no box of its own: this is the body of a Settings section, which supplies both.
+     A second border inside the section's own divider read as a card that had lost its list. -->
 <div class="trust-panel">
-  <h4>Trust policy</h4>
-
   {#if reauthPrompt}
     <div class="reauth" role="group" aria-label="Confirm trust change">
       <p class="reauth-text">
@@ -168,8 +169,7 @@
 </div>
 
 <style>
-  .trust-panel { border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
-  .trust-panel h4 { margin: 0; font-size: 12px; }
+  .trust-panel { display: flex; flex-direction: column; gap: 9px; }
   .reauth { border: 1px solid var(--accent); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
   .reauth-text { margin: 0; font-size: 12px; line-height: 1.4; }
   .reauth-error { margin: 0; font-size: 11px; color: var(--error-color, #e06c75); }

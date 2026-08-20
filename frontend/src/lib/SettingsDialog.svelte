@@ -7,6 +7,8 @@
   import { DEFAULT_SESSION_HOTKEYS } from '../api/settings';
   import { parseHotkeyEvent, normalizeHotkey } from '../hotkeys/hotkeys';
   import AboutSection from './settings/AboutSection.svelte';
+  import PluginTrustSection from './settings/PluginTrustSection.svelte';
+  import { TERMINAL_FONT_STACKS } from './settings/terminalFonts';
   import {
     getAuditSessionState,
     enableAuditSecretLogging,
@@ -57,21 +59,6 @@
   let uiScalePercent = DEFAULT_UI_SCALE_PERCENT;
   let uiScaleAtOpen = DEFAULT_UI_SCALE_PERCENT;
 
-  const monoFonts = [
-    'Cascadia Code, Consolas, Courier New, monospace',
-    'Consolas, Courier New, monospace',
-    'Courier New, monospace',
-    'Fira Code, monospace',
-    'JetBrains Mono, monospace',
-    'Source Code Pro, monospace',
-    'Ubuntu Mono, monospace',
-    'Hack, monospace',
-    'Inconsolata, monospace',
-    'Menlo, Monaco, monospace',
-    'SF Mono, monospace',
-    'IBM Plex Mono, monospace',
-    'Roboto Mono, monospace',
-  ];
   let pingEnabled = true;
   let pingMode = 'interval';
   let pingIntervalSeconds = 5;
@@ -433,7 +420,7 @@
               <label class="setting-row">
                 <span>Font family</span>
                 <select bind:value={terminalFontFamily}>
-                  {#each monoFonts as font}
+                  {#each TERMINAL_FONT_STACKS as font}
                     <option value={font} style="font-family: {font}">{font.split(',')[0].trim()}</option>
                   {/each}
                 </select>
@@ -687,6 +674,13 @@
                 Lock when application is minimized
               </label>
             </div>
+          {/if}
+
+          {#if isSearching ? shouldShowSettingsSection('security', 'plugins', searchViewState) : activeTab === 'security'}
+            {#if sectionTabLabel('security', 'plugins')}
+              <div class="section-tab-label">{SETTINGS_TAB_LABELS.security}</div>
+            {/if}
+            <PluginTrustSection />
           {/if}
 
         {/if}

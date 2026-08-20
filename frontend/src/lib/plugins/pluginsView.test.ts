@@ -17,7 +17,6 @@ import {
   forgeSources,
   groupInstalled,
   hasUpdate,
-  marketplaceSource,
   matchesQuery,
   pluginRunState,
   sandboxSummary,
@@ -155,14 +154,17 @@ assert(sandboxSummary(undefined) === null, 'a plugin that is not running has no 
 // --- rail ---
 
 const rail = buildRail({ installed: 4, sources: 3, needsAttention: 1 });
-assert(rail.length === 5, `rail has ${rail.length} items, want 5`);
+assert(rail.length === 4, `rail has ${rail.length} items, want 4`);
 assert(rail[0].id === 'installed' && rail[0].count === 4, 'Installed carries its count');
 assert(rail[0].alert === true, 'Installed shows the alert dot when something needs attention');
 assert(rail[2].id === 'sources' && rail[2].count === 3, 'Sources carries its count');
-assert(rail[3].id === 'marketplace', 'the marketplace is its own destination');
 assert(
-  rail[4].id === 'security' && rail[4].count === undefined,
-  'Security carries no count: a number there reads as problems, not as trusted keys',
+  rail[3].id === 'marketplace' && rail[3].count === undefined,
+  'the marketplace is its own destination and carries no count',
+);
+assert(
+  rail.map((item) => item.id).join(',') === 'installed,browse,sources,marketplace',
+  'the rail is those four sections; the trust policy lives in Settings, not here',
 );
 assert(
   buildRail({ installed: 4, sources: 3, needsAttention: 0 })[0].alert === false,
@@ -189,8 +191,6 @@ assert(
   forgeSources(all).every((s) => s.kind === 'forge'),
   'the marketplace never reaches a list whose trust, refresh and remove controls are inert on it',
 );
-assert(marketplaceSource(all)?.id === market.id, 'the marketplace is found for its own page');
-assert(marketplaceSource([source()]) === null, 'and is null when the backend did not send it');
 
 // --- source status ---
 

@@ -9,7 +9,6 @@
   import BrowseSection from './BrowseSection.svelte';
   import SourcesSection from './SourcesSection.svelte';
   import MarketplaceSection from './MarketplaceSection.svelte';
-  import SecuritySection from './SecuritySection.svelte';
   import PluginDetails from './PluginDetails.svelte';
   import AddSourceDialog from './AddSourceDialog.svelte';
   import InstallFlow from './InstallFlow.svelte';
@@ -17,10 +16,9 @@
     buildRail,
     countNeedsAttention,
     forgeSources,
-    marketplaceSource,
     type PluginsSectionId,
   } from './pluginsView';
-  import { Boxes, Compass, GitBranch, Store, ShieldCheck } from 'lucide-svelte';
+  import { Boxes, Compass, GitBranch, Store } from 'lucide-svelte';
   import {
     fetchSourceCatalog,
     loadPluginsScreen,
@@ -70,7 +68,6 @@
     browse: Compass,
     sources: GitBranch,
     marketplace: Store,
-    security: ShieldCheck,
   };
 
   $: rail = buildRail({
@@ -78,7 +75,6 @@
     sources: forgeSources(sources).length,
     needsAttention: countNeedsAttention(plugins),
   });
-  $: market = marketplaceSource(sources);
 
   function fail(message: string) {
     errorMessage = message;
@@ -265,10 +261,8 @@
             mutateSource(() => setGitHubRepositoryTrust(e.detail.source.id, e.detail.trusted))}
           on:removeSource={(e) => mutateSource(() => removeGitHubRepository(e.detail.source.id))}
         />
-      {:else if section === 'marketplace'}
-        <MarketplaceSection source={market} on:goToSources={() => (section = 'sources')} />
       {:else}
-        <SecuritySection onError={fail} />
+        <MarketplaceSection />
       {/if}
     </div>
   </div>
