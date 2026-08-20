@@ -1,6 +1,11 @@
 <script lang="ts">
+  // Every string here is under the security namespace, which a language pack on disk may translate
+  // for a new language but may never override for one that ships translated. This is the dialog
+  // that stands between a user and a forged server, and a pack able to reword "the host key has
+  // changed" into a reassurance would be a way to talk them through accepting it.
   import { createEventDispatcher } from 'svelte';
   import Modal from './Modal.svelte';
+  import { t } from '../i18n/messages';
 
   export let show = false;
   export let host = '';
@@ -13,54 +18,53 @@
 </script>
 
 <Modal
-  title={isMismatch ? 'Host Key Mismatch' : 'Unknown Host Key'}
+  title={isMismatch ? $t('security.hostkey.mismatch.title') : $t('security.hostkey.unknown.title')}
   {show}
   on:close={() => dispatch('cancel')}
 >
   {#if isMismatch}
     <div class="hk-warning">
-      <strong>WARNING:</strong> The host key for <code>{host}</code> has changed!
-      This could indicate a man-in-the-middle attack or that the server was reinstalled.
-      Only proceed if you are sure this change is expected.
+      <strong>{$t('security.hostkey.mismatch.label')}</strong>
+      {$t('security.hostkey.mismatch.body', { host })}
     </div>
   {:else}
     <div class="hk-info">
-      The authenticity of host <code>{host}</code> cannot be established.
+      {$t('security.hostkey.unknown.body', { host })}
     </div>
   {/if}
 
   <div class="hk-details">
     <div class="hk-row">
-      <span class="hk-label">Host:</span>
+      <span class="hk-label">{$t('security.hostkey.field.host')}</span>
       <span class="hk-value">{host}</span>
     </div>
     <div class="hk-row">
-      <span class="hk-label">Key type:</span>
+      <span class="hk-label">{$t('security.hostkey.field.keyType')}</span>
       <span class="hk-value">{keyType}</span>
     </div>
     <div class="hk-row">
-      <span class="hk-label">Fingerprint:</span>
+      <span class="hk-label">{$t('security.hostkey.field.fingerprint')}</span>
       <span class="hk-value hk-fp">{fingerprint}</span>
     </div>
   </div>
 
   <div class="hk-question">
     {#if isMismatch}
-      Do you want to <strong>replace</strong> the existing key with this new one?
+      {$t('security.hostkey.mismatch.question')}
     {:else}
-      Are you sure you want to continue connecting and add this key to known hosts?
+      {$t('security.hostkey.unknown.question')}
     {/if}
   </div>
 
   <div class="hk-actions">
     <button on:click={() => dispatch('accept')}>
       {#if isMismatch}
-        Replace Key
+        {$t('security.hostkey.mismatch.accept')}
       {:else}
-        Add to Known Hosts
+        {$t('security.hostkey.unknown.accept')}
       {/if}
     </button>
-    <button class="secondary" on:click={() => dispatch('cancel')}>Cancel</button>
+    <button class="secondary" on:click={() => dispatch('cancel')}>{$t('security.hostkey.cancel')}</button>
   </div>
 </Modal>
 
@@ -116,14 +120,6 @@
   .hk-fp {
     font-family: var(--font-mono);
     font-size: 11px;
-  }
-
-  code {
-    background: var(--bg-input);
-    padding: 1px 4px;
-    border-radius: 2px;
-    font-family: var(--font-mono);
-    font-size: 12px;
   }
 
   .hk-error {

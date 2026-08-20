@@ -8,6 +8,7 @@
   import { createEventDispatcher } from 'svelte';
   import { AlertTriangle, ShieldAlert } from 'lucide-svelte';
   import Modal from '../Modal.svelte';
+  import { t } from '../../i18n/messages';
   import {
     allConsentsGiven,
     NO_CONSENTS,
@@ -17,7 +18,7 @@
   } from './installConsent';
 
   export let show = false;
-  export let title = 'Install plugin';
+  export let title = '';
   /** Lines describing what is being installed: name, version, release tag. */
   export let summary: string[] = [];
   export let consents: ConsentItem[] = [];
@@ -44,7 +45,7 @@
   }
 </script>
 
-<Modal {title} {show} on:close={() => dispatch('cancel')}>
+<Modal title={title || $t('plugins.install.title')} {show} on:close={() => dispatch('cancel')}>
   <div class="consent-body">
     {#if originWarning}
       <div class="banner caution">
@@ -62,13 +63,13 @@
     {#each warnings as warning}
       <div class="banner" class:critical={warning.severity === 'critical'} class:caution={warning.severity === 'caution'}>
         <AlertTriangle size={14} />
-        <span>{warning.text}</span>
+        <span>{warning.textKey ? $t(warning.textKey, warning.vars) : warning.text}</span>
       </div>
     {/each}
 
     {#if consents.length}
       <div class="consent-list">
-        <div class="consent-title">This plugin asks for:</div>
+        <div class="consent-title">{$t('security.plugin.consent.title')}</div>
         {#each consents as item (item.key)}
           <label class="consent-row">
             <input
@@ -77,8 +78,8 @@
               on:change={(e) => toggle(item.key, e.currentTarget.checked)}
             />
             <span class="consent-text">
-              <span class="consent-label">{item.label}</span>
-              <span class="consent-detail">{item.detail}</span>
+              <span class="consent-label">{$t(item.labelKey)}</span>
+              <span class="consent-detail">{$t(item.detailKey)}</span>
             </span>
           </label>
         {/each}
@@ -94,9 +95,11 @@
   </div>
 
   <div class="dialog-actions">
-    <button class="secondary" disabled={busy} on:click={() => dispatch('cancel')}>Cancel</button>
+    <button class="secondary" disabled={busy} on:click={() => dispatch('cancel')}>
+      {$t('common.cancel')}
+    </button>
     <button class="primary" disabled={!ready || busy} on:click={() => dispatch('confirm', { answers })}>
-      {busy ? 'Installing…' : 'Install'}
+      {busy ? $t('plugins.install.busy') : $t('plugins.install.confirm')}
     </button>
   </div>
 </Modal>

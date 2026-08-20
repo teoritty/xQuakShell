@@ -7,7 +7,7 @@
   import { createEventDispatcher } from 'svelte';
   import InstallConsentDialog from './InstallConsentDialog.svelte';
   import {
-    LOCAL_INSTALL_WARNING,
+    LOCAL_INSTALL_WARNING_KEY,
     localTrustWarnings,
     requiredConsents,
     sourceTrustWarnings,
@@ -15,6 +15,7 @@
     type ConsentItem,
     type TrustWarning,
   } from './installConsent';
+  import { t } from '../../i18n/messages';
   import { installFromPath, installFromSource } from '../../actions/pluginsActions';
   import { previewPluginInstall } from '../../api/plugins';
   import { previewGitHubPluginInstall } from '../../api/githubPlugins';
@@ -82,7 +83,7 @@
       summary = [preview.name, `Version: ${preview.version}`, path];
       consents = requiredConsents(preview);
       warnings = localTrustWarnings(preview);
-      originWarning = LOCAL_INSTALL_WARNING;
+      originWarning = $t(LOCAL_INSTALL_WARNING_KEY);
       blockedReason = '';
       pending = { kind: 'path', path };
       open = true;

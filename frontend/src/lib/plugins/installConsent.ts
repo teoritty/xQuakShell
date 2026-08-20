@@ -33,35 +33,40 @@ export const NO_CONSENTS: ConsentAnswers = {
 
 export interface ConsentItem {
   key: ConsentKey;
-  label: string;
-  /** What the plugin can do once this is granted, in the user's terms rather than the API's. */
-  detail: string;
+  /**
+   * Message keys, not text. Both describe a permission the user is about to grant a third-party
+   * binary, so they live under the security namespace where a language pack on disk can translate
+   * them for a new language but never reword an existing one - "the plugin can ask the vault for
+   * your passwords" is exactly the sentence an attacker would want softened.
+   */
+  labelKey: string;
+  detailKey: string;
 }
 
 const CONSENT_CATALOGUE: Record<ConsentKey, Omit<ConsentItem, 'key'>> = {
   secret: {
-    label: 'Read stored secrets',
-    detail: 'The plugin can ask the vault for connection passwords and key passphrases.',
+    labelKey: 'security.plugin.consent.secret.label',
+    detailKey: 'security.plugin.consent.secret.detail',
   },
   auth: {
-    label: 'Act as an authentication provider',
-    detail: 'The plugin can answer SSH authentication challenges on your behalf.',
+    labelKey: 'security.plugin.consent.auth.label',
+    detailKey: 'security.plugin.consent.auth.detail',
   },
   tunnel: {
-    label: 'Act as a tunnel provider',
-    detail: 'The plugin can carry session traffic, and therefore see it.',
+    labelKey: 'security.plugin.consent.tunnel.label',
+    detailKey: 'security.plugin.consent.tunnel.detail',
   },
   multiSession: {
-    label: 'Share one process across sessions',
-    detail: 'One plugin process serves every session, so a fault in it affects all of them.',
+    labelKey: 'security.plugin.consent.multiSession.label',
+    detailKey: 'security.plugin.consent.multiSession.detail',
   },
   network: {
-    label: 'Open arbitrary network connections',
-    detail: 'The plugin is not restricted to the hosts it declared. It can reach any address.',
+    labelKey: 'security.plugin.consent.network.label',
+    detailKey: 'security.plugin.consent.network.detail',
   },
   exec: {
-    label: 'Run commands over the exec channel',
-    detail: 'The plugin can execute commands on the remote host.',
+    labelKey: 'security.plugin.consent.exec.label',
+    detailKey: 'security.plugin.consent.exec.detail',
   },
 };
 
@@ -99,7 +104,15 @@ export function allConsentsGiven(required: ConsentItem[], answers: ConsentAnswer
 export interface TrustWarning {
   /** `critical` is reserved for a signature that exists and does not verify. */
   severity: 'critical' | 'caution';
-  text: string;
+  /**
+   * A message key under the security namespace, or - for `text` - a sentence the backend produced.
+   * Compatibility issues arrive already worded from Go and are shown as they came: they name
+   * capability versions, and inventing a translation for a string this layer cannot parse would be
+   * guessing at what the backend meant.
+   */
+  textKey?: string;
+  vars?: Record<string, string | number>;
+  text?: string;
 }
 
 /**
@@ -110,21 +123,12 @@ export function localTrustWarnings(preview: PluginInstallPreview | null): TrustW
   if (!preview) return [];
   const warnings: TrustWarning[] = [];
   if (preview.untrustedSignatureWarning) {
-    warnings.push({
-      severity: 'critical',
-      text: 'This plugin is signed by a key you do not trust.',
-    });
+    warnings.push({ severity: 'critical', textKey: 'security.plugin.warning.untrustedSignature' });
   } else if (preview.unsignedWarning) {
-    warnings.push({
-      severity: 'caution',
-      text: 'This plugin is not signed. Nothing proves who built it.',
-    });
+    warnings.push({ severity: 'caution', textKey: 'security.plugin.warning.unsigned' });
   }
   if (!preview.checksumPresent) {
-    warnings.push({
-      severity: 'caution',
-      text: 'No checksum accompanies this plugin, so its files cannot be verified.',
-    });
+    warnings.push({ severity: 'caution', textKey: 'security.plugin.warning.noChecksum' });
   }
   return warnings;
 }
@@ -133,21 +137,16 @@ export function sourceTrustWarnings(preview: GitHubPluginPreview | null): TrustW
   if (!preview) return [];
   const warnings: TrustWarning[] = [];
   if (preview.unsignedPlugin) {
-    warnings.push({
-      severity: 'caution',
-      text: 'This plugin is not signed. Nothing proves who built it.',
-    });
+    warnings.push({ severity: 'caution', textKey: 'security.plugin.warning.unsigned' });
   }
   if (preview.untrustedSource) {
-    warnings.push({
-      severity: 'critical',
-      text: 'This repository is not marked as trusted.',
-    });
+    warnings.push({ severity: 'critical', textKey: 'security.plugin.warning.untrustedSource' });
   }
   if (!preview.platformSupported) {
     warnings.push({
       severity: 'critical',
-      text: `No release asset targets ${preview.currentPlatform}.`,
+      textKey: 'security.plugin.warning.noAssetForPlatform',
+      vars: { platform: preview.currentPlatform },
     });
   }
   if (!preview.compatible) {
@@ -161,9 +160,7 @@ export function sourceTrustWarnings(preview: GitHubPluginPreview | null): TrustW
 /**
  * The banner shown before any install that did not come from a registered source.
  *
- * It is a constant rather than prose in a component so the same sentence appears wherever a local
+ * It is a key rather than prose in a component so the same sentence appears wherever a local
  * install can be started, including any entry point added later.
  */
-export const LOCAL_INSTALL_WARNING =
-  'Installing from a folder or bundle skips every source check: nothing verifies where these ' +
-  'files came from. Install only plugins you built yourself or obtained from someone you trust.';
+export const LOCAL_INSTALL_WARNING_KEY = 'security.plugin.warning.localInstall';

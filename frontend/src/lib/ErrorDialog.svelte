@@ -3,6 +3,7 @@
   import { Copy, ExternalLink } from 'lucide-svelte';
   import { lastError, clearError } from '../stores/appState';
   import { openNewIssue } from './projectLinks';
+  import { t } from '../i18n/messages';
 
   let copied = false;
 
@@ -34,7 +35,7 @@
 </script>
 
 {#if show && $lastError}
-  <Modal title="Error" show={true} on:close={clearError}>
+  <Modal title={$t('error.title')} show={true} on:close={clearError}>
     <div class="error-body">
       <div class="error-message">{$lastError.message}</div>
       {#if $lastError.details}
@@ -44,13 +45,13 @@
     <div class="error-actions">
       <button class="secondary" on:click={copyError}>
         <Copy size={13} />
-        {copied ? 'Copied' : 'Copy error'}
+        {copied ? $t('error.copied') : $t('error.copy')}
       </button>
       <button class="secondary" on:click={openIssue}>
         <ExternalLink size={13} />
-        Open issue on GitLab
+        {$t('error.openIssue')}
       </button>
-      <button class="primary" on:click={clearError}>Close</button>
+      <button class="primary" on:click={clearError}>{$t('common.close')}</button>
     </div>
   </Modal>
 {/if}

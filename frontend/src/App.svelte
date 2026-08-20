@@ -32,6 +32,7 @@
   import { parseHotkeyEvent } from './hotkeys/hotkeys';
   import { DEFAULT_SESSION_HOTKEYS } from './api/settings';
   import { Settings, MonitorDot } from 'lucide-svelte';
+  import { t } from './i18n/messages';
 
   let showKnownHosts = false;
   let showPeerTrust = false;
@@ -218,26 +219,26 @@
           <div class="welcome-screen">
             <h2>xQuakShell</h2>
             {#if $connections.length === 0}
-              <p class="welcome-subtitle">No connections yet. Create your first one to get started.</p>
+              <p class="welcome-subtitle">{$t('welcome.noConnections')}</p>
             {:else}
-              <p class="welcome-subtitle">Start a session from the sidebar or use global hotkeys.</p>
+              <p class="welcome-subtitle">{$t('welcome.startSession')}</p>
             {/if}
             <div class="welcome-actions">
               <button class="primary welcome-btn" on:click={() => createNewConnectionInFolder('')}>
                 <MonitorDot size={14} />
-                New connection
+                {$t('welcome.newConnection')}
               </button>
               <button class="ghost welcome-btn" on:click={() => openSettings()}>
                 <Settings size={14} />
-                Open settings
+                {$t('welcome.openSettings')}
               </button>
             </div>
             <div class="welcome-hints">
-              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.create)}</span> Create new session</div>
-              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.next)}</span> Next session tab</div>
-              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.prev)}</span> Previous session tab</div>
-              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.close)}</span> Close active session</div>
-              <div class="hint"><span class="hint-key">Ctrl+Shift+P</span> Command palette</div>
+              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.create)}</span> {$t('settings.hotkeys.field.create')}</div>
+              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.next)}</span> {$t('settings.hotkeys.field.next')}</div>
+              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.prev)}</span> {$t('settings.hotkeys.field.prev')}</div>
+              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.close)}</span> {$t('settings.hotkeys.field.close')}</div>
+              <div class="hint"><span class="hint-key">Ctrl+Shift+P</span> {$t('welcome.commandPalette')}</div>
             </div>
           </div>
         {:else}

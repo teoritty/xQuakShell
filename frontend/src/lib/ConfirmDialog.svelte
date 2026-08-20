@@ -1,15 +1,18 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { AlertTriangle, X } from 'lucide-svelte';
+  import { t } from '../i18n/messages';
 
   export let show = false;
-  export let title = 'Confirm';
-  export let message = 'Are you sure?';
+  // The defaults are resolved at render rather than here: a default evaluated once at module load
+  // would freeze the language the application happened to start in.
+  export let title = '';
+  export let message = '';
   export let critical = false;
   export let requireCheckbox = false;
   export let checkboxLabel = '';
-  export let confirmLabel = 'Delete';
-  export let cancelLabel = 'Cancel';
+  export let confirmLabel = '';
+  export let cancelLabel = '';
   export let confirmDisabled = false;
 
   const dispatch = createEventDispatcher();
@@ -40,12 +43,12 @@
       <div class="confirm-header">
         <span class="confirm-title">
           {#if critical}<AlertTriangle size={16} />{/if}
-          {title}
+          {title || $t('common.confirm.title')}
         </span>
         <button class="confirm-close" on:click={cancel}><X size={14} /></button>
       </div>
       <div class="confirm-body">
-        <p class="confirm-message">{message}</p>
+        <p class="confirm-message">{message || $t('common.confirm.message')}</p>
         <slot name="body" />
         {#if requireCheckbox}
           <label class="confirm-checkbox">
@@ -55,13 +58,13 @@
         {/if}
       </div>
       <div class="confirm-footer">
-        <button class="secondary" on:click={cancel}>{cancelLabel}</button>
+        <button class="secondary" on:click={cancel}>{cancelLabel || $t('common.cancel')}</button>
         <button
           class="danger"
           on:click={confirm}
           disabled={(requireCheckbox && !checked) || confirmDisabled}
         >
-          {confirmLabel}
+          {confirmLabel || $t('common.delete')}
         </button>
       </div>
     </div>
