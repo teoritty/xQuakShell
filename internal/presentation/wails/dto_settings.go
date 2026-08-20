@@ -25,6 +25,7 @@ type AppSettingsDTO struct {
 	TerminalFontSize            int    `json:"terminalFontSize"`
 	TerminalFontColor           string `json:"terminalFontColor"`
 	Theme                       string `json:"theme"`
+	Language                    string `json:"language"`
 	UIScalePercent              int    `json:"uiScalePercent"`
 	PingEnabled                 bool   `json:"pingEnabled"`
 	PingMode                    string `json:"pingMode"`
@@ -81,6 +82,7 @@ func AppSettingsToDTO(s domain.AppSettings) AppSettingsDTO {
 		TerminalFontSize:            s.Terminal.FontSize,
 		TerminalFontColor:           s.Terminal.FontColor,
 		Theme:                       s.Theme,
+		Language:                    s.Language,
 		UIScalePercent:              s.UIScalePercent,
 		PingEnabled:                 s.Ping.Enabled,
 		PingMode:                    s.Ping.Mode,
@@ -123,6 +125,7 @@ func DTOToAppSettings(dto AppSettingsDTO) domain.AppSettings {
 			FontColor:  dto.TerminalFontColor,
 		},
 		Theme:          dto.Theme,
+		Language:       dto.Language,
 		UIScalePercent: dto.UIScalePercent,
 		Ping: domain.PingSettings{
 			Enabled:         dto.PingEnabled,

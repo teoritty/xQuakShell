@@ -1,6 +1,9 @@
 package domain
 
-import "errors"
+import (
+	"errors"
+	"regexp"
+)
 
 // DefaultLocale is the language every other one falls back to, key by key. It is also what an
 // unset or unrecognised setting resolves to, so a vault carrying a language this build has never
@@ -18,9 +21,34 @@ const DefaultLocale = "en"
 // forged server. Keys under this prefix therefore come from the built-in packs only.
 const SecurityMessagePrefix = "security."
 
-// ErrLocaleCodeInvalid indicates a language code did not match the accepted shape. It is raised
-// before the code is ever joined into a path: a code is a filename component, and validating it
-// afterwards would mean a traversal attempt had already been built.
+// localeCodePattern is the whole of what a language code may look like: "en", "pt-BR". Nothing else.
+//
+// The code arrives from the settings vault and from the name of a file someone dropped next to the
+// executable, and it is used to build a path. An allowlist this narrow is what makes that safe:
+// "..", a separator, a NUL and a drive letter are all outside it, so a traversal attempt is
+// rejected as a malformed code before any path is joined rather than caught afterwards by a
+// containment check. The containment check still runs where the file is opened — this is the first
+// of two, not a replacement for the second.
+var localeCodePattern = regexp.MustCompile(`^[a-z]{2}(-[A-Z]{2})?$`)
+
+// ValidLocaleCode reports whether code is an acceptable language code.
+func ValidLocaleCode(code string) bool {
+	return localeCodePattern.MatchString(code)
+}
+
+// NormalizeLocaleCode returns the language to actually use for a requested one.
+//
+// An unrecognised code is not an error: the setting may have been written by a build that knows
+// more languages than this one, and the useful behaviour when opening such a vault is to show
+// English rather than to refuse.
+func NormalizeLocaleCode(code string) string {
+	if !ValidLocaleCode(code) {
+		return DefaultLocale
+	}
+	return code
+}
+
+// ErrLocaleCodeInvalid indicates a language code did not match the accepted shape.
 var ErrLocaleCodeInvalid = errors.New("invalid locale code")
 
 // ErrLocaleNotFound indicates no built-in or on-disk pack carries the requested language.

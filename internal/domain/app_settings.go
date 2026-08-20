@@ -113,6 +113,7 @@ type AppSettings struct {
 	Lockout            LockoutSettings        `json:"lockout"`
 	Terminal           TerminalSettings       `json:"terminal"`
 	Theme              string                 `json:"theme"`
+	Language           string                 `json:"language,omitempty"`
 	UIScalePercent     int                    `json:"uiScalePercent"`
 	Ping               PingSettings           `json:"ping"`
 	Transfer           TransferSettings       `json:"transfer"`

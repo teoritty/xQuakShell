@@ -51,7 +51,7 @@ func parsePack(data []byte) (domain.LocalePack, error) {
 		return domain.LocalePack{}, fmt.Errorf("decode locale pack: %w", err)
 	}
 
-	if !ValidCode(file.Code) {
+	if !domain.ValidLocaleCode(file.Code) {
 		return domain.LocalePack{}, fmt.Errorf("locale pack code %q: %w", file.Code, domain.ErrLocaleCodeInvalid)
 	}
 	if err := validateName(file.Name); err != nil {

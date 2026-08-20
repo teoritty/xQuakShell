@@ -73,7 +73,7 @@ func (c *Catalog) Available() []domain.LocaleInfo {
 // The layering is English, then the built-in pack for this language, then the on-disk pack. Only
 // the first two are trusted with the security namespace.
 func (c *Catalog) Pack(code string) (domain.LocalePack, error) {
-	if !ValidCode(code) {
+	if !domain.ValidLocaleCode(code) {
 		return domain.LocalePack{}, fmt.Errorf("%q: %w", code, domain.ErrLocaleCodeInvalid)
 	}
 

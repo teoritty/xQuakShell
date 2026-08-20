@@ -22,6 +22,7 @@ export namespace wails {
 	    terminalFontSize: number;
 	    terminalFontColor: string;
 	    theme: string;
+	    language: string;
 	    uiScalePercent: number;
 	    pingEnabled: boolean;
 	    pingMode: string;
@@ -61,6 +62,7 @@ export namespace wails {
 	        this.terminalFontSize = source["terminalFontSize"];
 	        this.terminalFontColor = source["terminalFontColor"];
 	        this.theme = source["theme"];
+	        this.language = source["language"];
 	        this.uiScalePercent = source["uiScalePercent"];
 	        this.pingEnabled = source["pingEnabled"];
 	        this.pingMode = source["pingMode"];

@@ -63,7 +63,7 @@ func (r *diskReader) list() map[string]domain.LocalePack {
 // refuses a well-formed one whose file turns out to be a symlink pointing out of the directory,
 // which no amount of string checking can see.
 func (r *diskReader) read(code string) (domain.LocalePack, error) {
-	if !ValidCode(code) {
+	if !domain.ValidLocaleCode(code) {
 		return domain.LocalePack{}, domain.ErrLocaleCodeInvalid
 	}
 	full := filepath.Join(r.root, code+".json")
@@ -97,7 +97,7 @@ func packCode(entry os.DirEntry) (string, bool) {
 		return "", false
 	}
 	code := strings.TrimSuffix(name, ".json")
-	if !ValidCode(code) {
+	if !domain.ValidLocaleCode(code) {
 		return "", false
 	}
 	return code, true
