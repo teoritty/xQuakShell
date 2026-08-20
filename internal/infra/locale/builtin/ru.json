@@ -1,0 +1,16 @@
+{
+  "code": "ru",
+  "name": "Русский",
+  "messages": {
+    "settings.tab.about": "О программе",
+    "settings.tab.appearance": "Внешний вид",
+    "settings.tab.audit": "Журнал аудита",
+    "settings.tab.files": "Файлы",
+    "settings.tab.hotkeys": "Горячие клавиши",
+    "settings.tab.network": "Сеть",
+    "settings.tab.security": "Безопасность",
+    "settings.appearance.language.title": "Язык",
+    "settings.appearance.language.desc": "Язык интерфейса. Логи и сообщения об ошибках остаются на английском.",
+    "settings.appearance.language.label": "Язык интерфейса"
+  }
+}

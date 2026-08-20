@@ -1,0 +1,16 @@
+{
+  "code": "en",
+  "name": "English",
+  "messages": {
+    "settings.tab.about": "About",
+    "settings.tab.appearance": "Appearance",
+    "settings.tab.audit": "Audit Log",
+    "settings.tab.files": "Files",
+    "settings.tab.hotkeys": "Hotkeys",
+    "settings.tab.network": "Network",
+    "settings.tab.security": "Security",
+    "settings.appearance.language.title": "Language",
+    "settings.appearance.language.desc": "The interface language. Logs and error messages stay in English.",
+    "settings.appearance.language.label": "Interface language"
+  }
+}
