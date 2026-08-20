@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   import { onMount, onDestroy } from 'svelte';
   import type { RemoteNode } from '../stores/appState';
   import { listPath, removePath, mkdirPath, createFilePath, renamePath, downloadFile } from '../api/remoteFs';
@@ -25,6 +26,7 @@
   import { readDragPayload, isMultiDrag } from './fileTree/dragPayload';
   import { uniqueName } from './fileTree/uniqueName';
   import { describeDelete } from './fileTree/deletePrompt';
+  import { moveRemotePaths } from './fileTree/move';
   import { loadPrefs, saveColumnPrefs as persistColumns, saveHiddenPref } from './fileTree/columnPrefs';
   import FilePaneHeader from './fileTree/FilePaneHeader.svelte';
   import './fileTree/fileTreeShared.css';
@@ -236,20 +238,11 @@
     // A remote drag from this same session is a move within the host; one from
     // another session is not ours to rename, and falls through to the upload path.
     if (remotePaths.length > 0 && dropSessionId === sessionId) {
-      const srcParents: string[] = [];
-      for (const rp of remotePaths) {
-        const destPath = remoteJoin(targetDir, remoteBasename(rp));
-        if (!isInvalidMove(rp, targetDir)) {
-          try {
-            await renamePath(sessionId, rp, destPath);
-            const srcParent = remoteParent(rp);
-            if (!srcParents.includes(srcParent)) srcParents.push(srcParent);
-          } catch (err: any) {
-            error = err?.message || String(err);
-          }
-        }
+      const moved = await moveRemotePaths(sessionId, remotePaths, targetDir);
+      if (moved.error) error = moved.error;
+      if (moved.sourceParents.length > 0) {
+        await refreshPreservingState([targetDir, currentPath, ...moved.sourceParents]);
       }
-      if (srcParents.length > 0) await refreshPreservingState([targetDir, currentPath, ...srcParents]);
       return;
     }
     if (localPaths.length > 0) {
@@ -355,7 +348,7 @@
     }
     try {
       const tempDir = await getTempDir();
-      if (!tempDir) throw new Error('Could not get temp directory');
+      if (!tempDir) throw new Error($t('files.tempDirFailed'));
       await downloadFile(sessionId, remotePath, tempDir);
       const localPath = localJoin(tempDir, remoteBasename(remotePath, 'file'));
       const settings = await getSettings();
@@ -378,7 +371,7 @@
 
   async function handleCtxNewFolder() {
     const parentPath = ctxMenu.isEmptyArea ? currentPath : ctxMenu.path;
-    const baseName = uniqueName(namesIn(parentPath), 'New Folder');
+    const baseName = uniqueName(namesIn(parentPath), $t('files.newFolder'));
     try {
       await mkdirPath(sessionId, parentPath, baseName);
     } catch (e: any) {
@@ -443,7 +436,7 @@
   async function handleCtxNewFile() {
     if (!ctxMenu.isDir) return;
     const parentPath = ctxMenu.path;
-    const baseName = uniqueName(namesIn(parentPath), 'New File');
+    const baseName = uniqueName(namesIn(parentPath), $t('files.newFile'));
     try {
       await createFilePath(sessionId, parentPath, baseName);
     } catch (e: any) {
@@ -453,8 +446,7 @@
     }
     closeContextMenu();
     await loadDir(parentPath);
-    const newPath = parentPath === '/' ? `/${baseName}` : `${parentPath}/${baseName}`;
-    editingNewPath = newPath;
+    editingNewPath = remoteJoin(parentPath, baseName);
     tree = tree;
   }
 
@@ -504,7 +496,7 @@
     editingNewPath = null;
   }
 
-  $: deletePrompt = describeDelete(deleteConfirm);
+  $: deletePrompt = describeDelete(deleteConfirm, $t);
 
   $: toolbarItems = buildFilePanelToolbarItems({
     showPermissions,
@@ -521,7 +513,7 @@
     toggleSort,
     refresh,
     refreshDisabled: !ready,
-  });
+  }, $t);
 </script>
 
 <svelte:window on:click={closeContextMenu} on:pointerdown={dismissSelection} />
@@ -532,7 +524,7 @@
 >
   <FilePaneHeader
     bind:this={header}
-    title="Remote Files"
+    title={$t('files.remote.title')}
     {toolbarItems}
     {currentPath}
     {ready}

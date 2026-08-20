@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   import { createEventDispatcher, tick } from 'svelte';
   import { FolderPlus, Trash2, FilePlus, Pencil, Shield } from 'lucide-svelte';
 
@@ -73,34 +74,34 @@
     {#if !isEmptyArea}
       <button class="menu-item" on:click={handleRename} role="menuitem">
         <Pencil size={12} />
-        <span>Rename</span>
+        <span>{$t('common.rename')}</span>
       </button>
       <button class="menu-item danger" on:click={handleDelete} role="menuitem">
         <Trash2 size={12} />
-        <span>Delete</span>
+        <span>{$t('common.delete')}</span>
       </button>
       {#if !isDir}
         <button class="menu-item" on:click={handleEdit} role="menuitem">
           <Pencil size={12} />
-          <span>Edit</span>
+          <span>{$t('common.edit')}</span>
         </button>
       {/if}
       {#if allowPermissionsMenu}
         <button class="menu-item" on:click={handlePermissions} role="menuitem">
           <Shield size={12} />
-          <span>Permissions…</span>
+          <span>{$t('files.permissions')}</span>
         </button>
       {/if}
     {/if}
     {#if isDir || isEmptyArea}
       <button class="menu-item" on:click={handleNewFolder} role="menuitem">
         <FolderPlus size={12} />
-        <span>New Folder</span>
+        <span>{$t('files.newFolder')}</span>
       </button>
       {#if isDir}
         <button class="menu-item" on:click={handleNewFile} role="menuitem">
           <FilePlus size={12} />
-          <span>New File</span>
+          <span>{$t('files.newFile')}</span>
         </button>
       {/if}
     {/if}

@@ -53,12 +53,12 @@
         "scriptCodeLines": 235
       },
       "frontend/src/lib/FileTree.svelte": {
-        "codeLines": 545,
-        "scriptCodeLines": 450
+        "codeLines": 537,
+        "scriptCodeLines": 442
       },
       "frontend/src/lib/LocalFileTree.svelte": {
-        "codeLines": 498,
-        "scriptCodeLines": 415
+        "codeLines": 490,
+        "scriptCodeLines": 407
       },
       "frontend/src/lib/RemoteTree.svelte": {
         "codeLines": 648,
@@ -123,16 +123,6 @@
         "codeLines": 158,
         "params": 0,
         "nesting": 2
-      },
-      "frontend/src/lib/FileTree.svelte::handleDrop": {
-        "codeLines": 29,
-        "params": 2,
-        "nesting": 5
-      },
-      "frontend/src/lib/LocalFileTree.svelte::handleDrop": {
-        "codeLines": 29,
-        "params": 2,
-        "nesting": 5
       },
       "frontend/src/lib/PermissionsDialog.svelte::handleApply": {
         "codeLines": 26,
