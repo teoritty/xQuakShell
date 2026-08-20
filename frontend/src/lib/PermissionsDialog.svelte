@@ -152,14 +152,14 @@
         {#if isDir}
           <label class="perm-checkbox">
             <input type="checkbox" bind:checked={recurse} />
-            Recurse into subdirectories
+            {$t('permissions.recurse')}
           </label>
           {#if recurse}
             <div class="perm-apply-to">
               <span>{$t('permissions.applyTo')}</span>
-              <label><input type="radio" bind:group={applyTo} value="files" /> Files only</label>
-              <label><input type="radio" bind:group={applyTo} value="dirs" /> Directories only</label>
-              <label><input type="radio" bind:group={applyTo} value="both" /> Both</label>
+              <label><input type="radio" bind:group={applyTo} value="files" /> {$t('permissions.filesOnly')}</label>
+              <label><input type="radio" bind:group={applyTo} value="dirs" /> {$t('permissions.dirsOnly')}</label>
+              <label><input type="radio" bind:group={applyTo} value="both" /> {$t('permissions.both')}</label>
             </div>
           {/if}
         {/if}

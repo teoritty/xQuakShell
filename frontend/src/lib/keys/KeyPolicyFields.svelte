@@ -29,7 +29,7 @@
   <label class="check">
     <input type="checkbox" bind:checked={options.allowPlugins} />
     <span>
-      Let plugins read this key
+      {$t('security.keys.policy.allowPlugins')}
       <small>{$t('security.keys.policy.pluginsHint')}</small>
     </span>
   </label>
@@ -38,7 +38,7 @@
     <label class="check">
       <input type="checkbox" bind:checked={options.nonExportable} />
       <span>
-        Never let this key leave the vault
+        {$t('security.keys.policy.nonExportable')}
         <small>{$t('security.keys.policy.sealHint')}</small>
       </span>
     </label>

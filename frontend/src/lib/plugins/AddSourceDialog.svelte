@@ -49,16 +49,13 @@
 
     <label class="checkbox-row">
       <input type="checkbox" bind:checked={trusted} />
-      Trust this repository
+      {$t('security.plugin.source.trustThis')}
     </label>
 
     {#if !trusted}
       <div class="banner">
         <AlertTriangle size={14} />
-        <span>
-          Plugins from an untrusted repository still install, and every signature and permission
-          check still runs. You will be told the source is untrusted each time.
-        </span>
+        <span>{$t('security.plugin.source.untrustedNote')}</span>
       </div>
     {/if}
   </div>

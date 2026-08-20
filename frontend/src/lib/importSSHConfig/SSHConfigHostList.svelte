@@ -64,7 +64,7 @@
           {/if}
           {#if host.duplicate}
             <span class="badge dup" title={$t('import.duplicate')}>
-              Already in vault
+              {$t('import.alreadyInVault')}
             </span>
           {/if}
         </span>

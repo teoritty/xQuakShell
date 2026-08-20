@@ -221,7 +221,7 @@
       <div class="actions" on:click|stopPropagation on:keydown|stopPropagation>
         <!-- <button on:click={startUpload} title="Upload file"><Upload size={11} /> Upload</button>
         <button on:click={startDownload} title="Download file"><Download size={11} /> Download</button> -->
-        <button class="cancel-btn" on:click={closePanel} title="Close"><X size={13} /></button>
+        <button class="cancel-btn" on:click={closePanel} title={$t('common.close')}><X size={13} /></button>
       </div>
     </div>
 
@@ -236,9 +236,9 @@
               <span class="transfer-path">{item.remotePath}</span>
               <span class="transfer-state">{stateLabel(item)}</span>
               {#if item.state === 'active' || item.state === 'pending'}
-                <button class="cancel-btn" on:click={() => cancelTransfer(item.id)} title="Cancel"><X size={10} /></button>
+                <button class="cancel-btn" on:click={() => cancelTransfer(item.id)} title={$t('common.cancel')}><X size={10} /></button>
               {:else if canRetry(item)}
-                <button class="retry-btn" on:click={() => retryTransfer(item)} title="Retry"><RefreshCw size={10} /></button>
+                <button class="retry-btn" on:click={() => retryTransfer(item)} title={$t('common.retry')}><RefreshCw size={10} /></button>
               {/if}
             </div>
             {#if item.state === 'active'}

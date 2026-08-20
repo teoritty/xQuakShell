@@ -137,7 +137,7 @@
 </script>
 
 {#if show}
-  <Modal title="Import from SSH config" {show} on:close={() => (show = false)}>
+  <Modal title={$t('import.sshConfig.title')} {show} on:close={() => (show = false)}>
     <div class="import-body">
       <SSHConfigSourceField
         bind:path
