@@ -1,32 +1,29 @@
 <script lang="ts">
+  // The settings dialog owns the shell: the tab strip, the search box, and the fetch-edit-write
+  // cycle around one draft record. Each tab's fields live in its own component under settings/,
+  // and the defaults and mapping live in settings/settingsDraft.ts, which is what keeps this file
+  // about the form rather than about every setting the application has.
   import { onDestroy, onMount } from 'svelte';
   import Modal from './Modal.svelte';
-  import ConfirmDialog from './ConfirmDialog.svelte';
-  import { CONFLICT_ACTIONS } from './transfer/conflictActions';
   import { getSettings, saveSettings } from '../actions/settingsActions';
-  import { DEFAULT_SESSION_HOTKEYS } from '../api/settings';
-  import { parseHotkeyEvent, normalizeHotkey } from '../hotkeys/hotkeys';
   import AboutSection from './settings/AboutSection.svelte';
-  import PluginTrustSection from './settings/PluginTrustSection.svelte';
-  import { TERMINAL_FONT_STACKS } from './settings/terminalFonts';
+  import AppearanceSection from './settings/AppearanceSection.svelte';
+  import AuditSection from './settings/AuditSection.svelte';
+  import DeveloperSection from './settings/DeveloperSection.svelte';
+  import FilesSection from './settings/FilesSection.svelte';
+  import HotkeysSection from './settings/HotkeysSection.svelte';
+  import NetworkSection from './settings/NetworkSection.svelte';
+  import SecuritySection from './settings/SecuritySection.svelte';
+  import SettingsSection from './settings/SettingsSection.svelte';
+  import { findHotkeyConflict } from './settings/hotkeyConflicts';
   import {
-    getAuditSessionState,
-    enableAuditSecretLogging,
-    disableAuditSecretLogging,
-  } from '../api/audit';
-  import {
-    SETTINGS_TAB_LABELS,
-    tabHasSearchMatches,
-    shouldShowSettingsSection,
-    shouldShowSectionTabLabel,
-    type SettingsTabId,
-  } from './settingsSearch';
-  import {
-    applyUiScalePercent,
-    DEFAULT_UI_SCALE_PERCENT,
-    normalizeUiScalePercent,
-    UI_SCALE_PRESETS,
-  } from './uiScale';
+    defaultSettingsDraft,
+    draftFromSettings,
+    draftToSettings,
+  } from './settings/settingsDraft';
+  import { getAuditSessionState } from '../api/audit';
+  import { tabHasSearchMatches, type SettingsTabId } from './settingsSearch';
+  import { applyUiScalePercent } from './uiScale';
   import {
     Shield,
     Palette,
@@ -48,48 +45,18 @@
   let searchQuery = '';
   let searchPinnedTab: SettingsTabId | null = null;
 
-  let lockoutEnabled = false;
-  let lockoutIdleMinutes = 5;
-  let lockOnMinimize = false;
-  let terminalFontFamily = 'Cascadia Code, Consolas, Courier New, monospace';
-  let terminalFontSize = 14;
-  let terminalFontColor = '#cccccc';
-  let externalEditorPath = '';
-  let theme = 'dark';
-  let uiScalePercent = DEFAULT_UI_SCALE_PERCENT;
-  let uiScaleAtOpen = DEFAULT_UI_SCALE_PERCENT;
-
-  let pingEnabled = true;
-  let pingMode = 'interval';
-  let pingIntervalSeconds = 5;
-  let maxConcurrentPings = 16;
-  let transferSpeedLimitKbps = 0;
-  let connectionTimeoutSeconds = 15;
-  let maxConcurrentTransfers = 4;
-  let defaultUploadExistsAction = 'ask';
-  let defaultDownloadExistsAction = 'ask';
-  let sessionHotkeyCreate = DEFAULT_SESSION_HOTKEYS.create;
-  let sessionHotkeyNext = DEFAULT_SESSION_HOTKEYS.next;
-  let sessionHotkeyPrev = DEFAULT_SESSION_HOTKEYS.prev;
-  let sessionHotkeyClose = DEFAULT_SESSION_HOTKEYS.close;
+  let draft = defaultSettingsDraft();
   let hotkeyConflict = '';
-
-  let auditLogEnabled = false;
-  let auditRetentionMode = 'days';
-  let auditRetentionDays = 30;
-  let auditRetentionCount = 100;
-  let auditShowUsername = false;
-  let auditShowConnection = false;
+  // Not part of the draft: secret logging is session state the backend owns, and the scale is
+  // remembered only so cancelling can undo the live preview.
   let auditLogSecrets = false;
-  let auditSecretsConfirmShow = false;
-  let debugLogWindowEnabled = false;
-  let debugLogLevel = 'debug';
+  let uiScaleAtOpen = draft.uiScalePercent;
 
   onMount(() => {
     const rt = (window as any).runtime;
     if (!rt?.EventsOn) return;
     return rt.EventsOn('DebugLogWindowChanged', (data: { enabled?: boolean }) => {
-      debugLogWindowEnabled = data?.enabled ?? false;
+      draft.debugLogWindowEnabled = data?.enabled ?? false;
     });
   });
 
@@ -109,7 +76,7 @@
   ];
 
   $: isSearching = searchQuery.trim().length > 0;
-  $: searchViewState = { isSearching, activeTab, searchQuery, searchPinnedTab };
+  $: view = { isSearching, activeTab, searchQuery, searchPinnedTab };
   $: visibleTabs = isSearching
     ? tabs.filter((tab) => tabHasSearchMatches(tab.id, searchQuery))
     : tabs;
@@ -126,17 +93,9 @@
     settingsWasOpen = false;
   }
 
-  function sectionTabLabel(tabId: SettingsTabId, sectionId: string): boolean {
-    return shouldShowSectionTabLabel(tabId, sectionId, searchViewState);
-  }
-
   function handleTabClick(tabId: SettingsTabId) {
     if (isSearching) {
-      if (searchPinnedTab === tabId) {
-        searchPinnedTab = null;
-      } else {
-        searchPinnedTab = tabId;
-      }
+      searchPinnedTab = searchPinnedTab === tabId ? null : tabId;
       activeTab = tabId;
       return;
     }
@@ -152,160 +111,31 @@
 
   async function loadSettings() {
     loading = true;
-    const s = await getSettings();
-    if (s) {
-      lockoutEnabled = s.lockoutEnabled ?? false;
-      lockoutIdleMinutes = s.lockoutIdleMinutes ?? 5;
-      lockOnMinimize = s.lockOnMinimize ?? false;
-      terminalFontFamily = s.terminalFontFamily || 'Cascadia Code, Consolas, Courier New, monospace';
-      terminalFontSize = s.terminalFontSize || 14;
-      terminalFontColor = s.terminalFontColor || '#cccccc';
-      externalEditorPath = s.externalEditorPath || '';
-      theme = s.theme || 'dark';
-      uiScalePercent = s.uiScalePercent ?? DEFAULT_UI_SCALE_PERCENT;
-      uiScaleAtOpen = uiScalePercent;
-      pingEnabled = s.pingEnabled ?? true;
-      pingMode = s.pingMode ?? 'interval';
-      pingIntervalSeconds = s.pingIntervalSeconds ?? 5;
-      maxConcurrentPings = s.maxConcurrentPings ?? 16;
-      transferSpeedLimitKbps = s.transferSpeedLimitKbps ?? 0;
-      connectionTimeoutSeconds = s.connectionTimeoutSeconds ?? 15;
-      maxConcurrentTransfers = s.maxConcurrentTransfers ?? 4;
-      defaultUploadExistsAction = s.defaultUploadExistsAction || 'ask';
-      defaultDownloadExistsAction = s.defaultDownloadExistsAction || 'ask';
-      sessionHotkeyCreate = normalizeHotkey(s.sessionHotkeyCreate || DEFAULT_SESSION_HOTKEYS.create);
-      sessionHotkeyNext = normalizeHotkey(s.sessionHotkeyNext || DEFAULT_SESSION_HOTKEYS.next);
-      sessionHotkeyPrev = normalizeHotkey(s.sessionHotkeyPrev || DEFAULT_SESSION_HOTKEYS.prev);
-      sessionHotkeyClose = normalizeHotkey(s.sessionHotkeyClose || DEFAULT_SESSION_HOTKEYS.close);
-      auditLogEnabled = s.auditLogEnabled ?? false;
-      auditRetentionMode = s.auditRetentionMode ?? 'days';
-      auditRetentionDays = s.auditRetentionDays ?? 30;
-      auditRetentionCount = s.auditRetentionCount ?? 100;
-      auditShowUsername = s.auditShowUsername ?? false;
-      auditShowConnection = s.auditShowConnection ?? false;
-      debugLogWindowEnabled = s.debugLogWindowEnabled ?? false;
-      debugLogLevel = s.debugLogLevel || 'debug';
-      updateCheckOnStartup = s.updateCheckOnStartup ?? true;
-    }
+    draft = draftFromSettings(await getSettings());
+    uiScaleAtOpen = draft.uiScalePercent;
     const sessionState = await getAuditSessionState();
     auditLogSecrets = sessionState?.logSecretsEnabled ?? false;
     hotkeyConflict = '';
     loading = false;
   }
 
-  async function handleAuditSecretsToggle(e: Event) {
-    const checked = (e.target as HTMLInputElement).checked;
-    if (checked) {
-      (e.target as HTMLInputElement).checked = false;
-      auditSecretsConfirmShow = true;
-      return;
-    }
-    auditLogSecrets = false;
-    disableAuditSecretLogging();
-  }
-
-  async function confirmAuditSecrets() {
-    auditSecretsConfirmShow = false;
-    const ok = await enableAuditSecretLogging(true);
-    if (ok) auditLogSecrets = true;
-  }
-
-  function cancelAuditSecrets() {
-    auditSecretsConfirmShow = false;
-    auditLogSecrets = false;
-  }
-
-  function validateHotkeyConflicts(): string {
-    const entries = [
-      { id: 'create', label: 'Create session', value: normalizeHotkey(sessionHotkeyCreate) },
-      { id: 'next', label: 'Next session', value: normalizeHotkey(sessionHotkeyNext) },
-      { id: 'prev', label: 'Previous session', value: normalizeHotkey(sessionHotkeyPrev) },
-      { id: 'close', label: 'Close session', value: normalizeHotkey(sessionHotkeyClose) },
-    ];
-    for (let i = 0; i < entries.length; i++) {
-      for (let j = i + 1; j < entries.length; j++) {
-        if (entries[i].value && entries[i].value === entries[j].value) {
-          return `${entries[i].label} conflicts with ${entries[j].label}`;
-        }
-      }
-    }
-    return '';
-  }
-
-  function captureHotkey(e: KeyboardEvent, field: 'create' | 'next' | 'prev' | 'close') {
-    e.preventDefault();
-    e.stopPropagation();
-    const key = parseHotkeyEvent(e);
-    if (!key) return;
-    if (field === 'create') sessionHotkeyCreate = key;
-    if (field === 'next') sessionHotkeyNext = key;
-    if (field === 'prev') sessionHotkeyPrev = key;
-    if (field === 'close') sessionHotkeyClose = key;
-    hotkeyConflict = validateHotkeyConflicts();
-  }
-
-  function resetHotkeysToDefault() {
-    sessionHotkeyCreate = DEFAULT_SESSION_HOTKEYS.create;
-    sessionHotkeyNext = DEFAULT_SESSION_HOTKEYS.next;
-    sessionHotkeyPrev = DEFAULT_SESSION_HOTKEYS.prev;
-    sessionHotkeyClose = DEFAULT_SESSION_HOTKEYS.close;
-    hotkeyConflict = '';
-  }
-
-  function handleUiScaleChange() {
-    uiScalePercent = normalizeUiScalePercent(Number(uiScalePercent));
-    applyUiScalePercent(uiScalePercent);
-  }
-
+  // The interface scale previews live while the dialog is open, so cancelling has to put back the
+  // value it was opened with rather than leave the preview standing.
   function closeSettings() {
     applyUiScalePercent(uiScaleAtOpen);
     show = false;
   }
 
   async function handleSave() {
-    hotkeyConflict = validateHotkeyConflicts();
+    hotkeyConflict = findHotkeyConflict(draft);
     if (hotkeyConflict) return;
     saving = true;
-    await saveSettings({
-      lockoutEnabled,
-      lockoutIdleMinutes,
-      lockOnMinimize,
-      terminalFontFamily,
-      terminalFontSize,
-      terminalFontColor,
-      externalEditorPath,
-      theme,
-      uiScalePercent,
-      pingEnabled,
-      pingMode,
-      pingIntervalSeconds,
-      maxConcurrentPings,
-      transferSpeedLimitKbps,
-      connectionTimeoutSeconds,
-      maxConcurrentTransfers,
-      defaultUploadExistsAction,
-      defaultDownloadExistsAction,
-      sessionHotkeyCreate: normalizeHotkey(sessionHotkeyCreate),
-      sessionHotkeyNext: normalizeHotkey(sessionHotkeyNext),
-      sessionHotkeyPrev: normalizeHotkey(sessionHotkeyPrev),
-      sessionHotkeyClose: normalizeHotkey(sessionHotkeyClose),
-      auditLogEnabled,
-      auditRetentionMode,
-      auditRetentionDays,
-      auditRetentionCount,
-      auditShowUsername,
-      auditShowConnection,
-      debugLogWindowEnabled,
-      debugLogLevel,
-      updateCheckOnStartup,
-    });
+    await saveSettings(draftToSettings(draft));
     window.dispatchEvent(new CustomEvent('app-settings-updated'));
-    uiScaleAtOpen = uiScalePercent;
+    uiScaleAtOpen = draft.uiScalePercent;
     saving = false;
     show = false;
   }
-
-  let updateCheckOnStartup = true;
 </script>
 
 {#if show}
@@ -343,346 +173,16 @@
         {:else if isSearching && visibleTabs.length === 0}
           <div class="settings-loading">No matching settings</div>
         {:else}
-          {#if isSearching ? shouldShowSettingsSection('about', 'info', searchViewState) : activeTab === 'about'}
-            {#if sectionTabLabel('about', 'info')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.about}</div>
-            {/if}
-            <AboutSection bind:updateCheckOnStartup />
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('about', 'developer', searchViewState) : activeTab === 'about'}
-            {#if sectionTabLabel('about', 'developer')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.about}</div>
-            {/if}
-            <div class="section">
-              <h4>Developer</h4>
-              <label class="checkbox-row">
-                <input type="checkbox" bind:checked={debugLogWindowEnabled} />
-                Open debug log window
-              </label>
-              <label class="setting-row">
-                <span>Minimum log level</span>
-                <select bind:value={debugLogLevel}>
-                  <option value="debug">Debug (most verbose)</option>
-                  <option value="info">Info</option>
-                  <option value="warn">Warning</option>
-                  <option value="error">Error</option>
-                </select>
-              </label>
-            </div>
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('appearance', 'theme', searchViewState) : activeTab === 'appearance'}
-            {#if sectionTabLabel('appearance', 'theme')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.appearance}</div>
-            {/if}
-            <div class="section">
-              <h4>Theme</h4>
-              <div class="theme-options">
-                <label class="theme-option" class:selected={theme === 'dark'}>
-                  <input type="radio" bind:group={theme} value="dark" />
-                  <div class="theme-swatch dark-swatch"></div>
-                  <span>Dark</span>
-                </label>
-                <!-- <label class="theme-option" class:selected={theme === 'light'} title="Coming soon">
-                  <input type="radio" bind:group={theme} value="light" disabled />
-                  <div class="theme-swatch light-swatch"></div>
-                  <span>Light (soon)</span>
-                </label> -->
-              </div>
-            </div>
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('appearance', 'scale', searchViewState) : activeTab === 'appearance'}
-            {#if sectionTabLabel('appearance', 'scale')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.appearance}</div>
-            {/if}
-            <div class="section">
-              <h4>Interface scale</h4>
-              <p class="section-desc">The layout reflows to fit the window — nothing is cropped, unlike browser zoom.</p>
-              <label class="setting-row">
-                <span>Scale</span>
-                <select bind:value={uiScalePercent} on:change={handleUiScaleChange}>
-                  {#each UI_SCALE_PRESETS as preset}
-                    <option value={preset}>{preset}%</option>
-                  {/each}
-                </select>
-              </label>
-            </div>
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('appearance', 'font', searchViewState) : activeTab === 'appearance'}
-            {#if sectionTabLabel('appearance', 'font')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.appearance}</div>
-            {/if}
-            <div class="section">
-              <h4>Terminal font</h4>
-              <label class="setting-row">
-                <span>Font family</span>
-                <select bind:value={terminalFontFamily}>
-                  {#each TERMINAL_FONT_STACKS as font}
-                    <option value={font} style="font-family: {font}">{font.split(',')[0].trim()}</option>
-                  {/each}
-                </select>
-              </label>
-              <label class="setting-row">
-                <span>Font size (px)</span>
-                <input type="number" bind:value={terminalFontSize} min="8" max="32" />
-              </label>
-              <label class="setting-row">
-                <span>Font color</span>
-                <div class="color-picker-row">
-                  <input type="color" bind:value={terminalFontColor} class="color-input" />
-                  <input type="text" bind:value={terminalFontColor} class="color-hex" placeholder="#cccccc" />
-                </div>
-              </label>
-              <div class="font-preview" style="font-family: {terminalFontFamily}; font-size: calc({terminalFontSize}px * var(--ui-scale)); color: {terminalFontColor};">
-                user@server:~$ ls -la
-              </div>
-            </div>
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('audit', 'general', searchViewState) : activeTab === 'audit'}
-            {#if sectionTabLabel('audit', 'general')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.audit}</div>
-            {/if}
-            <div class="section">
-              <h4>General</h4>
-              <p class="section-desc">Submitted commands are stored locally, on Enter. Disabled by default.</p>
-              <label class="checkbox-row">
-                <input type="checkbox" bind:checked={auditLogEnabled} />
-                Enable audit log
-              </label>
-            </div>
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('audit', 'retention', searchViewState) : activeTab === 'audit'}
-            {#if sectionTabLabel('audit', 'retention')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.audit}</div>
-            {/if}
-            <div class="section">
-              <h4>Retention</h4>
-              <p class="section-desc">Old entries are deleted automatically and cannot be recovered.</p>
-              <label class="checkbox-row">
-                <input type="radio" bind:group={auditRetentionMode} value="days" disabled={!auditLogEnabled} />
-                By time
-              </label>
-              <label class="setting-row setting-sub">
-                <span>Keep entries for (days)</span>
-                <input type="number" bind:value={auditRetentionDays} min="1" max="365" disabled={!auditLogEnabled || auditRetentionMode !== 'days'} />
-              </label>
-              <label class="checkbox-row">
-                <input type="radio" bind:group={auditRetentionMode} value="count" disabled={!auditLogEnabled} />
-                By count
-              </label>
-              <label class="setting-row setting-sub">
-                <span>Maximum entries</span>
-                <input type="number" bind:value={auditRetentionCount} min="10" max="10000" disabled={!auditLogEnabled || auditRetentionMode !== 'count'} />
-              </label>
-            </div>
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('audit', 'privacy', searchViewState) : activeTab === 'audit'}
-            {#if sectionTabLabel('audit', 'privacy')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.audit}</div>
-            {/if}
-            <div class="section">
-              <h4>Privacy</h4>
-              <label class="checkbox-row">
-                <input type="checkbox" bind:checked={auditShowUsername} disabled={!auditLogEnabled} />
-                Log &amp; show username
-              </label>
-              <label class="checkbox-row">
-                <input type="checkbox" bind:checked={auditShowConnection} disabled={!auditLogEnabled} />
-                Log &amp; show connection (name and host)
-              </label>
-            </div>
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('audit', 'secrets', searchViewState) : activeTab === 'audit'}
-            {#if sectionTabLabel('audit', 'secrets')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.audit}</div>
-            {/if}
-            <div class="section">
-              <h4>Sensitive data</h4>
-              <p class="section-desc">Passwords and secrets are logged in plaintext until you lock the vault or restart the app. Never saved to the vault.</p>
-              <label class="checkbox-row">
-                <input type="checkbox" checked={auditLogSecrets} on:change={handleAuditSecretsToggle} disabled={!auditLogEnabled} />
-                Log secrets this session
-              </label>
-            </div>
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('files', 'editor', searchViewState) : activeTab === 'files'}
-            {#if sectionTabLabel('files', 'editor')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.files}</div>
-            {/if}
-            <div class="section">
-              <h4>External editor</h4>
-              <p class="section-desc">A remote file you edit is downloaded, opened in this editor, and re-uploaded when you save.</p>
-              <label class="setting-row">
-                <span>Editor path</span>
-                <input type="text" bind:value={externalEditorPath} placeholder="e.g. code, notepad.exe, C:\...\gvim.exe" />
-              </label>
-            </div>
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('files', 'conflicts', searchViewState) : activeTab === 'files'}
-            {#if sectionTabLabel('files', 'conflicts')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.files}</div>
-            {/if}
-            <div class="section">
-              <h4>When a file already exists</h4>
-              <p class="section-desc">"Ask every time" shows the conflict dialog; any other choice applies silently. Picking an action in that dialog without "Apply to current queue only" also changes these.</p>
-              <label class="setting-row">
-                <span>Uploads and local copies</span>
-                <select bind:value={defaultUploadExistsAction}>
-                  <option value="ask">Ask every time</option>
-                  {#each CONFLICT_ACTIONS as a}
-                    <option value={a.value}>{a.label}</option>
-                  {/each}
-                </select>
-              </label>
-              <label class="setting-row">
-                <span>Downloads</span>
-                <select bind:value={defaultDownloadExistsAction}>
-                  <option value="ask">Ask every time</option>
-                  {#each CONFLICT_ACTIONS as a}
-                    <option value={a.value}>{a.label}</option>
-                  {/each}
-                </select>
-              </label>
-            </div>
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('hotkeys', 'session', searchViewState) : activeTab === 'hotkeys'}
-            {#if sectionTabLabel('hotkeys', 'session')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.hotkeys}</div>
-            {/if}
-            <div class="section">
-              <h4>Session hotkeys</h4>
-              <p class="section-desc">Click a field and press a key combination.</p>
-              <label class="setting-row">
-                <span>Create session</span>
-                <input class="hotkey-input" type="text" bind:value={sessionHotkeyCreate} on:keydown={(e) => captureHotkey(e, 'create')} />
-              </label>
-              <label class="setting-row">
-                <span>Next session tab</span>
-                <input class="hotkey-input" type="text" bind:value={sessionHotkeyNext} on:keydown={(e) => captureHotkey(e, 'next')} />
-              </label>
-              <label class="setting-row">
-                <span>Previous session tab</span>
-                <input class="hotkey-input" type="text" bind:value={sessionHotkeyPrev} on:keydown={(e) => captureHotkey(e, 'prev')} />
-              </label>
-              <label class="setting-row">
-                <span>Close active session</span>
-                <input class="hotkey-input" type="text" bind:value={sessionHotkeyClose} on:keydown={(e) => captureHotkey(e, 'close')} />
-              </label>
-              {#if hotkeyConflict}
-                <div class="hotkey-conflict">{hotkeyConflict}</div>
-              {/if}
-              <div class="hotkey-actions">
-                <button class="secondary" type="button" on:click={resetHotkeysToDefault}>Reset to defaults</button>
-              </div>
-            </div>
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('network', 'ping', searchViewState) : activeTab === 'network'}
-            {#if sectionTabLabel('network', 'ping')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.network}</div>
-            {/if}
-            <div class="section">
-              <h4>Connection ping</h4>
-              <p class="section-desc">Check host reachability via TCP connect.</p>
-              <label class="checkbox-row">
-                <input type="checkbox" bind:checked={pingEnabled} />
-                Enable automatic ping
-              </label>
-              <label class="setting-row">
-                <span>Ping mode</span>
-                <select bind:value={pingMode} disabled={!pingEnabled}>
-                  <option value="on_change">On connection settings change only</option>
-                  <option value="interval">Every N seconds</option>
-                </select>
-              </label>
-              <label class="setting-row">
-                <span>Ping interval (seconds)</span>
-                <input
-                  type="number"
-                  bind:value={pingIntervalSeconds}
-                  min="5"
-                  max="300"
-                  disabled={pingMode !== 'interval' || !pingEnabled}
-                />
-              </label>
-              <label class="setting-row">
-                <span>Max concurrent pings</span>
-                <input
-                  type="number"
-                  bind:value={maxConcurrentPings}
-                  min="1"
-                  max="64"
-                  disabled={!pingEnabled}
-                />
-              </label>
-            </div>
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('network', 'transfer', searchViewState) : activeTab === 'network'}
-            {#if sectionTabLabel('network', 'transfer')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.network}</div>
-            {/if}
-            <div class="section">
-              <h4>File transfer</h4>
-              <label class="setting-row">
-                <span>Speed limit (Kbps)</span>
-                <input type="number" bind:value={transferSpeedLimitKbps} min="0" placeholder="0 = unlimited" />
-              </label>
-              <label class="setting-row">
-                <span>Connection timeout (seconds)</span>
-                <input type="number" bind:value={connectionTimeoutSeconds} min="5" max="300" />
-              </label>
-              <label class="setting-row">
-                <span>Max concurrent transfers</span>
-                <input type="number" bind:value={maxConcurrentTransfers} min="1" max="16" />
-              </label>
-            </div>
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('security', 'lockout', searchViewState) : activeTab === 'security'}
-            {#if sectionTabLabel('security', 'lockout')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.security}</div>
-            {/if}
-            <div class="section">
-              <h4>Session lockout</h4>
-              <label class="checkbox-row">
-                <input type="checkbox" bind:checked={lockoutEnabled} />
-                Enable lockout on idle timeout
-              </label>
-              <label class="setting-row">
-                <span>Idle timeout (minutes)</span>
-                <input
-                  type="number"
-                  bind:value={lockoutIdleMinutes}
-                  min="1"
-                  max="120"
-                  disabled={!lockoutEnabled}
-                />
-              </label>
-              <label class="checkbox-row">
-                <input type="checkbox" bind:checked={lockOnMinimize} />
-                Lock when application is minimized
-              </label>
-            </div>
-          {/if}
-
-          {#if isSearching ? shouldShowSettingsSection('security', 'plugins', searchViewState) : activeTab === 'security'}
-            {#if sectionTabLabel('security', 'plugins')}
-              <div class="section-tab-label">{SETTINGS_TAB_LABELS.security}</div>
-            {/if}
-            <PluginTrustSection />
-          {/if}
-
+          <SettingsSection tab="about" section="info" {view}>
+            <AboutSection bind:updateCheckOnStartup={draft.updateCheckOnStartup} />
+          </SettingsSection>
+          <DeveloperSection {view} bind:draft />
+          <AppearanceSection {view} bind:draft />
+          <AuditSection {view} bind:draft bind:auditLogSecrets />
+          <FilesSection {view} bind:draft />
+          <HotkeysSection {view} bind:draft bind:conflict={hotkeyConflict} />
+          <NetworkSection {view} bind:draft />
+          <SecuritySection {view} bind:draft />
         {/if}
       </div>
     </div>
@@ -698,19 +198,6 @@
     </div>
   </Modal>
 {/if}
-
-<ConfirmDialog
-  show={auditSecretsConfirmShow}
-  title="Enable secret logging"
-  message="Secrets will be stored in plaintext in the local audit database. This applies only until you lock the vault or restart the app."
-  critical={true}
-  requireCheckbox={true}
-  checkboxLabel="I understand that sensitive data will be logged in plaintext"
-  confirmLabel="Enable"
-  cancelLabel="Cancel"
-  on:confirm={confirmAuditSecrets}
-  on:cancel={cancelAuditSecrets}
-/>
 
 <style>
   .settings-search-wrap {
@@ -796,83 +283,6 @@
     text-align: center;
   }
 
-  .section-tab-label {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--accent);
-    margin-bottom: 8px;
-  }
-
-  .section-tab-label:not(:first-child) {
-    margin-top: 16px;
-  }
-
-  .color-picker-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .color-input {
-    width: 32px;
-    height: var(--control-height);
-    padding: 0;
-    border: 1px solid var(--border-color);
-    border-radius: 2px;
-    cursor: pointer;
-    background: transparent;
-    flex: 0 0 auto;
-  }
-  .color-input::-webkit-color-swatch-wrapper { padding: 2px; }
-  .color-input::-webkit-color-swatch { border-radius: 2px; border: none; }
-  .color-hex {
-    flex: 1;
-    min-width: 0;
-    font-size: 12px;
-    font-family: var(--font-mono);
-  }
-
-  .font-preview {
-    padding: 10px 12px;
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    line-height: 1.4;
-  }
-
-  .theme-options {
-    display: flex;
-    gap: 10px;
-  }
-
-  .theme-option {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
-    padding: 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-size: 11px;
-    color: var(--text-secondary);
-  }
-  .theme-option.selected {
-    border-color: var(--accent);
-    background: var(--accent-muted);
-    color: var(--text-primary);
-  }
-  .theme-option input { display: none; }
-
-  .theme-swatch {
-    width: 48px;
-    height: 32px;
-    border-radius: 3px;
-    border: 1px solid var(--border-color);
-  }
-  .dark-swatch { background: #1e1e1e; }
-
   .settings-footer {
     display: flex;
     justify-content: space-between;
@@ -893,20 +303,5 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-  }
-
-  .hotkey-input {
-    font-family: var(--font-mono);
-    text-align: center;
-  }
-
-  .hotkey-conflict {
-    font-size: 11px;
-    color: var(--danger);
-  }
-
-  .hotkey-actions {
-    display: flex;
-    justify-content: flex-start;
   }
 </style>

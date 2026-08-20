@@ -137,3 +137,105 @@
   font-size: 12px;
   padding: 4px 12px;
 }
+
+/* Rules below serve markup that now lives in the per-tab section components. They are here for the
+   same reason as everything above: a component's scoped <style> stops at its own markup, so a rule
+   left behind in SettingsDialog would style nothing once the section moved out of it. */
+
+.settings-content .section-tab-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.settings-content .section-tab-label:not(:first-child) {
+  margin-top: 16px;
+}
+
+.settings-content .color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-content .color-input {
+  width: 32px;
+  height: var(--control-height);
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
+  cursor: pointer;
+  background: transparent;
+  flex: 0 0 auto;
+}
+
+.settings-content .color-input::-webkit-color-swatch-wrapper { padding: 2px; }
+.settings-content .color-input::-webkit-color-swatch { border-radius: 2px; border: none; }
+
+.settings-content .color-hex {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.settings-content .font-preview {
+  padding: 10px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+.settings-content .theme-options {
+  display: flex;
+  gap: 10px;
+}
+
+.settings-content .theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.settings-content .theme-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+  color: var(--text-primary);
+}
+
+.settings-content .theme-option input { display: none; }
+
+.settings-content .theme-swatch {
+  width: 48px;
+  height: 32px;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+}
+
+.settings-content .dark-swatch { background: #1e1e1e; }
+
+.settings-content .hotkey-input {
+  font-family: var(--font-mono);
+  text-align: center;
+}
+
+.settings-content .hotkey-conflict {
+  font-size: 11px;
+  color: var(--danger);
+}
+
+.settings-content .hotkey-actions {
+  display: flex;
+  justify-content: flex-start;
+}
