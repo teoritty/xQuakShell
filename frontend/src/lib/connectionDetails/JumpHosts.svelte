@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import { Plus, ChevronUp, ChevronDown } from 'lucide-svelte';
   import AuthEntryCard from '../AuthEntryCard.svelte';
@@ -72,7 +73,7 @@
 
 <div class="connection-detail-field">
   <div class="connection-detail-section-header">
-    <span class="connection-detail-field-label">Jump Hosts (Bastion)</span>
+    <span class="connection-detail-field-label">{$t('connection.field.jumpHosts')}</span>
     <button class="ghost connection-detail-micro-btn" on:click={addHop}><Plus size={12} /> Hop</button>
   </div>
   {#each jumpHops as hop, idx (hop.id)}
@@ -96,7 +97,7 @@
               type="text"
               value={hop.host}
               on:input={(e) => updateHopField(hop.id, 'host', e.currentTarget.value)}
-              placeholder="host"
+              placeholder={$t('connection.placeholder.hostShort')}
               class="hop-host"
             />
             <input
@@ -104,7 +105,7 @@
               value={hop.port}
               on:input={(e) => updateHopField(hop.id, 'port', parseInt(e.currentTarget.value) || 22)}
               min="1" max="65535"
-              placeholder="port"
+              placeholder={$t('connection.placeholder.portShort')}
               class="hop-port"
             />
           </div>
@@ -112,7 +113,7 @@
             type="text"
             value={hop.username}
             on:input={(e) => updateHopField(hop.id, 'username', e.currentTarget.value)}
-            placeholder="username"
+            placeholder={$t('connection.placeholder.username')}
             class="hop-username"
           />
         </div>
@@ -121,16 +122,16 @@
         <div class="hop-reorder-stack">
           <button
             class="ghost hop-reorder"
-            title="Move up"
+            title={$t('connection.jump.moveUp')}
             disabled={idx === 0}
             on:click={() => moveHop(hop.id, -1)}
           >
             <ChevronUp size={12} />
           </button>
-          <span class="hop-badge" title="Hop order in chain">{idx + 1}</span>
+          <span class="hop-badge" title={$t('connection.jump.order')}>{idx + 1}</span>
           <button
             class="ghost hop-reorder"
-            title="Move down"
+            title={$t('connection.jump.moveDown')}
             disabled={idx === jumpHops.length - 1}
             on:click={() => moveHop(hop.id, 1)}
           >

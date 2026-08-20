@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import type { FieldGroup, FieldDef } from '../../actions/protocolActions';
   // Layout is shared with the plugin dialog and the node details panel (ADR-015): the markup here
   // is mostly about vault-stored secrets, which those must not have, but how fields are ordered,
@@ -99,7 +100,7 @@
         if (v.minLength && val.length < v.minLength) return `Min length: ${v.minLength}`;
         if (v.maxLength && val.length > v.maxLength) return `Max length: ${v.maxLength}`;
         if (v.pattern && compiledPatterns[field.id] && !compiledPatterns[field.id].test(val)) {
-          return 'Invalid format';
+          return $t('connection.field.invalidFormat');
         }
       }
       if (typeof val === 'number') {

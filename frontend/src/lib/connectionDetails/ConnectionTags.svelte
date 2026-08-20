@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import { Plus, X } from 'lucide-svelte';
   import { isTagTooLong, isValidNewTag, tagColor, MAX_TAG_LENGTH } from './tags';
@@ -50,7 +51,7 @@
 
 <div class="connection-detail-field">
   <div class="connection-detail-section-header">
-    <span class="connection-detail-field-label">Tags</span>
+    <span class="connection-detail-field-label">{$t('connection.field.tags')}</span>
     <button class="ghost connection-detail-micro-btn" on:click={startAddTag}><Plus size={12} /> Tag</button>
   </div>
   <div class="tags-row">
@@ -65,7 +66,7 @@
         <input
           class="tag-inline-input"
           class:invalid={tagTooLong}
-          placeholder="tag name..."
+          placeholder={$t('connection.placeholder.tag')}
           value={newTagValue}
           on:input={(e) => dispatch('newtagvaluechange', e.currentTarget.value)}
           on:keydown={(e) => {
@@ -75,7 +76,7 @@
           on:blur={confirmTag}
         />
         {#if tagTooLong}
-          <span class="tag-error">Maximum {MAX_TAG_LENGTH} characters</span>
+          <span class="tag-error">{$t('connection.tag.tooLong', { count: MAX_TAG_LENGTH })}</span>
         {/if}
       </div>
     {/if}

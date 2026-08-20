@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import type { ConnectionProtocol } from '../../actions/protocolActions';
   import './connectionDetailsShared.css';
@@ -22,12 +23,12 @@
 </script>
 
 <label class="connection-detail-field">
-  <span class="connection-detail-field-label">Name</span>
-  <input type="text" bind:value={name} on:input={() => dispatch('dirty')} placeholder="My Server" />
+  <span class="connection-detail-field-label">{$t('connection.field.name')}</span>
+  <input type="text" bind:value={name} on:input={() => dispatch('dirty')} placeholder={$t('connection.placeholder.name')} />
 </label>
 
 <label class="connection-detail-field">
-  <span class="connection-detail-field-label">Protocol</span>
+  <span class="connection-detail-field-label">{$t('connection.field.protocol')}</span>
   {#key protocol}
     <select value={protocol} on:change={onProtocolChange}>
       {#each protocols as p}
@@ -39,11 +40,11 @@
 
 <div class="connection-detail-field-row">
   <label class="connection-detail-field" style="flex:1">
-    <span class="connection-detail-field-label">Host</span>
-    <input type="text" bind:value={host} on:input={() => dispatch('dirty')} placeholder="192.168.1.1" />
+    <span class="connection-detail-field-label">{$t('connection.field.host')}</span>
+    <input type="text" bind:value={host} on:input={() => dispatch('dirty')} placeholder={$t('connection.placeholder.host')} />
   </label>
   <label class="connection-detail-field" style="width: calc(60px * var(--ui-scale))">
-    <span class="connection-detail-field-label">Port</span>
+    <span class="connection-detail-field-label">{$t('connection.field.port')}</span>
     <input type="number" bind:value={port} on:input={() => dispatch('dirty')} min="1" max="65535" />
   </label>
 </div>
