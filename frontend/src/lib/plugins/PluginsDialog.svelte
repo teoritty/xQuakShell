@@ -334,11 +334,14 @@
     padding: 2px 6px;
   }
 
+  /* Fills whatever the dialog's fixed height leaves after the toolbar, so switching sections never
+     changes the size of the window. min-height: 0 is what lets the pane inside scroll instead of
+     stretching this row past the dialog. */
   .plugins-body {
     display: flex;
     gap: 18px;
-    min-height: 54vh;
-    max-height: 64vh;
+    flex: 1;
+    min-height: 0;
   }
 
   .rail {
@@ -409,6 +412,7 @@
   .section-pane {
     flex: 1;
     min-width: 0;
+    min-height: 0;
     overflow-y: auto;
     padding-right: 4px;
   }
