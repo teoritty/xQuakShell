@@ -13,29 +13,43 @@ export function formatInstalledVersion(version: string): string {
   return trimmed.startsWith('v') ? trimmed : `v${trimmed}`;
 }
 
+/** The install state of a catalogue entry, as a message key plus the version it names. */
 export function githubPluginStatusLabel(plugin: GitHubPluginMetadata): {
   kind: 'installed' | 'not-installed';
-  text: string;
+  key: string;
+  vars?: Record<string, string>;
 } {
   if (plugin.installed) {
     return {
       kind: 'installed',
-      text: `Installed ${formatInstalledVersion(plugin.installedVersion)}`,
+      key: 'plugins.status.installed',
+      vars: { version: formatInstalledVersion(plugin.installedVersion) },
     };
   }
-  return { kind: 'not-installed', text: 'Not installed' };
+  return { kind: 'not-installed', key: 'plugins.status.notInstalled' };
 }
 
+/**
+ * The lines describing what is about to be installed.
+ *
+ * `label` resolves a message key, so this stays a pure function the tests can drive without a
+ * store: the caller passes `$t` and gets back finished lines.
+ */
 export function githubInstallPreviewLines(
   name: string,
   releaseTag: string,
   manifestVersion: string,
+  label: (key: string, vars?: Record<string, string>) => string,
 ): string[] {
-  const lines = [name, `Release: ${releaseTag}`, `Version: ${manifestVersion}`];
+  const lines = [
+    name,
+    label('plugins.preview.release', { tag: releaseTag }),
+    label('plugins.preview.version', { version: manifestVersion }),
+  ];
   const normalizedTag = releaseTag.replace(/^v/i, '');
   const normalizedVersion = manifestVersion.replace(/^v/i, '');
   if (normalizedTag && normalizedVersion && normalizedTag !== normalizedVersion) {
-    lines.push('Tag and manifest version differ');
+    lines.push(label('plugins.preview.tagMismatch'));
   }
   return lines;
 }

@@ -41,17 +41,26 @@ assert(
 assert(formatInstalledVersion('1.0.0') === 'v1.0.0', 'formats installed version with v prefix');
 assert(formatInstalledVersion('v1.0.1') === 'v1.0.1', 'keeps existing v prefix');
 assert(
-  JSON.stringify(githubPluginStatusLabel(plugin())) === JSON.stringify({ kind: 'not-installed', text: 'Not installed' }),
+  JSON.stringify(githubPluginStatusLabel(plugin())) ===
+    JSON.stringify({ kind: 'not-installed', key: 'plugins.status.notInstalled' }),
   'shows not installed status',
 );
 assert(
   JSON.stringify(githubPluginStatusLabel(plugin({ installed: true, installedVersion: '1.0.0' }))) ===
-    JSON.stringify({ kind: 'installed', text: 'Installed v1.0.0' }),
+    JSON.stringify({ kind: 'installed', key: 'plugins.status.installed', vars: { version: 'v1.0.0' } }),
   'shows installed status from backend version',
 );
+
+// The lines are assembled through a lookup, so the test drives it with an identity one: what is
+// being asserted is which lines appear, not how any language words them.
+const echo = (key: string) => key;
 assert(
-  githubInstallPreviewLines('Telnet', 'v1.0.1', '1.0.0').includes('Tag and manifest version differ'),
+  githubInstallPreviewLines('Telnet', 'v1.0.1', '1.0.0', echo).includes('plugins.preview.tagMismatch'),
   'flags mismatched release tag and manifest version',
+);
+assert(
+  !githubInstallPreviewLines('Telnet', 'v1.0.0', '1.0.0', echo).includes('plugins.preview.tagMismatch'),
+  'and stays quiet when the tag and the manifest version agree',
 );
 
 console.log('pluginDisplay.test.ts: all passed');

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   // Registering a repository, with the trust decision taken at the same moment.
   //
   // Trust is answered here rather than defaulted and edited later because a repository that exists
@@ -31,10 +32,10 @@
   }
 </script>
 
-<Modal title="Add plugin repository" {show} on:close={() => dispatch('cancel')}>
+<Modal title={$t('plugins.sources.addTitle')} {show} on:close={() => dispatch('cancel')}>
   <div class="add-body">
     <label class="field">
-      <span>Repository URL</span>
+      <span>{$t('plugins.sources.urlLabel')}</span>
       <input
         type="text"
         bind:value={url}
@@ -43,7 +44,7 @@
       />
     </label>
     {#if showError}
-      <p class="error">Only github.com and gitlab.com repository URLs are supported.</p>
+      <p class="error">{$t('plugins.sources.urlInvalid')}</p>
     {/if}
 
     <label class="checkbox-row">
@@ -63,9 +64,9 @@
   </div>
 
   <div class="dialog-actions">
-    <button class="secondary" disabled={busy} on:click={() => dispatch('cancel')}>Cancel</button>
+    <button class="secondary" disabled={busy} on:click={() => dispatch('cancel')}>{$t('common.cancel')}</button>
     <button class="primary" disabled={!valid || busy} on:click={submit}>
-      {busy ? 'Checking…' : 'Add'}
+      {busy ? $t('plugins.sources.checking') : $t('common.add')}
     </button>
   </div>
 </Modal>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   // The Plugins screen: rail on the left, one section on the right, and the dialogs that overlay
   // both. It owns the screen's data and routes events; every rendering decision belongs to a
   // section, and every multi-RPC sequence to actions/pluginsActions.
@@ -104,7 +105,7 @@
     } catch (e) {
       errorsBySource = {
         ...errorsBySource,
-        [source.id]: e instanceof Error ? e.message : 'Failed to fetch plugins',
+        [source.id]: e instanceof Error ? e.message : $t('plugins.fetchFailed'),
       };
     } finally {
       const { [source.id]: _done, ...rest } = loadingSources;
@@ -166,7 +167,7 @@
       const added = sources.filter((s) => !before.has(s.id));
       await Promise.all(added.map((s) => refreshSource(s, true)));
     } catch (e) {
-      fail(e instanceof Error ? e.message : 'Failed to add repository');
+      fail(e instanceof Error ? e.message : $t('plugins.sources.addFailed'));
     } finally {
       addSourceBusy = false;
     }
@@ -185,7 +186,7 @@
   }
 </script>
 
-<Modal title="Plugins" {show} contentClass="plugins-modal" on:close={() => (show = false)}>
+<Modal title={$t('plugins.title')} {show} contentClass="plugins-modal" on:close={() => (show = false)}>
   <PluginsToolbar
     bind:query
     searchable={section !== 'marketplace'}
@@ -197,7 +198,7 @@
   {#if errorMessage}
     <div class="screen-error">
       {errorMessage}
-      <button class="ghost dismiss" on:click={() => (errorMessage = '')}>Dismiss</button>
+      <button class="ghost dismiss" on:click={() => (errorMessage = '')}>{$t('common.dismiss')}</button>
     </div>
   {/if}
 
@@ -211,9 +212,9 @@
           on:click={() => (section = item.id)}
         >
           <svelte:component this={RAIL_ICONS[item.id]} size={14} />
-          <span class="rail-label">{item.label}</span>
+          <span class="rail-label">{$t(item.labelKey)}</span>
           {#if item.alert}
-            <span class="rail-alert" title="Something needs attention"></span>
+            <span class="rail-alert" title={$t('plugins.rail.attention')}></span>
           {/if}
           {#if item.count !== undefined}<span class="rail-count">{item.count}</span>{/if}
         </button>
@@ -222,7 +223,7 @@
 
     <div class="section-pane">
       {#if busy && plugins.length === 0 && sources.length === 0}
-        <p class="loading">Loading…</p>
+        <p class="loading">{$t('common.loading')}</p>
       {:else if section === 'installed'}
         <InstalledSection
           {plugins}
@@ -298,15 +299,15 @@
 <ConfirmDialog
   show={uninstallTarget !== null}
   critical={true}
-  title="Uninstall plugin"
-  message={`Remove ${uninstallTarget?.name ?? ''}?`}
-  confirmLabel="Uninstall"
+  title={$t('plugins.uninstall.title')}
+  message={$t('plugins.uninstall.message', { name: uninstallTarget?.name ?? '' })}
+  confirmLabel={$t('plugins.action.uninstall')}
   on:cancel={closeUninstall}
   on:confirm={confirmUninstall}
 >
   <label slot="body" class="remove-data">
     <input type="checkbox" bind:checked={uninstallRemoveData} />
-    Also delete this plugin's stored data
+    {$t('plugins.uninstall.deleteData')}
   </label>
 </ConfirmDialog>
 

@@ -15,16 +15,14 @@ export const PLUGINS_SECTION_ORDER: PluginsSectionId[] = [
   'marketplace',
 ];
 
-export const PLUGINS_SECTION_LABELS: Record<PluginsSectionId, string> = {
-  installed: 'Installed',
-  browse: 'Browse',
-  sources: 'Sources',
-  marketplace: 'Marketplace',
-};
+/** The message key holding a section's caption. */
+export function sectionLabelKey(id: PluginsSectionId): string {
+  return `plugins.section.${id}`;
+}
 
 export interface RailItem {
   id: PluginsSectionId;
-  label: string;
+  labelKey: string;
   /** Undefined where a count would be meaningless, so the badge is absent rather than showing 0. */
   count?: number;
   /** Draws the attention dot. Set only where something is actionable right now. */
@@ -48,7 +46,7 @@ export interface RailCounts {
 export function buildRail(counts: RailCounts): RailItem[] {
   return PLUGINS_SECTION_ORDER.map((id) => ({
     id,
-    label: PLUGINS_SECTION_LABELS[id],
+    labelKey: sectionLabelKey(id),
     count: id === 'installed' ? counts.installed : id === 'sources' ? counts.sources : undefined,
     alert: id === 'installed' && counts.needsAttention > 0,
   }));
@@ -81,16 +79,18 @@ export function isBundled(plugin: PluginInfo): boolean {
 }
 
 /**
- * The run state as a user reads it.
+ * The run state as a user reads it: a message key where there is one, otherwise the backend's own
+ * word capitalised.
  *
  * `discovered` is the registry's word for "loaded, never started", and on a card it reads as a
- * finding about the plugin rather than as a state - which is why it is the one word translated.
- * Every other state is passed through capitalised, so a state the backend adds later surfaces
- * under its own name instead of being swallowed by a default.
+ * finding about the plugin rather than as a state - which is why it is the one word given a key.
+ * Every other state is passed through, so a state the backend adds later surfaces under its own
+ * name instead of being swallowed by a default. That also means it stays English: this layer
+ * cannot translate a word it has never seen.
  */
-export function pluginStateLabel(state: string): string {
-  if (!state || state === 'discovered') return 'Not running';
-  return state.charAt(0).toUpperCase() + state.slice(1);
+export function pluginStateLabel(state: string): { key?: string; text?: string } {
+  if (!state || state === 'discovered') return { key: 'plugins.state.notRunning' };
+  return { text: state.charAt(0).toUpperCase() + state.slice(1) };
 }
 
 export function filterCatalog(
@@ -126,20 +126,20 @@ export function pluginRunState(plugin: PluginInfo): PluginRunState {
 
 export interface InstalledGroup {
   id: PluginRunState;
-  label: string;
-  /** One line under the header saying what membership of this group means. */
-  hint: string;
+  labelKey: string;
+  /** The key of one line under the header saying what membership of this group means. */
+  hintKey: string;
   plugins: PluginInfo[];
 }
 
-const INSTALLED_GROUPS: { id: PluginRunState; label: string; hint: string }[] = [
+const INSTALLED_GROUPS: { id: PluginRunState; labelKey: string; hintKey: string }[] = [
   {
     id: 'attention',
-    label: 'Needs attention',
-    hint: 'Enabled, but not running as intended.',
+    labelKey: 'plugins.group.attention',
+    hintKey: 'plugins.group.attention.hint',
   },
-  { id: 'active', label: 'Active', hint: 'Running and confined.' },
-  { id: 'disabled', label: 'Disabled', hint: 'Installed, not started.' },
+  { id: 'active', labelKey: 'plugins.group.active', hintKey: 'plugins.group.active.hint' },
+  { id: 'disabled', labelKey: 'plugins.group.disabled', hintKey: 'plugins.group.disabled.hint' },
 ];
 
 /**
@@ -162,7 +162,7 @@ export function countNeedsAttention(plugins: PluginInfo[]): number {
 }
 
 export interface SandboxSummary {
-  label: string;
+  labelKey: string;
   tone: 'good' | 'warn' | 'bad';
 }
 
@@ -177,13 +177,13 @@ export interface SandboxSummary {
 export function sandboxSummary(mode: string | undefined): SandboxSummary | null {
   switch (mode) {
     case 'enforced':
-      return { label: 'Sandboxed', tone: 'good' };
+      return { labelKey: 'security.plugin.sandbox.enforced', tone: 'good' };
     case 'enforced-partial':
-      return { label: 'Partly sandboxed', tone: 'warn' };
+      return { labelKey: 'security.plugin.sandbox.partial', tone: 'warn' };
     case 'unavailable':
-      return { label: 'No sandbox', tone: 'bad' };
+      return { labelKey: 'security.plugin.sandbox.unavailable', tone: 'bad' };
     case 'disabled':
-      return { label: 'Sandbox off', tone: 'bad' };
+      return { labelKey: 'security.plugin.sandbox.disabled', tone: 'bad' };
     default:
       return null;
   }
@@ -214,7 +214,9 @@ export function filterSources(sources: PluginSourceDTO[], query: string): Plugin
 
 export interface SourceStatus {
   kind: 'unavailable' | 'untrusted' | 'trusted';
-  text: string;
+  /** A message key, except where the backend supplied its own reason in `text`. */
+  textKey?: string;
+  text?: string;
 }
 
 /**
@@ -226,11 +228,13 @@ export interface SourceStatus {
  */
 export function sourceStatus(source: PluginSourceDTO): SourceStatus {
   if (!source.available) {
-    return { kind: 'unavailable', text: source.unavailableReason || 'Unavailable' };
+    return source.unavailableReason
+      ? { kind: 'unavailable', text: source.unavailableReason }
+      : { kind: 'unavailable', textKey: 'plugins.source.unavailable' };
   }
   return source.trusted
-    ? { kind: 'trusted', text: 'Trusted' }
-    : { kind: 'untrusted', text: 'Not trusted' };
+    ? { kind: 'trusted', textKey: 'security.plugin.source.trusted' }
+    : { kind: 'untrusted', textKey: 'security.plugin.source.untrusted' };
 }
 
 export interface BrowseGroup {

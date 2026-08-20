@@ -61,7 +61,7 @@
     try {
       const preview = await previewGitHubPluginInstall(source.id, releaseTag);
       title = `Install ${preview.name}`;
-      summary = githubInstallPreviewLines(preview.name, preview.releaseTag, preview.version);
+      summary = githubInstallPreviewLines(preview.name, preview.releaseTag, preview.version, $t);
       consents = requiredConsents(preview);
       warnings = sourceTrustWarnings(preview);
       originWarning = '';

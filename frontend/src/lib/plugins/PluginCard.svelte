@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   // One plugin row, in both lists. It renders and dispatches; every decision about what an action
   // means belongs to the section that owns the data.
   //
@@ -61,7 +62,7 @@
     {/if}
     <div class="card-actions">
       {#if showDetails}
-        <button class="ghost icon-btn" title="Details" on:click={() => dispatch('details')}>
+        <button class="ghost icon-btn" title={$t('plugins.action.details')} on:click={() => dispatch('details')}>
           <Info size={13} />
         </button>
       {/if}

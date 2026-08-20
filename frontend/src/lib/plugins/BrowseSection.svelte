@@ -7,6 +7,7 @@
   import { defaultReleaseTagForPlugin, githubPluginStatusLabel } from '../pluginDisplay';
   import type { PluginSourceDTO } from '../../api/pluginSources';
   import type { GitHubPluginMetadata } from '../../api/githubPlugins';
+  import { t } from '../../i18n/messages';
 
   export let sources: PluginSourceDTO[] = [];
   export let pluginsBySource: Record<string, GitHubPluginMetadata[]> = {};
@@ -29,43 +30,53 @@
   // A release with no asset for this host cannot be installed, and saying so on the option itself
   // is what stops a user picking one and only then being refused.
   function tagLabel(release: { tag: string; prerelease: boolean; platformSupported: boolean }): string {
-    if (!release.platformSupported) return `${release.tag} · unsupported here`;
-    return release.prerelease ? `${release.tag} · pre-release` : release.tag;
+    if (!release.platformSupported) return $t('plugins.release.unsupported', { tag: release.tag });
+    return release.prerelease ? $t('plugins.release.prerelease', { tag: release.tag }) : release.tag;
   }
 
   function chipsFor(plugin: GitHubPluginMetadata) {
     const chips: { label: string; tone: 'good' | 'warn' | 'bad' | 'neutral' }[] = [];
     if (plugin.license) chips.push({ label: plugin.license, tone: 'neutral' });
-    if (!plugin.platformSupported) chips.push({ label: 'Not for this platform', tone: 'bad' });
-    if (hasUpdate(plugin)) chips.push({ label: `Update to ${plugin.latestRelease}`, tone: 'good' });
+    if (!plugin.platformSupported) {
+      chips.push({ label: $t('plugins.chip.wrongPlatform'), tone: 'bad' });
+    }
+    if (hasUpdate(plugin)) {
+      chips.push({ label: $t('plugins.chip.updateTo', { version: plugin.latestRelease }), tone: 'good' });
+    }
     return chips;
   }
 </script>
 
 <SectionHeading
-  title="Browse"
-  subtitle="Plugins published by the repositories you registered. Installing always asks before granting anything."
-  count={updateCount > 0 ? `${updateCount} update${updateCount === 1 ? '' : 's'}` : ''}
+  title={$t('plugins.section.browse')}
+  subtitle={$t('plugins.browse.subtitle')}
+  count={updateCount > 0 ? $t('plugins.count.updates', { count: updateCount }) : ''}
 />
 
 {#if repositories.length === 0}
   <div class="empty">
-    <p class="empty-title">No repositories registered</p>
-    <p class="empty-body">Add one under Sources and its plugins appear here.</p>
-    <button class="secondary" on:click={() => dispatch('goToSources')}>Open Sources</button>
+    <p class="empty-title">{$t('plugins.browse.empty.title')}</p>
+    <p class="empty-body">{$t('plugins.browse.empty.body')}</p>
+    <button class="secondary" on:click={() => dispatch('goToSources')}>
+      {$t('plugins.browse.openSources')}
+    </button>
   </div>
 {:else if groups.length === 0}
-  <p class="no-match">{query ? `Nothing matches “${query}”.` : 'No repository has published a plugin yet.'}</p>
+  <p class="no-match">
+    {query ? $t('plugins.noMatch', { query }) : $t('plugins.browse.nothingPublished')}
+  </p>
 {:else}
   {#each groups as group (group.source.id)}
     {@const status = sourceStatus(group.source)}
     <section class="group">
       <header class="group-head">
         <span class="group-name">{group.source.displayName}</span>
-        <span class="group-status status-{status.kind}">{status.text}</span>
+        <span class="group-status status-{status.kind}">
+          {status.textKey ? $t(status.textKey) : status.text}
+        </span>
         <button
           class="ghost icon-btn"
-          title="Refresh this repository"
+          title={$t('plugins.browse.refreshRepo')}
           disabled={group.loading}
           on:click={() => dispatch('refreshSource', { source: group.source })}
         >
@@ -74,7 +85,7 @@
       </header>
 
       {#if group.loading}
-        <p class="note">Loading…</p>
+        <p class="note">{$t('common.loading')}</p>
       {:else if group.error}
         <p class="note error">{group.error}</p>
       {:else}
@@ -88,7 +99,7 @@
               description={plugin.description}
               origin={plugin.author ? `by ${plugin.author}` : ''}
               chips={chipsFor(plugin)}
-              status={label.text}
+              status={$t(label.key, label.vars)}
               statusKind={update ? 'warning' : label.kind}
               showDetails={true}
               on:details={() => dispatch('details', { plugin, source: group.source })}
@@ -97,7 +108,7 @@
                 {#if plugin.availableReleases?.length > 1}
                   <select
                     class="tag-select"
-                    title="Release to install"
+                    title={$t('plugins.browse.releaseToInstall')}
                     value={tagFor(plugin)}
                     on:change={(e) =>
                       dispatch('selectTag', { pluginId: plugin.id, tag: e.currentTarget.value })}
@@ -110,7 +121,7 @@
                 <button
                   class="primary small"
                   disabled={busyPluginId === plugin.id || !plugin.platformSupported}
-                  title={plugin.platformSupported ? '' : 'No release asset targets this platform'}
+                  title={plugin.platformSupported ? '' : $t('plugins.browse.noAssetHere')}
                   on:click={() =>
                     dispatch('install', {
                       source: group.source,
@@ -120,10 +131,10 @@
                 >
                   {#if update}
                     <ArrowUpCircle size={12} />
-                    Update
+                    {$t('plugins.action.update')}
                   {:else}
                     <Download size={12} />
-                    {plugin.installed ? 'Reinstall' : 'Install'}
+                    {plugin.installed ? $t('plugins.action.reinstall') : $t('plugins.install.confirm')}
                   {/if}
                 </button>
               </svelte:fragment>

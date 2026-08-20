@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   // Search box plus the overflow menu, above the rail.
   //
   // Local installs live in this menu rather than beside Browse because a folder on this machine is
@@ -34,23 +35,23 @@
     <Search size={13} />
     <input
       type="text"
-      placeholder={searchable ? 'Search by name, description or source' : 'Nothing to search here'}
+      placeholder={searchable ? $t('plugins.search.placeholder') : $t('plugins.search.disabled')}
       disabled={!searchable}
       bind:value={query}
       on:input={() => dispatch('search', { query })}
     />
   </div>
   <div class="menu-wrap">
-    <button class="ghost icon-btn" title="More actions" on:click={() => (menuOpen = !menuOpen)}>
+    <button class="ghost icon-btn" title={$t('plugins.toolbar.more')} on:click={() => (menuOpen = !menuOpen)}>
       <MoreHorizontal size={15} />
     </button>
     {#if menuOpen}
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div class="menu" on:mouseleave={() => (menuOpen = false)}>
-        <button class="menu-item" on:click={() => pick('installFolder')}>Install from folder…</button>
-        <button class="menu-item" on:click={() => pick('installBundle')}>Install from bundle…</button>
+        <button class="menu-item" on:click={() => pick('installFolder')}>{$t('plugins.toolbar.installFolder')}</button>
+        <button class="menu-item" on:click={() => pick('installBundle')}>{$t('plugins.toolbar.installBundle')}</button>
         <div class="menu-sep"></div>
-        <button class="menu-item" on:click={() => pick('refreshAll')}>Refresh all sources</button>
+        <button class="menu-item" on:click={() => pick('refreshAll')}>{$t('plugins.toolbar.refreshAll')}</button>
       </div>
     {/if}
   </div>

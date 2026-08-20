@@ -148,8 +148,8 @@ assert(
 assert(sandboxSummary('enforced')?.tone === 'good', 'full confinement reads good');
 assert(sandboxSummary('enforced-partial')?.tone === 'warn', 'partial confinement reads as a warning');
 assert(
-  sandboxSummary('enforced-partial')?.label !== 'Sandboxed',
-  'partial confinement must not claim containment the user does not have',
+  sandboxSummary('enforced-partial')?.labelKey !== sandboxSummary('enforced')?.labelKey,
+  'partial confinement must not claim the containment full confinement does',
 );
 assert(sandboxSummary('unavailable')?.tone === 'bad', 'no sandbox reads bad');
 assert(sandboxSummary(undefined) === null, 'a plugin that is not running has no sandbox chip');
@@ -209,12 +209,15 @@ assert(
 assert(isBundled(plugin({ source: 'bundled' })), 'a plugin shipped with the app is bundled');
 assert(!isBundled(plugin({ source: 'user' })), 'and one the user installed is not');
 assert(
-  pluginStateLabel('discovered') === 'Not running',
+  pluginStateLabel('discovered').key === 'plugins.state.notRunning',
   'the registry word for "loaded, never started" is not shown to the user verbatim',
 );
-assert(pluginStateLabel('') === 'Not running', 'and neither is an absent state shown as blank');
 assert(
-  pluginStateLabel('crashed') === 'Crashed',
+  pluginStateLabel('').key === 'plugins.state.notRunning',
+  'and neither is an absent state shown as blank',
+);
+assert(
+  pluginStateLabel('crashed').text === 'Crashed' && pluginStateLabel('crashed').key === undefined,
   'every other state keeps its own word, so a state added later is not swallowed by a default',
 );
 
@@ -224,11 +227,11 @@ assert(sourceStatus(source()).kind === 'trusted', 'an available trusted source r
 assert(sourceStatus(source({ trusted: false })).kind === 'untrusted', 'and untrusted when it is');
 const down = sourceStatus(source({ available: false, trusted: false, unavailableReason: 'nope' }));
 assert(
-  down.kind === 'unavailable' && down.text === 'nope',
-  'unavailable outranks untrusted, and shows the backend reason verbatim',
+  down.kind === 'unavailable' && down.text === 'nope' && down.textKey === undefined,
+  'unavailable outranks untrusted, and shows the backend reason verbatim rather than a key',
 );
 assert(
-  sourceStatus(source({ available: false })).text === 'Unavailable',
+  sourceStatus(source({ available: false })).textKey === 'plugins.source.unavailable',
   'a missing reason still produces a label rather than an empty badge',
 );
 

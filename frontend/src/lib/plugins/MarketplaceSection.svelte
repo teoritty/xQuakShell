@@ -1,9 +1,13 @@
+<script lang="ts">
+  import { t } from '../../i18n/messages';
+</script>
+
 <!-- The first-party registry, on its own page because it is not a source you can act on.
 
      The page says one thing and stops. An earlier version described what the registry would offer
      and linked back to Sources, which read as a feature the user had failed to find rather than as
      one that does not exist yet. -->
-<div class="soon">Coming soon</div>
+<div class="soon">{$t('plugins.marketplace.soon')}</div>
 
 <style>
   /* Fills the section pane so the label sits in the middle of the page, not at the top of it. */

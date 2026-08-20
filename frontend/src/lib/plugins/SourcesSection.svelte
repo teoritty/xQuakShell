@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t, currentLocale } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import { Plus, RefreshCw, Trash2 } from 'lucide-svelte';
   import SectionHeading from './SectionHeading.svelte';
@@ -18,40 +19,40 @@
   $: repositories = filterSources(sources, query);
 
   function fetchedLabel(source: PluginSourceDTO): string {
-    if (!source.lastFetchedAt) return 'Never fetched';
+    if (!source.lastFetchedAt) return $t('plugins.sources.neverFetched');
     const when = new Date(source.lastFetchedAt);
-    return Number.isNaN(when.getTime()) ? 'Never fetched' : `Fetched ${when.toLocaleString()}`;
+    return Number.isNaN(when.getTime())
+      ? $t('plugins.sources.neverFetched')
+      : $t('plugins.sources.fetchedAt', { when: when.toLocaleString($currentLocale) });
   }
 </script>
 
 <SectionHeading
-  title="Sources"
-  subtitle="Repositories you have registered as places to install plugins from."
-  count={query ? `${repositories.length} of ${registered.length}` : registered.length ? String(registered.length) : ''}
+  title={$t('plugins.section.sources')}
+  subtitle={$t('plugins.sources.subtitle')}
+  count={query
+    ? $t('plugins.count.matched', { matched: repositories.length, total: registered.length })
+    : registered.length
+      ? String(registered.length)
+      : ''}
 >
   <button slot="action" class="secondary small" disabled={busy} on:click={() => dispatch('addSource')}>
     <Plus size={12} />
-    Add repository
+    {$t('plugins.sources.add')}
   </button>
 </SectionHeading>
 
-<p class="trust-note">
-  Trusting a repository removes the extra confirmation before its plugins install. It is a
-  statement about the people who publish there — signature, permission and platform checks run
-  either way.
-</p>
+<p class="trust-note">{$t('security.plugin.source.trustNote')}</p>
 
 {#if registered.length > 0 && repositories.length === 0}
-  <p class="no-match">Nothing matches “{query}”.</p>
+  <p class="no-match">{$t('plugins.noMatch', { query })}</p>
 {:else if registered.length === 0}
   <div class="empty">
-    <p class="empty-title">No repositories yet</p>
-    <p class="empty-body">
-      Add a GitHub or GitLab repository that publishes an xqsp.json and releases for your platform.
-    </p>
+    <p class="empty-title">{$t('plugins.sources.empty.title')}</p>
+    <p class="empty-body">{$t('plugins.sources.empty.body')}</p>
     <button class="secondary" disabled={busy} on:click={() => dispatch('addSource')}>
       <Plus size={12} />
-      Add repository
+      {$t('plugins.sources.add')}
     </button>
   </div>
 {:else}
@@ -62,7 +63,9 @@
         <div class="source-main">
           <div class="source-name">
             {source.displayName}
-            <span class="source-status status-{status.kind}">{status.text}</span>
+            <span class="source-status status-{status.kind}">
+              {status.textKey ? $t(status.textKey) : status.text}
+            </span>
           </div>
           <div class="source-id">{source.id}</div>
           <div class="source-meta">{fetchedLabel(source)}</div>
@@ -76,11 +79,11 @@
               disabled={busy}
               on:change={(e) => dispatch('setTrust', { source, trusted: e.currentTarget.checked })}
             />
-            Trusted
+            {$t('security.plugin.source.trusted')}
           </label>
           <button
             class="ghost icon-btn"
-            title="Refresh"
+            title={$t('common.refresh')}
             disabled={busy || loadingSources[source.id]}
             on:click={() => dispatch('refreshSource', { source })}
           >
@@ -88,7 +91,7 @@
           </button>
           <button
             class="ghost icon-btn danger"
-            title="Remove repository"
+            title={$t('plugins.sources.remove')}
             disabled={busy}
             on:click={() => dispatch('removeSource', { source })}
           >

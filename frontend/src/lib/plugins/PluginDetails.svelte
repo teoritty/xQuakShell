@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import Modal from '../Modal.svelte';
   import type { GitHubPluginMetadata } from '../../api/githubPlugins';
@@ -15,7 +16,7 @@
 </script>
 
 <Modal
-  title={plugin?.name || 'Plugin'}
+  title={plugin?.name || $t('plugins.details.fallbackTitle')}
   {show}
   contentClass="plugin-details-modal"
   on:close={() => dispatch('close')}
@@ -23,13 +24,13 @@
   {#if plugin}
     <div class="details">
       <dl class="facts">
-        <dt>Identifier</dt><dd>{plugin.id}</dd>
-        <dt>Version</dt><dd>{plugin.version || '—'}</dd>
-        <dt>Author</dt><dd>{plugin.author || '—'}</dd>
-        <dt>License</dt><dd>{plugin.license || '—'}</dd>
-        <dt>Source</dt><dd>{source?.displayName || plugin.repositoryUrl}</dd>
+        <dt>{$t('plugins.details.identifier')}</dt><dd>{plugin.id}</dd>
+        <dt>{$t('plugins.details.version')}</dt><dd>{plugin.version || '—'}</dd>
+        <dt>{$t('plugins.details.author')}</dt><dd>{plugin.author || '—'}</dd>
+        <dt>{$t('plugins.details.license')}</dt><dd>{plugin.license || '—'}</dd>
+        <dt>{$t('plugins.details.source')}</dt><dd>{source?.displayName || plugin.repositoryUrl}</dd>
         {#if plugin.installed}
-          <dt>Installed</dt><dd>{plugin.installedVersion} ({plugin.installedReleaseTag || 'unknown tag'})</dd>
+          <dt>{$t('plugins.details.installed')}</dt><dd>{plugin.installedVersion} ({plugin.installedReleaseTag || $t('plugins.details.unknownTag')})</dd>
         {/if}
       </dl>
 
@@ -38,9 +39,9 @@
       {/if}
 
       <section>
-        <h5>Platforms</h5>
+        <h5>{$t('plugins.details.platforms')}</h5>
         {#if platforms.length === 0}
-          <p class="note">This release publishes no platform assets.</p>
+          <p class="note">{$t('plugins.details.noAssets')}</p>
         {:else}
           <ul class="chips">
             {#each platforms as p}
@@ -49,21 +50,21 @@
           </ul>
         {/if}
         {#if !plugin.platformSupported}
-          <p class="note warn">No asset targets this machine, so this plugin cannot be installed here.</p>
+          <p class="note warn">{$t('plugins.details.noAssetHere')}</p>
         {/if}
       </section>
 
       <section>
-        <h5>Releases</h5>
+        <h5>{$t('plugins.details.releases')}</h5>
         {#if releases.length === 0}
-          <p class="note">No published releases.</p>
+          <p class="note">{$t('plugins.details.noReleases')}</p>
         {:else}
           <ul class="releases">
             {#each releases.slice(0, 12) as release (release.tag)}
               <li>
                 <span class="tag">{release.tag}</span>
-                {#if release.prerelease}<span class="badge">pre-release</span>{/if}
-                {#if !release.platformSupported}<span class="badge warn">unsupported here</span>{/if}
+                {#if release.prerelease}<span class="badge">{$t('plugins.details.prerelease')}</span>{/if}
+                {#if !release.platformSupported}<span class="badge warn">{$t('plugins.details.unsupportedHere')}</span>{/if}
                 <span class="date">{release.publishedAt}</span>
               </li>
             {/each}
@@ -73,7 +74,7 @@
 
       {#if plugin.readme}
         <section>
-          <h5>Readme</h5>
+          <h5>{$t('plugins.details.readme')}</h5>
           <!-- Rendered as text, never as markup: a readme is attacker-controlled content from a
                repository the user may not trust, and this window has the app's own privileges. -->
           <pre class="readme">{plugin.readme}</pre>
@@ -83,7 +84,7 @@
   {/if}
 
   <div class="dialog-actions">
-    <button class="secondary" on:click={() => dispatch('close')}>Close</button>
+    <button class="secondary" on:click={() => dispatch('close')}>{$t('common.close')}</button>
   </div>
 </Modal>
 
