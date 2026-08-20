@@ -8,6 +8,7 @@ import (
 	"xquakshell/internal/infra/auditlog"
 	"xquakshell/internal/infra/host"
 	"xquakshell/internal/infra/keys"
+	"xquakshell/internal/infra/locale"
 	"xquakshell/internal/infra/loghub"
 	"xquakshell/internal/infra/persistence"
 	infrapinger "xquakshell/internal/infra/pinger"
@@ -124,6 +125,14 @@ func composeApp() *App {
 	api.SetGitHubServices(pluginRuntime.githubRepoService, pluginRuntime.githubPluginService)
 	api.SetPluginCatalog(buildPluginCatalog(pluginRuntime.githubRepoService, pluginRuntime.githubPluginService))
 	api.SetUpdateService(newUpdateService(api, auditLogRepo))
+	// A catalogue that fails to build means the packs compiled into this binary are broken, which
+	// no user action can repair. The application still starts — every string has an English
+	// literal behind it — but the language selector will be empty and this line says why.
+	if catalog, err := locale.NewCatalog(portableLayout.DataRoot(), nil); err != nil {
+		log.Printf("WARNING: locale catalog unavailable, the interface stays English: %v", err)
+	} else {
+		api.SetLocaleCatalog(catalog)
+	}
 	if bridge := api.Sessions().PluginBridge(); bridge != nil {
 		pluginRuntime.setSessionRecoverer(bridge)
 	}

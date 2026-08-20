@@ -1373,6 +1373,38 @@ export namespace wails {
 	        this.owner = source["owner"];
 	    }
 	}
+	export class LocaleInfoDTO {
+	    code: string;
+	    name: string;
+	    builtin: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new LocaleInfoDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.code = source["code"];
+	        this.name = source["name"];
+	        this.builtin = source["builtin"];
+	    }
+	}
+	export class LocaleMessagesDTO {
+	    code: string;
+	    name: string;
+	    messages: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new LocaleMessagesDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.code = source["code"];
+	        this.name = source["name"];
+	        this.messages = source["messages"];
+	    }
+	}
 	export class PendingKeyDTO {
 	    id: string;
 	    comment: string;

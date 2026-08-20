@@ -57,6 +57,7 @@ type AppAPI struct {
 	logLevel                    domain.LogLevelController
 	unlockThrottle              domain.UnlockThrottle
 	updateSvc                   *usecase.UpdateService
+	locales                     domain.LocaleCatalog
 }
 
 // NewAppAPI creates a new AppAPI with the given dependencies.

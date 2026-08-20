@@ -170,6 +170,10 @@ export function GetKnownHosts() {
   return window['go']['main']['App']['GetKnownHosts']();
 }
 
+export function GetLocaleMessages(arg1) {
+  return window['go']['main']['App']['GetLocaleMessages'](arg1);
+}
+
 export function GetPeerTrust() {
   return window['go']['main']['App']['GetPeerTrust']();
 }
@@ -272,6 +276,10 @@ export function ListGitHubRepositories() {
 
 export function ListLocalPath(arg1, arg2) {
   return window['go']['main']['App']['ListLocalPath'](arg1, arg2);
+}
+
+export function ListLocales() {
+  return window['go']['main']['App']['ListLocales']();
 }
 
 export function ListPath(arg1, arg2) {

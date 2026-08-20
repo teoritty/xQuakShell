@@ -87,6 +87,8 @@ export function GetKeys():Promise<Array<wails.IdentityDTO>>;
 
 export function GetKnownHosts():Promise<Array<wails.KnownHostDTO>>;
 
+export function GetLocaleMessages(arg1:string):Promise<wails.LocaleMessagesDTO>;
+
 export function GetPeerTrust():Promise<Array<wails.PeerTrustDTO>>;
 
 export function GetPingResults():Promise<Array<wails.PingResultDTO>>;
@@ -138,6 +140,8 @@ export function IsVaultUnlocked():Promise<boolean>;
 export function ListGitHubRepositories():Promise<Array<wails.GitHubRepositoryDTO>>;
 
 export function ListLocalPath(arg1:string,arg2:boolean):Promise<Array<wails.LocalNodeDTO>>;
+
+export function ListLocales():Promise<Array<wails.LocaleInfoDTO>>;
 
 export function ListPath(arg1:string,arg2:string):Promise<Array<wails.RemoteNodeDTO>>;
 

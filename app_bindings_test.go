@@ -20,6 +20,7 @@ var notBound = map[string]string{
 	"SetEmbedBridge":                 "wiring",
 	"SetForwardRuleValidator":        "wiring",
 	"SetGitHubServices":              "wiring",
+	"SetLocaleCatalog":               "wiring",
 	"SetPluginCatalog":               "wiring",
 	"SetUpdateService":               "wiring",
 	"SetPluginArbitraryNetworkGrant": "wiring",
