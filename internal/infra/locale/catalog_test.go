@@ -203,6 +203,10 @@ func TestOversizedPackIsRejectedWhole(t *testing.T) {
 // English is the pack every other language falls back to, key by key, so a key a translation
 // carries but English does not can never be reached through the fallback and is almost always a
 // typo in the translated key. The reverse is fine and expected: an untranslated key falls back.
+//
+// Plural variants are matched on their base key, not on the whole name. Russian needs _few and
+// _many where English needs only _one and _other, so demanding an exact match would force English
+// to carry forms its own grammar has no use for.
 func TestEveryBuiltinKeyExistsInEnglish(t *testing.T) {
 	catalog := newTestCatalog(t, t.TempDir())
 	english := catalog.builtin[domain.DefaultLocale]
@@ -212,11 +216,34 @@ func TestEveryBuiltinKeyExistsInEnglish(t *testing.T) {
 			continue
 		}
 		for key := range pack.Messages {
-			if _, ok := english.Messages[key]; !ok {
-				t.Errorf("%s.json carries %q, which en.json does not; nothing can fall back to it", code, key)
+			if englishClaims(english.Messages, key) {
+				continue
+			}
+			t.Errorf("%s.json carries %q, which en.json does not; nothing can fall back to it", code, key)
+		}
+	}
+}
+
+// pluralSuffixes are the CLDR categories a key may be split across.
+var pluralSuffixes = []string{"_zero", "_one", "_two", "_few", "_many", "_other"}
+
+// englishClaims reports whether English carries this key, counting any plural form of it.
+func englishClaims(english map[string]string, key string) bool {
+	if _, ok := english[key]; ok {
+		return true
+	}
+	for _, suffix := range pluralSuffixes {
+		base, found := strings.CutSuffix(key, suffix)
+		if !found {
+			continue
+		}
+		for _, other := range pluralSuffixes {
+			if _, ok := english[base+other]; ok {
+				return true
 			}
 		}
 	}
+	return false
 }
 
 // The security namespace is only a protection for keys English actually claims: overlay lets an
@@ -243,7 +270,7 @@ func TestEverySecurityKeyIsClaimedByEnglish(t *testing.T) {
 			if !strings.HasPrefix(key, domain.SecurityMessagePrefix) {
 				continue
 			}
-			if _, ok := english.Messages[key]; !ok {
+			if !englishClaims(english.Messages, key) {
 				t.Errorf("%s.json declares the security key %q that en.json does not claim, so a pack "+
 					"on disk could supply it instead", code, key)
 			}

@@ -9,6 +9,7 @@
   import PasswordField from './PasswordField.svelte';
   import PasswordStrengthMeter from './PasswordStrengthMeter.svelte';
   import PasswordRequirements from './PasswordRequirements.svelte';
+  import { t } from '../../i18n/messages';
 
   let password = '';
   let confirmation = '';
@@ -29,7 +30,7 @@
     try {
       await createVault(password);
     } catch (e: any) {
-      error = e?.message || 'Could not create the vault';
+      error = e?.message || $t('vault.create.failed');
     } finally {
       loading = false;
     }
@@ -38,8 +39,8 @@
 
 <VaultCard
   wide
-  title="Choose a master password"
-  subtitle="This password encrypts your connections, keys and secrets. It is the only key to them."
+  title={$t('vault.create.title')}
+  subtitle={$t('security.vault.create.subtitle')}
   {error}
 >
   <KeyRound slot="icon" size={48} strokeWidth={1.5} />
@@ -47,8 +48,8 @@
   <form on:submit|preventDefault={handleCreate}>
     <PasswordField
       bind:value={password}
-      ariaLabel="Master password"
-      placeholder="Master password"
+      ariaLabel={$t('vault.field.master')}
+      placeholder={$t('vault.field.master')}
       disabled={loading}
       autofocus
     />
@@ -64,21 +65,21 @@
 
     <PasswordField
       bind:value={confirmation}
-      ariaLabel="Confirm master password"
-      placeholder="Repeat master password"
+      ariaLabel={$t('vault.field.confirm')}
+      placeholder={$t('vault.field.repeat')}
       disabled={loading}
     />
 
     <p class="mismatch" role="alert">
-      {mismatch ? 'The two passwords do not match.' : ''}
+      {mismatch ? $t('vault.create.mismatch') : ''}
     </p>
 
     <button type="submit" class="primary" disabled={!canSubmit}>
-      {loading ? 'Creating vault...' : 'Create vault'}
+      {loading ? $t('vault.create.busy') : $t('vault.create.submit')}
     </button>
 
     <p class="no-recovery">
-      There is no recovery. Forget this password and the vault is gone for good.
+      {$t('security.vault.create.noRecovery')}
     </p>
   </form>
 </VaultCard>
