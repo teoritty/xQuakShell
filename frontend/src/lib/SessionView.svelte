@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   import Terminal from './Terminal.svelte';
   import { sessionTerminalIO } from '../terminal/sessionTerminalIO';
   import SessionEmbedPanel from './SessionEmbedPanel.svelte';
@@ -91,10 +92,10 @@
   {#if session.state === 'error'}
     <div class="session-status error">
       <div class="status-icon"><XCircle size={28} /></div>
-      <div class="status-text">Connection error: {session.errorMessage}</div>
+      <div class="status-text">{$t('session.connectionError', { message: session.errorMessage })}</div>
       <div class="status-actions">
-        <button class="primary" on:click={handleReconnect}>Reconnect</button>
-        <button class="secondary" on:click={() => closeSession(session.sessionId)}>Close</button>
+        <button class="primary" on:click={handleReconnect}>{$t('session.reconnect')}</button>
+        <button class="secondary" on:click={() => closeSession(session.sessionId)}>{$t('common.close')}</button>
       </div>
     </div>
   {:else if session.surface === 'embed' && session.embed}
@@ -115,7 +116,7 @@
   {:else if session.state === 'connecting'}
     <div class="session-status">
       <div class="status-icon spinning"><Loader2 size={28} /></div>
-      <div class="status-text">Connecting to {session.connectionName}...</div>
+      <div class="status-text">{$t('session.connecting', { name: session.connectionName })}</div>
     </div>
   {:else if session.state === 'ready'}
     <div class="session-content" class:no-select={isDragging || fileDragging} class:terminal-only={!filesVisible}>
@@ -153,7 +154,7 @@
   {:else}
     <div class="session-status">
       <div class="status-icon"><Circle size={28} /></div>
-      <div class="status-text">Session closed</div>
+      <div class="status-text">{$t('session.closed')}</div>
     </div>
   {/if}
 </div>

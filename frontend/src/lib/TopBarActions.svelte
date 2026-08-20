@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   // The top bar's icon buttons, in one place.
   //
   // Extracted from App.svelte when adding Plugins pushed that file past its size budget. It is a
@@ -15,19 +16,19 @@
   // Order is deliberate: the two most-used managers first, then the trust ones, then Plugins and
   // Settings pinned to the right edge where they were before.
   const actions = [
-    { event: 'scripts', title: 'Scripts', icon: Terminal },
-    { event: 'audit', title: 'Audit Log', icon: FileText },
-    { event: 'knownHosts', title: 'Known Hosts', icon: Shield },
-    { event: 'peerTrust', title: 'Trusted Peers', icon: Fingerprint },
-    { event: 'keys', title: 'SSH Keys', icon: Key },
-    { event: 'plugins', title: 'Plugins', icon: Puzzle },
-    { event: 'settings', title: 'Settings', icon: Settings },
+    { event: 'scripts', titleKey: 'topbar.scripts', icon: Terminal },
+    { event: 'audit', titleKey: 'settings.tab.audit', icon: FileText },
+    { event: 'knownHosts', titleKey: 'topbar.knownHosts', icon: Shield },
+    { event: 'peerTrust', titleKey: 'topbar.peerTrust', icon: Fingerprint },
+    { event: 'keys', titleKey: 'keys.title', icon: Key },
+    { event: 'plugins', titleKey: 'plugins.title', icon: Puzzle },
+    { event: 'settings', titleKey: 'settings.title', icon: Settings },
   ];
 </script>
 
 <div class="top-bar-actions">
   {#each actions as action (action.event)}
-    <button class="ghost top-btn" title={action.title} on:click={() => dispatch(action.event)}>
+    <button class="ghost top-btn" title={$t(action.titleKey)} on:click={() => dispatch(action.event)}>
       <svelte:component this={action.icon} size={14} />
     </button>
   {/each}

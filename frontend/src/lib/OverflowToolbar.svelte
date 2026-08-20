@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   import { onDestroy, onMount, tick } from 'svelte';
   import { MoreHorizontal, Check } from 'lucide-svelte';
   import { clampMenuPosition } from './clampMenuPosition';
@@ -177,7 +178,7 @@
       bind:this={triggerEl}
       type="button"
       class="overflow-trigger"
-      title="More actions"
+      title={$t('plugins.toolbar.more')}
       aria-haspopup="menu"
       aria-expanded={menuOpen}
       tabindex="0"

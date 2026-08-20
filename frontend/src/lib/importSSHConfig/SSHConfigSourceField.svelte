@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   /** Path field for the config file, with a native file picker. */
   import { createEventDispatcher } from 'svelte';
   import { FolderOpen, RefreshCw } from 'lucide-svelte';
@@ -18,17 +19,17 @@
       id="ssh-config-path"
       type="text"
       bind:value={path}
-      placeholder="~/.ssh/config"
+      placeholder={$t('import.pathPlaceholder')}
       spellcheck="false"
       autocomplete="off"
       on:keydown={(e) => e.key === 'Enter' && dispatch('reload')}
     />
-    <button class="icon-btn" title="Browse…" disabled={busy} on:click={() => dispatch('browse')}>
+    <button class="icon-btn" title={$t('import.browse')} disabled={busy} on:click={() => dispatch('browse')}>
       <FolderOpen size={14} />
     </button>
     <button
       class="icon-btn"
-      title="Read this file"
+      title={$t('import.readFile')}
       disabled={busy || !path.trim()}
       on:click={() => dispatch('reload')}
     >

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   import { onDestroy } from 'svelte';
   import { get } from 'svelte/store';
   import { connections, type Session } from '../stores/appState';
@@ -124,7 +125,7 @@
     <iframe
       bind:this={iframeEl}
       class="embed-frame"
-      title="{session.connectionName} embed"
+      title={$t('session.embedTitle', { name: session.connectionName })}
       src={iframeSrc(session.embed.uiUrl)}
       sandbox={sandboxAttr(session.embed.sandbox)}
       on:load={() => {

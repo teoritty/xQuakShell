@@ -50,9 +50,12 @@ export function describeHost(host: SSHConfigHost): string {
 }
 
 /** Label for the confirm button; states the exact count being acted on. */
-export function importButtonLabel(count: number): string {
-  if (count === 0) return 'Select hosts to import';
-  return count === 1 ? 'Import 1 connection' : `Import ${count} connections`;
+/** Resolves a message key. Components pass `$t`; tests pass whatever they need. */
+export type ImportLabels = (key: string, vars?: Record<string, string | number>) => string;
+
+export function importButtonLabel(count: number, label: ImportLabels): string {
+  if (count === 0) return label('import.selectHosts');
+  return label('import.importCount', { count });
 }
 
 /**
@@ -62,46 +65,44 @@ export function importButtonLabel(count: number): string {
  * error message, so the phrasing lives here where it can be read and changed
  * like any other UI copy.
  */
-export function describeNotice(notice: SSHConfigNotice): string {
+const NOTICE_KEYS: Record<string, string> = {
+  matchBlockSkipped: 'import.notice.matchBlockSkipped',
+  proxyCommandUnsupported: 'import.notice.proxyCommandUnsupported',
+  includeUnreadable: 'import.notice.includeUnreadable',
+  identityFileMissing: 'import.notice.identityFileMissing',
+  jumpHostUnresolved: 'import.notice.jumpHostUnresolved',
+  limitReached: 'import.notice.limitReached',
+};
+
+export function describeNotice(notice: SSHConfigNotice, label: ImportLabels): string {
+  // The target rides in as a variable rather than being appended, so a translation can put it
+  // where its own grammar wants it - or leave it out of a sentence that reads better without.
   const target = notice.target ? ` (${notice.target})` : '';
-  switch (notice.kind) {
-    case 'matchBlockSkipped':
-      return 'A Match block was skipped: its conditions can only be evaluated when connecting.';
-    case 'proxyCommandUnsupported':
-      return `ProxyCommand is not supported and was ignored${target}. Set up a jump host manually if needed.`;
-    case 'includeUnreadable':
-      return `An included file could not be read${target}.`;
-    case 'identityFileMissing':
-      return `A referenced key file was not found${target}. Connections using it are imported without it.`;
-    case 'jumpHostUnresolved':
-      return `A ProxyJump entry could not be resolved${target}. Its jump chain may be incomplete.`;
-    case 'limitReached':
-      return `The config is larger than the importer reads in one pass${target}. Some entries may be missing.`;
-    default:
-      return `The config contains something the importer did not handle${target}.`;
-  }
+  return label(NOTICE_KEYS[notice.kind] ?? 'import.notice.unknown', { target });
 }
 
 /** Sentence summarising a finished import. */
-export function describeResult(result: {
-  connections: unknown[];
-  importedKeys: number;
-  failedKeys: number;
-  skippedAliases: string[];
-}): string {
-  const parts = [plural(result.connections.length, 'connection', 'connections') + ' imported'];
+export function describeResult(
+  result: {
+    connections: unknown[];
+    importedKeys: number;
+    failedKeys: number;
+    skippedAliases: string[];
+  },
+  label: ImportLabels,
+): string {
+  // Each clause is its own key with its own plural forms rather than a noun glued to a verb:
+  // "2 connections imported" is one sentence in English and a differently-inflected one in a
+  // language that agrees the participle with the number.
+  const parts = [label('import.result.connections', { count: result.connections.length })];
   if (result.importedKeys > 0) {
-    parts.push(plural(result.importedKeys, 'key', 'keys') + ' added');
+    parts.push(label('import.result.keysAdded', { count: result.importedKeys }));
   }
   if (result.failedKeys > 0) {
-    parts.push(plural(result.failedKeys, 'key', 'keys') + ' could not be read');
+    parts.push(label('import.result.keysFailed', { count: result.failedKeys }));
   }
   if (result.skippedAliases.length > 0) {
-    parts.push(`${result.skippedAliases.length} no longer in the config`);
+    parts.push(label('import.result.skipped', { count: result.skippedAliases.length }));
   }
   return parts.join(', ') + '.';
-}
-
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
 }

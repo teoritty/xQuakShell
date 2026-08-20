@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   // The property panel of a selected discovery node (ADR-015 §3).
   //
   // It sits where Connection Details sits, because it is the same idea applied to the other thing
@@ -104,7 +105,7 @@
   <div class="node-details">
     <div class="header">
       <span class="title" title={target.label}>{target.label}</span>
-      <button class="ghost" title="Close" on:click={closeNodeDetails}><X size={13} /></button>
+      <button class="ghost" title={$t('common.close')} on:click={closeNodeDetails}><X size={13} /></button>
     </div>
 
     <div class="body">
@@ -121,14 +122,14 @@
           {onChange}
         />
       {:else}
-        <div class="status">This item has no details.</div>
+        <div class="status">{$t('discovery.noDetails')}</div>
       {/if}
     </div>
 
     {#if details?.editable}
       <div class="actions">
         <button class="primary" disabled={!dirty || invalid || saving} on:click={save}>
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? $t('settings.action.saving') : $t('common.save')}
         </button>
       </div>
     {/if}

@@ -3,6 +3,7 @@
   import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-svelte';
   import type { SSHConfigNotice } from '../../api/sshConfig';
   import { describeNotice } from './importSelection';
+  import { t } from '../../i18n/messages';
 
   export let notices: SSHConfigNotice[] = [];
 
@@ -16,15 +17,12 @@
     <button class="toggle" on:click={() => (expanded = !expanded)} aria-expanded={expanded}>
       {#if expanded}<ChevronDown size={12} />{:else}<ChevronRight size={12} />{/if}
       <AlertTriangle size={12} />
-      <span>
-        {notices.length}
-        {notices.length === 1 ? 'thing was' : 'things were'} not imported as written
-      </span>
+      <span>{$t('import.notices.summary', { count: notices.length })}</span>
     </button>
     {#if expanded}
       <ul>
         {#each notices as notice, i (notice.kind + notice.target + i)}
-          <li>{describeNotice(notice)}</li>
+          <li>{describeNotice(notice, $t)}</li>
         {/each}
       </ul>
     {/if}

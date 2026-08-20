@@ -1,5 +1,6 @@
 <!-- frontend/src/lib/tiles/TileGroup.svelte -->
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import type { TileGroup, Zone, Edge } from './types';
   import { sessions, activeTabId } from '../../stores/appState';
   import SessionView from '../SessionView.svelte';
@@ -146,7 +147,7 @@
     {#if showFilesToggle}
       <button
         class="tile-action"
-        title={collapsed ? 'Show files' : 'Hide files'}
+        title={collapsed ? $t('tiles.showFiles') : $t('tiles.hideFiles')}
         on:click|stopPropagation={() => toggleTileFilePanel(tile.id)}
       >
         {#if collapsed}<PanelRightOpen size={18} />{:else}<PanelRightClose size={18} />{/if}
@@ -155,7 +156,7 @@
     {#if mergeBar}
       <div class="merge-hint" aria-hidden="true">
         <Combine size={15} />
-        <span>Combine into this tile</span>
+        <span>{$t('tiles.combine')}</span>
       </div>
     {/if}
   </div>

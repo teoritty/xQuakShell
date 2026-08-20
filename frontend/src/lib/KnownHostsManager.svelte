@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   import { onMount } from 'svelte';
   import Modal from './Modal.svelte';
 
@@ -49,13 +50,13 @@
   }
 </script>
 
-<Modal title="Known Hosts" {show} on:close={() => show = false}>
+<Modal title={$t('topbar.knownHosts')} {show} on:close={() => show = false}>
   {#if error}
     <div class="kh-error">{error}</div>
   {/if}
 
   {#if loading}
-    <div class="kh-loading">Loading...</div>
+    <div class="kh-loading">{$t('common.loading')}</div>
   {:else if entries.length === 0}
     <div class="kh-empty">No known hosts stored yet.</div>
   {:else}
@@ -69,14 +70,14 @@
               <span class="kh-fp" title={entry.fingerprint}>{entry.fingerprint}</span>
             </div>
           </div>
-          <button class="danger kh-remove" on:click={() => removeEntry(entry.host)} title="Remove host key">✕</button>
+          <button class="danger kh-remove" on:click={() => removeEntry(entry.host)} title={$t('security.knownHosts.remove')}>✕</button>
         </div>
       {/each}
     </div>
   {/if}
 
   <div class="kh-footer">
-    <button class="secondary" on:click={() => loadEntries()}>Refresh</button>
+    <button class="secondary" on:click={() => loadEntries()}>{$t('common.refresh')}</button>
   </div>
 </Modal>
 

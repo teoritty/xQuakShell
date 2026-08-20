@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   import Modal from './Modal.svelte';
   import { importPuTTYPPK, importPuTTYRegPreview, importPuTTYRegAsConnections, type PuTTYSessionPreview } from '../api/credentials';
   import { refreshAllConnections, refreshIdentities } from '../actions/connectionActions';
@@ -73,47 +74,43 @@
 </script>
 
 {#if show}
-  <Modal title="Import from PuTTY" show={show} on:close={() => show = false}>
+  <Modal title={$t('import.putty.title')} show={show} on:close={() => show = false}>
     <div class="import-body">
-      <p class="import-desc">Import .ppk (private key) or .reg (saved sessions).</p>
+      <p class="import-desc">{$t('import.putty.desc')}</p>
       <label class="file-drop">
         <input type="file" accept=".ppk,.reg" on:change={handleFileSelect} hidden />
         <div class="drop-zone">
           <KeyRound size={24} />
-          <span>Select .ppk or .reg file</span>
+          <span>{$t('import.putty.selectFile')}</span>
         </div>
       </label>
 
       {#if fileType === 'ppk'}
         <label class="field-block">
-          <span>Passphrase (if key is encrypted)</span>
-          <input type="password" bind:value={ppkPassphrase} placeholder="Leave empty if unencrypted" />
+          <span>{$t('import.putty.passphrase')}</span>
+          <input type="password" bind:value={ppkPassphrase} placeholder={$t('import.putty.passphraseHint')} />
         </label>
         <button class="primary" on:click={doImportPPK} disabled={importing}>
-          {importing ? 'Importing...' : 'Import key'}
+          {importing ? $t('import.busy') : $t('import.putty.importKey')}
         </button>
       {/if}
 
       {#if fileType === 'reg' && regPreview.length === 0}
         <!-- Without this the dialog rendered nothing at all for a .reg that
              yielded no sessions, which reads as the file picker having failed. -->
-        <p class="reg-empty">
-          No saved sessions found in this file. A PuTTY export should contain
-          <code>[…\SimonTatham\PuTTY\Sessions\…]</code> entries with a
-          <code>HostName</code> value.
-        </p>
+        <p class="reg-empty">{$t('import.putty.noSessions')}</p>
       {/if}
 
       {#if fileType === 'reg' && regPreview.length > 0}
         <div class="reg-preview">
-          <h4>Found {regPreview.length} session(s)</h4>
+          <h4>{$t('import.putty.found', { count: regPreview.length })}</h4>
           <div class="preview-list">
             {#each regPreview as s}
               <div class="preview-item">{s.name} — {s.hostName}:{s.port} {#if s.userName}({s.userName}){/if}</div>
             {/each}
           </div>
           <button class="primary" on:click={doImportReg} disabled={importing}>
-            {importing ? 'Importing...' : 'Import to current folder'}
+            {importing ? $t('import.busy') : $t('import.putty.importSessions')}
           </button>
         </div>
       {/if}
@@ -144,7 +141,6 @@
   .field-block { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
   .field-block span { font-size: 11px; color: var(--text-secondary); }
   .reg-empty { font-size: 12px; color: var(--text-secondary); margin-top: 12px; }
-  .reg-empty code { font-size: 11px; color: var(--text-primary); }
   .reg-preview { margin-top: 16px; }
   .reg-preview h4 { font-size: 12px; margin-bottom: 8px; }
   .preview-list { max-height: 120px; overflow-y: auto; margin-bottom: 12px; font-size: 11px; }

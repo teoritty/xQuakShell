@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   // One field of a dialog or a node details panel (ADR-015).
   //
   // Deliberately not the connection editor's renderer: that component is mostly about vault-stored
@@ -101,7 +102,7 @@
     ></textarea>
   {:else if field.type === 'code'}
     <div class="code-block">
-      <button class="ghost copy" title="Copy" on:click={copyCode}><Copy size={12} /></button>
+      <button class="ghost copy" title={$t('common.copy')} on:click={copyCode}><Copy size={12} /></button>
       <pre>{value}</pre>
     </div>
   {:else if field.type === 'keyValue'}
@@ -114,7 +115,7 @@
             class="pair-key"
             class:invalid={problems.has(row.id)}
             value={row.key}
-            placeholder="name"
+            placeholder={$t('fields.keyValue.name')}
             disabled={readonly}
             title={problems.get(row.id) ?? ''}
             on:input={(e) => updateRow(row.id, { key: e.currentTarget.value })}
@@ -122,12 +123,12 @@
           <input
             class="pair-value"
             value={row.value}
-            placeholder="value"
+            placeholder={$t('fields.keyValue.value')}
             disabled={readonly}
             on:input={(e) => updateRow(row.id, { value: e.currentTarget.value })}
           />
           {#if !readonly}
-            <button class="ghost" title="Remove" on:click={() => removeRow(row.id)}>
+            <button class="ghost" title={$t('common.remove')} on:click={() => removeRow(row.id)}>
               <Trash2 size={12} />
             </button>
           {/if}

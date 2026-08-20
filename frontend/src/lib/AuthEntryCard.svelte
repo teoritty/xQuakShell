@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   import { createEventDispatcher, onMount } from 'svelte';
   import { KeyRound, Plus, X, Trash2 } from 'lucide-svelte';
   import type { KeyAuthConfig, PassAuthConfig, PluginAuthConfig } from '../stores/appState';
@@ -73,14 +74,14 @@
       on:change={(e) => dispatch('authmethodchange', e.currentTarget.value)}
       class="auth-select"
     >
-      <option value="key">Key</option>
-      <option value="password">Password</option>
-      <option value="plugin">Plugin</option>
+      <option value="key">{$t('auth.method.key')}</option>
+      <option value="password">{$t('auth.method.password')}</option>
+      <option value="plugin">{$t('auth.method.plugin')}</option>
     </select>
     <div class="auth-entry-meta">
       <slot name="meta" />
     </div>
-    <button class="ghost micro-btn danger toolbar-remove" on:click={() => dispatch('remove')} title="Remove">
+    <button class="ghost micro-btn danger toolbar-remove" on:click={() => dispatch('remove')} title={$t('common.remove')}>
       <Trash2 size={12} />
     </button>
   </div>
@@ -88,7 +89,7 @@
     <div class="pass-block">
       <input
         type="password"
-        placeholder="Enter password"
+        placeholder={$t('auth.passwordPlaceholder')}
         value={passAuth?.passwordId ? '********' : ''}
         on:change={(e) => dispatch('passwordchange', e.currentTarget.value)}
         class="pass-input"
@@ -110,7 +111,7 @@
         </div>
       {/each}
       <button class="secondary tiny-btn" on:click={() => dispatch('keypick')}>
-        <Plus size={11} /> Choose key
+        <Plus size={11} /> {$t('auth.chooseKey')}
       </button>
     </div>
   {:else if authMethod === 'plugin'}
@@ -120,7 +121,7 @@
         on:change={(e) => onPluginChange(e.currentTarget.value)}
         class="plugin-select"
       >
-        <option value="">Select plugin…</option>
+        <option value="">{$t('auth.selectPlugin')}</option>
         {#each pluginIds as pid}
           <option value={pid}>{pid}</option>
         {/each}
@@ -131,12 +132,12 @@
         class="plugin-select"
         disabled={!pluginAuth?.pluginId}
       >
-        <option value="">Auth method…</option>
+        <option value="">{$t('auth.selectMethod')}</option>
         {#each methodsForPlugin as method}
           <option value={method.id}>{method.label || method.id}</option>
         {/each}
       </select>
-      <p class="consent-hint">Plugin auth requires install-time auth provider consent in plugin settings.</p>
+      <p class="consent-hint">{$t('security.auth.consentHint')}</p>
       {#if selectedMethod?.fields?.length}
         <PluginConnectionFields
           groups={selectedMethod.fields}

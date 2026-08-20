@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   /** Selectable list of parsed hosts. Presentational: selection lives above. */
   import { createEventDispatcher } from 'svelte';
   import { KeyRound, Waypoints } from 'lucide-svelte';
@@ -38,7 +39,7 @@
     {/if}
   </div>
 
-  <div class="rows" role="group" aria-label="Hosts to import">
+  <div class="rows" role="group" aria-label={$t('import.hostsAria')}>
     {#each hosts as host (host.alias)}
       <label class="row" class:duplicate={host.duplicate}>
         <input
@@ -50,19 +51,19 @@
         <span class="target">{describeHost(host)}</span>
         <span class="badges">
           {#if host.jumpAliases.length > 0}
-            <span class="badge" title="Jump chain: {host.jumpAliases.join(' → ')}">
+            <span class="badge" title={$t('import.jumpChain', { chain: host.jumpAliases.join(' → ') })}>
               <Waypoints size={10} />
               {host.jumpAliases.length}
             </span>
           {/if}
           {#if host.keyCount > 0}
-            <span class="badge" title="{host.keyCount} referenced key file(s)">
+            <span class="badge" title={$t('import.referencedKeys', { count: host.keyCount })}>
               <KeyRound size={10} />
               {host.keyCount}
             </span>
           {/if}
           {#if host.duplicate}
-            <span class="badge dup" title="A connection with this host, port and user already exists">
+            <span class="badge dup" title={$t('import.duplicate')}>
               Already in vault
             </span>
           {/if}

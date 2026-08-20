@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   // The modal a plugin opens (ADR-015 §2).
   //
   // A form has submit and cancel and returns values; a detail has only a close button and never
@@ -78,12 +79,12 @@
     </div>
     <div class="dialog-actions">
       {#if $activeDialog.kind === 'form'}
-        <button class="ghost" on:click={cancel}>Cancel</button>
+        <button class="ghost" on:click={cancel}>{$t('common.cancel')}</button>
         <button class="primary" disabled={invalid || submitting} on:click={submit}>
-          {$activeDialog.submitLabel || 'Submit'}
+          {$activeDialog.submitLabel || $t('common.submit')}
         </button>
       {:else}
-        <button class="primary" on:click={cancel}>Close</button>
+        <button class="primary" on:click={cancel}>{$t('common.close')}</button>
       {/if}
     </div>
   </Modal>
