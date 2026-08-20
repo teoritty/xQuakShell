@@ -14,11 +14,14 @@ import {
   buildRail,
   countNeedsAttention,
   filterInstalled,
+  filterSources,
   forgeSources,
   groupInstalled,
   hasUpdate,
+  isBundled,
   matchesQuery,
   pluginRunState,
+  pluginStateLabel,
   sandboxSummary,
   sourceStatus,
 } from './pluginsView';
@@ -190,6 +193,29 @@ assert(forgeSources(all).length === 2, 'forgeSources keeps only the registered r
 assert(
   forgeSources(all).every((s) => s.kind === 'forge'),
   'the marketplace never reaches a list whose trust, refresh and remove controls are inert on it',
+);
+
+assert(
+  filterSources(all, 'repo-2').map((s) => s.id).join(',') === 'repo-2',
+  'a source search matches the URL, which is what the user pasted to register it',
+);
+assert(
+  filterSources(all, '').length === 2,
+  'an empty source search is the whole list, still without the marketplace',
+);
+
+// --- install source and run state, as a user reads them ---
+
+assert(isBundled(plugin({ source: 'bundled' })), 'a plugin shipped with the app is bundled');
+assert(!isBundled(plugin({ source: 'user' })), 'and one the user installed is not');
+assert(
+  pluginStateLabel('discovered') === 'Not running',
+  'the registry word for "loaded, never started" is not shown to the user verbatim',
+);
+assert(pluginStateLabel('') === 'Not running', 'and neither is an absent state shown as blank');
+assert(
+  pluginStateLabel('crashed') === 'Crashed',
+  'every other state keeps its own word, so a state added later is not swallowed by a default',
 );
 
 // --- source status ---

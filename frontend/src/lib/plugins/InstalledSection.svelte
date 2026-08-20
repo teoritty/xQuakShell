@@ -3,7 +3,7 @@
   import { Activity, Power, Trash2 } from 'lucide-svelte';
   import PluginCard from './PluginCard.svelte';
   import SectionHeading from './SectionHeading.svelte';
-  import { groupInstalled, sandboxSummary } from './pluginsView';
+  import { groupInstalled, isBundled, pluginStateLabel, sandboxSummary } from './pluginsView';
   import type { PluginInfo } from '../../api/plugins';
 
   export let plugins: PluginInfo[] = [];
@@ -25,13 +25,16 @@
     const sandbox = sandboxSummary(plugin.sandboxMode);
     if (sandbox) chips.push({ label: sandbox.label, tone: sandbox.tone });
     if (plugin.requiresSecretAccess) chips.push({ label: 'Reads secrets', tone: 'warn' });
+    // Only the bundled case earns a chip. The other value of this field is "user", which is true of
+    // everything the user can see here and so tells them nothing.
+    if (isBundled(plugin)) chips.push({ label: 'Bundled', tone: 'neutral' });
     return chips;
   }
 
   function statusFor(plugin: PluginInfo): { text: string; kind: 'installed' | 'warning' } {
     if (!plugin.enabled) return { text: 'Disabled', kind: 'warning' };
     if (plugin.state === 'running') return { text: 'Running', kind: 'installed' };
-    return { text: plugin.state || 'Stopped', kind: 'warning' };
+    return { text: pluginStateLabel(plugin.state), kind: 'warning' };
   }
 </script>
 
@@ -67,7 +70,6 @@
             name={plugin.name}
             version={plugin.version}
             description={plugin.description}
-            origin={plugin.source}
             state={group.id === 'disabled' ? 'idle' : group.id}
             chips={chipsFor(plugin)}
             status={status.text}

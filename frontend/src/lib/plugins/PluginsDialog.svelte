@@ -188,7 +188,7 @@
 <Modal title="Plugins" {show} contentClass="plugins-modal" on:close={() => (show = false)}>
   <PluginsToolbar
     bind:query
-    searchable={section === 'installed' || section === 'browse'}
+    searchable={section !== 'marketplace'}
     on:installFolder={() => pickAndInstall(selectPluginSourceDir)}
     on:installBundle={() => pickAndInstall(selectPluginBundleFile)}
     on:refreshAll={() => void Promise.all(sources.map((s) => refreshSource(s, true)))}
@@ -255,6 +255,7 @@
           {sources}
           {loadingSources}
           {busy}
+          {query}
           on:addSource={() => (addSourceOpen = true)}
           on:refreshSource={(e) => refreshSource(e.detail.source, true)}
           on:setTrust={(e) =>

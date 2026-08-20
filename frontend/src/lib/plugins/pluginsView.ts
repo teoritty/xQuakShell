@@ -66,12 +66,31 @@ export function matchesQuery(haystack: (string | undefined)[], query: string): b
 }
 
 /**
- * Installed plugins are searched by where they came from as well as by name: `source` is the only
- * field that answers "which of these did I get from that repository", which is the question a user
- * asks right before removing a source.
+ * Installed plugins are searched by install source as well as by name, which is a coarser field
+ * than it sounds: the backend sends the InstallSource enum, so the only thing it can answer is
+ * "bundled or not". It stays in the haystack for that one query and is not shown on the card,
+ * where a row reading "user" under every name says nothing.
  */
 export function filterInstalled(plugins: PluginInfo[], query: string): PluginInfo[] {
   return plugins.filter((p) => matchesQuery([p.id, p.name, p.description, p.source], query));
+}
+
+/** True for a plugin that ships with the app rather than one the user installed. */
+export function isBundled(plugin: PluginInfo): boolean {
+  return plugin.source === 'bundled';
+}
+
+/**
+ * The run state as a user reads it.
+ *
+ * `discovered` is the registry's word for "loaded, never started", and on a card it reads as a
+ * finding about the plugin rather than as a state - which is why it is the one word translated.
+ * Every other state is passed through capitalised, so a state the backend adds later surfaces
+ * under its own name instead of being swallowed by a default.
+ */
+export function pluginStateLabel(state: string): string {
+  if (!state || state === 'discovered') return 'Not running';
+  return state.charAt(0).toUpperCase() + state.slice(1);
 }
 
 export function filterCatalog(
@@ -180,6 +199,17 @@ export function sandboxSummary(mode: string | undefined): SandboxSummary | null 
  */
 export function forgeSources(sources: PluginSourceDTO[]): PluginSourceDTO[] {
   return sources.filter((s) => s.kind === 'forge');
+}
+
+/**
+ * The Sources list under search, matched on the URL as well as the display name.
+ *
+ * The URL is what the user pasted to register the repository, so it is what they type to find it
+ * again - and the display name is derived from it, which makes an owner/name query miss whenever
+ * the two have drifted.
+ */
+export function filterSources(sources: PluginSourceDTO[], query: string): PluginSourceDTO[] {
+  return forgeSources(sources).filter((s) => matchesQuery([s.id, s.displayName], query));
 }
 
 export interface SourceStatus {

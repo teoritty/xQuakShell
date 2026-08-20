@@ -2,16 +2,20 @@
   import { createEventDispatcher } from 'svelte';
   import { Plus, RefreshCw, Trash2 } from 'lucide-svelte';
   import SectionHeading from './SectionHeading.svelte';
-  import { forgeSources, sourceStatus } from './pluginsView';
+  import { forgeSources, filterSources, sourceStatus } from './pluginsView';
   import type { PluginSourceDTO } from '../../api/pluginSources';
 
   export let sources: PluginSourceDTO[] = [];
   export let loadingSources: Record<string, boolean> = {};
   export let busy = false;
+  export let query = '';
 
   const dispatch = createEventDispatcher();
 
-  $: repositories = forgeSources(sources);
+  // Two counts, because they answer different questions: the heading says how many repositories
+  // are registered, and the empty state has to tell "you have none" apart from "none match".
+  $: registered = forgeSources(sources);
+  $: repositories = filterSources(sources, query);
 
   function fetchedLabel(source: PluginSourceDTO): string {
     if (!source.lastFetchedAt) return 'Never fetched';
@@ -23,7 +27,7 @@
 <SectionHeading
   title="Sources"
   subtitle="Repositories you have registered as places to install plugins from."
-  count={repositories.length ? String(repositories.length) : ''}
+  count={query ? `${repositories.length} of ${registered.length}` : registered.length ? String(registered.length) : ''}
 >
   <button slot="action" class="secondary small" disabled={busy} on:click={() => dispatch('addSource')}>
     <Plus size={12} />
@@ -37,7 +41,9 @@
   either way.
 </p>
 
-{#if repositories.length === 0}
+{#if registered.length > 0 && repositories.length === 0}
+  <p class="no-match">Nothing matches “{query}”.</p>
+{:else if registered.length === 0}
   <div class="empty">
     <p class="empty-title">No repositories yet</p>
     <p class="empty-body">
@@ -95,6 +101,12 @@
 {/if}
 
 <style>
+  .no-match {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
   .trust-note {
     margin: 0 0 14px;
     max-width: 64ch;

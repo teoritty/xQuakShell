@@ -7,7 +7,7 @@
   // OS is containing it, whether it can read the vault. Those sit on the face of the card rather
   // than behind a details dialog nobody opens.
   import { createEventDispatcher } from 'svelte';
-  import { Info } from 'lucide-svelte';
+  import { Info, Puzzle } from 'lucide-svelte';
 
   export let name: string;
   export let version = '';
@@ -23,14 +23,14 @@
   export let showDetails = false;
 
   const dispatch = createEventDispatcher();
-
-  /** Two letters carry more identity at 24px than a generic puzzle icon repeated down the list. */
-  $: initials = name.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase() || '??';
 </script>
 
 <div class="plugin-card" class:dimmed>
-  <div class="card-avatar" class:active={state === 'active'} class:attention={state === 'attention'}>
-    {initials}
+  <!-- One puzzle piece, not the plugin's initials. Initials were tried for identity and read as a
+       contact list: two letters cut out of a name are not a name, and a plugin is the one thing in
+       this app that already has a universally understood mark. -->
+  <div class="card-icon" class:active={state === 'active'} class:attention={state === 'attention'}>
+    <Puzzle size={17} />
   </div>
 
   <div class="card-main">
@@ -87,37 +87,30 @@
     background: var(--bg-tertiary);
   }
 
-  .plugin-card.dimmed .card-avatar,
+  .plugin-card.dimmed .card-icon,
   .plugin-card.dimmed .card-main {
     opacity: 0.62;
   }
 
-  .card-avatar {
+  /* The state colour lives on the icon rather than on a separate dot: one object carrying identity
+     and status reads faster than two competing for the same gutter. */
+  .card-icon {
     flex-shrink: 0;
-    width: 26px;
-    height: 26px;
-    border-radius: 5px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg-input);
+    width: 22px;
+    height: 22px;
+    margin-top: 1px;
     color: var(--text-secondary);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    /* The state colour lives on the avatar's edge rather than as a separate dot: one object
-       carrying identity and status reads faster than two competing for the same gutter. */
-    box-shadow: inset 0 0 0 1px var(--border-color);
   }
 
-  .card-avatar.active {
+  .card-icon.active {
     color: var(--success);
-    box-shadow: inset 0 0 0 1px var(--success);
   }
 
-  .card-avatar.attention {
+  .card-icon.attention {
     color: var(--warning);
-    box-shadow: inset 0 0 0 1px var(--warning);
   }
 
   .card-main {

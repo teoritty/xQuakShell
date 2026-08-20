@@ -10,9 +10,12 @@
 
   export let query = '';
   /**
-   * Hidden on the sections that have nothing to search. A search box that silently does nothing
-   * is worse than no search box: the user types, sees no change, and concludes the search is
-   * broken rather than inapplicable.
+   * False on a section with nothing to search, where the box stays in place and goes inert.
+   *
+   * It used to be removed instead, which made the toolbar reflow on every rail click and read as a
+   * layout bug. A disabled control that says why is the honest version of the same statement: the
+   * box is still visibly there, and the one thing it must not do is silently accept typing and
+   * change nothing.
    */
   export let searchable = true;
 
@@ -27,19 +30,16 @@
 </script>
 
 <div class="plugins-toolbar">
-  {#if searchable}
-    <div class="search-box">
-      <Search size={13} />
-      <input
-        type="text"
-        placeholder="Search by name, description or source"
-        bind:value={query}
-        on:input={() => dispatch('search', { query })}
-      />
-    </div>
-  {:else}
-    <div class="toolbar-spacer"></div>
-  {/if}
+  <div class="search-box" class:inert={!searchable}>
+    <Search size={13} />
+    <input
+      type="text"
+      placeholder={searchable ? 'Search by name, description or source' : 'Nothing to search here'}
+      disabled={!searchable}
+      bind:value={query}
+      on:input={() => dispatch('search', { query })}
+    />
+  </div>
   <div class="menu-wrap">
     <button class="ghost icon-btn" title="More actions" on:click={() => (menuOpen = !menuOpen)}>
       <MoreHorizontal size={15} />
@@ -76,6 +76,10 @@
     color: var(--text-secondary);
   }
 
+  .search-box.inert {
+    opacity: 0.5;
+  }
+
   .search-box input {
     flex: 1;
     border: none;
@@ -85,8 +89,8 @@
     color: var(--text-primary);
   }
 
-  .toolbar-spacer {
-    flex: 1;
+  .search-box input:disabled {
+    cursor: default;
   }
 
   .menu-wrap {
