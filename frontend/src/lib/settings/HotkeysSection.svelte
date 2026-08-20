@@ -3,6 +3,7 @@
   import { findHotkeyConflict } from './hotkeyConflicts';
   import { parseHotkeyEvent } from '../../hotkeys/hotkeys';
   import { DEFAULT_SESSION_HOTKEYS } from '../../api/settings';
+  import { t } from '../../i18n/messages';
   import type { SettingsSearchViewState } from '../settingsSearch';
   import type { SettingsDraft } from './settingsDraft';
 
@@ -25,7 +26,7 @@
     if (field === 'next') draft.sessionHotkeyNext = key;
     if (field === 'prev') draft.sessionHotkeyPrev = key;
     if (field === 'close') draft.sessionHotkeyClose = key;
-    conflict = findHotkeyConflict(draft);
+    conflict = findHotkeyConflict(draft, $t);
   }
 
   function resetToDefault() {
@@ -39,29 +40,29 @@
 
 <SettingsSection tab="hotkeys" section="session" {view}>
   <div class="section">
-    <h4>Session hotkeys</h4>
-    <p class="section-desc">Click a field and press a key combination.</p>
+    <h4>{$t('settings.hotkeys.session.title')}</h4>
+    <p class="section-desc">{$t('settings.hotkeys.session.desc')}</p>
     <label class="setting-row">
-      <span>Create session</span>
+      <span>{$t('settings.hotkeys.field.create')}</span>
       <input class="hotkey-input" type="text" bind:value={draft.sessionHotkeyCreate} on:keydown={(e) => captureHotkey(e, 'create')} />
     </label>
     <label class="setting-row">
-      <span>Next session tab</span>
+      <span>{$t('settings.hotkeys.field.next')}</span>
       <input class="hotkey-input" type="text" bind:value={draft.sessionHotkeyNext} on:keydown={(e) => captureHotkey(e, 'next')} />
     </label>
     <label class="setting-row">
-      <span>Previous session tab</span>
+      <span>{$t('settings.hotkeys.field.prev')}</span>
       <input class="hotkey-input" type="text" bind:value={draft.sessionHotkeyPrev} on:keydown={(e) => captureHotkey(e, 'prev')} />
     </label>
     <label class="setting-row">
-      <span>Close active session</span>
+      <span>{$t('settings.hotkeys.field.close')}</span>
       <input class="hotkey-input" type="text" bind:value={draft.sessionHotkeyClose} on:keydown={(e) => captureHotkey(e, 'close')} />
     </label>
     {#if conflict}
       <div class="hotkey-conflict">{conflict}</div>
     {/if}
     <div class="hotkey-actions">
-      <button class="secondary" type="button" on:click={resetToDefault}>Reset to defaults</button>
+      <button class="secondary" type="button" on:click={resetToDefault}>{$t('settings.hotkeys.session.reset')}</button>
     </div>
   </div>
 </SettingsSection>

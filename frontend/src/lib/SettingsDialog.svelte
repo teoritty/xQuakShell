@@ -22,9 +22,10 @@
     draftToSettings,
   } from './settings/settingsDraft';
   import { getAuditSessionState } from '../api/audit';
-  import { tabHasSearchMatches, type SettingsTabId } from './settingsSearch';
+  import { tabHasSearchMatches, tabLabelKey, type SettingsTabId } from './settingsSearch';
   import { applyUiScalePercent } from './uiScale';
   import { applyLocale } from '../i18n/apply';
+  import { t } from '../i18n/messages';
   import {
     Shield,
     Palette,
@@ -67,21 +68,22 @@
     if (rt?.EventsOff) rt.EventsOff('DebugLogWindowChanged');
   });
 
-  const tabs: { id: SettingsTabId; label: string; icon: typeof Shield }[] = [
-    { id: 'about', label: 'About', icon: Info },
-    { id: 'appearance', label: 'Appearance', icon: Palette },
-    { id: 'audit', label: 'Audit Log', icon: FileText },
-    { id: 'files', label: 'Files', icon: FileEdit },
-    { id: 'hotkeys', label: 'Hotkeys', icon: Keyboard },
-    { id: 'network', label: 'Network', icon: Wifi },
-    { id: 'security', label: 'Security', icon: Shield },
+  const tabs: { id: SettingsTabId; icon: typeof Shield }[] = [
+    { id: 'about', icon: Info },
+    { id: 'appearance', icon: Palette },
+    { id: 'audit', icon: FileText },
+    { id: 'files', icon: FileEdit },
+    { id: 'hotkeys', icon: Keyboard },
+    { id: 'network', icon: Wifi },
+    { id: 'security', icon: Shield },
   ];
 
   $: isSearching = searchQuery.trim().length > 0;
-  $: view = { isSearching, activeTab, searchQuery, searchPinnedTab };
-  $: visibleTabs = isSearching
-    ? tabs.filter((tab) => tabHasSearchMatches(tab.id, searchQuery))
-    : tabs;
+  // $t is part of the view state so every visibility decision re-runs when the language changes:
+  // the searchable words come from the language pack, so a filter computed under the old language
+  // would go on matching the old language's words.
+  $: view = { isSearching, activeTab, searchQuery, searchPinnedTab, translate: $t };
+  $: visibleTabs = isSearching ? tabs.filter((tab) => tabHasSearchMatches(tab.id, view)) : tabs;
 
   let settingsWasOpen = false;
   $: if (show && !settingsWasOpen) {
@@ -133,7 +135,7 @@
   }
 
   async function handleSave() {
-    hotkeyConflict = findHotkeyConflict(draft);
+    hotkeyConflict = findHotkeyConflict(draft, $t);
     if (hotkeyConflict) return;
     saving = true;
     await saveSettings(draftToSettings(draft));
@@ -146,14 +148,14 @@
 </script>
 
 {#if show}
-  <Modal title="Settings" show={true} contentClass="settings-modal" on:close={closeSettings}>
+  <Modal title={$t('settings.title')} show={true} contentClass="settings-modal" on:close={closeSettings}>
     <svelte:fragment slot="header-center">
       <div class="settings-search-wrap">
         <Search size={13} />
         <input
           type="text"
           class="settings-search-input"
-          placeholder="Search settings..."
+          placeholder={$t('settings.search.placeholder')}
           bind:value={searchQuery}
           on:input={handleSearchInput}
         />
@@ -169,16 +171,16 @@
             on:click={() => handleTabClick(tab.id)}
           >
             <svelte:component this={tab.icon} size={14} />
-            {tab.label}
+            {$t(tabLabelKey(tab.id))}
           </button>
         {/each}
       </div>
 
       <div class="settings-content">
         {#if loading}
-          <div class="settings-loading">Loading...</div>
+          <div class="settings-loading">{$t('settings.loading')}</div>
         {:else if isSearching && visibleTabs.length === 0}
-          <div class="settings-loading">No matching settings</div>
+          <div class="settings-loading">{$t('settings.search.empty')}</div>
         {:else}
           <SettingsSection tab="about" section="info" {view}>
             <AboutSection bind:updateCheckOnStartup={draft.updateCheckOnStartup} />
@@ -196,10 +198,10 @@
 
     <div class="settings-footer">
       <div class="settings-footer-actions">
-        <button class="secondary" on:click={closeSettings}>Cancel</button>
+        <button class="secondary" on:click={closeSettings}>{$t('settings.action.cancel')}</button>
         <button class="primary" on:click={handleSave} disabled={saving}>
           <Save size={13} />
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? $t('settings.action.saving') : $t('settings.action.save')}
         </button>
       </div>
     </div>

@@ -2,6 +2,7 @@
   import Modal from './Modal.svelte';
   import { conflictRequest, respondConflict } from '../stores/conflictPrompt';
   import { CONFLICT_ACTIONS, type ConflictAction } from './transfer/conflictActions';
+  import { t } from '../i18n/messages';
   import type { ConflictInfoDTO, PlannedFileDTO } from '../backend/gateway';
 
   // Local editable state, reset whenever a new conflict is shown.
@@ -108,7 +109,7 @@
         {#each CONFLICT_ACTIONS as a}
           <label class="radio">
             <input type="radio" bind:group={action} value={a.value} />
-            <span>{a.label}</span>
+            <span>{$t(a.labelKey)}</span>
           </label>
           {#if a.value === 'rename' && action === 'rename'}
             <input class="rename-input" type="text" bind:value={newName} placeholder="New name" />

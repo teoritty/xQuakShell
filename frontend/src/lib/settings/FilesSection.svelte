@@ -1,6 +1,7 @@
 <script lang="ts">
   import SettingsSection from './SettingsSection.svelte';
   import { CONFLICT_ACTIONS } from '../transfer/conflictActions';
+  import { t } from '../../i18n/messages';
   import type { SettingsSearchViewState } from '../settingsSearch';
   import type { SettingsDraft } from './settingsDraft';
 
@@ -11,34 +12,34 @@
 
 <SettingsSection tab="files" section="editor" {view}>
   <div class="section">
-    <h4>External editor</h4>
-    <p class="section-desc">A remote file you edit is downloaded, opened in this editor, and re-uploaded when you save.</p>
+    <h4>{$t('settings.files.editor.title')}</h4>
+    <p class="section-desc">{$t('settings.files.editor.desc')}</p>
     <label class="setting-row">
-      <span>Editor path</span>
-      <input type="text" bind:value={draft.externalEditorPath} placeholder="e.g. code, notepad.exe, C:\...\gvim.exe" />
+      <span>{$t('settings.files.editor.path')}</span>
+      <input type="text" bind:value={draft.externalEditorPath} placeholder={$t('settings.files.editor.placeholder')} />
     </label>
   </div>
 </SettingsSection>
 
 <SettingsSection tab="files" section="conflicts" {view}>
   <div class="section">
-    <h4>When a file already exists</h4>
-    <p class="section-desc">"Ask every time" shows the conflict dialog; any other choice applies silently. Picking an action in that dialog without "Apply to current queue only" also changes these.</p>
+    <h4>{$t('settings.files.conflicts.title')}</h4>
+    <p class="section-desc">{$t('settings.files.conflicts.desc')}</p>
     <label class="setting-row">
-      <span>Uploads and local copies</span>
+      <span>{$t('settings.files.conflicts.upload')}</span>
       <select bind:value={draft.defaultUploadExistsAction}>
-        <option value="ask">Ask every time</option>
+        <option value="ask">{$t('transfer.conflict.ask')}</option>
         {#each CONFLICT_ACTIONS as a}
-          <option value={a.value}>{a.label}</option>
+          <option value={a.value}>{$t(a.labelKey)}</option>
         {/each}
       </select>
     </label>
     <label class="setting-row">
-      <span>Downloads</span>
+      <span>{$t('settings.files.conflicts.download')}</span>
       <select bind:value={draft.defaultDownloadExistsAction}>
-        <option value="ask">Ask every time</option>
+        <option value="ask">{$t('transfer.conflict.ask')}</option>
         {#each CONFLICT_ACTIONS as a}
-          <option value={a.value}>{a.label}</option>
+          <option value={a.value}>{$t(a.labelKey)}</option>
         {/each}
       </select>
     </label>

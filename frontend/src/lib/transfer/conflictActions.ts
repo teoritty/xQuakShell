@@ -15,14 +15,16 @@ export type ConflictAction =
 export type ExistsDefault = ConflictAction | 'ask';
 
 // CONFLICT_ACTIONS is the ordered list shown in the dialog, matching FileZilla's
-// order (minus Resume).
-export const CONFLICT_ACTIONS: { value: ConflictAction; label: string }[] = [
-  { value: 'overwrite', label: 'Overwrite' },
-  { value: 'overwrite_if_newer', label: 'Overwrite if source newer' },
-  { value: 'overwrite_if_different_size', label: 'Overwrite if different size' },
-  { value: 'overwrite_if_newer_or_different_size', label: 'Overwrite if different size or source newer' },
-  { value: 'rename', label: 'Rename' },
-  { value: 'skip', label: 'Skip' },
+// order (minus Resume). Each entry carries a message key rather than a caption:
+// the value is the wire contract and must not move, while the words shown to the
+// user follow the interface language.
+export const CONFLICT_ACTIONS: { value: ConflictAction; labelKey: string }[] = [
+  { value: 'overwrite', labelKey: 'transfer.conflict.overwrite' },
+  { value: 'overwrite_if_newer', labelKey: 'transfer.conflict.overwrite_if_newer' },
+  { value: 'overwrite_if_different_size', labelKey: 'transfer.conflict.overwrite_if_different_size' },
+  { value: 'overwrite_if_newer_or_different_size', labelKey: 'transfer.conflict.overwrite_if_newer_or_different_size' },
+  { value: 'rename', labelKey: 'transfer.conflict.rename' },
+  { value: 'skip', labelKey: 'transfer.conflict.skip' },
 ];
 
 export function isConflictAction(v: string): v is ConflictAction {

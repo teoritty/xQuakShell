@@ -1,6 +1,7 @@
 <script lang="ts">
   import SettingsSection from './SettingsSection.svelte';
   import PluginTrustSection from './PluginTrustSection.svelte';
+  import { t } from '../../i18n/messages';
   import type { SettingsSearchViewState } from '../settingsSearch';
   import type { SettingsDraft } from './settingsDraft';
 
@@ -12,13 +13,13 @@
 
 <SettingsSection tab="security" section="lockout" {view}>
   <div class="section">
-    <h4>Session lockout</h4>
+    <h4>{$t('settings.security.lockout.title')}</h4>
     <label class="checkbox-row">
       <input type="checkbox" bind:checked={draft.lockoutEnabled} />
-      Enable lockout on idle timeout
+      {$t('settings.security.lockout.enable')}
     </label>
     <label class="setting-row">
-      <span>Idle timeout (minutes)</span>
+      <span>{$t('settings.security.lockout.timeout')}</span>
       <input
         type="number"
         bind:value={draft.lockoutIdleMinutes}
@@ -29,7 +30,7 @@
     </label>
     <label class="checkbox-row">
       <input type="checkbox" bind:checked={draft.lockOnMinimize} />
-      Lock when application is minimized
+      {$t('settings.security.lockout.onMinimize')}
     </label>
   </div>
 </SettingsSection>

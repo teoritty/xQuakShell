@@ -10,178 +10,87 @@ export type SettingsTabId =
 export interface SettingsSectionIndex {
   tabId: SettingsTabId;
   sectionId: string;
-  terms: string[];
+}
+
+/**
+ * The words a section answers to, as one translated string per section
+ * (`settings.terms.<tab>.<section>`, comma-separated).
+ *
+ * They live in the language packs rather than in this array because a search box that only matched
+ * English is a search box a translated interface cannot use: someone reading "Язык" has no reason
+ * to guess that typing "language" is what finds it. Keeping them in the pack also means a
+ * translator adds their own synonyms without touching code.
+ */
+export function sectionTermsKey(section: SettingsSectionIndex): string {
+  return `settings.terms.${section.tabId}.${section.sectionId}`;
 }
 
 /** Searchable settings sections in display order. */
 export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
-  {
-    tabId: 'about',
-    sectionId: 'info',
-    terms: [
-      'About',
-      'xQuakShell',
-      'SSH Client',
-      'Version',
-      'Core',
-      'Plugin API',
-      'Check for updates on startup',
-      'Releases',
-      'Report an Issue',
-    ],
-  },
-  {
-    tabId: 'about',
-    sectionId: 'developer',
-    terms: ['Developer', 'Debug log', 'Debug log window', 'Open debug log window', 'logs', 'console'],
-  },
-  {
-    tabId: 'appearance',
-    sectionId: 'language',
-    terms: ['Language', 'Interface language', 'Locale', 'Translation', 'English', 'Russian', 'Русский'],
-  },
-  {
-    tabId: 'appearance',
-    sectionId: 'theme',
-    terms: ['Appearance', 'Theme', 'Dark', 'Light'],
-  },
-  {
-    tabId: 'appearance',
-    sectionId: 'scale',
-    terms: ['Appearance', 'Interface scale', 'UI scale', 'Zoom', 'Magnification', 'percent', 'Scale'],
-  },
-  {
-    // The terminal font lives under Appearance, not under a tab of its own: it was the only
-    // section Terminal ever had, and a one-section tab reads as a missing feature rather than a
-    // category. 'Terminal' stays in the terms so the old search still lands here.
-    tabId: 'appearance',
-    sectionId: 'font',
-    terms: ['Appearance', 'Terminal', 'Terminal Font', 'Font Family', 'Font Size', 'Font Color'],
-  },
-  {
-    tabId: 'audit',
-    sectionId: 'general',
-    terms: ['Audit Log', 'General', 'Enable audit log', 'command audit logging'],
-  },
-  {
-    tabId: 'audit',
-    sectionId: 'retention',
-    terms: ['Retention', 'By time', 'By count', 'Keep entries', 'Maximum entries', 'days'],
-  },
-  {
-    tabId: 'audit',
-    sectionId: 'privacy',
-    terms: ['Privacy', 'Log & show username', 'Log & show connection', 'name and host', 'metadata'],
-  },
-  {
-    tabId: 'audit',
-    sectionId: 'secrets',
-    terms: ['Sensitive data', 'session only', 'Log secrets this session', 'plaintext'],
-  },
-  {
-    tabId: 'files',
-    sectionId: 'editor',
-    terms: ['Files', 'External Editor', 'Edit on the fly', 'Editor path'],
-  },
-  {
-    tabId: 'files',
-    sectionId: 'conflicts',
-    terms: [
-      'Files',
-      'When a file already exists',
-      'Ask every time',
-      'Conflict',
-      'Overwrite',
-      'Rename',
-      'Skip',
-      'default action',
-    ],
-  },
-  {
-    tabId: 'hotkeys',
-    sectionId: 'session',
-    terms: [
-      'Hotkeys',
-      'Session Hotkeys',
-      'Create session',
-      'Next session tab',
-      'Previous session tab',
-      'Close active session',
-      'Reset to defaults',
-    ],
-  },
-  {
-    tabId: 'network',
-    sectionId: 'ping',
-    terms: ['Network', 'Connection Ping', 'Enable automatic ping', 'Ping mode', 'Ping interval'],
-  },
-  {
-    tabId: 'network',
-    sectionId: 'transfer',
-    terms: ['File Transfer', 'Speed limit', 'Connection timeout', 'Max concurrent transfers'],
-  },
-  {
-    tabId: 'security',
-    sectionId: 'lockout',
-    terms: [
-      'Security',
-      'Session Lockout',
-      'Enable lockout on idle timeout',
-      'Idle timeout',
-      'Lock when application is minimized',
-    ],
-  },
-  {
-    // 'Plugins' is in the terms because this is where someone searching for plugin settings now
-    // lands: the Plugins screen no longer has a Security page for them to find it on.
-    tabId: 'security',
-    sectionId: 'plugins',
-    terms: [
-      'Security',
-      'Plugins',
-      'Plugin trust policy',
-      'Require signed plugins from trusted publishers',
-      'Trusted publisher keys',
-      'Ed25519',
-      'Sandbox',
-      'Start a plugin unconfined',
-    ],
-  },
+  { tabId: 'about', sectionId: 'info' },
+  { tabId: 'about', sectionId: 'developer' },
+  { tabId: 'appearance', sectionId: 'language' },
+  { tabId: 'appearance', sectionId: 'theme' },
+  { tabId: 'appearance', sectionId: 'scale' },
+  // The terminal font lives under Appearance, not under a tab of its own: it was the only section
+  // Terminal ever had, and a one-section tab reads as a missing feature rather than a category.
+  // 'Terminal' stays in its terms so the old search still lands here.
+  { tabId: 'appearance', sectionId: 'font' },
+  { tabId: 'audit', sectionId: 'general' },
+  { tabId: 'audit', sectionId: 'retention' },
+  { tabId: 'audit', sectionId: 'privacy' },
+  { tabId: 'audit', sectionId: 'secrets' },
+  { tabId: 'files', sectionId: 'editor' },
+  { tabId: 'files', sectionId: 'conflicts' },
+  { tabId: 'hotkeys', sectionId: 'session' },
+  { tabId: 'network', sectionId: 'ping' },
+  { tabId: 'network', sectionId: 'transfer' },
+  { tabId: 'security', sectionId: 'lockout' },
+  // 'Plugins' is in this section's terms because this is where someone searching for plugin
+  // settings now lands: the Plugins screen no longer has a Security page for them to find it on.
+  { tabId: 'security', sectionId: 'plugins' },
 ];
 
-export const SETTINGS_TAB_LABELS: Record<SettingsTabId, string> = {
-  about: 'About',
-  appearance: 'Appearance',
-  audit: 'Audit Log',
-  files: 'Files',
-  hotkeys: 'Hotkeys',
-  network: 'Network',
-  security: 'Security',
-};
+/** The message key holding a tab's caption. */
+export function tabLabelKey(tabId: SettingsTabId): string {
+  return `settings.tab.${tabId}`;
+}
 
 export function normalizeSearchQuery(query: string): string {
   return query.trim().toLowerCase();
 }
 
-export function sectionMatchesQuery(section: SettingsSectionIndex, query: string): boolean {
+export function sectionMatchesQuery(
+  section: SettingsSectionIndex,
+  query: string,
+  translate: TermLookup,
+): boolean {
   const normalized = normalizeSearchQuery(query);
   if (!normalized) return true;
-  return section.terms.some((term) => term.toLowerCase().includes(normalized));
+  return translate(sectionTermsKey(section))
+    .split(',')
+    .some((term) => term.trim().toLowerCase().includes(normalized));
 }
 
-export function tabHasSearchMatches(tabId: SettingsTabId, query: string): boolean {
-  const normalized = normalizeSearchQuery(query);
-  if (!normalized) return true;
+export function tabHasSearchMatches(tabId: SettingsTabId, state: SettingsSearchViewState): boolean {
+  if (!normalizeSearchQuery(state.searchQuery)) return true;
   return SETTINGS_SECTION_INDEX.some(
-    (section) => section.tabId === tabId && sectionMatchesQuery(section, query),
+    (section) =>
+      section.tabId === tabId && sectionMatchesQuery(section, state.searchQuery, state.translate),
   );
 }
+
+/** Resolves a message key to its text. The dialog passes `$t`; tests pass whatever they need. */
+export type TermLookup = (key: string) => string;
 
 export interface SettingsSearchViewState {
   isSearching: boolean;
   activeTab: SettingsTabId;
   searchQuery: string;
   searchPinnedTab: SettingsTabId | null;
+  // Carried in the view state rather than taken as a parameter so every caller re-evaluates when
+  // the language changes: a `$t` read inside a reactive expression is what re-runs the filter.
+  translate: TermLookup;
 }
 
 export function shouldShowSettingsSection(
@@ -197,7 +106,7 @@ export function shouldShowSettingsSection(
   if (!state.isSearching) {
     return state.activeTab === tabId;
   }
-  if (!sectionMatchesQuery(section, state.searchQuery)) {
+  if (!sectionMatchesQuery(section, state.searchQuery, state.translate)) {
     return false;
   }
   if (state.searchPinnedTab && state.searchPinnedTab !== tabId) {

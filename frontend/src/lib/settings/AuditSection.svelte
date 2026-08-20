@@ -2,6 +2,7 @@
   import SettingsSection from './SettingsSection.svelte';
   import ConfirmDialog from '../ConfirmDialog.svelte';
   import { enableAuditSecretLogging, disableAuditSecretLogging } from '../../api/audit';
+  import { t } from '../../i18n/messages';
   import type { SettingsSearchViewState } from '../settingsSearch';
   import type { SettingsDraft } from './settingsDraft';
 
@@ -41,33 +42,33 @@
 
 <SettingsSection tab="audit" section="general" {view}>
   <div class="section">
-    <h4>General</h4>
-    <p class="section-desc">Submitted commands are stored locally, on Enter. Disabled by default.</p>
+    <h4>{$t('settings.audit.general.title')}</h4>
+    <p class="section-desc">{$t('settings.audit.general.desc')}</p>
     <label class="checkbox-row">
       <input type="checkbox" bind:checked={draft.auditLogEnabled} />
-      Enable audit log
+      {$t('settings.audit.general.enable')}
     </label>
   </div>
 </SettingsSection>
 
 <SettingsSection tab="audit" section="retention" {view}>
   <div class="section">
-    <h4>Retention</h4>
-    <p class="section-desc">Old entries are deleted automatically and cannot be recovered.</p>
+    <h4>{$t('settings.audit.retention.title')}</h4>
+    <p class="section-desc">{$t('settings.audit.retention.desc')}</p>
     <label class="checkbox-row">
       <input type="radio" bind:group={draft.auditRetentionMode} value="days" disabled={!draft.auditLogEnabled} />
-      By time
+      {$t('settings.audit.retention.byTime')}
     </label>
     <label class="setting-row setting-sub">
-      <span>Keep entries for (days)</span>
+      <span>{$t('settings.audit.retention.days')}</span>
       <input type="number" bind:value={draft.auditRetentionDays} min="1" max="365" disabled={!draft.auditLogEnabled || draft.auditRetentionMode !== 'days'} />
     </label>
     <label class="checkbox-row">
       <input type="radio" bind:group={draft.auditRetentionMode} value="count" disabled={!draft.auditLogEnabled} />
-      By count
+      {$t('settings.audit.retention.byCount')}
     </label>
     <label class="setting-row setting-sub">
-      <span>Maximum entries</span>
+      <span>{$t('settings.audit.retention.max')}</span>
       <input type="number" bind:value={draft.auditRetentionCount} min="10" max="10000" disabled={!draft.auditLogEnabled || draft.auditRetentionMode !== 'count'} />
     </label>
   </div>
@@ -75,38 +76,38 @@
 
 <SettingsSection tab="audit" section="privacy" {view}>
   <div class="section">
-    <h4>Privacy</h4>
+    <h4>{$t('settings.audit.privacy.title')}</h4>
     <label class="checkbox-row">
       <input type="checkbox" bind:checked={draft.auditShowUsername} disabled={!draft.auditLogEnabled} />
-      Log &amp; show username
+      {$t('settings.audit.privacy.username')}
     </label>
     <label class="checkbox-row">
       <input type="checkbox" bind:checked={draft.auditShowConnection} disabled={!draft.auditLogEnabled} />
-      Log &amp; show connection (name and host)
+      {$t('settings.audit.privacy.connection')}
     </label>
   </div>
 </SettingsSection>
 
 <SettingsSection tab="audit" section="secrets" {view}>
   <div class="section">
-    <h4>Sensitive data</h4>
-    <p class="section-desc">Passwords and secrets are logged in plaintext until you lock the vault or restart the app. Never saved to the vault.</p>
+    <h4>{$t('settings.audit.secrets.title')}</h4>
+    <p class="section-desc">{$t('security.audit.secrets.desc')}</p>
     <label class="checkbox-row">
       <input type="checkbox" checked={auditLogSecrets} on:change={handleToggle} disabled={!draft.auditLogEnabled} />
-      Log secrets this session
+      {$t('settings.audit.secrets.enable')}
     </label>
   </div>
 </SettingsSection>
 
 <ConfirmDialog
   show={confirmShow}
-  title="Enable secret logging"
-  message="Secrets will be stored in plaintext in the local audit database. This applies only until you lock the vault or restart the app."
+  title={$t('security.audit.secrets.confirm.title')}
+  message={$t('security.audit.secrets.confirm.message')}
   critical={true}
   requireCheckbox={true}
-  checkboxLabel="I understand that sensitive data will be logged in plaintext"
-  confirmLabel="Enable"
-  cancelLabel="Cancel"
+  checkboxLabel={$t('security.audit.secrets.confirm.checkbox')}
+  confirmLabel={$t('security.audit.secrets.confirm.accept')}
+  cancelLabel={$t('security.audit.secrets.confirm.cancel')}
   on:confirm={confirmSecrets}
   on:cancel={cancelSecrets}
 />

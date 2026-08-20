@@ -1,5 +1,6 @@
 <script lang="ts">
   import SettingsSection from './SettingsSection.svelte';
+  import { t } from '../../i18n/messages';
   import type { SettingsSearchViewState } from '../settingsSearch';
   import type { SettingsDraft } from './settingsDraft';
 
@@ -10,21 +11,21 @@
 
 <SettingsSection tab="network" section="ping" {view}>
   <div class="section">
-    <h4>Connection ping</h4>
-    <p class="section-desc">Check host reachability via TCP connect.</p>
+    <h4>{$t('settings.network.ping.title')}</h4>
+    <p class="section-desc">{$t('settings.network.ping.desc')}</p>
     <label class="checkbox-row">
       <input type="checkbox" bind:checked={draft.pingEnabled} />
-      Enable automatic ping
+      {$t('settings.network.ping.enable')}
     </label>
     <label class="setting-row">
-      <span>Ping mode</span>
+      <span>{$t('settings.network.ping.mode')}</span>
       <select bind:value={draft.pingMode} disabled={!draft.pingEnabled}>
-        <option value="on_change">On connection settings change only</option>
-        <option value="interval">Every N seconds</option>
+        <option value="on_change">{$t('settings.network.ping.mode.onChange')}</option>
+        <option value="interval">{$t('settings.network.ping.mode.interval')}</option>
       </select>
     </label>
     <label class="setting-row">
-      <span>Ping interval (seconds)</span>
+      <span>{$t('settings.network.ping.interval')}</span>
       <input
         type="number"
         bind:value={draft.pingIntervalSeconds}
@@ -34,7 +35,7 @@
       />
     </label>
     <label class="setting-row">
-      <span>Max concurrent pings</span>
+      <span>{$t('settings.network.ping.maxConcurrent')}</span>
       <input
         type="number"
         bind:value={draft.maxConcurrentPings}
@@ -48,17 +49,17 @@
 
 <SettingsSection tab="network" section="transfer" {view}>
   <div class="section">
-    <h4>File transfer</h4>
+    <h4>{$t('settings.network.transfer.title')}</h4>
     <label class="setting-row">
-      <span>Speed limit (Kbps)</span>
-      <input type="number" bind:value={draft.transferSpeedLimitKbps} min="0" placeholder="0 = unlimited" />
+      <span>{$t('settings.network.transfer.speedLimit')}</span>
+      <input type="number" bind:value={draft.transferSpeedLimitKbps} min="0" placeholder={$t('settings.network.transfer.speedLimit.placeholder')} />
     </label>
     <label class="setting-row">
-      <span>Connection timeout (seconds)</span>
+      <span>{$t('settings.network.transfer.timeout')}</span>
       <input type="number" bind:value={draft.connectionTimeoutSeconds} min="5" max="300" />
     </label>
     <label class="setting-row">
-      <span>Max concurrent transfers</span>
+      <span>{$t('settings.network.transfer.maxConcurrent')}</span>
       <input type="number" bind:value={draft.maxConcurrentTransfers} min="1" max="16" />
     </label>
   </div>

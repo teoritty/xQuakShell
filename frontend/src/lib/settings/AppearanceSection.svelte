@@ -50,12 +50,12 @@
 
 <SettingsSection tab="appearance" section="theme" {view}>
   <div class="section">
-    <h4>Theme</h4>
+    <h4>{$t('settings.appearance.theme.title')}</h4>
     <div class="theme-options">
       <label class="theme-option" class:selected={draft.theme === 'dark'}>
         <input type="radio" bind:group={draft.theme} value="dark" />
         <div class="theme-swatch dark-swatch"></div>
-        <span>Dark</span>
+        <span>{$t('settings.appearance.theme.dark')}</span>
       </label>
     </div>
   </div>
@@ -63,10 +63,10 @@
 
 <SettingsSection tab="appearance" section="scale" {view}>
   <div class="section">
-    <h4>Interface scale</h4>
-    <p class="section-desc">The layout reflows to fit the window — nothing is cropped, unlike browser zoom.</p>
+    <h4>{$t('settings.appearance.scale.title')}</h4>
+    <p class="section-desc">{$t('settings.appearance.scale.desc')}</p>
     <label class="setting-row">
-      <span>Scale</span>
+      <span>{$t('settings.appearance.scale.label')}</span>
       <select bind:value={draft.uiScalePercent} on:change={handleUiScaleChange}>
         {#each UI_SCALE_PRESETS as preset}
           <option value={preset}>{preset}%</option>
@@ -78,9 +78,9 @@
 
 <SettingsSection tab="appearance" section="font" {view}>
   <div class="section">
-    <h4>Terminal font</h4>
+    <h4>{$t('settings.appearance.font.title')}</h4>
     <label class="setting-row">
-      <span>Font family</span>
+      <span>{$t('settings.appearance.font.family')}</span>
       <select bind:value={draft.terminalFontFamily}>
         {#each TERMINAL_FONT_STACKS as font}
           <option value={font} style="font-family: {font}">{font.split(',')[0].trim()}</option>
@@ -88,11 +88,11 @@
       </select>
     </label>
     <label class="setting-row">
-      <span>Font size (px)</span>
+      <span>{$t('settings.appearance.font.size')}</span>
       <input type="number" bind:value={draft.terminalFontSize} min="8" max="32" />
     </label>
     <label class="setting-row">
-      <span>Font color</span>
+      <span>{$t('settings.appearance.font.color')}</span>
       <div class="color-picker-row">
         <input type="color" bind:value={draft.terminalFontColor} class="color-input" />
         <input type="text" bind:value={draft.terminalFontColor} class="color-hex" placeholder="#cccccc" />

@@ -6,12 +6,13 @@
   // behaviour of the dialog was defined twenty times over and a section added without the second
   // half rendered under whichever tab name happened to precede it.
   import {
-    SETTINGS_TAB_LABELS,
     shouldShowSettingsSection,
     shouldShowSectionTabLabel,
+    tabLabelKey,
     type SettingsSearchViewState,
     type SettingsTabId,
   } from '../settingsSearch';
+  import { t } from '../../i18n/messages';
 
   export let tab: SettingsTabId;
   export let section: string;
@@ -25,7 +26,7 @@
 
 {#if visible}
   {#if labelled}
-    <div class="section-tab-label">{SETTINGS_TAB_LABELS[tab]}</div>
+    <div class="section-tab-label">{$t(tabLabelKey(tab))}</div>
   {/if}
   <slot />
 {/if}

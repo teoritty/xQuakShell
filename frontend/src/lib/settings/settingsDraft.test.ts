@@ -53,14 +53,19 @@ function settings(overrides: Partial<AppSettings>): AppSettings {
 }
 
 {
+  // The message is assembled from the pack, so the test supplies the lookup rather than a copy of
+  // the English wording - a reworded translation must not fail this.
+  const label = (key: string, vars?: Record<string, string | number>) =>
+    vars ? `${vars.first}|${vars.second}` : key;
+
   const d = defaultSettingsDraft();
-  assert.equal(findHotkeyConflict(d), '', 'the shipped defaults must not conflict with each other');
+  assert.equal(findHotkeyConflict(d, label), '', 'the shipped defaults must not conflict with each other');
 
   d.sessionHotkeyNext = d.sessionHotkeyCreate;
-  assert.match(
-    findHotkeyConflict(d),
-    /Create session conflicts with Next session/,
-    'two actions on one binding must be reported by both names',
+  assert.equal(
+    findHotkeyConflict(d, label),
+    'settings.hotkeys.action.create|settings.hotkeys.action.next',
+    'two actions on one binding must be reported by both names, in binding order',
   );
 }
 
@@ -69,7 +74,11 @@ function settings(overrides: Partial<AppSettings>): AppSettings {
   const d = defaultSettingsDraft();
   d.sessionHotkeyNext = '';
   d.sessionHotkeyPrev = '';
-  assert.equal(findHotkeyConflict(d), '', 'empty fields mean "no shortcut", not "the same shortcut"');
+  assert.equal(
+    findHotkeyConflict(d, (key) => key),
+    '',
+    'empty fields mean "no shortcut", not "the same shortcut"',
+  );
 }
 
 console.log('settingsDraft.test passed');

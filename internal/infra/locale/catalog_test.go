@@ -199,3 +199,54 @@ func TestOversizedPackIsRejectedWhole(t *testing.T) {
 		t.Errorf("Pack(de) error = %v, want ErrLocaleNotFound; an over-limit pack is rejected whole, not trimmed", err)
 	}
 }
+
+// English is the pack every other language falls back to, key by key, so a key a translation
+// carries but English does not can never be reached through the fallback and is almost always a
+// typo in the translated key. The reverse is fine and expected: an untranslated key falls back.
+func TestEveryBuiltinKeyExistsInEnglish(t *testing.T) {
+	catalog := newTestCatalog(t, t.TempDir())
+	english := catalog.builtin[domain.DefaultLocale]
+
+	for code, pack := range catalog.builtin {
+		if code == domain.DefaultLocale {
+			continue
+		}
+		for key := range pack.Messages {
+			if _, ok := english.Messages[key]; !ok {
+				t.Errorf("%s.json carries %q, which en.json does not; nothing can fall back to it", code, key)
+			}
+		}
+	}
+}
+
+// The security namespace is only a protection for keys English actually claims: overlay lets an
+// untrusted pack ADD a security key nothing built in has. A warning that exists only in a
+// translation is therefore a warning a disk pack could have written, which defeats the rule.
+func TestEverySecurityKeyIsClaimedByEnglish(t *testing.T) {
+	catalog := newTestCatalog(t, t.TempDir())
+	english := catalog.builtin[domain.DefaultLocale]
+
+	found := false
+	for key := range english.Messages {
+		if strings.HasPrefix(key, domain.SecurityMessagePrefix) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("no %s* key in en.json; either the namespace is unused or the prefix moved and the "+
+			"protection is now guarding nothing", domain.SecurityMessagePrefix)
+	}
+
+	for code, pack := range catalog.builtin {
+		for key := range pack.Messages {
+			if !strings.HasPrefix(key, domain.SecurityMessagePrefix) {
+				continue
+			}
+			if _, ok := english.Messages[key]; !ok {
+				t.Errorf("%s.json declares the security key %q that en.json does not claim, so a pack "+
+					"on disk could supply it instead", code, key)
+			}
+		}
+	}
+}
