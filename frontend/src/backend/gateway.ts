@@ -191,6 +191,12 @@ export interface AppGateway {
   GetVersionInfo(): Promise<{ appVersion: string; coreVersion: string; pluginApiVersion: string }>;
   GetUpdateStatus?(): Promise<wails.UpdateStatusDTO>;
 
+  // Optional because the language catalogue is wired at the composition root and a build that
+  // failed to load its embedded packs leaves it unset; the interface stays English rather than
+  // failing to start.
+  ListLocales?(): Promise<Array<wails.LocaleInfoDTO>>;
+  GetLocaleMessages?(arg1: string): Promise<wails.LocaleMessagesDTO>;
+
   GetTempDir(): Promise<string>;
 
   GetUserHomeDir(): Promise<string>;
