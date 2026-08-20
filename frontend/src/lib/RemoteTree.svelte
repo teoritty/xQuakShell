@@ -24,6 +24,7 @@
     saveConnection,
   } from '../actions/connectionActions';
   import { openSession } from '../actions/sessionActions';
+  import { t } from '../i18n/messages';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import ImportPuTTYDialog from './ImportPuTTYDialog.svelte';
   import ImportSSHConfigDialog from './ImportSSHConfigDialog.svelte';
@@ -32,6 +33,7 @@
   import RemoteTreeContextMenu from './RemoteTreeContextMenu.svelte';
   import { openContextMenu, releaseContextMenu } from './contextMenuManager';
   import { buildTree, flattenTree } from './remoteTree/buildTree';
+  import { handleDiscoveryRowKey } from './remoteTree/discoveryKeys';
   import { describeDeleteTargets } from './remoteTree/deletePrompt';
   import { buildSessionStatusMap } from './remoteTree/connectionDisplay';
   import {
@@ -189,7 +191,7 @@
   // searched and found nothing.
   $: searchHint =
     searchQuery && $discoveryExpanded.size > 0
-      ? 'Search covers connections and folders. Discovered resources are not searched.'
+      ? $t('tree.search.discoveryHint')
       : '';
   $: selectedConnectionCount = connectionIdsInSelection(selectedPaths, $connections).length;
   $: shiftNodes = (() => {
@@ -265,7 +267,7 @@
   /** Single entry point for every delete verb — context menu, row button, Delete key. */
   function requestDelete(targets: DeleteTargets) {
     if (deleteTargetCount(targets) === 0) return;
-    const prompt = describeDeleteTargets(targets, $folders, $connections);
+    const prompt = describeDeleteTargets(targets, $folders, $connections, $t);
     confirmDeleteTargets = targets;
     confirmDeleteTitle = prompt.title;
     confirmDeleteMessage = prompt.message;
@@ -350,11 +352,11 @@
   function requestDiscoveryAction(item: DiscoveryMenuItem, menu: DiscoveryMenu) {
     closeContextMenu();
     if (item.confirm) {
-      // A mass action names the count: "Remove" over 40 containers is a very
-      // different decision from "Remove" over one.
+      // A mass action names the count: "Remove" over 40 containers is a very different decision
+      // from "Remove" over one. The confirmation text itself is the plugin's, not the core's.
       confirmActionMessage =
         menu.nodeIds.length > 1
-          ? `${item.confirm} (${menu.nodeIds.length} items)`
+          ? $t('tree.discovery.confirmMany', { confirm: item.confirm, count: menu.nodeIds.length })
           : item.confirm;
       pendingAction = { item, menu };
       confirmActionShow = true;
@@ -388,30 +390,6 @@
     else if (target.length === 1 && row.kind === 'group') {
       void toggleDiscoveryNode(row.connectionId, row.key);
     }
-  }
-
-  /**
-   * Keeps DOM focus on the row the selection just moved to.
-   *
-   * Without this, arrow keys would move the highlight while Enter and the
-   * left/right arrows kept reading the previously focused row — the user would
-   * see one row selected and the keyboard would act on another.
-   */
-  async function focusDiscoveryRow(row: DiscoveryRow | undefined) {
-    if (!row || typeof document === 'undefined') return;
-    await tick();
-    // Addressed by TreeNode.id, which is scoped by (connectionId, pluginId,
-    // nodeId) — NOT by discoveryKey, which omits the connection. Two connections
-    // showing the same plugin's `containers` produce two rows with the same key,
-    // and querySelector would return whichever came first in the document, so
-    // focus could land in a different connection's subtree from the one the
-    // selection just moved through.
-    const id = discoveryNodeId(row.connectionId, row.pluginId, row.nodeId);
-    const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(id) : id.replace(/["\\]/g, '\\$&');
-    const el = document.querySelector<HTMLElement>(
-      `.remote-tree .tree-node[data-discovery-id="${escaped}"]`
-    );
-    el?.focus();
   }
 
   function handleWindowClick(e: MouseEvent) {
@@ -649,36 +627,11 @@
   function handleNodeKeydown(e: CustomEvent<{ event: KeyboardEvent; node: TreeNode }>) {
     const { event, node } = e.detail;
     if (node.type === 'discovery') {
-      const row = node.discovery;
-      if (!row) return;
-      // Arrows walk the subtree the same way they walk folders; Enter runs the
-      // node's defaultActionId, which is the plugin's idea of "the obvious
-      // thing", not the core's.
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        activateDiscoveryRow(row);
-      } else if (event.key === 'ArrowRight' && row.kind === 'group' && !row.expanded) {
-        event.preventDefault();
-        void setDiscoveryNodeExpanded(row.connectionId, row.key, true);
-      } else if (event.key === 'ArrowLeft' && row.kind === 'group' && row.expanded) {
-        event.preventDefault();
-        void setDiscoveryNodeExpanded(row.connectionId, row.key, false);
-      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        // Shift extends, but only across siblings — the invariant lives in
-        // moveDiscoverySelection, not here.
-        event.preventDefault();
-        const direction = event.key === 'ArrowDown' ? 1 : -1;
-        discoverySelection.update((sel) =>
-          moveDiscoverySelection(sel, discoveryRows, direction, event.shiftKey)
-        );
-        // Focus follows the selection so Enter and the left/right arrows keep
-        // acting on the row the user can see is current. Resolved through the
-        // selection's own connectionId, so it can only ever land in the subtree
-        // the selection lives in.
-        const moved = get(discoverySelection);
-        void focusDiscoveryRow(
-          discoveryRows.find((r) => r.connectionId === moved.connectionId && r.key === moved.lastKey)
-        );
+      if (node.discovery) {
+        handleDiscoveryRowKey(event, node.discovery, {
+          rows: discoveryRows,
+          activate: activateDiscoveryRow,
+        });
       }
       return;
     }
@@ -781,7 +734,7 @@
 
 <ConfirmDialog
   show={confirmActionShow}
-  title="Confirm action"
+  title={$t('tree.discovery.confirmTitle')}
   message={confirmActionMessage}
   critical={!!pendingAction?.item.danger}
   on:confirm={handleConfirmDiscoveryAction}

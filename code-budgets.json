@@ -61,8 +61,8 @@
         "scriptCodeLines": 415
       },
       "frontend/src/lib/RemoteTree.svelte": {
-        "codeLines": 672,
-        "scriptCodeLines": 559
+        "codeLines": 648,
+        "scriptCodeLines": 535
       },
       "frontend/src/lib/ScriptsDialog.svelte": {
         "codeLines": 548,

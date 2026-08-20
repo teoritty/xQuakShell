@@ -10,17 +10,25 @@ export interface DeletePrompt {
   checkboxLabel: string;
 }
 
+/** Resolves a message key. The tree passes `$t`; tests pass whatever they need. */
+export type PromptLabels = (key: string, vars?: Record<string, string | number>) => string;
+
 /**
  * Wording for the delete confirmation, kept out of the component because it is
  * the only thing standing between the user and an irreversible cascade: a
  * folder delete takes its whole subtree with it, so the dialog has to say how
  * many connections that actually is. Pure and separate so those counts can be
  * tested rather than eyeballed in the UI.
+ *
+ * The counts go through the lookup as `count`, which also selects the plural form. That matters
+ * here more than anywhere else in the interface: this dialog exists to make the user read a
+ * number, and "1 connections" is the kind of wrongness that makes a reader skim past it.
  */
 export function describeDeleteTargets(
   targets: DeleteTargets,
   folders: Folder[],
-  connections: Connection[]
+  connections: Connection[],
+  label: PromptLabels,
 ): DeletePrompt {
   const folderCount = targets.folderIds.length;
   const connCount = targets.connectionIds.length;
@@ -29,24 +37,25 @@ export function describeDeleteTargets(
     0
   );
   const critical = folderCount + connCount > 1 || nested > 0;
-  const checkboxLabel =
+  const checkboxLabel = label(
     folderCount > 0
-      ? 'I understand this will permanently delete all connections inside these folders'
-      : 'I understand this will permanently delete the selected connections';
+      ? 'security.tree.delete.confirmFolders'
+      : 'security.tree.delete.confirmConnections',
+  );
 
   if (folderCount === 1 && connCount === 0) {
     const name = folders.find((f) => f.id === targets.folderIds[0])?.name ?? '';
     if (nested === 0) {
       return {
-        title: 'Delete Folder',
-        message: `Are you sure you want to delete "${name}"?`,
+        title: label('tree.delete.folder.title'),
+        message: label('tree.delete.one', { name }),
         critical,
         checkboxLabel,
       };
     }
     return {
-      title: 'Warning: Folder Contains Connections',
-      message: `You are about to delete folder "${name}" which contains ${nested} connection(s). This action cannot be undone!`,
+      title: label('security.tree.delete.folderNotEmpty.title'),
+      message: label('security.tree.delete.folderNotEmpty', { name, count: nested }),
       critical,
       checkboxLabel,
     };
@@ -55,8 +64,8 @@ export function describeDeleteTargets(
   if (folderCount === 0 && connCount === 1) {
     const name = connections.find((c) => c.id === targets.connectionIds[0])?.name ?? '';
     return {
-      title: 'Delete Connection',
-      message: `Are you sure you want to delete "${name}"?`,
+      title: label('tree.delete.connection.title'),
+      message: label('tree.delete.one', { name }),
       critical,
       checkboxLabel,
     };
@@ -64,8 +73,8 @@ export function describeDeleteTargets(
 
   if (folderCount === 0) {
     return {
-      title: 'Delete Multiple Connections',
-      message: `You are about to delete ${connCount} connection(s). This action cannot be undone!`,
+      title: label('tree.delete.connections.title'),
+      message: label('security.tree.delete.connections', { count: connCount }),
       critical,
       checkboxLabel,
     };
@@ -73,12 +82,12 @@ export function describeDeleteTargets(
 
   const subject =
     connCount > 0
-      ? `${folderCount} folder(s) and ${connCount} connection(s)`
-      : `${folderCount} folder(s)`;
-  const inside = nested > 0 ? `, including ${nested} connection(s) inside those folders` : '';
+      ? label('tree.delete.subject.both', { folders: folderCount, connections: connCount })
+      : label('tree.delete.subject.folders', { count: folderCount });
+  const inside = nested > 0 ? label('tree.delete.including', { count: nested }) : '';
   return {
-    title: 'Delete Multiple Items',
-    message: `You are about to delete ${subject}${inside}. This action cannot be undone!`,
+    title: label('tree.delete.items.title'),
+    message: label('security.tree.delete.items', { subject, inside }),
     critical,
     checkboxLabel,
   };

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import { CheckCircle2, Circle, Loader2, Monitor, XCircle } from 'lucide-svelte';
   import StatusDot from './StatusDot.svelte';
@@ -17,7 +18,7 @@
 
 {#if connections.length > 0}
   <div class="favorites-section">
-    <div class="favorites-header">Favorites</div>
+    <div class="favorites-header">{$t('tree.favorites')}</div>
     {#each connections as conn (conn.id)}
       <div
         class="tree-node connection favorite-node"
@@ -38,7 +39,7 @@
         {#if hasPingResult(pingResults, conn.id)}
           <StatusDot status={pingStatus(pingResults, conn.id)} />
         {:else}
-          <span class="ping-spinner" title="Pinging…"><Loader2 size={10} /></span>
+          <span class="ping-spinner" title={$t('tree.pinging')}><Loader2 size={10} /></span>
         {/if}
         <span class="conn-icon"><Monitor size={14} /></span>
         {#if sessionStatusByConnId.get(conn.id)}
