@@ -65,8 +65,8 @@
         "scriptCodeLines": 535
       },
       "frontend/src/lib/ScriptsDialog.svelte": {
-        "codeLines": 548,
-        "scriptCodeLines": 220
+        "codeLines": 514,
+        "scriptCodeLines": 186
       },
       "internal/domain/plugin/manifest_capabilities.go": {
         "codeLines": 397

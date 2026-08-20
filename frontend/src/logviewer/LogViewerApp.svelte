@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   import { onDestroy, onMount, tick } from 'svelte';
 
   interface LogEntry {
@@ -109,18 +110,18 @@
 
 <div class="log-viewer">
   <div class="toolbar">
-    <span class="title">Debug Log</span>
+    <span class="title">{$t('logviewer.title')}</span>
     <div class="toolbar-actions">
-      <select class="ghost" bind:value={levelFilter} title="Minimum level">
-        <option value="all">All levels</option>
-        <option value="debug">Debug+</option>
-        <option value="info">Info+</option>
-        <option value="warn">Warn+</option>
-        <option value="error">Error</option>
+      <select class="ghost" bind:value={levelFilter} title={$t('settings.about.developer.level')}>
+        <option value="all">{$t('logviewer.allLevels')}</option>
+        <option value="debug">{$t('logviewer.debugPlus')}</option>
+        <option value="info">{$t('logviewer.infoPlus')}</option>
+        <option value="warn">{$t('logviewer.warnPlus')}</option>
+        <option value="error">{$t('settings.about.developer.level.error')}</option>
       </select>
-      <input class="search" type="text" placeholder="Search…" bind:value={search} />
-      <button class="ghost" on:click={() => { paused = !paused; }}>{paused ? 'Resume' : 'Pause'}</button>
-      <button class="ghost" on:click={clearLogs}>Clear</button>
+      <input class="search" type="text" placeholder={$t('logviewer.searchPlaceholder')} bind:value={search} />
+      <button class="ghost" on:click={() => { paused = !paused; }}>{paused ? $t('logviewer.resume') : $t('logviewer.pause')}</button>
+      <button class="ghost" on:click={clearLogs}>{$t('scripts.clear')}</button>
     </div>
   </div>
   <div class="log-body" bind:this={logBody} on:scroll={onScroll}>
@@ -137,7 +138,7 @@
     {/each}
     {#if visibleLines.length === 0}
       <div class="empty">
-        {lines.length === 0 ? 'Waiting for log entries…' : 'No entries match the current filter.'}
+        {lines.length === 0 ? $t('logviewer.waiting') : $t('logviewer.noMatch')}
       </div>
     {/if}
   </div>
