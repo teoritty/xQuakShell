@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import type { StoredKey } from '../../api/keys';
 
   export let keys: StoredKey[] = [];
@@ -43,11 +44,11 @@
         <span class="line-top">
           <span class="key-name">{key.comment || key.id}</span>
           {#if key.migrationPending}
-            <span class="badge warn" title="Upgrade not finished">unfinished</span>
+            <span class="badge warn" title={$t('keys.badge.unfinished.title')}>{$t('keys.badge.unfinished')}</span>
           {:else if key.policy === 'passphrase'}
-            <span class="badge" title="Needs its passphrase to be used">passphrase</span>
+            <span class="badge" title={$t('keys.badge.passphrase.title')}>{$t('keys.badge.passphrase')}</span>
           {/if}
-          {#if key.nonExportable}<span class="badge" title="Can never leave the vault">sealed</span>{/if}
+          {#if key.nonExportable}<span class="badge" title={$t('security.keys.badge.sealed.title')}>{$t('security.keys.badge.sealed')}</span>{/if}
         </span>
         <span class="line-bottom">
           <span class="algorithm">{algorithm(key)}</span>
@@ -56,7 +57,7 @@
       </button>
     </li>
   {:else}
-    <li class="empty">{filter ? 'No key matches that search.' : 'No keys yet. Add one below.'}</li>
+    <li class="empty">{filter ? $t('keys.empty.filtered') : $t('keys.empty')}</li>
   {/each}
 </ul>
 

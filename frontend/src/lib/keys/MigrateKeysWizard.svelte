@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import Modal from '../Modal.svelte';
   import type { PendingKey } from '../../api/keys';
@@ -25,20 +26,13 @@
   }
 </script>
 
-<Modal title="Upgrade your vault" {show} on:close={() => dispatch('close')}>
-  <p class="intro">
-    Your keys are being moved to a stronger storage format. A copy of the vault as it is now is
-    saved beside it first, and nothing is deleted.
-  </p>
+<Modal title={$t('keys.migrate.title')} {show} on:close={() => dispatch('close')}>
+  <p class="intro">{$t('security.keys.migrate.intro')}</p>
 
   {#if pending.length === 0}
-    <p class="intro">Nothing needs a passphrase. This will take a moment.</p>
+    <p class="intro">{$t('keys.migrate.nothingNeeded')}</p>
   {:else}
-    <p class="intro">
-      These keys have their own passphrase. Enter each one so it can be re-encrypted. If you cannot
-      remember one, skip it — the key keeps working exactly as before and you can finish it later
-      from the key manager.
-    </p>
+    <p class="intro">{$t('keys.migrate.needPassphrases')}</p>
 
     <ul class="keys">
       {#each pending as key (key.id)}
@@ -47,13 +41,13 @@
             <span class="name">{key.comment || key.id}</span>
             <label class="skip">
               <input type="checkbox" bind:checked={skipped[key.id]} />
-              Skip
+              {$t('keys.migrate.skip')}
             </label>
           </div>
           {#if !skipped[key.id]}
             <input
               type="password"
-              placeholder="Passphrase for this key"
+              placeholder={$t('keys.migrate.passphrasePlaceholder')}
               autocomplete="off"
               bind:value={answers[key.id]}
             />
@@ -66,9 +60,13 @@
   {#if error}<p class="error">{error}</p>{/if}
 
   <div class="dialog-actions">
-    <button on:click={() => dispatch('close')} disabled={busy}>Not now</button>
+    <button on:click={() => dispatch('close')} disabled={busy}>{$t('keys.migrate.notNow')}</button>
     <button class="primary" on:click={submit} disabled={busy}>
-      {busy ? 'Upgrading…' : remaining > 0 ? `Upgrade, skipping ${remaining}` : 'Upgrade'}
+      {busy
+        ? $t('keys.migrate.busy')
+        : remaining > 0
+          ? $t('keys.migrate.skipping', { count: remaining })
+          : $t('keys.migrate.submit')}
     </button>
   </div>
 </Modal>

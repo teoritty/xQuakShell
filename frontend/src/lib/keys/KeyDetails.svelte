@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import { Copy, Check, Upload } from 'lucide-svelte';
   import type { KeyUsage, StoredKey } from '../../api/keys';
@@ -14,32 +15,32 @@
   // "openssh" are alternatives to choose between.
   function algorithm(k: StoredKey): string {
     if (k.keyType === 'openssh' || k.keyType === 'unknown') {
-      return k.migrationPending ? 'Type unknown until the upgrade is finished' : 'Type unknown';
+      return k.migrationPending ? $t('keys.type.unknownPending') : $t('keys.type.unknown');
     }
     return k.bits ? `${k.keyType} · ${k.bits} bits` : k.keyType;
   }
 
   function protection(k: StoredKey): string {
     return k.policy === 'passphrase'
-      ? 'Passphrase required — the vault alone does not open it'
-      : 'Opened by the vault';
+      ? $t('keys.protection.passphrase')
+      : $t('keys.protection.vault');
   }
 
   function memory(k: StoredKey): string {
-    if (k.policy !== 'passphrase') return 'Nothing to remember';
+    if (k.policy !== 'passphrase') return $t('keys.memory.nothing');
     switch (k.cachePolicy) {
       case 'never':
-        return 'Asked every time';
+        return $t('keys.memory.always');
       case 'duration':
         return `Remembered for ${Math.round((k.cacheTtlSeconds || 900) / 60)} minutes`;
       default:
-        return 'Remembered until the vault locks';
+        return $t('keys.memory.untilLock');
     }
   }
 </script>
 
 {#if !key}
-  <div class="placeholder">Select a key to see its details.</div>
+  <div class="placeholder">{$t('keys.selectPrompt')}</div>
 {:else}
   <div class="details">
     <header>
@@ -50,60 +51,56 @@
       <div class="lead-actions">
         <button class="secondary" on:click={() => dispatch('copy')} disabled={!key.publicKey}>
           {#if copied}<Check size={12} />{:else}<Copy size={12} />{/if}
-          {copied ? 'Copied' : 'Copy public key'}
+          {copied ? $t('error.copied') : $t('keys.copyPublic')}
         </button>
         <button class="primary" on:click={() => dispatch('deploy')} disabled={!key.publicKey}>
-          <Upload size={12} /> Publish to server
+          <Upload size={12} /> {$t('keys.publish')}
         </button>
       </div>
     </header>
 
     {#if key.migrationPending}
-      <p class="warning">
-        This key still holds its pre-upgrade form because its passphrase was skipped. It works for
-        connecting, but it cannot be exported or published until you finish the upgrade — change its
-        passphrase below to do that.
-      </p>
+      <p class="warning">{$t('keys.migrationPending')}</p>
     {/if}
 
     <section>
-      <h4>Identity</h4>
+      <h4>{$t('keys.section.identity')}</h4>
       <dl>
-        <dt>Fingerprint</dt>
-        <dd class="mono">{key.fingerprint || 'Not derived yet'}</dd>
-        <dt>Added</dt>
-        <dd>{key.createdAt ? key.createdAt.slice(0, 10) : 'Unknown'}{key.source ? ` · ${key.source}` : ''}</dd>
+        <dt>{$t('keys.field.fingerprint')}</dt>
+        <dd class="mono">{key.fingerprint || $t('keys.fingerprint.none')}</dd>
+        <dt>{$t('keys.field.added')}</dt>
+        <dd>{key.createdAt ? key.createdAt.slice(0, 10) : $t('keys.added.unknown')}{key.source ? ` · ${key.source}` : ''}</dd>
       </dl>
       {#if key.publicKey}
-        <span class="pub-label">Public key</span>
+        <span class="pub-label">{$t('keys.field.publicKey')}</span>
         <pre class="public-key">{key.publicKey}</pre>
       {/if}
     </section>
 
     <section>
-      <h4>Protection</h4>
+      <h4>{$t('keys.section.protection')}</h4>
       <dl>
-        <dt>Opened by</dt>
+        <dt>{$t('keys.field.openedBy')}</dt>
         <dd>{protection(key)}</dd>
-        <dt>Passphrase</dt>
+        <dt>{$t('keys.field.passphrase')}</dt>
         <dd>{memory(key)}</dd>
-        <dt>Plugins</dt>
-        <dd>{key.allowPlugins ? 'May read this key' : 'Cannot read this key'}</dd>
-        <dt>Export</dt>
-        <dd>{key.nonExportable ? 'Sealed — this key can never leave the vault' : 'Allowed with the master password'}</dd>
+        <dt>{$t('keys.field.plugins')}</dt>
+        <dd>{key.allowPlugins ? $t('security.keys.plugins.allowed') : $t('security.keys.plugins.denied')}</dd>
+        <dt>{$t('keys.field.export')}</dt>
+        <dd>{key.nonExportable ? $t('security.keys.export.sealed') : $t('security.keys.export.allowed')}</dd>
       </dl>
     </section>
 
     <section>
-      <h4>Used by</h4>
+      <h4>{$t('keys.section.usedBy')}</h4>
       {#if usages.length === 0}
-        <p class="muted">No connection uses this key yet. Pick it in a connection's key authentication.</p>
+        <p class="muted">{$t('keys.usedBy.none')}</p>
       {:else}
         <ul class="usages">
           {#each usages as usage}
             <li>
               <span class="usage-name">{usage.connectionName}</span>
-              <span class="muted">{usage.username}{usage.hop ? ` · jump via ${usage.hop}` : ''}</span>
+              <span class="muted">{usage.username}{usage.hop ? ` · ${$t('keys.usedBy.jumpVia', { hop: usage.hop })}` : ''}</span>
             </li>
           {/each}
         </ul>

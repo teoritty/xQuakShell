@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   import Modal from './Modal.svelte';
   import KeyList from './keys/KeyList.svelte';
   import KeyDetails from './keys/KeyDetails.svelte';
@@ -154,8 +155,8 @@
       const result = await publishKey(event.detail, selected.id);
       if (result) {
         deployNotice = result.alreadyPresent
-          ? 'That key was already authorised on this server — nothing was changed.'
-          : `Added to ${result.path}.`;
+          ? $t('keys.deploy.alreadyPresent')
+          : $t('keys.deploy.added', { path: result.path });
       }
     } catch (e) {
       dialogError = e instanceof Error ? e.message : String(e);
@@ -165,20 +166,20 @@
   }
 </script>
 
-<Modal title="SSH Keys" {show} contentClass="key-manager" on:close={() => (show = false)}>
+<Modal title={$t('keys.title')} {show} contentClass="key-manager" on:close={() => (show = false)}>
   <div class="layout">
     <aside>
       <div class="rail-head">
-        <input class="search" placeholder="Search keys" bind:value={filter} />
+        <input class="search" placeholder={$t('keys.search')} bind:value={filter} />
       </div>
       <KeyList keys={$storedKeys} bind:selectedId={$selectedKeyId} {filter} />
       <div class="rail-foot">
-        <button class="secondary" on:click={() => (showNew = true)}>Add a key</button>
+        <button class="secondary" on:click={() => (showNew = true)}>{$t('keys.add')}</button>
       </div>
     </aside>
     <section class="pane">
       {#if $keysLoading && $storedKeys.length === 0}
-        <div class="loading">Loading keys…</div>
+        <div class="loading">{$t('keys.loading')}</div>
       {:else}
         <KeyDetails
           key={selected}
@@ -203,11 +204,11 @@
 <KeyPassphraseDialog bind:show={showPassphrase} target={selected} error={dialogError} on:submit={onPassphrase} on:close={() => (showPassphrase = false)} />
 <DeployKeyDialog bind:show={showDeploy} target={selected} sessions={$sessions} error={dialogError} notice={deployNotice} {busy} on:submit={onDeploy} on:close={() => (showDeploy = false)} />
 
-<Modal title="Settings for {selected?.comment || 'key'}" show={showPolicy} on:close={() => (showPolicy = false)}>
+<Modal title={$t('keys.policy.title', { name: selected?.comment || $t('keys.fallbackName') })} show={showPolicy} on:close={() => (showPolicy = false)}>
   <KeyPolicyFields bind:options={policyDraft} showNonExportable={!selected?.nonExportable} hasPassphrase={selected?.policy === 'passphrase'} />
   <div class="dialog-actions">
-    <button on:click={() => (showPolicy = false)}>Cancel</button>
-    <button class="primary" on:click={savePolicy}>Save</button>
+    <button on:click={() => (showPolicy = false)}>{$t('common.cancel')}</button>
+    <button class="primary" on:click={savePolicy}>{$t('common.save')}</button>
   </div>
 </Modal>
 

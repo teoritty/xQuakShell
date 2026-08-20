@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import Modal from '../Modal.svelte';
   import type { StoredKey } from '../../api/keys';
@@ -32,11 +33,11 @@
 
   async function submit() {
     if (!masterPassword) {
-      error = 'Enter your master password to confirm.';
+      error = $t('keys.export.needMaster');
       return;
     }
     if (exportPassphrase !== confirmExport) {
-      error = 'The two passphrases for the exported file do not match.';
+      error = $t('keys.export.mismatch');
       return;
     }
     busy = true;
@@ -50,32 +51,34 @@
   }
 </script>
 
-<Modal title="Export {target?.comment || 'key'}" {show} on:close={close}>
+<Modal title={$t('keys.export.title', { name: target?.comment || $t('keys.fallbackName') })} {show} on:close={close}>
   <p class="warn">
     The private key will be written to a file outside the vault. Anything that can read that file
     can log in as you. Delete it once you have moved it where it needs to go.
   </p>
 
-  <label for="export-master">Master password</label>
+  <label for="export-master">{$t('vault.field.master')}</label>
   <input id="export-master" type="password" bind:value={masterPassword} autocomplete="off" />
 
   {#if target?.policy === 'passphrase'}
-    <label for="export-key-passphrase">This key's passphrase</label>
+    <label for="export-key-passphrase">{$t('keys.export.keyPassphrase')}</label>
     <input id="export-key-passphrase" type="password" bind:value={passphrase} autocomplete="off" />
   {/if}
 
-  <label for="export-new-passphrase">Protect the exported file with <span class="hint">recommended</span></label>
+  <label for="export-new-passphrase">
+    {$t('keys.export.protectWith')} <span class="hint">{$t('keys.export.recommended')}</span>
+  </label>
   <input id="export-new-passphrase" type="password" bind:value={exportPassphrase} autocomplete="new-password" />
 
-  <label for="export-new-confirm">Repeat</label>
+  <label for="export-new-confirm">{$t('keys.export.repeat')}</label>
   <input id="export-new-confirm" type="password" bind:value={confirmExport} autocomplete="new-password" />
-  <p class="explain">Leaving this empty writes an unprotected key file.</p>
+  <p class="explain">{$t('security.keys.export.unprotected')}</p>
 
   {#if error}<p class="error">{error}</p>{/if}
 
   <div class="dialog-actions">
-    <button on:click={close}>Cancel</button>
-    <button class="primary" on:click={submit} disabled={busy}>Export</button>
+    <button on:click={close}>{$t('common.cancel')}</button>
+    <button class="primary" on:click={submit} disabled={busy}>{$t('keys.export.submit')}</button>
   </div>
 </Modal>
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import Modal from '../Modal.svelte';
   import type { StoredKey } from '../../api/keys';
@@ -22,14 +23,14 @@
 
   function submit() {
     if (newPassphrase !== confirmPassphrase) {
-      error = 'The two passphrases do not match.';
+      error = $t('keys.passphrase.mismatch');
       return;
     }
     dispatch('submit', { oldPassphrase, newPassphrase });
   }
 </script>
 
-<Modal title="Passphrase for {target?.comment || 'key'}" {show} on:close={close}>
+<Modal title={$t('keys.passphrase.title', { name: target?.comment || $t('keys.fallbackName') })} {show} on:close={close}>
   {#if target?.migrationPending}
     <p class="note">
       Entering the current passphrase here also finishes this key's upgrade, after which it can be
@@ -38,14 +39,16 @@
   {/if}
 
   {#if target?.policy === 'passphrase'}
-    <label for="pp-old">Current passphrase</label>
+    <label for="pp-old">{$t('keys.passphrase.current')}</label>
     <input id="pp-old" type="password" bind:value={oldPassphrase} autocomplete="off" />
   {/if}
 
-  <label for="pp-new">New passphrase <span class="hint">leave empty to let the vault protect it</span></label>
+  <label for="pp-new">
+    {$t('keys.passphrase.new')} <span class="hint">{$t('keys.passphrase.newHint')}</span>
+  </label>
   <input id="pp-new" type="password" bind:value={newPassphrase} autocomplete="new-password" />
 
-  <label for="pp-confirm">Repeat</label>
+  <label for="pp-confirm">{$t('keys.export.repeat')}</label>
   <input id="pp-confirm" type="password" bind:value={confirmPassphrase} autocomplete="new-password" />
 
   <p class="explain">
@@ -56,8 +59,8 @@
   {#if error}<p class="error">{error}</p>{/if}
 
   <div class="dialog-actions">
-    <button on:click={close}>Cancel</button>
-    <button class="primary" on:click={submit}>Save</button>
+    <button on:click={close}>{$t('common.cancel')}</button>
+    <button class="primary" on:click={submit}>{$t('common.save')}</button>
   </div>
 </Modal>
 
