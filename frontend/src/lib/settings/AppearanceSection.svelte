@@ -1,13 +1,29 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import SettingsSection from './SettingsSection.svelte';
   import { TERMINAL_FONT_STACKS } from './terminalFonts';
   import { applyUiScalePercent, normalizeUiScalePercent, UI_SCALE_PRESETS } from '../uiScale';
+  import { listLocales, type LocaleInfo } from '../../api/locale';
+  import { applyLocale } from '../../i18n/apply';
+  import { t } from '../../i18n/messages';
   import type { SettingsSearchViewState } from '../settingsSearch';
   import type { SettingsDraft } from './settingsDraft';
 
   export let view: SettingsSearchViewState;
-  // Owns theme, uiScalePercent and the three terminal font fields.
+  // Owns theme, language, uiScalePercent and the three terminal font fields.
   export let draft: SettingsDraft;
+
+  let locales: LocaleInfo[] = [];
+
+  onMount(async () => {
+    locales = await listLocales();
+  });
+
+  // Like the scale below, the language applies as soon as it is picked so the user can read the
+  // dialog they are about to save from. The dialog restores what it opened with if they cancel.
+  function handleLanguageChange() {
+    void applyLocale(draft.language);
+  }
 
   // The scale applies as soon as it is picked so the user can judge it, and the dialog restores the
   // value it opened with if they cancel. Saving is what makes it permanent.
@@ -16,6 +32,21 @@
     applyUiScalePercent(draft.uiScalePercent);
   }
 </script>
+
+<SettingsSection tab="appearance" section="language" {view}>
+  <div class="section">
+    <h4>{$t('settings.appearance.language.title')}</h4>
+    <p class="section-desc">{$t('settings.appearance.language.desc')}</p>
+    <label class="setting-row">
+      <span>{$t('settings.appearance.language.label')}</span>
+      <select bind:value={draft.language} on:change={handleLanguageChange}>
+        {#each locales as locale (locale.code)}
+          <option value={locale.code}>{locale.name}</option>
+        {/each}
+      </select>
+    </label>
+  </div>
+</SettingsSection>
 
 <SettingsSection tab="appearance" section="theme" {view}>
   <div class="section">

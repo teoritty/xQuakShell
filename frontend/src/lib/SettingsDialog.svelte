@@ -24,6 +24,7 @@
   import { getAuditSessionState } from '../api/audit';
   import { tabHasSearchMatches, type SettingsTabId } from './settingsSearch';
   import { applyUiScalePercent } from './uiScale';
+  import { applyLocale } from '../i18n/apply';
   import {
     Shield,
     Palette,
@@ -47,10 +48,11 @@
 
   let draft = defaultSettingsDraft();
   let hotkeyConflict = '';
-  // Not part of the draft: secret logging is session state the backend owns, and the scale is
-  // remembered only so cancelling can undo the live preview.
+  // Not part of the draft: secret logging is session state the backend owns, while the scale and
+  // language are remembered only so cancelling can undo their live previews.
   let auditLogSecrets = false;
   let uiScaleAtOpen = draft.uiScalePercent;
+  let languageAtOpen = draft.language;
 
   onMount(() => {
     const rt = (window as any).runtime;
@@ -113,16 +115,20 @@
     loading = true;
     draft = draftFromSettings(await getSettings());
     uiScaleAtOpen = draft.uiScalePercent;
+    languageAtOpen = draft.language;
     const sessionState = await getAuditSessionState();
     auditLogSecrets = sessionState?.logSecretsEnabled ?? false;
     hotkeyConflict = '';
     loading = false;
   }
 
-  // The interface scale previews live while the dialog is open, so cancelling has to put back the
-  // value it was opened with rather than leave the preview standing.
+  // The scale and the language both preview live while the dialog is open, so cancelling has to
+  // put back what it opened with rather than leave a preview standing as if it had been saved.
   function closeSettings() {
     applyUiScalePercent(uiScaleAtOpen);
+    if (draft.language !== languageAtOpen) {
+      void applyLocale(languageAtOpen);
+    }
     show = false;
   }
 
@@ -133,6 +139,7 @@
     await saveSettings(draftToSettings(draft));
     window.dispatchEvent(new CustomEvent('app-settings-updated'));
     uiScaleAtOpen = draft.uiScalePercent;
+    languageAtOpen = draft.language;
     saving = false;
     show = false;
   }

@@ -37,6 +37,11 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
   },
   {
     tabId: 'appearance',
+    sectionId: 'language',
+    terms: ['Language', 'Interface language', 'Locale', 'Translation', 'English', 'Russian', 'Русский'],
+  },
+  {
+    tabId: 'appearance',
     sectionId: 'theme',
     terms: ['Appearance', 'Theme', 'Dark', 'Light'],
   },
