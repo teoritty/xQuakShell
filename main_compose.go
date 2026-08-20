@@ -122,6 +122,9 @@ func composeApp() *App {
 	if pluginRuntime.viewRelay != nil {
 		api.SetPluginViewRelay(pluginRuntime.viewRelay)
 	}
+	if pluginRuntime.locales != nil {
+		api.SetLocaleBroadcaster(pluginRuntime.locales)
+	}
 	api.SetGitHubServices(pluginRuntime.githubRepoService, pluginRuntime.githubPluginService)
 	api.SetPluginCatalog(buildPluginCatalog(pluginRuntime.githubRepoService, pluginRuntime.githubPluginService))
 	api.SetUpdateService(newUpdateService(api, auditLogRepo))

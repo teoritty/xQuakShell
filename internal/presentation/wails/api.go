@@ -58,6 +58,7 @@ type AppAPI struct {
 	unlockThrottle              domain.UnlockThrottle
 	updateSvc                   *usecase.UpdateService
 	locales                     domain.LocaleCatalog
+	localeBroadcast             LocaleBroadcaster
 }
 
 // NewAppAPI creates a new AppAPI with the given dependencies.
@@ -407,6 +408,12 @@ func (a *AppAPI) afterVaultOpened() {
 			a.logLevel.SetLevel(data.Settings.Debug.LogLevel)
 		}
 		a.SyncDebugLogWindow(data.Settings.Debug.LogWindowEnabled)
+		// The language lives in the vault too, so this is the first moment the host can tell the
+		// plugins what it is. Plugins start before the vault opens; until now they had only the
+		// empty locale the initialize handshake carried.
+		if a.localeBroadcast != nil {
+			a.localeBroadcast.SetLocale(domain.NormalizeLocaleCode(data.Settings.Language))
+		}
 	}
 
 	if a.auditSvc != nil {

@@ -101,13 +101,19 @@ func wirePluginProcessLifecycle(
 	manager *usecase.PluginManager,
 	supervisor *usecase.PluginSupervisor,
 	observer *usecase.DiscoveryObserver,
+	locales *usecase.LocaleObserver,
 	discovery *usecase.DiscoveryService,
 	leader *usecase.DiscoveryLeader,
 	ui uiStack,
 ) {
 	// A restarted plugin is told the whole observed set again; without this the level-triggered
-	// contract silently degrades into an edge-triggered one (ADR-014 §data flow).
-	manager.SetProcessStartedHandler(observer.PluginStarted)
+	// contract silently degrades into an edge-triggered one (ADR-014 §data flow). The interface
+	// language rides the same hook for the same reason: a plugin that came back after a language
+	// change would otherwise keep writing in the language it first started under.
+	manager.SetProcessStartedHandler(func(pluginID string) {
+		observer.PluginStarted(pluginID)
+		locales.PluginStarted(pluginID)
+	})
 
 	// A plugin the user disabled or uninstalled loses its subtree at once, under every connection,
 	// without touching its neighbours' (ADR-014).

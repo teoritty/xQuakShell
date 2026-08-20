@@ -12,6 +12,67 @@ The newest versioned heading is the release being prepared. Only the latest rele
 fixes, including security fixes, ship in a new release rather than as patches to an older one
 (see [SECURITY.md](SECURITY.md)).
 
+## [1.3.0]
+
+### Compatibility
+
+| Axis | Version |
+|---|---|
+| `pluginApi` | 1.0.0 (unchanged) |
+| Capabilities | `i18n` 1.0.0 added; all others 1.0.0, unchanged |
+| Manifest schema | new optional field `capabilities.i18n` |
+| `bundleFormat` | 1.0.0 (unchanged) |
+| Vault schema | 4 (unchanged) |
+| Audit schema | 1 (unchanged) |
+
+### BREAKING
+
+*Nothing.*
+
+### Added
+
+**The interface has a language.** Settings -> Appearance -> Interface language switches every
+caption, label and dialog in the application. English and Russian ship with it, and the change
+applies as you pick it rather than after a restart: a language you are choosing is one you need to
+be able to read the dialog in.
+
+**Languages are files you can add.** Drop a `<code>.json` into `data/locales` next to the
+executable and it appears in the list. A pack for a language that already ships overrides it key by
+key, so correcting one phrase means a file with one entry in it, not a fork. Anything a pack leaves
+out falls back to English, so a half-finished translation is a usable one.
+
+Two things a pack on disk cannot do. It cannot reword a security warning - host key verification,
+remote identity verification, plugin install consent, plugin trust policy, secret logging and every
+irreversible delete take those strings from the built-in packs only, because a file able to rewrite
+"the host key changed" into a reassurance would be a way to talk someone through accepting a forged
+server. And it cannot inject markup: a translation is rendered as text, never as HTML. A pack may
+still *add* a security string for a language that ships untranslated, which is what lets a new
+language be translated in full.
+
+The master password screen is translated too. Settings live inside the encrypted vault, so the
+language code alone - not a secret - is mirrored outside it and read before the window is drawn.
+
+**Plugins are told which language to write in.** A plugin declaring the new `i18n` capability
+receives `locale` in its `initialize` handshake and an `i18n.localeChanged` notification whenever
+the user switches, including when the plugin itself restarts - so a plugin that came back after a
+change does not go on writing in the language it first launched under. The host sends a language
+tag and nothing else; what a plugin does with it is the plugin's own business, and
+`capabilities.i18n.locales` is informational rather than checked.
+
+It is a capability of its own rather than a `ui` feature because a plugin with no interface of its
+own still supplies words the user reads - node labels, action captions, confirmation text - and
+should not have to claim the right to draw in order to learn what language to write them in. It
+grants no privilege and raises no install-time consent. See
+[ADR-019](docs/adr/019-interface-language.md).
+
+**Logs, errors and the audit log stay English.** They are diagnostics, not interface, and a record
+whose wording depends on a file in `data/locales` is not a record.
+
+### Changed
+
+The Settings dialog is now one component per tab rather than 842 lines in one file, and its search
+matches the words of whatever language is on screen instead of only the English ones.
+
 ## [1.2.1] — 2026-08-18
 
 ### Compatibility

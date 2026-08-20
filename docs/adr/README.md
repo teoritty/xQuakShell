@@ -18,6 +18,7 @@ be treated as arbitrary and worked around.
 | [016](016-ui-plugins-ship-bundles.md) | A Plugin With a UI Is Published as a Bundle |
 | [017](017-release-and-compatibility-policy.md) | Release and Compatibility Policy — six version axes, four frozen contracts, latest release only |
 | [018](018-plugin-process-isolation.md) | Plugin Process Isolation — AppContainer on Windows, Landlock on Linux, refuse rather than fall back |
+| [019](019-interface-language.md) | Interface Language — packs on disk, security warnings that a pack cannot reword, plugins told which language to write in |
 
 ## Numbers below 007
 

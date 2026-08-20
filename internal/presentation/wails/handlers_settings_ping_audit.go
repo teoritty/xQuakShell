@@ -18,6 +18,12 @@ func (a *AppAPI) GetSettings() (AppSettingsDTO, error) {
 }
 
 // SaveSettings persists application settings to the vault and applies them.
+// LocaleBroadcaster is the slice of the locale use case this layer needs: tell the plugins. Named
+// here so a handler cannot reach the rest of it.
+type LocaleBroadcaster interface {
+	SetLocale(code string)
+}
+
 func (a *AppAPI) SaveSettings(dto AppSettingsDTO) error {
 	settings := DTOToAppSettings(dto)
 	if err := a.settingsSvc.SaveSettings(a.reqCtx(), settings); err != nil {
@@ -34,7 +40,22 @@ func (a *AppAPI) SaveSettings(dto AppSettingsDTO) error {
 		a.logLevel.SetLevel(settings.Debug.LogLevel)
 	}
 	a.SyncDebugLogWindow(settings.Debug.LogWindowEnabled)
+	// Plugins that asked to know are told the language, after the save rather than before: the
+	// stored setting is what a plugin restarting a moment later will be initialized with, and
+	// announcing a language the vault does not yet hold would leave those two disagreeing.
+	if a.localeBroadcast != nil {
+		a.localeBroadcast.SetLocale(settings.Language)
+	}
 	return nil
+}
+
+// SetLocaleBroadcaster wires the plugin-facing half of the language setting. Passing nil leaves
+// plugins uninformed, which is what a build with no plugin runtime wants.
+func (a *AppAPI) SetLocaleBroadcaster(b LocaleBroadcaster) {
+	if a == nil {
+		return
+	}
+	a.localeBroadcast = b
 }
 
 // --- Ping ---

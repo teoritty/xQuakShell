@@ -34,6 +34,12 @@
         "write"
       ]
     },
+    "i18n": {
+      "version": "1.0.0",
+      "features": [
+        "localeChanged"
+      ]
+    },
     "network": {
       "version": "1.0.0",
       "features": [

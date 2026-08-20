@@ -315,6 +315,23 @@ func (r *PluginRegistry) DiscoveryPlugins() []DiscoveryPluginTarget {
 	return targets
 }
 
+// I18nPlugins lists the plugins that asked to be told the interface language.
+//
+// Only the grant is consulted, never the declared locale list: a plugin that translates itself from
+// a source the host cannot see declares no locales at all, and withholding the notification from it
+// would make the honest answer the one that breaks.
+func (r *PluginRegistry) I18nPlugins() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var ids []string
+	for id, p := range r.plugins {
+		if p.Manifest.Capabilities.I18n != nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
 // UICapabilities returns a plugin's declared ui capability, or nil when it declared none
 // (ADR-015). An unknown plugin gets the same nil, and both mean one thing to every caller: this
 // plugin may not draw. The result is a copy, so a caller cannot widen its own grant by mutating

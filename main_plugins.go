@@ -46,6 +46,7 @@ type pluginRuntime struct {
 	connRepo            domain.ConnectionRepository
 	host                *infraplugin.ProcessHost
 	assets              http.Handler
+	locales             *usecase.LocaleObserver
 	cancel              context.CancelFunc
 }
 
@@ -163,7 +164,11 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		Leader:   discovery.leader,
 		Pace:     discovery.pace,
 	}, late.surfaces, late.dialogs, late.details)
-	wirePluginProcessLifecycle(manager, supervisor, discovery.observer, discovery.service, discovery.leader, ui)
+	// The interface language, told to the plugins that asked for it. Built here rather than in
+	// composeApp because it needs the registry and the manager, and both are assembled in this file.
+	locales := usecase.NewLocaleObserver(registry, manager)
+	host.SetLocaleSource(locales.Locale)
+	wirePluginProcessLifecycle(manager, supervisor, discovery.observer, locales, discovery.service, discovery.leader, ui)
 
 	pluginDiscovery := infraplugin.NewDiscovery(infraplugin.SearchPaths(deps.ExeDir, dataRoot))
 	if err := manager.DiscoverPlugins(pluginDiscovery.Discover); err != nil {
@@ -223,6 +228,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		connRepo:            deps.ConnRepo,
 		host:                host,
 		assets:              compositeAssets,
+		locales:             locales,
 		cancel:              cancel,
 	}
 }
