@@ -536,6 +536,22 @@
     "connection.forward.activeWhileOpen": "Active while session is open",
     "security.connection.forward.hint": "Rules bind to 127.0.0.1 only. Dynamic rules are active while a session is open.",
     "security.connection.forward.bindAddress": "Bind address (loopback only)",
-    "security.connection.forward.consentHint": "Plugin tunnel requires install-time tunnel provider consent in plugin settings."
+    "security.connection.forward.consentHint": "Plugin tunnel requires install-time tunnel provider consent in plugin settings.",
+    "audit.disabled.title": "Audit log is disabled",
+    "audit.disabled.body": "Enable audit logging in Settings to record submitted terminal commands.",
+    "audit.disabled.open": "Open Audit Log settings",
+    "audit.tab.commands": "Command history",
+    "audit.tab.system": "Program audit",
+    "security.audit.system.hint": "Durable, read-only record of the app's own security-relevant behavior (plugin grants, denials, session binds), kept for investigation. This is separate from the live Debug Log window.",
+    "audit.search.commands": "Search commands...",
+    "audit.search.events": "Search audit events...",
+    "audit.searching": "Searching...",
+    "audit.clearAll": "Clear all",
+    "security.audit.clearAll.confirm": "Clear all audit log entries? This cannot be undone.",
+    "audit.filter.session": "Session ID filter",
+    "audit.filter.connection": "Connection ID filter",
+    "audit.empty": "No audit log entries found",
+    "audit.copyCommand": "Copy command",
+    "audit.rerun": "Re-run in active session"
   }
 }

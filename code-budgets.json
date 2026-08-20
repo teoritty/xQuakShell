@@ -45,8 +45,8 @@
   "baseline": {
     "files": {
       "frontend/src/lib/AuditLogView.svelte": {
-        "codeLines": 476,
-        "scriptCodeLines": 98
+        "codeLines": 434,
+        "scriptCodeLines": 85
       },
       "frontend/src/lib/ConnectionDetails.svelte": {
         "codeLines": 307,
@@ -210,14 +210,9 @@
         "nesting": 1
       },
       "internal/infra/plugin/process_host_start.go::ProcessHost.Start": {
-        "codeLines": 87,
+        "codeLines": 94,
         "params": 4,
         "nesting": 2
-      },
-      "internal/infra/plugin/process_initializer.go::initializePluginProcess": {
-        "codeLines": 27,
-        "params": 7,
-        "nesting": 1
       },
       "internal/infra/plugin/process_ipc_factory.go::ProcessHost.newConn": {
         "codeLines": 39,
@@ -425,12 +420,12 @@
         "nesting": 3
       },
       "main_plugin_ui.go::wirePluginProcessLifecycle": {
-        "codeLines": 17,
-        "params": 6,
+        "codeLines": 20,
+        "params": 7,
         "nesting": 0
       },
       "main_plugins.go::newPluginRuntime": {
-        "codeLines": 131,
+        "codeLines": 134,
         "params": 3,
         "nesting": 1
       }
