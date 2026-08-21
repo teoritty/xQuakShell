@@ -101,7 +101,10 @@ type EmbedSettings struct {
 type DebugSettings struct {
 	LogWindowEnabled bool `json:"logWindowEnabled,omitempty"`
 	// LogLevel is the minimum level published to the debug log
-	// (debug|info|warn|error). Empty means debug (most verbose).
+	// (debug|info|warn|error). Empty means the host default, which is deliberately
+	// quiet: the level decides the cost of every log statement on a per-frame data
+	// path, and this field is `omitempty`, so an empty value is what every install
+	// that never opened Developer settings resolves through.
 	LogLevel string `json:"logLevel,omitempty"`
 }
 

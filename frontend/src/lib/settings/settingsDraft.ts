@@ -84,7 +84,10 @@ export function defaultSettingsDraft(): SettingsDraft {
     auditShowUsername: false,
     auditShowConnection: false,
     debugLogWindowEnabled: false,
-    debugLogLevel: 'debug',
+    // Mirrors loghub.DefaultLevel. The backend stores this field with `omitempty`, so an install
+    // that never touched Developer settings sends nothing and the host resolves its own default;
+    // if the two disagree the dialog reports a level the process is not running at.
+    debugLogLevel: 'warn',
     updateCheckOnStartup: true,
   };
 }

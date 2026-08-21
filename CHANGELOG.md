@@ -73,6 +73,19 @@ whose wording depends on a file in `data/locales` is not a record.
 The Settings dialog is now one component per tab rather than 842 lines in one file, and its search
 matches the words of whatever language is on screen instead of only the English ones.
 
+**The debug log is quiet unless you ask for it.** The log level starts at `warn` rather than
+`debug`. Nobody had chosen `debug`: the setting is stored only when you set it, and an unset value
+used to resolve to the most verbose level — so every install paid for it. The cost is not
+theoretical. An embed session emits five log records per video frame across the broker, the tunnel
+service and the channel backend, each taking one process-wide mutex, and publishing them cost
+roughly 2 microseconds and 750 bytes apiece; gated out they cost 34 nanoseconds and one
+allocation. Settings -> About -> Developer still offers `debug`, `info`, `warn` and `error`, and a
+level you pick is remembered.
+
+One consequence worth knowing before you file a bug: at `warn` the log window no longer shows
+plugin `stderr` or ordinary business events, because those are published at `info`. Set the level
+to `info` or `debug` first, then reproduce.
+
 ## [1.2.1] — 2026-08-18
 
 ### Compatibility
