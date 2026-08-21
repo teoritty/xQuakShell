@@ -11,7 +11,10 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 
+	"xquakshell/internal/domain"
+	"xquakshell/internal/infra/locale"
 	"xquakshell/internal/infra/plugin/sandbox"
+	"xquakshell/internal/infra/portable"
 	"xquakshell/internal/presentation/logwindow"
 )
 
@@ -32,9 +35,25 @@ var appIcon []byte
 // channel.open hang for xqs-plugin-vnc.
 const buildMarker = "BUILD-MARKER-CHANNEL-OPEN-TRACE-20260718"
 
+// viewerLocaleCatalog builds the language catalogue for the log viewer subprocess.
+//
+// The viewer is dispatched before composeApp on purpose - nothing it does needs the application -
+// so it cannot take the catalogue composeApp builds, and this mints its own from the same packs.
+// It is the only dependency the viewer has beyond its stream address.
+//
+// nil on failure, and the viewer draws in English: a broken language pack is not a reason to
+// refuse to show logs, which are English anyway.
+func viewerLocaleCatalog() domain.LocaleCatalog {
+	catalog, err := locale.NewCatalog(portable.NewLayoutAdapter(portable.Default).DataRoot(), nil)
+	if err != nil {
+		return nil
+	}
+	return catalog
+}
+
 func main() {
 	if logwindow.IsViewerMode(os.Args) {
-		logwindow.RunViewerApp(os.Args, assets)
+		logwindow.RunViewerApp(os.Args, assets, viewerLocaleCatalog())
 		return
 	}
 	// The sandbox shim is this binary confining itself and then becoming a plugin. It has to be

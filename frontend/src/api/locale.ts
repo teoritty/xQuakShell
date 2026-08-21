@@ -33,3 +33,18 @@ export async function fetchLocaleMessages(code: string): Promise<LocaleMessages 
     return (await app.GetLocaleMessages(code)) as LocaleMessages;
   });
 }
+
+/**
+ * The language a secondary window was launched in, or null in the main window, which has no such
+ * thing and reads the setting instead.
+ *
+ * The log viewer is a separate process: the vault it would read the language from is never
+ * unlocked there, and the localStorage mirror belongs to the main window's WebView, so the parent
+ * passes the code on the command line and the window asks for it here.
+ */
+export async function fetchLaunchLocale(): Promise<string | null> {
+  return callBackend('Load window language', null, async (app) => {
+    if (!app.LaunchLocale) return null;
+    return (await app.LaunchLocale()) || null;
+  });
+}
