@@ -68,6 +68,18 @@ grants no privilege and raises no install-time consent. See
 **Logs, errors and the audit log stay English.** They are diagnostics, not interface, and a record
 whose wording depends on a file in `data/locales` is not a record.
 
+### Fixed
+
+**An embedded remote desktop no longer tears when the screen changes fast.** The embed tunnel was
+delivering about 2.5 MiB/s against its configured 32 MiB/s, in roughly forty visible stop-go chunks
+a second — which is what scrolling a remote desktop showed as a picture arriving in bands. The rate
+limit was sized correctly but its burst was not: one frame, 64 KiB. The consumer of a refusal waits
+25 ms and offers the same frame again, so the throughput it could reach was one burst per wait, and
+the configured rate never entered into it. The burst is now one second of bandwidth, the same shape
+the plugin channel bus already uses, and the configured rate is once again what limits. Nothing
+downstream is sized by the burst — frames are held by the credit window and the send queue, both
+counted in frames — so this costs no additional memory.
+
 ### Changed
 
 The Settings dialog is now one component per tab rather than 842 lines in one file, and its search
