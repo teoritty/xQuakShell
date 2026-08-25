@@ -47,7 +47,14 @@ func (f *fakeLocalTerminals) Close(id string) error {
 
 func (f *fakeLocalTerminals) CloseAll() { f.closed = append(f.closed, "*") }
 
-func (f *fakeLocalTerminals) ListShells() []domain.ShellOption { return f.shells }
+// fakeShellCatalog is the other half now: what COULD be started, not what is running.
+type fakeShellCatalog struct {
+	shells []domain.ShellOption
+}
+
+func (c *fakeShellCatalog) List() []domain.ShellOption { return c.shells }
+
+var _ domain.ShellCatalog = (*fakeShellCatalog)(nil)
 
 var _ LocalTerminalCommands = (*fakeLocalTerminals)(nil)
 
@@ -72,8 +79,28 @@ func TestLocalTerminalHandlersRefuseWhenNothingIsWired(t *testing.T) {
 	if err := api.ResizeLocalTerminal("lt-1", 80, 24); !errors.Is(err, errLocalTerminalsUnavailable) {
 		t.Errorf("ResizeLocalTerminal() = %v, want unavailable", err)
 	}
+	// The catalog is wired beside the service, so an unwired feature refuses this too.
 	if _, err := api.ListLocalShells(); !errors.Is(err, errLocalTerminalsUnavailable) {
 		t.Errorf("ListLocalShells() = %v, want unavailable", err)
+	}
+}
+
+func TestListLocalShellsComesFromTheCatalogNotTheService(t *testing.T) {
+	// The point of the split: a machine with no shells running still lists the shells it has.
+	// Routing this through the running-terminals service is what made that service hold a
+	// collaborator it used for one pass-through call.
+	api := &AppAPI{}
+	api.SetLocalShellCatalog(&fakeShellCatalog{shells: []domain.ShellOption{
+		{ID: "pwsh", Name: "pwsh"},
+		{ID: "cmd", Name: "cmd"},
+	}})
+
+	got, err := api.ListLocalShells()
+	if err != nil {
+		t.Fatalf("ListLocalShells() = %v, want nil", err)
+	}
+	if len(got) != 2 || got[0].ID != "pwsh" || got[1].Name != "cmd" {
+		t.Errorf("shells = %+v, want the catalog's two entries in order", got)
 	}
 }
 

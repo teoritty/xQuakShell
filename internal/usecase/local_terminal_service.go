@@ -41,7 +41,6 @@ type localTerminalHandle struct {
 // five-parameter budget.
 type LocalTerminalServiceConfig struct {
 	Factory   domain.LocalTerminalFactory
-	Catalog   domain.ShellCatalog
 	Presenter LocalTerminalPresenter
 	Auditor   LocalTerminalAuditor
 	// ShellID reports which shell the user picked in settings. It is read at open time rather
@@ -65,14 +64,6 @@ type LocalTerminalService struct {
 // NewLocalTerminalService returns a service with no shells open.
 func NewLocalTerminalService(cfg LocalTerminalServiceConfig) *LocalTerminalService {
 	return &LocalTerminalService{cfg: cfg, open: make(map[string]*localTerminalHandle)}
-}
-
-// ListShells reports the shells available for the settings picker.
-func (s *LocalTerminalService) ListShells() []domain.ShellOption {
-	if s.cfg.Catalog == nil {
-		return nil
-	}
-	return s.cfg.Catalog.List()
 }
 
 // Open starts a shell and returns the tab to draw for it.

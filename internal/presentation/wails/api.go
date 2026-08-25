@@ -50,6 +50,7 @@ type AppAPI struct {
 	discovery                   DiscoveryTreeService
 	surfaces                    SurfaceCommands
 	localTerminals              LocalTerminalCommands
+	localShells                 domain.ShellCatalog
 	dialogs                     DialogCommands
 	nodeDetails                 NodeDetailsService
 	embedBridge                 *usecase.PluginEmbedBridge

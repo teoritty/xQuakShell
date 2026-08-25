@@ -31,7 +31,15 @@ type LocalTerminalCommands interface {
 	// facade because app.go may not import usecase (ADR-010), and a shell left running after the
 	// window closed has nothing on screen to stop it.
 	CloseAll()
-	ListShells() []domain.ShellOption
+}
+
+// SetLocalShellCatalog wires the list of shells this machine has.
+//
+// Separate from SetLocalTerminalService because listing the shells that COULD be started and
+// running the ones that ARE are different subjects. Routing the list through the service made it
+// hold a collaborator for one pass-through call, which is a second reason for that file to change.
+func (a *AppAPI) SetLocalShellCatalog(catalog domain.ShellCatalog) {
+	a.localShells = catalog
 }
 
 // SetLocalTerminalService wires the local terminal use case.
@@ -117,10 +125,10 @@ func (a *AppAPI) ResizeLocalTerminal(id string, cols int, rows int) error {
 
 // ListLocalShells reports the shells this machine has, for the settings picker.
 func (a *AppAPI) ListLocalShells() ([]ShellOptionDTO, error) {
-	if a.localTerminals == nil {
+	if a.localShells == nil {
 		return nil, errLocalTerminalsUnavailable
 	}
-	shells := a.localTerminals.ListShells()
+	shells := a.localShells.List()
 	out := make([]ShellOptionDTO, 0, len(shells))
 	for _, shell := range shells {
 		out = append(out, ShellOptionDTO{ID: shell.ID, Name: shell.Name})

@@ -19,7 +19,6 @@ func wireLocalTerminal(api *presentation.AppAPI, auditLog domain.AuditLogReposit
 	catalog := localshell.NewCatalog()
 	svc := usecase.NewLocalTerminalService(usecase.LocalTerminalServiceConfig{
 		Factory:   localshell.NewFactory(catalog),
-		Catalog:   catalog,
 		Presenter: presentation.NewLocalTerminalPresenter(api),
 		Auditor:   usecase.NewLocalTerminalAuditRecorder(auditLog),
 		// Read at open time, not captured: a shell picked in settings applies to the next
@@ -27,6 +26,7 @@ func wireLocalTerminal(api *presentation.AppAPI, auditLog domain.AuditLogReposit
 		ShellID: func() string { return storedShellID(settings) },
 	})
 	api.SetLocalTerminalService(svc)
+	api.SetLocalShellCatalog(catalog)
 }
 
 // storedShellID reads the chosen shell, tolerating a settings service that cannot answer.
