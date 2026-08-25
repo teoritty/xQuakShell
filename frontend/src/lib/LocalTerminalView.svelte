@@ -12,18 +12,25 @@
   $: io = localTerminalIO(terminal.id);
 </script>
 
-<div class="local-terminal-view">
+<div class="local-terminal-view" class:visible={active}>
   {#key terminal.id}
     <Terminal {io} {active} />
   {/key}
 </div>
 
 <style>
+  /* Hidden by default, shown only when this is the tile's active tab. TileGroup renders every
+     tab of a tile at once and unmounts none of them, so a view that is always displayed shares
+     the tile with its siblings and the result reads as a broken split. */
   .local-terminal-view {
-    display: flex;
+    display: none;
     flex-direction: column;
     flex: 1;
     min-height: 0;
     background: var(--bg-primary);
+  }
+
+  .local-terminal-view.visible {
+    display: flex;
   }
 </style>

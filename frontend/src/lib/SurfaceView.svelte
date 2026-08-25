@@ -20,7 +20,7 @@
      opened a tab and started writing with a spinner and a discarded stream; and unmounting on a
      momentary `error` threw away the log the user had accumulated. The viewer's lifetime is the
      surface's (ADR-015 §1). -->
-<div class="surface-view">
+<div class="surface-view" class:visible={active}>
   {#if surface.state === 'error'}
     <div class="surface-status error">
       <XCircle size={16} />
@@ -43,12 +43,19 @@
 </div>
 
 <style>
+  /* Same hidden-unless-active contract SessionView has. Without it two plugin surfaces in one
+     tile are drawn on top of each other; the bug was invisible while a surface was rarely the
+     second tab in its tile. */
   .surface-view {
-    display: flex;
+    display: none;
     flex-direction: column;
     flex: 1;
     min-height: 0;
     background: var(--bg-primary);
+  }
+
+  .surface-view.visible {
+    display: flex;
   }
 
   .surface-status {
