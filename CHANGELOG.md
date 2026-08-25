@@ -31,6 +31,34 @@ fixes, including security fixes, ship in a new release rather than as patches to
 
 ### Added
 
+**A terminal on your own machine, one button away.** The button beside "New connection" opens a
+local shell in a tab like any other - the same renderer, the same tab bar, the same Ctrl+Shift+W to
+close it - and Ctrl+Shift+T does the same from the keyboard. Nothing is saved: no connection
+appears in the tree, and closing the tab ends the shell and everything it started, so a `ping -t`
+or a running build does not survive as an orphan.
+
+Which shell it starts is a setting under Appearance, offering only the shells actually found on
+this computer - PowerShell 7, Windows PowerShell or the Command Prompt on Windows; your `$SHELL`,
+zsh, bash or fish elsewhere. Pick one and it applies to the next terminal you open. Pick one and
+later uninstall it, and the next terminal quietly falls back to this machine's default rather than
+refusing to open. On Windows the console is switched to UTF-8 before you see it, so filenames with
+non-Latin characters read correctly rather than arriving as mojibake.
+
+Two things it deliberately does not do. **It is not reachable by plugins** - no capability, no host
+method, nothing in the plugin API, and two architecture tests fail if that ever changes. A plugin
+is confined precisely so it cannot run arbitrary code
+([ADR-018](docs/adr/018-plugin-process-isolation.md)), and a plugin able to ask for a shell would
+walk around all of it. And **your keystrokes are not recorded**: an SSH session logs the commands
+you submit because that trail is about somebody else's machine, while this is your own computer,
+where you already have a shell history. What the audit log records is that a shell was opened and
+which one it was.
+
+A local terminal also survives locking the vault. It holds nothing from the vault, so the lock
+screen hides it rather than killing whatever is running behind it.
+
+The full reasoning, including what this does not cover, is in
+[ADR-020](docs/adr/020-local-terminal.md).
+
 **The interface has a language.** Settings -> Appearance -> Interface language switches every
 caption, label and dialog in the application. English and Russian ship with it, and the change
 applies as you pick it rather than after a restart: a language you are choosing is one you need to
