@@ -62,9 +62,37 @@ function subscribeTrustPrompts(rt: NonNullable<ReturnType<typeof getRuntime>>): 
   });
 }
 
+/**
+ * Every producer of terminal bytes, funnelled into the one buffer.
+ *
+ * Grouped for the same reason as subscribeTrustPrompts above: these are one subject, not one
+ * event each. A tab's renderer may not have mounted when its first bytes arrive - a session that
+ * connected warm, a surface a plugin started writing to immediately - and dropping those bytes
+ * loses the start of the output. Every producer therefore buffers by the same rule, and adding a
+ * producer means adding a line here rather than finding the other two by scrolling.
+ *
+ * `hasTerminalOutputConsumer` is the handover: once Terminal.svelte has subscribed for an id it
+ * takes the bytes directly and this funnel stops buffering for it.
+ */
+function subscribeTerminalOutput(rt: NonNullable<ReturnType<typeof getRuntime>>): void {
+  rt.EventsOn('TerminalOutput', (data: { sessionId: string; output: string }) => {
+    if (!data?.sessionId) return;
+    if (hasTerminalOutputConsumer(data.sessionId)) return;
+    appendPendingTerminalOutput(data.sessionId, decodeTerminalOutput(data.output));
+  });
+
+  rt.EventsOn('PluginSurfaceOutput', (data: { surfaceId: string; data: string }) => {
+    if (!data?.surfaceId) return;
+    if (hasTerminalOutputConsumer(data.surfaceId)) return;
+    appendPendingTerminalOutput(data.surfaceId, decodeTerminalOutput(data.data));
+  });
+}
+
 export function subscribeToEvents(): void {
   const rt = getRuntime();
   if (!rt) return;
+
+  subscribeTerminalOutput(rt);
 
   rt.EventsOn('SFTPReady', (data: { sessionId: string; initialPath?: string }) => {
     if (!data?.sessionId) return;
@@ -98,12 +126,6 @@ export function subscribeToEvents(): void {
     });
   });
 
-  rt.EventsOn('TerminalOutput', (data: { sessionId: string; output: string }) => {
-    if (!data?.sessionId) return;
-    if (hasTerminalOutputConsumer(data.sessionId)) return;
-    appendPendingTerminalOutput(data.sessionId, decodeTerminalOutput(data.output));
-  });
-
   // Plugin-owned tabs (ADR-015). Opened and Changed carry the whole surface, so both are one
   // upsert: an event that arrives twice leaves the store in the same place, which matters because
   // a plugin restarting republishes what it holds.
@@ -130,14 +152,6 @@ export function subscribeToEvents(): void {
     // so nothing else will ever come to collect them.
     disposeTerminal(data.surfaceId);
     clearPendingTerminalOutput(data.surfaceId);
-  });
-
-  // Buffered exactly like session output, and through the same buffer: a surface's tab may not be
-  // mounted yet when its first bytes arrive, and dropping them would lose the start of a log.
-  rt.EventsOn('PluginSurfaceOutput', (data: { surfaceId: string; data: string }) => {
-    if (!data?.surfaceId) return;
-    if (hasTerminalOutputConsumer(data.surfaceId)) return;
-    appendPendingTerminalOutput(data.surfaceId, decodeTerminalOutput(data.data));
   });
 
   // Plugin dialogs (ADR-015). At most one is open at a time, which the host enforces, so the
