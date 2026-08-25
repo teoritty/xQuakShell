@@ -8,8 +8,10 @@
 import { get } from 'svelte/store';
 import { activeTabId, sessions } from '../stores/appState';
 import { surfaces, resolveTab } from '../stores/surfaceState';
+import { localTerminals } from '../stores/localTerminalState';
 import { closeSession } from './sessionActions';
 import { closeSurface as closeSurfaceRpc } from '../api/surfaces';
+import { closeLocalTerminal } from '../api/localTerminal';
 
 /**
  * Every open tab id, sessions first.
@@ -21,6 +23,7 @@ export function allTabIds(): string[] {
   return [
     ...get(sessions).map((s) => s.sessionId),
     ...get(surfaces).map((s) => s.surfaceId),
+    ...get(localTerminals).map((t) => t.id),
   ];
 }
 
@@ -35,6 +38,10 @@ export async function closeTab(id: string): Promise<void> {
   if (!tab) return;
   if (tab.kind === 'session') {
     await closeSession(id);
+    return;
+  }
+  if (tab.kind === 'local') {
+    await closeLocalTerminal(id);
     return;
   }
   await closeSurfaceRpc(id);

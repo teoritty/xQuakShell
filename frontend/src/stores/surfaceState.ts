@@ -8,6 +8,7 @@
 // actions/tabActions.ts, so this store stays free of the RPC layer (§1.5).
 import { writable, get } from 'svelte/store';
 import { sessions, type Session } from './appState';
+import { localTerminals, type LocalTerminal } from './localTerminalState';
 
 export type SurfaceKind = 'terminal' | 'log';
 export type SurfaceState = 'connecting' | 'ready' | 'error';
@@ -34,6 +35,7 @@ export const surfaces = writable<Surface[]>([]);
 export type Tab =
   | { kind: 'session'; session: Session }
   | { kind: 'surface'; surface: Surface }
+  | { kind: 'local'; local: LocalTerminal }
   | null;
 
 /**
@@ -46,30 +48,39 @@ export type Tab =
 export function resolveTabIn(
   sessionList: Session[],
   surfaceList: Surface[],
+  localList: LocalTerminal[],
   id: string
 ): Tab {
   const session = sessionList.find((s) => s.sessionId === id);
   if (session) return { kind: 'session', session };
   const surface = surfaceList.find((s) => s.surfaceId === id);
   if (surface) return { kind: 'surface', surface };
+  const local = localList.find((t) => t.id === id);
+  if (local) return { kind: 'local', local };
   return null;
 }
 
 /** The same lookup for imperative callers, which have no reactive context to feed. */
 export function resolveTab(id: string): Tab {
-  return resolveTabIn(get(sessions), get(surfaces), id);
+  return resolveTabIn(get(sessions), get(surfaces), get(localTerminals), id);
 }
 
 /** Title shown on the tab, for either kind. */
 export function tabTitle(tab: Tab): string {
   if (!tab) return '';
-  return tab.kind === 'session' ? tab.session.connectionName || 'Session' : tab.surface.title || 'Surface';
+  if (tab.kind === 'session') return tab.session.connectionName || 'Session';
+  if (tab.kind === 'local') return tab.local.title || 'shell';
+  return tab.surface.title || 'Surface';
 }
 
 /** State shown as the tab's status dot, for either kind. */
 export function tabState(tab: Tab): string {
   if (!tab) return '';
-  return tab.kind === 'session' ? tab.session.state : tab.surface.state;
+  if (tab.kind === 'session') return tab.session.state;
+  // A local shell has no connecting phase and no remote end that can refuse, so it is only ever
+  // ready. Reporting anything else would put a status dot on a tab with no status to report.
+  if (tab.kind === 'local') return 'ready';
+  return tab.surface.state;
 }
 
 /** Adds or replaces a surface. Replacement keeps the store idempotent under a repeated event. */

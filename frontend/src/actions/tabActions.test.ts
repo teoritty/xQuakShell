@@ -10,6 +10,7 @@ import { setGateway } from '../backend/context';
 import { createFakeGateway, type FakeGateway } from '../backend/fakeGateway';
 import { activeTabId, sessions, lastError } from '../stores/appState';
 import { surfaces, type Surface } from '../stores/surfaceState';
+import { localTerminals } from '../stores/localTerminalState';
 import { allTabIds, closeActiveTab, closeTab, focusNextTab, focusPrevTab } from './tabActions';
 
 function assert(c: boolean, m: string) {
@@ -36,11 +37,13 @@ function surface(id: string): Surface {
 function reset(): FakeGateway {
   sessions.set([]);
   surfaces.set([]);
+  localTerminals.set([]);
   activeTabId.set('');
   lastError.set(null);
   const fake = createFakeGateway();
   fake.program('CloseSession', undefined);
   fake.program('CloseSurface', undefined);
+  fake.program('CloseLocalTerminal', undefined);
   setGateway(fake);
   return fake;
 }
@@ -147,6 +150,33 @@ function testTabOrderPutsSessionsFirst() {
   );
 }
 
+
+async function testClosingALocalTerminalRoutesToItsOwnRpc() {
+  // The same regression the surface tests above cover, one id space further along: a local
+  // terminal id reaching CloseSession is a "session not found" nobody sees, and the shell keeps
+  // running behind a tab that will not go away.
+  const fake = reset();
+  localTerminals.set([{ id: 'lt-1', title: 'bash' }]);
+
+  await closeTab('lt-1');
+
+  const called = (m: string) => fake.calls.filter((c) => c.method === m).length;
+  assert(called('CloseLocalTerminal') === 1, 'the local terminal RPC was not called');
+  assert(called('CloseSession') === 0, 'a local terminal must never reach CloseSession');
+  assert(called('CloseSurface') === 0, 'a local terminal must never reach CloseSurface');
+}
+
+function testTabOrderIncludesLocalTerminalsLast() {
+  reset();
+  sessions.set([session('s1')]);
+  surfaces.set([surface('srf-1')]);
+  localTerminals.set([{ id: 'lt-1', title: 'bash' }]);
+  assert(
+    allTabIds().join(',') === 's1,srf-1,lt-1',
+    'a local terminal must appear in the cycle, after the tabs that could already exist'
+  );
+}
+
 async function run() {
   await testClosingASurfaceTabDoesNotTouchSessions();
   await testClosingASessionTabIsUnchanged();
@@ -156,6 +186,8 @@ async function run() {
   testCycleCoversBothKinds();
   testCycleWithNoTabs();
   testTabOrderPutsSessionsFirst();
+  await testClosingALocalTerminalRoutesToItsOwnRpc();
+  testTabOrderIncludesLocalTerminalsLast();
   console.log('tabActions.test passed');
 }
 

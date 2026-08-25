@@ -120,7 +120,7 @@
         "nesting": 1
       },
       "frontend/src/events/subscribe.ts::subscribeToEvents": {
-        "codeLines": 149,
+        "codeLines": 150,
         "params": 0,
         "nesting": 2
       },

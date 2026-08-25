@@ -5,7 +5,9 @@
   import { sessions, activeTabId } from '../../stores/appState';
   import SessionView from '../SessionView.svelte';
   import SurfaceView from '../SurfaceView.svelte';
+  import LocalTerminalView from '../LocalTerminalView.svelte';
   import { surfaces, resolveTabIn, type Tab } from '../../stores/surfaceState';
+  import { localTerminals } from '../../stores/localTerminalState';
   import TileTabBar from './TileTabBar.svelte';
   import TileDropOverlay from './TileDropOverlay.svelte';
   import {
@@ -35,11 +37,18 @@
   // True while a drag hovers this tile's tab bar (a merge/add-as-tab target).
   let mergeBar = false;
 
-  // A tab id names either a session or a plugin surface (ADR-015). The tile machinery keeps
-  // working on opaque ids; only the two places that RENDER a tab need to know which it is.
-  // Both stores are passed in so the compiler sees them as dependencies of this statement.
+  // A tab id names a session, a plugin surface (ADR-015) or a local shell. The tile machinery
+  // keeps working on opaque ids; only the places that RENDER a tab need to know which it is.
+  // Every store is passed in so the compiler sees them as dependencies of this statement.
+
+  /** The keyed-each identity of a tab, whichever kind it is. */
+  function tabKey(tab: NonNullable<Tab>): string {
+    if (tab.kind === 'session') return tab.session.sessionId;
+    if (tab.kind === 'local') return tab.local.id;
+    return tab.surface.surfaceId;
+  }
   $: tileTabs = tile.tabs
-    .map((id) => resolveTabIn($sessions, $surfaces, id))
+    .map((id) => resolveTabIn($sessions, $surfaces, $localTerminals, id))
     .filter((t): t is NonNullable<Tab> => !!t);
 
   // Per-tile file-panel collapse state and the button that toggles it. The button
@@ -161,12 +170,17 @@
     {/if}
   </div>
   <div class="tile-body">
-    {#each tileTabs as tab (tab.kind === 'session' ? tab.session.sessionId : tab.surface.surfaceId)}
+    {#each tileTabs as tab (tabKey(tab))}
       {#if tab.kind === 'session'}
         <SessionView
           session={tab.session}
           active={tile.activeTabId === tab.session.sessionId}
           filesCollapsed={collapsed}
+        />
+      {:else if tab.kind === 'local'}
+        <LocalTerminalView
+          terminal={tab.local}
+          active={tile.activeTabId === tab.local.id}
         />
       {:else}
         <SurfaceView

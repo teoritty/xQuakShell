@@ -32,6 +32,7 @@ import {
   type PluginDialog,
 } from '../stores/dialogState';
 import { nodeDetailsTarget, requestNodeDetailsReload } from '../stores/nodeDetailsState';
+import { removeLocalTerminal } from '../stores/localTerminalState';
 
 // SFTPReady is a one-shot broadcast emitted once per session right after the
 // remote filesystem is up. A FileTree component mounts only after its session
@@ -86,6 +87,30 @@ function subscribeTerminalOutput(rt: NonNullable<ReturnType<typeof getRuntime>>)
     if (hasTerminalOutputConsumer(data.surfaceId)) return;
     appendPendingTerminalOutput(data.surfaceId, decodeTerminalOutput(data.data));
   });
+
+  rt.EventsOn('LocalTerminalOutput', (data: { id: string; data: string }) => {
+    if (!data?.id) return;
+    if (hasTerminalOutputConsumer(data.id)) return;
+    appendPendingTerminalOutput(data.id, decodeTerminalOutput(data.data));
+  });
+}
+
+/**
+ * A local shell ending, whichever side ended it: the user closed the tab, typed `exit`, or the
+ * process died.
+ *
+ * Its own function rather than a block in the main list because subscribeToEvents is at its size
+ * budget - which is the honest reason, and the grouping it forces is the right one anyway: the
+ * tab, its pooled terminal and any buffered bytes are released together, and a local terminal id
+ * is never reused, so nothing else will ever come to collect them.
+ */
+function subscribeLocalTerminalLifecycle(rt: NonNullable<ReturnType<typeof getRuntime>>): void {
+  rt.EventsOn('LocalTerminalClosed', (data: { id: string }) => {
+    if (!data?.id) return;
+    removeLocalTerminal(data.id);
+    disposeTerminal(data.id);
+    clearPendingTerminalOutput(data.id);
+  });
 }
 
 export function subscribeToEvents(): void {
@@ -93,6 +118,7 @@ export function subscribeToEvents(): void {
   if (!rt) return;
 
   subscribeTerminalOutput(rt);
+  subscribeLocalTerminalLifecycle(rt);
 
   rt.EventsOn('SFTPReady', (data: { sessionId: string; initialPath?: string }) => {
     if (!data?.sessionId) return;

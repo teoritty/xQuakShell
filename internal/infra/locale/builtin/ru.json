@@ -335,6 +335,7 @@
     "plugins.preview.tagMismatch": "Тег и версия в манифесте различаются",
     "tree.action.newConnection": "Новое подключение",
     "tree.action.newFolder": "Новая папка",
+    "tree.action.newLocalTerminal": "Новый локальный терминал",
     "tree.action.newSubfolder": "Новая вложенная папка",
     "tree.action.import": "Импорт подключений",
     "tree.action.expandAll": "Развернуть всё",
@@ -738,6 +739,7 @@
     "security.keys.policy.allowPlugins": "Разрешить плагинам читать этот ключ",
     "security.keys.policy.nonExportable": "Никогда не выпускать этот ключ из хранилища",
     "security.plugin.source.trustThis": "Доверять этому репозиторию",
-    "security.plugin.source.untrustedNote": "Плагины из недоверенного репозитория всё равно устанавливаются, и все проверки подписи и разрешений всё равно выполняются. Каждый раз вам будет сообщено, что источник не доверенный."
+    "security.plugin.source.untrustedNote": "Плагины из недоверенного репозитория всё равно устанавливаются, и все проверки подписи и разрешений всё равно выполняются. Каждый раз вам будет сообщено, что источник не доверенный.",
+    "localTerminal.openFailed": "Не удалось открыть локальный терминал"
   }
 }
