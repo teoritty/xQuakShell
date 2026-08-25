@@ -47,8 +47,6 @@ type LocalTerminalServiceConfig struct {
 	// ShellID reports which shell the user picked in settings. It is read at open time rather
 	// than cached so a change in settings applies to the next terminal without any invalidation.
 	ShellID func() string
-	// HomeDir reports where a new shell should start.
-	HomeDir func() string
 }
 
 // LocalTerminalService owns every open local shell.
@@ -87,10 +85,11 @@ func (s *LocalTerminalService) Open() (LocalTerminalInfo, error) {
 		return LocalTerminalInfo{}, domain.ErrLocalTerminalUnsupported
 	}
 
+	// StartDir is left to the factory, which falls back to the user's home directory. Deciding it
+	// here would mean this layer knowing what a home directory is on each platform.
 	term, shell, err := s.cfg.Factory.Start(s.storedShellID(), domain.LocalTerminalOptions{
-		Cols:     defaultTerminalCols,
-		Rows:     defaultTerminalRows,
-		StartDir: s.homeDir(),
+		Cols: defaultTerminalCols,
+		Rows: defaultTerminalRows,
 	})
 	if err != nil {
 		return LocalTerminalInfo{}, fmt.Errorf("open local terminal: %w", err)
@@ -219,11 +218,4 @@ func (s *LocalTerminalService) storedShellID() string {
 		return ""
 	}
 	return s.cfg.ShellID()
-}
-
-func (s *LocalTerminalService) homeDir() string {
-	if s.cfg.HomeDir == nil {
-		return ""
-	}
-	return s.cfg.HomeDir()
 }

@@ -143,7 +143,6 @@ func newTestService(f *fakeShellFactory) (*LocalTerminalService, *fakeTerminalPr
 		Presenter: presenter,
 		Auditor:   auditor,
 		ShellID:   func() string { return "stored-id" },
-		HomeDir:   func() string { return "/home/tester" },
 	})
 	return svc, presenter, auditor
 }
@@ -179,7 +178,7 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Fatalf("timed out waiting for %s", what)
 }
 
-func TestOpenPassesTheStoredShellIDAndHomeDirectory(t *testing.T) {
+func TestOpenPassesTheStoredShellID(t *testing.T) {
 	factory := &fakeShellFactory{shell: domain.ShellOption{ID: "bash", Name: "bash"}}
 	svc, _, _ := newTestService(factory)
 
@@ -190,8 +189,8 @@ func TestOpenPassesTheStoredShellIDAndHomeDirectory(t *testing.T) {
 	if got := factory.requested[0]; got != "stored-id" {
 		t.Errorf("factory asked for %q, want the id from settings", got)
 	}
-	if got := factory.lastOpts.StartDir; got != "/home/tester" {
-		t.Errorf("StartDir = %q, want the home directory", got)
+	if got := factory.lastOpts.StartDir; got != "" {
+		t.Errorf("StartDir = %q, want empty; the factory owns the home directory fallback", got)
 	}
 	if factory.lastOpts.Cols == 0 || factory.lastOpts.Rows == 0 {
 		t.Error("opened with a zero geometry; the first prompt would draw against no window")

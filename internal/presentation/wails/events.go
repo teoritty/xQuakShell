@@ -28,6 +28,8 @@ const (
 	EventPluginSurfaceOutput        = "PluginSurfaceOutput"
 	EventPluginSurfaceChanged       = "PluginSurfaceChanged"
 	EventPluginSurfaceClosed        = "PluginSurfaceClosed"
+	EventLocalTerminalOutput        = "LocalTerminalOutput"
+	EventLocalTerminalClosed        = "LocalTerminalClosed"
 	EventPluginDialogOpened         = "PluginDialogOpened"
 	EventPluginDialogClosed         = "PluginDialogClosed"
 	EventPluginDialogError          = "PluginDialogError"
