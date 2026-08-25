@@ -42,6 +42,10 @@ export function ClearAuditLog(arg1) {
   return window['go']['main']['App']['ClearAuditLog'](arg1);
 }
 
+export function CloseLocalTerminal(arg1) {
+  return window['go']['main']['App']['CloseLocalTerminal'](arg1);
+}
+
 export function CloseSession(arg1) {
   return window['go']['main']['App']['CloseSession'](arg1);
 }
@@ -278,6 +282,10 @@ export function ListLocalPath(arg1, arg2) {
   return window['go']['main']['App']['ListLocalPath'](arg1, arg2);
 }
 
+export function ListLocalShells() {
+  return window['go']['main']['App']['ListLocalShells']();
+}
+
 export function ListLocales() {
   return window['go']['main']['App']['ListLocales']();
 }
@@ -316,6 +324,10 @@ export function MoveFolder(arg1, arg2) {
 
 export function OpenFileWithSystem(arg1, arg2) {
   return window['go']['main']['App']['OpenFileWithSystem'](arg1, arg2);
+}
+
+export function OpenLocalTerminal() {
+  return window['go']['main']['App']['OpenLocalTerminal']();
 }
 
 export function OpenSession(arg1) {
@@ -430,6 +442,10 @@ export function ReportRestored() {
   return window['go']['main']['App']['ReportRestored']();
 }
 
+export function ResizeLocalTerminal(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ResizeLocalTerminal'](arg1, arg2, arg3);
+}
+
 export function ResizeSurface(arg1, arg2, arg3) {
   return window['go']['main']['App']['ResizeSurface'](arg1, arg2, arg3);
 }
@@ -476,6 +492,10 @@ export function SelectPluginBundleFile() {
 
 export function SelectPluginSourceDir() {
   return window['go']['main']['App']['SelectPluginSourceDir']();
+}
+
+export function SendLocalTerminalInput(arg1, arg2) {
+  return window['go']['main']['App']['SendLocalTerminalInput'](arg1, arg2);
 }
 
 export function SendSurfaceInput(arg1, arg2) {

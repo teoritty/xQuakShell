@@ -39,6 +39,8 @@ export namespace wails {
 	    sessionHotkeyNext: string;
 	    sessionHotkeyPrev: string;
 	    sessionHotkeyClose: string;
+	    localTerminalShellId: string;
+	    localTerminalHotkey: string;
 	    auditLogEnabled: boolean;
 	    auditRetentionMode: string;
 	    auditRetentionDays: number;
@@ -79,6 +81,8 @@ export namespace wails {
 	        this.sessionHotkeyNext = source["sessionHotkeyNext"];
 	        this.sessionHotkeyPrev = source["sessionHotkeyPrev"];
 	        this.sessionHotkeyClose = source["sessionHotkeyClose"];
+	        this.localTerminalShellId = source["localTerminalShellId"];
+	        this.localTerminalHotkey = source["localTerminalHotkey"];
 	        this.auditLogEnabled = source["auditLogEnabled"];
 	        this.auditRetentionMode = source["auditRetentionMode"];
 	        this.auditRetentionDays = source["auditRetentionDays"];
@@ -1375,6 +1379,20 @@ export namespace wails {
 	        this.owner = source["owner"];
 	    }
 	}
+	export class LocalTerminalDTO {
+	    id: string;
+	    title: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LocalTerminalDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	    }
+	}
 	export class LocaleInfoDTO {
 	    code: string;
 	    name: string;
@@ -2097,6 +2115,20 @@ export namespace wails {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.url = source["url"];
 	        this.trusted = source["trusted"];
+	    }
+	}
+	export class ShellOptionDTO {
+	    id: string;
+	    name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ShellOptionDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
 	    }
 	}
 	

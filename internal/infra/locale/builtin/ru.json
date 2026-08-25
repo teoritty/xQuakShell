@@ -740,6 +740,12 @@
     "security.keys.policy.nonExportable": "Никогда не выпускать этот ключ из хранилища",
     "security.plugin.source.trustThis": "Доверять этому репозиторию",
     "security.plugin.source.untrustedNote": "Плагины из недоверенного репозитория всё равно устанавливаются, и все проверки подписи и разрешений всё равно выполняются. Каждый раз вам будет сообщено, что источник не доверенный.",
-    "localTerminal.openFailed": "Не удалось открыть локальный терминал"
+    "localTerminal.openFailed": "Не удалось открыть локальный терминал",
+    "settings.hotkeys.field.newLocalTerminal": "Новый локальный терминал",
+    "settings.hotkeys.action.newLocalTerminal": "Новый локальный терминал",
+    "settings.localShell.title": "Локальная оболочка",
+    "settings.localShell.desc": "С какой оболочки запускается локальный терминал. Показаны только найденные на этом компьютере.",
+    "settings.localShell.shell": "Оболочка",
+    "settings.localShell.systemDefault": "Системная по умолчанию"
   }
 }

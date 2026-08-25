@@ -39,6 +39,8 @@ export interface AppSettings {
   sessionHotkeyNext: string;
   sessionHotkeyPrev: string;
   sessionHotkeyClose: string;
+  localTerminalShellId: string;
+  localTerminalHotkey: string;
   auditLogEnabled: boolean;
   auditRetentionMode: string;
   auditRetentionDays: number;
@@ -74,6 +76,9 @@ export const DEFAULT_SESSION_HOTKEYS: SessionHotkeysSettings = {
   close: 'Ctrl+Shift+Q',
 };
 
+/** The conventional binding for a new local terminal, mirroring the Go default. */
+export const DEFAULT_LOCAL_TERMINAL_HOTKEY = 'Ctrl+Shift+T';
+
 // `fetchSettings` preserves the original "vault is locked" silence exactly:
 // that error is expected during startup before unlock, so it must return
 // `null` without reporting via lastError (callBackend's `silence` predicate
@@ -88,6 +93,7 @@ export async function fetchSettings(): Promise<AppSettings | null> {
       s.sessionHotkeyNext = normalizeHotkey(s.sessionHotkeyNext || DEFAULT_SESSION_HOTKEYS.next);
       s.sessionHotkeyPrev = normalizeHotkey(s.sessionHotkeyPrev || DEFAULT_SESSION_HOTKEYS.prev);
       s.sessionHotkeyClose = normalizeHotkey(s.sessionHotkeyClose || DEFAULT_SESSION_HOTKEYS.close);
+      s.localTerminalHotkey = normalizeHotkey(s.localTerminalHotkey || DEFAULT_LOCAL_TERMINAL_HOTKEY);
       s.uiScalePercent = normalizeUiScalePercent(s.uiScalePercent);
       return s;
     },
@@ -124,6 +130,7 @@ export async function putSettings(settings: Partial<AppSettings>): Promise<void>
       sessionHotkeyNext: normalizeHotkey(settings.sessionHotkeyNext || DEFAULT_SESSION_HOTKEYS.next),
       sessionHotkeyPrev: normalizeHotkey(settings.sessionHotkeyPrev || DEFAULT_SESSION_HOTKEYS.prev),
       sessionHotkeyClose: normalizeHotkey(settings.sessionHotkeyClose || DEFAULT_SESSION_HOTKEYS.close),
+      localTerminalHotkey: normalizeHotkey(settings.localTerminalHotkey || DEFAULT_LOCAL_TERMINAL_HOTKEY),
     };
     return app.SaveSettings(payload as AppSettings);
   });

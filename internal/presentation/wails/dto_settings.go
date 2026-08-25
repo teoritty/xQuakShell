@@ -42,6 +42,8 @@ type AppSettingsDTO struct {
 	SessionHotkeyNext           string `json:"sessionHotkeyNext"`
 	SessionHotkeyPrev           string `json:"sessionHotkeyPrev"`
 	SessionHotkeyClose          string `json:"sessionHotkeyClose"`
+	LocalTerminalShellID        string `json:"localTerminalShellId"`
+	LocalTerminalHotkey         string `json:"localTerminalHotkey"`
 	AuditLogEnabled             bool   `json:"auditLogEnabled"`
 	AuditRetentionMode          string `json:"auditRetentionMode"`
 	AuditRetentionDays          int    `json:"auditRetentionDays"`
@@ -98,6 +100,8 @@ func AppSettingsToDTO(s domain.AppSettings) AppSettingsDTO {
 		SessionHotkeyNext:           s.SessionHotkeys.Next,
 		SessionHotkeyPrev:           s.SessionHotkeys.Prev,
 		SessionHotkeyClose:          s.SessionHotkeys.Close,
+		LocalTerminalShellID:        s.LocalTerminal.ShellID,
+		LocalTerminalHotkey:         s.LocalTerminal.OpenHotkey,
 		AuditLogEnabled:             s.AuditLog.Enabled,
 		AuditRetentionMode:          string(s.AuditLog.RetentionMode),
 		AuditRetentionDays:          s.AuditLog.RetentionDays,
@@ -140,6 +144,10 @@ func DTOToAppSettings(dto AppSettingsDTO) domain.AppSettings {
 			MaxConcurrent:               dto.MaxConcurrentTransfers,
 			DefaultUploadExistsAction:   dto.DefaultUploadExistsAction,
 			DefaultDownloadExistsAction: dto.DefaultDownloadExistsAction,
+		},
+		LocalTerminal: domain.LocalTerminalSettings{
+			ShellID:    dto.LocalTerminalShellID,
+			OpenHotkey: dto.LocalTerminalHotkey,
 		},
 		SessionHotkeys: domain.SessionHotkeysSettings{
 			Create: dto.SessionHotkeyCreate,

@@ -729,6 +729,12 @@
     "security.keys.policy.nonExportable": "Never let this key leave the vault",
     "security.plugin.source.trustThis": "Trust this repository",
     "security.plugin.source.untrustedNote": "Plugins from an untrusted repository still install, and every signature and permission check still runs. You will be told the source is untrusted each time.",
-    "localTerminal.openFailed": "Could not open a local terminal"
+    "localTerminal.openFailed": "Could not open a local terminal",
+    "settings.hotkeys.field.newLocalTerminal": "New local terminal",
+    "settings.hotkeys.action.newLocalTerminal": "New local terminal",
+    "settings.localShell.title": "Local shell",
+    "settings.localShell.desc": "Which shell a local terminal starts. Only shells found on this computer are listed.",
+    "settings.localShell.shell": "Shell",
+    "settings.localShell.systemDefault": "System default"
   }
 }

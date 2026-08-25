@@ -30,7 +30,8 @@
   import { focusNextTab, focusPrevTab, closeActiveTab } from './actions/tabActions';
   import { getSettings, applyAppearanceSettings } from './actions/settingsActions';
   import { parseHotkeyEvent } from './hotkeys/hotkeys';
-  import { DEFAULT_SESSION_HOTKEYS } from './api/settings';
+  import { DEFAULT_LOCAL_TERMINAL_HOTKEY, DEFAULT_SESSION_HOTKEYS } from './api/settings';
+  import { openLocalTerminal } from './actions/localTerminalActions';
   import { Settings, MonitorDot } from 'lucide-svelte';
   import { t } from './i18n/messages';
 
@@ -54,7 +55,7 @@
     showAuditLog = false;
   }
 
-  let hotkeys = { ...DEFAULT_SESSION_HOTKEYS };
+  let hotkeys = { ...DEFAULT_SESSION_HOTKEYS, localTerminal: DEFAULT_LOCAL_TERMINAL_HOTKEY };
 
   $: showHostKeyDialog = $pendingHostKey !== null;
   $: hostKeyHost = $pendingHostKey?.host ?? '';
@@ -112,6 +113,7 @@
       next: s.sessionHotkeyNext || DEFAULT_SESSION_HOTKEYS.next,
       prev: s.sessionHotkeyPrev || DEFAULT_SESSION_HOTKEYS.prev,
       close: s.sessionHotkeyClose || DEFAULT_SESSION_HOTKEYS.close,
+      localTerminal: s.localTerminalHotkey || DEFAULT_LOCAL_TERMINAL_HOTKEY,
     };
   }
 
@@ -154,6 +156,12 @@
         e.preventDefault();
         e.stopPropagation();
         await closeActiveTab();
+        return;
+      }
+      if (combo === hotkeys.localTerminal) {
+        e.preventDefault();
+        e.stopPropagation();
+        await openLocalTerminal();
         return;
       }
       if (combo === 'Ctrl+Shift+P') {
