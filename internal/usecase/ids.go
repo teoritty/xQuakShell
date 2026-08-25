@@ -41,6 +41,18 @@ func newSurfaceID() string {
 	return surfaceIDPrefix + strconv.FormatUint(surfaceIDSeq.Add(1), 36) + "-" + randomHex(8)
 }
 
+// localTerminalIDPrefix keeps local terminal ids in their own space. Same rule as surfaces, and
+// it carries more weight here: the tab bar routes a close by id, and an id that could be read as
+// a session id would aim a shell's close at somebody's SSH connection.
+const localTerminalIDPrefix = "lt-"
+
+var localTerminalIDSeq atomic.Uint64
+
+// newLocalTerminalID mints an identifier for a local terminal.
+func newLocalTerminalID() string {
+	return localTerminalIDPrefix + strconv.FormatUint(localTerminalIDSeq.Add(1), 36) + "-" + randomHex(8)
+}
+
 // dialogIDPrefix keeps dialog ids in their own space, for the same reason surface ids have one:
 // an id handed to the wrong lookup must miss rather than match.
 const dialogIDPrefix = "dlg-"
