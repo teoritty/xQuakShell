@@ -6,7 +6,7 @@
 //
 // State and pure lookups only: what to DO with a tab — close it, cycle to the next one — lives in
 // actions/tabActions.ts, so this store stays free of the RPC layer (§1.5).
-import { writable, get } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import { sessions, type Session } from './appState';
 import { localTerminals, type LocalTerminal } from './localTerminalState';
 
@@ -25,6 +25,26 @@ export interface Surface {
 }
 
 export const surfaces = writable<Surface[]>([]);
+
+/**
+ * Whether anything at all is open, across every kind of tab.
+ *
+ * A derived store rather than a check in the template, because the template got it wrong: the
+ * tile grid was gated on the SSH session count, so opening a local terminal with nothing else
+ * open started a real shell behind an unchanged welcome screen. Nothing errored and nothing was
+ * logged - the tab existed, the shell ran, and no component was mounted to show it.
+ *
+ * A plugin surface could never expose that bug: a surface borrows a session's authorization and
+ * cannot exist without one (ADR-015), so a surface was never the only tab. A local terminal can
+ * be, which is why the question has to be "is any tab open" rather than "is any session open".
+ *
+ * Here rather than in a component so it can be tested, which the template condition could not be.
+ */
+export const hasOpenTabs = derived(
+  [sessions, surfaces, localTerminals],
+  ([$sessions, $surfaces, $localTerminals]) =>
+    $sessions.length > 0 || $surfaces.length > 0 || $localTerminals.length > 0
+);
 
 /**
  * A tab is one of two things, and every consumer has to know which.

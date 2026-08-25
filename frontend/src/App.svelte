@@ -32,6 +32,7 @@
   import { parseHotkeyEvent } from './hotkeys/hotkeys';
   import { DEFAULT_LOCAL_TERMINAL_HOTKEY, DEFAULT_SESSION_HOTKEYS } from './api/settings';
   import { openLocalTerminal } from './actions/localTerminalActions';
+  import { hasOpenTabs } from './stores/surfaceState';
   import { Settings, MonitorDot } from 'lucide-svelte';
   import { t } from './i18n/messages';
 
@@ -223,7 +224,7 @@
         />
       </div>
       <div class="session-area">
-        {#if $sessions.length === 0}
+        {#if !$hasOpenTabs}
           <div class="welcome-screen">
             <h2>xQuakShell</h2>
             {#if $connections.length === 0}

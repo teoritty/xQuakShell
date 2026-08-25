@@ -5,7 +5,15 @@
 // subsystem returns "not found", the error is swallowed, and the tab simply stays on screen.
 import { get } from 'svelte/store';
 import { sessions } from './appState';
-import { surfaces, resolveTabIn, resolveTab, tabTitle, tabState, type Surface } from './surfaceState';
+import {
+  surfaces,
+  resolveTabIn,
+  resolveTab,
+  tabTitle,
+  tabState,
+  hasOpenTabs,
+  type Surface,
+} from './surfaceState';
 import {
   localTerminals,
   upsertLocalTerminal,
@@ -112,6 +120,26 @@ run('the store offers no way to clear every terminal at once', () => {
   // this feature could produce. If a clear function ever appears here, something will call it.
   const clearing = Object.keys(localTerminalStore).filter((k) => /^clear/i.test(k));
   assert(clearing.length === 0, `the store exports ${clearing.join(', ')}; a vault lock must not kill a shell`);
+});
+
+run('a local terminal alone counts as an open tab', () => {
+  // The regression this exists for: App.svelte gated the whole tile grid on the SSH session
+  // count, so opening a local terminal with no connection open started a real shell behind an
+  // unchanged welcome screen - no error, no log, two orphaned powershell.exe. A surface could
+  // never expose it, because a surface requires a parent session (ADR-015) and so could not be
+  // the only tab. A local terminal can.
+  assert(get(hasOpenTabs) === false, 'nothing is open yet');
+  upsertLocalTerminal({ id: 'lt-1', title: 'pwsh' });
+  assert(get(hasOpenTabs) === true, 'a local terminal on its own must count as an open tab');
+});
+
+run('hasOpenTabs counts every kind', () => {
+  assert(get(hasOpenTabs) === false, 'nothing is open yet');
+  sessions.set([session('s1')]);
+  assert(get(hasOpenTabs) === true, 'a session counts');
+  sessions.set([]);
+  surfaces.set([surface('srf-1')]);
+  assert(get(hasOpenTabs) === true, 'a surface counts');
 });
 
 console.log('localTerminalState.test passed');
