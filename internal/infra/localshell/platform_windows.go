@@ -27,10 +27,13 @@ func startupArgs(shellID string) []string {
 	case "cmd":
 		return []string{"/K", "chcp 65001>nul"}
 	case "powershell":
+		// The spaces around the redirect are load-bearing. PowerShell's parser does not split
+		// `65001>$null` into an argument and a redirect, so chcp receives `65001>` and answers
+		// "Invalid parameter format" into the terminal the user just opened.
 		return []string{
 			"-NoExit", "-Command",
-			"chcp 65001>$null;" +
-				"[Console]::OutputEncoding=[Console]::InputEncoding=[Text.UTF8Encoding]::new($false)",
+			"chcp 65001 > $null; " +
+				"[Console]::OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::new($false)",
 		}
 	default:
 		return nil
