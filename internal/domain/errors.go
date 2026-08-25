@@ -144,6 +144,17 @@ var ErrForwardBindNotLoopback = errors.New("forward listener did not bind to loo
 // a denial of service anyone who can reach the prompt can trigger.
 var ErrUnlockThrottled = errors.New("too many failed unlock attempts")
 
+// ErrLocalTerminalUnsupported indicates this machine cannot host a local terminal at all.
+//
+// In practice this is Windows before 10 build 17763, where the pseudo-console API the terminal is
+// built on does not exist. Nothing detects that at build time, so it surfaces as a failure to open
+// the first pseudo-terminal and has to be told apart from an ordinary start failure: one means the
+// feature will never work here and the button should say so, the other is worth retrying.
+var ErrLocalTerminalUnsupported = errors.New("this system does not support a local terminal")
+
+// ErrLocalTerminalNotFound indicates no open local terminal has the given ID.
+var ErrLocalTerminalNotFound = errors.New("local terminal not found")
+
 // ErrExecutableSystemOpen indicates a request to open a file with its default application was
 // refused because the operating system would run it rather than show it.
 //
