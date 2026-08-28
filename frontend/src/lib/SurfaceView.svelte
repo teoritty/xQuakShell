@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   // One plugin-owned tab (ADR-015). Dispatches on kind and owns nothing else: a terminal surface
   // is the existing renderer over a different stream, and a log surface is its own viewer because
   // search, stdout/stderr and export are not things a terminal emulator can offer.
@@ -23,12 +24,12 @@
   {#if surface.state === 'error'}
     <div class="surface-status error">
       <XCircle size={16} />
-      <span>{surface.errorMessage || 'The plugin reported an error'}</span>
+      <span>{surface.errorMessage || $t('surface.pluginError')}</span>
     </div>
   {:else if surface.state === 'connecting'}
     <div class="surface-status">
       <Loader2 size={16} />
-      <span>Starting…</span>
+      <span>{$t('surface.starting')}</span>
     </div>
   {/if}
 

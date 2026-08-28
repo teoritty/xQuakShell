@@ -6,16 +6,26 @@
     type PasswordChecklist,
   } from './passwordStrength';
 
+  import { t } from '../../i18n/messages';
+
   export let checklist: PasswordChecklist;
 
   // `required` marks the one rule that blocks submission; everything else is a
   // suggestion, and styling them alike would imply a policy that does not exist.
   $: rules = [
-    { met: checklist.minLength, required: true, text: `At least ${MIN_MASTER_PASSWORD_LENGTH} characters` },
-    { met: checklist.recommendedLength, required: false, text: `${RECOMMENDED_MASTER_PASSWORD_LENGTH} or more is much harder to guess` },
-    { met: checklist.hasLower && checklist.hasUpper, required: false, text: 'Upper and lower case letters' },
-    { met: checklist.hasDigit, required: false, text: 'A number' },
-    { met: checklist.hasSymbol, required: false, text: 'A symbol' },
+    {
+      met: checklist.minLength,
+      required: true,
+      text: $t('vault.password.minLength', { count: MIN_MASTER_PASSWORD_LENGTH }),
+    },
+    {
+      met: checklist.recommendedLength,
+      required: false,
+      text: $t('vault.password.recommended', { count: RECOMMENDED_MASTER_PASSWORD_LENGTH }),
+    },
+    { met: checklist.hasLower && checklist.hasUpper, required: false, text: $t('vault.password.case') },
+    { met: checklist.hasDigit, required: false, text: $t('vault.password.digit') },
+    { met: checklist.hasSymbol, required: false, text: $t('vault.password.symbol') },
   ];
 </script>
 

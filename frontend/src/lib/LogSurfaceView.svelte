@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   // The log surface viewer (ADR-015 §1): follow, search, stdout/stderr distinction, export.
   //
   // It consumes the same output buffer the terminal path uses, keyed by surfaceId, so bytes that
@@ -183,11 +184,11 @@
   <div class="toolbar">
     <div class="search">
       <Search size={12} />
-      <input bind:value={query} placeholder="Search" spellcheck="false" />
+      <input bind:value={query} placeholder={$t('common.search')} spellcheck="false" />
       <button
         class="ghost toggle"
         class:on={caseSensitive}
-        title="Match case"
+        title={$t('log.matchCase')}
         on:click={() => (caseSensitive = !caseSensitive)}>Aa</button
       >
       <span class="count">
@@ -199,13 +200,13 @@
       </span>
       <button
         class="ghost"
-        title="Previous match"
+        title={$t('log.prevMatch')}
         disabled={hits.length === 0}
         on:click={() => jumpTo(stepMatch(hits, hitIndex, -1))}><ChevronUp size={12} /></button
       >
       <button
         class="ghost"
-        title="Next match"
+        title={$t('log.nextMatch')}
         disabled={hits.length === 0}
         on:click={() => jumpTo(stepMatch(hits, hitIndex, 1))}><ChevronDown size={12} /></button
       >
@@ -214,18 +215,18 @@
       <button
         class="ghost toggle"
         class:on={follow}
-        title="Follow output"
+        title={$t('log.follow')}
         on:click={() => {
           follow = !follow;
           if (follow) void scrollToBottom();
         }}><ArrowDown size={12} /></button
       >
-      <button class="ghost" title="Save to file" on:click={download}><Download size={12} /></button>
+      <button class="ghost" title={$t('log.saveToFile')} on:click={download}><Download size={12} /></button>
     </div>
   </div>
 
   {#if truncated}
-    <div class="truncated">Older lines were dropped — this log exceeds the buffer limit.</div>
+    <div class="truncated">{$t('log.truncated')}</div>
   {/if}
 
   <!-- Only the visible rows exist in the DOM; the spacer and the total height are what keep the

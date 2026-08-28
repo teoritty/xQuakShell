@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { onMount } from 'svelte';
   import { ExternalLink } from 'lucide-svelte';
   import { openReleasesPage, openNewIssue } from '../projectLinks';
@@ -28,40 +29,40 @@
 
   <div class="version-table">
     <div class="version-row">
-      <span class="version-label">Version</span>
+      <span class="version-label">{$t('about.version')}</span>
       <span class="version-value">{appVersion || '—'}</span>
     </div>
     <div class="version-row">
-      <span class="version-label">Core</span>
+      <span class="version-label">{$t('about.core')}</span>
       <span class="version-value">{coreVersion || '—'}</span>
     </div>
     <div class="version-row">
-      <span class="version-label">Plugin API</span>
+      <span class="version-label">{$t('about.pluginApi')}</span>
       <span class="version-value">{pluginApiVersion || '—'}</span>
     </div>
   </div>
 
   {#if $updateStatus.updateAvailable}
     <p class="update-line update-available">
-      Version {$updateStatus.latestVersion} is available.
+      {$t('about.updateAvailable', { version: $updateStatus.latestVersion })}
     </p>
   {:else if $updateStatus.checked}
-    <p class="update-line">You are on the latest release.</p>
+    <p class="update-line">{$t('about.upToDate')}</p>
   {/if}
 
   <label class="checkbox-row">
     <input type="checkbox" bind:checked={updateCheckOnStartup} />
-    Check for updates on startup
+    {$t('about.checkOnStartup')}
   </label>
 
   <div class="about-links">
     <button class="secondary about-link" on:click={() => openReleasesPage()}>
       <ExternalLink size={13} />
-      Releases
+      {$t('about.releases')}
     </button>
     <button class="secondary about-link" on:click={() => openNewIssue()}>
       <ExternalLink size={13} />
-      Report an Issue
+      {$t('about.reportIssue')}
     </button>
   </div>
 </div>

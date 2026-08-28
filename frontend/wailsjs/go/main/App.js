@@ -6,10 +6,6 @@ export function AddGitHubRepository(arg1) {
   return window['go']['main']['App']['AddGitHubRepository'](arg1);
 }
 
-export function AddKnownHost(arg1, arg2) {
-  return window['go']['main']['App']['AddKnownHost'](arg1, arg2);
-}
-
 export function ApplyDiscoveryNodeDetails(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['ApplyDiscoveryNodeDetails'](arg1, arg2, arg3, arg4);
 }
@@ -174,6 +170,14 @@ export function GetKnownHosts() {
   return window['go']['main']['App']['GetKnownHosts']();
 }
 
+export function GetLocaleMessages(arg1) {
+  return window['go']['main']['App']['GetLocaleMessages'](arg1);
+}
+
+export function GetPeerTrust() {
+  return window['go']['main']['App']['GetPeerTrust']();
+}
+
 export function GetPingResults() {
   return window['go']['main']['App']['GetPingResults']();
 }
@@ -274,8 +278,16 @@ export function ListLocalPath(arg1, arg2) {
   return window['go']['main']['App']['ListLocalPath'](arg1, arg2);
 }
 
+export function ListLocales() {
+  return window['go']['main']['App']['ListLocales']();
+}
+
 export function ListPath(arg1, arg2) {
   return window['go']['main']['App']['ListPath'](arg1, arg2);
+}
+
+export function ListPluginSources() {
+  return window['go']['main']['App']['ListPluginSources']();
 }
 
 export function ListPlugins() {
@@ -374,6 +386,10 @@ export function RemovePath(arg1, arg2) {
   return window['go']['main']['App']['RemovePath'](arg1, arg2);
 }
 
+export function RemovePeerTrust(arg1, arg2) {
+  return window['go']['main']['App']['RemovePeerTrust'](arg1, arg2);
+}
+
 export function RenameKey(arg1, arg2) {
   return window['go']['main']['App']['RenameKey'](arg1, arg2);
 }
@@ -418,8 +434,12 @@ export function ResizeSurface(arg1, arg2, arg3) {
   return window['go']['main']['App']['ResizeSurface'](arg1, arg2, arg3);
 }
 
-export function ResolveHostKey(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['ResolveHostKey'](arg1, arg2, arg3, arg4);
+export function ResolveHostKey(arg1, arg2) {
+  return window['go']['main']['App']['ResolveHostKey'](arg1, arg2);
+}
+
+export function ResolvePeerTrust(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ResolvePeerTrust'](arg1, arg2, arg3);
 }
 
 export function SaveConnection(arg1) {
@@ -430,8 +450,8 @@ export function SaveFolder(arg1) {
   return window['go']['main']['App']['SaveFolder'](arg1);
 }
 
-export function SavePluginSettings(arg1) {
-  return window['go']['main']['App']['SavePluginSettings'](arg1);
+export function SavePluginSettings(arg1, arg2) {
+  return window['go']['main']['App']['SavePluginSettings'](arg1, arg2);
 }
 
 export function SaveSettings(arg1) {

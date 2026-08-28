@@ -1,0 +1,23 @@
+{
+  "id": "com.xquakshell.fixture-i18n-fake",
+  "name": "Fake I18n",
+  "version": "0.1.0",
+  "engine": {
+    "type": "go-binary",
+    "entry": "plugin-i18n-fake"
+  },
+  "activationEvents": [
+    "onStartup"
+  ],
+  "requires": {
+    "pluginApi": "1.0.0",
+    "capabilities": {
+      "i18n": { "min": "1.0.0", "features": ["localeChanged"] }
+    }
+  },
+  "capabilities": {
+    "i18n": {
+      "locales": ["en", "ru"]
+    }
+  }
+}

@@ -5,8 +5,6 @@ import {json} from '../models';
 
 export function AddGitHubRepository(arg1:wails.AddGitHubRepositoryRequest):Promise<void>;
 
-export function AddKnownHost(arg1:string,arg2:string):Promise<void>;
-
 export function ApplyDiscoveryNodeDetails(arg1:string,arg2:string,arg3:string,arg4:Record<string, string>):Promise<void>;
 
 export function CancelPluginDialog(arg1:string):Promise<void>;
@@ -89,6 +87,10 @@ export function GetKeys():Promise<Array<wails.IdentityDTO>>;
 
 export function GetKnownHosts():Promise<Array<wails.KnownHostDTO>>;
 
+export function GetLocaleMessages(arg1:string):Promise<wails.LocaleMessagesDTO>;
+
+export function GetPeerTrust():Promise<Array<wails.PeerTrustDTO>>;
+
 export function GetPingResults():Promise<Array<wails.PingResultDTO>>;
 
 export function GetPlatform():Promise<string>;
@@ -139,7 +141,11 @@ export function ListGitHubRepositories():Promise<Array<wails.GitHubRepositoryDTO
 
 export function ListLocalPath(arg1:string,arg2:boolean):Promise<Array<wails.LocalNodeDTO>>;
 
+export function ListLocales():Promise<Array<wails.LocaleInfoDTO>>;
+
 export function ListPath(arg1:string,arg2:string):Promise<Array<wails.RemoteNodeDTO>>;
+
+export function ListPluginSources():Promise<Array<wails.PluginSourceDTO>>;
 
 export function ListPlugins():Promise<Array<wails.PluginDTO>>;
 
@@ -189,6 +195,8 @@ export function RemoveLocalPath(arg1:string):Promise<void>;
 
 export function RemovePath(arg1:string,arg2:string):Promise<void>;
 
+export function RemovePeerTrust(arg1:string,arg2:string):Promise<void>;
+
 export function RenameKey(arg1:string,arg2:string):Promise<void>;
 
 export function RenameLocalPath(arg1:string,arg2:string):Promise<void>;
@@ -211,13 +219,15 @@ export function ReportRestored():Promise<void>;
 
 export function ResizeSurface(arg1:string,arg2:number,arg3:number):Promise<void>;
 
-export function ResolveHostKey(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
+export function ResolveHostKey(arg1:string,arg2:string):Promise<void>;
+
+export function ResolvePeerTrust(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function SaveConnection(arg1:wails.ConnectionDTO):Promise<wails.ConnectionDTO>;
 
 export function SaveFolder(arg1:wails.FolderDTO):Promise<wails.FolderDTO>;
 
-export function SavePluginSettings(arg1:wails.PluginSettingsDTO):Promise<void>;
+export function SavePluginSettings(arg1:wails.PluginSettingsDTO,arg2:string):Promise<wails.PluginSettingsSaveResultDTO>;
 
 export function SaveSettings(arg1:wails.AppSettingsDTO):Promise<void>;
 

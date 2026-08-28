@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { t, currentLocale } from '../i18n/messages';
+  import { formatConnection, formatTimestamp, isDenied } from './auditEntryView';
+  import ConfirmDialog from './ConfirmDialog.svelte';
   import Modal from './Modal.svelte';
   import { activeSession } from '../stores/appState';
   import { sendTerminalInput } from '../api/terminal';
@@ -61,25 +64,6 @@
     loading = false;
   }
 
-  function isDenied(entry: AuditEntry): boolean {
-    return entry.input.includes('result=denied');
-  }
-
-  function formatTs(ts: string): string {
-    try {
-      return new Date(ts).toLocaleString();
-    } catch { return ts; }
-  }
-
-  function formatConnection(entry: AuditEntry): string {
-    if (entry.connectionName && entry.host) {
-      return `${entry.connectionName} @ ${entry.host}`;
-    }
-    if (entry.connectionName) return entry.connectionName;
-    if (entry.host) return entry.host;
-    return '';
-  }
-
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') search();
   }
@@ -120,14 +104,14 @@
 </script>
 
 {#if show}
-  <Modal title="Audit Log" show={true} on:close={() => show = false}>
+  <Modal title={$t('settings.tab.audit')} show={true} on:close={() => show = false}>
     <div class="audit-log">
       {#if !auditEnabled}
         <div class="disabled-state">
           <XCircle size={32} class="disabled-icon" />
-          <h3>Audit log is disabled</h3>
-          <p>Enable audit logging in Settings to record submitted terminal commands.</p>
-          <button class="primary" on:click={openAuditSettings}>Open Audit Log settings</button>
+          <h3>{$t('audit.disabled.title')}</h3>
+          <p>{$t('audit.disabled.body')}</p>
+          <button class="primary" on:click={openAuditSettings}>{$t('audit.disabled.open')}</button>
         </div>
       {:else}
         <div class="tabs" role="tablist">
@@ -138,7 +122,7 @@
             aria-selected={activeTab === 'command'}
             on:click={() => switchTab('command')}
           >
-            Command history
+            {$t('audit.tab.commands')}
           </button>
           <button
             class="tab"
@@ -147,12 +131,12 @@
             aria-selected={activeTab === 'system'}
             on:click={() => switchTab('system')}
           >
-            Program audit
+            {$t('audit.tab.system')}
           </button>
         </div>
 
         {#if activeTab === 'system'}
-          <p class="tab-hint">Durable, read-only record of the app's own security-relevant behavior (plugin grants, denials, session binds), kept for investigation. This is separate from the live Debug Log window.</p>
+          <p class="tab-hint">{$t('security.audit.system.hint')}</p>
         {/if}
 
         <div class="search-bar">
@@ -161,39 +145,27 @@
             <input
               type="text"
               bind:value={query}
-              placeholder={activeTab === 'command' ? 'Search commands...' : 'Search audit events...'}
+              placeholder={activeTab === 'command' ? $t('audit.search.commands') : $t('audit.search.events')}
               on:keydown={handleKeydown}
               class="search-input"
             />
           </div>
           <button class="primary search-btn" on:click={search} disabled={loading}>
             {#if loading}<Loader2 size={13} />{:else}<Search size={13} />{/if}
-            {loading ? 'Searching...' : 'Search'}
+            {loading ? $t('audit.searching') : $t('common.search')}
           </button>
           {#if activeTab === 'command'}
-            <button class="danger search-btn" on:click={() => clearConfirmShow = true} disabled={loading || results.length === 0} title="Clear all">
+            <button class="danger search-btn" on:click={() => clearConfirmShow = true} disabled={loading || results.length === 0} title={$t('audit.clearAll')}>
               <Trash size={13} />
-              Clear all
+              {$t('audit.clearAll')}
             </button>
           {/if}
         </div>
 
-        {#if clearConfirmShow}
-          <div class="confirm-overlay">
-            <div class="confirm-box">
-              <p>Clear all audit log entries? This cannot be undone.</p>
-              <div class="confirm-actions">
-                <button class="primary" on:click={clearAll}>Clear all</button>
-                <button class="secondary" on:click={() => clearConfirmShow = false}>Cancel</button>
-              </div>
-            </div>
-          </div>
-        {/if}
-
         {#if activeTab === 'command'}
           <div class="filters">
-            <input type="text" bind:value={sessionFilter} placeholder="Session ID filter" class="filter-input" />
-            <input type="text" bind:value={connectionFilter} placeholder="Connection ID filter" class="filter-input" />
+            <input type="text" bind:value={sessionFilter} placeholder={$t('audit.filter.session')} class="filter-input" />
+            <input type="text" bind:value={connectionFilter} placeholder={$t('audit.filter.connection')} class="filter-input" />
           </div>
         {/if}
 
@@ -201,13 +173,13 @@
           {#if results.length === 0 && !loading}
             <div class="empty">
               <FileText size={24} />
-              <span>No audit log entries found</span>
+              <span>{$t('audit.empty')}</span>
             </div>
           {/if}
           {#each results as entry (entry.id)}
             <div class="entry" class:redacted={entry.redacted}>
               <div class="entry-header">
-                <span class="entry-time">{formatTs(entry.timestamp)}</span>
+                <span class="entry-time">{formatTimestamp(entry.timestamp, $currentLocale)}</span>
                 {#if auditShowConnection && formatConnection(entry)}
                   <span class="entry-connection">{formatConnection(entry)}</span>
                 {/if}
@@ -225,15 +197,15 @@
                     <button
                       class="entry-btn"
                       on:click={() => copyCommand(entry)}
-                      title="Copy command"
+                      title={$t('audit.copyCommand')}
                     >
                       <Copy size={11} />
-                      {#if copiedId === entry.id}<span class="copied-label">Copied</span>{/if}
+                      {#if copiedId === entry.id}<span class="copied-label">{$t('error.copied')}</span>{/if}
                     </button>
                     <button
                       class="entry-btn danger"
                       on:click={() => deleteEntry(entry)}
-                      title="Delete"
+                      title={$t('common.delete')}
                     >
                       <Trash2 size={11} />
                     </button>
@@ -241,7 +213,7 @@
                       <button
                         class="entry-btn rerun"
                         on:click={() => rerunCommand(entry)}
-                        title="Re-run in active session"
+                        title={$t('audit.rerun')}
                       >
                         <RotateCcw size={11} />
                         Re-run
@@ -257,6 +229,19 @@
       {/if}
     </div>
   </Modal>
+
+  <!-- The shared confirmation, not a hand-rolled overlay: clearing the audit log is irreversible,
+       and the styling and the Escape handling of a destructive prompt should not be reimplemented
+       per screen. -->
+  <ConfirmDialog
+    show={clearConfirmShow}
+    critical={true}
+    title={$t('audit.clearAll')}
+    message={$t('security.audit.clearAll.confirm')}
+    confirmLabel={$t('audit.clearAll')}
+    on:confirm={clearAll}
+    on:cancel={() => (clearConfirmShow = false)}
+  />
 {/if}
 
 <style>
@@ -494,36 +479,9 @@
     background: rgba(211, 47, 47, 0.1);
   }
 
-  .confirm-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10;
-    border-radius: 6px;
-  }
 
-  .confirm-box {
-    background: var(--bg-secondary);
-    padding: 16px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    max-width: 320px;
-  }
 
-  .confirm-box p {
-    margin: 0 0 12px;
-    font-size: 13px;
-    color: var(--text-primary);
-  }
 
-  .confirm-actions {
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-  }
 
   .copied-label {
     color: var(--success, #4caf50);

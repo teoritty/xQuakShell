@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { Search } from 'lucide-svelte';
   import './remoteTreeShared.css';
 
@@ -11,7 +12,7 @@
   <input
     type="text"
     class="search-input"
-    placeholder="Search connections..."
+    placeholder={$t('tree.search.placeholder')}
     bind:value
     on:focus={() => onFocus?.()}
   />

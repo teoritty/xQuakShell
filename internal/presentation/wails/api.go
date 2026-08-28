@@ -41,6 +41,7 @@ type AppAPI struct {
 	viewRelay                   *usecase.PluginViewRelay
 	githubRepoService           *usecase.GitHubRepositoryService
 	githubPluginService         *usecase.GitHubPluginService
+	pluginCatalog               *usecase.PluginCatalogService
 	pluginVaultGrant            func(pluginID string) error
 	pluginAuthGrant             func(pluginID string) error
 	pluginTunnelGrant           func(pluginID string) error
@@ -56,6 +57,8 @@ type AppAPI struct {
 	logLevel                    domain.LogLevelController
 	unlockThrottle              domain.UnlockThrottle
 	updateSvc                   *usecase.UpdateService
+	locales                     domain.LocaleCatalog
+	localeBroadcast             LocaleBroadcaster
 }
 
 // NewAppAPI creates a new AppAPI with the given dependencies.
@@ -243,6 +246,16 @@ func (a *AppAPI) SetGitHubServices(repoSvc *usecase.GitHubRepositoryService, plu
 	a.githubPluginService = pluginSvc
 }
 
+// SetPluginCatalog wires the source-aware catalog router.
+//
+// It is set separately from SetGitHubServices rather than added to it: the catalog outlives the
+// forge services conceptually - it is what a second, non-forge source is reached through - and
+// bundling the two would make the marketplace's availability depend on GitHub storage having
+// opened successfully.
+func (a *AppAPI) SetPluginCatalog(catalog *usecase.PluginCatalogService) {
+	a.pluginCatalog = catalog
+}
+
 // SetPluginManager wires the plugin manager for handler delegation.
 func (a *AppAPI) SetPluginManager(mgr *usecase.PluginManager) {
 	a.plugins = mgr
@@ -395,6 +408,12 @@ func (a *AppAPI) afterVaultOpened() {
 			a.logLevel.SetLevel(data.Settings.Debug.LogLevel)
 		}
 		a.SyncDebugLogWindow(data.Settings.Debug.LogWindowEnabled)
+		// The language lives in the vault too, so this is the first moment the host can tell the
+		// plugins what it is. Plugins start before the vault opens; until now they had only the
+		// empty locale the initialize handshake carried.
+		if a.localeBroadcast != nil {
+			a.localeBroadcast.SetLocale(domain.NormalizeLocaleCode(data.Settings.Language))
+		}
 	}
 
 	if a.auditSvc != nil {

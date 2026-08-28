@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   // Connection row. Split out of RemoteTreeNode.svelte with its behaviour
   // unchanged: the same ping slot (spinner until the first result), the same
   // session-status glyphs, the same rename input, tag chips and hover actions.
@@ -52,7 +53,7 @@
 {#if hasPingResult(pingResults, node.id)}
   <StatusDot status={pingStatus(pingResults, node.id)} />
 {:else}
-  <span class="ping-spinner" title="Pinging…"><Loader2 size={10} /></span>
+  <span class="ping-spinner" title={$t('tree.pinging')}><Loader2 size={10} /></span>
 {/if}
 <span class="conn-icon"><Monitor size={14} /></span>
 {#if sessionStatusByConnId.get(node.id)}
@@ -88,13 +89,13 @@
     </span>
   {/if}
   <div class="conn-actions">
-    <button class="micro-btn" on:click|stopPropagation={() => dispatch('startRenameConnection', { connection: node.connection })} title="Rename">
+    <button class="micro-btn" on:click|stopPropagation={() => dispatch('startRenameConnection', { connection: node.connection })} title={$t('common.rename')}>
       <Pencil size={12} />
     </button>
     <button
       class="micro-btn danger"
       on:click|stopPropagation={() => dispatch('deleteConnection', { connection: node.connection, multi: selectedConnectionCount > 1 && selected })}
-      title="Delete"
+      title={$t('common.delete')}
     >
       <X size={12} />
     </button>

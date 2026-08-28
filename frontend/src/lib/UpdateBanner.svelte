@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   import { X, ArrowUpCircle } from 'lucide-svelte';
   import { openReleasesPage } from './projectLinks';
   import { updateStatus } from '../stores/appState';
@@ -15,11 +16,13 @@
   <div class="update-banner" role="status">
     <ArrowUpCircle size={15} />
     <span>
-      Version {$updateStatus.latestVersion} is available — you are running
-      {$updateStatus.currentVersion}. Only the latest release receives fixes.
+      {$t('update.available', {
+        latest: $updateStatus.latestVersion,
+        current: $updateStatus.currentVersion,
+      })}
     </span>
-    <button class="link" on:click={() => openReleasesPage()}>Open releases</button>
-    <button class="dismiss" aria-label="Dismiss" on:click={() => (dismissed = true)}>
+    <button class="link" on:click={() => openReleasesPage()}>{$t('update.openReleases')}</button>
+    <button class="dismiss" aria-label={$t('common.dismiss')} on:click={() => (dismissed = true)}>
       <X size={14} />
     </button>
   </div>

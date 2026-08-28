@@ -93,11 +93,36 @@
     overflow: hidden;
   }
 
+  /* The plugins screen is a browsing surface, like the key manager: a rail beside a list of cards
+     whose rows carry a name, a version, a source and two controls. At the default 560px every one
+     of those rows truncates.
+
+     The height is fixed rather than capped: the sections differ in length, and a dialog that sizes
+     to its content resizes under the cursor on every rail click, which moves the rail button the
+     user is still pointing at. */
+  .modal-content:global(.plugins-modal) {
+    width: min(1080px, 92vw);
+    max-width: min(1080px, 92vw);
+    height: 86vh;
+    max-height: 86vh;
+  }
+
+  /* The scrolling belongs to the section pane inside, not to the dialog body: the toolbar and the
+     rail must stay put while a long list moves. */
+  .modal-content:global(.plugins-modal) .modal-body {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+  }
+
+  /* Opens on top of the plugins screen, so it is deliberately narrower than it: a details pane
+     that covered the list behind it would lose the context the user opened it from. */
   .modal-content:global(.plugin-details-modal) {
-    width: min(1400px, 94vw);
-    max-width: min(1400px, 94vw);
-    min-width: min(1000px, 94vw);
-    max-height: 90vh;
+    width: min(760px, 88vw);
+    max-width: min(760px, 88vw);
+    max-height: 82vh;
   }
 
   .modal-content:global(.plugin-details-modal) .modal-body {

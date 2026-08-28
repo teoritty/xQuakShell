@@ -2,6 +2,7 @@
   import Modal from './Modal.svelte';
   import { conflictRequest, respondConflict } from '../stores/conflictPrompt';
   import { CONFLICT_ACTIONS, type ConflictAction } from './transfer/conflictActions';
+  import { t } from '../i18n/messages';
   import type { ConflictInfoDTO, PlannedFileDTO } from '../backend/gateway';
 
   // Local editable state, reset whenever a new conflict is shown.
@@ -79,24 +80,29 @@
   {@const file = $conflictRequest.file}
   {@const src = sourceStat(file)}
   {@const tgt = targetStat(file.conflict)}
-  <Modal show={true} title="Target file already exists" on:close={onCancel}>
+  <Modal show={true} title={$t('conflict.title')} on:close={onCancel}>
     <div class="conflict">
       <p class="lead">
         The target {tgt.isDir ? 'path exists as a directory' : 'file already exists'}. Please choose an action.
         {#if $conflictRequest.total > 1}
-          <span class="counter">Conflict {$conflictRequest.index + 1} of {$conflictRequest.total}</span>
+          <span class="counter">
+            {$t('conflict.counter', {
+              index: $conflictRequest.index + 1,
+              total: $conflictRequest.total,
+            })}
+          </span>
         {/if}
       </p>
 
       <div class="files">
         <div class="file-box">
-          <div class="file-box-title">Source file</div>
+          <div class="file-box-title">{$t('conflict.source')}</div>
           <div class="file-path" title={file.source}>{file.source}</div>
           <div class="file-meta">{formatBytes(src.size)}</div>
           <div class="file-meta">{formatDate(src.date)}</div>
         </div>
         <div class="file-box">
-          <div class="file-box-title">Target file</div>
+          <div class="file-box-title">{$t('conflict.target')}</div>
           <div class="file-path" title={file.target}>{file.target}</div>
           <div class="file-meta">{tgt.isDir ? 'directory' : formatBytes(tgt.size)}</div>
           <div class="file-meta">{formatDate(tgt.date)}</div>
@@ -104,30 +110,30 @@
       </div>
 
       <fieldset class="actions">
-        <legend>Action</legend>
+        <legend>{$t('conflict.action')}</legend>
         {#each CONFLICT_ACTIONS as a}
           <label class="radio">
             <input type="radio" bind:group={action} value={a.value} />
-            <span>{a.label}</span>
+            <span>{$t(a.labelKey)}</span>
           </label>
           {#if a.value === 'rename' && action === 'rename'}
-            <input class="rename-input" type="text" bind:value={newName} placeholder="New name" />
+            <input class="rename-input" type="text" bind:value={newName} placeholder={$t('conflict.newName')} />
           {/if}
         {/each}
       </fieldset>
 
       <label class="check">
         <input type="checkbox" bind:checked={applyToAll} />
-        <span>Always use this action</span>
+        <span>{$t('conflict.always')}</span>
       </label>
       <label class="check">
         <input type="checkbox" bind:checked={queueOnly} />
-        <span>Apply to current queue only</span>
+        <span>{$t('conflict.queueOnly')}</span>
       </label>
 
       <div class="buttons">
-        <button class="secondary" on:click={onCancel}>Cancel</button>
-        <button class="primary" on:click={onOk} disabled={action === 'rename' && newName.trim() === ''}>OK</button>
+        <button class="secondary" on:click={onCancel}>{$t('common.cancel')}</button>
+        <button class="primary" on:click={onOk} disabled={action === 'rename' && newName.trim() === ''}>{$t('common.ok')}</button>
       </div>
     </div>
   </Modal>

@@ -221,6 +221,9 @@ discovery node. Full model, limits and security rationale:
     "dialogs": true,
     "nodeDetails": true,
     "maxSurfaces": 8
+  },
+  "i18n": {
+    "locales": ["en", "ru"]
   }
 }
 ```
@@ -299,6 +302,7 @@ Rules:
 - **`allowMultiSession`:** when `false` (default) and `isolation: per-plugin`, only one bound session per plugin process is allowed; a second bind is rejected.
 - **`remoteFs` (display):** when `true`, the session UI shows the remote file panel (SFTP-style). Terminal-only plugins (e.g. telnet) should leave this `false`.
 - **`discovery.parentProtocols`:** the host addresses `discovery.observe` only to plugins declaring the target connection's protocol here (ADR-014). `contributions.discoveryIcons[].asset` follows the same asset validation rules as other UI assets (extension allowlist, size caps) and is checked once at install.
+- **`i18n.locales`:** informational only. The host neither validates the list nor withholds `i18n.localeChanged` for a language absent from it, and an empty list means "translated from a source the host cannot see", never "supports nothing". Declaring the capability at all is what asks to be told the interface language — see [plugin-api.md](./plugin-api.md#interface-language). It grants no privilege and raises no install-time consent: the host sends a language tag and nothing else.
 - View `entry` paths must live under `ui/` (default `ui/index.html`). Embed `embedEntry` paths follow the same rule.
 - Every declared `ui/` path — view `entry`, `embedEntry` (under `session.embed`), `discoveryIcons[].asset` — must exist in the tree being installed, or the install is refused. On the repository route (GitHub or GitLab), a manifest declaring any of them can only be installed from an `.xqsp` bundle asset: a bare release binary carries no `ui/` (ADR-016, see [plugin-api.md](./plugin-api.md#publishing-a-release-adr-016)).
 

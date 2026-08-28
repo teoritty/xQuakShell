@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import Modal from '../Modal.svelte';
   import type { StoredKey } from '../../api/keys';
@@ -27,15 +28,15 @@
   }
 </script>
 
-<Modal title="Rename key" {show} on:close={() => dispatch('close')}>
-  <label for="rename-key">Name</label>
+<Modal title={$t('keys.rename.title')} {show} on:close={() => dispatch('close')}>
+  <label for="rename-key">{$t('keys.field.name')}</label>
   <!-- svelte-ignore a11y_autofocus -->
   <input id="rename-key" bind:value={name} autofocus on:keydown={(e) => e.key === 'Enter' && submit()} />
   {#if error}<p class="error">{error}</p>{/if}
 
   <div class="dialog-actions">
-    <button on:click={() => dispatch('close')}>Cancel</button>
-    <button class="primary" on:click={submit}>Save</button>
+    <button on:click={() => dispatch('close')}>{$t('common.cancel')}</button>
+    <button class="primary" on:click={submit}>{$t('common.save')}</button>
   </div>
 </Modal>
 

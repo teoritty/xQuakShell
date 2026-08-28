@@ -45,36 +45,28 @@
   "baseline": {
     "files": {
       "frontend/src/lib/AuditLogView.svelte": {
-        "codeLines": 476,
-        "scriptCodeLines": 98
+        "codeLines": 434,
+        "scriptCodeLines": 85
       },
       "frontend/src/lib/ConnectionDetails.svelte": {
         "codeLines": 307,
         "scriptCodeLines": 235
       },
       "frontend/src/lib/FileTree.svelte": {
-        "codeLines": 545,
-        "scriptCodeLines": 450
+        "codeLines": 537,
+        "scriptCodeLines": 442
       },
       "frontend/src/lib/LocalFileTree.svelte": {
-        "codeLines": 498,
-        "scriptCodeLines": 415
-      },
-      "frontend/src/lib/PluginSettingsPanel.svelte": {
-        "codeLines": 1087,
-        "scriptCodeLines": 441
+        "codeLines": 490,
+        "scriptCodeLines": 407
       },
       "frontend/src/lib/RemoteTree.svelte": {
-        "codeLines": 672,
-        "scriptCodeLines": 559
+        "codeLines": 648,
+        "scriptCodeLines": 535
       },
       "frontend/src/lib/ScriptsDialog.svelte": {
-        "codeLines": 548,
-        "scriptCodeLines": 220
-      },
-      "frontend/src/lib/SettingsDialog.svelte": {
-        "codeLines": 885,
-        "scriptCodeLines": 304
+        "codeLines": 514,
+        "scriptCodeLines": 186
       },
       "internal/domain/plugin/manifest_capabilities.go": {
         "codeLines": 397
@@ -131,16 +123,6 @@
         "codeLines": 158,
         "params": 0,
         "nesting": 2
-      },
-      "frontend/src/lib/FileTree.svelte::handleDrop": {
-        "codeLines": 29,
-        "params": 2,
-        "nesting": 5
-      },
-      "frontend/src/lib/LocalFileTree.svelte::handleDrop": {
-        "codeLines": 29,
-        "params": 2,
-        "nesting": 5
       },
       "frontend/src/lib/PermissionsDialog.svelte::handleApply": {
         "codeLines": 26,
@@ -228,14 +210,9 @@
         "nesting": 1
       },
       "internal/infra/plugin/process_host_start.go::ProcessHost.Start": {
-        "codeLines": 87,
+        "codeLines": 94,
         "params": 4,
         "nesting": 2
-      },
-      "internal/infra/plugin/process_initializer.go::initializePluginProcess": {
-        "codeLines": 27,
-        "params": 7,
-        "nesting": 1
       },
       "internal/infra/plugin/process_ipc_factory.go::ProcessHost.newConn": {
         "codeLines": 39,
@@ -443,12 +420,12 @@
         "nesting": 3
       },
       "main_plugin_ui.go::wirePluginProcessLifecycle": {
-        "codeLines": 17,
-        "params": 6,
+        "codeLines": 20,
+        "params": 7,
         "nesting": 0
       },
       "main_plugins.go::newPluginRuntime": {
-        "codeLines": 131,
+        "codeLines": 134,
         "params": 3,
         "nesting": 1
       }

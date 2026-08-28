@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import { UserPlus } from 'lucide-svelte';
   import AuthEntryCard from '../AuthEntryCard.svelte';
@@ -71,7 +72,7 @@
 
 <div class="connection-detail-field">
   <div class="connection-detail-section-header">
-    <span class="connection-detail-field-label">Users</span>
+    <span class="connection-detail-field-label">{$t('connection.field.users')}</span>
     <button class="ghost connection-detail-micro-btn" on:click={addUser}><UserPlus size={12} /> Add</button>
   </div>
   {#each users as u (u.id)}
@@ -93,12 +94,12 @@
           type="text"
           value={u.username}
           on:input={(e) => updateUsername(u.id, e.currentTarget.value)}
-          placeholder="username"
+          placeholder={$t('connection.placeholder.username')}
           class="user-input"
         />
       </svelte:fragment>
       <svelte:fragment slot="meta">
-        <label class="default-radio" title="Set as default">
+        <label class="default-radio" title={$t('connection.users.setDefault')}>
           <input
             type="radio"
             name="defaultUser"

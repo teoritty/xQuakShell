@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher, onMount } from 'svelte';
   import { Plus, Trash2 } from 'lucide-svelte';
   import type { ForwardRule } from '../../stores/appState';
@@ -79,12 +80,12 @@
 
 <div class="connection-detail-field">
   <div class="connection-detail-section-header">
-    <span class="connection-detail-field-label">Forward rules</span>
+    <span class="connection-detail-field-label">{$t('connection.field.forwardRules')}</span>
     <button class="ghost connection-detail-micro-btn" type="button" on:click={addRule}>
       <Plus size={12} /> Add
     </button>
   </div>
-  <p class="connection-detail-field-hint">Rules bind to 127.0.0.1 only. Dynamic rules are active while a session is open.</p>
+  <p class="connection-detail-field-hint">{$t('security.connection.forward.hint')}</p>
 
   {#each rules as rule (rule.id)}
     <div class="forward-rule-card">
@@ -95,14 +96,14 @@
             value="127.0.0.1"
             readonly
             disabled
-            title="Bind address (loopback only)"
+            title={$t('security.connection.forward.bindAddress')}
             class="bind-address"
           />
           <input
             type="number"
             value={rule.bindPort}
             on:input={(e) => updateRuleField(rule.id, 'bindPort', parseInt(e.currentTarget.value) || 0)}
-            placeholder="Bind port"
+            placeholder={$t('connection.forward.bindPort')}
             min="1"
             max="65535"
             class="bind-port"
@@ -114,13 +115,13 @@
               type="text"
               value={rule.targetHost || ''}
               on:input={(e) => updateRuleField(rule.id, 'targetHost', e.currentTarget.value)}
-              placeholder="Target host"
+              placeholder={$t('connection.forward.targetHost')}
             />
             <input
               type="number"
               value={rule.targetPort || 0}
               on:input={(e) => updateRuleField(rule.id, 'targetPort', parseInt(e.currentTarget.value) || 0)}
-              placeholder="Target port"
+              placeholder={$t('connection.forward.targetPort')}
               min="1"
               max="65535"
               class="target-port"
@@ -148,7 +149,7 @@
               value={rule.pluginId || ''}
               on:change={(e) => updateRuleField(rule.id, 'pluginId', e.currentTarget.value)}
             >
-              <option value="">Plugin…</option>
+              <option value="">{$t('connection.forward.pluginPrompt')}</option>
               {#each pluginIds() as pid}
                 <option value={pid}>{pid}</option>
               {/each}
@@ -158,13 +159,13 @@
               on:change={(e) => updateRuleField(rule.id, 'providerId', e.currentTarget.value)}
               disabled={!rule.pluginId}
             >
-              <option value="">Provider…</option>
+              <option value="">{$t('connection.forward.providerPrompt')}</option>
               {#each providersForPlugin(rule.pluginId || '') as prov}
                 <option value={prov.id}>{prov.label || prov.id}</option>
               {/each}
             </select>
           </div>
-          <p class="consent-hint">Plugin tunnel requires install-time tunnel provider consent in plugin settings.</p>
+          <p class="consent-hint">{$t('security.connection.forward.consentHint')}</p>
         {/if}
         {#if ruleError(rule.id, 'bindPort')}
           <p class="connection-detail-field-error">{ruleError(rule.id, 'bindPort')}</p>
@@ -176,12 +177,12 @@
           on:change={(e) => onKindChange(rule.id, e.currentTarget.value)}
           class="kind-select"
         >
-          <option value="local">Local (-L)</option>
-          <option value="remote">Remote (-R)</option>
-          <option value="dynamic">Dynamic (-D)</option>
+          <option value="local">{$t('connection.forward.local')}</option>
+          <option value="remote">{$t('connection.forward.remote')}</option>
+          <option value="dynamic">{$t('connection.forward.dynamic')}</option>
         </select>
         <div class="forward-rule-meta">
-          <label class="enabled-toggle" title="Active while session is open">
+          <label class="enabled-toggle" title={$t('connection.forward.activeWhileOpen')}>
             <input
               type="checkbox"
               checked={rule.enabled}
@@ -193,7 +194,7 @@
             class="ghost micro-btn danger toolbar-remove"
             type="button"
             on:click={() => removeRule(rule.id)}
-            title="Remove"
+            title={$t('common.remove')}
           >
             <Trash2 size={12} />
           </button>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import Modal from '../Modal.svelte';
   import NewKeyDialog from './NewKeyDialog.svelte';
@@ -52,13 +53,12 @@
   }
 </script>
 
-<Modal title="Choose a key" {show} on:close={() => dispatch('close')}>
+<Modal title={$t('keys.picker.title')} {show} on:close={() => dispatch('close')}>
   <p class="intro">
-    Keys live in the key manager. Pick one it already holds, or add a new one — either way the
-    private key stays in the vault.
+    {$t('keys.picker.intro')}
   </p>
 
-  <input class="search" placeholder="Search keys" bind:value={filter} />
+  <input class="search" placeholder={$t('keys.search')} bind:value={filter} />
 
   <ul class="picker">
     {#each visible as key (key.id)}
@@ -67,8 +67,8 @@
         <button class="row" disabled={used} on:click={() => dispatch('pick', key.id)}>
           <span class="top">
             <span class="name">{key.comment || key.id}</span>
-            {#if used}<span class="tag">already added</span>{/if}
-            {#if key.migrationPending}<span class="tag warn">unfinished</span>{/if}
+            {#if used}<span class="tag">{$t('keys.picker.alreadyAdded')}</span>{/if}
+            {#if key.migrationPending}<span class="tag warn">{$t('keys.badge.unfinished')}</span>{/if}
           </span>
           <span class="bottom">
             <span>{describe(key)}</span>
@@ -78,14 +78,14 @@
       </li>
     {:else}
       <li class="empty">
-        {filter ? 'No key matches that search.' : 'The key manager is empty. Add a key to get started.'}
+        {filter ? $t('keys.empty.filtered') : $t('keys.picker.empty')}
       </li>
     {/each}
   </ul>
 
   <div class="dialog-actions">
-    <button class="secondary" on:click={() => (showNew = true)}>Add a key…</button>
-    <button on:click={() => dispatch('close')}>Cancel</button>
+    <button class="secondary" on:click={() => (showNew = true)}>{$t('keys.picker.add')}</button>
+    <button on:click={() => dispatch('close')}>{$t('common.cancel')}</button>
   </div>
 </Modal>
 

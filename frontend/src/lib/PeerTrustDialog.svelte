@@ -1,7 +1,11 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import Modal from './Modal.svelte';
+  import { t } from '../i18n/messages';
 
+  // Every string here is under the security namespace, so a language pack on disk can translate it
+  // for a new language but never reword it for one that ships translated.
+  //
   // The remote identity a plugin protocol is asking about. Separate from HostKeyDialog on purpose:
   // that one speaks about SSH host keys, this one speaks about whatever identity the protocol
   // presented, and neither should be reworded by a change to the other.
@@ -19,58 +23,55 @@
 </script>
 
 <Modal
-  title={isMismatch ? 'Remote Identity Changed' : 'Unknown Remote Identity'}
+  title={isMismatch ? $t('security.peertrust.mismatch.title') : $t('security.peertrust.unknown.title')}
   {show}
   on:close={() => dispatch('reject')}
 >
   {#if isMismatch}
     <div class="pt-warning">
-      <strong>WARNING:</strong> The identity presented by <code>{subject}</code> is not the one
-      trusted before. This could indicate an interception attempt, or that the server was
-      reinstalled or reissued its certificate. Only proceed if you know why it changed.
+      <strong>{$t('security.peertrust.mismatch.label')}</strong>
+      {$t('security.peertrust.mismatch.body', { subject })}
     </div>
   {:else}
     <div class="pt-info">
-      This is the first connection to <code>{subject}</code>. Its identity has not been seen before
-      and cannot be verified automatically.
+      {$t('security.peertrust.unknown.body', { subject })}
     </div>
   {/if}
 
   <div class="pt-details">
     {#if connectionName}
       <div class="pt-row">
-        <span class="pt-label">Connection:</span>
+        <span class="pt-label">{$t('security.peertrust.field.connection')}</span>
         <span class="pt-value">{connectionName}</span>
       </div>
     {/if}
     <div class="pt-row">
-      <span class="pt-label">Address:</span>
+      <span class="pt-label">{$t('security.peertrust.field.address')}</span>
       <span class="pt-value">{subject}</span>
     </div>
     <div class="pt-row">
-      <span class="pt-label">Fingerprint:</span>
+      <span class="pt-label">{$t('security.peertrust.field.fingerprint')}</span>
       <span class="pt-value pt-fp">{fingerprint}</span>
     </div>
   </div>
 
   <div class="pt-question">
     {#if isMismatch}
-      Do you want to <strong>replace</strong> the trusted identity for this address with the one
-      shown above?
+      {$t('security.peertrust.mismatch.question')}
     {:else}
-      Do you want to trust this identity and continue connecting?
+      {$t('security.peertrust.unknown.question')}
     {/if}
   </div>
 
   <div class="pt-actions">
     <button on:click={() => dispatch('trust')}>
       {#if isMismatch}
-        Replace Trusted Identity
+        {$t('security.peertrust.mismatch.accept')}
       {:else}
-        Trust and Connect
+        {$t('security.peertrust.unknown.accept')}
       {/if}
     </button>
-    <button class="secondary" on:click={() => dispatch('reject')}>Cancel</button>
+    <button class="secondary" on:click={() => dispatch('reject')}>{$t('security.peertrust.cancel')}</button>
   </div>
 </Modal>
 
@@ -127,14 +128,6 @@
   .pt-fp {
     font-family: var(--font-mono);
     font-size: 11px;
-  }
-
-  code {
-    background: var(--bg-input);
-    padding: 1px 4px;
-    border-radius: 2px;
-    font-family: var(--font-mono);
-    font-size: 12px;
   }
 
   .pt-question {

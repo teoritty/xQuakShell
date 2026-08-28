@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   // A row inside a plugin-drawn subtree (ADR-014), plus the host's own service
   // lines (loading / error / truncated / empty).
   //
@@ -66,7 +67,7 @@
   <PluginIcon src={iconSrc} label={row.label} />
   <span class="node-name" title={rowTitle}>{row.label}</span>
   {#if row.branchState === 'stale'}
-    <span class="discovery-flag" title="The session that reported this handed over — refreshing">stale</span>
+    <span class="discovery-flag" title={$t('tree.discovery.stale.title')}>{$t('tree.discovery.stale')}</span>
   {/if}
 {/if}
 

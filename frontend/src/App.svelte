@@ -14,6 +14,8 @@
   import ErrorDialog from './lib/ErrorDialog.svelte';
   import ConflictDialog from './lib/ConflictDialog.svelte';
   import SettingsDialog from './lib/SettingsDialog.svelte';
+  import PluginsDialog from './lib/plugins/PluginsDialog.svelte';
+  import TopBarActions from './lib/TopBarActions.svelte';
   import type { SettingsTabId } from './lib/settingsSearch';
   import ScriptsDialog from './lib/ScriptsDialog.svelte';
   import PluginCommandPalette from './lib/PluginCommandPalette.svelte';
@@ -29,13 +31,15 @@
   import { getSettings, applyAppearanceSettings } from './actions/settingsActions';
   import { parseHotkeyEvent } from './hotkeys/hotkeys';
   import { DEFAULT_SESSION_HOTKEYS } from './api/settings';
-  import { Settings, FileText, Shield, Fingerprint, MonitorDot, Terminal, Key } from 'lucide-svelte';
+  import { Settings, MonitorDot } from 'lucide-svelte';
+  import { t } from './i18n/messages';
 
   let showKnownHosts = false;
   let showPeerTrust = false;
   let showKeyManager = false;
   let showAuditLog = false;
   let showSettings = false;
+  let showPlugins = false;
   let settingsInitialTab: SettingsTabId = 'about';
   let showScripts = false;
   let commandPalette: PluginCommandPalette;
@@ -200,52 +204,41 @@
     <div class="main-area">
       <div class="top-bar">
         <div class="top-bar-spacer"></div>
-        <div class="top-bar-actions">
-          <button class="ghost top-btn" on:click={() => showScripts = true} title="Scripts">
-            <Terminal size={14} />
-          </button>
-          <button class="ghost top-btn" on:click={() => showAuditLog = true} title="Audit Log">
-            <FileText size={14} />
-          </button>
-          <button class="ghost top-btn" on:click={() => showKnownHosts = true} title="Known Hosts">
-            <Shield size={14} />
-          </button>
-          <button class="ghost top-btn" on:click={() => showPeerTrust = true} title="Trusted Peers">
-            <Fingerprint size={14} />
-          </button>
-          <button class="ghost top-btn" on:click={() => showKeyManager = true} title="SSH Keys">
-            <Key size={14} />
-          </button>
-          <button class="ghost top-btn" on:click={() => openSettings()} title="Settings">
-            <Settings size={14} />
-          </button>
-        </div>
+        <TopBarActions
+          on:scripts={() => (showScripts = true)}
+          on:audit={() => (showAuditLog = true)}
+          on:knownHosts={() => (showKnownHosts = true)}
+          on:peerTrust={() => (showPeerTrust = true)}
+          on:keys={() => (showKeyManager = true)}
+          on:plugins={() => (showPlugins = true)}
+          on:settings={() => openSettings()}
+        />
       </div>
       <div class="session-area">
         {#if $sessions.length === 0}
           <div class="welcome-screen">
             <h2>xQuakShell</h2>
             {#if $connections.length === 0}
-              <p class="welcome-subtitle">No connections yet. Create your first one to get started.</p>
+              <p class="welcome-subtitle">{$t('welcome.noConnections')}</p>
             {:else}
-              <p class="welcome-subtitle">Start a session from the sidebar or use global hotkeys.</p>
+              <p class="welcome-subtitle">{$t('welcome.startSession')}</p>
             {/if}
             <div class="welcome-actions">
               <button class="primary welcome-btn" on:click={() => createNewConnectionInFolder('')}>
                 <MonitorDot size={14} />
-                New connection
+                {$t('welcome.newConnection')}
               </button>
               <button class="ghost welcome-btn" on:click={() => openSettings()}>
                 <Settings size={14} />
-                Open settings
+                {$t('welcome.openSettings')}
               </button>
             </div>
             <div class="welcome-hints">
-              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.create)}</span> Create new session</div>
-              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.next)}</span> Next session tab</div>
-              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.prev)}</span> Previous session tab</div>
-              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.close)}</span> Close active session</div>
-              <div class="hint"><span class="hint-key">Ctrl+Shift+P</span> Command palette</div>
+              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.create)}</span> {$t('settings.hotkeys.field.create')}</div>
+              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.next)}</span> {$t('settings.hotkeys.field.next')}</div>
+              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.prev)}</span> {$t('settings.hotkeys.field.prev')}</div>
+              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.close)}</span> {$t('settings.hotkeys.field.close')}</div>
+              <div class="hint"><span class="hint-key">Ctrl+Shift+P</span> {$t('welcome.commandPalette')}</div>
             </div>
           </div>
         {:else}
@@ -275,6 +268,7 @@
     on:openSettings={(e) => openSettingsFromAudit(e.detail.tab)}
   />
   <SettingsDialog bind:show={showSettings} initialTab={settingsInitialTab} />
+  <PluginsDialog bind:show={showPlugins} />
   <ScriptsDialog bind:show={showScripts} />
   <PluginCommandPalette bind:this={commandPalette} />
   <PeerTrustPrompt />
@@ -351,21 +345,6 @@
   .top-bar-spacer {
     flex: 1;
     min-width: 0;
-  }
-  .top-bar-actions {
-    display: flex;
-    align-items: center;
-    padding: 0 4px;
-    gap: 1px;
-    flex-shrink: 0;
-  }
-
-  .top-btn {
-    padding: 4px 6px;
-    border-radius: 2px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
   }
 
   .session-area {

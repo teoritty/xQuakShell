@@ -17,6 +17,25 @@ export interface PluginSettingsSaveResult {
   reauthRequired: boolean;
 }
 
+// Mirrors internal/presentation/wails.PluginSourceDTO. Declared here rather than imported from
+// wailsjs/go/models because that file is regenerated from the bound Go struct, and a hand-written
+// mirror is what the compiler checks the rest of the frontend against.
+//
+// `available` is not the same question as "is the listing empty". A source that cannot answer at
+// all shows `unavailableReason` and disables its actions; an available source with nothing in it
+// is a repository that has published no release yet, which is a state the user can fix.
+export interface PluginSourceDTO {
+  id: string;
+  kind: 'forge' | 'marketplace';
+  displayName: string;
+  trusted: boolean;
+  removable: boolean;
+  available: boolean;
+  unavailableReason?: string;
+  addedAt?: string;
+  lastFetchedAt?: string;
+}
+
 // --- Transfer conflict planning (FileZilla-style existing-file handling) ---
 // Mirrors the Go DTOs in internal/presentation/wails/dto_transfers.go. Defined
 // here (the backend seam) rather than in api/ so the dependency direction stays
@@ -172,6 +191,12 @@ export interface AppGateway {
   GetVersionInfo(): Promise<{ appVersion: string; coreVersion: string; pluginApiVersion: string }>;
   GetUpdateStatus?(): Promise<wails.UpdateStatusDTO>;
 
+  // Optional because the language catalogue is wired at the composition root and a build that
+  // failed to load its embedded packs leaves it unset; the interface stays English rather than
+  // failing to start.
+  ListLocales?(): Promise<Array<wails.LocaleInfoDTO>>;
+  GetLocaleMessages?(arg1: string): Promise<wails.LocaleMessagesDTO>;
+
   GetTempDir(): Promise<string>;
 
   GetUserHomeDir(): Promise<string>;
@@ -263,6 +288,8 @@ export interface AppGateway {
   ListLocalPath(arg1: string, arg2: boolean): Promise<Array<wails.LocalNodeDTO>>;
 
   ListPath(arg1: string, arg2: string): Promise<Array<wails.RemoteNodeDTO>>;
+
+  ListPluginSources(): Promise<Array<PluginSourceDTO>>;
 
   ListPlugins(): Promise<Array<wails.PluginDTO>>;
 

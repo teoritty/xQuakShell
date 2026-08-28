@@ -81,3 +81,26 @@ func TestTheCeilingsMatchTheDialogBounds(t *testing.T) {
 		t.Errorf("maxTransferConnectionTimeoutSec = %d, but the dialog offers up to 300", maxTransferConnectionTimeoutSec)
 	}
 }
+
+// The language is a filename component on the way to <exe>/data/locales, so a value that never
+// reached the dialog's dropdown must not reach the catalogue either. Normalizing on the way in
+// means the stored setting is always something a path can safely be built from.
+func TestNormalizeSettingsRejectsAMalformedLanguage(t *testing.T) {
+	for _, requested := range []string{"", "../../etc", "en/../..", "ENGLISH", "e", "en_US"} {
+		got := normalizeSettings(domain.AppSettings{Language: requested})
+		if got.Language != domain.DefaultLocale {
+			t.Errorf("Language %q normalized to %q, want the default %q",
+				requested, got.Language, domain.DefaultLocale)
+		}
+	}
+}
+
+// A language this build has never heard of is not malformed, and a vault written by a newer build
+// is a normal thing to open — it falls back to English rather than being refused.
+func TestNormalizeSettingsKeepsAWellFormedLanguage(t *testing.T) {
+	for _, requested := range []string{"ru", "de", "pt-BR"} {
+		if got := normalizeSettings(domain.AppSettings{Language: requested}); got.Language != requested {
+			t.Errorf("Language %q normalized to %q, want it kept", requested, got.Language)
+		}
+	}
+}

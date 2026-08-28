@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { Eye, EyeOff } from 'lucide-svelte';
+  import { t } from '../../i18n/messages';
 
   export let value = '';
   export let placeholder = '';
@@ -74,7 +75,7 @@
     <button
       type="button"
       class="reveal"
-      aria-label={revealed ? 'Hide password' : 'Show password'}
+      aria-label={revealed ? $t('vault.password.hide') : $t('vault.password.show')}
       aria-pressed={revealed}
       tabindex="-1"
       {disabled}
@@ -89,7 +90,7 @@
   </div>
 
   {#if capsLock}
-    <span class="caps-lock" role="status">Caps Lock is on</span>
+    <span class="caps-lock" role="status">{$t('vault.password.capsLock')}</span>
   {/if}
 </div>
 

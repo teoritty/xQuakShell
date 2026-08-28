@@ -38,6 +38,7 @@ const (
 	CapChannel    CapabilityID = "channel"
 	CapDiscovery  CapabilityID = "discovery"
 	CapUI         CapabilityID = "ui"
+	CapI18n       CapabilityID = "i18n"
 )
 
 // Feature identifiers, grouped by capability. Named Feat<Capability><Feature> because feature ids
@@ -83,6 +84,12 @@ const (
 	FeatUISurfaceLog      FeatureID = "surfaceLog"
 	FeatUIDialogs         FeatureID = "dialogs"
 	FeatUINodeDetails     FeatureID = "nodeDetails"
+
+	// FeatI18nLocaleChanged is the host->plugin i18n.localeChanged notification. It is its own
+	// capability rather than a UI feature because a plugin with no UI surface still hands the host
+	// words the user reads - discovery node labels, action captions, confirmation text - and would
+	// otherwise have to grant `ui` to learn which language to write them in.
+	FeatI18nLocaleChanged FeatureID = "localeChanged"
 )
 
 // DeprecationInfo records that a capability or one of its features is on its way out.
@@ -153,6 +160,7 @@ var hostRegistry = NewRegistry(map[CapabilityID]CapabilityDescriptor{
 	CapChannel:    {Version: "1.0.0", Features: []FeatureID{FeatChannelOpen}},
 	CapDiscovery:  {Version: "1.0.0", Features: []FeatureID{FeatDiscoveryPublish, FeatDiscoveryInvoke}},
 	CapUI:         {Version: "1.0.0", Features: []FeatureID{FeatUISurfaceTerminal, FeatUISurfaceLog, FeatUIDialogs, FeatUINodeDetails}},
+	CapI18n:       {Version: "1.0.0", Features: []FeatureID{FeatI18nLocaleChanged}},
 })
 
 // HostRegistry returns the shared immutable host contract. No copy is made — the type has no

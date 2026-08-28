@@ -215,16 +215,30 @@ async function run() {
         'dependency between them, so their source order is what makes the cleanup land in the same pass.'
     );
 
-    // Focus must be addressed by the connection-scoped TreeNode id, never by the
-    // bare discoveryKey — one plugin publishing the same node on two hosts yields
-    // two rows with the same key, and querySelector would take whichever came
-    // first in the document.
+  }
+
+  // Focus must be addressed by the connection-scoped TreeNode id, never by the
+  // bare discoveryKey — one plugin publishing the same node on two hosts yields
+  // two rows with the same key, and querySelector would take whichever came
+  // first in the document.
+  //
+  // The lookup lives in discoveryKeys.ts, not in RemoteTree.svelte: the component
+  // was split and focusDiscoveryRow moved out with the rest of the key handling.
+  // Asserting it on the component source would pass vacuously — the regex would
+  // simply never match again — which is how this assertion silently stopped
+  // guarding anything once before.
+  {
+    const keysSrc = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'remoteTree', 'discoveryKeys.ts'),
+      'utf8'
+    );
     assert(
-      /data-discovery-id="\$\{escaped\}"/.test(code) && /discoveryNodeId\(\s*row\.connectionId/.test(code),
+      /data-discovery-id="\$\{escaped\}"/.test(keysSrc) &&
+        /discoveryNodeId\(\s*row\.connectionId/.test(keysSrc),
       'the focus lookup must select on data-discovery-id built from discoveryNodeId(connectionId, ...)'
     );
     assert(
-      !/data-discovery-key/.test(code),
+      !/data-discovery-key/.test(keysSrc),
       'the connection-less data-discovery-key addressing must not come back'
     );
   }

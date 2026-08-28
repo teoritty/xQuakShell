@@ -110,6 +110,7 @@ func defaultAppSettings() domain.AppSettings {
 		Lockout:  lockout,
 		Terminal: terminal,
 		Theme:    "dark",
+		Language: domain.DefaultLocale,
 		Ping:     ping,
 		Transfer: domain.TransferSettings{
 			SpeedLimitKbps:       transfer.SpeedLimitKbps,
@@ -156,6 +157,8 @@ func normalizeSettings(s domain.AppSettings) domain.AppSettings {
 	if s.Transfer.MaxConcurrent > maxConcurrentTransfers {
 		s.Transfer.MaxConcurrent = maxConcurrentTransfers
 	}
+
+	s.Language = domain.NormalizeLocaleCode(s.Language)
 
 	defHotkeys := domain.DefaultSessionHotkeysSettings()
 	if strings.TrimSpace(s.SessionHotkeys.Create) == "" {

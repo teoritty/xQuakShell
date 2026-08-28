@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import type { KeyOptions } from '../../api/keys';
 
   export let options: KeyOptions;
@@ -9,18 +10,18 @@
 </script>
 
 <fieldset>
-  <legend>Settings</legend>
+  <legend>{$t('keys.policy.legend')}</legend>
 
   {#if hasPassphrase}
-    <label for="cache-policy">Remember the passphrase</label>
+    <label for="cache-policy">{$t('keys.policy.remember')}</label>
     <select id="cache-policy" bind:value={options.cachePolicy}>
-      <option value="until-lock">Until the vault locks</option>
-      <option value="duration">For a while</option>
-      <option value="never">Never — ask every time</option>
+      <option value="until-lock">{$t('keys.policy.untilLock')}</option>
+      <option value="duration">{$t('keys.policy.duration')}</option>
+      <option value="never">{$t('keys.policy.never')}</option>
     </select>
 
     {#if options.cachePolicy === 'duration'}
-      <label for="cache-ttl">Minutes</label>
+      <label for="cache-ttl">{$t('keys.policy.minutes')}</label>
       <input id="cache-ttl" type="number" min="1" max="720" bind:value={options.cacheTtlSeconds} />
     {/if}
   {/if}
@@ -28,8 +29,8 @@
   <label class="check">
     <input type="checkbox" bind:checked={options.allowPlugins} />
     <span>
-      Let plugins read this key
-      <small>Off by default. A plugin granted vault access still cannot read this key unless you allow it here.</small>
+      {$t('security.keys.policy.allowPlugins')}
+      <small>{$t('security.keys.policy.pluginsHint')}</small>
     </span>
   </label>
 
@@ -37,8 +38,8 @@
     <label class="check">
       <input type="checkbox" bind:checked={options.nonExportable} />
       <span>
-        Never let this key leave the vault
-        <small>Permanent. This cannot be undone later — you would have to delete the key and make another.</small>
+        {$t('security.keys.policy.nonExportable')}
+        <small>{$t('security.keys.policy.sealHint')}</small>
       </span>
     </label>
   {/if}

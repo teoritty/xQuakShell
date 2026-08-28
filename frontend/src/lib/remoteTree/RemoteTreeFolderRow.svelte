@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   // Folder row. Split out of RemoteTreeNode.svelte unchanged — same markup, same
   // classes, same events, same order. The wrapper <div class="tree-node"> stays
   // in RemoteTreeNode.svelte because it is identical for all row kinds.
@@ -39,13 +40,13 @@
   </span>
   <span class="node-name">{node.name}</span>
   <div class="folder-actions">
-    <button class="micro-btn" on:click|stopPropagation={() => dispatch('newSubfolder', { folderId: node.id })} title="New subfolder">
+    <button class="micro-btn" on:click|stopPropagation={() => dispatch('newSubfolder', { folderId: node.id })} title={$t('tree.action.newSubfolder')}>
       <Plus size={12} />
     </button>
-    <button class="micro-btn" on:click|stopPropagation={() => dispatch('startRenameFolder', { folder: node.folder })} title="Rename">
+    <button class="micro-btn" on:click|stopPropagation={() => dispatch('startRenameFolder', { folder: node.folder })} title={$t('common.rename')}>
       <Pencil size={12} />
     </button>
-    <button class="micro-btn danger" on:click|stopPropagation={() => dispatch('deleteFolder', { folder: node.folder })} title="Delete">
+    <button class="micro-btn danger" on:click|stopPropagation={() => dispatch('deleteFolder', { folder: node.folder })} title={$t('common.delete')}>
       <X size={12} />
     </button>
   </div>

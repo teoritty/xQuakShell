@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import { FolderPlus, MonitorDot, Pencil, Star, Trash2 } from 'lucide-svelte';
   import type { DiscoveryMenu, DiscoveryMenuItem } from './remoteTree/discoveryActions';
@@ -50,30 +51,30 @@
     {#if isFolder}
       <button class="menu-item" on:click={() => dispatch('newConnection')} role="menuitem">
         <MonitorDot size={12} />
-        <span>New connection</span>
+        <span>{$t('tree.action.newConnection')}</span>
       </button>
       <button class="menu-item" on:click={() => dispatch('newFolder')} role="menuitem">
         <FolderPlus size={12} />
-        <span>New folder</span>
+        <span>{$t('tree.action.newFolder')}</span>
       </button>
       <button class="menu-item" on:click={() => dispatch('edit')} role="menuitem">
         <Pencil size={12} />
-        <span>Edit</span>
+        <span>{$t('common.edit')}</span>
       </button>
     {/if}
     {#if isConnection}
       <button class="menu-item" on:click={() => dispatch('edit')} role="menuitem">
         <Pencil size={12} />
-        <span>Edit</span>
+        <span>{$t('common.edit')}</span>
       </button>
       <button class="menu-item" on:click={() => dispatch('toggleFavorite')} role="menuitem">
         <span class="star-icon" class:filled={isFavorite}><Star size={12} /></span>
-        <span>{isFavorite ? 'Remove from favorites' : 'Add to favorites'}</span>
+        <span>{isFavorite ? $t('tree.favorites.remove') : $t('tree.favorites.add')}</span>
       </button>
     {/if}
     <button class="menu-item danger" on:click={() => dispatch('delete')} role="menuitem">
       <Trash2 size={12} />
-      <span>Delete</span>
+      <span>{$t('common.delete')}</span>
     </button>
     {/if}
   </div>

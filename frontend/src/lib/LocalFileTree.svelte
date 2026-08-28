@@ -1,11 +1,11 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   import { onMount, onDestroy } from 'svelte';
   import { listLocalPath, getUserHomeDir, removeLocalPath, mkdirLocalPath, createLocalFile, renameLocalPath, openFileWithSystem, type LocalNode } from '../api/localFs';
   import { startDownloadDrop, startLocalCopyDrop } from '../actions/transferActions';
   import { transferCompleted } from '../stores/appState';
   import { registerOsDropZone, resolveOsDropTarget, isFileDrag, isInternalFileDrag } from './osFileDrop';
   import { internalDragHighlight } from './dragHighlight';
-  import { isInvalidMove } from './pathMove';
   import { keepsPaneSelection } from './paneSelection';
   import LocalFileTreeNode from './LocalFileTreeNode.svelte';
   import FileContextMenu from './FileContextMenu.svelte';
@@ -20,6 +20,7 @@
   import { readDragPayload, isMultiDrag } from './fileTree/dragPayload';
   import { uniqueName } from './fileTree/uniqueName';
   import { describeDelete } from './fileTree/deletePrompt';
+  import { moveLocalPaths } from './fileTree/move';
   import { loadPrefs, saveColumnPrefs as persistColumns, saveHiddenPref } from './fileTree/columnPrefs';
   import FilePaneHeader from './fileTree/FilePaneHeader.svelte';
   import './fileTree/fileTreeShared.css';
@@ -302,20 +303,11 @@
     // Local paths win: a drag carrying them is a move on this filesystem, and
     // only a purely remote drag is a download into this directory.
     if (localPaths.length > 0) {
-      const srcParents: string[] = [];
-      for (const lp of localPaths) {
-        const destPath = localJoin(targetDir, localBasename(lp));
-        if (!isInvalidMove(lp, targetDir)) {
-          try {
-            await renameLocalPath(lp, destPath);
-            const srcParent = parentDirectory(lp);
-            if (!srcParents.includes(srcParent)) srcParents.push(srcParent);
-          } catch (err: any) {
-            error = err?.message || String(err);
-          }
-        }
+      const moved = await moveLocalPaths(localPaths, targetDir);
+      if (moved.error) error = moved.error;
+      if (moved.sourceParents.length > 0) {
+        await refreshPreservingState([targetDir, currentPath, ...moved.sourceParents]);
       }
-      if (srcParents.length > 0) await refreshPreservingState([targetDir, currentPath, ...srcParents]);
       return;
     }
     if (remotePaths.length > 0 && dropSessionId) {
@@ -371,7 +363,7 @@
 
   async function handleCtxNewFolder() {
     const parentPath = ctxMenu.isEmptyArea ? currentPath : ctxMenu.path;
-    const dirPath = localJoin(parentPath, uniqueName(namesIn(parentPath), 'New Folder'));
+    const dirPath = localJoin(parentPath, uniqueName(namesIn(parentPath), $t('files.newFolder')));
     try {
       await mkdirLocalPath(dirPath);
     } catch (e: any) {
@@ -407,7 +399,7 @@
   async function handleCtxNewFile() {
     if (!ctxMenu.isDir) return;
     const parentPath = ctxMenu.path;
-    const filePath = localJoin(parentPath, uniqueName(namesIn(parentPath), 'New File'));
+    const filePath = localJoin(parentPath, uniqueName(namesIn(parentPath), $t('files.newFile')));
     try {
       await createLocalFile(filePath);
     } catch (e: any) {
@@ -457,7 +449,7 @@
     editingNewPath = null;
   }
 
-  $: deletePrompt = describeDelete(deleteConfirm);
+  $: deletePrompt = describeDelete(deleteConfirm, $t);
 
   $: toolbarItems = buildFilePanelToolbarItems({
     showPermissions,
@@ -473,7 +465,7 @@
     toggleHidden,
     toggleSort,
     refresh,
-  });
+  }, $t);
 </script>
 
 <svelte:window on:click={closeContextMenu} on:pointerdown={dismissSelection} />
@@ -484,7 +476,7 @@
 >
   <FilePaneHeader
     bind:this={header}
-    title="Local Files"
+    title={$t('files.local.title')}
     {toolbarItems}
     {currentPath}
     {error}

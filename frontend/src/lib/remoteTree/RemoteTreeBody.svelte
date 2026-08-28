@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import RemoteTreeNode from './RemoteTreeNode.svelte';
   import RemoteTreeFavorites from './RemoteTreeFavorites.svelte';
@@ -105,6 +106,6 @@
     />
   {/each}
   {#if flatNodes.length === 0}
-    <div class="empty-tree">No connections yet</div>
+    <div class="empty-tree">{$t('tree.empty')}</div>
   {/if}
 </div>

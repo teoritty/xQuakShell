@@ -125,6 +125,12 @@
           "json": "ui",
           "omitempty": true,
           "type": "*plugin.UICaps"
+        },
+        {
+          "name": "I18n",
+          "json": "i18n",
+          "omitempty": true,
+          "type": "*plugin.I18nCaps"
         }
       ]
     },
@@ -543,6 +549,17 @@
           "json": "maxSizeBytes",
           "omitempty": true,
           "type": "int"
+        }
+      ]
+    },
+    {
+      "name": "I18nCaps",
+      "fields": [
+        {
+          "name": "Locales",
+          "json": "locales",
+          "omitempty": true,
+          "type": "[]string"
         }
       ]
     },
@@ -1011,6 +1028,10 @@
     },
     {
       "path": "capabilities.filesystem",
+      "required": false
+    },
+    {
+      "path": "capabilities.i18n",
       "required": false
     },
     {

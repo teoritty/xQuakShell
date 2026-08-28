@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t, translate } from '../i18n/messages';
   import { transfers, clearFinishedTransfers, type TransferItem, type OperationKind } from '../stores/appState';
   import { uploadFile, downloadFile, cancelTransfer } from '../api/remoteFs';
   import { selectLocalFile, selectLocalDirectory } from '../api/localFs';
@@ -30,7 +31,9 @@
   }
 
   function progressText(item: TransferItem): string {
-    if (isScanning(item)) return item.done > 0 ? `Scanning ${item.done}…` : 'Scanning…';
+    if (isScanning(item)) {
+      return item.done > 0 ? $t('transfers.scanningCount', { count: item.done }) : $t('transfers.scanning');
+    }
     return progressPercent(item) + '%';
   }
 
@@ -103,13 +106,13 @@
         notifiedIds = notifiedIds;
         try {
           if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('Operation completed', {
+            new Notification(translate('transfers.notify.done'), {
               body: `${kindLabel(t.kind)}: ${t.remotePath}`,
             });
           } else if ('Notification' in window && Notification.permission !== 'denied') {
             Notification.requestPermission().then(p => {
               if (p === 'granted') {
-                new Notification('Transfer completed', {
+                new Notification(translate('transfers.notify.transferDone'), {
                   body: `${kindLabel(t.kind)}: ${t.remotePath}`,
                 });
               }
@@ -186,17 +189,17 @@
 
   function stateLabel(item: TransferItem): string {
     switch (item.state) {
-      case 'pending': return 'Pending';
+      case 'pending': return $t('transfers.state.pending');
       case 'active':
         switch (item.kind) {
-          case 'delete': return 'Deleting';
+          case 'delete': return $t('transfers.state.deleting');
           case 'chmod':
-          case 'chown': return 'Applying';
-          default: return 'Transferring';
+          case 'chown': return $t('transfers.state.applying');
+          default: return $t('transfers.state.transferring');
         }
-      case 'completed': return 'Done';
-      case 'failed': return 'Failed';
-      case 'cancelled': return 'Cancelled';
+      case 'completed': return $t('transfers.state.done');
+      case 'failed': return $t('transfers.state.failed');
+      case 'cancelled': return $t('transfers.state.cancelled');
       default: return item.state;
     }
   }
@@ -214,11 +217,11 @@
       <span class="collapse-icon">
         {#if collapsed}<ChevronRight size={12} />{:else}<ChevronDown size={12} />{/if}
       </span>
-      <span>Transfers ({activeTransfers.length})</span>
+      <span>{$t('transfers.title', { count: activeTransfers.length })}</span>
       <div class="actions" on:click|stopPropagation on:keydown|stopPropagation>
         <!-- <button on:click={startUpload} title="Upload file"><Upload size={11} /> Upload</button>
         <button on:click={startDownload} title="Download file"><Download size={11} /> Download</button> -->
-        <button class="cancel-btn" on:click={closePanel} title="Close"><X size={13} /></button>
+        <button class="cancel-btn" on:click={closePanel} title={$t('common.close')}><X size={13} /></button>
       </div>
     </div>
 
@@ -233,9 +236,9 @@
               <span class="transfer-path">{item.remotePath}</span>
               <span class="transfer-state">{stateLabel(item)}</span>
               {#if item.state === 'active' || item.state === 'pending'}
-                <button class="cancel-btn" on:click={() => cancelTransfer(item.id)} title="Cancel"><X size={10} /></button>
+                <button class="cancel-btn" on:click={() => cancelTransfer(item.id)} title={$t('common.cancel')}><X size={10} /></button>
               {:else if canRetry(item)}
-                <button class="retry-btn" on:click={() => retryTransfer(item)} title="Retry"><RefreshCw size={10} /></button>
+                <button class="retry-btn" on:click={() => retryTransfer(item)} title={$t('common.retry')}><RefreshCw size={10} /></button>
               {/if}
             </div>
             {#if item.state === 'active'}

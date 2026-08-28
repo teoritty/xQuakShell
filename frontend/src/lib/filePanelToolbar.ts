@@ -62,13 +62,27 @@ export function cycleSortState(
   return { sortEnabled: false, sortKey: null, sortDir: 'asc' };
 }
 
-export function buildFilePanelToolbarItems(ctx: FilePanelToolbarContext): ToolbarItem[] {
-  const sortItem = (key: SortKey, letter: string, label: string): ToolbarItem => {
+/** Resolves a message key. The panels pass `$t`; tests pass whatever they need. */
+export type ToolbarLabels = (key: string) => string;
+
+/**
+ * Builds the file panel toolbar.
+ *
+ * The one-letter badge on a sort button is translated along with its caption rather than derived
+ * from it: it is a mnemonic for the word the user actually reads, so "N" for name is only a
+ * mnemonic in a language where that word starts with an N.
+ */
+export function buildFilePanelToolbarItems(
+  ctx: FilePanelToolbarContext,
+  label: ToolbarLabels,
+): ToolbarItem[] {
+  const sortItem = (key: SortKey): ToolbarItem => {
     const active = ctx.sortEnabled && ctx.sortKey === key;
     const arrow = active ? sortArrow(ctx.sortDir) : '';
+    const letter = label(`files.sort.${key}.letter`);
     return {
       id: `sort-${key}`,
-      label,
+      label: label(`files.sort.${key}`),
       icon: ArrowUpDown,
       buttonClass: 'sort-toggle',
       active,
@@ -81,7 +95,7 @@ export function buildFilePanelToolbarItems(ctx: FilePanelToolbarContext): Toolba
   return [
     {
       id: 'permissions',
-      label: 'Permissions',
+      label: label('files.column.permissions'),
       icon: Shield,
       buttonClass: 'column-toggle',
       active: ctx.showPermissions,
@@ -90,7 +104,7 @@ export function buildFilePanelToolbarItems(ctx: FilePanelToolbarContext): Toolba
     },
     {
       id: 'owner',
-      label: 'Owner',
+      label: label('files.column.owner'),
       icon: User,
       buttonClass: 'column-toggle',
       active: ctx.showOwner,
@@ -99,7 +113,7 @@ export function buildFilePanelToolbarItems(ctx: FilePanelToolbarContext): Toolba
     },
     {
       id: 'date',
-      label: 'Date',
+      label: label('files.column.date'),
       icon: Calendar,
       buttonClass: 'column-toggle',
       active: ctx.showDate,
@@ -108,20 +122,20 @@ export function buildFilePanelToolbarItems(ctx: FilePanelToolbarContext): Toolba
     },
     {
       id: 'hidden',
-      label: 'Show hidden',
+      label: label('files.column.hidden'),
       icon: Eye,
       buttonClass: 'column-toggle',
       active: ctx.showHidden,
       showCheck: true,
       onClick: ctx.toggleHidden,
     },
-    sortItem('name', 'N', 'Sort by name'),
-    sortItem('size', 'S', 'Sort by size'),
-    sortItem('modTime', 'D', 'Sort by date'),
-    sortItem('owner', 'O', 'Sort by owner'),
+    sortItem('name'),
+    sortItem('size'),
+    sortItem('modTime'),
+    sortItem('owner'),
     {
       id: 'refresh',
-      label: 'Refresh',
+      label: label('common.refresh'),
       icon: RefreshCw,
       disabled: ctx.refreshDisabled,
       onClick: ctx.refresh,

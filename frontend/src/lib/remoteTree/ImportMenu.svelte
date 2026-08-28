@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   /**
    * Anchored dropdown listing the import sources. Purely presentational: it
    * renders items and reports which one was chosen, while the parent owns
@@ -16,13 +17,13 @@
   const items = [
     {
       id: 'sshConfig' as const,
-      label: 'From SSH config…',
+      label: $t('tree.import.sshConfig'),
       hint: '~/.ssh/config — hosts, keys and jump chains',
       icon: FileCode
     },
     {
       id: 'putty' as const,
-      label: 'From PuTTY…',
+      label: $t('tree.import.putty'),
       hint: '.ppk private key or .reg session export',
       icon: KeyRound
     }
@@ -88,7 +89,7 @@
     style="left: {position.left}px; top: {position.top}px"
     role="menu"
     tabindex="-1"
-    aria-label="Import connections from"
+    aria-label={$t('tree.import.aria')}
     bind:this={menuEl}
     on:keydown={handleKeydown}
     on:click|stopPropagation

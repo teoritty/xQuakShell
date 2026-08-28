@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import Modal from '../Modal.svelte';
   import type { Session } from '../../stores/appState';
@@ -23,14 +24,14 @@
   $: if (show && !sessionId && ready.length > 0) sessionId = ready[0].sessionId;
 </script>
 
-<Modal title="Publish {target?.comment || 'key'}" {show} on:close={() => dispatch('close')}>
+<Modal title={$t('keys.deploy.title', { name: target?.comment || $t('keys.fallbackName') })} {show} on:close={() => dispatch('close')}>
   {#if ready.length === 0}
     <p class="explain">
       Open a connection first. The key is added over a session you are already logged in to, so
       nothing new is asked for your password.
     </p>
   {:else}
-    <label for="deploy-session">Add to</label>
+    <label for="deploy-session">{$t('keys.deploy.addTo')}</label>
     <select id="deploy-session" bind:value={sessionId}>
       {#each ready as session (session.sessionId)}
         <option value={session.sessionId}>{session.connectionName}</option>
@@ -46,9 +47,9 @@
   {#if error}<p class="error">{error}</p>{/if}
 
   <div class="dialog-actions">
-    <button on:click={() => dispatch('close')}>Cancel</button>
+    <button on:click={() => dispatch('close')}>{$t('common.cancel')}</button>
     <button class="primary" on:click={() => dispatch('submit', sessionId)} disabled={busy || ready.length === 0}>
-      {busy ? 'Publishing…' : notice ? 'Publish again' : 'Publish'}
+      {busy ? $t('keys.deploy.busy') : notice ? $t('keys.deploy.again') : $t('keys.deploy.submit')}
     </button>
   </div>
 </Modal>

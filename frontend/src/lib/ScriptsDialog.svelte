@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t, translate } from '../i18n/messages';
+  import { basicBashLint, type BashLintProblem } from './bashLint';
   import { onMount } from 'svelte';
   import Modal from './Modal.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
@@ -12,14 +14,14 @@
   export let show = false;
 
   const DEFAULT_PRESETS = [
-    { id: 'p1', name: 'grep', content: 'grep -r "pattern" .', hint: 'Search for pattern in files', hotkey: '' },
-    { id: 'p2', name: 'find', content: 'find . -name "*.log" -mtime -1', hint: 'Find recent log files', hotkey: '' },
-    { id: 'p3', name: 'tail -f', content: 'tail -f /var/log/syslog', hint: 'Follow log file', hotkey: '' },
-    { id: 'p4', name: 'systemctl', content: 'systemctl status', hint: 'Service status', hotkey: '' },
-    { id: 'p5', name: 'docker ps', content: 'docker ps -a', hint: 'List containers', hotkey: '' },
-    { id: 'p6', name: 'disk usage', content: 'df -h', hint: 'Disk space', hotkey: '' },
-    { id: 'p7', name: 'top processes', content: 'ps aux --sort=-%mem | head -20', hint: 'Memory usage', hotkey: '' },
-    { id: 'p8', name: 'network', content: 'ss -tulpn', hint: 'Listening ports', hotkey: '' },
+    { id: 'p1', name: 'grep', content: 'grep -r "pattern" .', hint: translate('scripts.preset.grep'), hotkey: '' },
+    { id: 'p2', name: 'find', content: 'find . -name "*.log" -mtime -1', hint: translate('scripts.preset.find'), hotkey: '' },
+    { id: 'p3', name: 'tail -f', content: 'tail -f /var/log/syslog', hint: translate('scripts.preset.tail'), hotkey: '' },
+    { id: 'p4', name: 'systemctl', content: 'systemctl status', hint: translate('scripts.preset.systemctl'), hotkey: '' },
+    { id: 'p5', name: 'docker ps', content: 'docker ps -a', hint: translate('scripts.preset.docker'), hotkey: '' },
+    { id: 'p6', name: 'disk usage', content: 'df -h', hint: translate('scripts.preset.disk'), hotkey: '' },
+    { id: 'p7', name: 'top processes', content: 'ps aux --sort=-%mem | head -20', hint: translate('scripts.preset.memory'), hotkey: '' },
+    { id: 'p8', name: 'network', content: 'ss -tulpn', hint: translate('scripts.preset.network'), hotkey: '' },
   ];
 
   const STORAGE_KEY = 'scripts-presets';
@@ -56,7 +58,7 @@
   let editPresetHotkey = '';
   let hotkeyConflict = '';
   let showEditModal = false;
-  let lintErrors: string[] = [];
+  let lintErrors: BashLintProblem[] = [];
   let cmEditor: CodeMirrorEditor | null = null;
 
   $: hasActiveTerminal = $activeSession?.state === 'ready';
@@ -111,10 +113,10 @@
     const content = cmEditor?.getValue?.() ?? customContent;
     if (!content.trim()) return;
     const id = newLocalId('p');
-    presets = [...presets, { id, name: 'New preset', content: content.trim(), hint: '', hotkey: '' }];
+    presets = [...presets, { id, name: translate('scripts.newPreset'), content: content.trim(), hint: '', hotkey: '' }];
     savePresets(presets);
     editPresetId = id;
-    editPresetName = 'New preset';
+    editPresetName = translate('scripts.newPreset');
     editPresetContent = content.trim();
     editPresetHint = '';
     editPresetHotkey = '';
@@ -182,43 +184,6 @@
     hoveredHint = '';
   }
 
-  function basicBashLint(content: string): string[] {
-    const errs: string[] = [];
-    const lines = content.split('\n');
-    let inSingle = false;
-    let inDouble = false;
-    let inHeredoc = false;
-    let heredocDelim = '';
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      for (let j = 0; j < line.length; j++) {
-        const c = line[j];
-        if (c === '\\' && j < line.length - 1) {
-          j++;
-          continue;
-        }
-        if (!inSingle && !inDouble && c === "'") inSingle = true;
-        else if (inSingle && c === "'") inSingle = false;
-        else if (!inSingle && !inDouble && c === '"') inDouble = true;
-        else if (inDouble && c === '"') inDouble = false;
-      }
-      if (line.trim().match(/^<<-?\s*['"]?(\w+)['"]?/)) {
-        const m = line.match(/^<<-?\s*['"]?(\w+)['"]?/);
-        if (m) {
-          inHeredoc = true;
-          heredocDelim = m[1];
-        }
-      }
-      if (inHeredoc && line.trim() === heredocDelim) {
-        inHeredoc = false;
-      }
-    }
-    if (inSingle) errs.push('Unclosed single quote');
-    if (inDouble) errs.push('Unclosed double quote');
-    if (inHeredoc) errs.push('Unclosed heredoc');
-    return errs;
-  }
-
   $: currentContent = cmEditor?.getValue?.() ?? customContent;
   $: lintErrors = basicBashLint(currentContent);
 
@@ -253,39 +218,39 @@
 </script>
 
 {#if show}
-  <Modal title="Scripts & Commands" show={show} contentClass="scripts-modal" on:close={() => (show = false)}>
+  <Modal title={$t('scripts.title')} show={show} contentClass="scripts-modal" on:close={() => (show = false)}>
     <div class="scripts-body">
-      <p class="scripts-desc">Run preset or custom commands in the active terminal. Press hotkey to run.</p>
+      <p class="scripts-desc">{$t('scripts.desc')}</p>
       {#if !hasActiveTerminal}
-        <p class="scripts-warn">No active terminal. Open a connection first.</p>
+        <p class="scripts-warn">{$t('scripts.noTerminal')}</p>
       {/if}
 
       <div class="scripts-layout">
         <div class="editor-section">
-          <h4>Custom script</h4>
+          <h4>{$t('scripts.custom')}</h4>
           <div class="editor-wrap">
             <CodeMirrorEditor bind:this={cmEditor} bind:value={customContent} minHeight="280px" />
           </div>
           {#if lintErrors.length > 0}
             <div class="lint-errors">
               {#each lintErrors as err}
-                <span class="lint-err">{err}</span>
+                <span class="lint-err">{$t(err)}</span>
               {/each}
             </div>
           {/if}
           <div class="editor-actions">
             <button class="secondary" on:click={addPreset} disabled={!customContent.trim()}>
-              <Plus size={12} /> Save as preset
+              <Plus size={12} /> {$t('scripts.saveAsPreset')}
             </button>
             <button class="primary" on:click={runCustom} disabled={!hasActiveTerminal || !customContent.trim()}>
-              <Play size={12} /> Run
+              <Play size={12} /> {$t('scripts.run')}
             </button>
           </div>
-          <p class="cheat-hint-tip">Hold Ctrl and hover over a preset to see its hint.</p>
+          <p class="cheat-hint-tip">{$t('scripts.hintTip')}</p>
         </div>
 
         <div class="presets-section">
-          <h4>Presets & Saved</h4>
+          <h4>{$t('scripts.presets')}</h4>
           <div class="preset-list">
             {#each presets as p}
               <div
@@ -309,15 +274,15 @@
                 <span class="preset-name">{p.name}</span>
                 <div class="preset-actions">
                   {#if p.hotkey}
-                    <span class="hotkey-badge" title="Hotkey">{formatHotkey(p.hotkey)}</span>
+                    <span class="hotkey-badge" title={$t('scripts.hotkey')}>{formatHotkey(p.hotkey)}</span>
                   {/if}
-                  <button class="icon-btn" title="Edit" on:click|stopPropagation={() => startEditPreset(p)}>
+                  <button class="icon-btn" title={$t('common.edit')} on:click|stopPropagation={() => startEditPreset(p)}>
                     <Pencil size={11} />
                   </button>
-                  <button class="icon-btn" title="Run" disabled={!hasActiveTerminal} on:click|stopPropagation={() => runPreset(p)}>
+                  <button class="icon-btn" title={$t('scripts.run')} disabled={!hasActiveTerminal} on:click|stopPropagation={() => runPreset(p)}>
                     <Play size={12} />
                   </button>
-                  <button class="icon-btn danger" title="Delete" on:click|stopPropagation={() => requestDeletePreset(p)}>
+                  <button class="icon-btn danger" title={$t('common.delete')} on:click|stopPropagation={() => requestDeletePreset(p)}>
                     <Trash2 size={11} />
                   </button>
                 </div>
@@ -345,48 +310,48 @@
 
   <ConfirmDialog
     show={deleteConfirm.show}
-    title="Delete script?"
-    message="Delete preset &quot;{deleteConfirm.presetName}&quot;?"
-    confirmLabel="Delete"
+    title={$t('scripts.delete.title')}
+    message={$t('scripts.delete.message', { name: deleteConfirm.presetName })}
+    confirmLabel={$t('common.delete')}
     on:confirm={confirmDeletePreset}
     on:cancel={() => (deleteConfirm = { show: false, presetId: '', presetName: '', fromEdit: false })}
   />
 {/if}
 
 {#if showEditModal && editPresetId}
-  <Modal title="Edit preset" show={showEditModal} on:close={() => (showEditModal = false)}>
+  <Modal title={$t('scripts.edit.title')} show={showEditModal} on:close={() => (showEditModal = false)}>
     <div class="edit-preset-form">
       <label class="field">
-        <span class="field-label">Name</span>
-        <input type="text" bind:value={editPresetName} placeholder="Preset name" />
+        <span class="field-label">{$t('scripts.field.name')}</span>
+        <input type="text" bind:value={editPresetName} placeholder={$t('scripts.placeholder.name')} />
       </label>
       <label class="field">
-        <span class="field-label">Command</span>
-        <textarea bind:value={editPresetContent} rows="5" placeholder="Bash command..." class="edit-textarea"></textarea>
+        <span class="field-label">{$t('scripts.field.command')}</span>
+        <textarea bind:value={editPresetContent} rows="5" placeholder={$t('scripts.placeholder.command')} class="edit-textarea"></textarea>
       </label>
       <label class="field">
-        <span class="field-label">Hint (optional)</span>
-        <input type="text" bind:value={editPresetHint} placeholder="Description" />
+        <span class="field-label">{$t('scripts.field.hint')}</span>
+        <input type="text" bind:value={editPresetHint} placeholder={$t('scripts.placeholder.hint')} />
       </label>
       <label class="field">
-        <span class="field-label">Hotkey (click field then press key)</span>
+        <span class="field-label">{$t('scripts.field.hotkey')}</span>
         <div class="hotkey-row">
           <input
             type="text"
             readonly
-            value={formatHotkey(editPresetHotkey) || 'Click here, then press key...'}
+            value={formatHotkey(editPresetHotkey) || $t('scripts.hotkeyPrompt')}
             class="hotkey-input"
             on:keydown={handleHotkeyCapture}
           />
-          <button type="button" class="ghost small-btn" on:click={() => { editPresetHotkey = ''; hotkeyConflict = ''; }}>Clear</button>
+          <button type="button" class="ghost small-btn" on:click={() => { editPresetHotkey = ''; hotkeyConflict = ''; }}>{$t('scripts.clear')}</button>
         </div>
         {#if hotkeyConflict}
-          <span class="hotkey-conflict">Conflict with: {hotkeyConflict}</span>
+          <span class="hotkey-conflict">{$t('scripts.conflictWith', { name: hotkeyConflict })}</span>
         {/if}
       </label>
       <div class="edit-actions">
-        <button class="primary" on:click={saveEditPreset}>Save</button>
-        <button class="secondary danger" on:click={() => editPresetId && (deleteConfirm = { show: true, presetId: editPresetId, presetName: editPresetName, fromEdit: true })}>Delete</button>
+        <button class="primary" on:click={saveEditPreset}>{$t('common.save')}</button>
+        <button class="secondary danger" on:click={() => editPresetId && (deleteConfirm = { show: true, presetId: editPresetId, presetName: editPresetName, fromEdit: true })}>{$t('common.delete')}</button>
       </div>
     </div>
   </Modal>

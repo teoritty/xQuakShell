@@ -22,6 +22,7 @@ export interface AppSettings {
   terminalFontSize: number;
   terminalFontColor: string;
   theme: string;
+  language: string;
   uiScalePercent: number;
   pingEnabled: boolean;
   pingMode: string;

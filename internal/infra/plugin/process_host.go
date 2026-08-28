@@ -81,6 +81,9 @@ type ProcessHost struct {
 	// — a profile can fail for one plugin and not another — and this moves onto managedProcess,
 	// which is why ProcessInstance already carries it per instance rather than per host.
 	sandbox domainplugin.SandboxSupport
+	// locale reports the interface language for the initialize handshake. Guarded by mu because a
+	// language change and a process start are independent events on different goroutines.
+	locale func() string
 }
 
 func NewProcessHost(cfg HostConfig) *ProcessHost {
@@ -101,3 +104,31 @@ func NewProcessHost(cfg HostConfig) *ProcessHost {
 }
 
 var _ domainplugin.ProcessHost = (*ProcessHost)(nil)
+
+// SetLocaleSource gives the host a way to read the interface language when a process starts.
+//
+// A function rather than a value because a process can start at any time, long after the last
+// language change: the host asks at the moment it needs the answer instead of holding a copy that
+// something has to remember to refresh.
+func (h *ProcessHost) SetLocaleSource(source func() string) {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.locale = source
+}
+
+// currentLocale reports the interface language, or "" when nothing supplies one.
+func (h *ProcessHost) currentLocale() string {
+	if h == nil {
+		return ""
+	}
+	h.mu.Lock()
+	source := h.locale
+	h.mu.Unlock()
+	if source == nil {
+		return ""
+	}
+	return source()
+}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import { X, Shield } from 'lucide-svelte';
   import { chmodPath, chmodPathRecursive, chownPath, chownPathRecursive, type ApplyTarget } from '../api/remoteFs';
@@ -117,28 +118,28 @@
 
         <div class="perm-grid">
           <span></span>
-          <span class="perm-col-label">Read</span>
-          <span class="perm-col-label">Write</span>
-          <span class="perm-col-label">Execute</span>
+          <span class="perm-col-label">{$t('permissions.read')}</span>
+          <span class="perm-col-label">{$t('permissions.write')}</span>
+          <span class="perm-col-label">{$t('permissions.execute')}</span>
 
-          <span class="perm-row-label">Owner</span>
+          <span class="perm-row-label">{$t('permissions.owner')}</span>
           <input type="checkbox" checked={ownerR} on:change={() => toggleBit(0o400)} />
           <input type="checkbox" checked={ownerW} on:change={() => toggleBit(0o200)} />
           <input type="checkbox" checked={ownerX} on:change={() => toggleBit(0o100)} />
 
-          <span class="perm-row-label">Group</span>
+          <span class="perm-row-label">{$t('permissions.group')}</span>
           <input type="checkbox" checked={groupR} on:change={() => toggleBit(0o040)} />
           <input type="checkbox" checked={groupW} on:change={() => toggleBit(0o020)} />
           <input type="checkbox" checked={groupX} on:change={() => toggleBit(0o010)} />
 
-          <span class="perm-row-label">Other</span>
+          <span class="perm-row-label">{$t('permissions.other')}</span>
           <input type="checkbox" checked={otherR} on:change={() => toggleBit(0o004)} />
           <input type="checkbox" checked={otherW} on:change={() => toggleBit(0o002)} />
           <input type="checkbox" checked={otherX} on:change={() => toggleBit(0o001)} />
         </div>
 
         <label class="perm-field">
-          <span>Octal</span>
+          <span>{$t('permissions.octal')}</span>
           <input
             class="perm-octal-input"
             type="text"
@@ -151,14 +152,14 @@
         {#if isDir}
           <label class="perm-checkbox">
             <input type="checkbox" bind:checked={recurse} />
-            Recurse into subdirectories
+            {$t('permissions.recurse')}
           </label>
           {#if recurse}
             <div class="perm-apply-to">
-              <span>Apply to:</span>
-              <label><input type="radio" bind:group={applyTo} value="files" /> Files only</label>
-              <label><input type="radio" bind:group={applyTo} value="dirs" /> Directories only</label>
-              <label><input type="radio" bind:group={applyTo} value="both" /> Both</label>
+              <span>{$t('permissions.applyTo')}</span>
+              <label><input type="radio" bind:group={applyTo} value="files" /> {$t('permissions.filesOnly')}</label>
+              <label><input type="radio" bind:group={applyTo} value="dirs" /> {$t('permissions.dirsOnly')}</label>
+              <label><input type="radio" bind:group={applyTo} value="both" /> {$t('permissions.both')}</label>
             </div>
           {/if}
         {/if}
@@ -166,17 +167,17 @@
         <div class="perm-owner-fields">
           <label class="perm-field">
             <span>UID</span>
-            <input class="perm-id-input" type="number" bind:value={uidInput} placeholder="unchanged" />
+            <input class="perm-id-input" type="number" bind:value={uidInput} placeholder={$t('permissions.unchanged')} />
           </label>
           <label class="perm-field">
             <span>GID</span>
-            <input class="perm-id-input" type="number" bind:value={gidInput} placeholder="unchanged" />
+            <input class="perm-id-input" type="number" bind:value={gidInput} placeholder={$t('permissions.unchanged')} />
           </label>
         </div>
       </div>
       <div class="confirm-footer">
-        <button class="secondary" on:click={close}>Cancel</button>
-        <button class="primary" on:click={handleApply} disabled={applying}>Apply</button>
+        <button class="secondary" on:click={close}>{$t('common.cancel')}</button>
+        <button class="primary" on:click={handleApply} disabled={applying}>{$t('permissions.apply')}</button>
       </div>
     </div>
   </div>

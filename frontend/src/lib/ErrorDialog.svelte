@@ -2,7 +2,8 @@
   import Modal from './Modal.svelte';
   import { Copy, ExternalLink } from 'lucide-svelte';
   import { lastError, clearError } from '../stores/appState';
-  import { openExternal } from './openExternal';
+  import { openNewIssue } from './projectLinks';
+  import { t } from '../i18n/messages';
 
   let copied = false;
 
@@ -19,26 +20,22 @@
     });
   }
 
-  // teoritty/xQuakShell, not xQuakShell/xQuakShell. This pointed at an org that does not exist, so
-  // even once the button started opening a browser it would have landed on a 404 - and the report
-  // it was collecting a stack trace for would never have arrived.
-  const GITHUB_ISSUES_URL = 'https://github.com/teoritty/xQuakShell/issues/new';
-
+  // The URL and its query belong to projectLinks, not here. A second copy of the address is what
+  // sent this button to a non-existent owner once already, and a hand-built query string is what
+  // mangled the stack trace it was collecting - a trace is exactly the payload full of the
+  // characters (&, #, newlines) that only URLSearchParams encodes correctly.
   function openIssue() {
     if (!$lastError) return;
-    const title = encodeURIComponent($lastError.message.slice(0, 100));
-    const body = encodeURIComponent(
+    const body =
       `**Error:** ${$lastError.message}\n\n` +
       ($lastError.details ? `**Details:**\n\`\`\`\n${$lastError.details}\n\`\`\`\n\n` : '') +
-      '---\n*Please describe what you were doing when this error occurred.*'
-    );
-    const url = `${GITHUB_ISSUES_URL}?title=${title}&body=${body}`;
-    openExternal(url);
+      '---\n*Please describe what you were doing when this error occurred.*';
+    openNewIssue($lastError.message.slice(0, 100), body);
   }
 </script>
 
 {#if show && $lastError}
-  <Modal title="Error" show={true} on:close={clearError}>
+  <Modal title={$t('error.title')} show={true} on:close={clearError}>
     <div class="error-body">
       <div class="error-message">{$lastError.message}</div>
       {#if $lastError.details}
@@ -48,13 +45,13 @@
     <div class="error-actions">
       <button class="secondary" on:click={copyError}>
         <Copy size={13} />
-        {copied ? 'Copied' : 'Copy error'}
+        {copied ? $t('error.copied') : $t('error.copy')}
       </button>
       <button class="secondary" on:click={openIssue}>
         <ExternalLink size={13} />
-        Open issue on GitHub
+        {$t('error.openIssue')}
       </button>
-      <button class="primary" on:click={clearError}>Close</button>
+      <button class="primary" on:click={clearError}>{$t('common.close')}</button>
     </div>
   </Modal>
 {/if}

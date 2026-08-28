@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   // Title bar, toolbar, path bar and status strip of a file pane.
   //
   // Both panes had this markup inline and near-identical; the only real
@@ -72,6 +73,6 @@
 {:else if error}
   <div class="tree-error">
     <span class="tree-error-msg">{error}</span>
-    <button class="tree-error-close" title="Dismiss" on:click={() => dispatch('dismissError')}><X size={12} /></button>
+    <button class="tree-error-close" title={$t('common.dismiss')} on:click={() => dispatch('dismissError')}><X size={12} /></button>
   </div>
 {/if}

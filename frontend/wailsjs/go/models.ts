@@ -22,6 +22,7 @@ export namespace wails {
 	    terminalFontSize: number;
 	    terminalFontColor: string;
 	    theme: string;
+	    language: string;
 	    uiScalePercent: number;
 	    pingEnabled: boolean;
 	    pingMode: string;
@@ -61,6 +62,7 @@ export namespace wails {
 	        this.terminalFontSize = source["terminalFontSize"];
 	        this.terminalFontColor = source["terminalFontColor"];
 	        this.theme = source["theme"];
+	        this.language = source["language"];
 	        this.uiScalePercent = source["uiScalePercent"];
 	        this.pingEnabled = source["pingEnabled"];
 	        this.pingMode = source["pingMode"];
@@ -156,6 +158,7 @@ export namespace wails {
 	    pluginId?: string;
 	    providerId?: string;
 	    enabled: boolean;
+	    allowRemoteGateway?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new ForwardRuleDTO(source);
@@ -172,6 +175,7 @@ export namespace wails {
 	        this.pluginId = source["pluginId"];
 	        this.providerId = source["providerId"];
 	        this.enabled = source["enabled"];
+	        this.allowRemoteGateway = source["allowRemoteGateway"];
 	    }
 	}
 	export class JumpHopDTO {
@@ -1371,6 +1375,38 @@ export namespace wails {
 	        this.owner = source["owner"];
 	    }
 	}
+	export class LocaleInfoDTO {
+	    code: string;
+	    name: string;
+	    builtin: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new LocaleInfoDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.code = source["code"];
+	        this.name = source["name"];
+	        this.builtin = source["builtin"];
+	    }
+	}
+	export class LocaleMessagesDTO {
+	    code: string;
+	    name: string;
+	    messages: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new LocaleMessagesDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.code = source["code"];
+	        this.name = source["name"];
+	        this.messages = source["messages"];
+	    }
+	}
 	export class PendingKeyDTO {
 	    id: string;
 	    comment: string;
@@ -1474,6 +1510,24 @@ export namespace wails {
 		}
 	}
 	
+	export class PeerTrustDTO {
+	    scope: string;
+	    subject: string;
+	    fingerprint: string;
+	    addedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PeerTrustDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.scope = source["scope"];
+	        this.subject = source["subject"];
+	        this.fingerprint = source["fingerprint"];
+	        this.addedAt = source["addedAt"];
+	    }
+	}
 	
 	export class PingResultDTO {
 	    connectionId: string;
@@ -1768,6 +1822,48 @@ export namespace wails {
 	        this.trustedPublisherKeys = source["trustedPublisherKeys"];
 	        this.requireSignedPlugins = source["requireSignedPlugins"];
 	        this.allowUnsandboxedFallback = source["allowUnsandboxedFallback"];
+	    }
+	}
+	export class PluginSettingsSaveResultDTO {
+	    saved: boolean;
+	    reauthRequired: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginSettingsSaveResultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.saved = source["saved"];
+	        this.reauthRequired = source["reauthRequired"];
+	    }
+	}
+	export class PluginSourceDTO {
+	    id: string;
+	    kind: string;
+	    displayName: string;
+	    trusted: boolean;
+	    removable: boolean;
+	    available: boolean;
+	    unavailableReason?: string;
+	    addedAt?: string;
+	    lastFetchedAt?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginSourceDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kind = source["kind"];
+	        this.displayName = source["displayName"];
+	        this.trusted = source["trusted"];
+	        this.removable = source["removable"];
+	        this.available = source["available"];
+	        this.unavailableReason = source["unavailableReason"];
+	        this.addedAt = source["addedAt"];
+	        this.lastFetchedAt = source["lastFetchedAt"];
 	    }
 	}
 	

@@ -124,7 +124,14 @@ func (h *ProcessHost) Start(ctx context.Context, plugin domainplugin.InstalledPl
 	}
 
 	portableReadOnly := h.cfg.Portable != nil && h.cfg.Portable.DataRootReadOnly()
-	if err := initializePluginProcess(ctx, conn, plugin, dataDir, portableReadOnly, negotiated, negotiationWarnings); err != nil {
+	if err := initializePluginProcess(ctx, conn, initializeEnv{
+		plugin:           plugin,
+		dataDir:          dataDir,
+		locale:           h.currentLocale(),
+		portableReadOnly: portableReadOnly,
+		negotiated:       negotiated,
+		warnings:         negotiationWarnings,
+	}); err != nil {
 		return h.explainStartFailure(mp, err)
 	}
 

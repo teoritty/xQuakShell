@@ -1,5 +1,6 @@
 <!-- frontend/src/lib/tiles/TileTabBar.svelte -->
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { sessions, activeTabId } from '../../stores/appState';
   import {
     surfaces,
@@ -70,7 +71,7 @@
         {/if}
       </span>
       <span class="tab-name">{tabTitle(entry.tab)}</span>
-      <button class="tab-close" on:click={(e) => close(e, entry.id)} title="Close tab">
+      <button class="tab-close" on:click={(e) => close(e, entry.id)} title={$t('tiles.closeTab')}>
         <X size={11} />
       </button>
     </div>

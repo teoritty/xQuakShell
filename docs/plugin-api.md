@@ -646,6 +646,56 @@ shows one `PermissionSummary` line: "Show its own tabs, dialogs and node details
 | `code` field content | 256 KiB |
 | `describeNode` / `applyDetails` ack timeout | 5 s |
 
+## Interface language
+
+The host draws its own interface in whichever language the user picked in Settings → Appearance. A
+plugin also produces words the user reads — discovery node labels, action captions, the confirmation
+text on a destructive action — and the host cannot translate those: it never wrote them and has no
+catalogue for them. So it tells the plugin which language to write in, and the plugin decides what
+that means.
+
+Declare the capability to be told:
+
+```json
+"capabilities": {
+  "i18n": {
+    "locales": ["en", "ru"]
+  }
+}
+```
+
+`locales` is informational. The host does not check it, does not withhold the notification for a
+language absent from it, and does not treat an empty list as "supports nothing" — a plugin that
+translates itself from a source the host cannot see has nothing honest to put there. It exists so a
+manifest can state plainly which languages a plugin claims, for whoever is reading manifests.
+
+It is a capability of its own rather than a `ui` feature because a plugin with no surface still
+hands the host words, and should not have to claim the right to draw in order to learn what language
+to write them in. It grants no privilege: the host sends a language tag and nothing else, which is
+why it raises no install-time consent.
+
+**How the language arrives.** Twice, deliberately:
+
+- `initialize` carries `locale`, so a plugin's very first reply can already be in the right language.
+- `i18n.localeChanged` follows every change, and is repeated to a plugin when it starts.
+
+The repeat is the point. Settings live in the encrypted vault, so a plugin that started before the
+vault was unlocked receives no `locale` in its handshake at all; one that restarted after a language
+change would otherwise go on writing in the language it first launched under, with nothing to tell
+it otherwise. Like `discovery.observe`, the notification carries the whole answer rather than a
+delta, so there is no sequence for a plugin to reconstruct and no resync path for it to implement.
+
+```json
+{"jsonrpc":"2.0","method":"i18n.localeChanged","params":{"locale":"ru"}}
+```
+
+The value is a language tag as the host's own packs use them: `en`, `ru`, `pt-BR`. A plugin that
+does not translate that language should fall back to whatever it did before rather than to an empty
+string — the host will not ask again until the user changes the setting.
+
+**Errors and logs stay English.** The host does not translate them and does not expect a plugin to.
+`i18n.localeChanged` is about what the user reads on screen, not about diagnostics.
+
 
 ## Plugin IPC reference
 
@@ -677,9 +727,16 @@ Complete method list as implemented in the core today.
   },
   "capabilities": { "...": "copy of manifest capabilities" },
   "dataDir": "<plugin or session data directory>",
-  "coreVersion": "1.0.0"
+  "coreVersion": "1.0.0",
+  "locale": "ru"
 }
 ```
+
+`locale` is the language the interface is currently in, present only for a plugin that granted
+`capabilities.i18n` and only once the host knows one — settings live in the encrypted vault, so a
+plugin started before the vault is unlocked receives no `locale` and learns it from the first
+`i18n.localeChanged` instead. Treat an absent or unrecognised value as "write in whatever you would
+have written in before"; the host never withholds the field to mean something else.
 
 `apiVersion` is the frozen protocol envelope version (`pluginApi`); `api` is the host's full
 versioning descriptor — the envelope version plus every capability's version and feature flags
@@ -711,6 +768,7 @@ and refuses initialization on any incompatibility. `coreVersion` is informationa
 | `deactivate` | omitted | Before shutdown |
 | `view.postMessage` | `{"panelId":"...","message":<json>}` | UI → plugin WebView panel |
 | `event` | `{"channel":"...","payload":<json>}` | Core event bus delivery to subscribers |
+| `i18n.localeChanged` | `{"locale":"ru"}` | The user changed the interface language, or the plugin (re)started — see [Interface language](#interface-language) |
 
 #### Other host → plugin RPC
 

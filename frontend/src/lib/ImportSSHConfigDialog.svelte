@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   /**
    * Import connections from an OpenSSH client config.
    *
@@ -120,7 +121,7 @@
       const target = await resolveFolderId();
       if (target === null) return;
       const result = await importSSHConfig(preview.path, [...selected], target, importKeys);
-      resultMessage = describeResult(result);
+      resultMessage = describeResult(result, $t);
       if (result.connections.length > 0) await refreshAllConnections();
       if (result.importedKeys > 0) await refreshIdentities();
       // The preview stays on screen on purpose: after a partial import the
@@ -136,7 +137,7 @@
 </script>
 
 {#if show}
-  <Modal title="Import from SSH config" {show} on:close={() => (show = false)}>
+  <Modal title={$t('import.sshConfig.title')} {show} on:close={() => (show = false)}>
     <div class="import-body">
       <SSHConfigSourceField
         bind:path
@@ -176,7 +177,7 @@
 
         {#if hosts.length > 0}
           <button class="primary" disabled={busy || selected.size === 0} on:click={runImport}>
-            {busy ? 'Importing…' : importButtonLabel(selected.size)}
+            {busy ? $t('import.busy') : importButtonLabel(selected.size, $t)}
           </button>
         {/if}
       {/if}

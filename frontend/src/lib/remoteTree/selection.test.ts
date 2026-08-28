@@ -138,26 +138,47 @@ assert(
 
 // --- describeDeleteTargets: the dialog states the real blast radius --------
 
+// The wording comes from the language pack, so the lookup here echoes the key and its variables.
+// What is being asserted is which message appears and which counts reach it, not how any language
+// words it - a reworded translation must not fail this.
+const label = (key: string, vars?: Record<string, string | number>) =>
+  vars ? `${key}(${Object.entries(vars).map(([k, v]) => `${k}=${v}`).join(',')})` : key;
+
 {
-  const p = describeDeleteTargets({ folderIds: [], connectionIds: ['c1'] }, folders, connections);
-  assert(p.title === 'Delete Connection' && !p.critical, 'deleting one connection is an ordinary confirm');
-  assert(p.message.includes('"web"'), 'and it names the connection');
-}
-{
-  const p = describeDeleteTargets({ folderIds: ['f3'], connectionIds: [] }, folders, connections);
-  assert(p.title === 'Delete Folder' && !p.critical, 'deleting an empty folder is an ordinary confirm');
-}
-{
-  const p = describeDeleteTargets({ folderIds: ['f1'], connectionIds: [] }, folders, connections);
-  assert(p.critical, 'deleting a folder with connections in it is critical');
-  assert(p.message.includes('2 connection(s)'), `it counts the whole subtree, got "${p.message}"`);
-}
-{
-  const p = describeDeleteTargets({ folderIds: ['f1', 'f3'], connectionIds: ['c2'] }, folders, connections);
-  assert(p.title === 'Delete Multiple Items' && p.critical, 'a mixed batch is critical');
+  const p = describeDeleteTargets({ folderIds: [], connectionIds: ['c1'] }, folders, connections, label);
   assert(
-    p.message.includes('2 folder(s) and 1 connection(s)') && p.message.includes('including 2 connection(s)'),
-    `it spells out both counts and the cascade, got "${p.message}"`
+    p.title === 'tree.delete.connection.title' && !p.critical,
+    'deleting one connection is an ordinary confirm',
+  );
+  assert(p.message.includes('name=web'), 'and it names the connection');
+}
+{
+  const p = describeDeleteTargets({ folderIds: ['f3'], connectionIds: [] }, folders, connections, label);
+  assert(
+    p.title === 'tree.delete.folder.title' && !p.critical,
+    'deleting an empty folder is an ordinary confirm',
+  );
+}
+{
+  const p = describeDeleteTargets({ folderIds: ['f1'], connectionIds: [] }, folders, connections, label);
+  assert(p.critical, 'deleting a folder with connections in it is critical');
+  assert(p.message.includes('count=2'), `it counts the whole subtree, got "${p.message}"`);
+  assert(
+    p.title.startsWith('security.'),
+    'the warning about a non-empty folder is a security string a disk pack must not reword',
+  );
+}
+{
+  const p = describeDeleteTargets(
+    { folderIds: ['f1', 'f3'], connectionIds: ['c2'] },
+    folders,
+    connections,
+    label,
+  );
+  assert(p.title === 'tree.delete.items.title' && p.critical, 'a mixed batch is critical');
+  assert(
+    p.message.includes('folders=2,connections=1') && p.message.includes('count=2'),
+    `it spells out both counts and the cascade, got "${p.message}"`,
   );
 }
 

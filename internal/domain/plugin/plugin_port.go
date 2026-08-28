@@ -33,6 +33,11 @@ type InitializeParams struct {
 	DataDir      string        `json:"dataDir"`
 	// CoreVersion is the informational/legacy core build version.
 	CoreVersion string `json:"coreVersion"`
+	// Locale is the language the interface is currently in, so a plugin that hands the host words
+	// the user reads can write them in that language from its first reply rather than after the
+	// first i18n.localeChanged. Optional and omitempty: a build with no catalogue sends nothing,
+	// and a plugin that ignores it is exactly as correct as it was before this field existed.
+	Locale string `json:"locale,omitempty"`
 }
 
 // ProcessInstance identifies a running plugin OS process tracked by the host.

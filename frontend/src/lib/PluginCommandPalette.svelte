@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/messages';
   import { onMount, tick } from 'svelte';
   import { getPluginContributions, executePluginCommand, type PluginCommand } from '../api/pluginRuntime';
   import { Search, X } from 'lucide-svelte';
@@ -57,7 +58,7 @@
       status = msg;
       setTimeout(closePalette, 600);
     } catch (e: any) {
-      status = e?.message || 'Command failed';
+      status = e?.message || $t('palette.failed');
     } finally {
       running = false;
     }
@@ -95,16 +96,16 @@
 
 {#if open}
   <div class="palette-backdrop" on:click={closePalette} role="presentation">
-    <div class="palette" on:click|stopPropagation role="dialog" aria-label="Command palette">
+    <div class="palette" on:click|stopPropagation role="dialog" aria-label={$t('welcome.commandPalette')}>
       <div class="palette-search">
         <Search size={14} />
         <input
           bind:this={inputEl}
           type="text"
-          placeholder="Type a command..."
+          placeholder={$t('palette.placeholder')}
           bind:value={query}
         />
-        <button class="ghost icon-btn" on:click={closePalette} title="Close"><X size={14} /></button>
+        <button class="ghost icon-btn" on:click={closePalette} title={$t('common.close')}><X size={14} /></button>
       </div>
       <div class="palette-list">
         {#if filtered.length === 0}

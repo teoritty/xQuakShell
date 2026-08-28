@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import { X } from 'lucide-svelte';
   import type { SaveStatus } from './types';
@@ -10,7 +11,7 @@
 
 <div class="panel-header">
   <div class="panel-header-left">
-    <span>Connection</span>
+    <span>{$t('connection.header')}</span>
     <span class="save-indicator">
       {#if saveStatus === 'saving'}Saving...{:else if saveStatus === 'saved'}Saved{/if}
     </span>
@@ -18,7 +19,7 @@
   <button
     type="button"
     class="panel-close-btn"
-    title="Close"
+    title={$t('common.close')}
     on:click={() => dispatch('close')}
   >
     <X size={14} />

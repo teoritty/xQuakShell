@@ -391,6 +391,14 @@ func (a *App) GetUpdateStatus() presentation.UpdateStatusDTO {
 	return a.api.GetUpdateStatus()
 }
 
+func (a *App) ListLocales() []presentation.LocaleInfoDTO {
+	return a.api.ListLocales()
+}
+
+func (a *App) GetLocaleMessages(code string) (presentation.LocaleMessagesDTO, error) {
+	return a.api.GetLocaleMessages(code)
+}
+
 func (a *App) PlanUpload(sessionID string, localPaths []string, remoteDir string) (presentation.TransferPlanDTO, error) {
 	return a.api.PlanUpload(sessionID, localPaths, remoteDir)
 }
@@ -545,6 +553,10 @@ func (a *App) RelayPluginViewMessage(token string, message json.RawMessage) erro
 
 func (a *App) ReleasePluginViewPanel(token string) {
 	a.api.ReleasePluginViewPanel(token)
+}
+
+func (a *App) ListPluginSources() ([]presentation.PluginSourceDTO, error) {
+	return a.api.ListPluginSources()
 }
 
 func (a *App) ListGitHubRepositories() ([]presentation.GitHubRepositoryDTO, error) {
