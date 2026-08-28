@@ -6,8 +6,9 @@
 //
 // State and pure lookups only: what to DO with a tab — close it, cycle to the next one — lives in
 // actions/tabActions.ts, so this store stays free of the RPC layer (§1.5).
-import { writable, get } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import { sessions, type Session } from './appState';
+import { localTerminals, type LocalTerminal } from './localTerminalState';
 
 export type SurfaceKind = 'terminal' | 'log';
 export type SurfaceState = 'connecting' | 'ready' | 'error';
@@ -26,6 +27,26 @@ export interface Surface {
 export const surfaces = writable<Surface[]>([]);
 
 /**
+ * Whether anything at all is open, across every kind of tab.
+ *
+ * A derived store rather than a check in the template, because the template got it wrong: the
+ * tile grid was gated on the SSH session count, so opening a local terminal with nothing else
+ * open started a real shell behind an unchanged welcome screen. Nothing errored and nothing was
+ * logged - the tab existed, the shell ran, and no component was mounted to show it.
+ *
+ * A plugin surface could never expose that bug: a surface borrows a session's authorization and
+ * cannot exist without one (ADR-015), so a surface was never the only tab. A local terminal can
+ * be, which is why the question has to be "is any tab open" rather than "is any session open".
+ *
+ * Here rather than in a component so it can be tested, which the template condition could not be.
+ */
+export const hasOpenTabs = derived(
+  [sessions, surfaces, localTerminals],
+  ([$sessions, $surfaces, $localTerminals]) =>
+    $sessions.length > 0 || $surfaces.length > 0 || $localTerminals.length > 0
+);
+
+/**
  * A tab is one of two things, and every consumer has to know which.
  *
  * `null` is a real answer, not an error: a tile can name a tab id for a moment after the thing
@@ -34,6 +55,7 @@ export const surfaces = writable<Surface[]>([]);
 export type Tab =
   | { kind: 'session'; session: Session }
   | { kind: 'surface'; surface: Surface }
+  | { kind: 'local'; local: LocalTerminal }
   | null;
 
 /**
@@ -46,30 +68,39 @@ export type Tab =
 export function resolveTabIn(
   sessionList: Session[],
   surfaceList: Surface[],
+  localList: LocalTerminal[],
   id: string
 ): Tab {
   const session = sessionList.find((s) => s.sessionId === id);
   if (session) return { kind: 'session', session };
   const surface = surfaceList.find((s) => s.surfaceId === id);
   if (surface) return { kind: 'surface', surface };
+  const local = localList.find((t) => t.id === id);
+  if (local) return { kind: 'local', local };
   return null;
 }
 
 /** The same lookup for imperative callers, which have no reactive context to feed. */
 export function resolveTab(id: string): Tab {
-  return resolveTabIn(get(sessions), get(surfaces), id);
+  return resolveTabIn(get(sessions), get(surfaces), get(localTerminals), id);
 }
 
 /** Title shown on the tab, for either kind. */
 export function tabTitle(tab: Tab): string {
   if (!tab) return '';
-  return tab.kind === 'session' ? tab.session.connectionName || 'Session' : tab.surface.title || 'Surface';
+  if (tab.kind === 'session') return tab.session.connectionName || 'Session';
+  if (tab.kind === 'local') return tab.local.title || 'shell';
+  return tab.surface.title || 'Surface';
 }
 
 /** State shown as the tab's status dot, for either kind. */
 export function tabState(tab: Tab): string {
   if (!tab) return '';
-  return tab.kind === 'session' ? tab.session.state : tab.surface.state;
+  if (tab.kind === 'session') return tab.session.state;
+  // A local shell has no connecting phase and no remote end that can refuse, so it is only ever
+  // ready. Reporting anything else would put a status dot on a tab with no status to report.
+  if (tab.kind === 'local') return 'ready';
+  return tab.surface.state;
 }
 
 /** Adds or replaces a surface. Replacement keeps the store idempotent under a repeated event. */

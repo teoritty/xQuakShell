@@ -2,18 +2,18 @@
   import SettingsSection from './SettingsSection.svelte';
   import { findHotkeyConflict } from './hotkeyConflicts';
   import { parseHotkeyEvent } from '../../hotkeys/hotkeys';
-  import { DEFAULT_SESSION_HOTKEYS } from '../../api/settings';
+  import { DEFAULT_LOCAL_TERMINAL_HOTKEY, DEFAULT_SESSION_HOTKEYS } from '../../api/settings';
   import { t } from '../../i18n/messages';
   import type { SettingsSearchViewState } from '../settingsSearch';
   import type { SettingsDraft } from './settingsDraft';
 
   export let view: SettingsSearchViewState;
-  // Owns the four sessionHotkey* fields. The conflict message is bound out because the dialog
-  // refuses to save while one stands.
+  // Owns the four sessionHotkey* fields and the local terminal's. The conflict message is bound
+  // out because the dialog refuses to save while one stands.
   export let draft: SettingsDraft;
   export let conflict: string;
 
-  type HotkeyField = 'create' | 'next' | 'prev' | 'close';
+  type HotkeyField = 'create' | 'next' | 'prev' | 'close' | 'localTerminal';
 
   // The field records the combination rather than the characters it produces, so the keystroke must
   // not also reach the field as text or the hotkey editor would type into itself.
@@ -26,6 +26,7 @@
     if (field === 'next') draft.sessionHotkeyNext = key;
     if (field === 'prev') draft.sessionHotkeyPrev = key;
     if (field === 'close') draft.sessionHotkeyClose = key;
+    if (field === 'localTerminal') draft.localTerminalHotkey = key;
     conflict = findHotkeyConflict(draft, $t);
   }
 
@@ -34,6 +35,7 @@
     draft.sessionHotkeyNext = DEFAULT_SESSION_HOTKEYS.next;
     draft.sessionHotkeyPrev = DEFAULT_SESSION_HOTKEYS.prev;
     draft.sessionHotkeyClose = DEFAULT_SESSION_HOTKEYS.close;
+    draft.localTerminalHotkey = DEFAULT_LOCAL_TERMINAL_HOTKEY;
     conflict = '';
   }
 </script>
@@ -57,6 +59,10 @@
     <label class="setting-row">
       <span>{$t('settings.hotkeys.field.close')}</span>
       <input class="hotkey-input" type="text" bind:value={draft.sessionHotkeyClose} on:keydown={(e) => captureHotkey(e, 'close')} />
+    </label>
+    <label class="setting-row">
+      <span>{$t('settings.hotkeys.field.newLocalTerminal')}</span>
+      <input class="hotkey-input" type="text" bind:value={draft.localTerminalHotkey} on:keydown={(e) => captureHotkey(e, 'localTerminal')} />
     </label>
     {#if conflict}
       <div class="hotkey-conflict">{conflict}</div>

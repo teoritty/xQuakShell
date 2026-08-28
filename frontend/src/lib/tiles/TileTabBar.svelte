@@ -2,6 +2,7 @@
 <script lang="ts">
   import { t } from '../../i18n/messages';
   import { sessions, activeTabId } from '../../stores/appState';
+  import { localTerminals } from '../../stores/localTerminalState';
   import {
     surfaces,
     resolveTabIn,
@@ -21,7 +22,7 @@
   // (ADR-015). Both stores are passed in rather than read inside the lookup, so the compiler sees
   // them and the bar repaints when either changes.
   $: tabs = tile.tabs
-    .map((id) => ({ id, tab: resolveTabIn($sessions, $surfaces, id) }))
+    .map((id) => ({ id, tab: resolveTabIn($sessions, $surfaces, $localTerminals, id) }))
     .filter((e): e is { id: string; tab: NonNullable<Tab> } => !!e.tab);
 
   function activate(tabId: string) {

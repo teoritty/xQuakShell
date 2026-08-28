@@ -118,6 +118,7 @@ func defaultAppSettings() domain.AppSettings {
 			MaxConcurrent:        transfer.MaxConcurrent,
 		},
 		SessionHotkeys: hotkeys,
+		LocalTerminal:  domain.DefaultLocalTerminalSettings(),
 		AuditLog:       domain.DefaultAuditLogSettings(),
 		UIScalePercent: 100,
 		Debug:          domain.DefaultDebugSettings(),
@@ -172,6 +173,13 @@ func normalizeSettings(s domain.AppSettings) domain.AppSettings {
 	}
 	if strings.TrimSpace(s.SessionHotkeys.Close) == "" {
 		s.SessionHotkeys.Close = defHotkeys.Close
+	}
+
+	// An empty ShellID is meaningful and is left alone: it means "this platform's default",
+	// resolved when a terminal opens. Only the hotkey needs filling, because an empty binding
+	// would silently remove the shortcut rather than restore it.
+	if strings.TrimSpace(s.LocalTerminal.OpenHotkey) == "" {
+		s.LocalTerminal.OpenHotkey = domain.DefaultLocalTerminalSettings().OpenHotkey
 	}
 
 	if s.Ping.Mode != domain.PingModeInterval && s.Ping.Mode != domain.PingModeOnChange {

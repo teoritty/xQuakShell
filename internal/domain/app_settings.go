@@ -94,6 +94,25 @@ func DefaultSessionHotkeysSettings() SessionHotkeysSettings {
 	}
 }
 
+// LocalTerminalSettings holds what the user chose about local shells.
+//
+// The hotkey lives here rather than beside the session hotkeys because a local terminal is not a
+// session - it has no connection, no vault binding and no host key - and putting it in
+// SessionHotkeysSettings would be the first step towards code that treats it as one.
+type LocalTerminalSettings struct {
+	// ShellID names a shell from the closed set the catalog knows, never a filesystem path. An
+	// empty value means "whatever this platform's default is", resolved when a terminal opens
+	// rather than written here, so a fresh vault never stores a choice the user did not make.
+	ShellID string `json:"shellId,omitempty"`
+	// OpenHotkey opens a new local terminal.
+	OpenHotkey string `json:"openHotkey,omitempty"`
+}
+
+// DefaultLocalTerminalSettings supplies the platform default shell and the conventional binding.
+func DefaultLocalTerminalSettings() LocalTerminalSettings {
+	return LocalTerminalSettings{OpenHotkey: "Ctrl+Shift+T"}
+}
+
 type EmbedSettings struct {
 	SuspendTcpWhenInactive bool `json:"suspendTcpWhenInactive,omitempty"`
 }
@@ -121,6 +140,7 @@ type AppSettings struct {
 	Ping               PingSettings           `json:"ping"`
 	Transfer           TransferSettings       `json:"transfer"`
 	SessionHotkeys     SessionHotkeysSettings `json:"sessionHotkeys"`
+	LocalTerminal      LocalTerminalSettings  `json:"localTerminal"`
 	ExternalEditorPath string                 `json:"externalEditorPath,omitempty"`
 	AuditLog           AuditLogSettings       `json:"auditLog"`
 	Plugins            PluginSettings         `json:"plugins"`

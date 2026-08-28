@@ -152,5 +152,7 @@ func composeApp() *App {
 	), usecase.NewPluginAuditWriter(auditLogRepo).PeerTrustFunc())
 	pluginRuntime.wireEmbed(api)
 
+	wireLocalTerminal(api, auditLogRepo)
+
 	return &App{api: api, plugins: pluginRuntime}
 }

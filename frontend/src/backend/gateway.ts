@@ -266,6 +266,19 @@ export interface AppGateway {
 
   ResizeSurface(arg1: string, arg2: number, arg3: number): Promise<void>;
 
+  // --- Local terminals. OpenLocalTerminal takes no arguments and must never take any: nothing
+  // the frontend sends may influence which program runs. The shell is chosen in settings by id
+  // and resolved on the Go side against a closed set. ---
+  OpenLocalTerminal(): Promise<{ id: string; title: string }>;
+
+  CloseLocalTerminal(arg1: string): Promise<void>;
+
+  SendLocalTerminalInput(arg1: string, arg2: string): Promise<void>;
+
+  ResizeLocalTerminal(arg1: string, arg2: number, arg3: number): Promise<void>;
+
+  ListLocalShells(): Promise<Array<{ id: string; name: string }>>;
+
   SubmitPluginDialog(arg1: string, arg2: Record<string, string>): Promise<void>;
 
   CancelPluginDialog(arg1: string): Promise<void>;

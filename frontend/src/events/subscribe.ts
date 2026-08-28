@@ -32,6 +32,7 @@ import {
   type PluginDialog,
 } from '../stores/dialogState';
 import { nodeDetailsTarget, requestNodeDetailsReload } from '../stores/nodeDetailsState';
+import { removeLocalTerminal } from '../stores/localTerminalState';
 
 // SFTPReady is a one-shot broadcast emitted once per session right after the
 // remote filesystem is up. A FileTree component mounts only after its session
@@ -62,9 +63,62 @@ function subscribeTrustPrompts(rt: NonNullable<ReturnType<typeof getRuntime>>): 
   });
 }
 
+/**
+ * Every producer of terminal bytes, funnelled into the one buffer.
+ *
+ * Grouped for the same reason as subscribeTrustPrompts above: these are one subject, not one
+ * event each. A tab's renderer may not have mounted when its first bytes arrive - a session that
+ * connected warm, a surface a plugin started writing to immediately - and dropping those bytes
+ * loses the start of the output. Every producer therefore buffers by the same rule, and adding a
+ * producer means adding a line here rather than finding the other two by scrolling.
+ *
+ * `hasTerminalOutputConsumer` is the handover: once Terminal.svelte has subscribed for an id it
+ * takes the bytes directly and this funnel stops buffering for it.
+ */
+function subscribeTerminalOutput(rt: NonNullable<ReturnType<typeof getRuntime>>): void {
+  rt.EventsOn('TerminalOutput', (data: { sessionId: string; output: string }) => {
+    if (!data?.sessionId) return;
+    if (hasTerminalOutputConsumer(data.sessionId)) return;
+    appendPendingTerminalOutput(data.sessionId, decodeTerminalOutput(data.output));
+  });
+
+  rt.EventsOn('PluginSurfaceOutput', (data: { surfaceId: string; data: string }) => {
+    if (!data?.surfaceId) return;
+    if (hasTerminalOutputConsumer(data.surfaceId)) return;
+    appendPendingTerminalOutput(data.surfaceId, decodeTerminalOutput(data.data));
+  });
+
+  rt.EventsOn('LocalTerminalOutput', (data: { id: string; data: string }) => {
+    if (!data?.id) return;
+    if (hasTerminalOutputConsumer(data.id)) return;
+    appendPendingTerminalOutput(data.id, decodeTerminalOutput(data.data));
+  });
+}
+
+/**
+ * A local shell ending, whichever side ended it: the user closed the tab, typed `exit`, or the
+ * process died.
+ *
+ * Its own function rather than a block in the main list because subscribeToEvents is at its size
+ * budget - which is the honest reason, and the grouping it forces is the right one anyway: the
+ * tab, its pooled terminal and any buffered bytes are released together, and a local terminal id
+ * is never reused, so nothing else will ever come to collect them.
+ */
+function subscribeLocalTerminalLifecycle(rt: NonNullable<ReturnType<typeof getRuntime>>): void {
+  rt.EventsOn('LocalTerminalClosed', (data: { id: string }) => {
+    if (!data?.id) return;
+    removeLocalTerminal(data.id);
+    disposeTerminal(data.id);
+    clearPendingTerminalOutput(data.id);
+  });
+}
+
 export function subscribeToEvents(): void {
   const rt = getRuntime();
   if (!rt) return;
+
+  subscribeTerminalOutput(rt);
+  subscribeLocalTerminalLifecycle(rt);
 
   rt.EventsOn('SFTPReady', (data: { sessionId: string; initialPath?: string }) => {
     if (!data?.sessionId) return;
@@ -98,12 +152,6 @@ export function subscribeToEvents(): void {
     });
   });
 
-  rt.EventsOn('TerminalOutput', (data: { sessionId: string; output: string }) => {
-    if (!data?.sessionId) return;
-    if (hasTerminalOutputConsumer(data.sessionId)) return;
-    appendPendingTerminalOutput(data.sessionId, decodeTerminalOutput(data.output));
-  });
-
   // Plugin-owned tabs (ADR-015). Opened and Changed carry the whole surface, so both are one
   // upsert: an event that arrives twice leaves the store in the same place, which matters because
   // a plugin restarting republishes what it holds.
@@ -130,14 +178,6 @@ export function subscribeToEvents(): void {
     // so nothing else will ever come to collect them.
     disposeTerminal(data.surfaceId);
     clearPendingTerminalOutput(data.surfaceId);
-  });
-
-  // Buffered exactly like session output, and through the same buffer: a surface's tab may not be
-  // mounted yet when its first bytes arrive, and dropping them would lose the start of a log.
-  rt.EventsOn('PluginSurfaceOutput', (data: { surfaceId: string; data: string }) => {
-    if (!data?.surfaceId) return;
-    if (hasTerminalOutputConsumer(data.surfaceId)) return;
-    appendPendingTerminalOutput(data.surfaceId, decodeTerminalOutput(data.data));
   });
 
   // Plugin dialogs (ADR-015). At most one is open at a time, which the host enforces, so the

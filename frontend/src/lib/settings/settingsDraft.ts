@@ -1,4 +1,4 @@
-import { DEFAULT_SESSION_HOTKEYS, type AppSettings } from '../../api/settings';
+import { DEFAULT_LOCAL_TERMINAL_HOTKEY, DEFAULT_SESSION_HOTKEYS, type AppSettings } from '../../api/settings';
 import { normalizeHotkey } from '../../hotkeys/hotkeys';
 import { DEFAULT_UI_SCALE_PERCENT } from '../uiScale';
 
@@ -38,6 +38,8 @@ export interface SettingsDraft {
   sessionHotkeyNext: string;
   sessionHotkeyPrev: string;
   sessionHotkeyClose: string;
+  localTerminalShellId: string;
+  localTerminalHotkey: string;
   auditLogEnabled: boolean;
   auditRetentionMode: string;
   auditRetentionDays: number;
@@ -77,6 +79,8 @@ export function defaultSettingsDraft(): SettingsDraft {
     sessionHotkeyNext: DEFAULT_SESSION_HOTKEYS.next,
     sessionHotkeyPrev: DEFAULT_SESSION_HOTKEYS.prev,
     sessionHotkeyClose: DEFAULT_SESSION_HOTKEYS.close,
+    localTerminalShellId: '',
+    localTerminalHotkey: DEFAULT_LOCAL_TERMINAL_HOTKEY,
     auditLogEnabled: false,
     auditRetentionMode: 'days',
     auditRetentionDays: 30,
@@ -129,6 +133,10 @@ export function draftFromSettings(s: AppSettings | null): SettingsDraft {
     sessionHotkeyNext: normalizeHotkey(s.sessionHotkeyNext || d.sessionHotkeyNext),
     sessionHotkeyPrev: normalizeHotkey(s.sessionHotkeyPrev || d.sessionHotkeyPrev),
     sessionHotkeyClose: normalizeHotkey(s.sessionHotkeyClose || d.sessionHotkeyClose),
+    // An empty shell id is meaningful - it means this platform's default - so it is carried
+    // through rather than filled in from the default draft.
+    localTerminalShellId: s.localTerminalShellId ?? d.localTerminalShellId,
+    localTerminalHotkey: normalizeHotkey(s.localTerminalHotkey || d.localTerminalHotkey),
     auditLogEnabled: s.auditLogEnabled ?? d.auditLogEnabled,
     auditRetentionMode: s.auditRetentionMode ?? d.auditRetentionMode,
     auditRetentionDays: s.auditRetentionDays ?? d.auditRetentionDays,
@@ -155,5 +163,6 @@ export function draftToSettings(d: SettingsDraft): Partial<AppSettings> {
     sessionHotkeyNext: normalizeHotkey(d.sessionHotkeyNext),
     sessionHotkeyPrev: normalizeHotkey(d.sessionHotkeyPrev),
     sessionHotkeyClose: normalizeHotkey(d.sessionHotkeyClose),
+    localTerminalHotkey: normalizeHotkey(d.localTerminalHotkey),
   };
 }

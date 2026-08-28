@@ -33,6 +33,8 @@ var notBound = map[string]string{
 	"SetPluginViewRelay":             "wiring",
 	"SetDiscoveryService":            "wiring",
 	"SetSurfaceService":              "wiring",
+	"SetLocalTerminalService":        "wiring",
+	"SetLocalShellCatalog":           "wiring",
 	"SetDialogService":               "wiring",
 	"SetNodeDetailsService":          "wiring",
 	"SetPeerTrustService":            "wiring",

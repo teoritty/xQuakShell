@@ -5,6 +5,7 @@ export interface SessionHotkeyDraft {
   sessionHotkeyNext: string;
   sessionHotkeyPrev: string;
   sessionHotkeyClose: string;
+  localTerminalHotkey: string;
 }
 
 /** Resolves a message key to its text. The dialog passes `$t`; tests pass whatever they need. */
@@ -28,6 +29,10 @@ export function findHotkeyConflict(hotkeys: SessionHotkeyDraft, label: ConflictL
     { key: 'settings.hotkeys.action.next', value: normalizeHotkey(hotkeys.sessionHotkeyNext) },
     { key: 'settings.hotkeys.action.prev', value: normalizeHotkey(hotkeys.sessionHotkeyPrev) },
     { key: 'settings.hotkeys.action.close', value: normalizeHotkey(hotkeys.sessionHotkeyClose) },
+    {
+      key: 'settings.hotkeys.action.newLocalTerminal',
+      value: normalizeHotkey(hotkeys.localTerminalHotkey),
+    },
   ];
   for (let i = 0; i < entries.length; i++) {
     for (let j = i + 1; j < entries.length; j++) {

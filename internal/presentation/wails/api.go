@@ -49,6 +49,8 @@ type AppAPI struct {
 	pluginArbitraryNetworkGrant func(pluginID string) error
 	discovery                   DiscoveryTreeService
 	surfaces                    SurfaceCommands
+	localTerminals              LocalTerminalCommands
+	localShells                 domain.ShellCatalog
 	dialogs                     DialogCommands
 	nodeDetails                 NodeDetailsService
 	embedBridge                 *usecase.PluginEmbedBridge
@@ -297,6 +299,11 @@ func (a *AppAPI) Shutdown() {
 		a.plugins.StopAll(shutdownCtx)
 	}
 	a.sessions.CloseAll()
+	// A local shell is a process this application started; the window closing must take it and
+	// everything it spawned with it.
+	if a.localTerminals != nil {
+		a.localTerminals.CloseAll()
+	}
 
 	if a.auditSvc != nil {
 		_ = a.auditSvc.EnforceRetention(shutdownCtx)
@@ -342,6 +349,11 @@ func (a *AppAPI) onLockoutTriggered() {
 // would leave both alive with nothing to reconcile them against.
 func (a *AppAPI) lockNow() {
 	a.sessions.CloseAll()
+	// A local shell is a process this application started; the window closing must take it and
+	// everything it spawned with it.
+	if a.localTerminals != nil {
+		a.localTerminals.CloseAll()
+	}
 	if a.auditSvc != nil {
 		a.auditSvc.OnVaultLocked()
 	}

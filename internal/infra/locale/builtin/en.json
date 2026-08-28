@@ -333,6 +333,7 @@
     "plugins.preview.tagMismatch": "Tag and manifest version differ",
     "tree.action.newConnection": "New connection",
     "tree.action.newFolder": "New folder",
+    "tree.action.newLocalTerminal": "New local terminal",
     "tree.action.newSubfolder": "New subfolder",
     "tree.action.import": "Import connections",
     "tree.action.expandAll": "Expand all",
@@ -727,6 +728,13 @@
     "security.keys.policy.allowPlugins": "Let plugins read this key",
     "security.keys.policy.nonExportable": "Never let this key leave the vault",
     "security.plugin.source.trustThis": "Trust this repository",
-    "security.plugin.source.untrustedNote": "Plugins from an untrusted repository still install, and every signature and permission check still runs. You will be told the source is untrusted each time."
+    "security.plugin.source.untrustedNote": "Plugins from an untrusted repository still install, and every signature and permission check still runs. You will be told the source is untrusted each time.",
+    "localTerminal.openFailed": "Could not open a local terminal",
+    "settings.hotkeys.field.newLocalTerminal": "New local terminal",
+    "settings.hotkeys.action.newLocalTerminal": "New local terminal",
+    "settings.localShell.title": "Local shell",
+    "settings.localShell.desc": "Which shell a local terminal starts. Only shells found on this computer are listed.",
+    "settings.localShell.shell": "Shell",
+    "settings.localShell.systemDefault": "System default"
   }
 }

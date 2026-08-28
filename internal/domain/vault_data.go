@@ -82,6 +82,7 @@ func NewVaultData() *VaultData {
 			Ping:           DefaultPingSettings(),
 			Transfer:       DefaultTransferSettings(),
 			SessionHotkeys: DefaultSessionHotkeysSettings(),
+			LocalTerminal:  DefaultLocalTerminalSettings(),
 			AuditLog:       DefaultAuditLogSettings(),
 			Plugins:        DefaultPluginSettings(),
 		},

@@ -4,19 +4,25 @@
   import { TERMINAL_FONT_STACKS } from './terminalFonts';
   import { applyUiScalePercent, normalizeUiScalePercent, UI_SCALE_PRESETS } from '../uiScale';
   import { listLocales, type LocaleInfo } from '../../api/locale';
+  import { listLocalShells, type ShellOption } from '../../api/localTerminal';
   import { applyLocale } from '../../i18n/apply';
   import { t } from '../../i18n/messages';
   import type { SettingsSearchViewState } from '../settingsSearch';
   import type { SettingsDraft } from './settingsDraft';
 
   export let view: SettingsSearchViewState;
-  // Owns theme, language, uiScalePercent and the three terminal font fields.
+  // Owns theme, language, uiScalePercent, the three terminal font fields and the local shell.
   export let draft: SettingsDraft;
 
   let locales: LocaleInfo[] = [];
+  // Only the shells this machine actually has. The list is built on the Go side, and the value
+  // stored is one of its ids - never a path the user could type, which is what keeps the setting
+  // a choice rather than an instruction.
+  let shells: ShellOption[] = [];
 
   onMount(async () => {
     locales = await listLocales();
+    shells = await listLocalShells();
   });
 
   // Like the scale below, the language applies as soon as it is picked so the user can read the
@@ -101,5 +107,21 @@
     <div class="font-preview" style="font-family: {draft.terminalFontFamily}; font-size: calc({draft.terminalFontSize}px * var(--ui-scale)); color: {draft.terminalFontColor};">
       user@server:~$ ls -la
     </div>
+  </div>
+</SettingsSection>
+
+<SettingsSection tab="appearance" section="localShell" {view}>
+  <div class="section">
+    <h4>{$t('settings.localShell.title')}</h4>
+    <p class="section-desc">{$t('settings.localShell.desc')}</p>
+    <label class="setting-row">
+      <span>{$t('settings.localShell.shell')}</span>
+      <select bind:value={draft.localTerminalShellId}>
+        <option value="">{$t('settings.localShell.systemDefault')}</option>
+        {#each shells as shell}
+          <option value={shell.id}>{shell.name}</option>
+        {/each}
+      </select>
+    </label>
   </div>
 </SettingsSection>

@@ -23,6 +23,8 @@ export function ChownRecursive(arg1:string,arg2:string,arg3:number,arg4:number,a
 
 export function ClearAuditLog(arg1:string):Promise<void>;
 
+export function CloseLocalTerminal(arg1:string):Promise<void>;
+
 export function CloseSession(arg1:string):Promise<void>;
 
 export function CloseSurface(arg1:string):Promise<void>;
@@ -141,6 +143,8 @@ export function ListGitHubRepositories():Promise<Array<wails.GitHubRepositoryDTO
 
 export function ListLocalPath(arg1:string,arg2:boolean):Promise<Array<wails.LocalNodeDTO>>;
 
+export function ListLocalShells():Promise<Array<wails.ShellOptionDTO>>;
+
 export function ListLocales():Promise<Array<wails.LocaleInfoDTO>>;
 
 export function ListPath(arg1:string,arg2:string):Promise<Array<wails.RemoteNodeDTO>>;
@@ -160,6 +164,8 @@ export function MoveConnections(arg1:Array<string>,arg2:string):Promise<void>;
 export function MoveFolder(arg1:string,arg2:string):Promise<void>;
 
 export function OpenFileWithSystem(arg1:string,arg2:string):Promise<void>;
+
+export function OpenLocalTerminal():Promise<wails.LocalTerminalDTO>;
 
 export function OpenSession(arg1:string):Promise<string>;
 
@@ -217,6 +223,8 @@ export function ReportMinimized():Promise<void>;
 
 export function ReportRestored():Promise<void>;
 
+export function ResizeLocalTerminal(arg1:string,arg2:number,arg3:number):Promise<void>;
+
 export function ResizeSurface(arg1:string,arg2:number,arg3:number):Promise<void>;
 
 export function ResolveHostKey(arg1:string,arg2:string):Promise<void>;
@@ -240,6 +248,8 @@ export function SelectLocalFile():Promise<string>;
 export function SelectPluginBundleFile():Promise<string>;
 
 export function SelectPluginSourceDir():Promise<string>;
+
+export function SendLocalTerminalInput(arg1:string,arg2:string):Promise<void>;
 
 export function SendSurfaceInput(arg1:string,arg2:string):Promise<void>;
 

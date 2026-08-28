@@ -6,6 +6,7 @@
 import { writable, get } from 'svelte/store';
 import { sessions, activeTabId } from './appState';
 import { surfaces } from './surfaceState';
+import { localTerminals } from './localTerminalState';
 import type { TileLayout, Edge } from '../lib/tiles/types';
 import { emptyLayout } from '../lib/tiles/types';
 import { reconcile } from '../lib/tiles/reconcile';
@@ -28,6 +29,7 @@ function sync(): void {
   const ids = [
     ...get(sessions).map((s) => s.sessionId),
     ...get(surfaces).map((s) => s.surfaceId),
+    ...get(localTerminals).map((t) => t.id),
   ];
   const active = get(activeTabId);
   tileLayout.update((l) => reconcile(l, ids, active));
@@ -39,6 +41,7 @@ function sync(): void {
 // its id from every tile because it was not in the list it was given.
 sessions.subscribe(sync);
 surfaces.subscribe(sync);
+localTerminals.subscribe(sync);
 activeTabId.subscribe(sync);
 
 export function splitOutTile(tabId: string, targetTileId: string, edge: Edge): void {
