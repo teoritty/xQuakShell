@@ -12,7 +12,7 @@ The newest versioned heading is the release being prepared. Only the latest rele
 fixes, including security fixes, ship in a new release rather than as patches to an older one
 (see [SECURITY.md](SECURITY.md)).
 
-## [1.3.0]
+## [1.3.0] — 2026-08-28
 
 ### Compatibility
 
@@ -32,7 +32,7 @@ fixes, including security fixes, ship in a new release rather than as patches to
 ### Added
 
 **A terminal on your own machine, one button away.** The button beside "New connection" opens a
-local shell in a tab like any other - the same renderer, the same tab bar, the same Ctrl+Shift+W to
+local shell in a tab like any other - the same renderer, the same tab bar, the same Ctrl+Shift+Q to
 close it - and Ctrl+Shift+T does the same from the keyboard. Nothing is saved: no connection
 appears in the tree, and closing the tab ends the shell and everything it started, so a `ping -t`
 or a running build does not survive as an orphan.
@@ -118,6 +118,13 @@ the configured rate never entered into it. The burst is now one second of bandwi
 the plugin channel bus already uses, and the configured rate is once again what limits. Nothing
 downstream is sized by the burst — frames are held by the credit window and the send queue, both
 counted in frames — so this costs no additional memory.
+
+**A tile with two tabs draws only the one you are looking at.** `TileGroup` renders every tab of a
+tile at once and unmounts none of them, so a view that does not hide itself when inactive shares
+the space with its siblings instead of taking the tile. `SessionView` already guarded against this;
+the plugin surface view did not, which showed as a plugin's tab and a session's tab splitting one
+tile between them. Rarely seen before now, because a surface borrows a session's authorization and
+so was rarely the second tab in its tile — a local terminal is not, which is how it surfaced.
 
 ### Changed
 
