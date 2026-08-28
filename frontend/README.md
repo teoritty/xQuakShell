@@ -31,6 +31,7 @@ Dependencies point one way: a component never reaches past `actions/` to the bri
 | `src/stores/` | Global reactive state |
 | `src/lib/` | Components — local state and rendering |
 | `src/hotkeys/`, `src/events/`, `src/logSurface/`, `src/terminal/` | Focused subsystems used by the above |
+| `src/i18n/` | The translation layer: message lookup, formatting, and applying a locale at runtime |
 | `src/logviewer/` | The separate debug log-viewer window |
 | `App.svelte` | Layout composition, no domain logic |
 

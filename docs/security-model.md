@@ -351,3 +351,28 @@ was already obtainable through `channel`/`exec`, which carries its own install-t
   rather than duplicated: a push costs the host a round trip back to the plugin when the panel
   re-reads, so an unmetered one would be an amplifier. `surface.write` is bounded by a per-surface
   output queue and answers `-32003` when it stays full.
+
+## Local terminal (ADR-020)
+
+A local terminal is a shell on the user's own machine, opened from the connections-tree toolbar or a
+hotkey. It sits outside the plugin boundary entirely, and that is the security property worth
+stating: a plugin is confined by an AppContainer or a Landlock ruleset precisely so it cannot run
+arbitrary code, and a plugin able to ask the host for a shell would walk around all of it.
+
+- **No capability, no host method, no API surface.** Nothing in `pluginApi` opens a local shell, and
+  nothing in the capability registry grants one. There is no gated version of this to consent to.
+- **The opening RPC takes no arguments and never will.** `AppAPI.OpenLocalTerminal()` is niladic, so
+  nothing the frontend sends can influence which program runs. The shell comes from the catalog the
+  backend discovered, selected by a settings key the backend validates against that closed set — a
+  stored value naming an uninstalled or unknown shell resolves to the platform default rather than
+  being executed as a path. This is what makes the command-injection question have no surface to
+  attach to, rather than an escaped one.
+- **Enforced by tests, not by convention.**
+  [`test/unit/architecture/local_terminal_isolation_test.go`](../test/unit/architecture/local_terminal_isolation_test.go)
+  carries two checks: an import of the local terminal added to a plugin package fails the first, and
+  an import of a plugin package added to `localshell` fails the second.
+- **Keystrokes are not recorded.** The audit log gets one entry saying a shell was opened and which
+  one. An SSH session logs submitted commands because that trail is about somebody else's machine;
+  this is the user's own computer, where a shell history already exists. Recording it would put the
+  user's local keystrokes into a file that exists to answer for remote actions.
+- **It holds nothing from the vault**, so locking the vault hides it rather than killing it.
