@@ -12,6 +12,27 @@ const (
 	MaxTunnelFrameSize = 64 * 1024
 	// DefaultTunnelBandwidthBytesPerSec is the default aggregate tunnel rate limit (32 MiB/s).
 	DefaultTunnelBandwidthBytesPerSec = 32 * 1024 * 1024
+	// DefaultTunnelBurstBytes is the token-bucket capacity behind that rate: one second's worth.
+	//
+	// WHY NOT ONE FRAME. It was MaxTunnelFrameSize, and that made the rate unreachable rather than
+	// merely strict. The consumer of a refusal is a poll — deliverFrame waits
+	// embedDeliverRetryInterval and offers the same frame again — so the throughput a poll can
+	// reach is burst/interval, and the configured rate never enters into it. One frame of burst
+	// against a 25 ms interval is 64 KiB / 25 ms, about 2.5 MiB/s: a thirteenfold throttle,
+	// delivered in 40 stop-go chunks a second, which a scrolling remote desktop shows as tearing.
+	// A burst is an allowance measured over time; a frame size is not one.
+	//
+	// WHY ONE SECOND. It is the same answer the channel bus already settled on for the same
+	// question (infra/plugin/ipc/channel_throttle.go: capacity == rate), and it puts burst/interval
+	// an order of magnitude above the rate, so the bucket stops being the binding constraint and
+	// the configured rate becomes the thing that actually limits. The relationship is pinned by
+	// TestTunnelBurstCoversAFullRetryInterval, which fails if either side drifts.
+	//
+	// WHY THIS COSTS NO MEMORY. The burst is a bandwidth allowance and nothing downstream is sized
+	// by it. What frames are held in is counted in frames, not bytes: the embed-stream credit
+	// window and embedWSSendQueueDepth, which is pinned to that window. A wider burst lets bytes
+	// move sooner; it gives them nowhere new to sit.
+	DefaultTunnelBurstBytes = DefaultTunnelBandwidthBytesPerSec
 	// MaxTunnelsPerSession is the maximum concurrent tunnels per embed session.
 	//
 	// 8, and the number is only defensible as a pair: the channel counts of the protocols this API

@@ -220,7 +220,7 @@ func (s *EmbedTunnelService) Register(_ context.Context, reg domain.EmbedRegistr
 		tunnelOpen: make(map[string]bool),
 		limiter: s.limiterFactory.New(
 			domain.DefaultTunnelBandwidthBytesPerSec,
-			domain.MaxTunnelFrameSize,
+			domain.DefaultTunnelBurstBytes,
 		),
 		wsConns: make(map[string]*embedWSConn),
 		active:  true,

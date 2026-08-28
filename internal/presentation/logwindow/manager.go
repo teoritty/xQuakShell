@@ -98,6 +98,7 @@ func (m *Manager) startLocked(_ context.Context) {
 		flagLogViewer,
 		flagAddr + addr,
 		fmt.Sprintf("%s%d", flagParentPID, os.Getpid()),
+		flagLocale + m.currentLocale(),
 	}
 	// #nosec G204 -- exe is this program's own os.Executable() path, re-launched with
 	// internal flags to open the log viewer window; args are all built here.
@@ -114,6 +115,22 @@ func (m *Manager) startLocked(_ context.Context) {
 	m.running = true
 
 	safego.GoNamed("logwindow.watchChild", func() { m.watchChild(cmd) })
+}
+
+// currentLocale reads the language the interface is displaying, for the viewer to start in.
+//
+// A failure here is not worth refusing the window over: the viewer falls back to English, which
+// is the same thing it did before it was told the language at all.
+func (m *Manager) currentLocale() string {
+	if m.settings == nil {
+		return ""
+	}
+	settings, err := m.settings.GetSettings()
+	if err != nil {
+		slog.Debug("debug log window locale read failed", "err", err)
+		return ""
+	}
+	return domain.NormalizeLocaleCode(settings.Language)
 }
 
 func (m *Manager) stopLocked() {

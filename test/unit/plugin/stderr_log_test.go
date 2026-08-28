@@ -1,6 +1,7 @@
 package plugin_test
 
 import (
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,14 @@ import (
 func TestRedactingStderrWriterRedactsSecrets(t *testing.T) {
 	// Plugin stderr is published once into the loghub (source plugin-stderr:<id>),
 	// no longer mirrored through slog. Subscribe to the hub and assert redaction.
+	//
+	// The level is set explicitly because PublishPluginStderr gates on Info and the host default
+	// is quieter than that, so at the default nothing is published and this would time out rather
+	// than fail on redaction. Redaction itself happens before publication and does not depend on
+	// the level; what the level decides is only whether there is an entry to inspect.
+	loghub.SetLevel(slog.LevelInfo)
+	t.Cleanup(func() { loghub.SetLevel(loghub.DefaultLevel) })
+
 	id, _, ch := loghub.Default().Subscribe(16)
 	t.Cleanup(func() { loghub.Default().Unsubscribe(id) })
 

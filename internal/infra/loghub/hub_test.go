@@ -89,14 +89,14 @@ func TestHubDropMarker(t *testing.T) {
 
 func TestLevelGating(t *testing.T) {
 	SetLevel(slog.LevelWarn)
-	defer SetLevel(slog.LevelDebug)
+	defer SetLevel(DefaultLevel)
 	if Enabled(slog.LevelInfo) {
 		t.Fatal("info should be gated out at warn floor")
 	}
 	if !Enabled(slog.LevelError) {
 		t.Fatal("error should pass at warn floor")
 	}
-	if ParseLevel("warn") != slog.LevelWarn || ParseLevel("") != slog.LevelDebug {
-		t.Fatal("ParseLevel mismatch")
+	if !Enabled(slog.LevelWarn) {
+		t.Fatal("warn should pass at warn floor")
 	}
 }

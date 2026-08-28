@@ -197,6 +197,10 @@ export interface AppGateway {
   ListLocales?(): Promise<Array<wails.LocaleInfoDTO>>;
   GetLocaleMessages?(arg1: string): Promise<wails.LocaleMessagesDTO>;
 
+  // Bound only by the log viewer process, which has no vault to read the language from and no
+  // access to the main window's localStorage mirror, so it is told at launch instead.
+  LaunchLocale?(): Promise<string>;
+
   GetTempDir(): Promise<string>;
 
   GetUserHomeDir(): Promise<string>;

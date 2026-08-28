@@ -3,6 +3,7 @@ package logwindow
 import (
 	"context"
 	"embed"
+	"errors"
 	"io/fs"
 	"net/http"
 	"time"
@@ -19,21 +20,76 @@ import (
 
 const eventDebugLogLine = "DebugLogLine"
 
+// errLocalesUnavailable reports a viewer started without a language catalogue.
+var errLocalesUnavailable = errors.New("logwindow: locale catalog unavailable")
+
+// LocaleMessagesDTO is a language's full message catalogue, already merged with English.
+//
+// It is declared here rather than shared with the main window's identically shaped DTO because
+// the two are separate bindings on separate processes: importing one presentation package into
+// another to save a three-field struct would couple the log viewer's lifetime to the main API's.
+// The JSON shape is what the frontend depends on, and that is what the tag list pins.
+type LocaleMessagesDTO struct {
+	Code     string            `json:"code"`
+	Name     string            `json:"name"`
+	Messages map[string]string `json:"messages"`
+}
+
 // LogViewerApp is bound to the log viewer Wails window.
+//
+// Wails derives the bridge path from the package and struct name, so this lands at
+// window.go.logwindow.LogViewerApp rather than the main window's window.go.main.App. The viewer
+// runs the same frontend bundle, so liveGateway.ts resolves both — see the note there.
 type LogViewerApp struct {
-	ctx context.Context
+	ctx     context.Context
+	locales domain.LocaleCatalog
+	locale  string
 }
 
 func (a *LogViewerApp) startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
+// LaunchLocale reports the language the parent window was displaying when it opened this one.
+//
+// The viewer cannot work it out for itself: the language lives in the vault, which this process
+// never unlocks, and the localStorage mirror belongs to the main window's WebView.
+func (a *LogViewerApp) LaunchLocale() string {
+	if a == nil || a.locale == "" {
+		return domain.DefaultLocale
+	}
+	return a.locale
+}
+
+// GetLocaleMessages serves the viewer's own captions, with the English fallback already applied by
+// the catalogue. Log lines themselves stay English and never pass through here.
+//
+// The signature matches AppAPI.GetLocaleMessages because the frontend calls both through the same
+// wrapper; an unavailable catalogue returns the error rather than an empty catalogue, so the
+// caller keeps the language it already had instead of falling back to raw message keys.
+func (a *LogViewerApp) GetLocaleMessages(code string) (LocaleMessagesDTO, error) {
+	if a == nil || a.locales == nil {
+		return LocaleMessagesDTO{}, errLocalesUnavailable
+	}
+	pack, err := a.locales.Pack(code)
+	if err != nil {
+		pack, err = a.locales.Pack(domain.DefaultLocale)
+		if err != nil {
+			return LocaleMessagesDTO{}, errLocalesUnavailable
+		}
+	}
+	return LocaleMessagesDTO{Code: pack.Code, Name: pack.Name, Messages: pack.Messages}, nil
+}
+
 // RunViewerApp starts the log viewer Wails process.
-func RunViewerApp(args []string, assets embed.FS) {
+//
+// catalog may be nil, and then the window draws in English: a language catalogue that failed to
+// load is not a reason to refuse to show logs.
+func RunViewerApp(args []string, assets embed.FS, catalog domain.LocaleCatalog) {
 	opts := ParseViewerOptions(args)
 	watchParentExit(opts.ParentPID)
 
-	app := &LogViewerApp{}
+	app := &LogViewerApp{locales: catalog, locale: opts.Locale}
 	dist, _ := fs.Sub(assets, "frontend/dist")
 	assetServer := &assetserver.Options{
 		Assets: dist,

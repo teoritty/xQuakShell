@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t } from '../i18n/messages';
   import { onDestroy, onMount, tick } from 'svelte';
+  import { appendCapped, capPending, type Sequenced } from './buffer';
 
   interface LogEntry {
     time: string;
@@ -10,10 +11,22 @@
     fields?: Record<string, string>;
   }
 
-  let lines: LogEntry[] = [];
+  // seq is added on arrival so the keyed {#each} has a stable identity per line. Keying by array
+  // index instead meant every index mapped to a different line once the ring started sliding, so
+  // Svelte rewrote all 5000 rows for every single incoming record.
+  type Row = LogEntry & Sequenced;
+
+  let lines: Row[] = [];
   let paused = false;
   let logBody: HTMLDivElement;
   let shouldStick = true;
+
+  // Lines arrive one Wails event at a time and are flushed a frame's worth at a time. Rendering
+  // per event saturated the UI thread under a busy session: the toolbar stopped being repainted
+  // and the level selector showed as a transparent hole.
+  let pending: Row[] = [];
+  let flushHandle = 0;
+  let nextSeq = 0;
 
   let levelFilter: 'all' | 'debug' | 'info' | 'warn' | 'error' = 'all';
   let search = '';
@@ -76,7 +89,18 @@
   }
 
   function appendEntry(entry: LogEntry) {
-    lines = [...lines, entry].slice(-maxLines);
+    pending.push({ ...entry, seq: nextSeq++ });
+    pending = capPending(pending, maxLines);
+    if (flushHandle) return;
+    flushHandle = requestAnimationFrame(flushPending);
+  }
+
+  function flushPending() {
+    flushHandle = 0;
+    if (pending.length === 0) return;
+    const batch = pending;
+    pending = [];
+    lines = appendCapped(lines, batch, maxLines);
     if (!paused && shouldStick) {
       tick().then(() => {
         if (logBody) logBody.scrollTop = logBody.scrollHeight;
@@ -91,6 +115,7 @@
   }
 
   function clearLogs() {
+    pending = [];
     lines = [];
   }
 
@@ -103,6 +128,8 @@
   });
 
   onDestroy(() => {
+    if (flushHandle) cancelAnimationFrame(flushHandle);
+    flushHandle = 0;
     const rt = (window as any).runtime;
     if (rt?.EventsOff) rt.EventsOff('DebugLogLine');
   });
@@ -125,7 +152,7 @@
     </div>
   </div>
   <div class="log-body" bind:this={logBody} on:scroll={onScroll}>
-    {#each visibleLines as line, idx (idx)}
+    {#each visibleLines as line (line.seq)}
       <div class="log-line" class:drop-marker={line.source === 'loghub'}>
         <span class="log-time">{formatTime(line.time)}</span>
         <span class="log-level {levelClass(line.level)}">{(line.level || 'info').toUpperCase()}</span>

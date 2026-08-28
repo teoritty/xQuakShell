@@ -68,10 +68,46 @@ grants no privilege and raises no install-time consent. See
 **Logs, errors and the audit log stay English.** They are diagnostics, not interface, and a record
 whose wording depends on a file in `data/locales` is not a record.
 
+### Fixed
+
+**The debug log window speaks your language.** Its captions rendered as raw message keys —
+`logviewer.title`, `logviewer.waiting` — because the window is a separate process and the bridge
+its frontend looks for was never bound there, so it had no catalogue to translate from. It now
+serves its own, and the parent tells it which language to open in: the setting lives in the vault,
+which that process never unlocks. Log lines themselves stay English, as before.
+
+**The debug log window keeps up with a busy session.** With lines pouring in, the level selector
+rendered as a transparent hole — the toolbar was not being repainted, because every incoming
+record rebuilt the whole 5000-line list and rewrote every row on screen. Lines are now collected
+per frame and rows are reused, so an arriving line adds a row instead of redrawing all of them.
+
+**An embedded remote desktop no longer tears when the screen changes fast.** The embed tunnel was
+delivering about 2.5 MiB/s against its configured 32 MiB/s, in roughly forty visible stop-go chunks
+a second — which is what scrolling a remote desktop showed as a picture arriving in bands. The rate
+limit was sized correctly but its burst was not: one frame, 64 KiB. The consumer of a refusal waits
+25 ms and offers the same frame again, so the throughput it could reach was one burst per wait, and
+the configured rate never entered into it. The burst is now one second of bandwidth, the same shape
+the plugin channel bus already uses, and the configured rate is once again what limits. Nothing
+downstream is sized by the burst — frames are held by the credit window and the send queue, both
+counted in frames — so this costs no additional memory.
+
 ### Changed
 
 The Settings dialog is now one component per tab rather than 842 lines in one file, and its search
 matches the words of whatever language is on screen instead of only the English ones.
+
+**The debug log is quiet unless you ask for it.** The log level starts at `warn` rather than
+`debug`. Nobody had chosen `debug`: the setting is stored only when you set it, and an unset value
+used to resolve to the most verbose level — so every install paid for it. The cost is not
+theoretical. An embed session emits five log records per video frame across the broker, the tunnel
+service and the channel backend, each taking one process-wide mutex, and publishing them cost
+roughly 2 microseconds and 750 bytes apiece; gated out they cost 34 nanoseconds and one
+allocation. Settings -> About -> Developer still offers `debug`, `info`, `warn` and `error`, and a
+level you pick is remembered.
+
+One consequence worth knowing before you file a bug: at `warn` the log window no longer shows
+plugin `stderr` or ordinary business events, because those are published at `info`. Set the level
+to `info` or `debug` first, then reproduce.
 
 ## [1.2.1] — 2026-08-18
 
