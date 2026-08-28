@@ -152,6 +152,125 @@ variables:
     - job: frontend:build
       artifacts: true
 
+# ---------------------------------------------------------------------------
+# What a change touches decides what runs
+#
+# A documentation commit used to run the whole suite: both Go test jobs, the frontend suite, every
+# scanner, and the Windows runner - which is a physical machine someone has to keep switched on.
+# The lists below are the closest honest answer to "could this change have broken that job".
+#
+# Three things about them are not obvious and are load-bearing:
+#
+#   1. `frontend:build` runs for a BACKEND change too, and must. main.go go:embed's frontend/dist,
+#      so every Go job that type-checks the module takes that directory as an artifact through
+#      `.needs-frontend-dist`. Filtering the build out of a backend pipeline does not save a job -
+#      it leaves four `needs:` pointing at a job that is not there, which GitLab rejects as an
+#      invalid pipeline. Only a docs-only change skips it.
+#
+#   2. CHANGELOG.md and wails.json are BACKEND triggers. test/unit/release asserts the two against
+#      each other - the shipped version must equal the newest changelog heading - so editing the
+#      changelog can turn a Go test red. It is a text-agreement test and one platform proves it,
+#      which is why the Windows list leaves both out.
+#
+#   3. Tags, schedules and web pipelines are exempt from all of it. A release must never be
+#      filtered down to a subset; the weekly security cron exists precisely to run without a
+#      commit to compare against, and `changes` against no diff is meaningless.
+#
+# On a branch pipeline with no previous pipeline to diff against, `changes` evaluates to true and
+# everything runs. That is the safe direction for this to fail in, and it is why a first push of a
+# new branch is not quieter than the second.
+# ---------------------------------------------------------------------------
+
+# Touching how the build itself is defined re-runs everything, in every list below: a rule that
+# exempted its own file from scrutiny would let a broken pipeline definition land green.
+.paths-build-definition: &paths-build-definition
+  - .gitlab-ci.yml
+  - Makefile
+  - code-budgets.json
+
+.paths-backend: &paths-backend
+  - "**/*.go"
+  - go.mod
+  - go.sum
+  - wails.json
+  - CHANGELOG.md
+  - .gitlab-ci.yml
+  - Makefile
+  - code-budgets.json
+
+# The same list without CHANGELOG.md and wails.json. What those two trigger is a text-agreement
+# test, and running it a second time on another operating system proves nothing that the first run
+# did not - while this list is the one that wakes a physical machine.
+.paths-backend-windows: &paths-backend-windows
+  - "**/*.go"
+  - go.mod
+  - go.sum
+  - .gitlab-ci.yml
+  - Makefile
+  - code-budgets.json
+
+# Deliberately not `frontend/**/*`: that would rebuild and re-scan the whole frontend because
+# frontend/README.md gained a sentence. Every entry here is something the bundle is built from.
+.paths-frontend: &paths-frontend
+  - frontend/src/**/*
+  - frontend/index.html
+  - frontend/package.json
+  - frontend/package-lock.json
+  - frontend/tsconfig*.json
+  - frontend/vite.config.*
+  - frontend/svelte.config.*
+  - frontend/wailsjs/**/*
+  - .gitlab-ci.yml
+  - Makefile
+  - code-budgets.json
+
+.paths-any-code: &paths-any-code
+  - "**/*.go"
+  - go.mod
+  - go.sum
+  - wails.json
+  - CHANGELOG.md
+  - frontend/src/**/*
+  - frontend/index.html
+  - frontend/package.json
+  - frontend/package-lock.json
+  - frontend/tsconfig*.json
+  - frontend/vite.config.*
+  - frontend/svelte.config.*
+  - frontend/wailsjs/**/*
+  - .gitlab-ci.yml
+  - Makefile
+  - code-budgets.json
+
+.paths-docs: &paths-docs
+  - "**/*.md"
+  - docs/**/*
+  - .gitlab-ci.yml
+
+.rules-backend: &rules-backend
+  - if: $CI_COMMIT_TAG
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+  - if: $CI_PIPELINE_SOURCE == "web"
+  - changes: *paths-backend
+
+.rules-frontend: &rules-frontend
+  - if: $CI_COMMIT_TAG
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+  - if: $CI_PIPELINE_SOURCE == "web"
+  - changes: *paths-frontend
+
+.rules-any-code: &rules-any-code
+  - if: $CI_COMMIT_TAG
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+  - if: $CI_PIPELINE_SOURCE == "web"
+  - changes: *paths-any-code
+
+.rules-docs: &rules-docs
+  - if: $CI_COMMIT_TAG
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+  - if: $CI_PIPELINE_SOURCE == "web"
+  - changes: *paths-docs
+
 # A Windows job cannot run on gitlab.com's shared runners, and a self-hosted Windows runner must
 # never be reachable from an untrusted pipeline. Both conditions are enforced here: the job is off
 # unless ENABLE_WINDOWS_CI is set, and it only ever runs on a runner carrying the
@@ -168,12 +287,17 @@ variables:
 .windows:
   tags:
     - xquakshell-windows
+  # The two refusals stay first and stay unconditional: a path filter must never be able to promote
+  # a job onto the owner's physical machine that the guards above it were there to keep off.
   rules:
     - if: $ENABLE_WINDOWS_CI != "true"
       when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_SOURCE_PROJECT_PATH != $CI_PROJECT_PATH
       when: never
-    - when: on_success
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - changes: *paths-backend-windows
 
 # ---------------------------------------------------------------------------
 # Stage: check
@@ -186,12 +310,16 @@ variables:
 architecture:
   extends: .go
   stage: check
+  rules: *rules-backend
   script:
     - go test ./test/unit/architecture/... -count=1
 
 frontend:build:
   extends: .node
   stage: check
+  # Widest list of the four: a backend pipeline consumes this job's artifact, so it is skipped only
+  # when nothing that compiles or bundles changed at all.
+  rules: *rules-any-code
   script:
     - cd frontend
     - npm ci --cache ../.npm --prefer-offline
@@ -204,6 +332,7 @@ frontend:build:
 frontend:typecheck:
   extends: .node
   stage: check
+  rules: *rules-frontend
   script:
     - cd frontend
     - npm ci --cache ../.npm --prefer-offline
@@ -212,6 +341,7 @@ frontend:typecheck:
 frontend:test:
   extends: .node
   stage: check
+  rules: *rules-frontend
   script:
     - cd frontend
     - npm ci --cache ../.npm --prefer-offline
@@ -227,6 +357,9 @@ frontend:test:
 # resolves on the author's Windows checkout fails here. That is the point of running it in CI.
 docs:links:
   stage: check
+  # The one job a documentation-only change still runs, and the one worth keeping: a broken
+  # relative link or a link into a renamed heading is exactly what a docs commit introduces.
+  rules: *rules-docs
   image:
     name: lycheeverse/lychee:latest
     entrypoint: [""]
@@ -251,6 +384,7 @@ go:test:
     - .go
     - .needs-frontend-dist
   stage: test
+  rules: *rules-backend
   script:
     - go test ./... -race -count=1
     - go run ./scripts/coverage
@@ -288,6 +422,27 @@ go:test:windows:
 include:
   - template: Security/SAST.gitlab-ci.yml
 
+# Overriding a template job's rules, which is worth justifying. The template runs semgrep-sast on
+# branch pipelines and not on merge request ones - $AST_ENABLE_MR_PIPELINES is unset here - so a
+# documentation push to main was starting a scanner over source it had not touched. That is the
+# one job the path filters above could not reach, because this file does not define it.
+#
+# The `if: $CI_COMMIT_BRANCH` on the last arm is what keeps the template's own answer intact: the
+# job still runs only on branch pipelines, and now only when there is code in the diff to scan.
+# The arms dropped from the original all require $GITLAB_FEATURES to contain sast_advanced, which
+# is an Ultimate feature this project does not have, so they could never fire.
+semgrep-sast:
+  rules:
+    - if: $SAST_DISABLED == 'true' || $SAST_DISABLED == '1'
+      when: never
+    - if: $SAST_EXCLUDED_ANALYZERS =~ /semgrep/
+      when: never
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH
+      changes: *paths-any-code
+
 # All three tools type-check the packages and the root package go:embed's frontend/dist, so they
 # share one job and one frontend artifact rather than three.
 #
@@ -298,6 +453,9 @@ sec:go:
   extends:
     - .go
     - .needs-frontend-dist
+  # The schedule arm of the shared rules is what keeps the weekly run honest: a CVE lands in the
+  # advisory database with no commit here to compare a `changes` list against.
+  rules: *rules-backend
   stage: security
   script:
     # - apt-get update -qq && apt-get install -y -qq jq
@@ -374,6 +532,7 @@ sec:go:
 sec:frontend:
   extends: .node
   stage: security
+  rules: *rules-frontend
   script:
     - cd frontend
     - npm ci --cache ../.npm --prefer-offline
@@ -404,6 +563,7 @@ sec:frontend:informational:
   extends: .node
   stage: security
   allow_failure: true
+  rules: *rules-frontend
   script:
     - cd frontend
     - npm ci --cache ../.npm --prefer-offline
