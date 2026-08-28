@@ -82,4 +82,4 @@ sha256sum -c SHA256SUMS --ignore-missing
 
 ---
 
-Documentation and source: https://github.com/teoritty/xQuakShell
+Documentation and source: https://gitlab.com/teoritty/xQuakShell
