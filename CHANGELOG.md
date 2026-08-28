@@ -96,6 +96,28 @@ grants no privilege and raises no install-time consent. See
 **Logs, errors and the audit log stay English.** They are diagnostics, not interface, and a record
 whose wording depends on a file in `data/locales` is not a record.
 
+**Plugins have a screen of their own.** Managing plugins is not a setting — it is browsing a
+catalogue, reading what a plugin wants, deciding whether to trust where it came from, and
+installing it. That is a working surface, and it now has one, reached from the puzzle button in the
+top bar rather than from a tab inside Settings.
+
+Installed plugins are grouped by run state — Needs attention, Active, Disabled — because a list
+sorted by nothing asks you to audit it. Attention comes first because the top of a list is what
+gets read, and a disabled plugin is never promoted there: it is not running, so whatever is wrong
+with it is not happening now. Empty groups are dropped, so a permanent "Needs attention (0)" cannot
+teach anyone to skip that heading.
+
+Each card carries the answer to the question actually worth asking about a third-party plugin in an
+SSH client, which is not its version but what it can reach: signed or unsigned, the sandbox it is
+confined by, and whether it can read the vault, all on the face of the card. Sources are searchable
+by URL as well as by name, because the URL is what you pasted. The marketplace has a page of its
+own and says "Coming soon" rather than describing a registry that does not exist yet.
+
+One consent catalogue now serves both install origins. The old panel kept two hand-written copies
+of the same six permission checkboxes, one per origin — which is how a grant added to one ends up
+missing from the other. The screen decides what to *ask*; the backend still re-checks every grant
+and refuses an install whose consents do not cover its warnings.
+
 ### Fixed
 
 **The debug log window speaks your language.** Its captions rendered as raw message keys —
@@ -130,6 +152,18 @@ so was rarely the second tab in its tile — a local terminal is not, which is h
 
 The Settings dialog is now one component per tab rather than 842 lines in one file, and its search
 matches the words of whatever language is on screen instead of only the English ones.
+
+**Settings has seven tabs where it had nine.** Plugins left for the screen above. Terminal folded
+into Appearance, where the terminal font now sits beside the interface font it was always adjusted
+against — and beside the shell a local terminal starts.
+
+**The plugin trust policy moved to Settings → Security.** It was a page on the Plugins screen, and
+it is not a fact about any installed plugin: it is what this installation demands before any plugin
+runs at all, which is the same kind of question the vault lockout answers. Next to the lockout it
+is also searchable, which on its own page it was not.
+
+**About points at GitLab.** Releases and Report an Issue opened the GitHub project while releases
+are published on GitLab, so both links led away from the place the running build came from.
 
 **The debug log is quiet unless you ask for it.** The log level starts at `warn` rather than
 `debug`. Nobody had chosen `debug`: the setting is stored only when you set it, and an unset value
