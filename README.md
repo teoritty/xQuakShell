@@ -47,6 +47,8 @@ If you manage servers from a laptop that leaves the office, or you need a remote
 
 - Encrypted vault (`vault.age`) for connections, keys, credentials, known hosts — protected by a master password (age + scrypt), with no password recovery by design (nothing to leak).
 - SSH terminal + SFTP file manager (upload/download/rename/delete/create), multi-tab sessions with independent lifecycle.
+- A local terminal on your own machine as a third kind of tab — `Ctrl+Shift+T` or the button beside "New connection", with the shell picked from the ones this computer actually has. Not reachable by plugins, and your keystrokes in it are not recorded.
+- Translated interface, switchable at runtime from **Settings → Appearance**; a plugin is told which language the interface is in and can ship its own catalog.
 - Jump hosts and strict host key verification (no silent auto-accept).
 - Local/remote/dynamic port forwarding.
 - Out-of-process plugin system: capability-gated, versioned IPC handshake, resource-limited, extensible to new connection protocols — installable straight from GitHub or GitLab, or as signed `.xqsp` bundles.

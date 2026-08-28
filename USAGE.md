@@ -16,12 +16,13 @@ This guide explains how to use xQuakShell for managing remote connections, organ
 8. [Sessions and Tabs](#sessions-and-tabs)
 9. [Tiling the Workspace](#tiling-the-workspace)
 10. [Terminal](#terminal)
-11. [SFTP File Transfer](#sftp-file-transfer)
-12. [Port Forwarding](#port-forwarding)
-13. [Plugins](#plugins)
-14. [Known Hosts](#known-hosts)
-15. [Audit Log](#audit-log)
-16. [Settings and Lockout](#settings-and-lockout)
+11. [Local Terminal](#local-terminal)
+12. [SFTP File Transfer](#sftp-file-transfer)
+13. [Port Forwarding](#port-forwarding)
+14. [Plugins](#plugins)
+15. [Known Hosts](#known-hosts)
+16. [Audit Log](#audit-log)
+17. [Settings and Lockout](#settings-and-lockout)
 
 ---
 
@@ -251,18 +252,55 @@ or a moved tab.
 Terminal keys go to the remote shell: Ctrl+C, Ctrl+L and friends behave as they would in any
 terminal, and copy/paste uses the system shortcuts or the terminal's context menu.
 
-The application keeps four shortcuts of its own, deliberately chosen not to collide with common
-shell bindings. All four are rebindable in **Settings → Hotkeys**:
+The application keeps five shortcuts of its own, deliberately chosen not to collide with common
+shell bindings. All five are rebindable in **Settings → Hotkeys**:
 
 | Action | Default |
 |--------|---------|
 | New session from the selected connection | `Ctrl+Shift+N` |
+| New local terminal | `Ctrl+Shift+T` |
 | Next session | `Ctrl+Tab` |
 | Previous session | `Ctrl+Shift+Tab` |
 | Close session | `Ctrl+Shift+Q` |
 
 These stay active while the terminal has focus — otherwise they would be unreachable exactly when
 you need them.
+
+---
+
+## Local Terminal
+
+A shell on **your own machine**, opened without a connection. It is a tab like any other: same
+renderer, same tab bar, same tiling, and `Ctrl+Shift+Q` closes it.
+
+### Opening one
+
+- The terminal button in the connections-tree toolbar, beside "New connection".
+- Or `Ctrl+Shift+T`.
+
+### Which shell it starts
+
+**Settings → Appearance** offers only the shells actually found on this computer — PowerShell 7,
+Windows PowerShell or the Command Prompt on Windows; your `$SHELL`, bash, zsh, fish or sh
+elsewhere. The choice applies to the next terminal you open. Pick one and later uninstall it, and
+the next terminal quietly falls back to this machine's default rather than refusing to open.
+
+On Windows the console is switched to UTF-8 before you see it, so filenames with non-Latin
+characters read correctly instead of arriving as mojibake.
+
+### What it does and does not do
+
+- **Nothing is saved.** No connection appears in the tree. Closing the tab ends the shell and
+  everything it started, so a `ping -t` or a running build does not survive as an orphan.
+- **Plugins cannot reach it.** There is no capability, no host method and nothing in the plugin API
+  that opens a local shell — see [Security Model](./docs/security-model.md#local-terminal-adr-020).
+- **Your keystrokes are not recorded.** An SSH session logs the commands you submit because that
+  trail is about somebody else's machine; this is your own computer, where you already have a shell
+  history. The audit log records that a shell was opened and which one it was.
+- **It survives locking the vault.** It holds nothing from the vault, so the lock screen hides it
+  rather than killing whatever is running behind it.
+
+The full reasoning is in [ADR-020](./docs/adr/020-local-terminal.md).
 
 ---
 
@@ -324,14 +362,17 @@ settings.
 
 ## Plugins
 
-Everything beyond SSH — VNC, Telnet, Docker discovery — is an out-of-process plugin. Manage them in
-**Settings → Plugins**.
+Everything beyond SSH — VNC, Telnet, Docker discovery — is an out-of-process plugin. Plugins have a
+screen of their own, opened from the puzzle-piece button in the top bar. It is organised by what a
+plugin is currently doing — active, disabled, needing attention — with the marketplace on a page of
+its own.
 
 ### Installing
 
-- **From GitHub.** Add a repository, then install a release from it. Plugins that ship a user
-  interface must be published as an `.xqsp` bundle; a release that offers this platform only a bare
-  binary is refused at install time, with the missing asset named.
+- **From GitHub or GitLab.** Add a repository by its URL, then install a release from it. The host
+  in the URL selects which API is spoken; anything other than `github.com` or `gitlab.com` is
+  refused. Plugins that ship a user interface must be published as an `.xqsp` bundle; a release that
+  offers this platform only a bare binary is refused at install time, with the missing asset named.
 - **From a file.** Install a downloaded `.xqsp` bundle, or point the installer at an unpacked
   plugin directory — useful while developing one.
 
@@ -339,8 +380,8 @@ Everything beyond SSH — VNC, Telnet, Docker discovery — is an out-of-process
 
 A plugin's manifest declares the files, hosts and vault fields it needs. Anything outside that
 declaration is refused before it runs, and refusals are recorded in the audit log. Capabilities that
-carry real risk — tunnel providers among them — additionally require your explicit consent in the
-plugin's settings, separately from installing it.
+carry real risk — tunnel providers among them — additionally require your explicit consent on the
+plugin's row in the Plugins screen, separately from installing it.
 
 Each plugin runs as its own OS process with memory and handle limits, and is killed when the app
 shuts down. Uninstalling removes the plugin itself; the data it stored under `data/plugins/<id>/`
@@ -362,6 +403,8 @@ is kept unless you ask for that to go too, so reinstalling does not silently dis
 - **Audit Log** (document icon) shows a searchable log of terminal input.
 - Uses SQLite FTS5 for full-text search.
 - Heuristic masking attempts to hide password-like input (e.g., after "password:" prompts).
+- A local terminal contributes one entry saying a shell was opened and which one — never what you
+  typed into it.
 - Useful for compliance and debugging.
 
 ---
@@ -370,19 +413,21 @@ is kept unless you ask for that to go too, so reinstalling does not silently dis
 
 ### Settings
 
-Settings opens on nine tabs:
+Settings opens on seven tabs:
 
 | Tab | What lives there |
 |-----|------------------|
 | **About** | Version and build information |
-| **Appearance** | Theme and colors |
+| **Appearance** | Interface language, theme and colors, UI scale, terminal font, and which local shell to start |
 | **Audit Log** | Whether input is recorded, and retention |
 | **Files** | File browser and transfer behavior |
-| **Hotkeys** | The session shortcuts below |
+| **Hotkeys** | The five shortcuts above |
 | **Network** | Ping and connection behavior |
-| **Plugins** | Installed plugins, repositories, per-plugin consent |
 | **Security** | Lockout: idle timeout, lock on minimize |
-| **Terminal** | Font, scrollback and terminal behavior |
+
+Plugins used to be a tab here and are now a screen of their own, reached from the top bar. The
+Terminal tab folded into Appearance, where the terminal font sits beside the interface font it was
+always adjusted against.
 
 ### Lockout behavior
 

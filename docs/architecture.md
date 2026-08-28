@@ -27,7 +27,7 @@ flowchart TB
 - **presentation/logwindow** — debug log viewer subprocess and TCP stream server; depends on `domain.LogStream` only.
 - **usecase** — orchestration (`SessionManager`, `TransferService`, `AuditService`, `SettingsService`, `VaultService`, `HostKeyService`, `RemoteFSService`, `LocalFSService`, plugins). Depends only on **domain** and stdlib.
 - **domain** — entities and ports split across `vault_data.go`, `app_settings.go`, `repositories.go`, `host_fs.go`, `portable_data.go`, etc.
-- **infra** — persistence, SSH dialer, SFTP, audit log, host FS, portable data store, plugin host, embed broker (`domain.EmbedTunnelPort`), etc.
+- **infra** — persistence, SSH dialer, SFTP, audit log, host FS, portable data store, plugin host, embed broker (`domain.EmbedTunnelPort`), local shells (`internal/infra/localshell`), locale packs (`internal/infra/locale`), etc.
 
 ## Filesystem zones (ADR-007)
 
@@ -128,6 +128,8 @@ Plugin connectors receive `ConnectorHooks` to set PTY bridge, SFTP (`RemoteFS`),
 | **Transfers** | `domain.ConcurrencyLimiter` (`internal/pkg/conlimit`), [`internal/usecase/transfer_service.go`](../internal/usecase/transfer_service.go), handlers in `handlers_transfers.go`. |
 | **Settings / ping / audit** | `domain.ConcurrencyLimiter` (`internal/pkg/conlimit`), `domain.Pinger` (`internal/infra/pinger`), `settings_service.go`, `audit_service.go`, `ping_manager.go`, `handlers_settings_ping_audit.go`. |
 | **Debug log window** | `domain.LogStream`, `internal/infra/loghub`, `internal/presentation/logwindow`. |
+| **Local terminal** | Ports in [`internal/domain/local_terminal.go`](../internal/domain/local_terminal.go); [`internal/infra/localshell/shell_catalog.go`](../internal/infra/localshell/shell_catalog.go) (which shells exist) and `pty_terminal.go` (how one is started); `internal/usecase/local_terminal_*.go`; thin handlers in `handlers_local_terminal.go`; wiring in `main_local_terminal.go`. The opening RPC is niladic by design — see [adr/020-local-terminal.md](adr/020-local-terminal.md). |
+| **Interface language** | `domain.LocaleCatalog` in [`internal/domain/locale.go`](../internal/domain/locale.go), [`internal/infra/locale/catalog.go`](../internal/infra/locale/catalog.go) (disk packs merged over embedded ones), [`internal/usecase/locale_observer.go`](../internal/usecase/locale_observer.go) (tells plugins the language changed), `frontend/src/i18n/`. See [adr/019-interface-language.md](adr/019-interface-language.md). |
 | **Plugins** | `internal/usecase/plugin_*.go`, handlers in `handlers_plugin*.go`, manifest FS checks in `infra/plugin/bundle/capabilities_validate.go`. |
 | **Plugin connection fields** | Manifest: [`internal/domain/plugin/fields.go`](../internal/domain/plugin/fields.go), validation in `manifest_fields_validate.go`; persistence: `PluginFieldsService`, `Connection.pluginFields`, `VaultData.pluginSecrets`; UI: `PluginConnectionFields.svelte`, `GetPluginConnectionProtocols`. |
 | **Plugin protocols** | Out-of-process plugins via `PluginSessionBridge` and `session.connect` (with optional `fields`). |
