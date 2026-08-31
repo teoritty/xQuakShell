@@ -55,16 +55,17 @@
     <PasswordStrengthMeter result={strength} />
     <PasswordRequirements {checklist} />
 
-    <PasswordField
-      bind:value={confirmation}
-      ariaLabel={$t('vault.field.confirm')}
-      placeholder={$t('vault.field.repeat')}
-      disabled={loading}
-    />
-
-    <p class="mismatch" role="alert">
-      {mismatch ? $t('vault.create.mismatch') : ''}
-    </p>
+    <div class="field-group">
+      <PasswordField
+        bind:value={confirmation}
+        ariaLabel={$t('vault.field.confirm')}
+        placeholder={$t('vault.field.repeat')}
+        disabled={loading}
+      />
+      <p class="mismatch" class:reserved={confirmation.length > 0} role="alert">
+        {mismatch ? $t('vault.create.mismatch') : ''}
+      </p>
+    </div>
 
     <NoRecoveryConsent bind:acknowledged disabled={loading} />
 
@@ -91,12 +92,29 @@
     font-size: 14px;
   }
 
+  /* The mismatch message belongs to the field above it, not to the form's own rhythm. Grouping
+     them means the reserved line sits four pixels under the input instead of a full form gap away,
+     so an empty message no longer reads as a hole between the field and the checkbox. */
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
   .mismatch {
     margin: 0;
-    /* Holds its line while empty so the button below never jumps. */
-    min-height: 15px;
     font-size: 11px;
+    line-height: 14px;
     color: var(--danger);
+  }
+
+  /* The line is held open only once the confirmation field has something in it, because until then
+     a mismatch cannot happen and the space is reserved against nothing. Holding it open regardless
+     put a blank row between the last field and the checkbox that read as a layout mistake. The
+     single shift this costs lands on the first keystroke into the last field, where the user is
+     already looking, rather than on every keystroke. */
+  .mismatch.reserved {
+    min-height: 14px;
   }
 
   .next-step {
