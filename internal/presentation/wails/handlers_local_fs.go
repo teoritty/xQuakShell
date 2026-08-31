@@ -175,12 +175,15 @@ func (a *AppAPI) SelectLocalDirectory() (string, error) {
 // wailsrt.SaveFileDialog is the same call on Windows, Linux and macOS; the native dialog it opens is
 // the platform's own, which is also what asks about overwriting an existing file.
 func (a *AppAPI) SaveRecoveryKeyFile() (bool, error) {
-	if a.ctx == nil {
-		return false, fmt.Errorf("no wails context")
-	}
+	// Asked before anything else, including whether there is a window to put a dialog on. Whether a
+	// key is held is the authorisation question, and answering it first is what guarantees no caller
+	// can make a native save picker appear without one.
 	key, ok := a.pendingRecovery.peek()
 	if !ok {
 		return false, domain.ErrRecoveryKeyUnavailable
+	}
+	if a.ctx == nil {
+		return false, fmt.Errorf("no wails context")
 	}
 
 	path, err := wailsrt.SaveFileDialog(a.ctx, wailsrt.SaveDialogOptions{
