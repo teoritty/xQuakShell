@@ -17,10 +17,32 @@ import (
 // build, or export from the older one — and neither is guessable from a bare version number.
 // Anything else passes through untouched: the frontend keys on "vault not found" to send the user
 // to the create screen, and rewriting that would strand them on the unlock form.
+// userFacingError carries a sentence written for the unlock card while keeping the original error
+// reachable through errors.Is.
+//
+// Both halves matter. The frontend renders Error() verbatim, so it must not contain a wrapped chain
+// of internal prefixes; and the throttle, the tests and any future caller still need to recognise
+// the cause, which a plain fmt.Errorf with a rewritten message would have thrown away.
+type userFacingError struct {
+	msg   string
+	cause error
+}
+
+func (e userFacingError) Error() string { return e.msg }
+func (e userFacingError) Unwrap() error { return e.cause }
+
 func vaultUnlockUserError(err error) error {
 	switch {
 	case err == nil:
 		return nil
+	case errors.Is(err, domain.ErrVaultDecryptFailed):
+		// One sentence for both credentials. Naming which one was wrong would tell someone holding
+		// a stolen vault file which half of it is the cheaper target, and the user typing into a
+		// single field does not need to be told which of the two things they typed it was.
+		return userFacingError{
+			msg:   "That is not the master password or the recovery key for this vault.",
+			cause: err,
+		}
 	case errors.Is(err, domain.ErrVaultVersionTooNew):
 		return fmt.Errorf("this vault was created by a newer version of xQuakShell; install that version to open it, or restore a backup from the data folder")
 	case errors.Is(err, domain.ErrVaultVersionTooOld):

@@ -407,3 +407,43 @@ func TestLockingDropsAHeldKey(t *testing.T) {
 		t.Errorf("save after locking: got %v, want ErrRecoveryKeyUnavailable", err)
 	}
 }
+
+// The unlock card renders this string verbatim, so it has to read as a sentence rather than as a
+// chain of internal prefixes. It also has to keep carrying its cause: the throttle counts guesses
+// by matching the sentinel, and a message rewritten without wrapping would silently stop the
+// backoff from ever engaging.
+func TestTheWrongCredentialMessageIsWrittenForTheUser(t *testing.T) {
+	recovery := &fakeRecovery{password: "the-master-password", key: validKey()}
+	api, _ := recoveryAPI(t, recovery)
+
+	_, err := api.UnlockVault("not-the-password")
+	if err == nil {
+		t.Fatal("a wrong password was accepted")
+	}
+
+	msg := err.Error()
+	for _, leak := range []string{"vault unlock:", "vault decrypt", "decryption failed", "envelope", "scrypt", "age"} {
+		if strings.Contains(strings.ToLower(msg), leak) {
+			t.Errorf("the message shown on the unlock card leaks %q: %q", leak, msg)
+		}
+	}
+	if !strings.HasSuffix(msg, ".") || len(strings.Fields(msg)) < 5 {
+		t.Errorf("the message does not read as a sentence: %q", msg)
+	}
+	if !errors.Is(err, domain.ErrVaultDecryptFailed) {
+		t.Error("the user-facing error dropped its cause; the throttle counts guesses by matching it")
+	}
+	if api.unlockThrottle.Failures() != 1 {
+		t.Errorf("failures = %d, want 1; the guess was not counted", api.unlockThrottle.Failures())
+	}
+}
+
+// The unlock form routes to the create screen by looking for "vault not found" in the message, so
+// that one has to pass through untouched. Rewriting it here would strand a user whose vault file was
+// moved or whose portable drive was unplugged on a form that can never succeed.
+func TestAMissingVaultStillSaysSo(t *testing.T) {
+	if got := vaultUnlockUserError(domain.ErrVaultNotFound); got == nil ||
+		!strings.Contains(got.Error(), "vault not found") {
+		t.Fatalf("got %v, want a message containing \"vault not found\"", got)
+	}
+}
