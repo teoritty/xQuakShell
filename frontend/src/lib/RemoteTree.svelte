@@ -14,7 +14,7 @@
     type Folder,
   } from '../stores/appState';
   import {
-    createNewFolderInFolder,
+    createFolderAndReveal,
     deleteFolders,
     saveFolder,
   } from '../actions/folderActions';
@@ -430,7 +430,7 @@
   async function handleCtxNewFolder() {
     const folderId = ctxMenu.node?.type === 'folder' ? ctxMenu.node.id : '';
     closeContextMenu();
-    await createNewFolderInFolder(folderId);
+    await createFolderAndReveal(folderId);
   }
 
   function handleCtxEdit() {
@@ -663,7 +663,7 @@
   <RemoteTreeSearch bind:value={searchQuery} onFocus={handleSearchFocus} />
   <RemoteTreeToolbar
     onNewConnection={() => createNewConnectionInFolder($creationTargetFolderId)}
-    onNewFolder={() => createNewFolderInFolder($creationTargetFolderId)}
+    onNewFolder={() => createFolderAndReveal($creationTargetFolderId)}
     onImport={(anchor) => (importMenu = { show: true, anchor })}
     importMenuOpen={importMenu.show}
     onExpandAll={expandAll}
@@ -705,7 +705,7 @@
     on:cancelRenameFolder={() => (editingFolderId = null)}
     on:confirmRenameConnection={confirmRenameConnection}
     on:cancelRenameConnection={() => (editingConnId = null)}
-    on:newSubfolder={({ detail }) => createNewFolderInFolder(detail.folderId)}
+    on:newSubfolder={({ detail }) => createFolderAndReveal(detail.folderId)}
     on:startRenameFolder={({ detail }) => detail.folder && startRenameFolder(detail.folder)}
     on:deleteFolder={({ detail }) =>
       detail.folder && requestDelete(deleteTargets(detail.folder.id, selectedPaths, $connections, $folders))}

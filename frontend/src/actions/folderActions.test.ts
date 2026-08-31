@@ -4,6 +4,7 @@ import {
   refreshFolders,
   saveFolder,
   createNewFolderInFolder,
+  createFolderAndReveal,
   deleteFolder,
   deleteFolders,
   moveFolder,
@@ -13,6 +14,7 @@ import {
 import {
   folders, connections,
   creationTargetFolderId,
+  expandedFolderIds,
   lastError,
   type Folder,
 } from '../stores/appState';
@@ -26,6 +28,7 @@ function reset() {
   folders.set([]);
   connections.set([]);
   creationTargetFolderId.set('');
+  expandedFolderIds.set(new Set());
   lastError.set(null);
 }
 
@@ -331,6 +334,62 @@ async function run() {
     setGateway(null);
     await reorderFolders(['f1'], 'p');
     assert(get(lastError) === null, 'reorderFolders does not set lastError when gateway is missing');
+  }
+
+  // --- createFolderAndReveal ---------------------------------------------
+
+  // A subfolder created inside a collapsed parent is indistinguishable from one that was never
+  // created, so the parent has to open. The expansion must also happen before the RPC, or the row
+  // arrives in a tree that is still closed and flickers into view a moment later.
+  {
+    reset();
+    const fake = createFakeGateway();
+    fake.program('SaveFolder', (f: any) => ({ ...f, id: 'new-1' }));
+    fake.program('GetFolders', [] as Folder[]);
+    setGateway(fake);
+
+    let expandedWhenSaved: string[] = [];
+    fake.program('SaveFolder', (f: any) => {
+      expandedWhenSaved = [...get(expandedFolderIds)];
+      return { ...f, id: 'new-1' };
+    });
+
+    await createFolderAndReveal('parent-1');
+
+    assert(get(expandedFolderIds).has('parent-1'), 'createFolderAndReveal expands the parent');
+    assert(
+      expandedWhenSaved.includes('parent-1'),
+      'the parent is expanded before the folder is saved, not after the refresh lands',
+    );
+  }
+
+  // The tree root has no row to expand, and adding its empty id to the expanded set would put a
+  // meaningless entry into state that gets persisted.
+  {
+    reset();
+    const fake = createFakeGateway();
+    fake.program('SaveFolder', (f: any) => ({ ...f, id: 'new-2' }));
+    fake.program('GetFolders', [] as Folder[]);
+    setGateway(fake);
+
+    await createFolderAndReveal('');
+
+    assert(get(expandedFolderIds).size === 0, 'creating at the root expands nothing');
+  }
+
+  // Expanding must not close a parent that was already open, nor drop the other expanded folders.
+  {
+    reset();
+    expandedFolderIds.set(new Set(['other', 'parent-1']));
+    const fake = createFakeGateway();
+    fake.program('SaveFolder', (f: any) => ({ ...f, id: 'new-3' }));
+    fake.program('GetFolders', [] as Folder[]);
+    setGateway(fake);
+
+    await createFolderAndReveal('parent-1');
+
+    const open = get(expandedFolderIds);
+    assert(open.has('parent-1') && open.has('other'), 'an already-open parent stays open and its siblings are kept');
   }
 
   console.log('folderActions.test passed');

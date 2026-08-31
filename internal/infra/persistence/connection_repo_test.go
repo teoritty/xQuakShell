@@ -156,3 +156,104 @@ func TestConnectionRepo_Save_PreservesExistingJumpHopID(t *testing.T) {
 		t.Fatalf("saved hop id: got %q want %q", saved.JumpChain.Hops[0].ID, existingID)
 	}
 }
+
+// A new folder belongs at the top of its level. Stored with the zero Order it arrives with, it
+// landed wherever the tree's stable sort placed a tie - in practice straight after the first
+// folder, because that one usually has order zero too. Appearing in the middle of a list for no
+// reason the user can see is the worst of the three places it could go.
+func TestANewFolderSortsAheadOfItsSiblings(t *testing.T) {
+	d := domain.NewVaultData()
+	d.Folders = []domain.ConnectionFolder{
+		{ID: "a", Name: "A", ParentID: "", Order: 0},
+		{ID: "b", Name: "B", ParentID: "", Order: 1},
+		{ID: "c", Name: "C", ParentID: "", Order: 2},
+	}
+	v := &memVault{data: d}
+	r := NewConnectionRepo(v)
+
+	fresh := &domain.ConnectionFolder{Name: "New folder"}
+	if err := r.SaveFolder(context.Background(), fresh); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	for _, existing := range d.Folders {
+		if existing.ID == fresh.ID {
+			continue
+		}
+		if fresh.Order >= existing.Order {
+			t.Fatalf("new folder order %d does not sort ahead of %q at %d",
+				fresh.Order, existing.Name, existing.Order)
+		}
+	}
+	if d.Folders[len(d.Folders)-1].Order != fresh.Order {
+		t.Error("the stored folder did not keep the order that was assigned to it")
+	}
+}
+
+// Creating several in a row must keep putting each one first, or the second click lands the folder
+// behind the one the first click made and the rule holds only once.
+func TestEachNewFolderGoesAheadOfTheLastOne(t *testing.T) {
+	v := &memVault{data: domain.NewVaultData()}
+	r := NewConnectionRepo(v)
+
+	var previous int
+	for i := range 3 {
+		f := &domain.ConnectionFolder{Name: "New folder"}
+		if err := r.SaveFolder(context.Background(), f); err != nil {
+			t.Fatalf("save %d: %v", i, err)
+		}
+		if i > 0 && f.Order >= previous {
+			t.Fatalf("folder %d took order %d, which does not sort ahead of the previous %d", i, f.Order, previous)
+		}
+		previous = f.Order
+	}
+}
+
+// Ordering is per level. A new subfolder must sort against its own siblings, not against folders
+// under a different parent that happen to hold lower numbers.
+func TestOrderingIsScopedToTheParent(t *testing.T) {
+	d := domain.NewVaultData()
+	d.Folders = []domain.ConnectionFolder{
+		{ID: "root", Name: "Root", ParentID: "", Order: -50},
+		{ID: "child", Name: "Child", ParentID: "root", Order: 3},
+	}
+	v := &memVault{data: d}
+	r := NewConnectionRepo(v)
+
+	fresh := &domain.ConnectionFolder{Name: "New folder", ParentID: "root"}
+	if err := r.SaveFolder(context.Background(), fresh); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	if fresh.Order >= 3 {
+		t.Errorf("order = %d, want less than the sibling's 3", fresh.Order)
+	}
+	// The unrelated root folder at -50 must not drag the new subfolder down past it; only siblings
+	// count, and the lowest sibling order here is 3.
+	if fresh.Order < -1 {
+		t.Errorf("order = %d; a folder under a different parent was counted as a sibling", fresh.Order)
+	}
+}
+
+// Updating an existing folder must leave its order alone, or every rename would jump the folder to
+// the top of the list.
+func TestSavingAnExistingFolderKeepsItsOrder(t *testing.T) {
+	d := domain.NewVaultData()
+	d.Folders = []domain.ConnectionFolder{
+		{ID: "a", Name: "A", ParentID: "", Order: 0},
+		{ID: "b", Name: "B", ParentID: "", Order: 1},
+	}
+	v := &memVault{data: d}
+	r := NewConnectionRepo(v)
+
+	renamed := &domain.ConnectionFolder{ID: "b", Name: "B renamed", ParentID: "", Order: 1}
+	if err := r.SaveFolder(context.Background(), renamed); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if renamed.Order != 1 {
+		t.Errorf("order = %d after a rename, want 1", renamed.Order)
+	}
+	if d.Folders[1].Name != "B renamed" || d.Folders[1].Order != 1 {
+		t.Errorf("stored folder = %+v, want the rename at order 1", d.Folders[1])
+	}
+}
