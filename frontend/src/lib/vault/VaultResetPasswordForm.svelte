@@ -1,10 +1,7 @@
 <script lang="ts">
   import { KeyRound } from 'lucide-svelte';
-  import { createVault } from '../../actions/vaultActions';
-  import {
-    evaluatePasswordStrength,
-    checkPasswordRequirements,
-  } from './passwordStrength';
+  import { completeRecoveryReset } from '../../actions/vaultActions';
+  import { evaluatePasswordStrength, checkPasswordRequirements } from './passwordStrength';
   import VaultCard from './VaultCard.svelte';
   import PasswordField from './PasswordField.svelte';
   import PasswordStrengthMeter from './PasswordStrengthMeter.svelte';
@@ -12,58 +9,48 @@
   import NoRecoveryWarning from './NoRecoveryWarning.svelte';
   import { t } from '../../i18n/messages';
 
+  // Reached only after an unlock that used the recovery key. There is no cancel: the vault is open
+  // under a credential the user was told to store away from the machine, and leaving it that way is
+  // the state this screen exists to end.
   let password = '';
   let confirmation = '';
   let error = '';
   let loading = false;
   let acknowledged = false;
 
-  // null while empty so the meter renders neutral rather than shouting "Weak"
-  // at a field the user has not touched yet.
   $: strength = password ? evaluatePasswordStrength(password) : null;
   $: checklist = checkPasswordRequirements(password);
   $: mismatch = confirmation.length > 0 && confirmation !== password;
   $: canSubmit = checklist.minLength && password === confirmation && acknowledged && !loading;
 
-  async function handleCreate() {
+  async function handleReset() {
     if (!canSubmit) return;
     loading = true;
     error = '';
     try {
-      await createVault(password);
+      await completeRecoveryReset(password);
     } catch (e: any) {
-      error = e?.message || $t('vault.create.failed');
+      error = e?.message || $t('vault.reset.failed');
     } finally {
       loading = false;
     }
   }
 </script>
 
-<VaultCard
-  wide
-  title={$t('vault.create.title')}
-  subtitle={$t('security.vault.create.subtitle')}
-  {error}
->
+<VaultCard wide title={$t('vault.reset.title')} subtitle={$t('vault.reset.subtitle')} {error}>
   <KeyRound slot="icon" size={48} strokeWidth={1.5} />
 
-  <form on:submit|preventDefault={handleCreate}>
+  <form on:submit|preventDefault={handleReset}>
     <NoRecoveryWarning bind:acknowledged disabled={loading} />
 
     <PasswordField
       bind:value={password}
-      ariaLabel={$t('vault.field.master')}
-      placeholder={$t('vault.field.master')}
+      ariaLabel={$t('security.vault.newPassword')}
+      placeholder={$t('security.vault.newPassword')}
       disabled={loading}
       autofocus
     />
 
-    <!--
-      The meter and the checklist are always mounted, and the messages below
-      them keep their line whether or not they have anything to say. Revealing
-      them per keystroke would shove every field underneath up and down while
-      the user is typing into one of them.
-    -->
     <PasswordStrengthMeter result={strength} />
     <PasswordRequirements {checklist} />
 
@@ -79,7 +66,7 @@
     </p>
 
     <button type="submit" class="primary" disabled={!canSubmit}>
-      {loading ? $t('vault.create.busy') : $t('vault.create.submit')}
+      {loading ? $t('vault.reset.busy') : $t('vault.reset.submit')}
     </button>
 
     <p class="next-step">

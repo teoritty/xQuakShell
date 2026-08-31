@@ -12,6 +12,7 @@
   import PeerTrustManager from './lib/PeerTrustManager.svelte';
   import AuditLogView from './lib/AuditLogView.svelte';
   import ErrorDialog from './lib/ErrorDialog.svelte';
+  import RecoveryKeyDialog from './lib/vault/RecoveryKeyDialog.svelte';
   import ConflictDialog from './lib/ConflictDialog.svelte';
   import SettingsDialog from './lib/SettingsDialog.svelte';
   import PluginsDialog from './lib/plugins/PluginsDialog.svelte';
@@ -20,7 +21,7 @@
   import ScriptsDialog from './lib/ScriptsDialog.svelte';
   import PluginCommandPalette from './lib/PluginCommandPalette.svelte';
   import { pluginContributions, initPluginContributionEvents, initPluginViewMessageEvents, refreshPluginContributions } from './stores/pluginState';
-  import { sessions, activeTabId, vaultUnlocked, pendingHostKey, connections } from './stores/appState';
+  import { sessions, activeTabId, vaultUnlocked, pendingHostKey, pendingRecoveryKey, connections } from './stores/appState';
   import { subscribeToEvents } from './events/subscribe';
   import { resolveHostKeyRpc as resolveHostKey } from './api/sessions';
   import { createNewConnectionInFolder } from './actions/connectionActions';
@@ -298,6 +299,15 @@
 
 <ErrorDialog />
 <ConflictDialog />
+
+<!--
+  Outside the vault gate on purpose. A key is handed over on three occasions - creating a vault,
+  finishing a recovery reset, and asking for a new one in settings - and two of those happen with
+  the application already up. Mounting it here is the one place that covers all three.
+-->
+{#if $pendingRecoveryKey}
+  <RecoveryKeyDialog />
+{/if}
 
 <style>
   .app-shell {

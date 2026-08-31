@@ -214,6 +214,20 @@ export const vaultUnlocked = writable<boolean>(false);
  * Locking does not reset this: a locked vault still exists.
  */
 export const vaultExists = writable<boolean | null>(null);
+/**
+ * The one-time recovery key currently being shown, or null when no dialog is open.
+ *
+ * This is the only place in the frontend a key ever lives, and only while its dialog is on screen.
+ * It is never persisted: the backend holds the copy that gets saved to a file, and both are dropped
+ * the moment the user acknowledges it.
+ */
+export const pendingRecoveryKey = writable<string | null>(null);
+/**
+ * Set when the vault was opened with the recovery key, so the app shows the set-a-new-password
+ * screen instead of the connection list. The vault is readable at that point, but the credential
+ * that opened it is one the user was told to keep away from the machine.
+ */
+export const recoveryResetRequired = writable<boolean>(false);
 export const transfers = writable<TransferItem[]>([]);
 
 /**

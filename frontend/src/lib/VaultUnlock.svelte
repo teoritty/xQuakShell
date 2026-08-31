@@ -4,10 +4,11 @@
   // synchronously and would render a screen before the answer arrives; owning
   // the probe here lets the gate show nothing until it knows.
   import { onMount } from 'svelte';
-  import { vaultExists } from '../stores/appState';
+  import { vaultExists, recoveryResetRequired } from '../stores/appState';
   import { initVaultGate } from '../actions/vaultActions';
   import VaultCreateForm from './vault/VaultCreateForm.svelte';
   import VaultUnlockForm from './vault/VaultUnlockForm.svelte';
+  import VaultResetPasswordForm from './vault/VaultResetPasswordForm.svelte';
 
   onMount(() => {
     void initVaultGate();
@@ -15,7 +16,14 @@
 </script>
 
 <div class="vault-screen">
-  {#if $vaultExists === null}
+  {#if $recoveryResetRequired}
+    <!--
+      Checked before the probe, and before anything else: once the vault has been opened with the
+      recovery key there is no screen the user may go back to. The password is gone and the
+      credential that got them in is one that is meant to be spent.
+    -->
+    <VaultResetPasswordForm />
+  {:else if $vaultExists === null}
     <!-- Probing. Rendering either card here would flash the wrong screen. -->
   {:else if $vaultExists}
     <VaultUnlockForm />

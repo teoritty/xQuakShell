@@ -115,7 +115,17 @@ export interface AppGateway {
 
   CreateLocalFile(arg1: string): Promise<void>;
 
-  CreateVault(arg1: string): Promise<void>;
+  CreateVault(arg1: string): Promise<wails.RecoveryKeyDTO>;
+
+  ChangeMasterPassword(arg1: string, arg2: string): Promise<wails.RecoveryKeyDTO>;
+
+  CompleteRecoveryReset(arg1: string): Promise<wails.RecoveryKeyDTO>;
+
+  AcknowledgeRecoveryKey(): Promise<void>;
+
+  HasRecoveryKey(): Promise<boolean>;
+
+  SaveRecoveryKeyFile(): Promise<boolean>;
 
   DeleteAuditEntry(arg1: number): Promise<void>;
 
@@ -310,6 +320,8 @@ export interface AppGateway {
 
   ListPlugins(): Promise<Array<wails.PluginDTO>>;
 
+  IssueRecoveryKey(arg1: string): Promise<wails.RecoveryKeyDTO>;
+
   LockVault(): Promise<void>;
 
   MkdirLocalPath(arg1: string): Promise<void>;
@@ -426,7 +438,7 @@ export interface AppGateway {
 
   UninstallGitHubPlugin(arg1: string, arg2: boolean): Promise<void>;
 
-  UnlockVault(arg1: string): Promise<void>;
+  UnlockVault(arg1: string): Promise<wails.UnlockResultDTO>;
 
   Upload(arg1: string, arg2: string, arg3: string): Promise<void>;
 

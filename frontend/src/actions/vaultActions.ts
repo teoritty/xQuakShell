@@ -10,9 +10,29 @@
 // behavior is a silent no-op of only the RPC call, not of the surrounding
 // store orchestration).
 import { getGateway } from '../backend/context';
-import { unlockVaultRpc, lockVaultRpc, createVaultRpc, vaultExistsRpc } from '../api/vault';
+import {
+  unlockVaultRpc,
+  lockVaultRpc,
+  createVaultRpc,
+  vaultExistsRpc,
+  acknowledgeRecoveryKeyRpc,
+  completeRecoveryResetRpc,
+  issueRecoveryKeyRpc,
+  changeMasterPasswordRpc,
+} from '../api/vault';
 import { getPlatform } from '../api/sessions';
-import { folders, connections, sessions, identities, vaultUnlocked, vaultExists, platform, showError } from '../stores/appState';
+import {
+  folders,
+  connections,
+  sessions,
+  identities,
+  vaultUnlocked,
+  vaultExists,
+  pendingRecoveryKey,
+  recoveryResetRequired,
+  platform,
+  showError,
+} from '../stores/appState';
 import { refreshFolders } from './folderActions';
 import { refreshAllConnections, refreshIdentities } from './connectionActions';
 import { refreshConnectionProtocols } from './protocolActions';
@@ -40,11 +60,25 @@ export async function warmupAfterVaultOpened(): Promise<void> {
   await applyAppearanceSettings();
 }
 
-export async function unlockVault(masterPassword: string): Promise<void> {
+// Opens the vault with whichever credential was typed into the single field.
+//
+// A recovery unlock deliberately does not warm the stores up. The vault is readable, but the
+// password is gone and the credential that got in is one the user was told to keep on paper; the
+// reset screen runs before anything else starts.
+export async function unlockVault(credential: string): Promise<void> {
   // Mirrors the original stores/api.ts guard: on a missing gateway, do
   // nothing observable (no store mutation, no error toast) and return.
   if (!getGateway()) return;
-  await unlockVaultRpc(masterPassword);
+  const outcome = await unlockVaultRpc(credential);
+
+  if (outcome.method === 'recovery') {
+    recoveryResetRequired.set(true);
+    return;
+  }
+  if (outcome.recoveryKey) {
+    // This unlock upgraded a vault written before recovery keys existed, so it minted a first one.
+    pendingRecoveryKey.set(outcome.recoveryKey);
+  }
   await warmupAfterVaultOpened();
 }
 
@@ -53,9 +87,49 @@ export async function unlockVault(masterPassword: string): Promise<void> {
 // screen does.
 export async function createVault(masterPassword: string): Promise<void> {
   if (!getGateway()) return;
-  await createVaultRpc(masterPassword);
+  const key = await createVaultRpc(masterPassword);
   vaultExists.set(true);
+  if (key) pendingRecoveryKey.set(key);
   await warmupAfterVaultOpened();
+}
+
+// Sets the master password after a recovery unlock and hands back a fresh key to show.
+//
+// The stores are warmed here rather than at unlock, so the application only comes up once the
+// forgotten credential has actually been replaced.
+export async function completeRecoveryReset(newPassword: string): Promise<void> {
+  if (!getGateway()) return;
+  const key = await completeRecoveryResetRpc(newPassword);
+  recoveryResetRequired.set(false);
+  if (key) pendingRecoveryKey.set(key);
+  await warmupAfterVaultOpened();
+}
+
+// Mints a replacement recovery key from settings, revoking the previous one.
+export async function regenerateRecoveryKey(masterPassword: string): Promise<void> {
+  if (!getGateway()) return;
+  const key = await issueRecoveryKeyRpc(masterPassword);
+  if (key) pendingRecoveryKey.set(key);
+}
+
+// Changes the master password, which also revokes the old recovery key and issues a new one.
+export async function changeMasterPassword(current: string, next: string): Promise<void> {
+  if (!getGateway()) return;
+  const key = await changeMasterPasswordRpc(current, next);
+  if (key) pendingRecoveryKey.set(key);
+}
+
+// Dismisses the one-time dialog: the backend forgets its copy, then the store forgets the display
+// copy. In that order, so a failure to reach the backend leaves the key on screen rather than
+// wiping it from the UI while the backend still holds it.
+export async function acknowledgeRecoveryKey(): Promise<void> {
+  try {
+    await acknowledgeRecoveryKeyRpc();
+  } catch (e) {
+    handleError(e, 'Acknowledge recovery key');
+    return;
+  }
+  pendingRecoveryKey.set(null);
 }
 
 // Answers the first-run question for the vault gate. Until this resolves,
@@ -82,4 +156,8 @@ export async function lockVault(): Promise<void> {
   connections.set([]);
   sessions.set([]);
   identities.set([]);
+  // A key still on screen when the vault locks is a key nobody can act on any more, and the backend
+  // has dropped its own copy along with everything else.
+  pendingRecoveryKey.set(null);
+  recoveryResetRequired.set(false);
 }

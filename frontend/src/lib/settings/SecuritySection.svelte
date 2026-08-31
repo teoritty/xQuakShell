@@ -1,6 +1,7 @@
 <script lang="ts">
   import SettingsSection from './SettingsSection.svelte';
   import PluginTrustSection from './PluginTrustSection.svelte';
+  import MasterPasswordSection from './MasterPasswordSection.svelte';
   import { t } from '../../i18n/messages';
   import type { SettingsSearchViewState } from '../settingsSearch';
   import type { SettingsDraft } from './settingsDraft';
@@ -10,6 +11,10 @@
   // through its own reauthenticated path rather than through this dialog's save.
   export let draft: SettingsDraft;
 </script>
+
+<SettingsSection tab="security" section="masterPassword" {view}>
+  <MasterPasswordSection />
+</SettingsSection>
 
 <SettingsSection tab="security" section="lockout" {view}>
   <div class="section">
