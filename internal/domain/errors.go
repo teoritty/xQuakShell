@@ -144,6 +144,27 @@ var ErrForwardBindNotLoopback = errors.New("forward listener did not bind to loo
 // a denial of service anyone who can reach the prompt can trigger.
 var ErrUnlockThrottled = errors.New("too many failed unlock attempts")
 
+// ErrRecoveryKeyNotSet indicates this vault has no recovery key wrap, so there is nothing a
+// recovery key could open. A vault reaches that state by being created before recovery keys
+// existed, or by having its one-time key issued and never acknowledged.
+var ErrRecoveryKeyNotSet = errors.New("this vault has no recovery key")
+
+// ErrRecoveryKeyUnavailable indicates the freshly issued key is no longer held in memory, because
+// the user acknowledged it or the application restarted. It is not an error condition in the vault;
+// it is the one-time display having already happened.
+var ErrRecoveryKeyUnavailable = errors.New("no recovery key is waiting to be saved")
+
+// ErrVaultEnvelopeTooNew indicates the vault envelope on disk was written by a newer build. It is
+// separate from ErrVaultVersionTooNew because the envelope is outside the ciphertext: this one is
+// detected without any credential at all, so it is what an out-of-date build reports instead of
+// looking like a wrong password.
+var ErrVaultEnvelopeTooNew = errors.New("vault was written by a newer version of the application")
+
+// ErrRecoveryResetRequired indicates the vault was opened with the recovery key and is waiting for
+// a new master password. The data is readable, but nothing else may proceed until the credential
+// that was forgotten has been replaced.
+var ErrRecoveryResetRequired = errors.New("a new master password must be set before continuing")
+
 // ErrLocalTerminalUnsupported indicates this machine cannot host a local terminal at all.
 //
 // In practice this is Windows before 10 build 17763, where the pseudo-console API the terminal is

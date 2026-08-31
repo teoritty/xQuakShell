@@ -37,23 +37,23 @@ func Exists(dir string) bool {
 	return err == nil
 }
 
-// ReadVaultFile reads and decrypts the vault from disk.
+// readVaultBytes reads the vault file without interpreting it.
+//
 // It returns domain.ErrVaultNotFound when no vault file exists: bringing a vault
 // into existence is the explicit job of VaultRepo.Create, never a side effect of
 // a read. Synthesizing an empty vault here would make a typo on the unlock
 // screen indistinguishable from deliberately choosing a new master password.
-func ReadVaultFile(dir, passphrase string) (*domain.VaultData, error) {
+func readVaultBytes(dir string) ([]byte, error) {
 	path := FilePath(dir)
 
-	ciphertext, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, domain.ErrVaultNotFound
 		}
 		return nil, fmt.Errorf("vault read file %s: %w", path, err)
 	}
-
-	return Decrypt(ciphertext, passphrase)
+	return raw, nil
 }
 
 // BackupVaultFile copies the vault aside before a schema migration rewrites it, naming the copy
@@ -96,16 +96,13 @@ func BackupVaultFile(dir string, fromVersion int) error {
 	return nil
 }
 
-// WriteVaultFile encrypts and atomically writes the vault to disk.
-// It writes to a temporary file first, syncs, then renames to the final name.
-func WriteVaultFile(dir, passphrase string, data *domain.VaultData) error {
+// writeVaultBytes atomically replaces the vault file.
+// It writes to a temporary file first, syncs, then renames to the final name, so a crash mid-write
+// leaves either the previous vault or the new one and never a truncated file that opens with
+// neither credential.
+func writeVaultBytes(dir string, ciphertext []byte) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("vault mkdir %s: %w", dir, err)
-	}
-
-	ciphertext, err := Encrypt(data, passphrase)
-	if err != nil {
-		return err
 	}
 
 	tmpPath := filepath.Join(dir, vaultTmpName)

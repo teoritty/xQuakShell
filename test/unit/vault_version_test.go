@@ -22,7 +22,11 @@ func writeVaultAtVersion(t *testing.T, dir string, version int) []byte {
 	t.Helper()
 	data := domain.NewVaultData()
 	data.Version = version
-	if err := vault.WriteVaultFile(dir, versionTestPassphrase, data); err != nil {
+	session, err := vault.CreateSession(dir, versionTestPassphrase)
+	if err != nil {
+		t.Fatalf("create session at version %d: %v", version, err)
+	}
+	if err := session.Save(data); err != nil {
 		t.Fatalf("write vault at version %d: %v", version, err)
 	}
 	raw, err := os.ReadFile(filepath.Join(dir, "vault.age"))
@@ -43,14 +47,34 @@ func TestVaultDecryptTellsANewerSchemaFromAnOlderOne(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		dir := t.TempDir()
+		writeVaultAtVersion(t, dir, tc.version)
+		if _, _, _, err := vault.Open(dir, versionTestPassphrase); !errors.Is(err, tc.want) {
+			t.Errorf("%s vault (version %d): got %v, want %v; the two directions need opposite actions from the user", tc.name, tc.version, err, tc.want)
+		}
+	}
+}
+
+// The same gate has to hold on the pre-envelope format, because that is what every installation
+// written by an older build still has on disk.
+func TestLegacyVaultVersionGatesMatchTheEnvelopeOnes(t *testing.T) {
+	cases := []struct {
+		version int
+		want    error
+	}{
+		{domain.CurrentVaultVersion + 1, domain.ErrVaultVersionTooNew},
+		{domain.MinMigratableVaultVersion - 1, domain.ErrVaultVersionTooOld},
+	}
+
+	for _, tc := range cases {
 		data := domain.NewVaultData()
 		data.Version = tc.version
-		ciphertext, err := vault.Encrypt(data, versionTestPassphrase)
+		ciphertext, err := vault.EncryptLegacy(data, versionTestPassphrase)
 		if err != nil {
-			t.Fatalf("%s: encrypt: %v", tc.name, err)
+			t.Fatalf("version %d: encrypt: %v", tc.version, err)
 		}
-		if _, err := vault.Decrypt(ciphertext, versionTestPassphrase); !errors.Is(err, tc.want) {
-			t.Errorf("%s vault (version %d): got %v, want %v; the two directions need opposite actions from the user", tc.name, tc.version, err, tc.want)
+		if _, err := vault.DecryptLegacy(ciphertext, versionTestPassphrase); !errors.Is(err, tc.want) {
+			t.Errorf("legacy vault (version %d): got %v, want %v", tc.version, err, tc.want)
 		}
 	}
 }
@@ -59,14 +83,10 @@ func TestVaultDecryptTellsANewerSchemaFromAnOlderOne(t *testing.T) {
 // version. Decrypt returning the current version instead would make the migration invisible to
 // every caller that decides whether to run one.
 func TestVaultDecryptReturnsAMigratableSchemaUntouched(t *testing.T) {
-	data := domain.NewVaultData()
-	data.Version = domain.MinMigratableVaultVersion
-	ciphertext, err := vault.Encrypt(data, versionTestPassphrase)
-	if err != nil {
-		t.Fatalf("encrypt: %v", err)
-	}
+	dir := t.TempDir()
+	writeVaultAtVersion(t, dir, domain.MinMigratableVaultVersion)
 
-	got, err := vault.Decrypt(ciphertext, versionTestPassphrase)
+	_, got, _, err := vault.Open(dir, versionTestPassphrase)
 	if err != nil {
 		t.Fatalf("decrypt a migratable vault: %v", err)
 	}

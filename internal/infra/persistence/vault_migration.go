@@ -22,7 +22,7 @@ func (r *VaultRepo) PlanMigration(_ context.Context, masterPassword string, deps
 	dir := r.dir
 	r.mu.RUnlock()
 
-	data, err := vault.ReadVaultFile(dir, masterPassword)
+	_, data, _, err := vault.Open(dir, masterPassword)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (r *VaultRepo) CompleteMigration(_ context.Context, masterPassword string, 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	data, err := vault.ReadVaultFile(r.dir, masterPassword)
+	session, data, _, err := vault.Open(r.dir, masterPassword)
 	if err != nil {
 		return nil, err
 	}
@@ -65,12 +65,20 @@ func (r *VaultRepo) CompleteMigration(_ context.Context, masterPassword string, 
 	if err != nil {
 		return nil, err
 	}
-	if err := vault.WriteVaultFile(r.dir, masterPassword, data); err != nil {
+	// A vault old enough to need this migration predates the envelope, so the same rewrite that
+	// upgrades the schema is also the one that gives it a vault key. The backup above already
+	// captured the original bytes under the version being left behind.
+	if session.IsLegacy() {
+		if err := session.Rekey(masterPassword); err != nil {
+			return nil, fmt.Errorf("vault migration rekey: %w", err)
+		}
+	}
+	if err := session.Save(data); err != nil {
 		return nil, fmt.Errorf("vault migration write: %w", err)
 	}
 	report.BackupPath = vault.BackupPath(r.dir, fromVersion)
 
-	r.passphrase = masterPassword
+	r.session = session
 	r.data = data
 	r.ensureVaultDataLocked()
 	r.unlocked = true

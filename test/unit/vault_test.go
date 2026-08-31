@@ -10,7 +10,34 @@ import (
 	"xquakshell/internal/infra/vault"
 )
 
+// writeVault puts data on disk under passphrase, through the same two calls VaultRepo.Create makes.
+// Going through the real API rather than a fixture is what keeps these tests honest about the
+// format actually shipped.
+func writeVault(t *testing.T, dir, passphrase string, data *domain.VaultData) {
+	t.Helper()
+	session, err := vault.CreateSession(dir, passphrase)
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if err := session.Save(data); err != nil {
+		t.Fatalf("save vault: %v", err)
+	}
+}
+
+func openVault(t *testing.T, dir, passphrase string) *domain.VaultData {
+	t.Helper()
+	_, data, method, err := vault.Open(dir, passphrase)
+	if err != nil {
+		t.Fatalf("open vault: %v", err)
+	}
+	if method != domain.UnlockByPassword {
+		t.Fatalf("method = %v, want UnlockByPassword; a password must never be taken for a recovery key", method)
+	}
+	return data
+}
+
 func TestVaultEncryptDecryptRoundtrip(t *testing.T) {
+	dir := t.TempDir()
 	data := domain.NewVaultData()
 	data.Folders = []domain.ConnectionFolder{
 		{ID: "f1", Name: "Test Folder", ParentID: "", Order: 0},
@@ -24,21 +51,8 @@ func TestVaultEncryptDecryptRoundtrip(t *testing.T) {
 	}
 	data.KnownHosts = []string{"example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest"}
 
-	passphrase := "test-master-password"
-
-	ciphertext, err := vault.Encrypt(data, passphrase)
-	if err != nil {
-		t.Fatalf("encrypt: %v", err)
-	}
-
-	if len(ciphertext) == 0 {
-		t.Fatal("ciphertext is empty")
-	}
-
-	decrypted, err := vault.Decrypt(ciphertext, passphrase)
-	if err != nil {
-		t.Fatalf("decrypt: %v", err)
-	}
+	writeVault(t, dir, "test-master-password", data)
+	decrypted := openVault(t, dir, "test-master-password")
 
 	if decrypted.Version != domain.CurrentVaultVersion {
 		t.Errorf("version: got %d, want %d", decrypted.Version, domain.CurrentVaultVersion)
@@ -55,15 +69,11 @@ func TestVaultEncryptDecryptRoundtrip(t *testing.T) {
 }
 
 func TestVaultDecryptWrongPassphrase(t *testing.T) {
-	data := domain.NewVaultData()
-	ciphertext, err := vault.Encrypt(data, "correct-password")
-	if err != nil {
-		t.Fatalf("encrypt: %v", err)
-	}
+	dir := t.TempDir()
+	writeVault(t, dir, "correct-password", domain.NewVaultData())
 
-	_, err = vault.Decrypt(ciphertext, "wrong-password")
-	if err == nil {
-		t.Fatal("expected error for wrong passphrase, got nil")
+	if _, _, _, err := vault.Open(dir, "wrong-password"); !errors.Is(err, domain.ErrVaultDecryptFailed) {
+		t.Fatalf("got %v, want ErrVaultDecryptFailed", err)
 	}
 }
 
@@ -80,10 +90,7 @@ func TestVaultFileRoundtrip(t *testing.T) {
 		},
 	}
 
-	err := vault.WriteVaultFile(dir, passphrase, data)
-	if err != nil {
-		t.Fatalf("write vault file: %v", err)
-	}
+	writeVault(t, dir, passphrase, data)
 
 	vaultPath := filepath.Join(dir, "vault.age")
 	if _, err := os.Stat(vaultPath); os.IsNotExist(err) {
@@ -95,11 +102,7 @@ func TestVaultFileRoundtrip(t *testing.T) {
 		t.Fatal("temporary file should be cleaned up after atomic write")
 	}
 
-	read, err := vault.ReadVaultFile(dir, passphrase)
-	if err != nil {
-		t.Fatalf("read vault file: %v", err)
-	}
-
+	read := openVault(t, dir, passphrase)
 	if len(read.Connections) != 1 || read.Connections[0].Host != "10.0.0.1" {
 		t.Errorf("read data mismatch: %+v", read.Connections)
 	}
@@ -108,7 +111,7 @@ func TestVaultFileRoundtrip(t *testing.T) {
 func TestVaultReadNonExistentReturnsErrVaultNotFound(t *testing.T) {
 	dir := t.TempDir()
 
-	data, err := vault.ReadVaultFile(dir, "any-password")
+	_, data, _, err := vault.Open(dir, "any-password")
 	if !errors.Is(err, domain.ErrVaultNotFound) {
 		t.Fatalf("expected ErrVaultNotFound, got: %v", err)
 	}
@@ -129,16 +132,15 @@ func TestVaultExists(t *testing.T) {
 		t.Error("expected Exists false on an empty directory")
 	}
 
-	if err := vault.WriteVaultFile(dir, "correct-horse-battery", domain.NewVaultData()); err != nil {
-		t.Fatalf("write vault file: %v", err)
-	}
+	writeVault(t, dir, "correct-horse-battery", domain.NewVaultData())
 
 	if !vault.Exists(dir) {
-		t.Error("expected Exists true after WriteVaultFile")
+		t.Error("expected Exists true after a vault is written")
 	}
 }
 
 func TestVaultIdentitiesStorage(t *testing.T) {
+	dir := t.TempDir()
 	data := domain.NewVaultData()
 	data.Identities["key1"] = domain.SSHIdentity{
 		ID: "key1", Comment: "test key", KeyType: "ed25519", Encrypted: false,
@@ -147,16 +149,8 @@ func TestVaultIdentitiesStorage(t *testing.T) {
 		PEMData: []byte("fake-pem-data"),
 	}
 
-	passphrase := "identity-test"
-	ciphertext, err := vault.Encrypt(data, passphrase)
-	if err != nil {
-		t.Fatalf("encrypt: %v", err)
-	}
-
-	decrypted, err := vault.Decrypt(ciphertext, passphrase)
-	if err != nil {
-		t.Fatalf("decrypt: %v", err)
-	}
+	writeVault(t, dir, "identity-test", data)
+	decrypted := openVault(t, dir, "identity-test")
 
 	ident, ok := decrypted.Identities["key1"]
 	if !ok {

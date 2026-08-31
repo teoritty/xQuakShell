@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"runtime"
 	"runtime/debug"
@@ -18,11 +17,17 @@ const vaultPersistDebounce = 400 * time.Millisecond
 
 // VaultRepo implements domain.VaultRepository backed by an age-encrypted file.
 type VaultRepo struct {
-	mu         sync.RWMutex
-	dir        string
-	passphrase string
-	data       *domain.VaultData
-	unlocked   bool
+	mu       sync.RWMutex
+	dir      string
+	session  *vault.Session
+	data     *domain.VaultData
+	unlocked bool
+
+	// converted records that this unlock upgraded a pre-envelope vault. It is what tells the caller
+	// to issue a first recovery key and show it, and it is deliberately not the same question as
+	// "has no recovery key": a user who dismissed the one-time dialog by killing the application
+	// also has no key, and must ask for a new one rather than be handed one every launch.
+	converted bool
 
 	dirty      bool
 	generation uint64
@@ -85,22 +90,28 @@ func (r *VaultRepo) Create(_ context.Context, masterPassword string) error {
 	r.ensureVaultDataLocked()
 	snapshot := domain.CloneVaultData(r.data)
 
-	if err := vault.WriteVaultFile(r.dir, masterPassword, snapshot); err != nil {
+	session, err := vault.CreateSession(r.dir, masterPassword)
+	if err != nil {
+		r.data = nil
+		return err
+	}
+	if err := session.Save(snapshot); err != nil {
 		r.data = nil
 		return err
 	}
 
-	// Same ~256 MiB transient scrypt allocation as Unlock and flushGeneration —
-	// see the SetWorkFactor comment in internal/infra/vault/vault.go.
+	// Same ~256 MiB transient scrypt allocation as Unlock —
+	// see the scryptWorkFactor comment in internal/infra/vault/vault.go.
 	safego.GoNamed("vault.createGC", func() {
 		runtime.GC()
 		debug.FreeOSMemory()
 	})
 
-	r.passphrase = masterPassword
+	r.session = session
 	r.unlocked = true
 	r.dirty = false
 	r.generation = 0
+	r.converted = false
 
 	return nil
 }
@@ -111,42 +122,8 @@ func (r *VaultRepo) Create(_ context.Context, masterPassword string) error {
 // deliberately not applied here — an existing vault stays openable with
 // whatever password created it.
 func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	data, err := vault.ReadVaultFile(r.dir, masterPassword)
-	if err != nil {
-		return err
-	}
-	if vault.NeedsMigration(data) {
-		// Refuse rather than migrate silently. A migration rewrites the file and needs
-		// passphrases the unlock screen never asked for, so it belongs to an explicit flow the
-		// user starts and can see the result of.
-		return fmt.Errorf("vault version %d: %w", data.Version, domain.ErrVaultMigrationRequired)
-	}
-
-	// ReadVaultFile -> Decrypt runs the same scrypt KDF as Encrypt (see the
-	// SetWorkFactor comment in internal/infra/vault/vault.go) and transiently
-	// allocates ~256 MiB while doing so. Force the Go runtime to release
-	// those pages back to the OS immediately, mirroring the identical
-	// workaround already used after vault writes below in flushNow().
-	// Without this, unlocking the vault produces an RSS spike that can
-	// visibly linger for several minutes before the runtime's background
-	// scavenger reclaims it on its own. Runs in a goroutine so it never
-	// blocks the caller waiting on Unlock's return.
-	safego.GoNamed("vault.unlockGC", func() {
-		runtime.GC()
-		debug.FreeOSMemory()
-	})
-
-	r.passphrase = masterPassword
-	r.data = data
-	r.ensureVaultDataLocked()
-	r.unlocked = true
-	r.dirty = false
-	r.generation = 0
-
-	return nil
+	_, err := r.openWith(masterPassword, false)
+	return err
 }
 
 // VerifyMasterPassword reports whether masterPassword opens the vault on disk, changing nothing.
@@ -154,12 +131,16 @@ func (r *VaultRepo) Unlock(_ context.Context, masterPassword string) error {
 // It decrypts the file and throws the result away. That costs a full scrypt pass, which is the
 // point: an attacker who reached this call gets the same work factor as the unlock screen, and
 // there is nothing cheaper to compare against because the master password is never stored.
+//
+// A recovery key is rejected here even though it opens the vault. Every caller of this is
+// re-authenticating for something sensitive - exporting a private key, trusting a plugin - and the
+// recovery key is the credential most likely to be sitting on a desk next to the machine.
 func (r *VaultRepo) VerifyMasterPassword(_ context.Context, masterPassword string) error {
 	r.mu.RLock()
 	dir := r.dir
 	r.mu.RUnlock()
 
-	if _, err := vault.ReadVaultFile(dir, masterPassword); err != nil {
+	if err := vault.VerifyPassword(dir, masterPassword); err != nil {
 		return err
 	}
 	safego.GoNamed("vault.verifyGC", func() {
@@ -179,9 +160,10 @@ func (r *VaultRepo) Lock() {
 		r.flushTimer = nil
 	}
 	r.data = nil
-	r.passphrase = ""
+	r.session = nil
 	r.unlocked = false
 	r.dirty = false
+	r.converted = false
 }
 
 // IsUnlocked returns true when the vault is decrypted in memory.
@@ -294,24 +276,14 @@ func (r *VaultRepo) flushGeneration(gen uint64) {
 		return
 	}
 	data := domain.CloneVaultData(r.data)
-	passphrase := r.passphrase
-	dir := r.dir
+	session := r.session
 	r.mu.Unlock()
 
-	err := vault.WriteVaultFile(dir, passphrase, data)
-
-	// vault.WriteVaultFile (Encrypt) runs the same scrypt key derivation as
-	// vault.ReadVaultFile (Decrypt) — see the SetWorkFactor comment in
-	// internal/infra/vault/vault.go for why that transiently costs ~256 MiB.
-	// Force an immediate GC pass and release those pages back to the OS here
-	// so the RSS spike collapses right after the save completes instead of
-	// lingering for minutes while the Go runtime's background scavenger gets
-	// around to it on its own schedule. Runs in a goroutine so it never
-	// blocks the caller waiting on this flush.
-	safego.GoNamed("vault.flushGC", func() {
-		runtime.GC()
-		debug.FreeOSMemory()
-	})
+	// A flush encrypts the payload to the vault key and runs no key derivation, so unlike Unlock
+	// and Create it needs no GC pass afterwards: there is no ~256 MiB scrypt buffer to hand back.
+	// This path fires on every connection edit, which is why the credentials are wrapped around a
+	// vault key instead of encrypting the file under the password directly.
+	err := session.Save(data)
 
 	r.mu.Lock()
 	if err != nil {
