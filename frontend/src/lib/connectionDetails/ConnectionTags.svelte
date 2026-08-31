@@ -3,6 +3,7 @@
   import { createEventDispatcher } from 'svelte';
   import { Plus, X } from 'lucide-svelte';
   import { isTagTooLong, isValidNewTag, tagColor, MAX_TAG_LENGTH } from './tags';
+  import { focusSelect } from '../focusSelect';
   import './connectionDetailsShared.css';
 
   export let tags: string[] = [];
@@ -65,6 +66,7 @@
       <div class="tag-input-wrap">
         <input
           class="tag-inline-input"
+          use:focusSelect
           class:invalid={tagTooLong}
           placeholder={$t('connection.placeholder.tag')}
           value={newTagValue}
