@@ -10,6 +10,7 @@
   import PasswordStrengthMeter from './PasswordStrengthMeter.svelte';
   import PasswordRequirements from './PasswordRequirements.svelte';
   import NoRecoveryWarning from './NoRecoveryWarning.svelte';
+  import NoRecoveryConsent from './NoRecoveryConsent.svelte';
   import { t } from '../../i18n/messages';
 
   let password = '';
@@ -48,7 +49,7 @@
   <KeyRound slot="icon" size={48} strokeWidth={1.5} />
 
   <form on:submit|preventDefault={handleCreate}>
-    <NoRecoveryWarning bind:acknowledged disabled={loading} />
+    <NoRecoveryWarning />
 
     <PasswordField
       bind:value={password}
@@ -77,6 +78,8 @@
     <p class="mismatch" role="alert">
       {mismatch ? $t('vault.create.mismatch') : ''}
     </p>
+
+    <NoRecoveryConsent bind:acknowledged disabled={loading} />
 
     <button type="submit" class="primary" disabled={!canSubmit}>
       {loading ? $t('vault.create.busy') : $t('vault.create.submit')}

@@ -7,6 +7,7 @@
   import PasswordStrengthMeter from './PasswordStrengthMeter.svelte';
   import PasswordRequirements from './PasswordRequirements.svelte';
   import NoRecoveryWarning from './NoRecoveryWarning.svelte';
+  import NoRecoveryConsent from './NoRecoveryConsent.svelte';
   import { t } from '../../i18n/messages';
 
   // Reached only after an unlock that used the recovery key. There is no cancel: the vault is open
@@ -41,7 +42,7 @@
   <KeyRound slot="icon" size={48} strokeWidth={1.5} />
 
   <form on:submit|preventDefault={handleReset}>
-    <NoRecoveryWarning bind:acknowledged disabled={loading} />
+    <NoRecoveryWarning />
 
     <PasswordField
       bind:value={password}
@@ -64,6 +65,8 @@
     <p class="mismatch" role="alert">
       {mismatch ? $t('vault.create.mismatch') : ''}
     </p>
+
+    <NoRecoveryConsent bind:acknowledged disabled={loading} />
 
     <button type="submit" class="primary" disabled={!canSubmit}>
       {loading ? $t('vault.reset.busy') : $t('vault.reset.submit')}
