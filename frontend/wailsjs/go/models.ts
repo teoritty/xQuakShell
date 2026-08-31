@@ -1479,6 +1479,7 @@ export namespace wails {
 	    converted: string[];
 	    skipped: string[];
 	    backupPath: string;
+	    recoveryKey?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new MigrationReportDTO(source);
@@ -1491,6 +1492,7 @@ export namespace wails {
 	        this.converted = source["converted"];
 	        this.skipped = source["skipped"];
 	        this.backupPath = source["backupPath"];
+	        this.recoveryKey = source["recoveryKey"];
 	    }
 	}
 	export class NodeDetailsDTO {

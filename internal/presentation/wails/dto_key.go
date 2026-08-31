@@ -65,6 +65,9 @@ type MigrationReportDTO struct {
 	Converted   []string `json:"converted"`
 	Skipped     []string `json:"skipped"`
 	BackupPath  string   `json:"backupPath"`
+	// RecoveryKey carries a one-time key when this upgrade also gave the vault its first one. Empty
+	// otherwise; it is never a key the caller may ask for again.
+	RecoveryKey string `json:"recoveryKey,omitempty"`
 }
 
 // DeployResultDTO reports whether a key was added or was already authorised.

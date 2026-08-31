@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Lock } from 'lucide-svelte';
   import { unlockVault, warmupAfterVaultOpened } from '../../actions/vaultActions';
-  import { vaultExists } from '../../stores/appState';
+  import { vaultExists, pendingRecoveryKey } from '../../stores/appState';
   import VaultCard from './VaultCard.svelte';
   import PasswordField from './PasswordField.svelte';
   import MigrateKeysWizard from '../keys/MigrateKeysWizard.svelte';
@@ -64,6 +64,7 @@
     try {
       const report = await completeKeyMigration(credential, event.detail);
       showMigration = false;
+      if (report?.recoveryKey) pendingRecoveryKey.set(report.recoveryKey);
       if (report && report.skipped.length > 0) {
         error = $t('vault.migration.partial', {
           count: report.skipped.length,

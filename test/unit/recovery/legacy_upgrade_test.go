@@ -2,10 +2,12 @@ package recovery
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 
 	"xquakshell/internal/domain"
+	"xquakshell/internal/infra/keys"
 	"xquakshell/internal/infra/persistence"
 	"xquakshell/internal/infra/vault"
 )
@@ -14,7 +16,15 @@ import (
 // password, which is what every installation written before recovery keys existed actually holds.
 func writeLegacyVault(t *testing.T, dir, password string) {
 	t.Helper()
+	writeLegacyVaultAtVersion(t, dir, password, domain.CurrentVaultVersion)
+}
+
+// writeLegacyVaultAtVersion is the same, at a schema version the caller picks, so a test can build
+// the one shape that needs both upgrades: an old schema inside an old envelope.
+func writeLegacyVaultAtVersion(t *testing.T, dir, password string, version int) {
+	t.Helper()
 	data := domain.NewVaultData()
+	data.Version = version
 	data.KnownHosts = []string{"legacy.example ssh-ed25519 AAAA"}
 
 	ciphertext, err := vault.EncryptLegacy(data, password)
@@ -174,5 +184,40 @@ func TestAWrongPasswordAgainstAnOldVaultLeavesItAlone(t *testing.T) {
 	}
 	if _, err := os.Stat(vault.BackupPath(dir, domain.CurrentVaultVersion)); err == nil {
 		t.Error("a refused unlock took a backup, which will now block the real conversion's backup")
+	}
+}
+
+// A vault old enough for the key-migration wizard also predates the envelope, so the rewrite that
+// upgrades its schema is the same rewrite that gives it a vault key. Without reporting that, the
+// oldest installations would be the only ones to come out of an upgrade with no recovery key.
+func TestASchemaMigrationAlsoOffersAFirstKey(t *testing.T) {
+	dir := t.TempDir()
+	const password = "the-password-from-before"
+	writeLegacyVaultAtVersion(t, dir, password, domain.MinMigratableVaultVersion)
+
+	repo := openRepo(t, dir)
+	if _, err := repo.UnlockWithCredential(context.Background(), password); !errors.Is(err, domain.ErrVaultMigrationRequired) {
+		t.Fatalf("unlock an unmigrated vault: got %v, want ErrVaultMigrationRequired", err)
+	}
+
+	deps := domain.MigrationDeps{Codec: keys.NewCodec(), NewDataKey: keys.NewDataKey}
+	if _, err := repo.CompleteMigration(context.Background(), password, map[string]string{}, deps); err != nil {
+		t.Fatalf("complete migration: %v", err)
+	}
+	if !repo.ConvertedOnUnlock() {
+		t.Fatal("the migration did not report a conversion, so nothing would offer the user a key")
+	}
+
+	key, err := repo.IssueRecoveryKey(context.Background())
+	if err != nil {
+		t.Fatalf("issue the first key: %v", err)
+	}
+	repo.Lock()
+
+	if _, _, _, err := vault.Open(dir, domain.FormatRecoveryKey(key)); err != nil {
+		t.Errorf("the key issued after a schema migration does not open the vault: %v", err)
+	}
+	if _, _, _, err := vault.Open(dir, password); err != nil {
+		t.Errorf("the password stopped working after a schema migration: %v", err)
 	}
 }

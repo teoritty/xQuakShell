@@ -68,7 +68,8 @@ func (r *VaultRepo) CompleteMigration(_ context.Context, masterPassword string, 
 	// A vault old enough to need this migration predates the envelope, so the same rewrite that
 	// upgrades the schema is also the one that gives it a vault key. The backup above already
 	// captured the original bytes under the version being left behind.
-	if session.IsLegacy() {
+	converted := session.IsLegacy()
+	if converted {
 		if err := session.Rekey(masterPassword); err != nil {
 			return nil, fmt.Errorf("vault migration rekey: %w", err)
 		}
@@ -84,6 +85,10 @@ func (r *VaultRepo) CompleteMigration(_ context.Context, masterPassword string, 
 	r.unlocked = true
 	r.dirty = false
 	r.generation = 0
+	// A schema this old also predates the envelope, so this rewrite is the one that gave the vault
+	// a key to wrap credentials around - which makes it the moment to offer a first recovery key,
+	// exactly as an ordinary unlock of a pre-envelope vault does.
+	r.converted = converted
 	return report, nil
 }
 

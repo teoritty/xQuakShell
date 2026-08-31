@@ -59,6 +59,9 @@ export interface MigrationReport {
   converted: string[];
   skipped: string[];
   backupPath: string;
+  // Set when the upgrade also gave the vault its first recovery key. A schema this old predates
+  // the second credential entirely, so this is the one moment those installations are offered one.
+  recoveryKey?: string;
 }
 
 export interface DeployResult {
