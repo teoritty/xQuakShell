@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"xquakshell/internal/domain"
+	"xquakshell/internal/usecase"
 )
 
 // fakeRecovery answers unlock attempts from a fixed pair of credentials, so the routing, throttling
@@ -73,6 +74,7 @@ type refusingVault struct {
 
 func (v *refusingVault) Unlock(context.Context, string) error { return domain.ErrVaultDecryptFailed }
 func (v *refusingVault) IsUnlocked() bool                     { return false }
+func (v *refusingVault) Lock()                                {}
 
 // GetData returns a vault with no settings, so afterVaultOpened runs its whole path and applies
 // nothing. A password unlock has to reach that call, and a repository that panicked there would
@@ -378,5 +380,30 @@ func TestFailuresAccumulateAcrossCalls(t *testing.T) {
 	}
 	if _, allowed := api.unlockThrottle.Check(); allowed && time.Since(start) < domain.UnlockBaseDelay {
 		t.Error("the throttle is still open after the free attempts were spent")
+	}
+}
+
+// Locking has to drop the held key too. The dialog showing it goes with the rest of the UI, so a
+// key left in memory afterwards is a credential nothing on screen can act on and nothing will
+// clear until the process exits.
+func TestLockingDropsAHeldKey(t *testing.T) {
+	recovery := &fakeRecovery{password: "the-master-password", key: validKey()}
+	api, _ := recoveryAPI(t, recovery)
+	api.sessions = usecase.NewSessionManager(usecase.SessionManagerConfig{})
+
+	if _, err := api.CompleteRecoveryReset("a-brand-new-password"); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	if _, held := api.pendingRecovery.peek(); !held {
+		t.Fatal("nothing was held to begin with")
+	}
+
+	api.LockVault()
+
+	if _, held := api.pendingRecovery.peek(); held {
+		t.Error("the key survived the vault locking")
+	}
+	if _, err := api.SaveRecoveryKeyFile(); !errors.Is(err, domain.ErrRecoveryKeyUnavailable) {
+		t.Errorf("save after locking: got %v, want ErrRecoveryKeyUnavailable", err)
 	}
 }

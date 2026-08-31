@@ -12,6 +12,90 @@ The newest versioned heading is the release being prepared. Only the latest rele
 fixes, including security fixes, ship in a new release rather than as patches to an older one
 (see [SECURITY.md](SECURITY.md)).
 
+## [1.4.0] — 2026-09-01
+
+### Compatibility
+
+| Axis | Version |
+|---|---|
+| `pluginApi` | 1.0.0 (unchanged) |
+| Capabilities | all 1.0.0, unchanged |
+| Manifest schema | unchanged |
+| `bundleFormat` | 1.0.0 (unchanged) |
+| Vault schema | 4 (unchanged) |
+| Vault envelope | 1 (new axis) |
+| Audit schema | 1 (unchanged) |
+
+### BREAKING
+
+**A vault opened by this release cannot be opened by 1.3.x or earlier.** The vault file gains an
+envelope around the encrypted data, holding one small wrapped copy of the vault key per credential.
+An older build reads the file, does not recognise it, and reports that the vault was written by a
+newer version — it does not report a wrong password, and it does not write to the file. Your data is
+intact; the older build simply cannot read it.
+
+The upgrade happens on the first unlock and keeps the original bytes as `vault.age.v4.bak` beside
+the vault, readable by the older build under the password it had then. Nothing deletes that file.
+
+The vault *schema* — the structure inside the encryption — has not moved. Only the envelope around
+it is new, which is why it appears above as an axis of its own.
+
+### Added
+
+**A recovery key, so forgetting your master password is no longer the end of it.** Every vault now
+has a second credential: thirty-two characters, shown once, and accepted in the same field as the
+password. Forget the password and you type the key instead; the next screen asks for a new password
+and issues a new key, and the ones you just used stop working for good.
+
+The key is shown exactly once, on a dialog that cannot be dismissed by clicking away or pressing
+Escape, and whose Done button counts down for fifteen seconds before it can be pressed. Copy puts
+the key on the clipboard; Download opens your system's save dialog and writes a text file wherever
+you choose, at owner-only permissions. Once you press Done, nothing — not the application, not a
+support engineer, not the file on disk — can produce that key again. Lose it and forget your
+password, and the vault is gone; that is the trade being made, and the create screen now says so and
+asks you to tick a box confirming you have read it.
+
+Existing vaults get a key on their next unlock, on the same dialog. If you close the application
+without pressing Done, no key was ever recorded as yours — mint a new one under Settings → Security,
+which is also where you change the master password. Changing the password issues a new recovery key
+and revokes the old one, on the principle that a password change is what people do when they think
+their credentials have been seen.
+
+Thirty-two characters is 160 bits, drawn from an alphabet with no I, L, O or U in it, so a zero
+cannot be read as an O or a one as an l. Dashes, spaces and case are ignored when you type it back.
+
+### Security
+
+**The master password no longer stays in memory while the application runs.** Each credential wraps
+a random vault key, and it is that key — not the password — that the payload is encrypted to. The
+password is used once, to unwrap, and then dropped. A memory dump of an idle xQuakShell no longer
+contains the credential that opens every vault you own.
+
+Saving the vault also stopped running scrypt. Encrypting the payload needs no key derivation, so the
+~256 MiB transient allocation that used to accompany every edit of a connection now happens only on
+unlock and when a credential is changed.
+
+**The recovery key has its own attempt counter, stricter than the password's.** A password is typed
+from memory and mistyped often; a key is read off paper, so the second attempt already waits five
+seconds and the backoff climbs to five minutes. The two counters are independent, so a morning of
+password typos cannot lock you out of the recovery prompt you are about to need. A wrong password
+and a wrong recovery key produce one identical error, so nothing tells someone holding a stolen
+vault file which half of it is the cheaper target.
+
+Re-authenticating before something sensitive — exporting a private key, trusting a plugin — still
+requires the master password specifically. The recovery key is the credential most likely to be
+lying on a desk next to the machine, and it is not accepted there.
+
+The audit log records that a key was generated, used, or revoked, and nothing else. No key, no hash
+of one: the audit database is readable while the vault is locked, so anything derived from the key
+stored there would be a verifier for guessing it offline. "Opened with the recovery key" is the entry
+worth reading — if it was not you, someone has your paper.
+
+**Known limitation.** The `vault.age.vN.bak` files left behind by an upgrade stay readable under the
+password that was in force when they were written. Changing your password does not reach into them,
+and nothing deletes them. If the old password is compromised, delete the backups yourself once you
+are satisfied the current vault opens.
+
 ## [1.3.0] — 2026-08-28
 
 ### Compatibility

@@ -362,6 +362,10 @@ func (a *AppAPI) lockNow() {
 		a.auditSvc.OnVaultLocked()
 	}
 	a.vaultRepo.Lock()
+	// A recovery key still waiting to be acknowledged belongs to a vault that is now closed. The
+	// dialog showing it is gone with the rest of the UI, so holding the key any longer would leave
+	// a credential in memory that nothing on screen can act on.
+	a.pendingRecovery.clear()
 	if a.ctx != nil {
 		wailsrt.EventsEmit(a.ctx, EventVaultLocked, nil)
 	}
