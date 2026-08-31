@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"xquakshell/internal/domain"
 )
 
 // Local filesystem Wails handlers — routing map (single source of truth):
@@ -157,6 +159,52 @@ func (a *AppAPI) SelectLocalDirectory() (string, error) {
 		return path, err
 	}
 	return a.resolveHostLocalPath(path)
+}
+
+// SaveRecoveryKeyFile asks the user where to put the recovery key and writes it there, reporting
+// whether a file was actually written.
+//
+// It takes no argument. The key it writes is the one the backend is holding for the dialog that is
+// currently open, which is what keeps anything running in the WebView from asking to have an
+// arbitrary string saved to an arbitrary path with a native picker in front of it. Once the user
+// presses Done the held key is dropped and this refuses.
+//
+// A false return with a nil error is the user cancelling the dialog, which is not a failure and
+// must not be reported as one - the key is still on screen and still theirs to copy.
+//
+// wailsrt.SaveFileDialog is the same call on Windows, Linux and macOS; the native dialog it opens is
+// the platform's own, which is also what asks about overwriting an existing file.
+func (a *AppAPI) SaveRecoveryKeyFile() (bool, error) {
+	if a.ctx == nil {
+		return false, fmt.Errorf("no wails context")
+	}
+	key, ok := a.pendingRecovery.peek()
+	if !ok {
+		return false, domain.ErrRecoveryKeyUnavailable
+	}
+
+	path, err := wailsrt.SaveFileDialog(a.ctx, wailsrt.SaveDialogOptions{
+		Title:           "Save recovery key",
+		DefaultFilename: "xquakshell-recovery-key.txt",
+		Filters: []wailsrt.FileFilter{
+			{DisplayName: "Text file (*.txt)", Pattern: "*.txt"},
+		},
+	})
+	if err != nil || path == "" {
+		return false, err
+	}
+
+	resolved, err := a.resolveHostLocalPath(path)
+	if err != nil {
+		return false, err
+	}
+	// The key alone, one line, with the trailing newline every text editor expects. Nothing names
+	// the application or the vault: a file found on a shared machine should not announce what it
+	// opens.
+	if err := a.localFS.WriteSecretFile(resolved, []byte(domain.FormatRecoveryKey(key)+"\n")); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (a *AppAPI) resolveHostLocalPath(path string) (string, error) {

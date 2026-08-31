@@ -13,6 +13,8 @@ type mockHostFS struct {
 	listFn      func(dirPath string, includeHidden bool, isHidden func(string, string) bool) ([]domain.LocalFileEntry, error)
 	statFn      func(localPath string) (domain.HostFileInfo, error)
 	resolveFn   func(path string) (string, error)
+
+	writeSecretFn func(path string, data []byte) error
 }
 
 func (m *mockHostFS) DefaultPath() string { return m.defaultPath }
@@ -38,6 +40,13 @@ func (m *mockHostFS) Remove(string) error      { return nil }
 func (m *mockHostFS) Mkdir(string) error       { return nil }
 func (m *mockHostFS) Rename(_, _ string) error { return nil }
 func (m *mockHostFS) CreateFile(string) error  { return nil }
+
+func (m *mockHostFS) WriteSecretFile(path string, data []byte) error {
+	if m.writeSecretFn != nil {
+		return m.writeSecretFn(path, data)
+	}
+	return nil
+}
 func (m *mockHostFS) Copy(_, _ string) error   { return nil }
 func (m *mockHostFS) CopyTo(_, _ string) error { return nil }
 

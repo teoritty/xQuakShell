@@ -58,6 +58,10 @@ type AppAPI struct {
 	logWindow                   *logwindow.Manager
 	logLevel                    domain.LogLevelController
 	unlockThrottle              domain.UnlockThrottle
+	recovery                    domain.VaultRecovery
+	recoveryThrottle            *domain.UnlockThrottle
+	recoveryAudit               *usecase.RecoveryAuditRecorder
+	pendingRecovery             pendingRecoveryKey
 	updateSvc                   *usecase.UpdateService
 	locales                     domain.LocaleCatalog
 	localeBroadcast             LocaleBroadcaster
@@ -369,16 +373,6 @@ func (a *AppAPI) lockNow() {
 // choose between the create-master-password and the unlock screen.
 func (a *AppAPI) VaultExists() bool {
 	return a.vaultRepo.Exists()
-}
-
-// CreateVault creates a new vault protected by masterPassword and leaves it unlocked.
-// It fails rather than overwriting an existing vault.
-func (a *AppAPI) CreateVault(masterPassword string) error {
-	if err := a.vaultRepo.Create(a.reqCtx(), masterPassword); err != nil {
-		return err
-	}
-	a.afterVaultOpened()
-	return nil
 }
 
 // afterVaultOpened applies persisted settings to the running managers and runs
