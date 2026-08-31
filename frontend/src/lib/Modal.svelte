@@ -64,9 +64,13 @@
 
   /* The key manager is a list beside a details pane. At the default 560px the two columns fight
      for the same gutter and every row truncates, which is what a browsing surface must not do. */
+  /* height as well as max-height: the ceiling alone let a dialog with one key in it open half the
+     size of the same dialog with ten. max-height has to stay, or the base rule's 80vh clamps this
+     back down and the pane loses the six percent it was given on purpose. */
   .modal-content:global(.key-manager) {
     width: min(1040px, 92vw);
     max-width: min(1040px, 92vw);
+    height: 86vh;
     max-height: 86vh;
   }
 
@@ -78,6 +82,29 @@
     flex-direction: column;
     min-height: 0;
     flex: 1;
+  }
+
+  /* Known hosts and trusted peers are the same shape: a list that is very often empty. Sized to
+     their content, the dialog jumped between a full-height list and a two-line box, and the empty
+     state read as a rendering fault rather than as "there is nothing here yet". The height matches
+     the audit log's, so the three list dialogs open as one size instead of three. */
+  .modal-content:global(.list-manager) {
+    width: 560px;
+    max-width: 560px;
+    height: 62vh;
+  }
+
+  /* The list inside has to be the part that scrolls, which it can only do if the body is a column
+     that may shrink below its content. */
+  .modal-content:global(.list-manager) .modal-body {
+    display: flex;
+    flex-direction: column;
+    /* flex so the body fills the fixed height instead of ending where its content does, min-height
+       so it may shrink below that content, and overflow hidden so the list inside owns the only
+       scrollbar - the base rule's overflow-y:auto would otherwise put a second one around it. */
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .modal-content.settings-modal {

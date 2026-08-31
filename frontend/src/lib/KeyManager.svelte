@@ -262,7 +262,13 @@
     min-height: 0;
   }
 
+  /* Sits where the placeholder sits, so the pane does not shift its one line of text as loading
+     gives way to "select a key". */
   .loading {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: 28px 20px;
     font-size: 12px;
     color: var(--text-secondary);

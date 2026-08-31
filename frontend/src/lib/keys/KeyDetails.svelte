@@ -289,8 +289,16 @@
     gap: 6px;
   }
 
+  /* Centred in the pane rather than tucked under its top-left corner. This is the whole of what the
+     right-hand side shows until a key is picked, so anchoring it to a corner made a 1040px dialog
+     look broken rather than empty. */
   .placeholder {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: 28px 20px;
+    text-align: center;
     color: var(--text-secondary);
     font-size: 12px;
   }
