@@ -60,10 +60,11 @@ function serializePluginFields(
   const stored = new Set(storedSecretFields);
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(fields)) {
-    // A secret already stored in the vault that the user has not touched is masked to "" here (the
-    // real value never reached the UI). Omitting it keeps SavePluginFields from seeing an empty
-    // value and deleting the stored secret — the backend preserves any field absent from the
-    // payload. Once the user edits it, it is sent normally (empty then clears it on purpose).
+    // A secret already stored in the vault arrives with no entry at all, but the draft gains one as
+    // soon as anything writes the field's value object. Omitting it keeps SavePluginFields from
+    // seeing an empty value and deleting the stored secret — the backend preserves any field absent
+    // from the payload. Once the user edits it, it is sent normally (empty then clears it on
+    // purpose).
     if (stored.has(key) && !touched[key]) continue;
     if (value === undefined || value === null) continue;
     if (typeof value === 'boolean') {

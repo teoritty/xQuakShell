@@ -17,12 +17,12 @@
   export let values: Record<string, unknown> = {};
   export let errors: Record<string, string> = {};
   export let readonly = false;
-  // Plugin field ids whose secret is already stored in the vault (value masked to "").
+  // Plugin field ids whose secret is already stored in the vault (`values` carries no entry).
   export let storedSecretFields: string[] = [];
   $: storedSecretSet = new Set(storedSecretFields);
 
   // Classic "already saved" password UX. The real secret never leaves the host, so a stored secret
-  // arrives with an empty value; we render a fixed dot mask so the field reads as a filled password.
+  // arrives with no value at all; we render a fixed dot mask so the field reads as a filled password.
   // Focusing it reveals an empty box to type a replacement; blurring without typing restores the
   // mask and leaves the field UNTOUCHED, so the save payload omits it and the backend keeps the
   // stored secret (a fake value is never submitted). The mask is display-only, never in the model.
