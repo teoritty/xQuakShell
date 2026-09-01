@@ -337,7 +337,7 @@
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-    max-height: 55vh;
+    max-height: var(--sidebar-bottom-max, 55vh);
     border-top: 1px solid var(--border-color);
   }
 
