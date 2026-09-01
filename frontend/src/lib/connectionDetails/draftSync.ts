@@ -11,12 +11,17 @@
 // (they are read from the record at save time), and every other field has the panel as its only
 // writer. If that ever stops being true, this is the decision that has to grow a case for it.
 //
-// A dirty draft is never overwritten: the user's unsaved edit outranks a change from elsewhere, and
-// the autosave that follows resolves the two.
+// THE COMPARISON IS RECORD-AGAINST-RECORD, and that is not a detail. Asking whether the draft
+// differs from the record cannot say which of the two moved, and the answer was taken from `dirty`
+// - which lags by one pass. A keystroke reaches the reactive statement as a changed draft while
+// `dirty` is still false, so every character typed into the name field was read as "the record was
+// renamed" and written straight back. The field could not be typed in at all: a selection replaced
+// by a keystroke came back whole, and the panel looked frozen. Comparing the record against the one
+// the panel last adopted asks the question that has an answer - only the record moving is a rename
+// from elsewhere, and typing never moves the record.
 //
-// The comparison is against the trimmed draft name because that is what a save stores. A clean
-// draft differing from the record only by the payload's own trim is not an external rename, and
-// copying the record back over it would move the caret to the end of the field mid-edit.
+// `dirty` still guards the write, but as a second condition rather than the deciding one: an
+// unsaved edit outranks a rename made elsewhere, and the autosave that follows resolves the two.
 export type DraftSyncAction = 'rebuild' | 'catalog' | 'follow-name' | 'none';
 
 export interface DraftSyncInputs {
@@ -24,9 +29,10 @@ export interface DraftSyncInputs {
   connId: string;
   /** Id the current draft was built from. */
   draftId: string;
-  draftName: string;
   /** Name on the record as it stands now. */
   recordName: string;
+  /** Name the record carried when the panel last adopted it. */
+  boundRecordName: string;
   dirty: boolean;
   /** Identity of the protocol catalog, and the one the draft's fields were bound against. */
   catalogKey: string;
@@ -37,6 +43,6 @@ export function nextDraftSync(input: DraftSyncInputs): DraftSyncAction {
   if (!input.connId) return 'none';
   if (input.connId !== input.draftId) return 'rebuild';
   if (input.catalogKey !== input.boundCatalogKey) return 'catalog';
-  if (!input.dirty && input.recordName !== input.draftName.trim()) return 'follow-name';
+  if (!input.dirty && input.recordName !== input.boundRecordName) return 'follow-name';
   return 'none';
 }

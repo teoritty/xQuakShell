@@ -67,7 +67,7 @@
   let saveStatus: SaveStatus = 'idle';
   let addingTag = false;
   let newTagValue = '';
-  let boundCatalogKey = '';
+  let boundCatalogKey = '', boundRecordName = '';
   let formMode: ConnectionFormMode = 'none';
   let formProtocolDef: ConnectionProtocol | null = null;
   const autosaveState = createAutosaveTimerState();
@@ -81,12 +81,13 @@
     void refreshConnectionProtocols();
   });
 
-  // Why a rename made anywhere else has to reach an open panel, and why the name is the only field
-  // that can arrive this way, is in draftSync.ts.
-  $: switch (nextDraftSync({ connId, draftId: draft.editingId, draftName: draft.name, recordName: $detailsConnection?.name ?? '', dirty, catalogKey: protocolCatalogKey, boundCatalogKey })) {
-    case 'rebuild': boundCatalogKey = protocolCatalogKey; syncDraftFromConnection(); break;
+  // Why a rename made anywhere else has to reach an open panel, why the name is the only field that
+  // can arrive this way, and why the record is compared against itself rather than against the
+  // draft, is in draftSync.ts.
+  $: switch (nextDraftSync({ connId, draftId: draft.editingId, recordName: $detailsConnection?.name ?? '', boundRecordName, dirty, catalogKey: protocolCatalogKey, boundCatalogKey })) {
+    case 'rebuild': boundCatalogKey = protocolCatalogKey; boundRecordName = $detailsConnection?.name ?? ''; syncDraftFromConnection(); break;
     case 'catalog': boundCatalogKey = protocolCatalogKey; resyncProtocolCatalog(); break;
-    case 'follow-name': draft.name = $detailsConnection?.name ?? draft.name; break;
+    case 'follow-name': boundRecordName = $detailsConnection?.name ?? ''; if (draft.name.trim() !== boundRecordName) draft.name = boundRecordName; break;
   }
 
   function updateFormMode() {

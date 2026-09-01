@@ -71,7 +71,7 @@
           placeholder={$t('connection.placeholder.tag')}
           value={newTagValue}
           on:input={(e) => dispatch('newtagvaluechange', e.currentTarget.value)}
-          on:keydown={(e) => {
+          on:keydown|stopPropagation={(e) => {
             if (e.key === 'Enter') { e.preventDefault(); confirmTag(); }
             if (e.key === 'Escape') cancelTag();
           }}

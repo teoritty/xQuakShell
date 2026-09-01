@@ -11,6 +11,14 @@
 // because that attribute is unreliable here. So the rule is a test: an input that
 // closes on blur must carry use:focusSelect.
 //
+// The second rule here is the other half of the same idea: while an inline editor is open it owns
+// the keyboard, so its keydown must not reach the row behind it. The connection tree's rename input
+// did not stop it, and the row's own Enter opens a session - so applying a rename with Enter renamed
+// the connection and connected to it on the one keypress, and pressing Delete mid-rename offered to
+// delete the connection being renamed. The file trees already did this; the two remote-tree rows had
+// drifted from it. Guarding at the row instead does not work: the editor clears its own editing flag
+// on Enter before the event has finished bubbling, so the row sees a row that is no longer editing.
+//
 // Components cannot be rendered in this suite (no DOM, no Svelte runtime), so the
 // link is asserted on the source, the technique discoveryMarkup.test.ts uses.
 import { readFileSync } from 'node:fs';
@@ -92,6 +100,11 @@ for (const file of INLINE_EDITORS) {
       /\buse:focusSelect\b/.test(tag),
       `${file} has an input that closes on blur but is never focused, so clicking away leaves it ` +
         `open forever. Add use:focusSelect - see frontend/src/lib/focusSelect.ts.`
+    );
+    assert(
+      /\bon:keydown\|[^=]*\bstopPropagation\b/.test(tag),
+      `${file} has an inline editor whose keydown reaches the row behind it, so one Enter both ` +
+        `applies the edit and fires the row's own verb. Write on:keydown|stopPropagation.`
     );
   }
 

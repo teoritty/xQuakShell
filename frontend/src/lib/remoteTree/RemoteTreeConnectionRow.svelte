@@ -79,7 +79,7 @@
     bind:value={editingConnName}
     on:mousedown|stopPropagation
     on:blur={() => dispatch('confirmRenameConnection')}
-    on:keydown={(e) => {
+    on:keydown|stopPropagation={(e) => {
       if (e.key === 'Enter') dispatch('confirmRenameConnection');
       if (e.key === 'Escape') dispatch('cancelRenameConnection');
     }}
