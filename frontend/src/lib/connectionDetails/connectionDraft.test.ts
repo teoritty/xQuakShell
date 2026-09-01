@@ -4,8 +4,10 @@ import { buildConnectionSavePayload } from './savePayload';
 import {
   cancelPendingAutosave,
   bumpAutosaveGeneration,
+  commitFieldEditOnEnter,
   createAutosaveTimerState,
   isStaleAutosaveGeneration,
+  scheduleAutosave,
   scheduleSavedIndicatorReset,
 } from './autosave';
 
@@ -118,6 +120,41 @@ assert(
   pluginPayload.defaultUserId === 'u1',
   'non-ssh must retain default user for protocol switching',
 );
+
+// Enter ends the edit of a field: focus leaves the control and the value is persisted at once
+// instead of sitting out the debounce. The field is a stand-in for any control in the form — the
+// handler is on the form, so a plugin-declared field is the same case as the name box.
+function keyEvent(key: string, tagName: string) {
+  const seen = { prevented: false, blurred: false };
+  return {
+    seen,
+    event: {
+      key,
+      target: { tagName, blur: () => { seen.blurred = true; } },
+      preventDefault: () => { seen.prevented = true; },
+    },
+  };
+}
+
+for (const tag of ['INPUT', 'SELECT']) {
+  const state = createAutosaveTimerState();
+  const saves: number[] = [];
+  scheduleAutosave(state, async (g) => { saves.push(g); });
+  const { seen, event } = keyEvent('Enter', tag);
+  assert(commitFieldEditOnEnter(event, state, async (g) => { saves.push(g); }), `Enter commits a ${tag}`);
+  assert(seen.prevented && seen.blurred, `Enter must blur the ${tag} and swallow the key`);
+  assert(saves.length === 1 && saves[0] === state.saveGeneration, `Enter must save the ${tag} now, at the current generation`);
+  assert(state.saveTimer === null, `Enter must leave no debounce pending for the ${tag}`);
+}
+
+// A textarea keeps Enter as a newline, and any other key is none of this handler's business.
+for (const [key, tag] of [['Enter', 'TEXTAREA'], ['a', 'INPUT'], ['Enter', 'DIV']]) {
+  const state = createAutosaveTimerState();
+  let saved = false;
+  const { seen, event } = keyEvent(key, tag);
+  assert(!commitFieldEditOnEnter(event, state, async () => { saved = true; }), `${key} on ${tag} is not a commit`);
+  assert(!seen.prevented && !seen.blurred && !saved, `${key} on ${tag} must be left entirely alone`);
+}
 
 const autosaveState = createAutosaveTimerState();
 const gen = bumpAutosaveGeneration(autosaveState);

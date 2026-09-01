@@ -51,6 +51,51 @@ export function scheduleAutosave(
   }, AUTOSAVE_DEBOUNCE_MS);
 }
 
+/** Runs the pending save now instead of waiting out the debounce. The generation moves with it, so
+ *  a save already in flight lands stale and its completion is ignored. */
+export function flushAutosave(
+  state: AutosaveTimerState,
+  onSave: (generation: number) => Promise<void>,
+): void {
+  cancelPendingAutosave(state);
+  void onSave(bumpAutosaveGeneration(state));
+}
+
+/** The shape this needs from a keydown, so the decision can be tested without a DOM. */
+export interface FieldKeyEvent {
+  key: string;
+  target: unknown;
+  preventDefault(): void;
+}
+
+/**
+ * Enter ends the edit of a connection field, wherever the field came from.
+ *
+ * It takes focus off the control and persists at once rather than leaving the value to the debounce,
+ * because Enter is the one moment the user has said they are done - waiting another 600ms after that
+ * reads as lag rather than as batching. One handler on the form covers every field it contains,
+ * plugin-declared ones included: they are the same controls in the same box, and a rule that had to
+ * be repeated per component is a rule the next field would be added without.
+ *
+ * A textarea is left alone: there Enter is part of the value, not the end of it. The tag input stops
+ * the key before it reaches here, because there Enter already means "commit this tag".
+ *
+ * Returns whether it acted, so a test can see the decision rather than infer it.
+ */
+export function commitFieldEditOnEnter(
+  event: FieldKeyEvent,
+  state: AutosaveTimerState,
+  onSave: (generation: number) => Promise<void>,
+): boolean {
+  const field = event.target as { tagName?: string; blur?: () => void } | null;
+  const tag = field?.tagName ?? '';
+  if (event.key !== 'Enter' || (tag !== 'INPUT' && tag !== 'SELECT')) return false;
+  event.preventDefault();
+  field?.blur?.();
+  flushAutosave(state, onSave);
+  return true;
+}
+
 export function isStaleAutosaveGeneration(
   state: AutosaveTimerState,
   generation: number,

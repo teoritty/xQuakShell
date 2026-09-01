@@ -37,7 +37,7 @@
     setUserPassword,
   } from './connectionDetails/authDraftMutations';
   import {
-    cancelPendingAutosave,
+    cancelPendingAutosave, commitFieldEditOnEnter,
     createAutosaveTimerState,
     isStaleAutosaveGeneration,
     scheduleAutosave,
@@ -279,7 +279,9 @@
 <div class="connection-details">
   <ConnectionDetailsHeader {saveStatus} on:close={() => detailsConnectionId.set('')} />
 
-  <div class="details-body">
+  <!-- Enter ends the edit of whichever field has focus, plugin fields included. One handler for the
+       whole form rather than one per component: see commitFieldEditOnEnter in autosave.ts. -->
+  <div class="details-body" role="group" on:keydown={(e) => commitFieldEditOnEnter(e, autosaveState, runAutosave)}>
     <ConnectionBaseFields
       bind:name={draft.name}
       bind:protocol={draft.protocol}
