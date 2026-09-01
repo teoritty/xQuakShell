@@ -25,6 +25,7 @@
   } from './connectionDetails/connectionFormMode';
   import type { ConnectionProtocol } from '../actions/protocolActions';
   import { buildConnectionSavePayload } from './connectionDetails/savePayload';
+  import { nextDraftSync } from './connectionDetails/draftSync';
   import { adoptPersistedHopIds } from './connectionDetails/hopIds';
   import { adoptPersistedRuleIds } from './connectionDetails/forwardRuleIds';
   import {
@@ -80,12 +81,12 @@
     void refreshConnectionProtocols();
   });
 
-  $: if (connId && connId !== draft.editingId) {
-    syncDraftFromConnection();
-    boundCatalogKey = protocolCatalogKey;
-  } else if (connId && protocolCatalogKey !== boundCatalogKey) {
-    boundCatalogKey = protocolCatalogKey;
-    resyncProtocolCatalog();
+  // Why a rename made anywhere else has to reach an open panel, and why the name is the only field
+  // that can arrive this way, is in draftSync.ts.
+  $: switch (nextDraftSync({ connId, draftId: draft.editingId, draftName: draft.name, recordName: $detailsConnection?.name ?? '', dirty, catalogKey: protocolCatalogKey, boundCatalogKey })) {
+    case 'rebuild': boundCatalogKey = protocolCatalogKey; syncDraftFromConnection(); break;
+    case 'catalog': boundCatalogKey = protocolCatalogKey; resyncProtocolCatalog(); break;
+    case 'follow-name': draft.name = $detailsConnection?.name ?? draft.name; break;
   }
 
   function updateFormMode() {
