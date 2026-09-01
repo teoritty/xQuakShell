@@ -74,6 +74,7 @@
     ariaLabel={$t('security.vault.currentPassword')}
     placeholder={$t('security.vault.currentPassword')}
     disabled={!!busy}
+    compact
   />
 
   <PasswordField
@@ -81,6 +82,7 @@
     ariaLabel={$t('security.vault.newPassword')}
     placeholder={$t('security.vault.newPassword')}
     disabled={!!busy}
+    compact
   />
 
   <p class="error" role="alert">{error}</p>
@@ -103,6 +105,12 @@
     margin: 0;
     font-size: 12px;
     color: var(--text-secondary);
+  }
+
+  /* A password is not a long value and the settings pane is wide. Left to fill it, the two fields
+     read as the subject of the screen rather than as two rows among the security settings. */
+  .section :global(.password-field) {
+    max-width: 280px;
   }
 
   .error {
