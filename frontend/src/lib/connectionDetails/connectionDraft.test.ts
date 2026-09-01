@@ -93,6 +93,13 @@ assert(Array.isArray(sshPayload.jumpChain) && (sshPayload.jumpChain as unknown[]
 assert(Array.isArray(sshPayload.forwardRules) && (sshPayload.forwardRules as unknown[]).length === 1, 'incomplete forward rules are filtered');
 assert((sshPayload.forwardRules as { id: string }[])[0].id === '', 'UI-only forward rule id stripped');
 assert((sshPayload.users as unknown[]).length === 1, 'ssh keeps users');
+assert(sshPayload.name === 'Server', 'the name is carried through');
+
+// Clearing the field used to be answered with the name given to a brand new connection, so wiping
+// the box to retype it renamed the connection to "New connection" behind the user's back. The
+// payload must state what the draft says; refusing to save a nameless one is ConnectionDetails' job.
+const namelessPayload = buildConnectionSavePayload({ ...sshDraft, name: '   ' }, { folderId: 'f1', order: 1 });
+assert(namelessPayload.name === '', `name = ${JSON.stringify(namelessPayload.name)}, want no stand-in`);
 
 const pluginPayload = buildConnectionSavePayload(
   { ...sshDraft, protocol: 'rdp' },

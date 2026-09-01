@@ -33,7 +33,11 @@ export function buildConnectionSavePayload(
   // for non-SSH protocols.
   return {
     id: draft.editingId,
-    name: draft.name.trim() || 'New connection',
+    // No stand-in for an emptied name. "New connection" is what creating one is called
+    // (actions/connectionActions.ts names it there), and inventing it here turned "I cleared the
+    // field to retype it" into a rename the user never asked for. An empty name is an unfinished
+    // edit, and the panel does not autosave one - the same rule the tree's rename already follows.
+    name: draft.name.trim(),
     protocol: draft.protocol,
     host: draft.host.trim(),
     port: draft.port,

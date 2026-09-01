@@ -131,7 +131,7 @@
 
   async function runAutosave(generation: number) {
     const editingId = draft.editingId;
-    if (!editingId || !dirty) return;
+    if (!editingId || !dirty || !draft.name.trim()) return;
     if (isStaleAutosaveGeneration(autosaveState, generation)) return;
 
     saveStatus = 'saving';

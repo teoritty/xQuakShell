@@ -13,6 +13,10 @@
 //
 // A dirty draft is never overwritten: the user's unsaved edit outranks a change from elsewhere, and
 // the autosave that follows resolves the two.
+//
+// The comparison is against the trimmed draft name because that is what a save stores. A clean
+// draft differing from the record only by the payload's own trim is not an external rename, and
+// copying the record back over it would move the caret to the end of the field mid-edit.
 export type DraftSyncAction = 'rebuild' | 'catalog' | 'follow-name' | 'none';
 
 export interface DraftSyncInputs {
@@ -33,6 +37,6 @@ export function nextDraftSync(input: DraftSyncInputs): DraftSyncAction {
   if (!input.connId) return 'none';
   if (input.connId !== input.draftId) return 'rebuild';
   if (input.catalogKey !== input.boundCatalogKey) return 'catalog';
-  if (!input.dirty && input.recordName !== input.draftName) return 'follow-name';
+  if (!input.dirty && input.recordName !== input.draftName.trim()) return 'follow-name';
   return 'none';
 }

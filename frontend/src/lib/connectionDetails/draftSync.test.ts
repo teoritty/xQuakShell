@@ -27,6 +27,13 @@ assert(
   'a name changed elsewhere must reach the panel',
 );
 
+// A save stores the trimmed name, so a draft that differs only by that trim is already in sync.
+// Treating it as an external rename would copy the record back mid-edit and jump the caret.
+assert(
+  nextDraftSync(settled({ draftName: 'Desk  ' })) === 'none',
+  'the payload trim is not an external rename',
+);
+
 // The user's own unsaved edit outranks it — that edit is what the record is about to become.
 assert(
   nextDraftSync(settled({ recordName: 'Desk (office)', dirty: true })) === 'none',
