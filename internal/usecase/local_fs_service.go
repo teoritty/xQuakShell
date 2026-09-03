@@ -87,6 +87,14 @@ func (s *LocalFSService) CreateFile(localPath string) error {
 	return s.hostFS.CreateFile(localPath)
 }
 
+// WriteSecretFile writes data to a user-chosen path at owner-only permissions.
+func (s *LocalFSService) WriteSecretFile(localPath string, data []byte) error {
+	if s.hostFS == nil {
+		return fmt.Errorf("local file service unavailable")
+	}
+	return s.hostFS.WriteSecretFile(localPath, data)
+}
+
 func (s *LocalFSService) Copy(srcPath, destDir string) error {
 	if s.hostFS == nil {
 		return fmt.Errorf("local file service unavailable")

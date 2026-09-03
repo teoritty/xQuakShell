@@ -44,12 +44,28 @@ type UnlockThrottle struct {
 	failures    int
 	nextAllowed time.Time
 	now         func() time.Time
+	policy      ThrottlePolicy
 }
 
 // NewUnlockThrottle builds a throttle. now is injected so the backoff can be tested without
 // sleeping; pass nil for time.Now.
 func NewUnlockThrottle(now func() time.Time) *UnlockThrottle {
 	return &UnlockThrottle{now: now}
+}
+
+// NewThrottleWithPolicy builds a throttle that waits on a schedule of its own. The recovery key
+// needs a harsher one than the master password does - see NewRecoveryThrottle.
+func NewThrottleWithPolicy(now func() time.Time, policy ThrottlePolicy) *UnlockThrottle {
+	return &UnlockThrottle{now: now, policy: policy}
+}
+
+// pol is the configured schedule, or the master password's. Reading it through a method is what
+// keeps the zero value a working password throttle: a struct literal cannot run a constructor.
+func (t *UnlockThrottle) pol() ThrottlePolicy {
+	if t.policy.FreeAttempts == 0 && t.policy.BaseDelay == 0 && t.policy.MaxDelay == 0 {
+		return DefaultUnlockPolicy()
+	}
+	return t.policy
 }
 
 // clock is the injected time source, or the real one. Reading it through a method is what lets the
@@ -84,11 +100,12 @@ func (t *UnlockThrottle) RecordFailure() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	policy := t.pol()
 	t.failures++
-	if t.failures < UnlockFreeAttempts {
+	if t.failures < policy.FreeAttempts {
 		return
 	}
-	t.nextAllowed = t.clock().Add(unlockDelayFor(t.failures))
+	t.nextAllowed = t.clock().Add(unlockDelayFor(t.failures, policy))
 }
 
 // RecordSuccess clears the history. The password was right, so nothing about the attempts before it
@@ -118,17 +135,17 @@ func (t *UnlockThrottle) Failures() int {
 // UnlockMaxDelay. The shift is bounded before it happens: at 63 it would overflow the duration and
 // wrap to a negative wait, which is the one arithmetic mistake here that would disable the throttle
 // rather than merely mistune it.
-func unlockDelayFor(failures int) time.Duration {
-	steps := failures - UnlockFreeAttempts
+func unlockDelayFor(failures int, policy ThrottlePolicy) time.Duration {
+	steps := failures - policy.FreeAttempts
 	if steps < 0 {
 		return 0
 	}
 	if steps > 32 {
-		return UnlockMaxDelay
+		return policy.MaxDelay
 	}
-	delay := UnlockBaseDelay << uint(steps)
-	if delay > UnlockMaxDelay || delay <= 0 {
-		return UnlockMaxDelay
+	delay := policy.BaseDelay << uint(steps)
+	if delay > policy.MaxDelay || delay <= 0 {
+		return policy.MaxDelay
 	}
 	return delay
 }

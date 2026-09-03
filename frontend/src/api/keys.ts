@@ -59,6 +59,9 @@ export interface MigrationReport {
   converted: string[];
   skipped: string[];
   backupPath: string;
+  // Set when the upgrade also gave the vault its first recovery key. A schema this old predates
+  // the second credential entirely, so this is the one moment those installations are offered one.
+  recoveryKey?: string;
 }
 
 export interface DeployResult {
@@ -160,9 +163,14 @@ export async function deployKey(sessionId: string, identityId: string): Promise<
   });
 }
 
+// Asked after an unlock has already failed, to tell "wrong password" apart from "this vault is one
+// schema behind". Every failure of it is an answer rather than an error - a wrong password fails
+// here too, and that is precisely the case the caller is testing for - so it must not raise the
+// global error dialog. Doing so put a stack trace on screen beside the ordinary "wrong password"
+// message on the unlock card. It still rethrows, and the caller reads the throw as "no upgrade".
 export async function planKeyMigration(masterPassword: string): Promise<MigrationPlan> {
   return callBackend('Check vault upgrade', { required: false, keys: [] } as MigrationPlan, (app) =>
-    app.PlanKeyMigration(masterPassword), { rethrow: true },
+    app.PlanKeyMigration(masterPassword), { rethrow: true, silence: () => true },
   );
 }
 

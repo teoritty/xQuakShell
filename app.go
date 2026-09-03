@@ -99,12 +99,36 @@ func (a *App) VaultExists() bool {
 	return a.api.VaultExists()
 }
 
-func (a *App) CreateVault(masterPassword string) error {
+func (a *App) CreateVault(masterPassword string) (presentation.RecoveryKeyDTO, error) {
 	return a.api.CreateVault(masterPassword)
 }
 
-func (a *App) UnlockVault(masterPassword string) error {
-	return a.api.UnlockVault(masterPassword)
+func (a *App) UnlockVault(credential string) (presentation.UnlockResultDTO, error) {
+	return a.api.UnlockVault(credential)
+}
+
+func (a *App) IssueRecoveryKey(masterPassword string) (presentation.RecoveryKeyDTO, error) {
+	return a.api.IssueRecoveryKey(masterPassword)
+}
+
+func (a *App) ChangeMasterPassword(current, next string) (presentation.RecoveryKeyDTO, error) {
+	return a.api.ChangeMasterPassword(current, next)
+}
+
+func (a *App) CompleteRecoveryReset(newPassword string) (presentation.RecoveryKeyDTO, error) {
+	return a.api.CompleteRecoveryReset(newPassword)
+}
+
+func (a *App) AcknowledgeRecoveryKey() {
+	a.api.AcknowledgeRecoveryKey()
+}
+
+func (a *App) HasRecoveryKey() bool {
+	return a.api.HasRecoveryKey()
+}
+
+func (a *App) SaveRecoveryKeyFile() (bool, error) {
+	return a.api.SaveRecoveryKeyFile()
 }
 
 func (a *App) LockVault() {

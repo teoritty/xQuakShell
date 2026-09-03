@@ -46,7 +46,18 @@ func writeV3Vault(t *testing.T, dir string, blobs map[string][]byte) {
 		data.KeyBlobs[id] = domain.IdentityBlob{PEMData: pemData}
 	}
 	data.Connections = append(data.Connections, domain.Connection{ID: "conn-1", Name: "prod", Host: "example.test", Port: 22})
-	if err := vault.WriteVaultFile(dir, versionTestPassphrase, data); err != nil {
+
+	// Written in the pre-envelope format, because that is what a vault this old actually is on a
+	// real machine: schema 3 predates the envelope, so a migration test that started from an
+	// envelope would never exercise the conversion the upgrade has to perform.
+	ciphertext, err := vault.EncryptLegacy(data, versionTestPassphrase)
+	if err != nil {
+		t.Fatalf("encrypt v3 vault: %v", err)
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatalf("mkdir vault dir: %v", err)
+	}
+	if err := os.WriteFile(vault.FilePath(dir), ciphertext, 0o600); err != nil {
 		t.Fatalf("write v3 vault: %v", err)
 	}
 }

@@ -44,6 +44,11 @@ func (a *AppAPI) CompleteKeyMigration(masterPassword string, answers map[string]
 		Converted:   report.Converted,
 		Skipped:     report.Skipped,
 		BackupPath:  report.BackupPath,
+		// A vault old enough to need this wizard also predates the envelope, so the same rewrite
+		// gave it a vault key and this is its one chance at a first recovery key. Without this the
+		// oldest installations - the ones most likely to have forgotten their password once
+		// already - would come out of the upgrade as the only vaults with no backup credential.
+		RecoveryKey: a.issueKeyForConvertedVault(),
 	}, nil
 }
 
@@ -67,5 +72,9 @@ func (a *AppAPI) wireSessionsAndKeys(
 	if migrator, ok := vaultRepo.(domain.VaultMigrator); ok {
 		a.migrator = migrator
 	}
+	// The recovery credential comes off the same repository and the same audit log, and both are
+	// already in hand here. Wiring it from the composition root instead would mean threading two
+	// arguments NewAppAPI already has through a constructor that takes thirty.
+	a.wireVaultRecovery(vaultRepo, auditLogRepo)
 	a.keyDeploy = usecase.NewKeyDeployService(sessions, sshSession.Keys, usecase.NewKeyAuditRecorder(auditLogRepo))
 }

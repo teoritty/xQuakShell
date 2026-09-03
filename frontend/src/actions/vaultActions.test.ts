@@ -1,8 +1,12 @@
 import { setGateway } from '../backend/context';
 import { createFakeGateway } from '../backend/fakeGateway';
-import { unlockVault, lockVault, createVault, initVaultGate } from './vaultActions';
+import {
+  unlockVault, lockVault, createVault, initVaultGate,
+  completeRecoveryReset, acknowledgeRecoveryKey, regenerateRecoveryKey,
+} from './vaultActions';
 import {
   folders, connections, sessions, identities, vaultUnlocked, vaultExists,
+  pendingRecoveryKey, recoveryResetRequired,
   lastError,
   type Folder, type Connection,
 } from '../stores/appState';
@@ -19,7 +23,18 @@ function reset() {
   identities.set([]);
   vaultUnlocked.set(false);
   vaultExists.set(null);
+  pendingRecoveryKey.set(null);
+  recoveryResetRequired.set(false);
   lastError.set(null);
+}
+
+// Programs the warmup RPCs a successful open triggers, so a test can assert on what else happened.
+function programWarmup(fake: ReturnType<typeof createFakeGateway>) {
+  fake.program('GetPlatform', 'linux');
+  fake.program('GetFolders', [] as Folder[]);
+  fake.program('GetAllConnections', [] as Connection[]);
+  fake.program('GetKeys', []);
+  fake.program('GetPluginConnectionProtocols', []);
 }
 
 async function run() {
@@ -211,6 +226,137 @@ async function run() {
     assert(get(identities).length === 1, 'lockVault does not touch identities when gateway is missing');
     assert(get(vaultUnlocked) === true, 'lockVault does not touch vaultUnlocked when gateway is missing');
     assert(get(lastError) === null, 'lockVault does not set lastError when gateway is missing');
+  }
+
+  // --- recovery key ------------------------------------------------------
+
+  // A recovery unlock must stop at the reset screen. Warming the stores up would put the user in a
+  // running application whose only credential is one they were told to keep on paper.
+  {
+    reset();
+    const fake = createFakeGateway();
+    fake.program('UnlockVault', { method: 'recovery' });
+    programWarmup(fake);
+    setGateway(fake);
+
+    await unlockVault('AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA');
+
+    assert(get(recoveryResetRequired) === true, 'a recovery unlock asks for a new password');
+    assert(get(vaultUnlocked) === false, 'a recovery unlock does not open the application');
+    const methods = fake.calls.map((c) => c.method);
+    assert(!methods.includes('GetPlatform'), 'a recovery unlock does not warm the stores up');
+    assert(get(pendingRecoveryKey) === null, 'a recovery unlock hands back no key of its own');
+  }
+
+  // A password unlock of a vault that was just converted from the old format carries a first key.
+  {
+    reset();
+    const fake = createFakeGateway();
+    fake.program('UnlockVault', { method: 'password', recoveryKey: 'AAAA-BBBB' });
+    programWarmup(fake);
+    setGateway(fake);
+
+    await unlockVault('pw');
+
+    assert(get(vaultUnlocked) === true, 'a password unlock still opens the application');
+    assert(get(pendingRecoveryKey) === 'AAAA-BBBB', 'the key minted during conversion is shown');
+    assert(get(recoveryResetRequired) === false, 'a password unlock asks for no reset');
+  }
+
+  // Creating a vault hands over its one-time key in the same call.
+  {
+    reset();
+    const fake = createFakeGateway();
+    fake.program('CreateVault', { key: 'CCCC-DDDD' });
+    programWarmup(fake);
+    setGateway(fake);
+
+    await createVault('a-good-master-password');
+
+    assert(get(pendingRecoveryKey) === 'CCCC-DDDD', 'createVault shows the key it was given');
+    assert(get(vaultUnlocked) === true, 'createVault still opens the application');
+  }
+
+  // Finishing the reset is what starts the application, and it issues a fresh key.
+  {
+    reset();
+    recoveryResetRequired.set(true);
+    const fake = createFakeGateway();
+    fake.program('CompleteRecoveryReset', { key: 'EEEE-FFFF' });
+    programWarmup(fake);
+    setGateway(fake);
+
+    await completeRecoveryReset('a-brand-new-password');
+
+    assert(get(recoveryResetRequired) === false, 'the reset screen is done');
+    assert(get(pendingRecoveryKey) === 'EEEE-FFFF', 'the reset issues a new key');
+    assert(get(vaultUnlocked) === true, 'the application starts only after the reset');
+    const call = fake.calls.find((c) => c.method === 'CompleteRecoveryReset');
+    assert(!!call && call.args[0] === 'a-brand-new-password', 'the new password is forwarded');
+  }
+
+  // Regenerating from settings shows the new key without touching the open session.
+  {
+    reset();
+    vaultUnlocked.set(true);
+    const fake = createFakeGateway();
+    fake.program('IssueRecoveryKey', { key: 'GGGG-HHHH' });
+    setGateway(fake);
+
+    await regenerateRecoveryKey('the-master-password');
+
+    assert(get(pendingRecoveryKey) === 'GGGG-HHHH', 'regenerating shows the new key');
+    assert(get(vaultUnlocked) === true, 'regenerating leaves the session alone');
+    const call = fake.calls.find((c) => c.method === 'IssueRecoveryKey');
+    assert(!!call && call.args[0] === 'the-master-password', 'the master password is forwarded');
+  }
+
+  // Done tells the backend first. The store is only cleared once the backend has dropped its copy,
+  // so a failure leaves the key on screen rather than wiping the display of something still held.
+  {
+    reset();
+    pendingRecoveryKey.set('IIII-JJJJ');
+    const fake = createFakeGateway();
+    fake.program('AcknowledgeRecoveryKey', () => {
+      throw new Error('bridge is gone');
+    });
+    setGateway(fake);
+
+    await acknowledgeRecoveryKey();
+
+    assert(get(pendingRecoveryKey) === 'IIII-JJJJ', 'a failed acknowledgement leaves the key visible');
+    const err = get(lastError);
+    assert(err !== null && err.message.includes('bridge is gone'), 'the failure is surfaced');
+  }
+
+  {
+    reset();
+    pendingRecoveryKey.set('KKKK-LLLL');
+    const fake = createFakeGateway();
+    fake.program('AcknowledgeRecoveryKey', undefined);
+    setGateway(fake);
+
+    await acknowledgeRecoveryKey();
+
+    assert(get(pendingRecoveryKey) === null, 'a successful acknowledgement clears the key');
+    assert(fake.calls.some((c) => c.method === 'AcknowledgeRecoveryKey'), 'the backend was told to forget it');
+  }
+
+  // Locking clears both, because a key still on screen when the vault locks is one nobody can act
+  // on any more and the backend has already dropped its own copy.
+  {
+    reset();
+    pendingRecoveryKey.set('MMMM-NNNN');
+    recoveryResetRequired.set(true);
+    vaultUnlocked.set(true);
+    const fake = createFakeGateway();
+    fake.program('LockVault', undefined);
+    setGateway(fake);
+
+    await lockVault();
+
+    assert(get(pendingRecoveryKey) === null, 'locking clears the key on screen');
+    assert(get(recoveryResetRequired) === false, 'locking clears the pending reset');
   }
 
   console.log('vaultActions.test passed');

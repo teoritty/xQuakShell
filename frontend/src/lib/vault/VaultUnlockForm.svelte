@@ -1,14 +1,17 @@
 <script lang="ts">
   import { Lock } from 'lucide-svelte';
   import { unlockVault, warmupAfterVaultOpened } from '../../actions/vaultActions';
-  import { vaultExists } from '../../stores/appState';
+  import { vaultExists, pendingRecoveryKey } from '../../stores/appState';
   import VaultCard from './VaultCard.svelte';
   import PasswordField from './PasswordField.svelte';
   import MigrateKeysWizard from '../keys/MigrateKeysWizard.svelte';
   import { completeKeyMigration, planKeyMigration, type PendingKey } from '../../api/keys';
   import { t } from '../../i18n/messages';
 
-  let masterPassword = '';
+  // One field, either credential. Which one it was is decided on the backend and reported back;
+  // guessing here from the shape of the input would put a second copy of that rule in the place
+  // least able to enforce it.
+  let credential = '';
   let error = '';
   let loading = false;
   let showMigration = false;
@@ -17,11 +20,11 @@
   let migrating = false;
 
   async function handleUnlock() {
-    if (!masterPassword || loading) return;
+    if (!credential || loading) return;
     loading = true;
     error = '';
     try {
-      await unlockVault(masterPassword);
+      await unlockVault(credential);
     } catch (e: any) {
       const message = e?.message || $t('vault.unlock.failed');
       // The vault file went missing while the app was running (moved, deleted,
@@ -44,7 +47,7 @@
 
   async function offerMigration(): Promise<boolean> {
     try {
-      const plan = await planKeyMigration(masterPassword);
+      const plan = await planKeyMigration(credential);
       if (!plan.required) return false;
       pendingKeys = plan.keys;
       migrationError = '';
@@ -59,8 +62,9 @@
     migrating = true;
     migrationError = '';
     try {
-      const report = await completeKeyMigration(masterPassword, event.detail);
+      const report = await completeKeyMigration(credential, event.detail);
       showMigration = false;
+      if (report?.recoveryKey) pendingRecoveryKey.set(report.recoveryKey);
       if (report && report.skipped.length > 0) {
         error = $t('vault.migration.partial', {
           count: report.skipped.length,
@@ -81,13 +85,13 @@
 
   <form on:submit|preventDefault={handleUnlock}>
     <PasswordField
-      bind:value={masterPassword}
-      ariaLabel={$t('vault.field.master')}
-      placeholder={$t('vault.field.master')}
+      bind:value={credential}
+      ariaLabel={$t('vault.field.credential')}
+      placeholder={$t('vault.field.credential')}
       disabled={loading}
       autofocus
     />
-    <button type="submit" class="primary" disabled={loading || !masterPassword}>
+    <button type="submit" class="primary" disabled={loading || !credential}>
       {loading ? $t('vault.unlock.busy') : $t('vault.unlock.submit')}
     </button>
   </form>

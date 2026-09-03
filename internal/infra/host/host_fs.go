@@ -161,6 +161,34 @@ func (fs *HostFS) CreateFile(localPath string) error {
 	return f.Close()
 }
 
+// WriteSecretFile writes data to a path the user chose in a save dialog, at owner-only permissions.
+//
+// It truncates rather than refusing an existing file, because the native dialog has already asked
+// about overwriting and asking twice would leave the user unable to save where they meant to. The
+// 0600 mode is the point of the separate method: this exists for a recovery key, and a key written
+// world-readable into a home directory is a key on a shared machine.
+//
+// The parent directory is not created. A save dialog only ever returns a path inside a directory
+// that already exists, so a missing parent means something other than the dialog produced this
+// path, and creating a tree for it is not this function's decision to make.
+func (fs *HostFS) WriteSecretFile(localPath string, data []byte) error {
+	path, err := fs.ResolvePath(localPath)
+	if err != nil {
+		return err
+	}
+	// #nosec G304 -- path comes from the host user's own save dialog and through ResolvePath;
+	// this zone is the host filesystem, which ADR-007 defines as having no root jail.
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
 // Copy copies srcPath (file or directory tree) into destDir, keeping srcPath's
 // base name. Used for copying files dropped from the OS file explorer into
 // the local file browser. Symlinks are recreated as links, not followed —

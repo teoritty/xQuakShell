@@ -3,6 +3,8 @@
 import {wails} from '../models';
 import {json} from '../models';
 
+export function AcknowledgeRecoveryKey():Promise<void>;
+
 export function AddGitHubRepository(arg1:wails.AddGitHubRepositoryRequest):Promise<void>;
 
 export function ApplyDiscoveryNodeDetails(arg1:string,arg2:string,arg3:string,arg4:Record<string, string>):Promise<void>;
@@ -12,6 +14,8 @@ export function CancelPluginDialog(arg1:string):Promise<void>;
 export function CancelTransfer(arg1:string):Promise<void>;
 
 export function ChangeKeyPassphrase(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function ChangeMasterPassword(arg1:string,arg2:string):Promise<wails.RecoveryKeyDTO>;
 
 export function Chmod(arg1:string,arg2:string,arg3:number):Promise<void>;
 
@@ -31,13 +35,15 @@ export function CloseSurface(arg1:string):Promise<void>;
 
 export function CompleteKeyMigration(arg1:string,arg2:Record<string, string>):Promise<wails.MigrationReportDTO>;
 
+export function CompleteRecoveryReset(arg1:string):Promise<wails.RecoveryKeyDTO>;
+
 export function CopyLocalPath(arg1:string,arg2:string):Promise<void>;
 
 export function CreateFilePath(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function CreateLocalFile(arg1:string):Promise<void>;
 
-export function CreateVault(arg1:string):Promise<void>;
+export function CreateVault(arg1:string):Promise<wails.RecoveryKeyDTO>;
 
 export function DeleteAuditEntry(arg1:number):Promise<void>;
 
@@ -119,6 +125,8 @@ export function GetUserHomeDir():Promise<string>;
 
 export function GetVersionInfo():Promise<wails.VersionInfoDTO>;
 
+export function HasRecoveryKey():Promise<boolean>;
+
 export function ImportKey(arg1:string,arg2:string,arg3:string,arg4:wails.KeyOptionsDTO):Promise<wails.IdentityDTO>;
 
 export function ImportPassword(arg1:string,arg2:string):Promise<string>;
@@ -138,6 +146,8 @@ export function InstallPlugin(arg1:string,arg2:boolean,arg3:boolean,arg4:boolean
 export function InvokeDiscoveryAction(arg1:string,arg2:string,arg3:Array<string>,arg4:string):Promise<void>;
 
 export function IsVaultUnlocked():Promise<boolean>;
+
+export function IssueRecoveryKey(arg1:string):Promise<wails.RecoveryKeyDTO>;
 
 export function ListGitHubRepositories():Promise<Array<wails.GitHubRepositoryDTO>>;
 
@@ -237,6 +247,8 @@ export function SaveFolder(arg1:wails.FolderDTO):Promise<wails.FolderDTO>;
 
 export function SavePluginSettings(arg1:wails.PluginSettingsDTO,arg2:string):Promise<wails.PluginSettingsSaveResultDTO>;
 
+export function SaveRecoveryKeyFile():Promise<boolean>;
+
 export function SaveSettings(arg1:wails.AppSettingsDTO):Promise<void>;
 
 export function SearchAuditLog(arg1:string,arg2:string,arg3:string,arg4:string,arg5:number,arg6:number):Promise<Array<wails.AuditEntryDTO>>;
@@ -273,7 +285,7 @@ export function TerminalResize(arg1:string,arg2:number,arg3:number):Promise<void
 
 export function UninstallGitHubPlugin(arg1:string,arg2:boolean):Promise<void>;
 
-export function UnlockVault(arg1:string):Promise<void>;
+export function UnlockVault(arg1:string):Promise<wails.UnlockResultDTO>;
 
 export function Upload(arg1:string,arg2:string,arg3:string):Promise<void>;
 

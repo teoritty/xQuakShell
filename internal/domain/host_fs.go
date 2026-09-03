@@ -51,6 +51,11 @@ type HostFileSystem interface {
 	Mkdir(dirPath string) error
 	Rename(oldPath, newPath string) error
 	CreateFile(localPath string) error
+	// WriteSecretFile writes data to a user-chosen path at owner-only permissions, replacing any
+	// file already there. It is separate from CreateFile because that one only makes an empty file,
+	// and separate from a general write because the mode is not negotiable: the caller is handing
+	// over a credential, not saving a document.
+	WriteSecretFile(localPath string, data []byte) error
 	// Copy copies srcPath (file or directory, recursively) into destDir,
 	// keeping srcPath's base name. Symlinks are copied as links, not followed.
 	Copy(srcPath, destDir string) error

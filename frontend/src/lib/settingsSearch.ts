@@ -45,6 +45,7 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
   { tabId: 'hotkeys', sectionId: 'session' },
   { tabId: 'network', sectionId: 'ping' },
   { tabId: 'network', sectionId: 'transfer' },
+  { tabId: 'security', sectionId: 'masterPassword' },
   { tabId: 'security', sectionId: 'lockout' },
   // 'Plugins' is in this section's terms because this is where someone searching for plugin
   // settings now lands: the Plugins screen no longer has a Security page for them to find it on.
