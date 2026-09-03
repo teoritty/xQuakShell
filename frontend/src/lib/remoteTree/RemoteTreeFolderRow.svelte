@@ -6,6 +6,7 @@
   import { createEventDispatcher } from 'svelte';
   import { ChevronDown, ChevronRight, Folder as FolderIcon, FolderOpen, Pencil, Plus, X } from 'lucide-svelte';
   import type { TreeNode } from './types';
+  import { focusSelect } from '../focusSelect';
 
   export let node: TreeNode;
   export let editingFolderId: string | null = null;
@@ -26,6 +27,7 @@
 {#if editingFolderId === node.id}
   <input
     class="inline-input"
+    use:focusSelect
     bind:value={editingFolderName}
     on:mousedown|stopPropagation
     on:blur={() => dispatch('confirmRenameFolder')}

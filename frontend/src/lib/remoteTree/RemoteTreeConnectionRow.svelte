@@ -23,6 +23,7 @@
   import StatusDot from './StatusDot.svelte';
   import { hasPingResult, pingStatus, tagColor } from './connectionDisplay';
   import type { ConnectionStatus, TreeNode } from './types';
+  import { focusSelect } from '../focusSelect';
 
   export let node: TreeNode;
   export let selected = false;
@@ -68,6 +69,7 @@
 {#if editingConnId === node.id}
   <input
     class="inline-input"
+    use:focusSelect
     bind:value={editingConnName}
     on:mousedown|stopPropagation
     on:blur={() => dispatch('confirmRenameConnection')}
