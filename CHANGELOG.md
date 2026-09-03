@@ -91,6 +91,10 @@ of one: the audit database is readable while the vault is locked, so anything de
 stored there would be a verifier for guessing it offline. "Opened with the recovery key" is the entry
 worth reading — if it was not you, someone has your paper.
 
+**`golang.org/x/crypto` moved to v0.56.0**, which closes GO-2026-6354 and GO-2026-6355. Both
+were reachable from this build. The module is what the vault's scrypt and every SSH transport
+are built on, so it is not a dependency this project lets drift.
+
 **Known limitation.** The `vault.age.vN.bak` files left behind by an upgrade stay readable under the
 password that was in force when they were written. Changing your password does not reach into them,
 and nothing deletes them. If the old password is compromised, delete the backups yourself once you
