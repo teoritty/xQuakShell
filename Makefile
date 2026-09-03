@@ -173,8 +173,14 @@ test: check test-go test-frontend
 # in a linux-only file will still surface first in CI.
 gates: check typecheck-frontend test-go test-frontend coverage lint gosec
 
+# The timeout is for test/unit/recovery. Every fixture there costs several full scrypt passes at
+# log2N=18, so under -race the package runs about seven minutes on a fast desktop and past Go's
+# default 10m per-package limit on a slower CI runner - it timed out on both the Linux and the
+# Windows job while passing locally, which is exactly the failure a local gate is supposed to catch.
+# Raising the limit rather than cheapening the KDF in tests is deliberate: the work factor is a
+# security constant, and a hook for lowering it is a hook for lowering it in production too.
 test-go:
-	go test ./... -race -count=1
+	go test ./... -race -count=1 -timeout 30m
 
 test-frontend:
 	cd frontend && npm test
