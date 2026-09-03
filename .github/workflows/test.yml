@@ -46,7 +46,8 @@ jobs:
           npm run build
 
       - name: Unit tests
-        run: go test ./... -race -count=1
+        # -timeout: see the test-go comment in the Makefile.
+        run: go test ./... -race -count=1 -timeout 30m
 
       # Linux only, and not because they would fail elsewhere: the floors and the benchmark
       # thresholds are platform-independent, so running them twice buys a second identical number

@@ -386,7 +386,8 @@ go:test:
   stage: test
   rules: *rules-backend
   script:
-    - go test ./... -race -count=1
+    # -timeout: see the test-go comment in the Makefile.
+    - go test ./... -race -count=1 -timeout 30m
     - go run ./scripts/coverage
     - go test ./test/bench/... -bench=. -benchtime=100ms
 
@@ -408,7 +409,8 @@ go:test:windows:
     CGO_ENABLED: "1"
   script:
     - go test ./test/unit/architecture/... -count=1
-    - go test ./... -race -count=1
+    # -timeout: see the test-go comment in the Makefile.
+    - go test ./... -race -count=1 -timeout 30m
 
 # ---------------------------------------------------------------------------
 # Stage: security
