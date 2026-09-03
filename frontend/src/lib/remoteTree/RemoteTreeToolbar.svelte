@@ -28,15 +28,15 @@
   <button class="toolbar-btn" on:click={onNewConnection} title={$t('tree.action.newConnection')}>
     <MonitorDot size={14} />
   </button>
+  <button class="toolbar-btn" on:click={onNewFolder} title={$t('tree.action.newFolder')}>
+    <FolderPlus size={14} />
+  </button>
   <button
     class="toolbar-btn"
     on:click={() => void openLocalTerminal()}
     title={$t('tree.action.newLocalTerminal')}
   >
     <SquareTerminal size={14} />
-  </button>
-  <button class="toolbar-btn" on:click={onNewFolder} title={$t('tree.action.newFolder')}>
-    <FolderPlus size={14} />
   </button>
   <button
     class="toolbar-btn"

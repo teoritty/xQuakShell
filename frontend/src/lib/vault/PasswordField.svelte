@@ -8,6 +8,8 @@
   export let disabled = false;
   export let autofocus = false;
   export let ariaLabel: string;
+  /** Sizes the field for a settings row rather than for the full-window unlock card. */
+  export let compact = false;
 
   let revealed = false;
   let capsLock = false;
@@ -55,7 +57,7 @@
     The row exists so the reveal button can stretch to exactly the input's
     height. The Caps Lock note sits outside it, clear of that stretch.
   -->
-  <div class="input-row">
+  <div class="input-row" class:compact>
     <input
       type="password"
       autocomplete="off"
@@ -108,6 +110,24 @@
     width: 100%;
     padding: 8px 34px 8px 12px;
     font-size: 14px;
+  }
+
+  /*
+    The unlock and create screens are a card on an empty window, where a field with room around it
+    reads as the one thing being asked for. Inside settings the same field sits among rows built to
+    --control-height, and at 14px with 8px padding it towered over its own label.
+
+    Only the paddings and the size shrink; nothing here fixes a height, for the same reason the
+    reveal button is stretched rather than measured - the height still follows from the font size,
+    the padding and --ui-scale, so it stays correct at any UI scale.
+  */
+  .compact input {
+    padding: 3px 26px 3px 8px;
+    font-size: 12px;
+  }
+
+  .compact .reveal {
+    padding: 0 6px;
   }
 
   /*

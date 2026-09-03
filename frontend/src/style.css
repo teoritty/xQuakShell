@@ -148,6 +148,21 @@ button.ghost:hover {
   background: var(--bg-hover);
 }
 
+/* Dialog footers. Six components spell this out identically and three used the class without
+   defining it at all, which left their buttons flush against the body with no gap between them:
+   Svelte scopes styles per component, so a class name shared by convention is not a style shared by
+   convention. Defining it once here fills those gaps and covers the next dialog too.
+
+   A component's own rule still wins - Svelte compiles it to .dialog-actions.svelte-hash, which
+   outscores this - so KeyPickerDialog keeps its space-between. The six existing copies are left
+   where they are; deleting them is a cleanup, not part of fixing the three that were broken. */
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 /* The :where() wrapper is not decoration — it keeps this rule at the specificity of a bare
    `input` (0,0,1). Svelte compiles a component's `input { … }` to `input.svelte-hash` (0,1,1),
    so a plain :not() chain here would score (0,3,1) and silently beat every component that

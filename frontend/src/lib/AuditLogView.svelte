@@ -257,13 +257,16 @@
     gap: 10px;
   }
 
+  /* justify-content only centres within the box it is given, and this box is a flex item in a
+     fixed-height column, so without flex:1 it was exactly as tall as its own content and sat at the
+     top of an otherwise empty panel. Filling the panel is what makes the centring visible. */
   .disabled-state {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
-    padding: 40px 24px;
     gap: 10px;
     color: var(--text-secondary);
   }

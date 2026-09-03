@@ -1,8 +1,46 @@
+import type { ConnectionProtocol } from '../../api/protocolTypes';
 import type { Session } from '../../stores/appState';
 import { statusDotColor, statusDotTooltip, type StatusDot } from './statusDot';
 import type { ConnectionStatus } from './types';
 
 type PingMap = Map<string, { reachable?: boolean; latencyMs?: number }>;
+
+/** The short tag a connection row carries to say which protocol it opens. */
+export interface ProtocolBadge {
+  /** What the badge shows: the protocol id in capitals. */
+  text: string;
+  /** The protocol's own label, for the tooltip. */
+  title: string;
+}
+
+/**
+ * The protocol tag for a connection row, or `null` when rows should carry none.
+ *
+ * Badges appear only once a plugin has registered a second protocol. On a stock install every
+ * connection is SSH, so a column of identical "SSH" tags would be pure noise; the moment a second
+ * protocol exists, the same column becomes the only way to tell the rows apart. That is why the
+ * whole protocol list is the argument rather than a boolean: the decision and the value come from
+ * the same place and cannot disagree.
+ *
+ * The id is used rather than the plugin's label, capitalised. A badge sits at a fixed right edge
+ * and takes its width out of the connection name, so it has to stay short and predictable; a
+ * plugin free to call itself "Remote Desktop Protocol" would eat half of every row. The full label
+ * goes to the tooltip.
+ *
+ * An empty protocol means SSH — that is what the backend assumes for a connection saved before
+ * plugins existed, and disagreeing here would tag those rows as blank.
+ */
+export function protocolBadge(
+  protocol: string | undefined,
+  protocols: ConnectionProtocol[],
+): ProtocolBadge | null {
+  if (protocols.length <= 1) return null;
+
+  const id = protocol || 'ssh';
+  const known = protocols.find((p) => p.id === id);
+  const text = id.toUpperCase();
+  return { text, title: known?.label || text };
+}
 
 // hasPingResult reports whether a ping result exists yet for the connection.
 // When false the host has not been pinged yet (a ping is pending/in progress),

@@ -80,9 +80,9 @@ type ConnectionDTO struct {
 	JumpChain     []JumpHopDTO        `json:"jumpChain,omitempty"`
 	PluginFields  map[string]string   `json:"pluginFields,omitempty"`
 	// StoredSecretFields lists plugin field ids whose secret value is already stored in the vault.
-	// Their value is masked to "" in PluginFields (a secret is never sent to the UI), so the form
-	// uses this to show a "saved" placeholder and to leave the field out of the save payload while
-	// untouched — otherwise re-saving the connection would send an empty value and wipe the secret.
+	// PluginFields carries no entry at all for them (a secret is never sent to the UI, and an empty
+	// value would read as "clear it" on the way back), so the form uses this to show a "saved"
+	// placeholder and to leave the field out of the save payload while untouched.
 	StoredSecretFields []string         `json:"storedSecretFields,omitempty"`
 	ForwardRules       []ForwardRuleDTO `json:"forwardRules,omitempty"`
 }
@@ -135,7 +135,8 @@ func ConnectionToDTO(c domain.Connection) ConnectionDTO {
 }
 
 // storedSecretFieldIDs returns the plugin field ids that carry a stored secret reference, sorted
-// for a stable payload. pluginFieldsToDTO masks these to "" so the value never leaves the host.
+// for a stable payload. pluginFieldsToDTO leaves these out of the DTO, so this list is the only
+// thing that tells the editor a secret is on file.
 func storedSecretFieldIDs(fields map[string]string) []string {
 	var ids []string
 	for k, v := range fields {
@@ -355,17 +356,23 @@ func dtoToJumpHop(d JumpHopDTO) domain.JumpHop {
 	return h
 }
 
+// pluginFieldsToDTO drops every field holding a vault secret reference instead of masking it to "".
+//
+// An empty value is not a neutral placeholder here: SavePluginFields reads it as "the user emptied
+// this field" and either refuses the save (the field is required) or deletes the stored secret (it
+// is not). A mask therefore cannot survive a round trip, and the UI does round-trip a connection -
+// the tree's inline rename saves back the record it was handed. Absence is the value that means
+// "unchanged", and storedSecretFields already tells the editor which secrets exist.
 func pluginFieldsToDTO(fields map[string]string) map[string]string {
-	if len(fields) == 0 {
-		return nil
-	}
 	out := make(map[string]string, len(fields))
 	for k, v := range fields {
 		if strings.HasPrefix(v, "secret:") {
-			out[k] = ""
 			continue
 		}
 		out[k] = v
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

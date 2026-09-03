@@ -21,7 +21,8 @@
     XCircle,
   } from 'lucide-svelte';
   import StatusDot from './StatusDot.svelte';
-  import { hasPingResult, pingStatus, tagColor } from './connectionDisplay';
+  import { hasPingResult, pingStatus, protocolBadge, tagColor } from './connectionDisplay';
+  import { connectionProtocols } from '../../actions/protocolActions';
   import type { ConnectionStatus, TreeNode } from './types';
   import { focusSelect } from '../focusSelect';
 
@@ -37,6 +38,11 @@
   export let discoveryExpanded = false;
 
   const dispatch = createEventDispatcher();
+
+  // The protocol list is read from its store rather than threaded down as a prop. It is
+  // application-wide configuration, identical for every row, and the prop chain to reach here runs
+  // through RemoteTree.svelte, which the size ratchet is holding down and which must not grow.
+  $: badge = protocolBadge(node.connection?.protocol, $connectionProtocols);
 </script>
 
 {#if discoveryAvailable}
@@ -73,7 +79,7 @@
     bind:value={editingConnName}
     on:mousedown|stopPropagation
     on:blur={() => dispatch('confirmRenameConnection')}
-    on:keydown={(e) => {
+    on:keydown|stopPropagation={(e) => {
       if (e.key === 'Enter') dispatch('confirmRenameConnection');
       if (e.key === 'Escape') dispatch('cancelRenameConnection');
     }}
@@ -89,6 +95,9 @@
         <span class="tag-more">+{node.tags.length - 2}</span>
       {/if}
     </span>
+  {/if}
+  {#if badge}
+    <span class="protocol-badge" title={badge.title}>{badge.text}</span>
   {/if}
   <div class="conn-actions">
     <button class="micro-btn" on:click|stopPropagation={() => dispatch('startRenameConnection', { connection: node.connection })} title={$t('common.rename')}>

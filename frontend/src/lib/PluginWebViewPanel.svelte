@@ -110,7 +110,7 @@
     flex-direction: column;
     border-top: 1px solid var(--border-color);
     min-height: 120px;
-    max-height: 220px;
+    max-height: var(--sidebar-bottom-max, 220px);
     flex-shrink: 0;
   }
 

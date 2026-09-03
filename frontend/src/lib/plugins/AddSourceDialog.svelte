@@ -90,6 +90,21 @@
     color: var(--danger);
   }
 
+  /* The settings screens style .checkbox-row under .settings-content, which this dialog is not
+     inside, so the class arrived here carrying nothing and the box sat hard against its label. */
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .checkbox-row input {
+    margin: 0;
+    cursor: pointer;
+  }
+
   .banner {
     display: flex;
     align-items: flex-start;

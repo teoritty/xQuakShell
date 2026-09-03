@@ -25,6 +25,7 @@
   } from './connectionDetails/connectionFormMode';
   import type { ConnectionProtocol } from '../actions/protocolActions';
   import { buildConnectionSavePayload } from './connectionDetails/savePayload';
+  import { nextDraftSync } from './connectionDetails/draftSync';
   import { adoptPersistedHopIds } from './connectionDetails/hopIds';
   import { adoptPersistedRuleIds } from './connectionDetails/forwardRuleIds';
   import {
@@ -36,7 +37,7 @@
     setUserPassword,
   } from './connectionDetails/authDraftMutations';
   import {
-    cancelPendingAutosave,
+    cancelPendingAutosave, commitFieldEditOnEnter,
     createAutosaveTimerState,
     isStaleAutosaveGeneration,
     scheduleAutosave,
@@ -66,7 +67,7 @@
   let saveStatus: SaveStatus = 'idle';
   let addingTag = false;
   let newTagValue = '';
-  let boundCatalogKey = '';
+  let boundCatalogKey = '', boundRecordName = '';
   let formMode: ConnectionFormMode = 'none';
   let formProtocolDef: ConnectionProtocol | null = null;
   const autosaveState = createAutosaveTimerState();
@@ -80,12 +81,13 @@
     void refreshConnectionProtocols();
   });
 
-  $: if (connId && connId !== draft.editingId) {
-    syncDraftFromConnection();
-    boundCatalogKey = protocolCatalogKey;
-  } else if (connId && protocolCatalogKey !== boundCatalogKey) {
-    boundCatalogKey = protocolCatalogKey;
-    resyncProtocolCatalog();
+  // Why a rename made anywhere else has to reach an open panel, why the name is the only field that
+  // can arrive this way, and why the record is compared against itself rather than against the
+  // draft, is in draftSync.ts.
+  $: switch (nextDraftSync({ connId, draftId: draft.editingId, recordName: $detailsConnection?.name ?? '', boundRecordName, dirty, catalogKey: protocolCatalogKey, boundCatalogKey })) {
+    case 'rebuild': boundCatalogKey = protocolCatalogKey; boundRecordName = $detailsConnection?.name ?? ''; syncDraftFromConnection(); break;
+    case 'catalog': boundCatalogKey = protocolCatalogKey; resyncProtocolCatalog(); break;
+    case 'follow-name': boundRecordName = $detailsConnection?.name ?? ''; if (draft.name.trim() !== boundRecordName) draft.name = boundRecordName; break;
   }
 
   function updateFormMode() {
@@ -130,7 +132,7 @@
 
   async function runAutosave(generation: number) {
     const editingId = draft.editingId;
-    if (!editingId || !dirty) return;
+    if (!editingId || !dirty || !draft.name.trim()) return;
     if (isStaleAutosaveGeneration(autosaveState, generation)) return;
 
     saveStatus = 'saving';
@@ -277,7 +279,9 @@
 <div class="connection-details">
   <ConnectionDetailsHeader {saveStatus} on:close={() => detailsConnectionId.set('')} />
 
-  <div class="details-body">
+  <!-- Enter ends the edit of whichever field has focus, plugin fields included. One handler for the
+       whole form rather than one per component: see commitFieldEditOnEnter in autosave.ts. -->
+  <div class="details-body" role="group" on:keydown={(e) => commitFieldEditOnEnter(e, autosaveState, runAutosave)}>
     <ConnectionBaseFields
       bind:name={draft.name}
       bind:protocol={draft.protocol}
@@ -337,7 +341,7 @@
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-    max-height: 55vh;
+    max-height: var(--sidebar-bottom-max, 55vh);
     border-top: 1px solid var(--border-color);
   }
 

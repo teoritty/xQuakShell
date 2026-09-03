@@ -34,7 +34,7 @@ import {
   moveFolderTo,
   reorderFoldersIn,
 } from '../api/folders';
-import { folders, type Folder } from '../stores/appState';
+import { expandedFolderIds, folders, type Folder } from '../stores/appState';
 import { refreshAllConnections } from './connectionActions';
 
 export async function refreshFolders(): Promise<void> {
@@ -63,6 +63,23 @@ export async function createNewFolderInFolder(parentId: string): Promise<Folder 
     name: 'New folder',
     parentId,
   });
+}
+
+/**
+ * Creates a folder and makes sure it is on screen: a folder that appears inside a collapsed parent
+ * is indistinguishable from one that was never created, and looking at it is always the user's next
+ * move after asking for it.
+ *
+ * The expansion happens before the create rather than after, so the row is already in the tree the
+ * moment the refresh lands and nothing flickers between the two.
+ *
+ * An empty parentId is the tree root, which has nothing to expand.
+ */
+export async function createFolderAndReveal(parentId: string): Promise<Folder | null> {
+  if (parentId) {
+    expandedFolderIds.update((set) => new Set(set).add(parentId));
+  }
+  return createNewFolderInFolder(parentId);
 }
 
 export async function deleteFolder(id: string): Promise<void> {

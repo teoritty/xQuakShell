@@ -31,7 +31,7 @@
     bind:value={editingFolderName}
     on:mousedown|stopPropagation
     on:blur={() => dispatch('confirmRenameFolder')}
-    on:keydown={(e) => {
+    on:keydown|stopPropagation={(e) => {
       if (e.key === 'Enter') dispatch('confirmRenameFolder');
       if (e.key === 'Escape') dispatch('cancelRenameFolder');
     }}

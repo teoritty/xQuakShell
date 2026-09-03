@@ -204,6 +204,30 @@
   text-overflow: ellipsis;
 }
 
+/* The protocol tag, pinned to the right edge of the row.
+   The size is a ratio of the row's rather than a number of its own: the tag reads as an annotation
+   on the name, so it sits a little under it, and expressing that as em keeps the relationship true
+   at every --ui-scale instead of needing a second number kept in step by hand.
+   flex-shrink: 0 against .node-name's flex: 1 is the whole of the width priority - the name gives
+   up space and ellipsises, the tag never does. Reading which protocol a row opens matters more than
+   reading the last few characters of its name, and the name can always be recovered by widening
+   the panel. */
+.remote-tree .protocol-badge {
+  flex-shrink: 0;
+  padding: 0 3px;
+  font-size: 0.85em;
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* The row's actions occupy the same edge, and on a narrow panel both do not fit. A pointer on the
+   row means the user is acting on it, not reading its protocol. */
+.remote-tree .tree-node:hover .protocol-badge {
+  display: none;
+}
+
 .remote-tree .folder-actions,
 .remote-tree .conn-actions {
   display: none;

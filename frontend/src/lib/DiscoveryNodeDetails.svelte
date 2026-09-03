@@ -141,7 +141,7 @@
     display: flex;
     flex-direction: column;
     border-top: 1px solid var(--border-color);
-    max-height: 55%;
+    max-height: var(--sidebar-bottom-max, 55%);
     flex-shrink: 0;
   }
 

@@ -39,6 +39,7 @@ func (r *ConnectionRepo) SaveFolder(ctx context.Context, f *domain.ConnectionFol
 	return r.vault.UpdateData(ctx, func(data *domain.VaultData) error {
 		if f.ID == "" {
 			f.ID = uuid.New().String()
+			f.Order = orderBeforeSiblings(data.Folders, f.ParentID)
 			data.Folders = append(data.Folders, *f)
 			return nil
 		}
@@ -51,6 +52,27 @@ func (r *ConnectionRepo) SaveFolder(ctx context.Context, f *domain.ConnectionFol
 		data.Folders = append(data.Folders, *f)
 		return nil
 	})
+}
+
+// orderBeforeSiblings returns an order that sorts a new folder ahead of the folders already under
+// the same parent.
+//
+// A new folder used to be stored with the zero Order it arrived with, which put it wherever the
+// tree's stable sort happened to place a tie - in practice directly after the first folder, since
+// that one usually also has order zero. Landing in the middle of a list for no reason the user can
+// see is worse than either end, and the top is where something just created should be: it is where
+// the user is already looking, and it needs no scrolling to find.
+//
+// Negative orders are fine. Nothing validates the range, the tree only ever compares them, and the
+// first explicit reorder renumbers the level from zero anyway.
+func orderBeforeSiblings(folders []domain.ConnectionFolder, parentID string) int {
+	lowest := 0
+	for _, sibling := range folders {
+		if sibling.ParentID == parentID && sibling.Order < lowest {
+			lowest = sibling.Order
+		}
+	}
+	return lowest - 1
 }
 
 // DeleteFolder removes a folder by ID and all descendant folders. Connections in those folders are removed.

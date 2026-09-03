@@ -49,8 +49,8 @@
         "scriptCodeLines": 85
       },
       "frontend/src/lib/ConnectionDetails.svelte": {
-        "codeLines": 307,
-        "scriptCodeLines": 235
+        "codeLines": 306,
+        "scriptCodeLines": 234
       },
       "frontend/src/lib/FileTree.svelte": {
         "codeLines": 537,
@@ -61,8 +61,8 @@
         "scriptCodeLines": 407
       },
       "frontend/src/lib/RemoteTree.svelte": {
-        "codeLines": 648,
-        "scriptCodeLines": 535
+        "codeLines": 641,
+        "scriptCodeLines": 528
       },
       "frontend/src/lib/ScriptsDialog.svelte": {
         "codeLines": 514,

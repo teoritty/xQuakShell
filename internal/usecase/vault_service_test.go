@@ -64,7 +64,9 @@ func (m *memoryConnRepo) GetByID(_ context.Context, id string) (*domain.Connecti
 	}
 	c, ok := m.conns[id]
 	if !ok {
-		return nil, errors.New("not found")
+		// The port's contract, not a stand-in for it: callers distinguish "no such connection" from
+		// a read that failed, and a fixture returning a bare error makes them take the wrong branch.
+		return nil, domain.ErrConnectionNotFound
 	}
 	return &c, nil
 }

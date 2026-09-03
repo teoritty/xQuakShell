@@ -50,7 +50,7 @@
   }
 </script>
 
-<Modal title={$t('topbar.knownHosts')} {show} on:close={() => show = false}>
+<Modal title={$t('topbar.knownHosts')} {show} contentClass="list-manager" on:close={() => show = false}>
   {#if error}
     <div class="kh-error">{error}</div>
   {/if}
@@ -92,7 +92,13 @@
     margin-bottom: 12px;
   }
 
+  /* Fills the fixed dialog rather than sitting in a 20px band at the top of it, so an empty list
+     reads as an answer rather than as a dialog that failed to open. */
   .kh-loading, .kh-empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     text-align: center;
     padding: 20px;
     color: var(--text-secondary);
@@ -103,7 +109,10 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    max-height: 300px;
+    /* Takes the space the fixed dialog gives it and scrolls inside, instead of capping itself at a
+       height the dialog then has to shrink to. */
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
   }
 

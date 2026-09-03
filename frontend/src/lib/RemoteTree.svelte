@@ -14,7 +14,7 @@
     type Folder,
   } from '../stores/appState';
   import {
-    createNewFolderInFolder,
+    createFolderAndReveal,
     deleteFolders,
     saveFolder,
   } from '../actions/folderActions';
@@ -33,6 +33,7 @@
   import RemoteTreeContextMenu from './RemoteTreeContextMenu.svelte';
   import { openContextMenu, releaseContextMenu } from './contextMenuManager';
   import { buildTree, flattenTree } from './remoteTree/buildTree';
+  import { planRename } from './remoteTree/renamePlan';
   import { handleDiscoveryRowKey } from './remoteTree/discoveryKeys';
   import { describeDeleteTargets } from './remoteTree/deletePrompt';
   import { buildSessionStatusMap } from './remoteTree/connectionDisplay';
@@ -244,24 +245,19 @@
     editingConnName = c.name;
   }
 
+  // The editor closes because the interaction ended, never because the save came back. Clearing the
+  // id after the await made edit mode outlive any round-trip that failed or hung, and the row then
+  // stayed open for the rest of the session — see renamePlan.ts.
   async function confirmRenameFolder() {
-    if (!editingFolderName.trim() || !editingFolderId) {
-      editingFolderId = null;
-      return;
-    }
-    const f = $folders.find((x) => x.id === editingFolderId);
-    if (f) await saveFolder({ ...f, name: editingFolderName.trim() });
+    const plan = planRename(editingFolderId, editingFolderName, $folders);
     editingFolderId = null;
+    if (plan) await saveFolder({ ...plan.target, name: plan.name });
   }
 
   async function confirmRenameConnection() {
-    if (!editingConnName.trim() || !editingConnId) {
-      editingConnId = null;
-      return;
-    }
-    const c = $connections.find((x) => x.id === editingConnId);
-    if (c) await saveConnection({ ...c, name: editingConnName.trim() });
+    const plan = planRename(editingConnId, editingConnName, $connections);
     editingConnId = null;
+    if (plan) await saveConnection({ ...plan.target, name: plan.name });
   }
 
   /** Single entry point for every delete verb — context menu, row button, Delete key. */
@@ -430,7 +426,7 @@
   async function handleCtxNewFolder() {
     const folderId = ctxMenu.node?.type === 'folder' ? ctxMenu.node.id : '';
     closeContextMenu();
-    await createNewFolderInFolder(folderId);
+    await createFolderAndReveal(folderId);
   }
 
   function handleCtxEdit() {
@@ -663,7 +659,7 @@
   <RemoteTreeSearch bind:value={searchQuery} onFocus={handleSearchFocus} />
   <RemoteTreeToolbar
     onNewConnection={() => createNewConnectionInFolder($creationTargetFolderId)}
-    onNewFolder={() => createNewFolderInFolder($creationTargetFolderId)}
+    onNewFolder={() => createFolderAndReveal($creationTargetFolderId)}
     onImport={(anchor) => (importMenu = { show: true, anchor })}
     importMenuOpen={importMenu.show}
     onExpandAll={expandAll}
@@ -705,7 +701,7 @@
     on:cancelRenameFolder={() => (editingFolderId = null)}
     on:confirmRenameConnection={confirmRenameConnection}
     on:cancelRenameConnection={() => (editingConnId = null)}
-    on:newSubfolder={({ detail }) => createNewFolderInFolder(detail.folderId)}
+    on:newSubfolder={({ detail }) => createFolderAndReveal(detail.folderId)}
     on:startRenameFolder={({ detail }) => detail.folder && startRenameFolder(detail.folder)}
     on:deleteFolder={({ detail }) =>
       detail.folder && requestDelete(deleteTargets(detail.folder.id, selectedPaths, $connections, $folders))}
