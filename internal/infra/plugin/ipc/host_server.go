@@ -77,7 +77,6 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 		s.auditDenied(method, "capability denied")
 		return nil, capabilityDeniedError(method)
 	}
-	s.recordActivity()
 
 	var (
 		result json.RawMessage
@@ -211,53 +210,88 @@ func (s *HostServer) HandleRequest(ctx context.Context, method string, params js
 		return nil, &RPCError{Code: -32601, Message: "method not found"}
 	}
 
-	if err != nil {
-		if isInvalidParams(err) {
-			return nil, invalidParamsError(method)
-		}
-		if isCapabilityDenied(err) {
-			s.auditDenied(method, err.Error())
-			return nil, capabilityDeniedError(method)
-		}
-		if errors.Is(err, domainplugin.ErrSessionNotBound) {
-			s.auditDenied(method, err.Error())
-			if strings.HasPrefix(method, "auth.") {
-				return nil, &RPCError{Code: -32006, Message: "auth attempt not found"}
-			}
-			return nil, capabilityDeniedError(method)
-		}
-		if errors.Is(err, domainplugin.ErrAuthChallengeTimeout) {
-			return nil, &RPCError{Code: -32007, Message: "auth challenge timeout"}
-		}
-		if errors.Is(err, domainplugin.ErrAuthProviderBusy) {
-			return nil, &RPCError{Code: -32005, Message: "auth provider busy"}
-		}
-		if errors.Is(err, domainplugin.ErrTunnelAlreadyExists) {
-			return nil, &RPCError{Code: -32008, Message: "tunnel already exists"}
-		}
-		if errors.Is(err, domainplugin.ErrTunnelNotFound) {
-			return nil, &RPCError{Code: -32002, Message: "resource not found"}
-		}
-		if errors.Is(err, domainplugin.ErrRateLimited) {
-			return nil, rateLimitedError(method)
-		}
-		if errors.Is(err, domainplugin.ErrTerminalBackpressure) {
-			return nil, rateLimitedError(method)
-		}
-		if errors.Is(err, domainplugin.ErrNotImplemented) {
-			return nil, &RPCError{Code: -32004, Message: "not implemented"}
-		}
-		if errors.Is(err, domainplugin.ErrHandleNotFound) {
-			return nil, &RPCError{Code: -32002, Message: "resource not found"}
-		}
-		if errors.Is(err, domainplugin.ErrNetworkDialFailed) {
-			slog.Debug("plugin net dial failed", "component", "plugin.rpc", "pluginId", s.pluginID, "method", method)
-			return nil, &RPCError{Code: -32603, Message: "request failed"}
-		}
-		slog.Warn("plugin rpc failed", "component", "plugin.rpc", "pluginId", s.pluginID, "method", method, "err", err)
-		return nil, &RPCError{Code: -32603, Message: "request failed"}
+	rpcErr := s.errorFor(method, err)
+	// Recorded here rather than before the dispatch, and never for a refusal. See isRefusal.
+	if !isRefusal(rpcErr) {
+		s.recordActivity()
+	}
+	if rpcErr != nil {
+		return nil, rpcErr
 	}
 	return result, nil
+}
+
+// errorFor maps a handler's error onto the wire error the plugin sees. Nil in, nil out.
+func (s *HostServer) errorFor(method string, err error) *RPCError {
+	if err == nil {
+		return nil
+	}
+	if isInvalidParams(err) {
+		return invalidParamsError(method)
+	}
+	if isCapabilityDenied(err) {
+		s.auditDenied(method, err.Error())
+		return capabilityDeniedError(method)
+	}
+	if errors.Is(err, domainplugin.ErrSessionNotBound) {
+		s.auditDenied(method, err.Error())
+		if strings.HasPrefix(method, "auth.") {
+			return &RPCError{Code: -32006, Message: "auth attempt not found"}
+		}
+		return capabilityDeniedError(method)
+	}
+	if errors.Is(err, domainplugin.ErrAuthChallengeTimeout) {
+		return &RPCError{Code: -32007, Message: "auth challenge timeout"}
+	}
+	if errors.Is(err, domainplugin.ErrAuthProviderBusy) {
+		return &RPCError{Code: -32005, Message: "auth provider busy"}
+	}
+	if errors.Is(err, domainplugin.ErrTunnelAlreadyExists) {
+		return &RPCError{Code: -32008, Message: "tunnel already exists"}
+	}
+	if errors.Is(err, domainplugin.ErrTunnelNotFound) {
+		return &RPCError{Code: -32002, Message: "resource not found"}
+	}
+	if errors.Is(err, domainplugin.ErrRateLimited) {
+		return rateLimitedError(method)
+	}
+	if errors.Is(err, domainplugin.ErrTerminalBackpressure) {
+		return rateLimitedError(method)
+	}
+	if errors.Is(err, domainplugin.ErrNotImplemented) {
+		return &RPCError{Code: -32004, Message: "not implemented"}
+	}
+	if errors.Is(err, domainplugin.ErrHandleNotFound) {
+		return &RPCError{Code: -32002, Message: "resource not found"}
+	}
+	if errors.Is(err, domainplugin.ErrNetworkDialFailed) {
+		slog.Debug("plugin net dial failed", "component", "plugin.rpc", "pluginId", s.pluginID, "method", method)
+		return &RPCError{Code: -32603, Message: "request failed"}
+	}
+	slog.Warn("plugin rpc failed", "component", "plugin.rpc", "pluginId", s.pluginID, "method", method, "err", err)
+	return &RPCError{Code: -32603, Message: "request failed"}
+}
+
+// isRefusal reports whether the host declined to do the work rather than attempted it and failed.
+//
+// A refusal must never count as plugin activity. The idle sweep reclaims a plugin process that has
+// been quiet for five minutes, and activity was recorded the moment a call passed the capability
+// gate - before the deeper checks that decide whether this plugin holds the session it named. So a
+// plugin retrying a call the host refuses stayed alive forever by being refused: the docker
+// discovery plugin, retrying channel.open every five seconds against a session that had closed,
+// held its process and wrote an audit row per attempt for as long as the application ran. Being
+// denied is the opposite of being useful, and it must not buy immunity from the sweep.
+//
+// A request that was attempted and failed still counts. A plugin whose fs.read hits a missing file
+// is doing real work badly, not asking for something it may not have, and suspending it would
+// reclaim a healthy plugin over an ordinary error.
+func isRefusal(err *RPCError) bool {
+	if err == nil {
+		return false
+	}
+	// Rate limiting joins capability denial for the same reason: it is the host saying no, and a
+	// plugin that floods hard enough to be throttled must not be rewarded with a fresh idle clock.
+	return err.Code == codeCapabilityDenied || err.Code == codeRateLimited
 }
 
 func (s *HostServer) handleLogWrite(params json.RawMessage) {
@@ -324,9 +358,17 @@ func proxyUnavailableError(method string) *RPCError {
 	}
 }
 
+// The two wire codes that mean the host refused. Named because isRefusal has to recognise them,
+// and a bare -32001 repeated in three places is a rule nobody can grep for. The full table lives in
+// docs/plugin-api.md; only the codes with a decision attached are named here.
+const (
+	codeCapabilityDenied = -32001
+	codeRateLimited      = -32003
+)
+
 func capabilityDeniedError(method string) *RPCError {
 	return &RPCError{
-		Code:    -32001,
+		Code:    codeCapabilityDenied,
 		Message: "capability denied",
 		Data:    mustJSON(map[string]string{"method": method}),
 	}
@@ -342,7 +384,7 @@ func invalidParamsError(method string) *RPCError {
 
 func rateLimitedError(method string) *RPCError {
 	return &RPCError{
-		Code:    -32003,
+		Code:    codeRateLimited,
 		Message: "rate limited",
 		Data:    mustJSON(map[string]string{"method": method}),
 	}

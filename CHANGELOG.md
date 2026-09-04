@@ -95,6 +95,13 @@ worth reading — if it was not you, someone has your paper.
 were reachable from this build. The module is what the vault's scrypt and every SSH transport
 are built on, so it is not a dependency this project lets drift.
 
+**A plugin can no longer stay alive by being refused.** Idle plugin processes are reclaimed after
+five minutes of quiet, and the clock was reset the moment a call cleared the capability gate —
+before the checks that decide whether the plugin holds the session it named. A plugin retrying a
+call the host refuses therefore looked busier than one doing real work, and kept its process, its
+memory and its sandbox for as long as the application ran, writing an audit row per attempt. A
+refusal no longer counts as activity; an attempt that was made and failed still does.
+
 **Known limitation.** The `vault.age.vN.bak` files left behind by an upgrade stay readable under the
 password that was in force when they were written. Changing your password does not reach into them,
 and nothing deletes them. If the old password is compromised, delete the backups yourself once you
