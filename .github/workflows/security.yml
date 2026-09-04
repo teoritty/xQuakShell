@@ -274,10 +274,13 @@ jobs:
       #   GHSA-8266-84wp-wv5c  mXSS via improper HTML escaping             fixed in 4.2.19
       #   GHSA-rcqx-6q8c-2c42  XSS via DOM clobbering of framework state   fixed in 5.55.7
       #
-      # Both were moderate. Both mattered more than that suggests, because of one sink: a
-      # plugin README fetched from GitHub reaches {@html} in GitHubReadmePanel.svelte, inside a
-      # WebView bound to the whole Wails API. The first sat open for close to two years while
-      # this step reported green.
+      # Both were moderate. Both mattered more than that suggests. The sink that made them
+      # concrete was a plugin README reaching {@html} in GitHubReadmePanel.svelte, inside a
+      # WebView bound to the whole Wails API. That component is gone: a README is rendered as
+      # text in PluginDetails.svelte, and the codebase now has no {@html} at all. The threshold
+      # stays regardless - an escaping or DOM-clobbering bug in Svelte reaches everything the
+      # app renders, not one component. The first of those two sat open for close to two years
+      # while this step reported green.
       #
       # The threshold is lowered here rather than earlier because a gate that is red with no
       # available fix is one people learn to skip: both needed a major Svelte bump, which is
