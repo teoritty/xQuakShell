@@ -100,14 +100,21 @@ export async function listPlugins(): Promise<PluginInfo[]> {
   }
 }
 
-export async function pingPlugin(pluginId: string): Promise<void> {
+/**
+ * Asks a running plugin to answer, and returns what it answered with.
+ *
+ * The two departures from the wrappers around it are both deliberate. The backend has always
+ * returned the plugin's pong payload and this threw it away, which is why a successful ping looked
+ * exactly like a broken button. And a failure is raised rather than routed to the global error
+ * dialog: a ping that gets no answer is the diagnosis the user asked for, not an application error,
+ * and a modal that has to be dismissed is the wrong shape for a question asked from a row of icons.
+ * The caller renders both outcomes.
+ */
+export async function pingPlugin(pluginId: string): Promise<Record<string, string>> {
   const app = getGateway();
-  if (!app?.PingPlugin) return;
-  try {
-    await app.PingPlugin(pluginId);
-  } catch (e) {
-    handleError(e, 'Ping plugin');
-  }
+  if (!app?.PingPlugin) throw new Error('plugin ping is unavailable');
+  const result = await app.PingPlugin(pluginId);
+  return result?.result ?? {};
 }
 
 export async function setPluginEnabled(pluginId: string, enabled: boolean): Promise<void> {

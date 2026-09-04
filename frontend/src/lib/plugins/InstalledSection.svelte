@@ -4,12 +4,15 @@
   import PluginCard from './PluginCard.svelte';
   import SectionHeading from './SectionHeading.svelte';
   import { groupInstalled, isBundled, pluginStateLabel, sandboxSummary } from './pluginsView';
+  import { pingStatus, type PingOutcome } from './pingView';
   import type { PluginInfo } from '../../api/plugins';
   import { t } from '../../i18n/messages';
 
   export let plugins: PluginInfo[] = [];
   export let query = '';
   export let busyPluginId = '';
+  /** The most recent ping per plugin id, while it is still fresh. Owned by the dialog. */
+  export let pingResults: Record<string, PingOutcome> = {};
 
   const dispatch = createEventDispatcher();
 
@@ -37,11 +40,34 @@
     return chips;
   }
 
-  function statusFor(plugin: PluginInfo): { text: string; kind: 'installed' | 'warning' } {
-    if (!plugin.enabled) return { text: $t('plugins.state.disabled'), kind: 'warning' };
-    if (plugin.state === 'running') return { text: $t('plugins.state.running'), kind: 'installed' };
+  // A fresh ping takes the status line over for a few seconds, then the row goes back to reporting
+  // run state. It borrows the line rather than adding a second one because the two say the same
+  // kind of thing about the same plugin, and a row that grows a field when you press a button
+  // shifts every card below it.
+  function statusFor(
+    plugin: PluginInfo,
+    pinged: PingOutcome | undefined,
+    busy: boolean,
+  ): { text: string; kind: 'installed' | 'warning'; title: string } {
+    if (busy) return { text: $t('plugins.ping.pending'), kind: 'installed', title: '' };
+    if (pinged) {
+      const status = pingStatus(pinged);
+      return { text: $t(status.key, status.values), kind: status.kind, title: pinged.detail };
+    }
+    if (!plugin.enabled) return { text: $t('plugins.state.disabled'), kind: 'warning', title: '' };
+    if (plugin.state === 'running') {
+      return { text: $t('plugins.state.running'), kind: 'installed', title: '' };
+    }
     const state = pluginStateLabel(plugin.state);
-    return { text: state.key ? $t(state.key) : (state.text ?? ''), kind: 'warning' };
+    return { text: state.key ? $t(state.key) : (state.text ?? ''), kind: 'warning', title: '' };
+  }
+
+  // The button's tooltip is where the answer itself goes. The status line has room for "Pong ·
+  // 3 ms" and not for a plugin reporting its version, or for the sentence that says why there was
+  // no answer.
+  function pingTitle(pinged: PingOutcome | undefined): string {
+    if (!pinged || !pinged.detail) return $t('plugins.action.ping');
+    return `${$t('plugins.action.ping')} — ${pinged.detail}`;
   }
 </script>
 
@@ -69,7 +95,8 @@
 
       <div class="card-list">
         {#each group.plugins as plugin (plugin.id)}
-          {@const status = statusFor(plugin)}
+          {@const pinged = pingResults[plugin.id]}
+          {@const status = statusFor(plugin, pinged, busyPluginId === plugin.id)}
           <PluginCard
             name={plugin.name}
             version={plugin.version}
@@ -77,6 +104,7 @@
             state={group.id === 'disabled' ? 'idle' : group.id}
             chips={chipsFor(plugin)}
             status={status.text}
+            statusTitle={status.title}
             statusKind={status.kind}
             dimmed={!plugin.enabled}
           >
@@ -92,7 +120,9 @@
               </button>
               <button
                 class="ghost icon-btn"
-                title={$t('plugins.action.ping')}
+                class:ping-ok={pinged?.ok}
+                class:ping-failed={pinged && !pinged.ok}
+                title={pingTitle(pinged)}
                 disabled={busyPluginId === plugin.id || !plugin.enabled}
                 on:click={() => dispatch('ping', { plugin })}
               >
@@ -194,6 +224,17 @@
 
   .icon-btn.on {
     color: var(--success);
+  }
+
+  /* The button keeps the colour of its own last answer for as long as the status line does. The
+     row is scanned left to right, and a user who pressed this button is looking at it, not at the
+     line above it. */
+  .icon-btn.ping-ok {
+    color: var(--success);
+  }
+
+  .icon-btn.ping-failed {
+    color: var(--warning);
   }
 
   .icon-btn.danger:hover:not(:disabled) {
