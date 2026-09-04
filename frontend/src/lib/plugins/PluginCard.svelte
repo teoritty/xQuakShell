@@ -19,6 +19,8 @@
   export let state: 'active' | 'attention' | 'idle' | 'none' = 'none';
   export let chips: { label: string; tone: 'good' | 'warn' | 'bad' | 'neutral' }[] = [];
   export let status = '';
+  /** Tooltip for the status line, where the line itself has no room for the whole answer. */
+  export let statusTitle = '';
   export let statusKind: 'installed' | 'not-installed' | 'warning' = 'not-installed';
   export let dimmed = false;
   export let showDetails = false;
@@ -56,6 +58,8 @@
         class="card-status"
         class:installed={statusKind === 'installed'}
         class:warning={statusKind === 'warning'}
+        class:has-title={statusTitle !== ''}
+        title={statusTitle}
       >
         {status}
       </span>
@@ -208,6 +212,14 @@
 
   .card-status.warning {
     color: var(--warning);
+  }
+
+  /* Only a line that actually carries a tooltip gets the affordance. A dotted underline under
+     every run-state label would promise an explanation that is not there. */
+  .card-status.has-title {
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+    cursor: help;
   }
 
   .card-actions {

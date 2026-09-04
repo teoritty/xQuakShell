@@ -64,6 +64,18 @@ their credentials have been seen.
 Thirty-two characters is 160 bits, drawn from an alphabet with no I, L, O or U in it, so a zero
 cannot be read as an O or a one as an l. Dashes, spaces and case are ignored when you type it back.
 
+### Fixed
+
+**The plugin Ping button now tells you what happened.** It always asked the plugin and the plugin
+always answered; the answer was thrown away before anything could show it. A ping that succeeded
+looked identical to a button that did nothing, and a ping that failed opened the application's error
+modal — the same dialog a crash uses — for what is only a finding about one plugin.
+
+The row now reports it: "Answered in 3 ms" while the ping is fresh, then back to the run state it
+was showing. A plugin that does not answer says "No answer" in the warning tone on its own row, with
+the reason under the pointer, and nothing modal happens. The plugin's reply — its version, whatever
+else it chooses to report — is on the button's tooltip.
+
 ### Security
 
 **The master password no longer stays in memory while the application runs.** Each credential wraps

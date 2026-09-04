@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { t } from '../../i18n/messages';
   // The Plugins screen: rail on the left, one section on the right, and the dialogs that overlay
   // both. It owns the screen's data and routes events; every rendering decision belongs to a
@@ -19,6 +20,7 @@
     forgeSources,
     type PluginsSectionId,
   } from './pluginsView';
+  import { createPingTracker } from './pingTracker';
   import { Boxes, Compass, GitBranch, Store } from 'lucide-svelte';
   import {
     fetchSourceCatalog,
@@ -56,6 +58,13 @@
   let detailsSource: PluginSourceDTO | null = null;
   let uninstallTarget: PluginInfo | null = null;
   let uninstallRemoveData = false;
+
+  // The last ping per plugin. Held here rather than in a store because nothing outside this dialog
+  // has any use for a ping that happened six seconds ago; disposed on close so a result cannot
+  // outlive the visit that produced it.
+  const pingTracker = createPingTracker();
+  $: pingResults = $pingTracker;
+  onDestroy(() => pingTracker.dispose());
 
   let loadedOnce = false;
   $: if (show && !loadedOnce) {
@@ -130,8 +139,21 @@
       plugins = await listPlugins();
     });
 
-  const ping = (plugin: PluginInfo) =>
-    withPluginBusy(plugin.id, () => pingPlugin(plugin.id));
+  /**
+   * Pings one plugin and leaves the answer on its row.
+   *
+   * Deliberately not routed through withPluginBusy: its catch reports a failure as an application
+   * error in the dialog's banner, and a plugin that does not answer is a finding about that plugin.
+   * Both outcomes land in the same place, which is the row the user pressed.
+   */
+  async function ping(plugin: PluginInfo) {
+    busyPluginId = plugin.id;
+    try {
+      await pingTracker.run(plugin.id, pingPlugin);
+    } finally {
+      busyPluginId = '';
+    }
+  }
 
   function closeUninstall() {
     uninstallTarget = null;
@@ -229,6 +251,7 @@
           {plugins}
           {query}
           {busyPluginId}
+          {pingResults}
           on:toggle={(e) => toggleEnabled(e.detail.plugin, e.detail.enabled)}
           on:ping={(e) => ping(e.detail.plugin)}
           on:uninstall={(e) => (uninstallTarget = e.detail.plugin)}

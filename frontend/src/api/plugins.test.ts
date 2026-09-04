@@ -44,15 +44,38 @@ async function run() {
   assert(Array.isArray(plugins) && plugins.length === 0, 'listPlugins falls back to [] on RPC failure');
   assert(get(lastError)?.message === 'List plugins: list failed', 'listPlugins reports failure via handleError');
 
-  // pingPlugin: RPC failure fully swallowed (no rethrow)
+  // pingPlugin: the answer is returned rather than discarded.
+  //
+  // The backend has always sent the plugin's pong payload back; this wrapper threw it away, which
+  // is why a successful ping looked exactly like a button that did nothing.
+  fake = createFakeGateway();
+  fake.program('PingPlugin', () => ({ pluginId: 'p1', result: { pong: 'ok', version: '1.0.5' } }));
+  setGateway(fake);
+  const pong = await pingPlugin('p1');
+  assert(pong.pong === 'ok' && pong.version === '1.0.5', 'pingPlugin returns the plugin answer');
+
+  // A ping that gets no answer is a finding about that plugin, not an application error, so it is
+  // raised to the caller rather than routed to the global error dialog. The dialog is modal and
+  // shared with crashes; a plugin failing to answer must not look like one.
   fake = createFakeGateway();
   fake.program('PingPlugin', () => { throw new Error('ping failed'); });
   setGateway(fake);
   lastError.set(null);
   let threw: unknown = null;
   try { await pingPlugin('p1'); } catch (e) { threw = e; }
-  assert(threw === null, 'pingPlugin does not rethrow on RPC failure');
-  assert(get(lastError)?.message === 'Ping plugin: ping failed', 'pingPlugin reports failure via handleError');
+  assert(threw instanceof Error, 'pingPlugin rethrows so the caller can show the reason on the row');
+  assert(get(lastError) === null, 'and does not raise the application error dialog');
+
+  // A backend that answers without a payload must not become "cannot read properties of undefined"
+  // in the caller.
+  fake = createFakeGateway();
+  fake.program('PingPlugin', () => ({ pluginId: 'p1' }));
+  setGateway(fake);
+  const empty = await pingPlugin('p1');
+  assert(
+    empty !== null && typeof empty === 'object' && Object.keys(empty).length === 0,
+    'a payload-less answer is an empty object, never undefined'
+  );
 
   // setPluginEnabled: forwards args positionally, swallows failure
   fake = createFakeGateway();
