@@ -344,12 +344,6 @@ export function clearError() {
   lastError.set(null);
 }
 
-export const selectedConnection = derived(
-  [connections, selectedConnectionId],
-  ([$connections, $selectedConnectionId]) =>
-    $connections.find(c => c.id === $selectedConnectionId) || null
-);
-
 export const detailsConnectionId = writable<string>('');
 
 export const detailsConnection = derived(
