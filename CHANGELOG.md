@@ -76,6 +76,15 @@ was showing. A plugin that does not answer says "No answer" in the warning tone 
 the reason under the pointer, and nothing modal happens. The plugin's reply — its version, whatever
 else it chooses to report — is on the button's tooltip.
 
+**"Open issue on GitLab" works from the error dialog.** It opens the browser by handing the URL to
+the operating system, and on Windows that path silently refuses any URL past about 2000 characters.
+A prefilled bug report carries the stack trace in its query string and is always past it, so the
+button did nothing at all from the one screen it exists for, while working from Settings → About
+where the link is bare. The report is now trimmed to fit, the trimming is marked in the issue itself
+so nobody files half a trace believing it whole, and the full text goes to your clipboard with a
+line on screen saying so. If the browser cannot be opened at all, that is now said out loud instead
+of being swallowed.
+
 ### Security
 
 **The master password no longer stays in memory while the application runs.** Each credential wraps

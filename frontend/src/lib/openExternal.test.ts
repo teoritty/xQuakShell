@@ -67,7 +67,9 @@ assert(
   `releases URL = ${links.opened[0]}; releases ship on GitLab, and its paths carry the /-/ infix`
 );
 
-assert(openNewIssue(), 'Report an Issue opens a bare new-issue form');
+const bare = openNewIssue();
+assert(bare.opened, 'Report an Issue opens a bare new-issue form');
+assert(bare.complete, 'a bare call has nothing to truncate');
 assert(
   links.opened[1] === 'https://gitlab.com/teoritty/xQuakShell/-/issues/new',
   `issue URL = ${links.opened[1]}; a bare call must not append an empty query`
@@ -77,7 +79,9 @@ assert(
 // characters (&, #, newlines) that a hand-built query string mangles. GitLab reads the fields
 // under issue[...]; GitHub's bare title/body open the form empty, which is a silent failure -
 // the user files a report and the diagnostics are simply absent.
-assert(openNewIssue('boom & crash', 'line1\nline2#end'), 'a prefilled report opens');
+const short = openNewIssue('boom & crash', 'line1\nline2#end');
+assert(short.opened, 'a prefilled report opens');
+assert(short.complete, 'a short report is sent whole');
 const prefilled = new URL(links.opened[2]);
 assert(
   prefilled.searchParams.get('issue[title]') === 'boom & crash',
@@ -90,6 +94,40 @@ assert(
 assert(
   prefilled.searchParams.get('title') === null && prefilled.searchParams.get('body') === null,
   "GitHub's bare title/body must not be sent: GitLab ignores them and the form opens empty"
+);
+
+// --- the length limit, which is what actually broke this button ---
+//
+// Wails' BrowserOpenURL is ShellExecute on Windows, and ShellExecute refuses a URL past
+// INTERNET_MAX_URL_LENGTH without an error anyone can catch. A stack trace in the query is always
+// past it, so "Open issue on GitLab" did nothing from the error dialog while working from the About
+// tab, where the URL is bare. A URL that is short enough to be handed over is the property; the
+// report saying so is what lets the caller offer the clipboard instead.
+const trace = 'at frame ' + 'x'.repeat(40) + '\n';
+const huge = openNewIssue('crash', trace.repeat(400));
+assert(huge.opened, 'an over-long report still opens the form rather than doing nothing');
+assert(!huge.complete, 'and it says the body did not fit, so the caller can offer the whole text');
+const cut = new URL(links.opened[3]);
+assert(
+  links.opened[3].length <= 1900,
+  `URL length = ${links.opened[3].length}; past the shell's limit the call is dropped in silence`
+);
+const cutBody = cut.searchParams.get('issue[description]') ?? '';
+assert(cutBody.startsWith('at frame'), 'the head of the report is what survives, not the tail');
+assert(
+  cutBody.includes('truncated'),
+  'the truncation is visible in the issue itself, so nobody files half a trace believing it whole'
+);
+
+// A body of multi-byte characters encodes to roughly nine times its length, against about 1.5x for
+// an ASCII trace. A fixed character budget would be right for one and badly wrong for the other,
+// and wrong-high is the direction that puts the button back to doing nothing.
+const cyrillic = openNewIssue('сбой', 'Ошибка соединения. '.repeat(200));
+assert(cyrillic.opened, 'a Cyrillic report opens');
+assert(!cyrillic.complete, 'and reports being cut');
+assert(
+  links.opened[4].length <= 1900,
+  `Cyrillic URL length = ${links.opened[4].length}; encoded length is what counts, not character count`
 );
 
 // --- no runtime is a no-op, not a crash: unit tests and the log viewer window have none ---
