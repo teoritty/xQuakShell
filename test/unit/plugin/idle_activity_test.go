@@ -3,6 +3,7 @@ package plugin_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -29,6 +30,90 @@ func TestHostServerRecordsPluginActivity(t *testing.T) {
 	}
 	if activityCount.Load() != 1 {
 		t.Fatalf("expected activity callback once, got %d", activityCount.Load())
+	}
+}
+
+// activityProbe builds a host server for a manifest that declares the channel capability, so
+// channel.open passes the gate and is decided by the session handler instead — which is the only
+// arrangement in which the bug this file guards could ever have happened.
+func activityProbe(t *testing.T, handlerErr error) (*ipc.HostServer, *atomic.Int32) {
+	t.Helper()
+	var calls atomic.Int32
+	manifest := domainplugin.Manifest{
+		ID:      "com.test.activity",
+		Name:    "Activity",
+		Version: "1.0.0",
+		Capabilities: domainplugin.CapabilitySet{
+			Channel: &domainplugin.ChannelCaps{Purposes: []string{domainplugin.PurposeExec}},
+		},
+	}
+	server := ipc.NewHostServer(ipc.HostServerConfig{
+		PluginID: "com.test.activity",
+		Gate:     newGate(t, manifest),
+		Sessions: sessionRPCFunc(func(context.Context, string, string, json.RawMessage) (json.RawMessage, error) {
+			return nil, handlerErr
+		}),
+		OnActivity: func(string) { calls.Add(1) },
+	})
+	return server, &calls
+}
+
+// TestDeniedSessionRPCIsNotActivity is the regression guard for a plugin that kept itself alive by
+// being refused.
+//
+// channel.open clears the capability gate — the manifest does declare the channel capability — and
+// is refused deeper, by the session authorizer, because the plugin holds no binding for the session
+// it named. Activity used to be recorded between those two points, so every refusal reset the idle
+// clock and the sweep could never reclaim the process.
+func TestDeniedSessionRPCIsNotActivity(t *testing.T) {
+	server, calls := activityProbe(t, domainplugin.ErrSessionNotBound)
+
+	_, rpcErr := server.HandleRequest(context.Background(), "channel.open", mustJSON(map[string]string{
+		"purpose":         domainplugin.PurposeExec,
+		"parentSessionId": "not-ours",
+	}))
+	if rpcErr == nil || rpcErr.Code != -32001 {
+		t.Fatalf("rpcErr = %#v, want capability denied -32001", rpcErr)
+	}
+	if got := calls.Load(); got != 0 {
+		t.Fatalf("activity recorded %d times for a refused call, want 0; a refusal must not reset the idle clock", got)
+	}
+}
+
+// TestGateDenialIsNotActivity covers the shallower refusal: the manifest never granted the
+// capability, so the call never reaches a handler at all.
+func TestGateDenialIsNotActivity(t *testing.T) {
+	var calls atomic.Int32
+	server := ipc.NewHostServer(ipc.HostServerConfig{
+		PluginID:   "com.test.activity",
+		Gate:       newGate(t, domainplugin.Manifest{ID: "com.test.activity"}),
+		OnActivity: func(string) { calls.Add(1) },
+	})
+
+	_, rpcErr := server.HandleRequest(context.Background(), "fs.read", mustJSON(map[string]string{"path": "x"}))
+	if rpcErr == nil || rpcErr.Code != -32001 {
+		t.Fatalf("rpcErr = %#v, want capability denied -32001", rpcErr)
+	}
+	if got := calls.Load(); got != 0 {
+		t.Fatalf("activity recorded %d times for a gate denial, want 0", got)
+	}
+}
+
+// TestAttemptedButFailedRPCIsStillActivity pins the other half of the rule, and it is the half a
+// careless fix loses: narrowing the record to successful calls only would suspend a healthy plugin
+// whose work happens to be failing.
+func TestAttemptedButFailedRPCIsStillActivity(t *testing.T) {
+	server, calls := activityProbe(t, errors.New("the daemon refused the exec"))
+
+	_, rpcErr := server.HandleRequest(context.Background(), "channel.open", mustJSON(map[string]string{
+		"purpose":         domainplugin.PurposeExec,
+		"parentSessionId": "ours",
+	}))
+	if rpcErr == nil || rpcErr.Code != -32603 {
+		t.Fatalf("rpcErr = %#v, want internal failure -32603", rpcErr)
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("activity recorded %d times for an attempted call, want 1", got)
 	}
 }
 
