@@ -133,3 +133,9 @@ func TestPluginRuntimeShutdownCancelsAndRepeats(t *testing.T) {
 
 	(&pluginRuntime{}).shutdown()
 }
+
+// Unlock must survive a runtime with no replication wired at all rather than panicking on the way
+// into the application.
+func TestSyncReplicasAtUnlockToleratesNoService(t *testing.T) {
+	(&pluginRuntime{}).syncReplicasAtUnlock(context.Background(), nil)
+}

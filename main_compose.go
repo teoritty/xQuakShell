@@ -87,6 +87,7 @@ func composeApp() *App {
 		IdentRepo:       identRepo,
 		AuditLog:        auditLogRepo,
 		VaultSettings:   usecase.NewPluginVaultSettings(vaultRepo),
+		VaultRepo:       vaultRepo,
 		PassphraseCache: sshSession.PassphraseCache,
 		ExeDir:          paths.ExeDir(),
 	})

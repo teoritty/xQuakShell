@@ -15,6 +15,7 @@ import (
 	"xquakshell/internal/infra/plugin/capability"
 	infrapluginlifecycle "xquakshell/internal/infra/plugin/lifecycle"
 	infraportable "xquakshell/internal/infra/portable"
+	"xquakshell/internal/infra/vault"
 	"xquakshell/internal/pkg/ratelimit"
 	"xquakshell/internal/pkg/safego"
 	presentation "xquakshell/internal/presentation/wails"
@@ -40,6 +41,7 @@ type pluginRuntime struct {
 	viewRelay           *usecase.PluginViewRelay
 	vaultInbound        *usecase.PluginVaultInbound
 	vaultSettings       *usecase.PluginVaultSettings
+	replicaSync         *usecase.ReplicaSyncService
 	manager             *usecase.PluginManager
 	supervisor          *usecase.PluginSupervisor
 	githubRepoService   *usecase.GitHubRepositoryService
@@ -57,6 +59,7 @@ type pluginRuntimeDeps struct {
 	IdentRepo       domain.IdentityRepository
 	AuditLog        domain.AuditLogRepository
 	VaultSettings   *usecase.PluginVaultSettings
+	VaultRepo       domain.VaultRepository
 	PassphraseCache domain.PassphraseCache
 	ExeDir          string
 }
@@ -174,12 +177,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 	github := buildGitHubServices(dataRoot, portableData, manager)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	safego.GoNamed("plugin.idleSuspender", func() {
-		infrapluginlifecycle.RunIdleSuspender(ctx, manager, infrapluginlifecycle.Config{
-			IdleAfter: 5 * time.Minute,
-			TickEvery: time.Minute,
-		})
-	})
+	startIdleSuspender(ctx, manager)
 
 	// Plugin UI assets and the embed broker, including the loopback listener the broker needs on
 	// Windows. See main_plugin_assets.go for why it cannot simply ride the Wails asset server.
@@ -217,6 +215,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		viewRelay:           viewRelay,
 		vaultInbound:        vaultInbound,
 		vaultSettings:       deps.VaultSettings,
+		replicaSync:         newReplicaSyncService(deps.VaultRepo, deps.VaultSettings, manager),
 		manager:             manager,
 		supervisor:          supervisor,
 		githubRepoService:   github.repos,
@@ -355,6 +354,60 @@ func (r *pluginRuntime) reconcileAtUnlock(ctx context.Context) {
 	} else if scopes > 0 {
 		log.Printf("created %d plugin scope folder(s)", scopes)
 	}
+	r.syncReplicasAtUnlock(ctx, installed)
+}
+
+// syncReplicasAtUnlock pulls each replicating plugin's scope from wherever its transport reaches,
+// and pushes this device's copy back (ADR-022).
+//
+// Unlock is the earliest it can run and the right place for it: the key that seals a replica lives
+// in the vault, so before this moment there is nothing to seal with - and the plugin processes are
+// already up, because they start before the vault opens.
+//
+// It runs off the unlock path. Every step is a plugin RPC to somebody else's server, and the user is
+// on their way into the application: a laptop on a dead network would otherwise hold the window
+// blank for as long as the transport takes to give up. Nothing here reports to the UI yet, so a
+// failure is logged and the next unlock tries again.
+func (r *pluginRuntime) syncReplicasAtUnlock(ctx context.Context, installed []domainplugin.InstalledPlugin) {
+	if r.replicaSync == nil {
+		return
+	}
+	safego.GoNamed("plugin-replica-sync", func() {
+		synced, err := r.replicaSync.SyncAll(ctx, installed)
+		if err != nil {
+			log.Printf("WARNING: synchronising plugin scopes failed after %d: %v", synced, err)
+			return
+		}
+		if synced > 0 {
+			log.Printf("synchronised %d plugin scope(s)", synced)
+		}
+	})
+}
+
+// startIdleSuspender parks plugin processes that nobody is using.
+//
+// Extracted so newPluginRuntime stays inside its recorded budget while it gains the replication
+// service. The goroutine takes the runtime's own context, so it stops when the runtime is cancelled.
+func startIdleSuspender(ctx context.Context, manager *usecase.PluginManager) {
+	safego.GoNamed("plugin.idleSuspender", func() {
+		infrapluginlifecycle.RunIdleSuspender(ctx, manager, infrapluginlifecycle.Config{
+			IdleAfter: 5 * time.Minute,
+			TickEvery: time.Minute,
+		})
+	})
+}
+
+// newReplicaSyncService builds scope replication (ADR-022, port A).
+//
+// The transport is the plugin manager, because a replica travels over the plugin's own RPC, and the
+// sealer is the vault's - so what the plugin carries is ciphertext it holds no key for.
+func newReplicaSyncService(
+	vaultRepo domain.VaultRepository,
+	settings *usecase.PluginVaultSettings,
+	manager *usecase.PluginManager,
+) *usecase.ReplicaSyncService {
+	return usecase.NewReplicaSyncService(
+		vaultRepo, settings, vault.NewReplicaSealer(), usecase.NewPluginReplicaTransport(manager))
 }
 
 func (r *pluginRuntime) setSessionRecoverer(recoverer usecase.PluginSessionRecoverer) {
