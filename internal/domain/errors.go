@@ -183,3 +183,14 @@ var ErrLocalTerminalNotFound = errors.New("local terminal not found")
 // argument, so `notepad payload.exe` displays bytes. Opening with the default association is the
 // operating system deciding what to do, and for an executable it decides to run it.
 var ErrExecutableSystemOpen = errors.New("refusing to open an executable file with the system default application")
+
+// ErrEphemeralSecretNotSerializable indicates something tried to write a plugin-supplied secret to
+// a serializer. It is returned by a Marshal method rather than by a caller, so it names a wrong
+// turn in the code rather than a condition the user can act on: such a secret must never reach the
+// vault, a backup or an export.
+var ErrEphemeralSecretNotSerializable = errors.New("an ephemeral secret must not be serialized")
+
+// ErrEphemeralSecretExpired indicates a lease outlived its TTL and the bytes were not handed over.
+// Refusing is the point: an external store can revoke access at any moment, and a secret that keeps
+// working past its lifetime is the revocation blindness the TTL exists to bound.
+var ErrEphemeralSecretExpired = errors.New("ephemeral secret has expired")
