@@ -85,20 +85,32 @@ func (t *PluginReplicaTransport) Fetch(ctx context.Context, pluginID string) ([]
 	if err := validateFetchHeader(pluginID, first); err != nil {
 		return nil, "", err
 	}
+	sealed, err := t.readRest(ctx, pluginID, first)
+	if err != nil {
+		return nil, "", err
+	}
+	return sealed, first.Token, nil
+}
+
+// readRest reads from the first chunk to the end of what that chunk announced.
+//
+// Version and size are pinned to the first answer for the whole read. A remote that revises either
+// halfway is not serving one document, and splicing its later chunks onto the first half would
+// produce bytes that were never sealed together.
+func (t *PluginReplicaTransport) readRest(ctx context.Context, pluginID string, first replicaFetchResult) ([]byte, error) {
 	sealed := make([]byte, 0, first.TotalBytes)
-	for next := first; ; {
-		sealed, err = appendChunk(pluginID, sealed, next)
-		if err != nil {
-			return nil, "", err
+	for next, err := first, error(nil); ; {
+		if sealed, err = appendChunk(pluginID, sealed, next); err != nil {
+			return nil, err
 		}
 		if len(sealed) == first.TotalBytes {
-			return sealed, first.Token, nil
+			return sealed, nil
 		}
 		if next, err = t.readChunk(ctx, pluginID, len(sealed)); err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		if next.Token != first.Token || next.TotalBytes != first.TotalBytes {
-			return nil, "", fmt.Errorf("replica fetch from %s: the version moved mid-read: %w",
+			return nil, fmt.Errorf("replica fetch from %s: the version moved mid-read: %w",
 				pluginID, domain.ErrReplicaOpenFailed)
 		}
 	}
