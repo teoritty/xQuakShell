@@ -64,3 +64,18 @@ func (s *PluginVaultSettings) GrantedTo(pluginID string) domainplugin.Permission
 func (s *PluginVaultSettings) IsGranted(pluginID, permission string) bool {
 	return s.GrantedTo(pluginID).Has(permission)
 }
+
+// IsUnlocked reports whether the vault is open, so the scope anchor can refuse while it is not
+// (ADR-022 decision 6).
+//
+// This service already holds the vault handle, so it answers rather than making the plugin runtime
+// carry a second reference to the same thing. An unwired service reports locked: with no way to tell,
+// the safe reading is that the vault is closed.
+func (s *PluginVaultSettings) IsUnlocked() bool {
+	if s == nil || s.vault == nil {
+		return false
+	}
+	return s.vault.IsUnlocked()
+}
+
+var _ VaultLockState = (*PluginVaultSettings)(nil)

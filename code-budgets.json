@@ -422,7 +422,7 @@
         "nesting": 0
       },
       "main_plugins.go::newPluginRuntime": {
-        "codeLines": 134,
+        "codeLines": 129,
         "params": 3,
         "nesting": 1
       }

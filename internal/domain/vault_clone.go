@@ -190,7 +190,15 @@ func clonePluginSettings(in PluginSettings) PluginSettings {
 	out.ArbitraryNetworkAccessGranted = cloneBoolMap(in.ArbitraryNetworkAccessGranted)
 	out.Disabled = cloneBoolMap(in.Disabled)
 	out.PluginGrants = clonePluginGrants(in.PluginGrants)
+	out.ScopeRoots = cloneScopeRoots(in.ScopeRoots)
 	return out
+}
+
+func cloneScopeRoots(in []ScopeRoot) []ScopeRoot {
+	if in == nil {
+		return nil
+	}
+	return append([]ScopeRoot(nil), in...)
 }
 
 func clonePluginGrants(in []PluginGrant) []PluginGrant {

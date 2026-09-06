@@ -81,12 +81,7 @@ func newPluginRuntime(dataRoot string, portableData domain.PortableDataStore, de
 		deps.VaultSettings,
 		deps.PassphraseCache,
 	)
-	vaultAudit, err := auditlog.NewNDJSONVaultAuditLogger(dataRoot)
-	if err != nil {
-		log.Printf("WARNING: plugin vault audit logger init failed: %v", err)
-	} else {
-		vaultInbound.SetAuditLogger(vaultAudit)
-	}
+	wireVaultInbound(vaultInbound, deps.VaultSettings, dataRoot)
 
 	pluginAudit := usecase.NewPluginAuditWriter(deps.AuditLog)
 
@@ -358,4 +353,25 @@ func (r *pluginRuntime) setSessionRecoverer(recoverer usecase.PluginSessionRecov
 		return
 	}
 	r.supervisor.SetRecoverer(recoverer)
+}
+
+// wireVaultInbound gives the vault gate the two things its constructor cannot: where to write its
+// audit trail, and whether the vault is open.
+//
+// The lock state is what makes the scope anchor safe. A scope is a position in a folder tree and
+// survives a lock without effort, so an anchor that could not tell would hand a plugin access after
+// the vault closed. Leaving it unwired costs a plugin its access instead of granting one it should
+// not have, which is the direction a mistake here has to fall.
+func wireVaultInbound(
+	vaultInbound *usecase.PluginVaultInbound,
+	settings *usecase.PluginVaultSettings,
+	dataRoot string,
+) {
+	vaultInbound.SetLockState(settings)
+	vaultAudit, err := auditlog.NewNDJSONVaultAuditLogger(dataRoot)
+	if err != nil {
+		log.Printf("WARNING: plugin vault audit logger init failed: %v", err)
+		return
+	}
+	vaultInbound.SetAuditLogger(vaultAudit)
 }

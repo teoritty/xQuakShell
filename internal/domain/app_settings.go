@@ -165,6 +165,11 @@ type PluginSettings struct {
 	// needs and the reason this field exists.
 	PluginGrants []PluginGrant `json:"pluginGrants,omitempty"`
 
+	// ScopeRoots marks the folders that expose their contents to a plugin (ADR-022). The core
+	// creates one per plugin that declares it needs a scope; a plugin never creates one, or it
+	// could draw a second folder resembling the first and collect what was dropped into it.
+	ScopeRoots []ScopeRoot `json:"scopeRoots,omitempty"`
+
 	// AllowUnsandboxedFallback lets a plugin start unconfined on a platform that CAN confine it and
 	// failed to.
 	//

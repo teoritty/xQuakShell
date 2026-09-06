@@ -26,6 +26,7 @@ type PluginVaultInbound struct {
 	identRepo       domain.IdentityRepository
 	passphraseCache domain.PassphraseCache
 	authorizer      PluginVaultAuthorizer
+	lockState       VaultLockState
 	settings        PluginSettingsReader
 	auditLogger     domainplugin.VaultAccessAuditLogger
 	keyAudit        KeyManagerAudit
@@ -101,7 +102,7 @@ func (p *PluginVaultInbound) GetConnection(ctx context.Context, pluginID string,
 	if req.ConnectionID == "" {
 		return nil, fmt.Errorf("connectionId is required")
 	}
-	if !p.checkOwnership(pluginID, req.ConnectionID) {
+	if p.anchorFor(ctx, pluginID, req.ConnectionID) == domainplugin.AnchorNone {
 		return nil, domainplugin.ErrCapabilityDenied
 	}
 
@@ -146,7 +147,7 @@ func (p *PluginVaultInbound) GetSecret(ctx context.Context, pluginID string, par
 	if !granted.Has(domainplugin.PermissionSecretField(req.Field)) {
 		return nil, domainplugin.ErrCapabilityDenied
 	}
-	if !p.checkOwnership(pluginID, req.ConnectionID) {
+	if p.anchorFor(ctx, pluginID, req.ConnectionID) == domainplugin.AnchorNone {
 		return nil, domainplugin.ErrCapabilityDenied
 	}
 
