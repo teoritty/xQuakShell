@@ -23,10 +23,13 @@ const (
 type Connection struct {
 	ID       string `json:"id"`
 	FolderID string `json:"folderId"`
-	Name     string `json:"name"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Order    int    `json:"order"`
+	// Owner records which authority created this connection (ADR-022). Absent in a vault written
+	// before the axis existed, which decodes as the user's own.
+	Owner Owner  `json:"owner,omitempty"`
+	Name  string `json:"name"`
+	Host  string `json:"host"`
+	Port  int    `json:"port"`
+	Order int    `json:"order"`
 
 	Protocol      string           `json:"protocol,omitempty"` // ssh (default); other values require a plugin connector
 	Users         []ConnectionUser `json:"users,omitempty"`
@@ -108,7 +111,7 @@ func (c *Connection) Validate() error {
 	if err := c.JumpChain.ValidateUniqueHopIDs(); err != nil {
 		return err
 	}
-	return nil
+	return c.ValidateProvenance()
 }
 
 func (c *Connection) validateHopsStrict() error {
