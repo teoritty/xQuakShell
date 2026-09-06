@@ -189,6 +189,18 @@ func clonePluginSettings(in PluginSettings) PluginSettings {
 	out.MultiSessionAccessGranted = cloneBoolMap(in.MultiSessionAccessGranted)
 	out.ArbitraryNetworkAccessGranted = cloneBoolMap(in.ArbitraryNetworkAccessGranted)
 	out.Disabled = cloneBoolMap(in.Disabled)
+	out.PluginGrants = clonePluginGrants(in.PluginGrants)
+	return out
+}
+
+func clonePluginGrants(in []PluginGrant) []PluginGrant {
+	if in == nil {
+		return nil
+	}
+	out := make([]PluginGrant, len(in))
+	for i, grant := range in {
+		out[i] = cloneGrant(grant)
+	}
 	return out
 }
 

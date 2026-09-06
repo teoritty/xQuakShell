@@ -159,6 +159,12 @@ type PluginSettings struct {
 	ArbitraryNetworkAccessGranted map[string]bool `json:"arbitraryNetworkAccessGranted,omitempty"`
 	Disabled                      map[string]bool `json:"disabled,omitempty"`
 
+	// PluginGrants records what each plugin was actually consented to, keyed by the permissions
+	// rather than by a bare yes. The five maps above answer "was this id granted X"; they cannot
+	// answer "did the bundle behind that id start asking for more", which is the question ADR-022
+	// needs and the reason this field exists.
+	PluginGrants []PluginGrant `json:"pluginGrants,omitempty"`
+
 	// AllowUnsandboxedFallback lets a plugin start unconfined on a platform that CAN confine it and
 	// failed to.
 	//
@@ -225,6 +231,9 @@ func (p *PluginSettings) RevokePluginGrants(pluginID string) []string {
 			revoked = append(revoked, m.name)
 		}
 		delete(m.grant, pluginID)
+	}
+	if p.revokeGrant(pluginID) {
+		revoked = append(revoked, "permissions")
 	}
 	// The disabled marker is not a grant, but it is keyed the same way and is equally stale once
 	// the plugin is gone: leaving it would silently disable a different plugin installed later
