@@ -26,6 +26,7 @@ var notBound = map[string]string{
 	"SetUpdateService":               "wiring",
 	"SetPluginArbitraryNetworkGrant": "wiring",
 	"SetPluginAuthGrant":             "wiring",
+	"SetPluginConsentMigration":      "wiring",
 	"SetPluginManager":               "wiring",
 	"SetPluginMultiSessionGrant":     "wiring",
 	"SetPluginTunnelGrant":           "wiring",

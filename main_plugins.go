@@ -353,6 +353,27 @@ func (r *pluginRuntime) grantArbitraryNetworkAccess(ctx context.Context, pluginI
 	return r.vaultSettings.GrantArbitraryNetworkAccess(ctx, pluginID)
 }
 
+// migrateConsent gives a recorded grant to every installed plugin that has none, carrying forward
+// the boolean maps that preceded grants (ADR-022).
+//
+// It runs on every vault unlock and is idempotent: a plugin that already has a grant is left alone,
+// so a later and narrower re-consent is not undone by the maps it replaced. A failure is logged and
+// nothing else stops - the vault has just opened and the user is on their way into the application;
+// the next unlock tries again.
+func (r *pluginRuntime) migrateConsent(ctx context.Context) {
+	if r == nil || r.manager == nil || r.vaultSettings == nil {
+		return
+	}
+	recorded, err := r.vaultSettings.EnsureConsentRecordedForAll(ctx, r.manager.Registry().List())
+	if err != nil {
+		log.Printf("WARNING: recording plugin consent failed after %d grants: %v", recorded, err)
+		return
+	}
+	if recorded > 0 {
+		log.Printf("recorded consent for %d plugin(s) installed before permission grants existed", recorded)
+	}
+}
+
 func (r *pluginRuntime) setSessionRecoverer(recoverer usecase.PluginSessionRecoverer) {
 	if r == nil || r.supervisor == nil {
 		return

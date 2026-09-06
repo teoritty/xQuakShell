@@ -47,6 +47,7 @@ type AppAPI struct {
 	pluginTunnelGrant           func(pluginID string) error
 	pluginMultiSessionGrant     func(pluginID string) error
 	pluginArbitraryNetworkGrant func(pluginID string) error
+	pluginConsentMigration      func()
 	discovery                   DiscoveryTreeService
 	surfaces                    SurfaceCommands
 	localTerminals              LocalTerminalCommands
@@ -424,6 +425,14 @@ func (a *AppAPI) afterVaultOpened() {
 		if a.localeBroadcast != nil {
 			a.localeBroadcast.SetLocale(domain.NormalizeLocaleCode(data.Settings.Language))
 		}
+	}
+
+	// Consent recorded before ADR-022 lives in five boolean maps. This is the first moment it can be
+	// carried into a grant: the plugins were discovered while the vault was still locked, so nothing
+	// could be written to it then. It changes nothing a user would notice - the grant it records is
+	// what the old booleans already allow.
+	if a.pluginConsentMigration != nil {
+		a.pluginConsentMigration()
 	}
 
 	if a.auditSvc != nil {

@@ -28,3 +28,13 @@ func (a *AppAPI) SetPluginMultiSessionGrant(fn func(pluginID string) error) {
 func (a *AppAPI) SetPluginArbitraryNetworkGrant(fn func(pluginID string) error) {
 	a.pluginArbitraryNetworkGrant = fn
 }
+
+// SetPluginConsentMigration sets the callback that gives a recorded grant to any plugin installed
+// before grants existed (ADR-022).
+//
+// It runs when the vault opens rather than when plugins are discovered, because discovery happens
+// during composition, while the vault is still locked and nothing can be written to it. That is the
+// same reason the interface language is broadcast from there and not at startup.
+func (a *AppAPI) SetPluginConsentMigration(fn func()) {
+	a.pluginConsentMigration = fn
+}

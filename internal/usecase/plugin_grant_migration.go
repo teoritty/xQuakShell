@@ -39,6 +39,34 @@ func (s *PluginVaultSettings) EnsureConsentRecorded(
 	return true, nil
 }
 
+// EnsureConsentRecordedForAll gives every installed plugin a grant if it has none, and reports how
+// many it wrote.
+//
+// One unusable manifest does not cost the others theirs. This runs once per unlock, so a plugin
+// skipped here has no recorded consent until the next one, and abandoning the batch on the first
+// bad entry would make a single broken plugin decide that for everybody. The first failure is still
+// returned, because a caller that logged nothing would leave the retry to chance.
+func (s *PluginVaultSettings) EnsureConsentRecordedForAll(
+	ctx context.Context,
+	installed []domainplugin.InstalledPlugin,
+) (int, error) {
+	var recorded int
+	var firstErr error
+	for i := range installed {
+		wrote, err := s.EnsureConsentRecorded(ctx, &installed[i].Manifest)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if wrote {
+			recorded++
+		}
+	}
+	return recorded, firstErr
+}
+
 // grantFor reports whether a grant is recorded, without going through GrantedTo - which cannot tell
 // "no grant" from "a grant that permits nothing", and migration needs exactly that distinction.
 func (s *PluginVaultSettings) grantFor(pluginID string) (domain.PluginGrant, bool) {

@@ -63,6 +63,15 @@ func (a *App) grantPluginArbitraryNetworkAccess(pluginID string) error {
 	return a.plugins.grantArbitraryNetworkAccess(a.reqCtx(), pluginID)
 }
 
+// migratePluginConsent carries pre-grant plugin consent into a recorded grant. AppAPI calls it when
+// the vault opens, which is the first moment anything can be written to it.
+func (a *App) migratePluginConsent() {
+	if a.plugins == nil {
+		return
+	}
+	a.plugins.migrateConsent(a.reqCtx())
+}
+
 func (a *App) pluginAssetHandler() http.Handler {
 	if a.plugins == nil {
 		return nil
@@ -78,6 +87,7 @@ func (a *App) startup(ctx context.Context) {
 	a.api.SetPluginTunnelGrant(a.grantPluginTunnelProviderAccess)
 	a.api.SetPluginMultiSessionGrant(a.grantPluginMultiSessionAccess)
 	a.api.SetPluginArbitraryNetworkGrant(a.grantPluginArbitraryNetworkAccess)
+	a.api.SetPluginConsentMigration(a.migratePluginConsent)
 	if a.plugins != nil && a.plugins.manager != nil {
 		safego.GoNamed("plugin.startupActivate", func() {
 			a.plugins.manager.ActivateStartupPlugins(ctx)
