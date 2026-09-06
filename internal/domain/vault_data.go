@@ -59,6 +59,17 @@ type VaultData struct {
 	// PluginSecrets were added the same way.
 	PeerTrust []PeerTrustEntry `json:"peerTrust,omitempty"`
 
+	// ReplicaKeys holds one replication key per plugin id (ADR-022).
+	//
+	// Deliberately apart from PluginSecrets, for the same reason PeerTrust is apart from
+	// KnownHosts. A PluginSecrets value is handed back to a plugin by ResolvePluginFields whenever
+	// the plugin declares the field that references it - and the plugin holding these keys is the
+	// same one holding the ciphertext they open. Storing them together would put the lock and the
+	// key in one place a plugin can reach.
+	//
+	// Additive and omitempty, so the schema version does not move.
+	ReplicaKeys map[string]string `json:"replicaKeys,omitempty"`
+
 	Settings *AppSettings `json:"settings,omitempty"`
 }
 
@@ -74,6 +85,7 @@ func NewVaultData() *VaultData {
 		Passwords:     map[string]PasswordBlob{},
 		PluginSecrets: map[string][]byte{},
 		PeerTrust:     []PeerTrustEntry{},
+		ReplicaKeys:   map[string]string{},
 		Settings: &AppSettings{
 			Lockout:        DefaultLockoutSettings(),
 			Terminal:       DefaultTerminalSettings(),

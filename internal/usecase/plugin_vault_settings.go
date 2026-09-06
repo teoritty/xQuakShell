@@ -81,10 +81,17 @@ func (s *PluginVaultSettings) RevokeAllGrants(ctx context.Context, pluginID stri
 	}
 	var revoked []string
 	err := s.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		// The replication key goes in the same write as the grants. Left behind, it would still
+		// open every replica the plugin ever pushed - including the copies on a server the user
+		// cannot delete from here - and reinstalling under the same id would pick them straight
+		// back up.
+		if forgetReplicaKeyLocked(data, pluginID) {
+			revoked = append(revoked, "replicaKey")
+		}
 		if data.Settings == nil {
 			return nil
 		}
-		revoked = data.Settings.Plugins.RevokePluginGrants(pluginID)
+		revoked = append(revoked, data.Settings.Plugins.RevokePluginGrants(pluginID)...)
 		return nil
 	})
 	if err != nil {

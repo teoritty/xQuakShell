@@ -16,6 +16,7 @@ func CloneVaultData(in *VaultData) *VaultData {
 		Passwords:     clonePasswords(in.Passwords),
 		PluginSecrets: clonePluginSecrets(in.PluginSecrets),
 		PeerTrust:     clonePeerTrust(in.PeerTrust),
+		ReplicaKeys:   cloneReplicaKeys(in.ReplicaKeys),
 		Settings:      CloneAppSettings(in.Settings),
 	}
 	return out
@@ -160,6 +161,17 @@ func clonePluginSecrets(in map[string][]byte) map[string][]byte {
 	out := make(map[string][]byte, len(in))
 	for k, v := range in {
 		out[k] = cloneBytes(v)
+	}
+	return out
+}
+
+func cloneReplicaKeys(in map[string]string) map[string]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
 	}
 	return out
 }

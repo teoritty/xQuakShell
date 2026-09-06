@@ -58,3 +58,18 @@ func TestCloneVaultData_NilInput(t *testing.T) {
 		t.Fatal("nil input should return nil")
 	}
 }
+
+// A snapshot that shared the key map with the live vault would let a write through the snapshot
+// change what seals the user's replicas. Every other map here is deep-copied; this one was added
+// later and is exactly the kind that gets missed.
+func TestCloningDoesNotShareTheReplicaKeys(t *testing.T) {
+	in := NewVaultData()
+	in.ReplicaKeys["com.example.sync"] = "ORIGINAL"
+
+	out := CloneVaultData(in)
+	out.ReplicaKeys["com.example.sync"] = "REPLACED"
+
+	if in.ReplicaKeys["com.example.sync"] != "ORIGINAL" {
+		t.Fatal("writing to the clone changed the original's replication key")
+	}
+}
