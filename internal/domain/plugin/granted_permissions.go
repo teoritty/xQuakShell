@@ -42,22 +42,22 @@ func GrantedPermissions(m *Manifest, consent ConsentFlags) PermissionSet {
 // boxes and refuses any overlap.
 func consentFor(token string, consent ConsentFlags) bool {
 	switch {
-	case strings.HasPrefix(token, "vault.getSecret:"):
+	case strings.HasPrefix(token, permissionVaultGetSecret+":"):
 		return consent.SecretAccess
-	case token == "auth.provider", strings.HasPrefix(token, "auth.methods:"):
+	case token == PermissionAuthProvider, strings.HasPrefix(token, permissionAuthMethods+":"):
 		return consent.AuthProvider
-	case token == "tunnel.provider":
+	case token == PermissionTunnelProvider:
 		return consent.TunnelProvider
-	case token == "session.allowMultiSession":
+	case token == PermissionMultiSession:
 		return consent.MultiSession
 	// Private networks ride with arbitrary outbound. The manifest field means nothing on its own -
 	// it widens the arbitrary grant rather than standing beside it - so the dialog never offers the
 	// two separately and neither may this.
-	case token == "network.allowArbitraryOutbound", token == "network.allowPrivateNetworks":
+	case token == PermissionArbitraryOutbound, token == PermissionPrivateNetworks:
 		return consent.ArbitraryNetwork
 	// Only the exec templates are gated. The exec purpose itself is what the manifest declares in
 	// order to be asked at all, and the other channel purposes carry no separate consent.
-	case strings.HasPrefix(token, "channel.execCommands:"):
+	case strings.HasPrefix(token, permissionExecCommands+":"):
 		return consent.ExecChannel
 	default:
 		return true

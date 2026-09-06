@@ -76,8 +76,8 @@ func networkPermissions(caps *NetworkCaps) []string {
 		return nil
 	}
 	out := valuePermissions("network.outbound", caps.Outbound)
-	out = append(out, flagPermission("network.allowArbitraryOutbound", caps.AllowArbitraryOutbound)...)
-	return append(out, flagPermission("network.allowPrivateNetworks", caps.AllowPrivateNetworks)...)
+	out = append(out, flagPermission(PermissionArbitraryOutbound, caps.AllowArbitraryOutbound)...)
+	return append(out, flagPermission(PermissionPrivateNetworks, caps.AllowPrivateNetworks)...)
 }
 
 func filesystemPermissions(caps *FSCaps) []string {
@@ -101,7 +101,7 @@ func vaultPermissions(caps *VaultCaps) []string {
 		return nil
 	}
 	out := valuePermissions("vault.readConnectionFields", caps.ReadConnectionFields)
-	return append(out, valuePermissions("vault.getSecret", caps.GetSecret)...)
+	return append(out, valuePermissions(permissionVaultGetSecret, caps.GetSecret)...)
 }
 
 func sessionPermissions(caps *SessionCaps) []string {
@@ -112,22 +112,22 @@ func sessionPermissions(caps *SessionCaps) []string {
 	out = append(out, flagPermission("session.terminal", caps.Terminal)...)
 	out = append(out, flagPermission("session.embed", caps.Embed)...)
 	out = append(out, flagPermission("session.remoteFs", caps.RemoteFS)...)
-	return append(out, flagPermission("session.allowMultiSession", caps.AllowMultiSession)...)
+	return append(out, flagPermission(PermissionMultiSession, caps.AllowMultiSession)...)
 }
 
 func authPermissions(caps *AuthCaps) []string {
 	if caps == nil {
 		return nil
 	}
-	out := flagPermission("auth.provider", caps.Provider)
-	return append(out, valuePermissions("auth.methods", caps.Methods)...)
+	out := flagPermission(PermissionAuthProvider, caps.Provider)
+	return append(out, valuePermissions(permissionAuthMethods, caps.Methods)...)
 }
 
 func tunnelPermissions(caps *TunnelCaps) []string {
 	if caps == nil {
 		return nil
 	}
-	return flagPermission("tunnel.provider", caps.Provider)
+	return flagPermission(PermissionTunnelProvider, caps.Provider)
 }
 
 func channelPermissions(caps *ChannelCaps) []string {
@@ -147,7 +147,7 @@ func channelPermissions(caps *ChannelCaps) []string {
 // on the plugin's behalf, and the substitution parameters decide what it can be made to run, so a
 // change to either is a change to what the user agreed the plugin may execute.
 func execCommandPermission(template ExecCommandTemplate) string {
-	name := "channel.execCommands:" + strings.Join(template.Argv, " ")
+	name := permissionExecCommands + ":" + strings.Join(template.Argv, " ")
 	if len(template.Params) == 0 {
 		return name
 	}
