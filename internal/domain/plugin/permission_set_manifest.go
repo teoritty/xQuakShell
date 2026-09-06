@@ -31,6 +31,7 @@ func PermissionSetFromManifest(m *Manifest) PermissionSet {
 	tokens = append(tokens, channelPermissions(caps.Channel)...)
 	tokens = append(tokens, discoveryPermissions(caps.Discovery)...)
 	tokens = append(tokens, uiPermissions(caps.UI)...)
+	tokens = append(tokens, configPermissions(caps.Config)...)
 	return newPermissionSet(tokens)
 }
 
@@ -164,6 +165,20 @@ func discoveryPermissions(caps *DiscoveryCaps) []string {
 		return nil
 	}
 	return valuePermissions("discovery.parentProtocols", caps.ParentProtocols)
+}
+
+// configPermissions names each declared slot. A slot is a destination the plugin may be pointed at
+// that its manifest never named, so an update that adds one has to reach the user - even though the
+// slot grants nothing until the user fills it, which is why it is not gated by a consent box.
+func configPermissions(caps *ConfigCaps) []string {
+	if caps == nil {
+		return nil
+	}
+	ids := make([]string, 0, len(caps.Slots))
+	for _, slot := range caps.Slots {
+		ids = append(ids, slot.ID)
+	}
+	return valuePermissions(permissionConfigSlots, ids)
 }
 
 func uiPermissions(caps *UICaps) []string {

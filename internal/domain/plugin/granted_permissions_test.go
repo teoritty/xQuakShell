@@ -44,6 +44,7 @@ func TestRefusingEveryElevatedBoxGrantsOnlyWhatInstallingConfers(t *testing.T) {
 
 	want := []string{
 		"channel.purposes:exec",
+		"config.slots:server",
 		"discovery.parentProtocols:ssh",
 		"events.publish:com.example.sync/done",
 		"events.subscribe:core.session",

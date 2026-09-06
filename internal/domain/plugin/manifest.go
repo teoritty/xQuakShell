@@ -65,6 +65,9 @@ type CapabilitySet struct {
 	Discovery *DiscoveryCaps `json:"discovery,omitempty"`
 	// UI declares where a plugin may draw its own tabs, dialogs and node details (ADR-015).
 	UI *UICaps `json:"ui,omitempty"`
+	// Config declares the values the user must supply, so a plugin whose destination only its user
+	// knows does not have to request arbitrary outbound to reach it (ADR-022).
+	Config *ConfigCaps `json:"config,omitempty"`
 	// I18n declares that the plugin wants to be told the interface language. Optional, and
 	// omitempty is load-bearing: ManifestSigningPayload canonicalises the whole manifest, so a
 	// field that marshalled as "i18n":null would change the signed bytes of every bundle already

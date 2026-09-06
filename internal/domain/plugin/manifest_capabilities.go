@@ -68,6 +68,7 @@ func (m *Manifest) ValidateCapabilities() error {
 		m.validateTunnelCaps,
 		m.validateChannelCaps,
 		m.validateDiscoveryCaps,
+		m.validateConfigCaps,
 		m.validateUICaps,
 	} {
 		if err := validate(); err != nil {

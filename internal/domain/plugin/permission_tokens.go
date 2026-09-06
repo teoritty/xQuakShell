@@ -12,6 +12,7 @@ const (
 	permissionVaultGetSecret = "vault.getSecret"
 	permissionAuthMethods    = "auth.methods"
 	permissionExecCommands   = "channel.execCommands"
+	permissionConfigSlots    = "config.slots"
 
 	// PermissionAuthProvider allows a plugin to answer SSH authentication for connections bound to
 	// it.

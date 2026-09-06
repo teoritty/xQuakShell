@@ -59,6 +59,9 @@ func fullyPopulatedCapabilities() CapabilitySet {
 			NodeDetails: true,
 			MaxSurfaces: 3,
 		},
+		Config: &ConfigCaps{Slots: []ConfigSlot{
+			{ID: "server", Label: "Sync server", Kind: SlotKindEndpoint, Schemes: []string{"https"}, Required: true},
+		}},
 		I18n: &I18nCaps{Locales: []string{"en"}},
 	}
 }

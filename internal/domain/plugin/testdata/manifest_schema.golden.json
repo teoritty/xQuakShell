@@ -127,6 +127,12 @@
           "type": "*plugin.UICaps"
         },
         {
+          "name": "Config",
+          "json": "config",
+          "omitempty": true,
+          "type": "*plugin.ConfigCaps"
+        },
+        {
           "name": "I18n",
           "json": "i18n",
           "omitempty": true,
@@ -183,6 +189,52 @@
           "json": "category",
           "omitempty": true,
           "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "ConfigCaps",
+      "fields": [
+        {
+          "name": "Slots",
+          "json": "slots",
+          "omitempty": true,
+          "type": "[]plugin.ConfigSlot"
+        }
+      ]
+    },
+    {
+      "name": "ConfigSlot",
+      "fields": [
+        {
+          "name": "ID",
+          "json": "id",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Label",
+          "json": "label",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Kind",
+          "json": "kind",
+          "omitempty": false,
+          "type": "string"
+        },
+        {
+          "name": "Schemes",
+          "json": "schemes",
+          "omitempty": true,
+          "type": "[]string"
+        },
+        {
+          "name": "Required",
+          "json": "required",
+          "omitempty": true,
+          "type": "bool"
         }
       ]
     },
@@ -1016,6 +1068,10 @@
     },
     {
       "path": "capabilities.channel",
+      "required": false
+    },
+    {
+      "path": "capabilities.config",
       "required": false
     },
     {
