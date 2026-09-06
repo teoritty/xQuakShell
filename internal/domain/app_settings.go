@@ -170,6 +170,16 @@ type PluginSettings struct {
 	// could draw a second folder resembling the first and collect what was dropped into it.
 	ScopeRoots []ScopeRoot `json:"scopeRoots,omitempty"`
 
+	// ReplicaDeviceID names this installation in every version vector it writes (ADR-022).
+	//
+	// One per vault, minted on first use and never afterwards: it is the coordinate that makes two
+	// devices' edits distinguishable, so a value that changed would make this machine look like a
+	// third device that had seen nothing, and every later sync would read as a divergence.
+	//
+	// It is random rather than derived from anything about the machine. A hostile server sees it in
+	// no plaintext it holds, and there is nothing to be learned from it if it ever leaks.
+	ReplicaDeviceID string `json:"replicaDeviceId,omitempty"`
+
 	// AllowUnsandboxedFallback lets a plugin start unconfined on a platform that CAN confine it and
 	// failed to.
 	//

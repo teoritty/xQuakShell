@@ -17,6 +17,15 @@ var ErrInvalidScope = errors.New("invalid plugin scope")
 type ScopeRoot struct {
 	FolderID string `json:"folderId"`
 	PluginID string `json:"pluginId"`
+
+	// Version is how much of each device's history this scope has seen, and it lives here because
+	// it describes exactly this folder on exactly this machine (T2). It is what decides whether an
+	// arriving replica is newer, older or divergent - a question no timestamp can answer, because
+	// the clocks belong to different machines and one of them may be a hostile server's.
+	//
+	// Empty on a scope that has never synchronised, which is not the same as one that has
+	// synchronised and seen nothing.
+	Version VersionVector `json:"version,omitempty"`
 }
 
 // ScopeIndex answers containment questions about the folder tree.
