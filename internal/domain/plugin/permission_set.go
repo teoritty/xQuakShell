@@ -19,10 +19,26 @@ type PermissionSet struct {
 }
 
 // newPermissionSet normalizes the tokens it is given. It takes ownership of the slice, which every
-// caller builds locally for the purpose.
+// caller inside this package builds locally for the purpose.
 func newPermissionSet(tokens []string) PermissionSet {
 	slices.Sort(tokens)
 	return PermissionSet{tokens: slices.Compact(tokens)}
+}
+
+// NewPermissionSet builds a set from stored tokens.
+//
+// It normalizes for the same reason decoding does: a stored list that drifted out of order, or grew
+// a duplicate, must still compare equal to the set a manifest produces - otherwise every plugin
+// re-prompts for permissions it already has. It copies first, because normalizing sorts and the
+// caller's slice came out of settings it is still using.
+func NewPermissionSet(tokens []string) PermissionSet {
+	return newPermissionSet(slices.Clone(tokens))
+}
+
+// Has reports whether one permission is in the set. It is what every enforcement point calls, so it
+// answers without handing out a copy of everything else.
+func (p PermissionSet) Has(permission string) bool {
+	return slices.Contains(p.tokens, permission)
 }
 
 // Tokens returns the permissions as sorted strings, for the consent dialog and the audit log. The

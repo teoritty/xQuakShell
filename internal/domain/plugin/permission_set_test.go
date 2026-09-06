@@ -419,6 +419,47 @@ func TestDecodingRejectsAMalformedGrant(t *testing.T) {
 	}
 }
 
+// Has is what every enforcement point calls, so it answers for the exact permission and hands out
+// nothing: asking whether one token is present must not require a copy of the whole set.
+func TestHasAnswersForOnePermission(t *testing.T) {
+	set := NewPermissionSet([]string{"vault.getSecret:password", "ui.dialogs"})
+
+	if !set.Has("vault.getSecret:password") {
+		t.Error("a permission in the set reports as absent")
+	}
+	if set.Has("vault.getSecret:privateKey") {
+		t.Error("a permission that is not in the set reports as present")
+	}
+	if (PermissionSet{}).Has("ui.dialogs") {
+		t.Error("the empty set reports a permission")
+	}
+}
+
+// Permissions come back out of the vault as plain strings, so there has to be a way in from them.
+// Normalizing here matters for the same reason it does when decoding: a stored list that drifted
+// out of order must still compare equal to the one a manifest produces, or every plugin re-prompts.
+func TestNewPermissionSetNormalizesItsInput(t *testing.T) {
+	set := NewPermissionSet([]string{"ui.dialogs", "auth.provider", "ui.dialogs"})
+
+	want := []string{"auth.provider", "ui.dialogs"}
+	if got := set.Tokens(); !slices.Equal(got, want) {
+		t.Fatalf("tokens = %v, want %v", got, want)
+	}
+}
+
+// The constructor sorts, and sorting in place would reorder a slice its caller is still using -
+// here, one read straight out of stored settings.
+func TestNewPermissionSetDoesNotDisturbTheCallersSlice(t *testing.T) {
+	tokens := []string{"ui.dialogs", "auth.provider"}
+
+	set := NewPermissionSet(tokens)
+	tokens[0] = "network.allowArbitraryOutbound"
+
+	if got := set.Tokens(); !slices.Equal(got, []string{"auth.provider", "ui.dialogs"}) {
+		t.Fatalf("the set shares its array with the caller: %v", got)
+	}
+}
+
 // Tokens is what the consent dialog and the audit log render, so a caller must not be able to edit
 // the set by writing to the slice it was handed.
 func TestTokensHandsOutACopy(t *testing.T) {
