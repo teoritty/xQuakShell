@@ -20,7 +20,7 @@ fixes, including security fixes, ship in a new release rather than as patches to
 |---|---|
 | `pluginApi` | 1.0.0 (unchanged) |
 | Capabilities | all 1.0.0, unchanged |
-| Manifest schema | additive: optional `capabilities.config`, `capabilities.scope` |
+| Manifest schema | additive: optional `capabilities.config`, `capabilities.scope`, `capabilities.replica` |
 | `bundleFormat` | 1.0.0 (unchanged) |
 | Vault schema | 4 (unchanged) |
 | Vault envelope | 1 (new axis) |
@@ -94,14 +94,14 @@ afterwards.
 A plugin used to be granted "secret access", after which it could read whichever connection secrets
 its manifest happened to list. A version that added a field to that list inherited access to it on
 the strength of a consent you gave for something else. Access is now checked against the exact field
-— a plugin allowed a connection password has not thereby been allowed the private key — and the same
+ï¿½ a plugin allowed a connection password has not thereby been allowed the private key ï¿½ and the same
 holds for the auth provider, tunnel provider and multi-session roles.
 
 Plugins you already have keep working with exactly the permissions they have today. The consent
 recorded under the old flags is carried forward the first time the vault is unlocked, which is the
 first moment anything can be written to it. That carrying-forward preserves what those flags already
 allow; it does not retroactively narrow a plugin that had widened its manifest before this release,
-and it cannot — what it does is give every plugin a recorded baseline, so the next widening is
+and it cannot ï¿½ what it does is give every plugin a recorded baseline, so the next widening is
 caught.
 
 Uninstalling a plugin removes that record along with the rest of its grants, so an unrelated plugin

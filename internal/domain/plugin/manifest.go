@@ -68,6 +68,9 @@ type CapabilitySet struct {
 	// Scope declares that the plugin needs a folder whose contents the user exposes to it
 	// (ADR-022). The core creates and owns that folder; the plugin only declares the need.
 	Scope *ScopeCaps `json:"scope,omitempty"`
+	// Replica declares that the plugin carries the contents of its scope to the user's other
+	// devices (ADR-022, port A). It moves sealed bytes and never sees what is in them.
+	Replica *ReplicaCaps `json:"replica,omitempty"`
 	// Config declares the values the user must supply, so a plugin whose destination only its user
 	// knows does not have to request arbitrary outbound to reach it (ADR-022).
 	Config *ConfigCaps `json:"config,omitempty"`

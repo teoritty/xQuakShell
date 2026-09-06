@@ -18,6 +18,11 @@ const (
 	// and what it exposes is decided later, by the user, one object at a time.
 	PermissionScope = "scope"
 
+	// PermissionReplica is carrying the scope off the machine. It grants nothing on its own: an
+	// empty scope replicates nothing, and what ends up in it is the user's decision, one object at
+	// a time.
+	PermissionReplica = "replica"
+
 	// PermissionAuthProvider allows a plugin to answer SSH authentication for connections bound to
 	// it.
 	PermissionAuthProvider = "auth.provider"

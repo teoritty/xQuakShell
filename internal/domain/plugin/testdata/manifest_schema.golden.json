@@ -133,6 +133,12 @@
           "type": "*plugin.ScopeCaps"
         },
         {
+          "name": "Replica",
+          "json": "replica",
+          "omitempty": true,
+          "type": "*plugin.ReplicaCaps"
+        },
+        {
           "name": "Config",
           "json": "config",
           "omitempty": true,
@@ -813,6 +819,10 @@
       "fields": null
     },
     {
+      "name": "ReplicaCaps",
+      "fields": null
+    },
+    {
       "name": "RequirementSet",
       "fields": [
         {
@@ -1102,6 +1112,10 @@
     },
     {
       "path": "capabilities.network",
+      "required": false
+    },
+    {
+      "path": "capabilities.replica",
       "required": false
     },
     {

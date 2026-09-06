@@ -51,6 +51,7 @@ func TestRefusingEveryElevatedBoxGrantsOnlyWhatInstallingConfers(t *testing.T) {
 		"filesystem.read:${pluginData}/in",
 		"filesystem.write:${pluginData}/out",
 		"network.outbound:tcp:example.com:443",
+		"replica",
 		"scope",
 		"session.connectProtocols:ssh",
 		"session.embed",
