@@ -43,7 +43,7 @@ type AppAPI struct {
 	githubPluginService    *usecase.GitHubPluginService
 	pluginCatalog          *usecase.PluginCatalogService
 	pluginConsentRecorder  func(manifest *domainplugin.Manifest, consent domainplugin.ConsentFlags) error
-	pluginConsentMigration func()
+	pluginUnlockReconciler func()
 	discovery              DiscoveryTreeService
 	surfaces               SurfaceCommands
 	localTerminals         LocalTerminalCommands
@@ -423,12 +423,12 @@ func (a *AppAPI) afterVaultOpened() {
 		}
 	}
 
-	// Consent recorded before ADR-022 lives in five boolean maps. This is the first moment it can be
-	// carried into a grant: the plugins were discovered while the vault was still locked, so nothing
-	// could be written to it then. It changes nothing a user would notice - the grant it records is
-	// what the old booleans already allow.
-	if a.pluginConsentMigration != nil {
-		a.pluginConsentMigration()
+	// Everything the vault records about a plugin is brought up to date here: consent carried
+	// forward from the boolean maps that preceded grants, and the scope folder for a plugin that
+	// declares one. This is the first moment any of it can be written, because the plugins were
+	// discovered while the vault was still locked.
+	if a.pluginUnlockReconciler != nil {
+		a.pluginUnlockReconciler()
 	}
 
 	if a.auditSvc != nil {

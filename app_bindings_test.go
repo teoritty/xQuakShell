@@ -24,7 +24,7 @@ var notBound = map[string]string{
 	"SetLocaleCatalog":          "wiring",
 	"SetPluginCatalog":          "wiring",
 	"SetUpdateService":          "wiring",
-	"SetPluginConsentMigration": "wiring",
+	"SetPluginUnlockReconciler": "wiring",
 	"SetPluginConsentRecorder":  "wiring",
 	"SetPluginManager":          "wiring",
 	"SetPluginViewRelay":        "wiring",

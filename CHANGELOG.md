@@ -20,7 +20,7 @@ fixes, including security fixes, ship in a new release rather than as patches to
 |---|---|
 | `pluginApi` | 1.0.0 (unchanged) |
 | Capabilities | all 1.0.0, unchanged |
-| Manifest schema | additive: optional `capabilities.config` |
+| Manifest schema | additive: optional `capabilities.config`, `capabilities.scope` |
 | `bundleFormat` | 1.0.0 (unchanged) |
 | Vault schema | 4 (unchanged) |
 | Vault envelope | 1 (new axis) |

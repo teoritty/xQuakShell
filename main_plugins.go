@@ -327,24 +327,33 @@ func (r *pluginRuntime) recordConsent(
 	return r.vaultSettings.RecordConsent(ctx, manifest.ID, domainplugin.GrantedPermissions(manifest, consent))
 }
 
-// migrateConsent gives a recorded grant to every installed plugin that has none, carrying forward
-// the boolean maps that preceded grants (ADR-022).
+// reconcileAtUnlock brings what the vault records about each installed plugin up to date: consent
+// carried forward from the boolean maps that preceded grants, and a scope folder for a plugin that
+// declares one (ADR-022).
+//
+// It is idempotent - an existing grant and an existing scope are both left alone, so a later and
+// narrower re-consent is not undone by the maps it replaced and nobody ends up with two folders.
 //
 // It runs on every vault unlock and is idempotent: a plugin that already has a grant is left alone,
 // so a later and narrower re-consent is not undone by the maps it replaced. A failure is logged and
 // nothing else stops - the vault has just opened and the user is on their way into the application;
 // the next unlock tries again.
-func (r *pluginRuntime) migrateConsent(ctx context.Context) {
+func (r *pluginRuntime) reconcileAtUnlock(ctx context.Context) {
 	if r == nil || r.manager == nil || r.vaultSettings == nil {
 		return
 	}
-	recorded, err := r.vaultSettings.EnsureConsentRecordedForAll(ctx, r.manager.Registry().List())
+	installed := r.manager.Registry().List()
+	recorded, err := r.vaultSettings.EnsureConsentRecordedForAll(ctx, installed)
 	if err != nil {
 		log.Printf("WARNING: recording plugin consent failed after %d grants: %v", recorded, err)
-		return
-	}
-	if recorded > 0 {
+	} else if recorded > 0 {
 		log.Printf("recorded consent for %d plugin(s) installed before permission grants existed", recorded)
+	}
+	scopes, err := r.vaultSettings.EnsureScopeRootsForAll(ctx, installed)
+	if err != nil {
+		log.Printf("WARNING: creating plugin scope folders failed after %d: %v", scopes, err)
+	} else if scopes > 0 {
+		log.Printf("created %d plugin scope folder(s)", scopes)
 	}
 }
 

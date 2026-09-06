@@ -240,6 +240,9 @@ func (p *PluginSettings) RevokePluginGrants(pluginID string) []string {
 	if p.revokeGrant(pluginID) {
 		revoked = append(revoked, "permissions")
 	}
+	if p.revokeScopeRoot(pluginID) {
+		revoked = append(revoked, "scope")
+	}
 	// The disabled marker is not a grant, but it is keyed the same way and is equally stale once
 	// the plugin is gone: leaving it would silently disable a different plugin installed later
 	// under that id.

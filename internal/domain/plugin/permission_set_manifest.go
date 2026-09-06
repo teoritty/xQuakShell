@@ -32,6 +32,7 @@ func PermissionSetFromManifest(m *Manifest) PermissionSet {
 	tokens = append(tokens, discoveryPermissions(caps.Discovery)...)
 	tokens = append(tokens, uiPermissions(caps.UI)...)
 	tokens = append(tokens, configPermissions(caps.Config)...)
+	tokens = append(tokens, flagPermission(PermissionScope, caps.Scope != nil)...)
 	return newPermissionSet(tokens)
 }
 

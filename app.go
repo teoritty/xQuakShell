@@ -38,13 +38,13 @@ func (a *App) recordPluginConsent(manifest *domainplugin.Manifest, consent domai
 	return a.plugins.recordConsent(a.reqCtx(), manifest, consent)
 }
 
-// migratePluginConsent carries pre-grant plugin consent into a recorded grant. AppAPI calls it when
-// the vault opens, which is the first moment anything can be written to it.
-func (a *App) migratePluginConsent() {
+// reconcilePluginsAtUnlock brings what the vault records about each plugin up to date. AppAPI calls
+// it when the vault opens, which is the first moment anything can be written to it.
+func (a *App) reconcilePluginsAtUnlock() {
 	if a.plugins == nil {
 		return
 	}
-	a.plugins.migrateConsent(a.reqCtx())
+	a.plugins.reconcileAtUnlock(a.reqCtx())
 }
 
 func (a *App) pluginAssetHandler() http.Handler {
@@ -58,7 +58,7 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.api.SetContext(ctx)
 	a.api.SetPluginConsentRecorder(a.recordPluginConsent)
-	a.api.SetPluginConsentMigration(a.migratePluginConsent)
+	a.api.SetPluginUnlockReconciler(a.reconcilePluginsAtUnlock)
 	if a.plugins != nil && a.plugins.manager != nil {
 		safego.GoNamed("plugin.startupActivate", func() {
 			a.plugins.manager.ActivateStartupPlugins(ctx)

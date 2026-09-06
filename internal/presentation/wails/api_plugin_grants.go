@@ -18,12 +18,13 @@ func (a *AppAPI) SetPluginConsentRecorder(
 	a.pluginConsentRecorder = fn
 }
 
-// SetPluginConsentMigration sets the callback that gives a recorded grant to any plugin installed
-// before grants existed (ADR-022).
+// SetPluginUnlockReconciler sets the callback that brings what the vault records about each plugin
+// up to date: consent carried forward from the maps that preceded grants, and the scope folder for a
+// plugin that declares one (ADR-022).
 //
 // It runs when the vault opens rather than when plugins are discovered, because discovery happens
 // during composition, while the vault is still locked and nothing can be written to it. That is the
 // same reason the interface language is broadcast from there and not at startup.
-func (a *AppAPI) SetPluginConsentMigration(fn func()) {
-	a.pluginConsentMigration = fn
+func (a *AppAPI) SetPluginUnlockReconciler(fn func()) {
+	a.pluginUnlockReconciler = fn
 }

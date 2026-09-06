@@ -62,7 +62,8 @@ func fullyPopulatedCapabilities() CapabilitySet {
 		Config: &ConfigCaps{Slots: []ConfigSlot{
 			{ID: "server", Label: "Sync server", Kind: SlotKindEndpoint, Schemes: []string{"https"}, Required: true},
 		}},
-		I18n: &I18nCaps{Locales: []string{"en"}},
+		Scope: &ScopeCaps{},
+		I18n:  &I18nCaps{Locales: []string{"en"}},
 	}
 }
 

@@ -14,6 +14,10 @@ const (
 	permissionExecCommands   = "channel.execCommands"
 	permissionConfigSlots    = "config.slots"
 
+	// PermissionScope is the folder itself, not what ends up in it: an empty scope grants nothing,
+	// and what it exposes is decided later, by the user, one object at a time.
+	PermissionScope = "scope"
+
 	// PermissionAuthProvider allows a plugin to answer SSH authentication for connections bound to
 	// it.
 	PermissionAuthProvider = "auth.provider"

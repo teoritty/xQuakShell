@@ -3,6 +3,7 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"slices"
 )
 
 // ErrInvalidScope indicates a scope declaration the core refuses to interpret.
@@ -104,4 +105,17 @@ func (s ScopeIndex) PluginFor(folderID string) (string, bool) {
 func (s ScopeIndex) Contains(pluginID, folderID string) bool {
 	owner, ok := s.PluginFor(folderID)
 	return ok && owner == pluginID
+}
+
+// revokeScopeRoot drops a plugin's scope, reporting whether there was one.
+//
+// The folder and everything in it stay where they are: uninstalling a plugin must not destroy data,
+// and what has to stop is the exposure rather than the connections. A reinstall gets a fresh folder,
+// so nothing the user left behind is exposed again without being moved there on purpose.
+func (p *PluginSettings) revokeScopeRoot(pluginID string) bool {
+	before := len(p.ScopeRoots)
+	p.ScopeRoots = slices.DeleteFunc(p.ScopeRoots, func(root ScopeRoot) bool {
+		return root.PluginID == pluginID
+	})
+	return len(p.ScopeRoots) != before
 }

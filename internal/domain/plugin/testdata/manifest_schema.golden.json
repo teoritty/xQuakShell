@@ -127,6 +127,12 @@
           "type": "*plugin.UICaps"
         },
         {
+          "name": "Scope",
+          "json": "scope",
+          "omitempty": true,
+          "type": "*plugin.ScopeCaps"
+        },
+        {
           "name": "Config",
           "json": "config",
           "omitempty": true,
@@ -824,6 +830,10 @@
       ]
     },
     {
+      "name": "ScopeCaps",
+      "fields": null
+    },
+    {
       "name": "SessionCaps",
       "fields": [
         {
@@ -1092,6 +1102,10 @@
     },
     {
       "path": "capabilities.network",
+      "required": false
+    },
+    {
+      "path": "capabilities.scope",
       "required": false
     },
     {

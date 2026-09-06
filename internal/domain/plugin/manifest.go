@@ -65,6 +65,9 @@ type CapabilitySet struct {
 	Discovery *DiscoveryCaps `json:"discovery,omitempty"`
 	// UI declares where a plugin may draw its own tabs, dialogs and node details (ADR-015).
 	UI *UICaps `json:"ui,omitempty"`
+	// Scope declares that the plugin needs a folder whose contents the user exposes to it
+	// (ADR-022). The core creates and owns that folder; the plugin only declares the need.
+	Scope *ScopeCaps `json:"scope,omitempty"`
 	// Config declares the values the user must supply, so a plugin whose destination only its user
 	// knows does not have to request arbitrary outbound to reach it (ADR-022).
 	Config *ConfigCaps `json:"config,omitempty"`
