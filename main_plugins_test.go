@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"reflect"
+	"slices"
 	"testing"
 
 	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
 	"xquakshell/internal/usecase"
 )
 
@@ -68,43 +70,36 @@ func (v *grantVault) UpdateData(_ context.Context, mutate func(*domain.VaultData
 	return mutate(&v.data)
 }
 
-// The five grant methods are byte-for-byte identical apart from the capability
-// they delegate to, which is exactly the shape where a copy-paste slip grants
-// the wrong thing and nothing observable changes until a plugin has an access
-// it was never approved for. This pins each one to its own capability.
-func TestPluginRuntimeGrantsTheCapabilityItNames(t *testing.T) {
-	cases := []struct {
-		name  string
-		grant func(*pluginRuntime, context.Context, string) error
-		got   func(domain.PluginSettings) map[string]bool
-	}{
-		{"multiSession", (*pluginRuntime).grantMultiSessionAccess, func(p domain.PluginSettings) map[string]bool { return p.MultiSessionAccessGranted }},
-		{"secret", (*pluginRuntime).grantSecretAccess, func(p domain.PluginSettings) map[string]bool { return p.SecretAccessGranted }},
-		{"authProvider", (*pluginRuntime).grantAuthProviderAccess, func(p domain.PluginSettings) map[string]bool { return p.AuthProviderAccessGranted }},
-		{"tunnelProvider", (*pluginRuntime).grantTunnelProviderAccess, func(p domain.PluginSettings) map[string]bool { return p.TunnelProviderAccessGranted }},
-		{"arbitraryNetwork", (*pluginRuntime).grantArbitraryNetworkAccess, func(p domain.PluginSettings) map[string]bool { return p.ArbitraryNetworkAccessGranted }},
+// recordConsent replaced five byte-for-byte identical grant methods - exactly the shape where a
+// copy-paste slip grants the wrong capability and nothing observable changes until a plugin holds an
+// access nobody approved. Which permission each consent box governs is now settled in one place and
+// tested there; what this pins is that the runtime persists that result instead of dropping it, and
+// persists only it.
+func TestPluginRuntimeRecordsTheConsentItIsGiven(t *testing.T) {
+	vault := &grantVault{}
+	r := &pluginRuntime{vaultSettings: usecase.NewPluginVaultSettings(vault)}
+	manifest := &domainplugin.Manifest{
+		ID: "p1",
+		Capabilities: domainplugin.CapabilitySet{
+			Auth:   &domainplugin.AuthCaps{Provider: true},
+			Tunnel: &domainplugin.TunnelCaps{Provider: true},
+		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			vault := &grantVault{}
-			r := &pluginRuntime{vaultSettings: usecase.NewPluginVaultSettings(vault)}
-			if err := tc.grant(r, context.Background(), "p1"); err != nil {
-				t.Fatal(err)
-			}
-			plugins := vault.data.Settings.Plugins
-			if !tc.got(plugins)["p1"] {
-				t.Fatalf("%s grant did not reach its own capability map", tc.name)
-			}
-			for _, other := range cases {
-				if other.name == tc.name {
-					continue
-				}
-				if other.got(plugins)["p1"] {
-					t.Fatalf("%s grant also granted %s", tc.name, other.name)
-				}
-			}
-		})
+	err := r.recordConsent(context.Background(), manifest, domainplugin.ConsentFlags{AuthProvider: true})
+	if err != nil {
+		t.Fatalf("recordConsent err = %v, want nil", err)
+	}
+
+	grant, ok := vault.data.Settings.Plugins.GrantFor("p1")
+	if !ok {
+		t.Fatal("the consent never reached the vault")
+	}
+	if !slices.Contains(grant.Granted, domainplugin.PermissionAuthProvider) {
+		t.Errorf("the role the user agreed to is missing: %v", grant.Granted)
+	}
+	if slices.Contains(grant.Granted, domainplugin.PermissionTunnelProvider) {
+		t.Errorf("a role the user did not agree to was recorded: %v", grant.Granted)
 	}
 }
 
@@ -114,8 +109,8 @@ func TestPluginRuntimeGrantsAreNilSafe(t *testing.T) {
 	var absent *pluginRuntime
 	empty := &pluginRuntime{}
 	for _, r := range []*pluginRuntime{absent, empty} {
-		if err := r.grantSecretAccess(context.Background(), "p1"); err != nil {
-			t.Fatalf("grant on an unbuilt runtime = %v, want nil", err)
+		if err := r.recordConsent(context.Background(), &domainplugin.Manifest{ID: "p1"}, domainplugin.ConsentFlags{}); err != nil {
+			t.Fatalf("recording consent on an unbuilt runtime = %v, want nil", err)
 		}
 		if r.assetHandler() != nil {
 			t.Fatal("assetHandler on an unbuilt runtime must be nil")

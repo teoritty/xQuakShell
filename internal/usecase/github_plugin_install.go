@@ -60,7 +60,7 @@ func (s *GitHubPluginService) InstallPluginFromGitHub(
 		return err
 	}
 
-	return s.commitInstall(ctx, normalizedURL, stageDir, policy, preview, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess)
+	return s.commitInstall(ctx, normalizedURL, stageDir, policy, grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess)
 }
 
 func (s *GitHubPluginService) ensureRepositoryRegistered(ctx context.Context, normalizedURL string) error {
@@ -100,7 +100,6 @@ func (s *GitHubPluginService) commitInstall(
 	normalizedURL string,
 	stageDir string,
 	policy domainplugin.InstallTrustPolicy,
-	preview InstallPreview,
 	grantSecretAccess, grantAuthProviderAccess, grantTunnelProviderAccess, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess bool,
 ) error {
 	installed, err := s.pluginManager.Install(stageDir, policy, grantMultiSessionAccess, grantArbitraryNetworkAccess, grantExecAccess)
@@ -108,25 +107,15 @@ func (s *GitHubPluginService) commitInstall(
 		return err
 	}
 
-	if preview.RequiresSecretAccess && grantSecretAccess && s.pluginManager.pluginSettings != nil {
-		if err := s.pluginManager.pluginSettings.GrantSecretAccess(ctx, installed.Manifest.ID); err != nil {
-			return err
-		}
-	}
-	if preview.RequiresAuthProviderAccess && grantAuthProviderAccess && s.pluginManager.pluginSettings != nil {
-		if err := s.pluginManager.pluginSettings.GrantAuthProviderAccess(ctx, installed.Manifest.ID); err != nil {
-			return err
-		}
-	}
-	if preview.RequiresTunnelProviderAccess && grantTunnelProviderAccess && s.pluginManager.pluginSettings != nil {
-		if err := s.pluginManager.pluginSettings.GrantTunnelProviderAccess(ctx, installed.Manifest.ID); err != nil {
-			return err
-		}
-	}
-	if preview.ArbitraryNetworkWarning && grantArbitraryNetworkAccess && s.pluginManager.pluginSettings != nil {
-		if err := s.pluginManager.pluginSettings.GrantArbitraryNetworkAccess(ctx, installed.Manifest.ID); err != nil {
-			return err
-		}
+	if err := s.recordInstallConsent(ctx, &installed.Manifest, domainplugin.ConsentFlags{
+		SecretAccess:     grantSecretAccess,
+		AuthProvider:     grantAuthProviderAccess,
+		TunnelProvider:   grantTunnelProviderAccess,
+		MultiSession:     grantMultiSessionAccess,
+		ArbitraryNetwork: grantArbitraryNetworkAccess,
+		ExecChannel:      grantExecAccess,
+	}); err != nil {
+		return err
 	}
 
 	_ = s.storage.UpdateFetchedAt(ctx, normalizedURL, time.Now())
@@ -137,4 +126,22 @@ func (s *GitHubPluginService) commitInstall(
 	}
 
 	return nil
+}
+
+// recordInstallConsent stores what the user agreed to, as one grant rather than one write per
+// elevated capability (ADR-022).
+//
+// The install preview flags are deliberately not consulted: GrantedPermissions can only keep what
+// the manifest actually asked for, so a box ticked for something it never requested grants nothing
+// anyway, and repeating the preview conditions here would be a second place for them to drift.
+func (s *GitHubPluginService) recordInstallConsent(
+	ctx context.Context,
+	manifest *domainplugin.Manifest,
+	consent domainplugin.ConsentFlags,
+) error {
+	if s == nil || s.pluginManager == nil || s.pluginManager.pluginSettings == nil || manifest == nil {
+		return nil
+	}
+	granted := domainplugin.GrantedPermissions(manifest, consent)
+	return s.pluginManager.pluginSettings.RecordConsent(ctx, manifest.ID, granted)
 }

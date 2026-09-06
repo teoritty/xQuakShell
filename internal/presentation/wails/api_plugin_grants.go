@@ -1,32 +1,21 @@
 package wails
 
+import domainplugin "xquakshell/internal/domain/plugin"
+
 // The plugin runtime installs these hooks after composition, because the grant prompts they run
 // live in the UI while the decision to ask belongs to the runtime. They are collected here rather
 // than in api.go, which is about building and running AppAPI.
 
-// SetPluginVaultGrant sets the callback used after install to record secret consent.
-func (a *AppAPI) SetPluginVaultGrant(fn func(pluginID string) error) {
-	a.pluginVaultGrant = fn
-}
-
-// SetPluginAuthGrant sets the callback used after install to record auth provider consent.
-func (a *AppAPI) SetPluginAuthGrant(fn func(pluginID string) error) {
-	a.pluginAuthGrant = fn
-}
-
-// SetPluginTunnelGrant sets the callback used after install to record tunnel provider consent.
-func (a *AppAPI) SetPluginTunnelGrant(fn func(pluginID string) error) {
-	a.pluginTunnelGrant = fn
-}
-
-// SetPluginMultiSessionGrant sets the callback used after install to record multi-session consent.
-func (a *AppAPI) SetPluginMultiSessionGrant(fn func(pluginID string) error) {
-	a.pluginMultiSessionGrant = fn
-}
-
-// SetPluginArbitraryNetworkGrant sets the callback used after install to record arbitrary network consent.
-func (a *AppAPI) SetPluginArbitraryNetworkGrant(fn func(pluginID string) error) {
-	a.pluginArbitraryNetworkGrant = fn
+// SetPluginConsentRecorder sets the callback that records what the user agreed to when a plugin is
+// installed.
+//
+// It replaced one hook per elevated capability. Five callbacks recorded five separate facts and
+// none of them said what the plugin had actually been allowed, which is the question ADR-022 needs
+// answered when the next version of that plugin asks for more.
+func (a *AppAPI) SetPluginConsentRecorder(
+	fn func(manifest *domainplugin.Manifest, consent domainplugin.ConsentFlags) error,
+) {
+	a.pluginConsentRecorder = fn
 }
 
 // SetPluginConsentMigration sets the callback that gives a recorded grant to any plugin installed

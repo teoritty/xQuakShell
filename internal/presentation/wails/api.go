@@ -14,58 +14,54 @@ import (
 
 // AppAPI is the Wails-bound struct that exposes all backend methods to the frontend.
 type AppAPI struct {
-	ctx                         context.Context
-	vaultRepo                   domain.VaultRepository
-	vaultSvc                    *usecase.VaultService
-	keys                        *usecase.KeyManagerService
-	keyDeploy                   *usecase.KeyDeployService
-	migrator                    domain.VaultMigrator
-	migrationDeps               domain.MigrationDeps
-	sessions                    *usecase.SessionManager
-	settingsSvc                 *usecase.SettingsService
-	auditSvc                    *usecase.AuditService
-	transferSvc                 *usecase.TransferService
-	transferPlanner             *usecase.TransferPlanner
-	remoteOpSvc                 *usecase.RemoteOpService
-	cancels                     *usecase.CancelRegistry // shared by planner, executor and remote ops: one id space, one registry
-	hostKeys                    *usecase.HostKeyService
-	peerTrust                   *usecase.PeerTrustService
-	remoteFS                    *usecase.RemoteFSService
-	localFS                     *usecase.LocalFSService
-	portableData                domain.PortableDataStore
-	puttyImport                 *usecase.PuTTYImportService
-	sshConfigImport             *usecase.SSHConfigImportService
-	lockout                     domain.LockoutManager
-	pingMgr                     *usecase.PingManager
-	plugins                     *usecase.PluginManager
-	viewRelay                   *usecase.PluginViewRelay
-	githubRepoService           *usecase.GitHubRepositoryService
-	githubPluginService         *usecase.GitHubPluginService
-	pluginCatalog               *usecase.PluginCatalogService
-	pluginVaultGrant            func(pluginID string) error
-	pluginAuthGrant             func(pluginID string) error
-	pluginTunnelGrant           func(pluginID string) error
-	pluginMultiSessionGrant     func(pluginID string) error
-	pluginArbitraryNetworkGrant func(pluginID string) error
-	pluginConsentMigration      func()
-	discovery                   DiscoveryTreeService
-	surfaces                    SurfaceCommands
-	localTerminals              LocalTerminalCommands
-	localShells                 domain.ShellCatalog
-	dialogs                     DialogCommands
-	nodeDetails                 NodeDetailsService
-	embedBridge                 *usecase.PluginEmbedBridge
-	forwardRules                *usecase.ForwardRuleValidator
-	logWindow                   *logwindow.Manager
-	logLevel                    domain.LogLevelController
-	unlockThrottle              domain.UnlockThrottle
-	recovery                    domain.VaultRecovery
-	recoveryThrottle            *domain.UnlockThrottle
-	recoveryAudit               *usecase.RecoveryAuditRecorder
-	pendingRecovery             pendingRecoveryKey
-	updateSvc                   *usecase.UpdateService
-	locales                     domain.LocaleCatalog
-	localeBroadcast             LocaleBroadcaster
+	ctx                    context.Context
+	vaultRepo              domain.VaultRepository
+	vaultSvc               *usecase.VaultService
+	keys                   *usecase.KeyManagerService
+	keyDeploy              *usecase.KeyDeployService
+	migrator               domain.VaultMigrator
+	migrationDeps          domain.MigrationDeps
+	sessions               *usecase.SessionManager
+	settingsSvc            *usecase.SettingsService
+	auditSvc               *usecase.AuditService
+	transferSvc            *usecase.TransferService
+	transferPlanner        *usecase.TransferPlanner
+	remoteOpSvc            *usecase.RemoteOpService
+	cancels                *usecase.CancelRegistry // shared by planner, executor and remote ops: one id space, one registry
+	hostKeys               *usecase.HostKeyService
+	peerTrust              *usecase.PeerTrustService
+	remoteFS               *usecase.RemoteFSService
+	localFS                *usecase.LocalFSService
+	portableData           domain.PortableDataStore
+	puttyImport            *usecase.PuTTYImportService
+	sshConfigImport        *usecase.SSHConfigImportService
+	lockout                domain.LockoutManager
+	pingMgr                *usecase.PingManager
+	plugins                *usecase.PluginManager
+	viewRelay              *usecase.PluginViewRelay
+	githubRepoService      *usecase.GitHubRepositoryService
+	githubPluginService    *usecase.GitHubPluginService
+	pluginCatalog          *usecase.PluginCatalogService
+	pluginConsentRecorder  func(manifest *domainplugin.Manifest, consent domainplugin.ConsentFlags) error
+	pluginConsentMigration func()
+	discovery              DiscoveryTreeService
+	surfaces               SurfaceCommands
+	localTerminals         LocalTerminalCommands
+	localShells            domain.ShellCatalog
+	dialogs                DialogCommands
+	nodeDetails            NodeDetailsService
+	embedBridge            *usecase.PluginEmbedBridge
+	forwardRules           *usecase.ForwardRuleValidator
+	logWindow              *logwindow.Manager
+	logLevel               domain.LogLevelController
+	unlockThrottle         domain.UnlockThrottle
+	recovery               domain.VaultRecovery
+	recoveryThrottle       *domain.UnlockThrottle
+	recoveryAudit          *usecase.RecoveryAuditRecorder
+	pendingRecovery        pendingRecoveryKey
+	updateSvc              *usecase.UpdateService
+	locales                domain.LocaleCatalog
+	localeBroadcast        LocaleBroadcaster
 }
 
 // NewAppAPI creates a new AppAPI with the given dependencies.

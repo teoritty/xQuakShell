@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"xquakshell/internal/domain"
+	domainplugin "xquakshell/internal/domain/plugin"
 	"xquakshell/internal/infra/auditlog"
 	infraplugin "xquakshell/internal/infra/plugin"
 	infrapluginassets "xquakshell/internal/infra/plugin/assets"
@@ -318,39 +319,17 @@ func (r *pluginRuntime) assetHandler() http.Handler {
 	return r.assets
 }
 
-func (r *pluginRuntime) grantMultiSessionAccess(ctx context.Context, pluginID string) error {
-	if r == nil || r.vaultSettings == nil {
+// recordConsent stores what the user agreed to when a plugin was installed, as one grant rather
+// than five separate facts (ADR-022).
+func (r *pluginRuntime) recordConsent(
+	ctx context.Context,
+	manifest *domainplugin.Manifest,
+	consent domainplugin.ConsentFlags,
+) error {
+	if r == nil || r.vaultSettings == nil || manifest == nil {
 		return nil
 	}
-	return r.vaultSettings.GrantMultiSessionAccess(ctx, pluginID)
-}
-
-func (r *pluginRuntime) grantSecretAccess(ctx context.Context, pluginID string) error {
-	if r == nil || r.vaultSettings == nil {
-		return nil
-	}
-	return r.vaultSettings.GrantSecretAccess(ctx, pluginID)
-}
-
-func (r *pluginRuntime) grantAuthProviderAccess(ctx context.Context, pluginID string) error {
-	if r == nil || r.vaultSettings == nil {
-		return nil
-	}
-	return r.vaultSettings.GrantAuthProviderAccess(ctx, pluginID)
-}
-
-func (r *pluginRuntime) grantTunnelProviderAccess(ctx context.Context, pluginID string) error {
-	if r == nil || r.vaultSettings == nil {
-		return nil
-	}
-	return r.vaultSettings.GrantTunnelProviderAccess(ctx, pluginID)
-}
-
-func (r *pluginRuntime) grantArbitraryNetworkAccess(ctx context.Context, pluginID string) error {
-	if r == nil || r.vaultSettings == nil {
-		return nil
-	}
-	return r.vaultSettings.GrantArbitraryNetworkAccess(ctx, pluginID)
+	return r.vaultSettings.RecordConsent(ctx, manifest.ID, domainplugin.GrantedPermissions(manifest, consent))
 }
 
 // migrateConsent gives a recorded grant to every installed plugin that has none, carrying forward

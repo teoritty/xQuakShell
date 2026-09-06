@@ -79,13 +79,46 @@ func TestInstallRequiresArbitraryNetworkConsent(t *testing.T) {
 	}
 }
 
-func TestGrantArbitraryNetworkAccessPersists(t *testing.T) {
+// Consent to arbitrary outbound has to survive the trip to the vault and back, or a plugin the user
+// approved is refused the network on the next launch with nothing on screen to explain why.
+func TestArbitraryNetworkConsentPersists(t *testing.T) {
 	v := &memVault{data: *domain.NewVaultData()}
 	settings := usecase.NewPluginVaultSettings(v)
-	if err := settings.GrantArbitraryNetworkAccess(context.Background(), "com.test.arb"); err != nil {
+	manifest := &domainplugin.Manifest{
+		ID: "com.test.arb",
+		Capabilities: domainplugin.CapabilitySet{
+			Network: &domainplugin.NetworkCaps{AllowArbitraryOutbound: true},
+		},
+	}
+
+	granted := domainplugin.GrantedPermissions(manifest, domainplugin.ConsentFlags{ArbitraryNetwork: true})
+	if err := settings.RecordConsent(context.Background(), manifest.ID, granted); err != nil {
 		t.Fatal(err)
 	}
+
 	if !settings.IsArbitraryNetworkGranted("com.test.arb") {
-		t.Fatal("expected arbitrary network grant persisted")
+		t.Fatal("consent to arbitrary outbound did not survive being recorded")
+	}
+}
+
+// The mirror, which the round trip alone does not prove: a plugin whose manifest asks for arbitrary
+// outbound and whose user declined must not end up with it.
+func TestArbitraryNetworkConsentDeclinedIsNotGranted(t *testing.T) {
+	v := &memVault{data: *domain.NewVaultData()}
+	settings := usecase.NewPluginVaultSettings(v)
+	manifest := &domainplugin.Manifest{
+		ID: "com.test.arb",
+		Capabilities: domainplugin.CapabilitySet{
+			Network: &domainplugin.NetworkCaps{AllowArbitraryOutbound: true},
+		},
+	}
+
+	granted := domainplugin.GrantedPermissions(manifest, domainplugin.ConsentFlags{})
+	if err := settings.RecordConsent(context.Background(), manifest.ID, granted); err != nil {
+		t.Fatal(err)
+	}
+
+	if settings.IsArbitraryNetworkGranted("com.test.arb") {
+		t.Fatal("a declined capability was granted")
 	}
 }

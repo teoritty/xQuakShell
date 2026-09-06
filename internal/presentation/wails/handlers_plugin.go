@@ -175,28 +175,19 @@ func (a *AppAPI) InstallPlugin(sourcePath string, grantSecretAccess bool, grantA
 	if err != nil {
 		return PluginDTO{}, err
 	}
-	if preview.RequiresSecretAccess && grantSecretAccess && a.pluginVaultGrant != nil {
-		if err := a.pluginVaultGrant(installed.Manifest.ID); err != nil {
-			return PluginDTO{}, err
+	// One record of what the user agreed to, rather than one write per elevated capability. The
+	// preview flags are not repeated here: consent can only keep what the manifest actually asked
+	// for, so a box ticked for something it never requested grants nothing anyway.
+	if a.pluginConsentRecorder != nil {
+		consent := domainplugin.ConsentFlags{
+			SecretAccess:     grantSecretAccess,
+			AuthProvider:     grantAuthProviderAccess,
+			TunnelProvider:   grantTunnelProviderAccess,
+			MultiSession:     grantMultiSessionAccess,
+			ArbitraryNetwork: grantArbitraryNetworkAccess,
+			ExecChannel:      grantExecAccess,
 		}
-	}
-	if preview.MultiSessionWarning && grantMultiSessionAccess && a.pluginMultiSessionGrant != nil {
-		if err := a.pluginMultiSessionGrant(installed.Manifest.ID); err != nil {
-			return PluginDTO{}, err
-		}
-	}
-	if preview.RequiresAuthProviderAccess && grantAuthProviderAccess && a.pluginAuthGrant != nil {
-		if err := a.pluginAuthGrant(installed.Manifest.ID); err != nil {
-			return PluginDTO{}, err
-		}
-	}
-	if preview.RequiresTunnelProviderAccess && grantTunnelProviderAccess && a.pluginTunnelGrant != nil {
-		if err := a.pluginTunnelGrant(installed.Manifest.ID); err != nil {
-			return PluginDTO{}, err
-		}
-	}
-	if preview.ArbitraryNetworkWarning && grantArbitraryNetworkAccess && a.pluginArbitraryNetworkGrant != nil {
-		if err := a.pluginArbitraryNetworkGrant(installed.Manifest.ID); err != nil {
+		if err := a.pluginConsentRecorder(&installed.Manifest, consent); err != nil {
 			return PluginDTO{}, err
 		}
 	}

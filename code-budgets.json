@@ -255,7 +255,7 @@
         "nesting": 1
       },
       "internal/presentation/wails/handlers_plugin.go::AppAPI.InstallPlugin": {
-        "codeLines": 64,
+        "codeLines": 52,
         "params": 7,
         "nesting": 2
       },
@@ -335,9 +335,9 @@
         "nesting": 1
       },
       "internal/usecase/github_plugin_install.go::GitHubPluginService.commitInstall": {
-        "codeLines": 30,
-        "params": 11,
-        "nesting": 2
+        "codeLines": 20,
+        "params": 10,
+        "nesting": 1
       },
       "internal/usecase/github_plugin_install.go::enforceInstallConsents": {
         "codeLines": 19,

@@ -173,6 +173,12 @@ func (a *PluginSessionAuthorizer) enforceMultiSessionPolicyLocked(pluginID strin
 	return nil
 }
 
+// multiSessionGrantedLocked reports whether the user consented to this plugin holding several
+// sessions in one process (ADR-022).
+//
+// The boolean map this replaced is not consulted as a fallback. A vault still holding one, because
+// the consent migration has not run or failed, must not authorise a second session on its own -
+// otherwise the old answer stays in charge and the move to grants decides nothing.
 func (a *PluginSessionAuthorizer) multiSessionGrantedLocked(pluginID string) bool {
 	if a.settings == nil {
 		return false
@@ -181,10 +187,8 @@ func (a *PluginSessionAuthorizer) multiSessionGrantedLocked(pluginID string) boo
 	if err != nil {
 		return false
 	}
-	if settings.MultiSessionAccessGranted == nil {
-		return false
-	}
-	return settings.MultiSessionAccessGranted[pluginID]
+	grant, _ := settings.GrantFor(pluginID)
+	return domainplugin.NewPermissionSet(grant.Granted).Has(domainplugin.PermissionMultiSession)
 }
 
 func (a *PluginSessionAuthorizer) multiSessionStateLocked(pluginID string, boundCount int) (allowMulti bool, count int) {

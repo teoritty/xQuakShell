@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	domainplugin "xquakshell/internal/domain/plugin"
 	"xquakshell/internal/pkg/safego"
 	presentation "xquakshell/internal/presentation/wails"
 )
@@ -28,39 +29,13 @@ func (a *App) reqCtx() context.Context {
 	return a.ctx
 }
 
-func (a *App) grantPluginMultiSessionAccess(pluginID string) error {
+// recordPluginConsent stores what the user agreed to when a plugin was installed. AppAPI calls it
+// once per install, in place of the five per-capability hooks it replaced.
+func (a *App) recordPluginConsent(manifest *domainplugin.Manifest, consent domainplugin.ConsentFlags) error {
 	if a.plugins == nil {
 		return nil
 	}
-	return a.plugins.grantMultiSessionAccess(a.reqCtx(), pluginID)
-}
-
-func (a *App) grantPluginSecretAccess(pluginID string) error {
-	if a.plugins == nil {
-		return nil
-	}
-	return a.plugins.grantSecretAccess(a.reqCtx(), pluginID)
-}
-
-func (a *App) grantPluginAuthProviderAccess(pluginID string) error {
-	if a.plugins == nil {
-		return nil
-	}
-	return a.plugins.grantAuthProviderAccess(a.reqCtx(), pluginID)
-}
-
-func (a *App) grantPluginTunnelProviderAccess(pluginID string) error {
-	if a.plugins == nil {
-		return nil
-	}
-	return a.plugins.grantTunnelProviderAccess(a.reqCtx(), pluginID)
-}
-
-func (a *App) grantPluginArbitraryNetworkAccess(pluginID string) error {
-	if a.plugins == nil {
-		return nil
-	}
-	return a.plugins.grantArbitraryNetworkAccess(a.reqCtx(), pluginID)
+	return a.plugins.recordConsent(a.reqCtx(), manifest, consent)
 }
 
 // migratePluginConsent carries pre-grant plugin consent into a recorded grant. AppAPI calls it when
@@ -82,11 +57,7 @@ func (a *App) pluginAssetHandler() http.Handler {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.api.SetContext(ctx)
-	a.api.SetPluginVaultGrant(a.grantPluginSecretAccess)
-	a.api.SetPluginAuthGrant(a.grantPluginAuthProviderAccess)
-	a.api.SetPluginTunnelGrant(a.grantPluginTunnelProviderAccess)
-	a.api.SetPluginMultiSessionGrant(a.grantPluginMultiSessionAccess)
-	a.api.SetPluginArbitraryNetworkGrant(a.grantPluginArbitraryNetworkAccess)
+	a.api.SetPluginConsentRecorder(a.recordPluginConsent)
 	a.api.SetPluginConsentMigration(a.migratePluginConsent)
 	if a.plugins != nil && a.plugins.manager != nil {
 		safego.GoNamed("plugin.startupActivate", func() {

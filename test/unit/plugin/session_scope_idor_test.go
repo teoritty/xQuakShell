@@ -16,12 +16,24 @@ import (
 
 type multiSessionSettings struct {
 	granted bool
+	// legacyOnly sets the boolean map that grants used to replace, without recording a grant. It
+	// exists to prove the map no longer decides anything on its own.
+	legacyOnly bool
 }
 
 func (m multiSessionSettings) PluginSettings() (domain.PluginSettings, error) {
 	settings := domain.PluginSettings{}
-	if m.granted {
+	if m.legacyOnly {
 		settings.MultiSessionAccessGranted = map[string]bool{"plugin-a": true, "com.test.multi": true}
+		return settings, nil
+	}
+	if m.granted {
+		for _, id := range []string{"plugin-a", "com.test.multi"} {
+			settings.RecordGrant(domain.PluginGrant{
+				PluginID: id,
+				Granted:  []string{domainplugin.PermissionMultiSession},
+			})
+		}
 	}
 	return settings, nil
 }
@@ -304,5 +316,34 @@ func TestBindSessionAllowsSecondSessionWithAllowMultiSession(t *testing.T) {
 	}
 	if err := host.BindSession("com.test.multi", "sess-b"); err != nil {
 		t.Fatalf("expected second session bind ok, got %v", err)
+	}
+}
+
+// The boolean map that grants replaced must not authorise a second session on its own. A vault
+// still holding it - because the consent migration has not run, or failed - would otherwise keep
+// the old answer in charge, and the move to grants would decide nothing.
+//
+// The manifest still declares allowMultiSession, so the only thing standing between this plugin and
+// a second session is the recorded consent.
+func TestBindSessionRefusesASecondSessionOnTheLegacyBooleanAlone(t *testing.T) {
+	registry := usecase.NewPluginRegistry()
+	mustRegister(t, registry, domainplugin.InstalledPlugin{
+		Manifest: domainplugin.Manifest{
+			ID: "com.test.multi", Name: "M", Version: "1",
+			Engine:    domainplugin.EngineConfig{Type: domainplugin.EngineGoBinary, Entry: "p.exe"},
+			Isolation: domainplugin.IsolationPerPlugin,
+			Capabilities: domainplugin.CapabilitySet{
+				Session: &domainplugin.SessionCaps{AllowMultiSession: true},
+			},
+		},
+	})
+	auth := testSessionAuthorizer(t, registry, multiSessionSettings{legacyOnly: true})
+	host := testProcessHost(t, auth, usecase.NewPluginSessionInbound())
+
+	if err := host.BindSession("com.test.multi", "sess-a"); err != nil {
+		t.Fatalf("the first session was refused: %v", err)
+	}
+	if err := host.BindSession("com.test.multi", "sess-b"); err == nil {
+		t.Fatal("a second session was bound on the strength of the boolean map alone")
 	}
 }
