@@ -57,29 +57,22 @@ func (m *Manifest) ValidateCapabilities() error {
 			return ErrInvalidManifest
 		}
 	}
-	if err := m.validateConnectionProtocolCaps(); err != nil {
-		return err
-	}
-	if err := m.validateSessionCaps(); err != nil {
-		return err
-	}
-	if err := m.validateViewEntries(); err != nil {
-		return err
-	}
-	if err := m.validateAuthCaps(); err != nil {
-		return err
-	}
-	if err := m.validateTunnelCaps(); err != nil {
-		return err
-	}
-	if err := m.validateChannelCaps(); err != nil {
-		return err
-	}
-	if err := m.validateDiscoveryCaps(); err != nil {
-		return err
-	}
-	if err := m.validateUICaps(); err != nil {
-		return err
+	// A list rather than eight copies of the same three lines. The repetition was the kind that
+	// stays correct until someone adds a ninth validator and forgets to return its error, which
+	// would leave a whole capability unvalidated with nothing failing.
+	for _, validate := range []func() error{
+		m.validateConnectionProtocolCaps,
+		m.validateSessionCaps,
+		m.validateViewEntries,
+		m.validateAuthCaps,
+		m.validateTunnelCaps,
+		m.validateChannelCaps,
+		m.validateDiscoveryCaps,
+		m.validateUICaps,
+	} {
+		if err := validate(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
