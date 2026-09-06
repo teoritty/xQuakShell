@@ -180,23 +180,31 @@ func writeReplica(data *VaultData, doc ReplicaDocument, refs documentRefs) Repli
 		}
 		applied.Added = append(applied.Added, conn.ID)
 	}
+	writeSecrets(data, doc, refs)
+	slices.Sort(applied.Added)
+	slices.Sort(applied.Updated)
+	return applied
+}
+
+// writeSecrets stores only what the arriving connections actually authenticate with. Anything else
+// in the document's secret maps is padding, and a reference is the one thing a document chooses
+// freely - so writing an unreferenced one is how a value gets planted under a key something else
+// will later use.
+func writeSecrets(data *VaultData, doc ReplicaDocument, refs documentRefs) {
 	for ref, blob := range doc.Passwords {
 		if refs.passwords[ref] {
-			ensurePasswords(data)[ref] = blob
+			ensureMap(&data.Passwords)[ref] = blob
 		}
 	}
 	for id, identity := range doc.Identities {
 		if !refs.identities[id] {
 			continue
 		}
-		ensureIdentities(data)[id] = identity
+		ensureMap(&data.Identities)[id] = identity
 		if blob, carried := doc.KeyBlobs[id]; carried {
-			ensureKeyBlobs(data)[id] = blob
+			ensureMap(&data.KeyBlobs)[id] = blob
 		}
 	}
-	slices.Sort(applied.Added)
-	slices.Sort(applied.Updated)
-	return applied
 }
 
 func upsertFolder(data *VaultData, folder ConnectionFolder) {
@@ -221,23 +229,11 @@ func upsertConnection(data *VaultData, conn Connection) bool {
 	return false
 }
 
-func ensurePasswords(data *VaultData) map[string]PasswordBlob {
-	if data.Passwords == nil {
-		data.Passwords = map[string]PasswordBlob{}
+// ensureMap makes a nil vault map writable. A vault read from an older file, or one built by hand
+// in a test, can have any of them nil, and writing to a nil map panics.
+func ensureMap[K comparable, V any](m *map[K]V) map[K]V {
+	if *m == nil {
+		*m = make(map[K]V)
 	}
-	return data.Passwords
-}
-
-func ensureIdentities(data *VaultData) map[string]SSHIdentity {
-	if data.Identities == nil {
-		data.Identities = map[string]SSHIdentity{}
-	}
-	return data.Identities
-}
-
-func ensureKeyBlobs(data *VaultData) map[string]IdentityBlob {
-	if data.KeyBlobs == nil {
-		data.KeyBlobs = map[string]IdentityBlob{}
-	}
-	return data.KeyBlobs
+	return *m
 }

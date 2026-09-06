@@ -59,17 +59,9 @@ func (s *ReplicaSyncService) Sync(ctx context.Context, pluginID string) (Replica
 	if err != nil {
 		return ReplicaSyncReport{}, err
 	}
-	sealed, token, err := s.transport.Fetch(ctx, pluginID)
+	remote, token, err := s.fetch(ctx, pluginID, key)
 	if err != nil {
 		return ReplicaSyncReport{}, err
-	}
-	var remote *domain.ReplicaDocument
-	if len(sealed) > 0 {
-		opened, err := s.sealer.Open(sealed, key)
-		if err != nil {
-			return ReplicaSyncReport{}, fmt.Errorf("sync %s: %w", pluginID, err)
-		}
-		remote = &opened
 	}
 	report, outgoing, err := s.reconcile(ctx, pluginID, remote)
 	if err != nil {
@@ -80,6 +72,26 @@ func (s *ReplicaSyncService) Sync(ctx context.Context, pluginID string) (Replica
 	}
 	report.Pushed = true
 	return report, nil
+}
+
+// fetch reads the remote and opens it, returning nothing at all when there is nothing stored yet.
+//
+// A remote with no bytes is the first device to synchronise, which is why it comes back as a nil
+// document rather than an empty one: an empty document would merge as the other side having deleted
+// everything, and that is precisely the message a fresh remote must not be able to send.
+func (s *ReplicaSyncService) fetch(ctx context.Context, pluginID, key string) (*domain.ReplicaDocument, string, error) {
+	sealed, token, err := s.transport.Fetch(ctx, pluginID)
+	if err != nil {
+		return nil, "", err
+	}
+	if len(sealed) == 0 {
+		return nil, token, nil
+	}
+	opened, err := s.sealer.Open(sealed, key)
+	if err != nil {
+		return nil, "", fmt.Errorf("sync %s: %w", pluginID, err)
+	}
+	return &opened, token, nil
 }
 
 // reconcile applies what arrived and returns the document to send back.
