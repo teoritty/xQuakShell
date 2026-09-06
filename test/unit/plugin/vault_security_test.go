@@ -79,10 +79,21 @@ type vaultSettingsReader struct {
 	granted bool
 }
 
+// PluginSettings records a grant covering every secret field, which is what "this plugin has secret
+// access" meant under the boolean these tests were written against. The tests below are about the
+// audit trail and the passphrase cache, so consent is set out of their way rather than being the
+// thing under test - vault_grant_test.go is where consent itself is exercised.
 func (v vaultSettingsReader) PluginSettings() (domain.PluginSettings, error) {
 	settings := domain.PluginSettings{}
 	if v.granted {
-		settings.SecretAccessGranted = map[string]bool{"com.test.vault": true}
+		settings.RecordGrant(domain.PluginGrant{
+			PluginID: "com.test.vault",
+			Granted: []string{
+				domainplugin.PermissionSecretField("password"),
+				domainplugin.PermissionSecretField("privateKey"),
+				domainplugin.PermissionSecretField("passphrase"),
+			},
+		})
 	}
 	return settings, nil
 }

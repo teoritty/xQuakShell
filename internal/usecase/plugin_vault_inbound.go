@@ -129,9 +129,7 @@ func (p *PluginVaultInbound) GetSecret(ctx context.Context, pluginID string, par
 	if len(allowed) == 0 {
 		return nil, domainplugin.ErrCapabilityDenied
 	}
-	if !p.secretAccessGranted(pluginID) {
-		return nil, domainplugin.ErrCapabilityDenied
-	}
+	granted := p.grantedTo(pluginID)
 
 	var req vaultSecretParams
 	if err := json.Unmarshal(params, &req); err != nil {
@@ -141,6 +139,11 @@ func (p *PluginVaultInbound) GetSecret(ctx context.Context, pluginID string, par
 		return nil, fmt.Errorf("connectionId and field are required")
 	}
 	if !containsString(allowed, req.Field) {
+		return nil, domainplugin.ErrCapabilityDenied
+	}
+	// Consent is per field. Under the boolean this check did not exist, so a plugin whose update
+	// added a field to its manifest could read it on the strength of a consent given for another.
+	if !granted.Has(domainplugin.PermissionSecretField(req.Field)) {
 		return nil, domainplugin.ErrCapabilityDenied
 	}
 	if !p.checkOwnership(pluginID, req.ConnectionID) {
@@ -190,19 +193,32 @@ func (p *PluginVaultInbound) allowedSecretFields(pluginID string) ([]string, err
 	return append([]string(nil), plugin.Manifest.Capabilities.Vault.GetSecret...), nil
 }
 
-func (p *PluginVaultInbound) secretAccessGranted(pluginID string) bool {
+// grantedTo reads the permissions the user consented to for a plugin (ADR-022).
+//
+// Every failure reads as no permissions - settings that are unwired, a vault that cannot be read, a
+// plugin nobody consented to. The caller turns this into a permission decision, so a missing record
+// must never read as consent.
+//
+// The boolean maps this replaced are deliberately not consulted as a fallback. A vault still holding
+// one, because the migration has not run or failed, must not open anything on its own, or the switch
+// to grants would be cosmetic.
+func (p *PluginVaultInbound) grantedTo(pluginID string) domainplugin.PermissionSet {
 	if p.settings == nil {
-		return false
+		return domainplugin.PermissionSet{}
 	}
 	settings, err := p.settings.PluginSettings()
 	if err != nil {
-		return false
+		return domainplugin.PermissionSet{}
 	}
-	if settings.SecretAccessGranted == nil {
-		return false
-	}
-	return settings.SecretAccessGranted[pluginID]
+	grant, _ := settings.GrantFor(pluginID)
+	return domainplugin.NewPermissionSet(grant.Granted)
 }
+
+// There is deliberately no coarse "does this plugin have any secret consent" check before the
+// request is parsed, where the boolean it replaced used to sit. The per-field check that follows
+// subsumes it entirely, so no test could tell the coarse one from its absence - and a branch nothing
+// can falsify is one that rots. What it bought was denying a plugin before parsing its parameters,
+// which is worth less than a guard whose correctness cannot be demonstrated.
 
 func (p *PluginVaultInbound) recordVaultAccess(
 	ctx context.Context,
