@@ -107,6 +107,34 @@ func (s ScopeIndex) Contains(pluginID, folderID string) bool {
 	return ok && owner == pluginID
 }
 
+// WithFolders returns an index that also knows about folders which are not in the vault yet.
+//
+// An arriving replica brings the folders the user made on their other device, and one of them can
+// be nested inside the scope root. Checked against the index as it stands, such a folder resolves
+// to nothing and reads as out of scope - so the tree it arrives with has to be part of the walk.
+//
+// The copy is what makes this safe to call on an untrusted document: cycles are refused here, so a
+// document naming two folders as each other's parent is rejected rather than walked.
+func (s ScopeIndex) WithFolders(folders []ConnectionFolder) (ScopeIndex, error) {
+	out := ScopeIndex{
+		parent: make(map[string]string, len(s.parent)+len(folders)),
+		roots:  make(map[string]string, len(s.roots)),
+	}
+	for id, parent := range s.parent {
+		out.parent[id] = parent
+	}
+	for id, pluginID := range s.roots {
+		out.roots[id] = pluginID
+	}
+	for _, folder := range folders {
+		out.parent[folder.ID] = folder.ParentID
+	}
+	if err := out.refuseCycles(); err != nil {
+		return ScopeIndex{}, err
+	}
+	return out, nil
+}
+
 // revokeScopeRoot drops a plugin's scope, reporting whether there was one.
 //
 // The folder and everything in it stay where they are: uninstalling a plugin must not destroy data,
