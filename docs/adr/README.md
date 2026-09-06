@@ -21,6 +21,7 @@ be treated as arbitrary and worked around.
 | [019](019-interface-language.md) | Interface Language — packs on disk, security warnings that a pack cannot reword, plugins told which language to write in |
 | [020](020-local-terminal.md) | The Local Terminal — an RPC with no arguments, a shell named by id and never by path, unreachable from a plugin |
 | [021](021-vault-recovery-key.md) | A Second Credential Opens the Vault — a wrapped vault key, one error for both credentials, a key shown once and never stored |
+| [022](022-credential-boundary.md) | Credentials Cross the Plugin Boundary Only Inside a User-Declared Scope — ownership and exposure as separate axes, a core-owned scope folder, locking as a kill switch |
 
 ## Numbers below 007
 
