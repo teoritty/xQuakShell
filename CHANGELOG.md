@@ -64,6 +64,19 @@ their credentials have been seen.
 Thirty-two characters is 160 bits, drawn from an alphabet with no I, L, O or U in it, so a zero
 cannot be read as an O or a one as an l. Dashes, spaces and case are ignored when you type it back.
 
+### Changed
+
+**Releases are published on GitHub again, and the update check reads them there.**
+<https://github.com/teoritty/xQuakShell/releases> carries every release, including 1.2.0 through
+1.3.0, which were first published on GitLab. "Check for Updates", the releases link and "Open issue"
+in the error dialog all point at GitHub.
+
+A 1.2.1 or 1.3.0 build checks GitLab and will not be offered this release. Update from the
+GitHub releases page once, and the check follows the right stream from then on. A 1.2.0 or older
+build already checks GitHub and finds it on its own.
+
+Installing plugins from gitlab.com is unchanged.
+
 ### Fixed
 
 **The plugin Ping button now tells you what happened.** It always asked the plugin and the plugin
