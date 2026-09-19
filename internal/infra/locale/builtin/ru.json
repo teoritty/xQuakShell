@@ -97,7 +97,7 @@
     "discovery.noDetails": "У этого элемента нет подробностей.",
     "error.copied": "Скопировано",
     "error.copy": "Скопировать ошибку",
-    "error.openIssue": "Создать issue на GitLab",
+    "error.openIssue": "Создать issue на GitHub",
     "error.openIssueFailed": "Не удалось открыть браузер. Скопируйте ошибку выше и вставьте её в новый issue.",
     "error.openIssueFailedCopied": "Не удалось открыть браузер. Полный отчёт в буфере обмена — вставьте его в новый issue.",
     "error.openIssueTruncated": "Отчёт слишком длинный для ссылки, форма открылась без подробностей. Скопируйте ошибку выше и вставьте её.",

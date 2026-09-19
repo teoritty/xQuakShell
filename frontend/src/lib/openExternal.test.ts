@@ -26,9 +26,9 @@ function fakeRuntime(): { runtime: RuntimeGateway; opened: string[] } {
 const live = fakeRuntime();
 setRuntime(live.runtime);
 
-assert(openExternal('https://gitlab.com/teoritty/xQuakShell/-/releases'), 'an https link is opened');
+assert(openExternal('https://github.com/teoritty/xQuakShell/releases'), 'an https link is opened');
 assert(
-  live.opened.length === 1 && live.opened[0] === 'https://gitlab.com/teoritty/xQuakShell/-/releases',
+  live.opened.length === 1 && live.opened[0] === 'https://github.com/teoritty/xQuakShell/releases',
   `runtime saw ${JSON.stringify(live.opened)}; the URL must reach BrowserOpenURL unchanged`
 );
 
@@ -63,44 +63,44 @@ setRuntime(links.runtime);
 
 assert(openReleasesPage(), 'Check for Updates opens the releases page');
 assert(
-  links.opened[0] === 'https://gitlab.com/teoritty/xQuakShell/-/releases',
-  `releases URL = ${links.opened[0]}; releases ship on GitLab, and its paths carry the /-/ infix`
+  links.opened[0] === 'https://github.com/teoritty/xQuakShell/releases',
+  `releases URL = ${links.opened[0]}; releases ship on GitHub`
 );
 
 const bare = openNewIssue();
 assert(bare.opened, 'Report an Issue opens a bare new-issue form');
 assert(bare.complete, 'a bare call has nothing to truncate');
 assert(
-  links.opened[1] === 'https://gitlab.com/teoritty/xQuakShell/-/issues/new',
+  links.opened[1] === 'https://github.com/teoritty/xQuakShell/issues/new',
   `issue URL = ${links.opened[1]}; a bare call must not append an empty query`
 );
 
 // The error dialog prefills the form with the message and stack trace, and those contain
-// characters (&, #, newlines) that a hand-built query string mangles. GitLab reads the fields
-// under issue[...]; GitHub's bare title/body open the form empty, which is a silent failure -
-// the user files a report and the diagnostics are simply absent.
+// characters (&, #, newlines) that a hand-built query string mangles. GitHub reads the fields
+// as bare title and body; any other name - GitLab's issue[...] among them - opens the form empty,
+// which is a silent failure: the user files a report and the diagnostics are simply absent.
 const short = openNewIssue('boom & crash', 'line1\nline2#end');
 assert(short.opened, 'a prefilled report opens');
 assert(short.complete, 'a short report is sent whole');
 const prefilled = new URL(links.opened[2]);
 assert(
-  prefilled.searchParams.get('issue[title]') === 'boom & crash',
-  `title round-trips under GitLab's field name, got ${prefilled.searchParams.get('issue[title]')}`
+  prefilled.searchParams.get('title') === 'boom & crash',
+  `title round-trips under GitHub's field name, got ${prefilled.searchParams.get('title')}`
 );
 assert(
-  prefilled.searchParams.get('issue[description]') === 'line1\nline2#end',
-  `body round-trips through encoding, got ${JSON.stringify(prefilled.searchParams.get('issue[description]'))}`
+  prefilled.searchParams.get('body') === 'line1\nline2#end',
+  `body round-trips through encoding, got ${JSON.stringify(prefilled.searchParams.get('body'))}`
 );
 assert(
-  prefilled.searchParams.get('title') === null && prefilled.searchParams.get('body') === null,
-  "GitHub's bare title/body must not be sent: GitLab ignores them and the form opens empty"
+  prefilled.searchParams.get('issue[title]') === null && prefilled.searchParams.get('issue[description]') === null,
+  "GitLab's issue[...] names must not be sent: GitHub ignores them and the form opens empty"
 );
 
 // --- the length limit, which is what actually broke this button ---
 //
 // Wails' BrowserOpenURL is ShellExecute on Windows, and ShellExecute refuses a URL past
 // INTERNET_MAX_URL_LENGTH without an error anyone can catch. A stack trace in the query is always
-// past it, so "Open issue on GitLab" did nothing from the error dialog while working from the About
+// past it, so "Open issue" did nothing from the error dialog while working from the About
 // tab, where the URL is bare. A URL that is short enough to be handed over is the property; the
 // report saying so is what lets the caller offer the clipboard instead.
 const trace = 'at frame ' + 'x'.repeat(40) + '\n';
@@ -112,7 +112,7 @@ assert(
   links.opened[3].length <= 1900,
   `URL length = ${links.opened[3].length}; past the shell's limit the call is dropped in silence`
 );
-const cutBody = cut.searchParams.get('issue[description]') ?? '';
+const cutBody = cut.searchParams.get('body') ?? '';
 assert(cutBody.startsWith('at frame'), 'the head of the report is what survives, not the tail');
 assert(
   cutBody.includes('truncated'),
