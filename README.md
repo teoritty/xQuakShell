@@ -86,7 +86,7 @@ Want to build your own? Start with the [Plugin API Reference](./docs/plugin-api.
 
 ## Download
 
-Releases are published on GitLab: <https://gitlab.com/teoritty/xQuakShell/-/releases>. Every release
+Releases are published on GitHub: <https://github.com/teoritty/xQuakShell/releases>. Every release
 publishes portable archives — unpack and run, no installer, no system-wide state. `SHA256SUMS`
 covers every archive: `sha256sum -c SHA256SUMS --ignore-missing`.
 

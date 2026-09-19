@@ -66,4 +66,4 @@ executable — unpack the archive again, keeping its structure.
 
 ---
 
-Documentation and source: https://gitlab.com/teoritty/xQuakShell
+Documentation and source: https://github.com/teoritty/xQuakShell

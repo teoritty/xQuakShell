@@ -76,14 +76,7 @@ jobs:
       - name: Check documentation links
         uses: lycheeverse/lychee-action@v2
         with:
-          # args: --offline --include-fragments --no-progress '*.md' 'docs/**/*.md' 'packaging/**/*.md' '.github/**/*.md' 'frontend/README.md'
-          #
-          # .gitlab/**/*.md added: the GitLab mirror brought issue and merge request templates, and
-          # TestLinkCheckCoversEveryDocument failed on all three the moment they landed - which is
-          # the gate doing exactly what it was written for. This args line stays the single source
-          # the test parses, so the glob is widened here even though the documents are consumed by
-          # the other platform.
-          args: --offline --include-fragments --no-progress '*.md' 'docs/**/*.md' 'packaging/**/*.md' '.github/**/*.md' '.gitlab/**/*.md' 'frontend/README.md'
+          args: --offline --include-fragments --no-progress '*.md' 'docs/**/*.md' 'packaging/**/*.md' '.github/**/*.md' 'frontend/README.md'
           fail: true
 
   frontend:
