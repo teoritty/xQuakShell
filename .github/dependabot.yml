@@ -1,8 +1,12 @@
 version: 2
 
-# Weekly on Monday morning UTC, matching the schedule of the Security workflow's cron. A
-# dependency PR and the scheduled vulnerability scan that might explain it then land in the
-# same window rather than a few days apart.
+# Monthly, on the first of the month at 06:00 UTC, the hour of the Security workflow's cron.
+#
+# Every dependency PR runs the full Test and Security workflows, the Windows leg included, and the
+# account behind this repository was suspended once already over the volume of automated activity.
+# So version updates arrive monthly, at most two open PRs per ecosystem, with every minor and patch
+# bump of an ecosystem folded into one PR. Security updates are not held to the schedule - they open
+# when an advisory lands - but they too arrive as one grouped PR per ecosystem.
 #
 # Nothing here is auto-merged and nothing should be. A lockfile plus a read of the diff is
 # what makes a dependency bump safer than the CVE it closes; automation that merges without
@@ -27,11 +31,10 @@ updates:
   - package-ecosystem: gomod
     directory: "/"
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "06:00"
       timezone: Etc/UTC
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
     commit-message:
       prefix: build
       include: scope
@@ -41,6 +44,16 @@ updates:
       golang-x:
         patterns:
           - "golang.org/x/*"
+      go-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      go-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   # ---------------------------------------------------------------------------
   # Frontend npm
@@ -65,11 +78,10 @@ updates:
   - package-ecosystem: npm
     directory: "/frontend"
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "06:00"
       timezone: Etc/UTC
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
     commit-message:
       prefix: build
       include: scope
@@ -83,6 +95,16 @@ updates:
       xterm:
         patterns:
           - "@xterm/*"
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   # ---------------------------------------------------------------------------
   # GitHub Actions
@@ -94,11 +116,10 @@ updates:
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "06:00"
       timezone: Etc/UTC
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
     commit-message:
       prefix: build
       include: scope
