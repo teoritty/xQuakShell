@@ -2,16 +2,18 @@ name: Mutation
 
 # Mutation testing answers a question line coverage cannot: would the tests have
 # noticed if the code were wrong? Both tools rerun a test suite once per mutant,
-# so a full pass takes tens of minutes to hours. That is why this is nightly and
-# deliberately absent from pull_request - blocking a merge on it would make the
-# gate the thing people work around.
+# so a full pass takes tens of minutes to hours. That is why it is deliberately
+# absent from pull_request - blocking a merge on it would make the gate the thing
+# people work around.
+#
+# It runs on demand only. A daily schedule spent hours of runner time on days when
+# nothing had changed, and that volume of automated activity is what got the
+# account behind this repository suspended once already.
 #
 # A red run here is not a broken build. It means a test stopped catching
 # something it used to, which is worth a morning's attention rather than an
 # immediate revert.
 on:
-  schedule:
-    - cron: '17 3 * * *' # 03:17 UTC, off the hour so it does not queue behind everything else
   workflow_dispatch:
     inputs:
       # Recording a baseline needs a run on the platform that will check it, and this is that
