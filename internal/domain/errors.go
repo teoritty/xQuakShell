@@ -73,6 +73,15 @@ var ErrKeyNotExportable = errors.New("SSH identity is marked non-exportable")
 // wrong thing", and only the second should count towards a retry limit.
 var ErrKeyPassphraseWrong = errors.New("wrong passphrase for SSH identity")
 
+// ErrPassphrasePromptCancelled indicates the user dismissed the passphrase prompt a connection was
+// waiting on. It is not ErrPassphraseRequired: nothing is wrong with the key, the user chose not
+// to open it, and the connection ends without counting a failed attempt.
+var ErrPassphrasePromptCancelled = errors.New("passphrase entry cancelled")
+
+// ErrNoPendingPassphrasePrompt indicates an answer arrived for a passphrase prompt that is not
+// waiting: already answered, abandoned because its session closed, or never raised.
+var ErrNoPendingPassphrasePrompt = errors.New("no passphrase prompt is waiting for this request")
+
 // ErrMigrationPending indicates the identity still holds its pre-v4 bytes because its passphrase
 // was skipped during migration, and the requested operation needs the normalised form.
 var ErrMigrationPending = errors.New("SSH identity migration is not finished")

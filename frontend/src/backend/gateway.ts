@@ -392,6 +392,10 @@ export interface AppGateway {
 
   ResolvePeerTrust(arg1: string, arg2: string, arg3: string): Promise<void>;
 
+  ResolvePassphrase(arg1: string, arg2: string): Promise<void>;
+
+  CancelPassphrase(arg1: string): Promise<void>;
+
   GetPeerTrust(): Promise<Array<{ scope: string; subject: string; fingerprint: string; addedAt: string }>>;
 
   RemovePeerTrust(arg1: string, arg2: string): Promise<void>;

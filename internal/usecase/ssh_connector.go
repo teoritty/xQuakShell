@@ -348,7 +348,7 @@ func (c *SSHConnector) signerFor(ctx context.Context, idRef string) (domain.Sign
 		return nil, fmt.Errorf("load key %s: %w", idRef, err)
 	}
 
-	pp, ppErr := c.passphraseReq(idRef, c.identityLabel(ctx, idRef))
+	pp, ppErr := c.passphraseReq(ctx, idRef, c.identityLabel(ctx, idRef))
 	if ppErr != nil {
 		return nil, fmt.Errorf("passphrase request for %s: %w", idRef, ppErr)
 	}

@@ -92,6 +92,39 @@ export async function resolveHostKeyRpc(sessionId: string, action: string): Prom
 }
 
 /**
+ * Hand the passphrase the user typed to the connection waiting on it.
+ *
+ * The request id is the whole address: which key it opens and which session uses it stay with the
+ * waiting connection on the backend, so nothing here can aim a passphrase at a different key.
+ * Returns whether the backend took it; the caller owns the dialog and closes it only then. The
+ * passphrase is never put in the error shown to the user.
+ */
+export async function resolvePassphraseRpc(requestId: string, passphrase: string): Promise<boolean> {
+  const app = getGateway();
+  if (!app) return false;
+  try {
+    await app.ResolvePassphrase(requestId, passphrase);
+    return true;
+  } catch (e) {
+    handleError(e, 'Unlock key');
+    return false;
+  }
+}
+
+/** Refuse a passphrase prompt; the connection waiting on it fails instead of hanging. */
+export async function cancelPassphraseRpc(requestId: string): Promise<boolean> {
+  const app = getGateway();
+  if (!app) return false;
+  try {
+    await app.CancelPassphrase(requestId);
+    return true;
+  } catch (e) {
+    handleError(e, 'Cancel key unlock');
+    return false;
+  }
+}
+
+/**
  * Answer the peer trust prompt for a session. `action` is 'trust' or 'reject'.
  *
  * Returns whether the backend accepted the decision, and touches no store of its own: the pending

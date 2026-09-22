@@ -191,6 +191,14 @@ func (a *App) ResolveHostKey(sessionID, action string) error {
 	return a.api.ResolveHostKey(sessionID, action)
 }
 
+func (a *App) ResolvePassphrase(requestID, passphrase string) error {
+	return a.api.ResolvePassphrase(requestID, passphrase)
+}
+
+func (a *App) CancelPassphrase(requestID string) error {
+	return a.api.CancelPassphrase(requestID)
+}
+
 func (a *App) ResolvePeerTrust(sessionID, action, fingerprint string) error {
 	return a.api.ResolvePeerTrust(sessionID, action, fingerprint)
 }
