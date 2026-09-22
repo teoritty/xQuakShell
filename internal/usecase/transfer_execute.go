@@ -16,6 +16,25 @@ import (
 // stay quiet.
 var ErrOperationCancelled = errors.New("usecase: operation already cancelled")
 
+// ErrTransferCancelled reports that a transfer, or the scan planning it, stopped because it was
+// cancelled while running - the user pressed cancel on its panel item, or the session it belonged
+// to closed. Like ErrOperationCancelled it is not a failure: the panel item already says
+// "cancelled", and an error dialog on top of that would report the user's own click back to them.
+var ErrTransferCancelled = errors.New("usecase: transfer cancelled")
+
+// settleCancel marks err as a cancellation when ctx was cancelled.
+//
+// The error itself cannot be trusted to say so. A mover interrupted mid-file fails with whatever
+// its SFTP or disk call returned when the context went away - a closed file, a short write - and
+// only some of those wrap context.Canceled. The context is the authority, and it is the same one
+// terminalState consults, so the error the RPC returns agrees with the state the panel shows.
+func settleCancel(ctx context.Context, err error) error {
+	if err != nil && errors.Is(ctx.Err(), context.Canceled) {
+		return fmt.Errorf("%w: %w", ErrTransferCancelled, err)
+	}
+	return err
+}
+
 // ResolvedAction is the caller's decision for one conflicting target. NewName is
 // an optional explicit rename target (from the dialog's editable name field);
 // when empty a Rename outcome auto-numbers.
@@ -83,11 +102,11 @@ func (s *TransferService) ExecutePlan(parentCtx context.Context, sessionID strin
 		// acquireSlot fails only on a cancelled context, so this is "Cancelled",
 		// not "Error" — hence an explicit Finish rather than the net's "failed".
 		rep.Finish(terminalState(ctx, err))
-		return err
+		return settleCancel(ctx, err)
 	}
 	defer s.releaseSlot()
 
-	return executePlanCore(ctx, plan, resolutions, mover, rep.Report)
+	return settleCancel(ctx, executePlanCore(ctx, plan, resolutions, mover, rep.Report))
 }
 
 func (s *TransferService) moverFor(kind, sessionID string) (fileMover, error) {

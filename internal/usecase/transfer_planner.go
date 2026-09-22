@@ -117,7 +117,7 @@ func finishPlan(ctx context.Context, plan *TransferPlan, err error, rep *operati
 	if err != nil {
 		rep.Finish(terminalState(ctx, err))
 		cancels.Unregister(opID)
-		return nil, err
+		return nil, settleCancel(ctx, err)
 	}
 	// Branch 1b: the walk finished, but the user cancelled before we got here.
 	// The conflict probes that follow the walk have no cancellation point of
@@ -127,7 +127,7 @@ func finishPlan(ctx context.Context, plan *TransferPlan, err error, rep *operati
 	if cerr := ctx.Err(); cerr != nil {
 		rep.Finish(terminalState(ctx, cerr))
 		cancels.Unregister(opID)
-		return nil, cerr
+		return nil, settleCancel(ctx, cerr)
 	}
 	// Branch 2: nothing to transfer. The operation happened and ends here; the
 	// executor is never called, so the op id is not stamped onto the plan.
