@@ -1,6 +1,7 @@
 package host
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -78,6 +79,9 @@ func (fs *HostFS) List(dirPath string, includeHidden bool, isHidden func(fullPat
 		return nil, err
 	}
 	entries, err := os.ReadDir(dirPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, domain.ErrDirectoryNotFound
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -93,6 +93,16 @@ var ErrPasswordNotFound = errors.New("password not found in vault")
 // ErrFolderNotFound indicates the requested folder does not exist.
 var ErrFolderNotFound = errors.New("folder not found")
 
+// ErrDirectoryNotFound indicates a file pane asked to list a directory that does not exist, most
+// often because it was just deleted while the pane was showing it. It is distinct from other
+// listing failures because the pane answers it by moving to the nearest parent that still exists,
+// not by reporting an error.
+//
+// Its message is part of the contract with the frontend: Wails hands a rejected call over as its
+// message alone, so the pane recognises this error by the text. Change it together with
+// frontend/src/lib/fileTree/missingDir.ts.
+var ErrDirectoryNotFound = errors.New("directory not found")
+
 // ErrCircularFolder indicates a folder move would create a circular parent chain.
 var ErrCircularFolder = errors.New("circular folder hierarchy detected")
 

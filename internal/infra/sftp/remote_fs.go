@@ -68,7 +68,7 @@ func (fs *RemoteFS) List(ctx context.Context, dirPath string) ([]domain.RemoteNo
 
 	entries, err := fs.client.ReadDir(dirPath)
 	if err != nil {
-		return nil, fmt.Errorf("sftp list %s: %w", dirPath, err)
+		return nil, listError(dirPath, err)
 	}
 
 	nodes := make([]domain.RemoteNode, 0, len(entries))

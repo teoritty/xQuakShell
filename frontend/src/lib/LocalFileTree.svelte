@@ -21,6 +21,7 @@
   import { uniqueName } from './fileTree/uniqueName';
   import { describeDelete } from './fileTree/deletePrompt';
   import { moveLocalPaths } from './fileTree/move';
+  import { listForPane, settleListing, PANE_LIST_OPTS } from './fileTree/missingDir';
   import { loadPrefs, saveColumnPrefs as persistColumns, saveHiddenPref } from './fileTree/columnPrefs';
   import FilePaneHeader from './fileTree/FilePaneHeader.svelte';
   import './fileTree/fileTreeShared.css';
@@ -137,9 +138,9 @@
     loading = loading;
     error = '';
     try {
-      const nodes = (await listLocalPath(path, showHidden)) || [];
-      rawTree.set(path, nodes);
-      tree.set(path, applySort(nodes, sortState()));
+      // A directory deleted under the pane is not an error: see fileTree/missingDir.ts.
+      const listing = await listForPane(path, currentPath, async (p) => (await listLocalPath(p, showHidden, PANE_LIST_OPTS)) || [], parentDirectory);
+      currentPath = settleListing({ tree, rawTree, expanded }, listing, currentPath, (n) => applySort(n, sortState()));
       tree = tree;
     } catch (e: any) {
       error = e?.message || String(e);
