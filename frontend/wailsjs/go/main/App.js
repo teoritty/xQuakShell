@@ -14,6 +14,10 @@ export function ApplyDiscoveryNodeDetails(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['ApplyDiscoveryNodeDetails'](arg1, arg2, arg3, arg4);
 }
 
+export function CancelPassphrase(arg1) {
+  return window['go']['main']['App']['CancelPassphrase'](arg1);
+}
+
 export function CancelPluginDialog(arg1) {
   return window['go']['main']['App']['CancelPluginDialog'](arg1);
 }
@@ -472,6 +476,10 @@ export function ResizeSurface(arg1, arg2, arg3) {
 
 export function ResolveHostKey(arg1, arg2) {
   return window['go']['main']['App']['ResolveHostKey'](arg1, arg2);
+}
+
+export function ResolvePassphrase(arg1, arg2) {
+  return window['go']['main']['App']['ResolvePassphrase'](arg1, arg2);
 }
 
 export function ResolvePeerTrust(arg1, arg2, arg3) {
