@@ -53,12 +53,12 @@
         "scriptCodeLines": 234
       },
       "frontend/src/lib/FileTree.svelte": {
-        "codeLines": 537,
-        "scriptCodeLines": 442
+        "codeLines": 519,
+        "scriptCodeLines": 424
       },
       "frontend/src/lib/LocalFileTree.svelte": {
-        "codeLines": 490,
-        "scriptCodeLines": 407
+        "codeLines": 474,
+        "scriptCodeLines": 391
       },
       "frontend/src/lib/RemoteTree.svelte": {
         "codeLines": 641,

@@ -54,6 +54,13 @@ open, is simply dropped from it.
 Other listing failures, such as a folder you have no permission to read, are still reported, now
 in the pane's own header like a mistyped path rather than in the dialog over the whole window.
 
+**Opening a folder you cannot read keeps you where you were.** Double-clicking such a folder in
+either file pane, or going up into one, moved the pane into it anyway: the path bar showed the
+folder, the listing was empty, and the header said "permission denied". The pane now changes
+folder only once the new one has been read, so it stays on the folder you were in, with its listing
+still on screen and the reason in the header. Typing the path of such a folder already behaved
+this way and still does. Expanding one with its arrow leaves it closed instead of open and empty.
+
 **Cancelling a transfer no longer reports an error.** Pressing cancel on an upload, a download or a
 copy in the Transfers panel stopped it and marked the row "Cancelled" — and then opened the error
 dialog as well, with "context canceled" or whatever the interrupted write happened to fail with.

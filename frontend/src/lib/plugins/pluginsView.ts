@@ -8,11 +8,12 @@ import type { PluginSourceDTO } from '../../api/pluginSources';
 // the rest of the installation-wide policy, rather than in a screen about individual plugins.
 export type PluginsSectionId = 'installed' | 'browse' | 'sources' | 'marketplace';
 
+// Marketplace is left out of the rail while it has nothing to show but "coming soon". The section
+// and its page stay, so bringing it back is adding the id here again.
 export const PLUGINS_SECTION_ORDER: PluginsSectionId[] = [
   'installed',
   'browse',
   'sources',
-  'marketplace',
 ];
 
 /** The message key holding a section's caption. */

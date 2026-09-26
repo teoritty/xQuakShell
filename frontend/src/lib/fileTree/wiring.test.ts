@@ -85,6 +85,15 @@ for (const pane of PANES) {
   assert(!src.includes('class="path-bar"'), `${pane} must not render its own path bar`);
 }
 
+// --- a pane moves only after the directory it moves to has been listed ---
+// Setting currentPath first and listing second is what left a pane showing a folder the user could
+// not read, with an empty listing under it. Every move goes through fileTree/enterDir.
+for (const pane of PANES) {
+  const src = source.get(pane)!;
+  assert(/from '\.\/fileTree\/enterDir'/.test(src), `${pane} enters directories through fileTree/enterDir`);
+  assert(!/currentPath = (path|parent|nextPath);/.test(src), `${pane} must not move to a directory before listing it`);
+}
+
 // --- the panes stay symmetric ---
 // They are near-clones by design (remote over SFTP, local over the host FS).
 // Whatever one of them learns to import from here, the other one should too.
