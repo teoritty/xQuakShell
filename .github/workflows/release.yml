@@ -256,11 +256,34 @@ jobs:
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
 
+      # The changelog entry is the release note. generate_release_notes alone lists only merged
+      # pull requests, so a fix committed straight to main never appeared on the release page; the
+      # generated list is still appended below the entry, as the link to the commits behind it.
+      #
+      # The changelog is hard-wrapped at 100 columns and a release body turns every newline into a
+      # line break, so paragraph lines are joined; headings, tables and blank lines pass through.
+      - name: Extract release notes from the changelog
+        run: |
+          set -eu
+          version="${GITHUB_REF_NAME#v}"
+          start=$(grep -n "^## \[$version\]" CHANGELOG.md | head -1 | cut -d: -f1)
+          tail -n +"$((start + 1))" CHANGELOG.md \
+            | awk '/^## \[/ { exit } { print }' \
+            | awk '
+                function flush() { if (para != "") { print para; para = "" } }
+                /^$/ || /^#/ || /^\|/ { flush(); print; next }
+                /^[-*] / || /^[0-9]+\. / { flush(); para = $0; next }
+                { para = (para == "" ? $0 : para " " $0) }
+                END { flush() }
+              ' > RELEASE_NOTES.md
+          cat RELEASE_NOTES.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           # Tagged with a suffix (v1.0.0-rc.1) -> Pre-release; clean tag (v1.0.0) -> Release.
           prerelease: ${{ contains(github.ref_name, '-') }}
+          body_path: RELEASE_NOTES.md
           generate_release_notes: true
           files: |
             dist/*.zip
