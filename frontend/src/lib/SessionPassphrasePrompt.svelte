@@ -32,6 +32,7 @@
     <SessionPassphraseDialog
       show={true}
       label={prompt.label}
+      retry={prompt.retry === true}
       on:submit={(e) => prompt && submit(prompt.requestId, e.detail.passphrase)}
       on:cancel={() => prompt && cancel(prompt.requestId)}
     />

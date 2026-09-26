@@ -11,6 +11,7 @@
 
   export let show = false;
   export let label = '';
+  export let retry = false;
 
   const dispatch = createEventDispatcher<{ submit: { passphrase: string }; cancel: void }>();
 
@@ -37,6 +38,9 @@
 <Modal title={$t('security.passphrase.title')} {show} on:close={cancel}>
   <form on:submit|preventDefault={submit}>
     <p class="pp-body">{$t('security.passphrase.body', { label })}</p>
+    {#if retry}
+      <p class="pp-error" role="alert">{$t('security.passphrase.wrong')}</p>
+    {/if}
 
     <label for="session-passphrase">{$t('security.passphrase.field')}</label>
     <input
@@ -60,6 +64,12 @@
     font-size: 13px;
     line-height: 1.5;
     color: var(--text-primary);
+  }
+
+  .pp-error {
+    margin: 0 0 12px;
+    font-size: 12px;
+    color: var(--danger);
   }
 
   label {

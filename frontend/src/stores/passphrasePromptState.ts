@@ -11,6 +11,8 @@ export interface PassphrasePromptEvent {
   requestId: string;
   identityId: string;
   label: string;
+  /** The passphrase just typed for this key did not open it; the dialog says so. */
+  retry?: boolean;
 }
 
 /**

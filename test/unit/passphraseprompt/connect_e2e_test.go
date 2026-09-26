@@ -221,8 +221,8 @@ func newFixture(t *testing.T) *fixture {
 		OnStateChange:             func(s domain.ConnectionSession) { f.states <- s },
 		// The same shape AppAPI.onPassphraseRequest has, with the dialog in place of the Wails
 		// event emitter.
-		PassphraseReq: func(ctx context.Context, identityID, label string) (string, error) {
-			return f.prompts.Ask(ctx, identityID, label, f.dialog)
+		PassphraseReq: func(ctx context.Context, question usecase.PassphraseQuestion) (string, error) {
+			return f.prompts.Ask(ctx, question, f.dialog)
 		},
 	})
 	t.Cleanup(f.sessions.CloseAll)
@@ -302,25 +302,72 @@ func TestEncryptedKeyConnectsAfterTheUserTypesThePassphrase(t *testing.T) {
 	}
 }
 
-// A wrong passphrase must fail the connection before anything reaches the server with a key
-// that did not open.
-func TestWrongPassphraseFailsTheConnection(t *testing.T) {
+// A mistyped passphrase asks again, says so, and the right one still gets in - without anything
+// reaching the server with a key that did not open.
+func TestWrongPassphraseAsksAgainAndTheRightOneConnects(t *testing.T) {
 	f := newFixture(t)
 	sessionID := f.open(t)
 
-	prompt := f.dialog.awaitPrompt(t)
-	if err := f.prompts.Resolve(prompt.RequestID, "not-the-passphrase"); err != nil {
+	first := f.dialog.awaitPrompt(t)
+	if first.Retry {
+		t.Error("the first prompt is marked as a retry; the user has not typed anything yet")
+	}
+	if err := f.prompts.Resolve(first.RequestID, "not-the-passphrase"); err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	f.dialog.awaitDismissed(t, first.RequestID)
+
+	second := f.dialog.awaitPrompt(t)
+	if !second.Retry {
+		t.Error("the prompt after a wrong passphrase is not marked as a retry; the dialog cannot tell the user it was wrong")
+	}
+	if second.RequestID == first.RequestID {
+		t.Error("the retry reuses the answered request id; an answer could then be replayed into it")
+	}
+	if n := f.server.authenticated.Load(); n != 0 {
+		t.Errorf("server authenticated %d handshakes before the key was opened, want 0", n)
+	}
+	if err := f.prompts.Resolve(second.RequestID, keyPassphrase); err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
 
-	f.awaitState(t, sessionID, domain.SessionError)
-	f.dialog.awaitDismissed(t, prompt.RequestID)
-	if n := f.server.authenticated.Load(); n != 0 {
-		t.Errorf("server authenticated %d handshakes after a wrong passphrase, want 0", n)
+	f.awaitState(t, sessionID, domain.SessionReady)
+	f.dialog.awaitDismissed(t, second.RequestID)
+	if n := f.server.authenticated.Load(); n != 1 {
+		t.Errorf("server authenticated %d handshakes, want 1", n)
 	}
 }
 
-// Cancelling the dialog ends the connection instead of leaving it in "connecting".
+// Attempts are bounded: after the last wrong passphrase the connection fails, names the reason,
+// and does not put up another dialog.
+func TestRepeatedWrongPassphrasesFailTheConnection(t *testing.T) {
+	f := newFixture(t)
+	sessionID := f.open(t)
+
+	for attempt := 1; attempt <= 3; attempt++ {
+		prompt := f.dialog.awaitPrompt(t)
+		if err := f.prompts.Resolve(prompt.RequestID, fmt.Sprintf("guess-%d", attempt)); err != nil {
+			t.Fatalf("Resolve attempt %d: %v", attempt, err)
+		}
+		f.dialog.awaitDismissed(t, prompt.RequestID)
+	}
+
+	s := f.awaitState(t, sessionID, domain.SessionError)
+	if s.ErrorMessage != "Wrong key passphrase" {
+		t.Errorf("error message = %q, want %q; a generic authentication failure points at the server", s.ErrorMessage, "Wrong key passphrase")
+	}
+	select {
+	case p := <-f.dialog.shown:
+		t.Errorf("a fourth prompt %q was shown; the attempts must be bounded", p.RequestID)
+	default:
+	}
+	if n := f.server.authenticated.Load(); n != 0 {
+		t.Errorf("server authenticated %d handshakes after wrong passphrases, want 0", n)
+	}
+}
+
+// Cancelling the dialog ends the connection instead of leaving it in "connecting", and says the
+// passphrase was not entered rather than that the server refused.
 func TestCancelledPromptFailsTheConnection(t *testing.T) {
 	f := newFixture(t)
 	sessionID := f.open(t)
@@ -330,7 +377,10 @@ func TestCancelledPromptFailsTheConnection(t *testing.T) {
 		t.Fatalf("Cancel: %v", err)
 	}
 
-	f.awaitState(t, sessionID, domain.SessionError)
+	s := f.awaitState(t, sessionID, domain.SessionError)
+	if s.ErrorMessage != "Key passphrase was not entered" {
+		t.Errorf("error message = %q, want %q", s.ErrorMessage, "Key passphrase was not entered")
+	}
 	f.dialog.awaitDismissed(t, prompt.RequestID)
 	if n := f.server.authenticated.Load(); n != 0 {
 		t.Errorf("server authenticated %d handshakes after a cancel, want 0", n)

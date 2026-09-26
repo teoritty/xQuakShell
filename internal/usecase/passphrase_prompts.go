@@ -7,15 +7,25 @@ import (
 	"xquakshell/internal/domain"
 )
 
+// PassphraseQuestion is what a connection needs the user to answer: which key to open and what to
+// call it on screen.
+type PassphraseQuestion struct {
+	IdentityID string
+	Label      string
+	// Retry says the passphrase the user typed for this key a moment ago, for this same
+	// connection, did not open it. Without it the second prompt is indistinguishable from the
+	// first and reads as the application ignoring what was typed.
+	Retry bool
+}
+
 // PassphrasePrompt is one question put to the user: open this key so a connection can use it.
 //
 // It carries no secret and nothing the answer is checked against. RequestID is the only thing the
 // answer is bound to, which is what keeps a passphrase typed for one key from being delivered to a
 // different connection's prompt.
 type PassphrasePrompt struct {
-	RequestID  string
-	IdentityID string
-	Label      string
+	RequestID string
+	PassphraseQuestion
 }
 
 // PassphrasePromptUI puts a prompt on screen and takes it off again. Dismiss is called exactly once
@@ -46,7 +56,7 @@ type PassphrasePrompts struct {
 // Ask shows a prompt for the key and waits for the answer, the user's cancel, or ctx ending -
 // whichever comes first. ctx is the session's, so closing the tab or locking the vault releases the
 // wait and takes the dialog down with it.
-func (p *PassphrasePrompts) Ask(ctx context.Context, identityID, label string, ui PassphrasePromptUI) (string, error) {
+func (p *PassphrasePrompts) Ask(ctx context.Context, question PassphraseQuestion, ui PassphrasePromptUI) (string, error) {
 	requestID, answer := p.register()
 	// Deferred in this order so they run the other way round: forget first, then dismiss. By the
 	// time the dialog is told to close the id is already unanswerable, so a submit racing the
@@ -54,7 +64,7 @@ func (p *PassphrasePrompts) Ask(ctx context.Context, identityID, label string, u
 	defer ui.DismissPassphrasePrompt(requestID)
 	defer p.forget(requestID)
 
-	ui.ShowPassphrasePrompt(PassphrasePrompt{RequestID: requestID, IdentityID: identityID, Label: label})
+	ui.ShowPassphrasePrompt(PassphrasePrompt{RequestID: requestID, PassphraseQuestion: question})
 
 	select {
 	case a := <-answer:

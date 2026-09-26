@@ -490,6 +490,7 @@
     "security.passphrase.field": "Парольная фраза",
     "security.passphrase.submit": "Открыть ключ",
     "security.passphrase.title": "Нужна парольная фраза ключа",
+    "security.passphrase.wrong": "Эта парольная фраза не подходит к ключу. Попробуйте ещё раз.",
     "security.peertrust.cancel": "Отмена",
     "security.peertrust.field.address": "Адрес:",
     "security.peertrust.field.connection": "Подключение:",

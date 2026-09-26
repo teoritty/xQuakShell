@@ -484,6 +484,7 @@
     "security.passphrase.field": "Passphrase",
     "security.passphrase.submit": "Unlock Key",
     "security.passphrase.title": "Key Passphrase Required",
+    "security.passphrase.wrong": "That passphrase did not open the key. Try again.",
     "security.peertrust.cancel": "Cancel",
     "security.peertrust.field.address": "Address:",
     "security.peertrust.field.connection": "Connection:",

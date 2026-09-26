@@ -44,6 +44,12 @@ async function run() {
   raise('r1', 'deploy key');
   assert(queueIds().length === 2, 'a repeated request id does not stack a second dialog');
 
+  handlers.get('PassphraseRequired')!({ requestId: 'r3', identityId: 'id-r3', label: 'k', retry: true });
+  assert(get(pendingPassphrasePrompts).find((p) => p.requestId === 'r3')?.retry === true,
+    'the retry flag reaches the queue; without it the dialog cannot say the last passphrase was wrong');
+  assert(get(pendingPassphrasePrompts).find((p) => p.requestId === 'r1')?.retry !== true, 'a first prompt is not a retry');
+  withdraw('r3');
+
   handlers.get('PassphraseRequired')!({ identityId: 'x', label: 'no id' });
   handlers.get('PassphraseRequired')!(undefined);
   assert(queueIds().length === 2, 'a prompt without a request id is ignored: it could never be answered');

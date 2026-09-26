@@ -49,7 +49,7 @@ func TestPassphrasePromptsDeliversTheTypedPassphrase(t *testing.T) {
 		}
 	}
 
-	got, err := prompts.Ask(context.Background(), "id-1", "prod key", ui)
+	got, err := prompts.Ask(context.Background(), PassphraseQuestion{IdentityID: "id-1", Label: "prod key"}, ui)
 	if err != nil || got != "hunter2" {
 		t.Fatalf("Ask = (%q, %v), want (\"hunter2\", nil)", got, err)
 	}
@@ -67,7 +67,7 @@ func TestPassphrasePromptsCancelFailsTheConnection(t *testing.T) {
 	ui := &scriptedPromptUI{}
 	ui.answer = func(p PassphrasePrompt) { _ = prompts.Cancel(p.RequestID) }
 
-	_, err := prompts.Ask(context.Background(), "id-1", "k", ui)
+	_, err := prompts.Ask(context.Background(), PassphraseQuestion{IdentityID: "id-1", Label: "k"}, ui)
 	if !errors.Is(err, domain.ErrPassphrasePromptCancelled) {
 		t.Fatalf("Ask after cancel = %v, want ErrPassphrasePromptCancelled", err)
 	}
@@ -84,7 +84,7 @@ func TestPassphrasePromptsSessionEndReleasesTheWait(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	ui := &scriptedPromptUI{answer: func(PassphrasePrompt) { cancel() }}
 
-	_, err := prompts.Ask(ctx, "id-1", "k", ui)
+	_, err := prompts.Ask(ctx, PassphraseQuestion{IdentityID: "id-1", Label: "k"}, ui)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Ask with a cancelled session = %v, want context.Canceled", err)
 	}
@@ -108,7 +108,7 @@ func TestPassphrasePromptsAcceptsOneAnswerPerRequest(t *testing.T) {
 		second = prompts.Resolve(p.RequestID, "second")
 	}
 
-	got, err := prompts.Ask(context.Background(), "id-1", "k", ui)
+	got, err := prompts.Ask(context.Background(), PassphraseQuestion{IdentityID: "id-1", Label: "k"}, ui)
 	if err != nil || got != "first" {
 		t.Fatalf("Ask = (%q, %v), want the first answer", got, err)
 	}
@@ -141,7 +141,7 @@ func TestPassphrasePromptsKeepsConcurrentRequestsApart(t *testing.T) {
 	results := make(chan result, 2)
 	for _, id := range []string{"id-a", "id-b"} {
 		go func() {
-			got, err := prompts.Ask(context.Background(), id, id, ui)
+			got, err := prompts.Ask(context.Background(), PassphraseQuestion{IdentityID: id, Label: id}, ui)
 			results <- result{identity: id, got: got, err: err}
 		}()
 	}
