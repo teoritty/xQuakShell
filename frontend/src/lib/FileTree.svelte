@@ -28,6 +28,7 @@
   import { describeDelete } from './fileTree/deletePrompt';
   import { moveRemotePaths } from './fileTree/move';
   import { listForPane, settleListing, PANE_LIST_OPTS } from './fileTree/missingDir';
+  import { createDirectoryEntry } from './fileTree/enterDir';
   import { loadPrefs, saveColumnPrefs as persistColumns, saveHiddenPref } from './fileTree/columnPrefs';
   import FilePaneHeader from './fileTree/FilePaneHeader.svelte';
   import './fileTree/fileTreeShared.css';
@@ -108,30 +109,38 @@
     }
   }
 
+  // The pane moves only once the target has been listed: see fileTree/enterDir.ts.
+  const enterDir = createDirectoryEntry<RemoteNode>((p) => listPath(sessionId, p, PANE_LIST_OPTS), (n) => applySort(n, sortState()));
+
+  async function moveTo(target: string): Promise<boolean> {
+    try {
+      if ((await enterDir({ tree, rawTree, expanded }, target)) === 'superseded') return false;
+    } catch (e: any) {
+      error = e?.message || String(e);
+      return false;
+    }
+    currentPath = target;
+    error = '';
+    tree = tree;
+    expanded = expanded;
+    return true;
+  }
+
   async function goUp() {
     const parent = remoteParent(currentPath);
-    if (parent !== currentPath) {
-      currentPath = parent;
-      await loadDir(currentPath);
-      if (!expanded.has(currentPath)) {
-        expanded.add(currentPath);
-        expanded = expanded;
-      }
-      tree = tree;
-    }
+    if (parent !== currentPath) await moveTo(parent);
   }
 
   async function toggleDir(path: string) {
     if (expanded.has(path)) {
       expanded.delete(path);
-      expanded = expanded;
     } else {
+      if (!tree.has(path)) await loadDir(path);
+      // A branch that could not be listed stays closed; the header says why.
+      if (!tree.has(path)) return;
       expanded.add(path);
-      expanded = expanded;
-      if (!tree.has(path)) {
-        await loadDir(path);
-      }
     }
+    expanded = expanded;
   }
 
   function selectNode(path: string, e?: MouseEvent) {
@@ -155,14 +164,9 @@
 
   async function navigateInto(path: string) {
     const node = findNodeIn(tree, path);
-    if (!node?.isDir) return;
-    currentPath = path;
-    expanded.add(path);
-    expanded = expanded;
+    if (!node?.isDir || !(await moveTo(path))) return;
     selectedPaths = new Set([path]);
     lastSelectedPath = path;
-    if (!tree.has(path)) await loadDir(path);
-    tree = tree;
   }
 
   export async function refresh() {
@@ -393,30 +397,7 @@
   }
 
   async function handlePathSubmit(typed: string) {
-    const nextPath = normalizeRemotePathInput(typed);
-    const prevPath = currentPath;
-    // Fetch first: only commit navigation once the listing succeeds. A
-    // non-existent directory must leave the current view untouched. listPath
-    // normally swallows errors (returns []) and shows a global banner, which
-    // would let navigation proceed into an empty non-existent folder — so we
-    // opt into rethrow and surface the failure inline instead.
-    try {
-      const nodes = await listPath(sessionId, nextPath, { rethrow: true, silence: () => true });
-      rawTree.set(nextPath, nodes);
-      tree.set(nextPath, applySort(nodes, sortState()));
-      currentPath = nextPath;
-      if (!expanded.has(currentPath)) {
-        expanded.add(currentPath);
-        expanded = expanded;
-      }
-      tree = tree;
-      error = '';
-    } catch (e: any) {
-      error = e?.message || String(e);
-      currentPath = prevPath;
-      header?.resetInput();
-      return;
-    }
+    if (!(await moveTo(normalizeRemotePathInput(typed)))) header?.resetInput();
   }
 
   let header: FilePaneHeader | null = null;
