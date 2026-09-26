@@ -157,17 +157,14 @@ assert(sandboxSummary(undefined) === null, 'a plugin that is not running has no 
 // --- rail ---
 
 const rail = buildRail({ installed: 4, sources: 3, needsAttention: 1 });
-assert(rail.length === 4, `rail has ${rail.length} items, want 4`);
+assert(rail.length === 3, `rail has ${rail.length} items, want 3`);
 assert(rail[0].id === 'installed' && rail[0].count === 4, 'Installed carries its count');
 assert(rail[0].alert === true, 'Installed shows the alert dot when something needs attention');
+assert(rail[1].id === 'browse' && rail[1].count === undefined, 'Browse carries no count');
 assert(rail[2].id === 'sources' && rail[2].count === 3, 'Sources carries its count');
 assert(
-  rail[3].id === 'marketplace' && rail[3].count === undefined,
-  'the marketplace is its own destination and carries no count',
-);
-assert(
-  rail.map((item) => item.id).join(',') === 'installed,browse,sources,marketplace',
-  'the rail is those four sections; the trust policy lives in Settings, not here',
+  rail.map((item) => item.id).join(',') === 'installed,browse,sources',
+  'the rail is those three sections; Marketplace is hidden and the trust policy lives in Settings',
 );
 assert(
   buildRail({ installed: 4, sources: 3, needsAttention: 0 })[0].alert === false,
