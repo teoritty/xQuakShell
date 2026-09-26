@@ -32,6 +32,16 @@ Nothing.
 
 ### Fixed
 
+**Connecting with a passphrase-protected key asks for the passphrase.** Such a connection could
+never succeed: instead of a field to type into, a system message box said a custom dialog was
+needed, and the tab then failed with "Authentication failed". A dialog now asks for the key's
+passphrase while the connection waits, and the key is cached afterwards as its own policy in the
+Key Manager says. A mistyped passphrase asks again and says it was wrong, up to three tries.
+Cancelling the dialog, or running out of tries, ends the connection with "Key passphrase was not
+entered" or "Wrong key passphrase" rather than a generic failure that points at the server. Closing
+the tab while the dialog is open takes the dialog down with it. The same applies to keys on jump
+hosts.
+
 **Deleting the folder you are in takes you up a level instead of showing an error.** Both file
 panes — the server and the local one — reload the folder on screen after a delete, and when that
 folder was the one just deleted the reload failed and opened the error dialog with a "not found"
