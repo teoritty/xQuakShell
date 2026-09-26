@@ -33,6 +33,11 @@ import {
 } from '../stores/dialogState';
 import { nodeDetailsTarget, requestNodeDetailsReload } from '../stores/nodeDetailsState';
 import { removeLocalTerminal } from '../stores/localTerminalState';
+import {
+  enqueuePassphrasePrompt,
+  dropPassphrasePrompt,
+  type PassphrasePromptEvent,
+} from '../stores/passphrasePromptState';
 
 // SFTPReady is a one-shot broadcast emitted once per session right after the
 // remote filesystem is up. A FileTree component mounts only after its session
@@ -45,13 +50,12 @@ import { removeLocalTerminal } from '../stores/localTerminalState';
 export const sftpReadyPaths = writable<Map<string, string>>(new Map());
 
 /**
- * The two "do you trust this?" prompts: the SSH host key, and the remote identity a plugin
- * protocol presents.
+ * The questions that stop a connection until the user answers: the SSH host key, the remote
+ * identity a plugin protocol presents, and the passphrase of an encrypted key.
  *
- * They are registered here rather than in the main list because they are one subject. Both put a
- * question in front of the user that stops a connection until it is answered, and a change to how
- * one of them is raised should be read next to the other - not found by scrolling a list of every
- * event the app has.
+ * They are registered here rather than in the main list because they are one subject, and a change
+ * to how one of them is raised should be read next to the others - not found by scrolling a list of
+ * every event the app has.
  */
 function subscribeTrustPrompts(rt: NonNullable<ReturnType<typeof getRuntime>>): void {
   rt.EventsOn('HostKeyRequired', (data: HostKeyEvent) => {
@@ -60,6 +64,18 @@ function subscribeTrustPrompts(rt: NonNullable<ReturnType<typeof getRuntime>>): 
 
   rt.EventsOn('PeerTrustRequired', (data: PeerTrustEvent) => {
     enqueuePeerTrust(data);
+  });
+
+  rt.EventsOn('PassphraseRequired', (data: PassphrasePromptEvent) => {
+    if (!data?.requestId) return;
+    enqueuePassphrasePrompt(data);
+  });
+
+  // Sent however the wait ended - answered, cancelled, or the session closed underneath it - so a
+  // dialog never stays up for a connection that has stopped listening.
+  rt.EventsOn('PassphrasePromptClosed', (data: { requestId: string }) => {
+    if (!data?.requestId) return;
+    dropPassphrasePrompt(data.requestId);
   });
 }
 

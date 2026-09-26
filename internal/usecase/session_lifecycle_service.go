@@ -393,6 +393,13 @@ func sshConnectErrorMessage(err error) string {
 	}
 	msg := err.Error()
 	switch {
+	// The two key passphrase outcomes are named before the generic prefixes that would also match
+	// them. "Authentication failed" after the user pressed Cancel, or after a typo, sends them
+	// looking at the server's authorized_keys for a problem that is on their side of the dialog.
+	case errors.Is(err, domain.ErrPassphrasePromptCancelled):
+		return "Key passphrase was not entered"
+	case errors.Is(err, domain.ErrKeyPassphraseWrong):
+		return "Wrong key passphrase"
 	case strings.HasPrefix(msg, "authentication failed:"):
 		return "Authentication failed"
 	case strings.HasPrefix(msg, "jump chain connection failed:"):

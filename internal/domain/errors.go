@@ -73,6 +73,15 @@ var ErrKeyNotExportable = errors.New("SSH identity is marked non-exportable")
 // wrong thing", and only the second should count towards a retry limit.
 var ErrKeyPassphraseWrong = errors.New("wrong passphrase for SSH identity")
 
+// ErrPassphrasePromptCancelled indicates the user dismissed the passphrase prompt a connection was
+// waiting on. It is not ErrPassphraseRequired: nothing is wrong with the key, the user chose not
+// to open it, and the connection ends without counting a failed attempt.
+var ErrPassphrasePromptCancelled = errors.New("passphrase entry cancelled")
+
+// ErrNoPendingPassphrasePrompt indicates an answer arrived for a passphrase prompt that is not
+// waiting: already answered, abandoned because its session closed, or never raised.
+var ErrNoPendingPassphrasePrompt = errors.New("no passphrase prompt is waiting for this request")
+
 // ErrMigrationPending indicates the identity still holds its pre-v4 bytes because its passphrase
 // was skipped during migration, and the requested operation needs the normalised form.
 var ErrMigrationPending = errors.New("SSH identity migration is not finished")
@@ -92,6 +101,16 @@ var ErrPasswordNotFound = errors.New("password not found in vault")
 
 // ErrFolderNotFound indicates the requested folder does not exist.
 var ErrFolderNotFound = errors.New("folder not found")
+
+// ErrDirectoryNotFound indicates a file pane asked to list a directory that does not exist, most
+// often because it was just deleted while the pane was showing it. It is distinct from other
+// listing failures because the pane answers it by moving to the nearest parent that still exists,
+// not by reporting an error.
+//
+// Its message is part of the contract with the frontend: Wails hands a rejected call over as its
+// message alone, so the pane recognises this error by the text. Change it together with
+// frontend/src/lib/fileTree/missingDir.ts.
+var ErrDirectoryNotFound = errors.New("directory not found")
 
 // ErrCircularFolder indicates a folder move would create a circular parent chain.
 var ErrCircularFolder = errors.New("circular folder hierarchy detected")

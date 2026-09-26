@@ -9,6 +9,7 @@
   import KeyManager from './lib/KeyManager.svelte';
   import HostKeyDialog from './lib/HostKeyDialog.svelte';
   import PeerTrustPrompt from './lib/PeerTrustPrompt.svelte';
+  import SessionPassphrasePrompt from './lib/SessionPassphrasePrompt.svelte';
   import PeerTrustManager from './lib/PeerTrustManager.svelte';
   import AuditLogView from './lib/AuditLogView.svelte';
   import ErrorDialog from './lib/ErrorDialog.svelte';
@@ -282,6 +283,7 @@
   <ScriptsDialog bind:show={showScripts} />
   <PluginCommandPalette bind:this={commandPalette} />
   <PeerTrustPrompt />
+  <SessionPassphrasePrompt />
 
   {#if showHostKeyDialog}
     <HostKeyDialog

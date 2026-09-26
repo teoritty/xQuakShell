@@ -336,6 +336,12 @@ func (c *SSHConnector) loadSigners(ctx context.Context, identityIDs []string) ([
 	return signers, nil
 }
 
+// maxPassphraseAttempts is how many passphrases one connection accepts for a key before giving up,
+// the allowance OpenSSH's client gives. A mistyped passphrase is the common case and deserves
+// another try without starting the connection over; an unbounded loop would instead keep a
+// dialog on screen for as long as someone was willing to guess.
+const maxPassphraseAttempts = 3
+
 // signerFor produces one signer, asking the user for a passphrase only when the cached one is
 // absent or no longer opens the key.
 func (c *SSHConnector) signerFor(ctx context.Context, idRef string) (domain.Signer, error) {
@@ -348,11 +354,19 @@ func (c *SSHConnector) signerFor(ctx context.Context, idRef string) (domain.Sign
 		return nil, fmt.Errorf("load key %s: %w", idRef, err)
 	}
 
-	pp, ppErr := c.passphraseReq(idRef, c.identityLabel(ctx, idRef))
-	if ppErr != nil {
-		return nil, fmt.Errorf("passphrase request for %s: %w", idRef, ppErr)
+	question := PassphraseQuestion{IdentityID: idRef, Label: c.identityLabel(ctx, idRef)}
+	for attempt := 1; ; attempt++ {
+		pp, ppErr := c.passphraseReq(ctx, question)
+		if ppErr != nil {
+			return nil, fmt.Errorf("passphrase request for %s: %w", idRef, ppErr)
+		}
+		signer, err = c.keys.SignerWithPassphrase(ctx, idRef, pp)
+		if !errors.Is(err, domain.ErrKeyPassphraseWrong) || attempt == maxPassphraseAttempts {
+			break
+		}
+		slog.Warn("wrong key passphrase", "component", "session", "identity", idRef, "attempt", attempt)
+		question.Retry = true
 	}
-	signer, err = c.keys.SignerWithPassphrase(ctx, idRef, pp)
 	if err != nil {
 		return nil, fmt.Errorf("parse key %s with passphrase: %w", idRef, err)
 	}

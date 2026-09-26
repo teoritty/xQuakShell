@@ -143,7 +143,7 @@ func (s *TransferService) uploadFile(parentCtx context.Context, sessionID, local
 		return err
 	}
 	if err := s.acquireSlot(parentCtx); err != nil {
-		return err
+		return settleCancel(parentCtx, err)
 	}
 	defer s.releaseSlot()
 	ctx, cancel := context.WithCancel(parentCtx)
@@ -202,7 +202,7 @@ func (s *TransferService) uploadFile(parentCtx context.Context, sessionID, local
 			Done: 0, Total: 0, State: state,
 		})
 	}
-	return err
+	return settleCancel(ctx, err)
 }
 
 func (s *TransferService) uploadRecursive(parentCtx context.Context, sessionID, localDir, remoteDir string, onProgress TransferProgressFunc) error {
@@ -211,7 +211,7 @@ func (s *TransferService) uploadRecursive(parentCtx context.Context, sessionID, 
 		return err
 	}
 	if err := s.acquireSlot(parentCtx); err != nil {
-		return err
+		return settleCancel(parentCtx, err)
 	}
 	defer s.releaseSlot()
 	ctx, cancel := context.WithCancel(parentCtx)
@@ -255,7 +255,7 @@ func (s *TransferService) uploadRecursive(parentCtx context.Context, sessionID, 
 			Done: 0, Total: 0, State: state,
 		})
 	}
-	return err
+	return settleCancel(ctx, err)
 }
 
 func (s *TransferService) downloadRecursive(parentCtx context.Context, sessionID, remoteDir, localDir string, onProgress TransferProgressFunc) error {
@@ -264,7 +264,7 @@ func (s *TransferService) downloadRecursive(parentCtx context.Context, sessionID
 		return err
 	}
 	if err := s.acquireSlot(parentCtx); err != nil {
-		return err
+		return settleCancel(parentCtx, err)
 	}
 	defer s.releaseSlot()
 	ctx, cancel := context.WithCancel(parentCtx)
@@ -308,7 +308,7 @@ func (s *TransferService) downloadRecursive(parentCtx context.Context, sessionID
 			Done: 0, Total: 0, State: state,
 		})
 	}
-	return err
+	return settleCancel(ctx, err)
 }
 
 func (s *TransferService) downloadFile(parentCtx context.Context, sessionID, remotePath, localDir string, onProgress TransferProgressFunc) error {
@@ -317,7 +317,7 @@ func (s *TransferService) downloadFile(parentCtx context.Context, sessionID, rem
 		return err
 	}
 	if err := s.acquireSlot(parentCtx); err != nil {
-		return err
+		return settleCancel(parentCtx, err)
 	}
 	defer s.releaseSlot()
 	localPath := filepath.Join(localDir, filepath.Base(remotePath))
@@ -371,5 +371,5 @@ func (s *TransferService) downloadFile(parentCtx context.Context, sessionID, rem
 			Done: 0, Total: 0, State: state,
 		})
 	}
-	return err
+	return settleCancel(ctx, err)
 }

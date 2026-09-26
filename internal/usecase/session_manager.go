@@ -9,8 +9,10 @@ import (
 // StateChangeFunc is called whenever a session transitions to a new state.
 type StateChangeFunc func(session domain.ConnectionSession)
 
-// PassphraseRequestFunc is called when an encrypted key needs a passphrase.
-type PassphraseRequestFunc func(identityID, comment string) (string, error)
+// PassphraseRequestFunc is called when an encrypted key needs a passphrase. It blocks until the
+// user answers, and ctx is the connecting session's own: closing the session must release a
+// connection still waiting on the user, or the goroutine behind it waits forever.
+type PassphraseRequestFunc func(ctx context.Context, question PassphraseQuestion) (string, error)
 
 // HostKeyRequestFunc is called when a host key decision is needed from the user.
 type HostKeyRequestFunc func(sessionID string, info domain.HostKeyInfo)

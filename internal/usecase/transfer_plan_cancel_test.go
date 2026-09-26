@@ -96,6 +96,11 @@ func TestPlanScanCancelAbortsLocalWalk(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
+	// The handler absorbs exactly this; without the mark a cancelled scan reaches the user as an
+	// error dialog over the "cancelled" row they just produced.
+	if !errors.Is(err, ErrTransferCancelled) {
+		t.Fatalf("err = %v, want ErrTransferCancelled", err)
+	}
 	if plan != nil {
 		t.Fatalf("plan = %+v, want nil on a cancelled scan", plan)
 	}

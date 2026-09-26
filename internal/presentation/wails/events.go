@@ -12,6 +12,8 @@ const (
 	EventConnectionsUpdated         = "ConnectionsUpdated"
 	EventHostKeyRequired            = "HostKeyRequired"
 	EventPeerTrustRequired          = "PeerTrustRequired"
+	EventPassphraseRequired         = "PassphraseRequired"
+	EventPassphrasePromptClosed     = "PassphrasePromptClosed"
 	EventSFTPReady                  = "SFTPReady"
 	EventTerminalReady              = "TerminalReady"
 	EventPingUpdated                = "PingUpdated"

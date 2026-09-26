@@ -29,6 +29,7 @@ type AppAPI struct {
 	remoteOpSvc                 *usecase.RemoteOpService
 	cancels                     *usecase.CancelRegistry // shared by planner, executor and remote ops: one id space, one registry
 	hostKeys                    *usecase.HostKeyService
+	passphrasePrompts           usecase.PassphrasePrompts
 	peerTrust                   *usecase.PeerTrustService
 	remoteFS                    *usecase.RemoteFSService
 	localFS                     *usecase.LocalFSService

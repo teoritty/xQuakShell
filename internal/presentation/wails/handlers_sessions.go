@@ -207,18 +207,6 @@ func (a *AppAPI) onHostKeyRequest(sessionID string, info domain.HostKeyInfo) {
 	})
 }
 
-func (a *AppAPI) onPassphraseRequest(identityID, comment string) (string, error) {
-	if a.ctx == nil {
-		return "", fmt.Errorf("no wails context for passphrase request")
-	}
-	_, _ = wailsrt.MessageDialog(a.ctx, wailsrt.MessageDialogOptions{
-		Type:    wailsrt.InfoDialog,
-		Title:   "Passphrase Required",
-		Message: fmt.Sprintf("Key '%s' requires a passphrase. This feature requires a custom dialog.", comment),
-	})
-	return "", domain.ErrPassphraseRequired
-}
-
 // onStreamReady is called when a plugin stream connector has started the terminal bridge.
 func (a *AppAPI) onStreamReady(sessionID string, outputCh <-chan []byte) {
 	safego.GoNamed("session.streamOutput", func() { a.streamTerminalOutput(sessionID, outputCh) })

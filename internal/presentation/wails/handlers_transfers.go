@@ -35,7 +35,7 @@ func (a *AppAPI) Upload(sessionID, localPath, remotePath string) error {
 	if err != nil {
 		return err
 	}
-	return a.transferSvc.Upload(parentCtx, sessionID, localPath, remotePath, a.emitTransferProgress)
+	return quietCancel(a.transferSvc.Upload(parentCtx, sessionID, localPath, remotePath, a.emitTransferProgress))
 }
 
 // Download copies a remote file or directory to the local path (recursive for directories).
@@ -47,7 +47,7 @@ func (a *AppAPI) Download(sessionID, remotePath, localDir string) error {
 	if err != nil {
 		return err
 	}
-	return a.transferSvc.Download(parentCtx, sessionID, remotePath, localDir, a.emitTransferProgress)
+	return quietCancel(a.transferSvc.Download(parentCtx, sessionID, remotePath, localDir, a.emitTransferProgress))
 }
 
 // PlanUpload enumerates uploading localPaths into remoteDir, detecting conflicts
@@ -58,7 +58,7 @@ func (a *AppAPI) PlanUpload(sessionID string, localPaths []string, remoteDir str
 	}
 	plan, err := a.transferPlanner.PlanUpload(sessionID, localPaths, remoteDir, a.emitTransferProgress)
 	if err != nil {
-		return TransferPlanDTO{}, err
+		return TransferPlanDTO{}, quietCancel(err)
 	}
 	return transferPlanToDTO(plan), nil
 }
@@ -71,7 +71,7 @@ func (a *AppAPI) PlanDownload(sessionID string, remotePaths []string, localDir s
 	}
 	plan, err := a.transferPlanner.PlanDownload(sessionID, remotePaths, localDir, a.emitTransferProgress)
 	if err != nil {
-		return TransferPlanDTO{}, err
+		return TransferPlanDTO{}, quietCancel(err)
 	}
 	return transferPlanToDTO(plan), nil
 }
@@ -84,23 +84,28 @@ func (a *AppAPI) PlanLocalCopy(srcPaths []string, destDir string) (TransferPlanD
 	}
 	plan, err := a.transferPlanner.PlanLocalCopy(srcPaths, destDir, a.emitTransferProgress)
 	if err != nil {
-		return TransferPlanDTO{}, err
+		return TransferPlanDTO{}, quietCancel(err)
 	}
 	return transferPlanToDTO(plan), nil
 }
 
-// execPlan runs a resolved plan and absorbs the one outcome that is not a
-// failure: the user cancelled the panel item while the conflict dialog was open,
-// so the operation's terminal event is already out and nothing transferred. The
+// quietCancel absorbs the outcomes that are not failures: the user cancelled the
+// panel item, either while the conflict dialog was open (ErrOperationCancelled -
+// nothing ran) or while the scan or the transfer itself was running
+// (ErrTransferCancelled). Either way the item already shows "cancelled". The
 // frontend turns every rejected RPC into an error banner, and "you cancelled
 // this, here is an error" is the wrong thing to tell someone who cancelled.
 // Every other error still propagates.
-func (a *AppAPI) execPlan(parentCtx context.Context, sessionID string, req ExecutePlanDTO) error {
-	err := a.transferSvc.ExecutePlan(parentCtx, sessionID, dtoToTransferPlan(req.Plan), dtoToResolutions(req.Resolutions), a.emitTransferProgress)
-	if errors.Is(err, usecase.ErrOperationCancelled) {
+func quietCancel(err error) error {
+	if errors.Is(err, usecase.ErrOperationCancelled) || errors.Is(err, usecase.ErrTransferCancelled) {
 		return nil
 	}
 	return err
+}
+
+// execPlan runs a resolved plan; a cancellation is not reported as an error.
+func (a *AppAPI) execPlan(parentCtx context.Context, sessionID string, req ExecutePlanDTO) error {
+	return quietCancel(a.transferSvc.ExecutePlan(parentCtx, sessionID, dtoToTransferPlan(req.Plan), dtoToResolutions(req.Resolutions), a.emitTransferProgress))
 }
 
 // ExecuteUpload runs a resolved upload plan.

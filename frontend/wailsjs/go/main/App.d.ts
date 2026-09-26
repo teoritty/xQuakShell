@@ -9,6 +9,8 @@ export function AddGitHubRepository(arg1:wails.AddGitHubRepositoryRequest):Promi
 
 export function ApplyDiscoveryNodeDetails(arg1:string,arg2:string,arg3:string,arg4:Record<string, string>):Promise<void>;
 
+export function CancelPassphrase(arg1:string):Promise<void>;
+
 export function CancelPluginDialog(arg1:string):Promise<void>;
 
 export function CancelTransfer(arg1:string):Promise<void>;
@@ -238,6 +240,8 @@ export function ResizeLocalTerminal(arg1:string,arg2:number,arg3:number):Promise
 export function ResizeSurface(arg1:string,arg2:number,arg3:number):Promise<void>;
 
 export function ResolveHostKey(arg1:string,arg2:string):Promise<void>;
+
+export function ResolvePassphrase(arg1:string,arg2:string):Promise<void>;
 
 export function ResolvePeerTrust(arg1:string,arg2:string,arg3:string):Promise<void>;
 

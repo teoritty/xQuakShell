@@ -12,6 +12,55 @@ The newest versioned heading is the release being prepared. Only the latest rele
 fixes, including security fixes, ship in a new release rather than as patches to an older one
 (see [SECURITY.md](SECURITY.md)).
 
+## [1.4.1]
+
+### Compatibility
+
+| Axis | Version |
+|---|---|
+| `pluginApi` | 1.0.0 (unchanged) |
+| Capabilities | all 1.0.0, unchanged |
+| Manifest schema | unchanged |
+| `bundleFormat` | 1.0.0 (unchanged) |
+| Vault schema | 4 (unchanged) |
+| Vault envelope | 1 (unchanged) |
+| Audit schema | 1 (unchanged) |
+
+### BREAKING
+
+Nothing.
+
+### Fixed
+
+**Connecting with a passphrase-protected key asks for the passphrase.** Such a connection could
+never succeed: instead of a field to type into, a system message box said a custom dialog was
+needed, and the tab then failed with "Authentication failed". A dialog now asks for the key's
+passphrase while the connection waits, and the key is cached afterwards as its own policy in the
+Key Manager says. A mistyped passphrase asks again and says it was wrong, up to three tries.
+Cancelling the dialog, or running out of tries, ends the connection with "Key passphrase was not
+entered" or "Wrong key passphrase" rather than a generic failure that points at the server. Closing
+the tab while the dialog is open takes the dialog down with it. The same applies to keys on jump
+hosts.
+
+**Deleting the folder you are in takes you up a level instead of showing an error.** Both file
+panes — the server and the local one — reload the folder on screen after a delete, and when that
+folder was the one just deleted the reload failed and opened the error dialog with a "not found"
+message, leaving the pane empty. The pane now moves to the nearest parent folder that still exists,
+skipping any that went with it, and says nothing: you asked for the folder to go. The same happens
+when the folder disappears some other way — deleted from a terminal, from the other pane, or by
+another program — the next time the pane reloads. A folder that was only expanded in the tree, not
+open, is simply dropped from it.
+
+Other listing failures, such as a folder you have no permission to read, are still reported, now
+in the pane's own header like a mistyped path rather than in the dialog over the whole window.
+
+**Cancelling a transfer no longer reports an error.** Pressing cancel on an upload, a download or a
+copy in the Transfers panel stopped it and marked the row "Cancelled" — and then opened the error
+dialog as well, with "context canceled" or whatever the interrupted write happened to fail with.
+The same happened when cancelling while a dropped folder was still being scanned. A cancelled
+transfer now ends quietly with its row saying "Cancelled"; a transfer that actually fails is
+reported exactly as before.
+
 ## [1.4.0] — 2026-09-19
 
 ### Compatibility
