@@ -40,10 +40,15 @@ const (
 
 // keyOnlyServer accepts exactly one public key and counts how many handshakes it let through, so a
 // test can tell "connected" apart from "the client gave up before authenticating".
+//
+// The count is taken on the server's goroutine after NewServerConn returns, which is after the
+// client has already been told it is in. A test that reads it the moment the session reports ready
+// races that goroutine, so a test expecting a handshake waits on authed first.
 type keyOnlyServer struct {
 	addr          *net.TCPAddr
 	hostKey       gossh.PublicKey
 	authenticated atomic.Int32
+	authed        chan struct{}
 }
 
 func startKeyOnlyServer(t *testing.T, authorized gossh.PublicKey) *keyOnlyServer {
@@ -57,7 +62,7 @@ func startKeyOnlyServer(t *testing.T, authorized gossh.PublicKey) *keyOnlyServer
 		t.Fatal(err)
 	}
 
-	srv := &keyOnlyServer{hostKey: hostSigner.PublicKey()}
+	srv := &keyOnlyServer{hostKey: hostSigner.PublicKey(), authed: make(chan struct{}, 8)}
 	cfg := &gossh.ServerConfig{
 		PublicKeyCallback: func(_ gossh.ConnMetadata, key gossh.PublicKey) (*gossh.Permissions, error) {
 			if !bytes.Equal(key.Marshal(), authorized.Marshal()) {
@@ -94,11 +99,25 @@ func (s *keyOnlyServer) serve(c net.Conn, cfg *gossh.ServerConfig) {
 		return
 	}
 	s.authenticated.Add(1)
+	select {
+	case s.authed <- struct{}{}:
+	default:
+	}
 	go gossh.DiscardRequests(reqs)
 	for ch := range chans {
 		_ = ch.Reject(gossh.Prohibited, "no channels in this test")
 	}
 	_ = sc.Close()
+}
+
+// awaitAuthenticated waits until the server has counted a handshake it let through.
+func (s *keyOnlyServer) awaitAuthenticated(t *testing.T) {
+	t.Helper()
+	select {
+	case <-s.authed:
+	case <-time.After(waitTimeout):
+		t.Fatal("the session reported ready but the server never counted an authenticated handshake")
+	}
 }
 
 // --- the stand-in for the frontend dialog ---
@@ -297,6 +316,7 @@ func TestEncryptedKeyConnectsAfterTheUserTypesThePassphrase(t *testing.T) {
 
 	f.awaitState(t, sessionID, domain.SessionReady)
 	f.dialog.awaitDismissed(t, prompt.RequestID)
+	f.server.awaitAuthenticated(t)
 	if n := f.server.authenticated.Load(); n != 1 {
 		t.Errorf("server authenticated %d handshakes, want 1", n)
 	}
@@ -333,6 +353,7 @@ func TestWrongPassphraseAsksAgainAndTheRightOneConnects(t *testing.T) {
 
 	f.awaitState(t, sessionID, domain.SessionReady)
 	f.dialog.awaitDismissed(t, second.RequestID)
+	f.server.awaitAuthenticated(t)
 	if n := f.server.authenticated.Load(); n != 1 {
 		t.Errorf("server authenticated %d handshakes, want 1", n)
 	}
