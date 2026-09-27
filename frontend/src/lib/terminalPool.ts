@@ -22,6 +22,12 @@ export interface PooledTerminal {
   host: HTMLDivElement;
   /** Unscaled font size from settings, so a remount keeps UI-scale math correct. */
   baseFontSize: number;
+  /**
+   * Set when the terminal was handed to a different session than the one that sized it. The new
+   * session's PTY starts at a default 80x24, and xterm reports a size only when it changes - which
+   * it will not, since the grid already fits its box - so the next mount has to announce it once.
+   */
+  sizeUnsent?: boolean;
 }
 
 const pool = new Map<string, PooledTerminal>();
@@ -34,6 +40,25 @@ export function getPooledTerminal(sessionId: string): PooledTerminal | undefined
 /** Stores a freshly created terminal so later remounts can reuse it. */
 export function setPooledTerminal(sessionId: string, pooled: PooledTerminal): void {
   pool.set(sessionId, pooled);
+}
+
+/**
+ * Hands a session's live terminal - scrollback, screen and all - to the session replacing it.
+ *
+ * This is how a reconnect keeps what the user was looking at: the lost session's terminal is
+ * re-keyed rather than copied, so nothing is re-parsed and colours and wrapping survive exactly.
+ * `banner` is written first, so the old output and the new shell are visibly separated.
+ *
+ * Refuses when there is nothing to hand over or the new session already has a terminal of its own;
+ * the old one is then disposed with its session as usual, and the new one starts empty.
+ */
+export function transferPooledTerminal(fromId: string, toId: string, banner: string): boolean {
+  const pooled = pool.get(fromId);
+  if (!pooled || fromId === toId || pool.has(toId)) return false;
+  pool.delete(fromId);
+  pool.set(toId, { ...pooled, sizeUnsent: true });
+  if (banner) pooled.term.write(banner);
+  return true;
 }
 
 /**

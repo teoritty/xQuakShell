@@ -44,6 +44,7 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
   { tabId: 'files', sectionId: 'conflicts' },
   { tabId: 'hotkeys', sectionId: 'session' },
   { tabId: 'network', sectionId: 'ping' },
+  { tabId: 'network', sectionId: 'reconnect' },
   { tabId: 'network', sectionId: 'transfer' },
   { tabId: 'security', sectionId: 'masterPassword' },
   { tabId: 'security', sectionId: 'lockout' },

@@ -5,7 +5,7 @@
   import type { SettingsDraft } from './settingsDraft';
 
   export let view: SettingsSearchViewState;
-  // Owns the ping fields and the three transfer fields.
+  // Owns the ping fields, the two reconnect toggles and the three transfer fields.
   export let draft: SettingsDraft;
 </script>
 
@@ -43,6 +43,20 @@
         max="64"
         disabled={!draft.pingEnabled}
       />
+    </label>
+  </div>
+</SettingsSection>
+
+<SettingsSection tab="network" section="reconnect" {view}>
+  <div class="section">
+    <h4>{$t('settings.network.reconnect.title')}</h4>
+    <label class="checkbox-row">
+      <input type="checkbox" bind:checked={draft.autoReconnect} />
+      {$t('settings.network.reconnect.auto')}
+    </label>
+    <label class="checkbox-row">
+      <input type="checkbox" bind:checked={draft.preserveTerminalContext} />
+      {$t('settings.network.reconnect.preserve')}
     </label>
   </div>
 </SettingsSection>

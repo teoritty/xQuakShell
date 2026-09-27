@@ -9,6 +9,7 @@ import {
   reorientEdges,
   isLoneTab,
   tileOf,
+  renameTab,
 } from './operations';
 
 function assert(cond: boolean, msg: string) {
@@ -111,5 +112,43 @@ assert(tileOf(moved, 's1')!.id === l4.tiles[1].id, 'moveTab relocates tab');
 const two = layout([tile('A', ['s1']), tile('B', ['s2'])]);
 const collapsed = moveTab(two, 's1', 'B');
 assert(collapsed.tiles.length === 1 && collapsed.tiles[0].id === 'B', 'moveTab collapses emptied source');
+
+// --- renameTab: a reconnect keeps its place ---
+// A lone tab in a non-active tile: reconcile alone would collapse that tile and append the new id
+// to the active one. renameTab must keep tile, slot and selection.
+{
+  const before = layout([tile('A', ['s1', 's2']), tile('B', ['old'])]);
+  const after = renameTab(before, 'old', 'new');
+  assert(after.tiles.length === 2, 'renameTab keeps the tile count when the renamed tab was alone');
+  assert(after.tiles[1].id === 'B' && after.tiles[1].tabs.join() === 'new', 'renameTab keeps the tab in its own tile');
+  assert(after.tiles[1].activeTabId === 'new', 'renameTab carries the selection over');
+  assert(after.tiles[0].tabs.join() === 's1,s2', 'renameTab leaves other tiles alone');
+}
+{
+  const before = layout([tile('A', ['s1', 'old', 's3'])]);
+  before.tiles[0].activeTabId = 's3';
+  const after = renameTab(before, 'old', 'new');
+  assert(after.tiles[0].tabs.join() === 's1,new,s3', 'renameTab keeps the position among siblings');
+  assert(after.tiles[0].activeTabId === 's3', 'renameTab does not steal the selection from a sibling');
+}
+// The new id's first state event won the race and reconcile already appended it to the active tile.
+{
+  const raced = layout([tile('A', ['s1', 'new']), tile('B', ['old'])]);
+  raced.tiles[0].activeTabId = 'new';
+  const after = renameTab(raced, 'old', 'new');
+  assert(after.tiles[0].tabs.join() === 's1', 'renameTab removes the stray copy of the new id');
+  assert(after.tiles[0].activeTabId === 's1', 'the tile that lost the stray copy selects a real tab');
+  assert(after.tiles[1].tabs.join() === 'new', 'the new id lands where the old one was');
+}
+{
+  const raced = layout([tile('A', ['new']), tile('B', ['old'])]);
+  const after = renameTab(raced, 'old', 'new');
+  assert(after.tiles.length === 1 && after.tiles[0].id === 'B', 'a tile holding only the stray copy collapses');
+}
+{
+  const same = layout([tile('A', ['s1'])]);
+  assert(renameTab(same, 'missing', 'new') === same, 'renaming an unplaced tab is a no-op');
+  assert(renameTab(same, 's1', 's1') === same, 'renaming a tab to itself is a no-op');
+}
 
 console.log('OK operations');

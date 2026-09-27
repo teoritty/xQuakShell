@@ -71,6 +71,18 @@ is its own, so editing or deleting either one leaves the other as it was. Port f
 with ids of their own, and a plugin connection's secret fields are copied into the vault under the
 new connection rather than shared with the original.
 
+**Reconnecting on its own after a dropped connection.** When an established session loses its
+connection, the Reconnect button starts counting down with a spinner in it and reconnects when it
+reaches zero: after 5 seconds, then 15, then 30, then every 60 seconds until the connection is back.
+Clicking the button reconnects straight away, Stop retrying ends the countdown and leaves the tab as
+it is, and closing the tab ends it too. The reconnected session keeps its tab's place, its tile and
+the focus, and by default the terminal output stays: the scrollback and the screen are kept, a dim
+"Reconnected" line marks where the new session begins, and the new shell carries on below. Only the
+output is kept - programs that were running on the server do not survive the dropped connection. It works the same for SSH and for protocol plugins. Only a lost connection is retried: a
+shell you left with `exit` stays closed, and a connection that failed at the first attempt — a wrong
+password, an unreachable host — is not retried on a timer. Both the automatic reconnect and keeping
+the terminal can be turned off in Settings → Network → Reconnect.
+
 ### Fixed
 
 **Starting xQuakShell a second time no longer risks losing what you changed in the first.** Two

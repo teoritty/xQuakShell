@@ -140,6 +140,32 @@ export function swapTiles(layout: TileLayout, tabId: string, targetTileId: strin
   return withTiles(layout, tiles);
 }
 
+/**
+ * Puts `toId` exactly where `fromId` was: same tile, same position, same selection.
+ *
+ * Not a gesture, but the same kind of pure transition. A reconnect replaces a session with a new
+ * one, and left to reconcile the old tab would be stripped - collapsing its tile if it was alone
+ * there - and the new one appended to whichever tile is active. The user would find their
+ * connection somewhere else after every dropped link.
+ *
+ * `toId` may already be placed: its first state event can beat the RPC that returned its id, and
+ * reconcile appends it to the active tile. That copy is removed, and a tile it leaves empty goes
+ * with it.
+ */
+export function renameTab(layout: TileLayout, fromId: string, toId: string): TileLayout {
+  if (fromId === toId || !tileOf(layout, fromId)) return layout;
+  const tiles = layout.tiles
+    .map((t) => (t.tabs.includes(fromId) ? t : removeTab(t, toId)))
+    .map((t) => {
+      if (!t.tabs.includes(fromId)) return t;
+      const tabs = t.tabs.filter((id) => id !== toId).map((id) => (id === fromId ? toId : id));
+      const activeTabId = t.activeTabId === fromId ? toId : t.activeTabId;
+      return { ...t, tabs, activeTabId };
+    })
+    .filter((t) => t.tabs.length > 0);
+  return withTiles(layout, tiles);
+}
+
 /** Moves a tab into another existing tile (center drop). Collapses an emptied source. */
 export function moveTab(layout: TileLayout, tabId: string, targetTileId: string): TileLayout {
   const source = tileOf(layout, tabId);
