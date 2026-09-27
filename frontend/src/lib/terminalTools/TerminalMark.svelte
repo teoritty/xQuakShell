@@ -39,25 +39,35 @@
 {/if}
 
 <style>
+  /* Restrained on purpose: the outline marks state, it is not an alarm. Thin lines, muted colour,
+     numbers drawn as outlined labels rather than solid blocks, and the terminal underneath stays
+     readable while the picker is open. */
   .terminal-mark {
+    --mark-off: rgba(229, 83, 75, 0.55);
+    --mark-on: rgba(86, 196, 108, 0.7);
     position: absolute;
     inset: 0;
     z-index: 20;
     pointer-events: none;
     box-sizing: border-box;
-    border: 2px solid var(--multi-input-on, #3fb950);
+    border: 1px solid var(--mark-on);
   }
 
   .terminal-mark.selecting {
     pointer-events: auto;
     cursor: pointer;
-    border: 3px dashed var(--multi-input-off, #e5534b);
-    background: rgba(0, 0, 0, 0.35);
+    border: 1px dashed var(--mark-off);
+    background: rgba(0, 0, 0, 0.18);
+    transition: background 0.12s, border-color 0.12s;
+  }
+
+  .terminal-mark.selecting:hover {
+    background: rgba(0, 0, 0, 0.1);
   }
 
   .terminal-mark.selecting.chosen {
-    border: 3px solid var(--multi-input-on, #3fb950);
-    background: rgba(63, 185, 80, 0.12);
+    border: 1px solid var(--mark-on);
+    background: rgba(86, 196, 108, 0.05);
   }
 
   .mark-number {
@@ -65,34 +75,38 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    min-width: 64px;
-    height: 64px;
-    padding: 0 12px;
+    min-width: 40px;
+    height: 40px;
+    padding: 0 10px;
     box-sizing: border-box;
-    border-radius: 12px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 36px;
-    font-weight: 700;
-    color: #fff;
-    background: var(--multi-input-off, #e5534b);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    font-size: 20px;
+    font-weight: 600;
+    color: rgba(240, 130, 122, 0.95);
+    background: rgba(24, 24, 24, 0.82);
+    border: 1px solid var(--mark-off);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
   }
 
   .chosen .mark-number {
-    background: var(--multi-input-on, #3fb950);
+    color: rgba(126, 214, 142, 0.95);
+    border-color: var(--mark-on);
   }
 
   .mark-live {
     position: absolute;
-    top: 4px;
+    top: 5px;
     right: 18px;
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    color: #fff;
-    background: var(--multi-input-on, #3fb950);
+    padding: 0 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 16px;
+    color: rgba(126, 214, 142, 0.9);
+    background: rgba(24, 24, 24, 0.75);
+    border: 1px solid rgba(86, 196, 108, 0.45);
   }
 </style>

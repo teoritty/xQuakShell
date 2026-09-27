@@ -83,18 +83,19 @@
     font-size: 12px;
     color: var(--text-primary);
     background: var(--bg-secondary);
-    border: 2px solid var(--multi-input-on, #3fb950);
+    border: 1px solid rgba(86, 196, 108, 0.55);
     white-space: nowrap;
     overflow: hidden;
   }
   .multi-input-bar.selecting {
-    border-color: var(--multi-input-off, #e5534b);
+    border-color: rgba(229, 83, 75, 0.5);
   }
   .bar-title {
     font-weight: 600;
   }
   .bar-title.live {
-    color: var(--multi-input-on, #3fb950);
+    color: rgba(126, 214, 142, 0.95);
+    font-weight: 500;
   }
   .bar-hint {
     color: var(--text-secondary);
