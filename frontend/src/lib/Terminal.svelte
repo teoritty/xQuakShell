@@ -12,6 +12,9 @@
   import { getPooledTerminal, setPooledTerminal } from './terminalPool';
   import { refitGrid, ensureInitialFit as ensureGridFit } from '../terminal/xtermGrid';
   import { defaultTerminalTheme } from '../terminal/xtermTheme';
+  import { registerTerminal } from '../terminal/terminalRegistry';
+  import { mirrorInput } from '../stores/terminalTools';
+  import TerminalMark from './terminalTools/TerminalMark.svelte';
 
   /**
    * Where this terminal's bytes come from and go to — an SSH session or a plugin surface
@@ -34,6 +37,7 @@
   /** Drops live TerminalOutput until subscription is installed. */
   let acceptOutput = false;
   let unregisterOutputConsumer: (() => void) | null = null;
+  let unregisterLive: (() => void) | null = null;
   const mountSessionId = io.id;
   /** Captured on Enter keydown before xterm/PTY consume the line. */
   let pendingCommandLine = '';
@@ -160,7 +164,9 @@
       const commandLine = dataHasEnter(data) ? pendingCommandLine : '';
       pendingCommandLine = '';
       io.sendInput(data, commandLine);
+      mirrorInput(io.id, data, commandLine);
     });
+    unregisterLive = registerTerminal({ term, io });
 
     // fit() updates cols/rows and fires this; keep the backend PTY in sync.
     resizeDisposable = term.onResize(({ cols, rows }) => {
@@ -240,6 +246,7 @@
     if (resizeObserver) resizeObserver.disconnect();
     if (eventOff) eventOff();
     if (unregisterOutputConsumer) unregisterOutputConsumer();
+    unregisterLive?.();
     clearPendingTerminalOutput(mountSessionId);
     dataDisposable?.dispose();
     resizeDisposable?.dispose();
@@ -259,7 +266,9 @@
   }
 </script>
 
-<div class="terminal-container" bind:this={containerEl}></div>
+<div class="terminal-container" bind:this={containerEl}>
+  <TerminalMark id={io.id} />
+</div>
 
 <style>
   .terminal-container {

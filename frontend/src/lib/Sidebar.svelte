@@ -5,6 +5,8 @@
   import DiscoveryNodeDetails from './DiscoveryNodeDetails.svelte';
   import { clampSidebarWidth, MIN_SIDEBAR_WIDTH } from './sidebarWidth';
   import { clampPanelHeight } from './sidebarPanelHeight';
+  import TerminalSearchPanel from './terminalTools/TerminalSearchPanel.svelte';
+  import { terminalSearch } from '../stores/terminalSearch';
 
   let width = MIN_SIDEBAR_WIDTH;
   let isDragging = false;
@@ -81,6 +83,13 @@
   class:no-select={isDragging}
   style="width: {width}px{panelHeight === null ? '' : `; --sidebar-bottom-max: ${panelHeight}px`}"
 >
+  <!-- Terminal search takes the sidebar over while it is open. The tree and its panels stay
+       mounted underneath, hidden, so closing the search returns to the same expanded folders, the
+       same scroll position and the same selection rather than a freshly collapsed tree. -->
+  {#if $terminalSearch.open}
+    <TerminalSearchPanel />
+  {/if}
+  <div class="sidebar-main" class:hidden={$terminalSearch.open}>
   <RemoteTree />
   <!-- One height for whatever is showing down here, rather than one per panel. Only one of these is
        ever open - selecting a discovery node clears the connection selection and the other way
@@ -95,6 +104,7 @@
     <ConnectionDetails />
     <DiscoveryNodeDetails />
     <ContributionHost />
+  </div>
   </div>
 </div>
 <div
@@ -113,6 +123,17 @@
     border-right: 1px solid var(--border-color);
     overflow: hidden;
     flex-shrink: 0;
+  }
+
+  .sidebar-main {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .sidebar-main.hidden {
+    display: none;
   }
 
   .sidebar.no-select {

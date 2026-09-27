@@ -14,6 +14,9 @@
   import type { TileGroup } from './types';
   import { writeDragPayload } from './dragPayload';
   import { activeTileDrag } from '../../stores/tileLayout';
+  import { multiInput, toggleMultiInputMember } from '../../stores/terminalTools';
+  import { liveTerminal } from '../../terminal/terminalRegistry';
+  import TabMark from '../terminalTools/TabMark.svelte';
   import { Loader2, CheckCircle2, XCircle, Circle, X } from 'lucide-svelte';
 
   export let tile: TileGroup;
@@ -25,7 +28,13 @@
     .map((id) => ({ id, tab: resolveTabIn($sessions, $surfaces, $localTerminals, id) }))
     .filter((e): e is { id: string; tab: NonNullable<Tab> } => !!e.tab);
 
+  // In the multi-input picker a click on a terminal's tab chooses it rather than switching to it,
+  // which is how a terminal hidden behind another tab gets into the group.
   function activate(tabId: string) {
+    if ($multiInput.mode === 'selecting' && liveTerminal(tabId)) {
+      toggleMultiInputMember(tabId);
+      return;
+    }
     activeTabId.set(tabId);
   }
 
@@ -71,6 +80,7 @@
           <Circle size={11} />
         {/if}
       </span>
+      <TabMark id={entry.id} />
       <span class="tab-name">{tabTitle(entry.tab)}</span>
       <button class="tab-close" on:click={(e) => close(e, entry.id)} title={$t('tiles.closeTab')}>
         <X size={11} />
