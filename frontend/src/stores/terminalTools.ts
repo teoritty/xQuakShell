@@ -90,6 +90,16 @@ export function stopMultiInput(): void {
 }
 
 /**
+ * The stop hotkey. It acts only while multi-input is on and reports whether it did, so the chord
+ * reaches the terminal as an ordinary keystroke the rest of the time rather than being swallowed.
+ */
+export function stopMultiInputIfRunning(): boolean {
+  if (get(multiInput).mode === 'off') return false;
+  stopMultiInput();
+  return true;
+}
+
+/**
  * Repeats input typed into sourceId to the rest of its group.
  *
  * The command line captured from the source goes with each copy. It is what was typed, which is

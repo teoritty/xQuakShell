@@ -121,15 +121,21 @@ func DefaultLocalTerminalSettings() LocalTerminalSettings {
 // program running there - forward-char in bash and zsh, page down in vim, less and man - and taking
 // it would break the key for everyone who uses it. Windows Terminal, GNOME Terminal and Konsole
 // settled on the same binding for the same reason. Alt+M ("multi") reaches no shell binding by
-// default in readline or zsh.
+// default in readline or zsh, and neither does Alt+Shift+M, which ends multi-input - Escape cannot,
+// because it belongs to whatever runs in the terminal.
 type TerminalToolsSettings struct {
-	SearchHotkey     string `json:"searchHotkey,omitempty"`
-	MultiInputHotkey string `json:"multiInputHotkey,omitempty"`
+	SearchHotkey         string `json:"searchHotkey,omitempty"`
+	MultiInputHotkey     string `json:"multiInputHotkey,omitempty"`
+	MultiInputStopHotkey string `json:"multiInputStopHotkey,omitempty"`
 }
 
 // DefaultTerminalToolsSettings supplies the bindings a vault starts with.
 func DefaultTerminalToolsSettings() TerminalToolsSettings {
-	return TerminalToolsSettings{SearchHotkey: "Ctrl+Shift+F", MultiInputHotkey: "Alt+M"}
+	return TerminalToolsSettings{
+		SearchHotkey:         "Ctrl+Shift+F",
+		MultiInputHotkey:     "Alt+M",
+		MultiInputStopHotkey: "Alt+Shift+M",
+	}
 }
 
 // WithDefaults fills an empty binding with its default. An empty field would otherwise remove the
@@ -141,6 +147,9 @@ func (s TerminalToolsSettings) WithDefaults() TerminalToolsSettings {
 	}
 	if strings.TrimSpace(s.MultiInputHotkey) == "" {
 		s.MultiInputHotkey = def.MultiInputHotkey
+	}
+	if strings.TrimSpace(s.MultiInputStopHotkey) == "" {
+		s.MultiInputStopHotkey = def.MultiInputStopHotkey
 	}
 	return s
 }

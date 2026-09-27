@@ -7,16 +7,9 @@
   import { connections } from '../stores/appState';
   import { createNewConnectionInFolder } from '../actions/connectionActions';
   import { hotkeyLabel } from '../hotkeys/hotkeys';
+  import type { AppHotkeys } from '../hotkeys/appHotkeys';
 
-  export let hotkeys: {
-    create: string;
-    next: string;
-    prev: string;
-    close: string;
-    localTerminal: string;
-    search: string;
-    multiInput: string;
-  };
+  export let hotkeys: AppHotkeys;
 
   const dispatch = createEventDispatcher<{ settings: void }>();
 
@@ -28,6 +21,7 @@
     { keys: hotkeys.localTerminal, label: 'settings.hotkeys.field.newLocalTerminal' },
     { keys: hotkeys.search, label: 'settings.hotkeys.field.terminalSearch' },
     { keys: hotkeys.multiInput, label: 'settings.hotkeys.field.multiInput' },
+    { keys: hotkeys.multiInputStop, label: 'settings.hotkeys.field.multiInputStop' },
     { keys: 'Ctrl+Shift+P', label: 'welcome.commandPalette' },
   ];
 </script>

@@ -17,7 +17,7 @@
   export let draft: SettingsDraft;
   export let conflict: string;
 
-  type HotkeyField = 'create' | 'next' | 'prev' | 'close' | 'localTerminal' | 'search' | 'multiInput';
+  type HotkeyField = 'create' | 'next' | 'prev' | 'close' | 'localTerminal' | 'search' | 'multiInput' | 'multiInputStop';
 
   // The field records the combination rather than the characters it produces, so the keystroke must
   // not also reach the field as text or the hotkey editor would type into itself.
@@ -33,6 +33,7 @@
     if (field === 'localTerminal') draft.localTerminalHotkey = key;
     if (field === 'search') draft.terminalSearchHotkey = key;
     if (field === 'multiInput') draft.multiInputHotkey = key;
+    if (field === 'multiInputStop') draft.multiInputStopHotkey = key;
     conflict = findHotkeyConflict(draft, $t);
   }
 
@@ -44,6 +45,7 @@
     draft.localTerminalHotkey = DEFAULT_LOCAL_TERMINAL_HOTKEY;
     draft.terminalSearchHotkey = DEFAULT_TERMINAL_TOOL_HOTKEYS.search;
     draft.multiInputHotkey = DEFAULT_TERMINAL_TOOL_HOTKEYS.multiInput;
+    draft.multiInputStopHotkey = DEFAULT_TERMINAL_TOOL_HOTKEYS.multiInputStop;
     conflict = '';
   }
 </script>
@@ -79,6 +81,10 @@
     <label class="setting-row">
       <span>{$t('settings.hotkeys.field.multiInput')}</span>
       <input class="hotkey-input" type="text" bind:value={draft.multiInputHotkey} on:keydown={(e) => captureHotkey(e, 'multiInput')} />
+    </label>
+    <label class="setting-row">
+      <span>{$t('settings.hotkeys.field.multiInputStop')}</span>
+      <input class="hotkey-input" type="text" bind:value={draft.multiInputStopHotkey} on:keydown={(e) => captureHotkey(e, 'multiInputStop')} />
     </label>
     {#if conflict}
       <div class="hotkey-conflict">{conflict}</div>

@@ -43,6 +43,7 @@ export namespace wails {
 	    localTerminalHotkey: string;
 	    terminalSearchHotkey: string;
 	    multiInputHotkey: string;
+	    multiInputStopHotkey: string;
 	    auditLogEnabled: boolean;
 	    auditRetentionMode: string;
 	    auditRetentionDays: number;
@@ -87,6 +88,7 @@ export namespace wails {
 	        this.localTerminalHotkey = source["localTerminalHotkey"];
 	        this.terminalSearchHotkey = source["terminalSearchHotkey"];
 	        this.multiInputHotkey = source["multiInputHotkey"];
+	        this.multiInputStopHotkey = source["multiInputStopHotkey"];
 	        this.auditLogEnabled = source["auditLogEnabled"];
 	        this.auditRetentionMode = source["auditRetentionMode"];
 	        this.auditRetentionDays = source["auditRetentionDays"];

@@ -42,7 +42,7 @@
     "test:transfer-conflict": "tsx src/lib/transfer/conflictResolver.test.ts",
     "test:password-strength": "tsx src/lib/vault/passwordStrength.test.ts",
     "test:backend": "tsx src/backend/context.test.ts && tsx src/backend/callBackend.test.ts",
-    "test:hotkeys": "tsx src/hotkeys/hotkeys.test.ts",
+    "test:hotkeys": "tsx src/hotkeys/hotkeys.test.ts && tsx src/hotkeys/appHotkeys.test.ts",
     "test:terminal": "tsx src/terminal/outputBuffer.test.ts",
     "test:log-surface": "tsx src/logSurface/buffer.test.ts && tsx src/logSurface/search.test.ts && tsx src/logSurface/window.test.ts",
     "test:logviewer-buffer": "tsx src/logviewer/buffer.test.ts",

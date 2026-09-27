@@ -24,6 +24,7 @@
   import { MIN_GROUP } from '../../terminal/multiInputState';
 
   export let hotkey: string;
+  export let stopHotkey: string;
 
   $: selecting = $multiInput.mode === 'selecting';
   $: chosenCount = $multiInput.mode === 'selecting' ? $multiInput.draft.length : $multiInput.mode === 'active' ? $multiInput.members.length : 0;
@@ -65,7 +66,7 @@
       <button class="bar-btn" on:click={toggleMultiInputPicker}>
         {$t('multiInput.change')} <kbd>{hotkeyLabel(hotkey)}</kbd>
       </button>
-      <button class="bar-btn danger" on:click={stopMultiInput}>{$t('multiInput.stop')}</button>
+      <button class="bar-btn danger" on:click={stopMultiInput}>{$t('multiInput.stop')} <kbd>{hotkeyLabel(stopHotkey)}</kbd></button>
     {/if}
   </div>
 {/if}

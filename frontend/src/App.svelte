@@ -32,9 +32,9 @@
   import { getSettings, applyAppearanceSettings } from './actions/settingsActions';
   import { parseHotkeyEvent } from './hotkeys/hotkeys';
   import WelcomeScreen from './lib/WelcomeScreen.svelte';
-  import { DEFAULT_LOCAL_TERMINAL_HOTKEY, DEFAULT_SESSION_HOTKEYS, DEFAULT_TERMINAL_TOOL_HOTKEYS } from './api/settings';
+  import { DEFAULT_APP_HOTKEYS, hotkeysFromSettings } from './hotkeys/appHotkeys';
   import MultiInputBar from './lib/terminalTools/MultiInputBar.svelte';
-  import { toggleMultiInputPicker } from './stores/terminalTools';
+  import { toggleMultiInputPicker, stopMultiInputIfRunning } from './stores/terminalTools';
   import { openTerminalSearch } from './stores/terminalSearch';
   import { openLocalTerminal } from './actions/localTerminalActions';
   import { hasOpenTabs } from './stores/surfaceState';
@@ -59,12 +59,7 @@
     showAuditLog = false;
   }
 
-  let hotkeys = {
-    ...DEFAULT_SESSION_HOTKEYS,
-    localTerminal: DEFAULT_LOCAL_TERMINAL_HOTKEY,
-    search: DEFAULT_TERMINAL_TOOL_HOTKEYS.search,
-    multiInput: DEFAULT_TERMINAL_TOOL_HOTKEYS.multiInput,
-  };
+  let hotkeys = DEFAULT_APP_HOTKEYS;
 
   $: showHostKeyDialog = $pendingHostKey !== null;
   $: hostKeyHost = $pendingHostKey?.host ?? '';
@@ -111,15 +106,7 @@
   async function loadHotkeysFromSettings() {
     const s = await getSettings();
     if (!s) return;
-    hotkeys = {
-      create: s.sessionHotkeyCreate || DEFAULT_SESSION_HOTKEYS.create,
-      next: s.sessionHotkeyNext || DEFAULT_SESSION_HOTKEYS.next,
-      prev: s.sessionHotkeyPrev || DEFAULT_SESSION_HOTKEYS.prev,
-      close: s.sessionHotkeyClose || DEFAULT_SESSION_HOTKEYS.close,
-      localTerminal: s.localTerminalHotkey || DEFAULT_LOCAL_TERMINAL_HOTKEY,
-      search: s.terminalSearchHotkey || DEFAULT_TERMINAL_TOOL_HOTKEYS.search,
-      multiInput: s.multiInputHotkey || DEFAULT_TERMINAL_TOOL_HOTKEYS.multiInput,
-    };
+    hotkeys = hotkeysFromSettings(s);
   }
 
   onMount(() => {
@@ -173,6 +160,11 @@
         e.preventDefault();
         e.stopPropagation();
         openTerminalSearch();
+        return;
+      }
+      if (combo === hotkeys.multiInputStop && stopMultiInputIfRunning()) {
+        e.preventDefault();
+        e.stopPropagation();
         return;
       }
       if (combo === hotkeys.multiInput) {
@@ -229,7 +221,7 @@
     <div class="main-area">
       <div class="top-bar">
         <div class="top-bar-spacer">
-          {#if $hasOpenTabs}<MultiInputBar hotkey={hotkeys.multiInput} />{/if}
+          {#if $hasOpenTabs}<MultiInputBar hotkey={hotkeys.multiInput} stopHotkey={hotkeys.multiInputStop} />{/if}
         </div>
         <TopBarActions
           on:scripts={() => (showScripts = true)}

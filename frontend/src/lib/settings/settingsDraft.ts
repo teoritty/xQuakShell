@@ -47,6 +47,7 @@ export interface SettingsDraft {
   localTerminalHotkey: string;
   terminalSearchHotkey: string;
   multiInputHotkey: string;
+  multiInputStopHotkey: string;
   auditLogEnabled: boolean;
   auditRetentionMode: string;
   auditRetentionDays: number;
@@ -90,6 +91,7 @@ export function defaultSettingsDraft(): SettingsDraft {
     localTerminalHotkey: DEFAULT_LOCAL_TERMINAL_HOTKEY,
     terminalSearchHotkey: DEFAULT_TERMINAL_TOOL_HOTKEYS.search,
     multiInputHotkey: DEFAULT_TERMINAL_TOOL_HOTKEYS.multiInput,
+    multiInputStopHotkey: DEFAULT_TERMINAL_TOOL_HOTKEYS.multiInputStop,
     auditLogEnabled: false,
     auditRetentionMode: 'days',
     auditRetentionDays: 30,
@@ -148,6 +150,7 @@ export function draftFromSettings(s: AppSettings | null): SettingsDraft {
     localTerminalHotkey: normalizeHotkey(s.localTerminalHotkey || d.localTerminalHotkey),
     terminalSearchHotkey: normalizeHotkey(s.terminalSearchHotkey || d.terminalSearchHotkey),
     multiInputHotkey: normalizeHotkey(s.multiInputHotkey || d.multiInputHotkey),
+    multiInputStopHotkey: normalizeHotkey(s.multiInputStopHotkey || d.multiInputStopHotkey),
     auditLogEnabled: s.auditLogEnabled ?? d.auditLogEnabled,
     auditRetentionMode: s.auditRetentionMode ?? d.auditRetentionMode,
     auditRetentionDays: s.auditRetentionDays ?? d.auditRetentionDays,
@@ -177,5 +180,6 @@ export function draftToSettings(d: SettingsDraft): Partial<AppSettings> {
     localTerminalHotkey: normalizeHotkey(d.localTerminalHotkey),
     terminalSearchHotkey: normalizeHotkey(d.terminalSearchHotkey),
     multiInputHotkey: normalizeHotkey(d.multiInputHotkey),
+    multiInputStopHotkey: normalizeHotkey(d.multiInputStopHotkey),
   };
 }

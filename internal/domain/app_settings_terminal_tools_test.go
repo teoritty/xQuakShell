@@ -6,7 +6,7 @@ import "testing"
 // removes the shortcut rather than restoring it.
 func TestTerminalToolsEmptyBindingsTakeTheDefaults(t *testing.T) {
 	for _, blank := range []string{"", "   "} {
-		got := TerminalToolsSettings{SearchHotkey: blank, MultiInputHotkey: blank}.WithDefaults()
+		got := TerminalToolsSettings{SearchHotkey: blank, MultiInputHotkey: blank, MultiInputStopHotkey: blank}.WithDefaults()
 		want := DefaultTerminalToolsSettings()
 		if got != want {
 			t.Errorf("WithDefaults on %q bindings = %+v, want %+v", blank, got, want)
@@ -15,7 +15,7 @@ func TestTerminalToolsEmptyBindingsTakeTheDefaults(t *testing.T) {
 }
 
 func TestTerminalToolsChosenBindingsAreKept(t *testing.T) {
-	chosen := TerminalToolsSettings{SearchHotkey: "Ctrl+F", MultiInputHotkey: "Ctrl+Shift+M"}
+	chosen := TerminalToolsSettings{SearchHotkey: "Ctrl+F", MultiInputHotkey: "Ctrl+Shift+M", MultiInputStopHotkey: "Ctrl+Alt+M"}
 	if got := chosen.WithDefaults(); got != chosen {
 		t.Errorf("WithDefaults rewrote the user's bindings: %+v, want %+v", got, chosen)
 	}

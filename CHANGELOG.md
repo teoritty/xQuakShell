@@ -53,12 +53,13 @@ From then on whatever you type into one of the green terminals reaches all of th
 and the green outline stays on them so it is always clear what a keystroke will touch. Typing into a
 terminal outside the group reaches that terminal alone. A terminal hidden behind another tab is
 chosen by its tab, which carries the same number. In the picker, A chooses all and N none; Escape
-leaves everything as it was. Alt+M again changes the group, and Stop in the top bar, or Enter with
-fewer than two chosen, ends it. A terminal that closes leaves the group, and a group down to one
+leaves everything as it was. Alt+M again changes the group. Alt+Shift+M ends it — Escape cannot,
+because it belongs to whatever runs in the terminal — as do Stop in the top bar and Enter in the
+picker with fewer than two chosen; the rest of the time Alt+Shift+M reaches the terminal as usual. A terminal that closes leaves the group, and a group down to one
 ends on its own. On SSH sessions each command is recorded in the audit log of every server it
 reached.
 
-Both shortcuts are listed on the start screen with the others, and can be changed in
+All three shortcuts are listed on the start screen with the others, and can be changed in
 Settings → Hotkeys, where a clash with another shortcut is reported before saving.
 
 ### Fixed

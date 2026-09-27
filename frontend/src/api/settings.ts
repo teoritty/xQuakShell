@@ -43,6 +43,7 @@ export interface AppSettings {
   localTerminalHotkey: string;
   terminalSearchHotkey: string;
   multiInputHotkey: string;
+  multiInputStopHotkey: string;
   auditLogEnabled: boolean;
   auditRetentionMode: string;
   auditRetentionDays: number;
@@ -85,6 +86,7 @@ export const DEFAULT_LOCAL_TERMINAL_HOTKEY = 'Ctrl+Shift+T';
 export const DEFAULT_TERMINAL_TOOL_HOTKEYS = {
   search: 'Ctrl+Shift+F',
   multiInput: 'Alt+M',
+  multiInputStop: 'Alt+Shift+M',
 };
 
 // `fetchSettings` preserves the original "vault is locked" silence exactly:
@@ -104,6 +106,7 @@ export async function fetchSettings(): Promise<AppSettings | null> {
       s.localTerminalHotkey = normalizeHotkey(s.localTerminalHotkey || DEFAULT_LOCAL_TERMINAL_HOTKEY);
       s.terminalSearchHotkey = normalizeHotkey(s.terminalSearchHotkey || DEFAULT_TERMINAL_TOOL_HOTKEYS.search);
       s.multiInputHotkey = normalizeHotkey(s.multiInputHotkey || DEFAULT_TERMINAL_TOOL_HOTKEYS.multiInput);
+      s.multiInputStopHotkey = normalizeHotkey(s.multiInputStopHotkey || DEFAULT_TERMINAL_TOOL_HOTKEYS.multiInputStop);
       s.uiScalePercent = normalizeUiScalePercent(s.uiScalePercent);
       return s;
     },
@@ -143,6 +146,7 @@ export async function putSettings(settings: Partial<AppSettings>): Promise<void>
       localTerminalHotkey: normalizeHotkey(settings.localTerminalHotkey || DEFAULT_LOCAL_TERMINAL_HOTKEY),
       terminalSearchHotkey: normalizeHotkey(settings.terminalSearchHotkey || DEFAULT_TERMINAL_TOOL_HOTKEYS.search),
       multiInputHotkey: normalizeHotkey(settings.multiInputHotkey || DEFAULT_TERMINAL_TOOL_HOTKEYS.multiInput),
+      multiInputStopHotkey: normalizeHotkey(settings.multiInputStopHotkey || DEFAULT_TERMINAL_TOOL_HOTKEYS.multiInputStop),
     };
     return app.SaveSettings(payload as AppSettings);
   });

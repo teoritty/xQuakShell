@@ -15,6 +15,7 @@ const base: SessionHotkeyDraft = {
   localTerminalHotkey: 'Ctrl+Shift+T',
   terminalSearchHotkey: 'Ctrl+Shift+F',
   multiInputHotkey: 'Alt+M',
+  multiInputStopHotkey: 'Alt+Shift+M',
 };
 
 assert(findHotkeyConflict(base, label) === '', 'the defaults do not conflict with each other');
@@ -24,5 +25,8 @@ assert(findHotkeyConflict({ ...base, multiInputHotkey: 'ctrl+shift+f' }, label) 
   'search and multi-input on the same chord, in any spelling, are a conflict');
 assert(findHotkeyConflict({ ...base, terminalSearchHotkey: 'Ctrl+Shift+T' }, label) === 'newLocalTerminal vs terminalSearch',
   'a terminal tool clashing with an existing hotkey is reported');
+
+assert(findHotkeyConflict({ ...base, multiInputStopHotkey: 'alt+m' }, label) === 'multiInput vs multiInputStop',
+  'the stop binding cannot share the chord that starts multi-input');
 
 console.log('hotkeyConflicts.test passed');
