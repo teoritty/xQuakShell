@@ -33,11 +33,14 @@ import {
   fetchConnections,
   putConnection,
   deleteConnectionById,
+  duplicateConnectionById,
   moveConnectionsTo,
   reorderConnectionsIn,
 } from '../api/connections';
 import { fetchKeys } from '../api/keys';
 import { newLocalId } from '../lib/localId';
+import { duplicateName, type CopyNameTemplates } from '../lib/duplicateName';
+import { get } from 'svelte/store';
 import {
   connections, identities,
   selectedConnectionId, detailsConnectionId,
@@ -82,6 +85,35 @@ export async function createNewConnectionInFolder(folderId: string): Promise<Con
     detailsConnectionId.set(saved.id);
   }
   return saved;
+}
+
+/**
+ * Duplicates each connection in ids, naming every copy in the interface language and numbering it
+ * past the names already in its folder. One refresh for the batch, as for delete and move.
+ */
+export async function duplicateConnections(ids: string[], templates: CopyNameTemplates): Promise<void> {
+  if (!getGateway() || ids.length === 0) return;
+  const all = get(connections);
+  // Names given earlier in the same batch count as taken, so duplicating two connections called
+  // "web" at once gives "web - copy" and "web - copy 2" rather than two of the first.
+  const takenByFolder = new Map<string, Set<string>>();
+  try {
+    for (const id of ids) {
+      const source = all.find((c) => c.id === id);
+      if (!source) continue;
+      let taken = takenByFolder.get(source.folderId);
+      if (!taken) {
+        taken = new Set(all.filter((c) => c.folderId === source.folderId).map((c) => c.name));
+        takenByFolder.set(source.folderId, taken);
+      }
+      const name = duplicateName(source.name, taken, templates);
+      taken.add(name);
+      await duplicateConnectionById(id, name);
+    }
+  } catch {
+    // Reported by duplicateConnectionById; the copies made before it still get shown below.
+  }
+  await refreshAllConnections();
 }
 
 export async function deleteConnection(id: string): Promise<void> {

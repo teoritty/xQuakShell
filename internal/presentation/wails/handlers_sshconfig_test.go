@@ -73,6 +73,9 @@ func (s *stubConnRepo) MoveToFolder(ctxT, []string, string) error       { return
 func (s *stubConnRepo) MoveFolder(ctxT, string, string) error           { return nil }
 func (s *stubConnRepo) ReorderConnections(ctxT, []string, string) error { return nil }
 func (s *stubConnRepo) ReorderFolders(ctxT, []string, string) error     { return nil }
+func (s *stubConnRepo) Duplicate(ctxT, string, string, func() (string, error)) (*domain.Connection, error) {
+	return nil, domain.ErrConnectionNotFound
+}
 
 func newSSHConfigTestAPI(importer *stubSSHConfigImporter, conns *stubConnRepo) *AppAPI {
 	return &AppAPI{sshConfigImport: usecase.NewSSHConfigImportService(conns, nil, importer)}

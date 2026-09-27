@@ -62,6 +62,15 @@ reached.
 All three shortcuts are listed on the start screen with the others, and can be changed in
 Settings → Hotkeys, where a clash with another shortcut is reported before saving.
 
+**Duplicating a saved connection.** Right-click a connection and choose Duplicate: an exact copy
+appears directly beneath it, named "<name> - copy" in the interface language ("- копия" in
+Russian), then "- copy 2", "- copy 3" as those are taken — duplicating a copy numbers it rather than
+adding another suffix. With several connections selected, each is duplicated. The copy uses the same
+saved passwords and keys, as two connections set up by hand to share them would; everything it owns
+is its own, so editing or deleting either one leaves the other as it was. Port forwards are copied
+with ids of their own, and a plugin connection's secret fields are copied into the vault under the
+new connection rather than shared with the original.
+
 ### Fixed
 
 **Starting xQuakShell a second time no longer risks losing what you changed in the first.** Two
