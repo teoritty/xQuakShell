@@ -64,7 +64,22 @@ func main() {
 		sandbox.RunShim(os.Args)
 	}
 
+	// The data root is claimed before composeApp, not inside it: composing opens the audit
+	// database and prepares the portable directories, and a second instance must not touch any of
+	// that while the first one is using it. The log viewer and the shim above never write the data
+	// root, which is why they run without the claim. The release is deferred past wails.Run so the
+	// claim outlives OnShutdown and with it the final vault flush.
+	claim := defaultInstanceGuard().claim(portable.Default.DataRoot())
+	if !claim.proceed {
+		os.Exit(claim.exitCode)
+	}
+	defer claim.release()
+
 	app := composeApp()
+	if claim.degraded != nil {
+		slog.Warn("starting without the single-instance lock; a second copy opened on this data "+
+			"folder would not be stopped", "err", claim.degraded)
+	}
 	slog.Debug(buildMarker)
 
 	windowsOpts := &windows.Options{
