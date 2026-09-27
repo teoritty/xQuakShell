@@ -104,3 +104,12 @@ func TestNormalizeSettingsKeepsAWellFormedLanguage(t *testing.T) {
 		}
 	}
 }
+
+// The terminal tool bindings are filled the same way as every other hotkey: a vault from before
+// they existed, or a save that cleared a field, still has both shortcuts afterwards.
+func TestNormalizeSettingsFillsTheTerminalToolBindings(t *testing.T) {
+	got := normalizeSettings(domain.AppSettings{})
+	if got.TerminalTools != domain.DefaultTerminalToolsSettings() {
+		t.Errorf("terminal tools normalized to %+v, want the defaults", got.TerminalTools)
+	}
+}

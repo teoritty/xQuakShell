@@ -22,21 +22,22 @@
   import ScriptsDialog from './lib/ScriptsDialog.svelte';
   import PluginCommandPalette from './lib/PluginCommandPalette.svelte';
   import { pluginContributions, initPluginContributionEvents, initPluginViewMessageEvents, refreshPluginContributions } from './stores/pluginState';
-  import { sessions, activeTabId, vaultUnlocked, pendingHostKey, pendingRecoveryKey, connections } from './stores/appState';
+  import { sessions, activeTabId, vaultUnlocked, pendingHostKey, pendingRecoveryKey } from './stores/appState';
   import { subscribeToEvents } from './events/subscribe';
   import { resolveHostKeyRpc as resolveHostKey } from './api/sessions';
-  import { createNewConnectionInFolder } from './actions/connectionActions';
   import { createSessionFromSelection } from './actions/sessionActions';
   // The close and cycle hotkeys address whatever the tab bar shows — an SSH session or a plugin
   // surface (ADR-015) — so they route through the tab layer, not the session one.
   import { focusNextTab, focusPrevTab, closeActiveTab } from './actions/tabActions';
   import { getSettings, applyAppearanceSettings } from './actions/settingsActions';
   import { parseHotkeyEvent } from './hotkeys/hotkeys';
-  import { DEFAULT_LOCAL_TERMINAL_HOTKEY, DEFAULT_SESSION_HOTKEYS } from './api/settings';
+  import WelcomeScreen from './lib/WelcomeScreen.svelte';
+  import { DEFAULT_APP_HOTKEYS, hotkeysFromSettings } from './hotkeys/appHotkeys';
+  import MultiInputBar from './lib/terminalTools/MultiInputBar.svelte';
+  import { toggleMultiInputPicker, stopMultiInputIfRunning } from './stores/terminalTools';
+  import { openTerminalSearch } from './stores/terminalSearch';
   import { openLocalTerminal } from './actions/localTerminalActions';
   import { hasOpenTabs } from './stores/surfaceState';
-  import { Settings, MonitorDot } from 'lucide-svelte';
-  import { t } from './i18n/messages';
 
   let showKnownHosts = false;
   let showPeerTrust = false;
@@ -58,7 +59,7 @@
     showAuditLog = false;
   }
 
-  let hotkeys = { ...DEFAULT_SESSION_HOTKEYS, localTerminal: DEFAULT_LOCAL_TERMINAL_HOTKEY };
+  let hotkeys = DEFAULT_APP_HOTKEYS;
 
   $: showHostKeyDialog = $pendingHostKey !== null;
   $: hostKeyHost = $pendingHostKey?.host ?? '';
@@ -102,22 +103,10 @@
     );
   }
 
-  function hotkeyLabel(input: string): string {
-    return (input || '')
-      .replace(/Meta/g, 'Win')
-      .replace(/Control/g, 'Ctrl');
-  }
-
   async function loadHotkeysFromSettings() {
     const s = await getSettings();
     if (!s) return;
-    hotkeys = {
-      create: s.sessionHotkeyCreate || DEFAULT_SESSION_HOTKEYS.create,
-      next: s.sessionHotkeyNext || DEFAULT_SESSION_HOTKEYS.next,
-      prev: s.sessionHotkeyPrev || DEFAULT_SESSION_HOTKEYS.prev,
-      close: s.sessionHotkeyClose || DEFAULT_SESSION_HOTKEYS.close,
-      localTerminal: s.localTerminalHotkey || DEFAULT_LOCAL_TERMINAL_HOTKEY,
-    };
+    hotkeys = hotkeysFromSettings(s);
   }
 
   onMount(() => {
@@ -167,6 +156,23 @@
         await openLocalTerminal();
         return;
       }
+      if (combo === hotkeys.search) {
+        e.preventDefault();
+        e.stopPropagation();
+        openTerminalSearch();
+        return;
+      }
+      if (combo === hotkeys.multiInputStop && stopMultiInputIfRunning()) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      if (combo === hotkeys.multiInput) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleMultiInputPicker();
+        return;
+      }
       if (combo === 'Ctrl+Shift+P') {
         e.preventDefault();
         e.stopPropagation();
@@ -214,7 +220,9 @@
     <Sidebar />
     <div class="main-area">
       <div class="top-bar">
-        <div class="top-bar-spacer"></div>
+        <div class="top-bar-spacer">
+          {#if $hasOpenTabs}<MultiInputBar hotkey={hotkeys.multiInput} stopHotkey={hotkeys.multiInputStop} />{/if}
+        </div>
         <TopBarActions
           on:scripts={() => (showScripts = true)}
           on:audit={() => (showAuditLog = true)}
@@ -227,31 +235,7 @@
       </div>
       <div class="session-area">
         {#if !$hasOpenTabs}
-          <div class="welcome-screen">
-            <h2>xQuakShell</h2>
-            {#if $connections.length === 0}
-              <p class="welcome-subtitle">{$t('welcome.noConnections')}</p>
-            {:else}
-              <p class="welcome-subtitle">{$t('welcome.startSession')}</p>
-            {/if}
-            <div class="welcome-actions">
-              <button class="primary welcome-btn" on:click={() => createNewConnectionInFolder('')}>
-                <MonitorDot size={14} />
-                {$t('welcome.newConnection')}
-              </button>
-              <button class="ghost welcome-btn" on:click={() => openSettings()}>
-                <Settings size={14} />
-                {$t('welcome.openSettings')}
-              </button>
-            </div>
-            <div class="welcome-hints">
-              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.create)}</span> {$t('settings.hotkeys.field.create')}</div>
-              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.next)}</span> {$t('settings.hotkeys.field.next')}</div>
-              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.prev)}</span> {$t('settings.hotkeys.field.prev')}</div>
-              <div class="hint"><span class="hint-key">{hotkeyLabel(hotkeys.close)}</span> {$t('settings.hotkeys.field.close')}</div>
-              <div class="hint"><span class="hint-key">Ctrl+Shift+P</span> {$t('welcome.commandPalette')}</div>
-            </div>
-          </div>
+          <WelcomeScreen {hotkeys} on:settings={() => openSettings()} />
         {:else}
           <TileGrid />
         {/if}
@@ -366,6 +350,8 @@
   .top-bar-spacer {
     flex: 1;
     min-width: 0;
+    display: flex;
+    justify-content: center;
   }
 
   .session-area {
@@ -375,74 +361,5 @@
     min-height: 0;
     overflow: hidden;
     position: relative;
-  }
-
-  .welcome-screen {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    flex: 1;
-    gap: 12px;
-    color: var(--text-secondary);
-  }
-
-  .welcome-screen h2 {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
-  }
-
-  .welcome-screen p {
-    font-size: 13px;
-    margin: 0;
-  }
-
-  .welcome-subtitle {
-    color: var(--text-secondary);
-  }
-
-  .welcome-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 4px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .welcome-hints {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 16px;
-    padding: 16px;
-    background: var(--bg-secondary);
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-  }
-
-  .hint {
-    font-size: 12px;
-    color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .hint-key {
-    font-family: var(--font-mono, monospace);
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 2px 6px;
-    color: var(--text-primary);
-  }
-
-  .welcome-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 8px;
   }
 </style>

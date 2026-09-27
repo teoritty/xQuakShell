@@ -44,6 +44,9 @@ type AppSettingsDTO struct {
 	SessionHotkeyClose          string `json:"sessionHotkeyClose"`
 	LocalTerminalShellID        string `json:"localTerminalShellId"`
 	LocalTerminalHotkey         string `json:"localTerminalHotkey"`
+	TerminalSearchHotkey        string `json:"terminalSearchHotkey"`
+	MultiInputHotkey            string `json:"multiInputHotkey"`
+	MultiInputStopHotkey        string `json:"multiInputStopHotkey"`
 	AuditLogEnabled             bool   `json:"auditLogEnabled"`
 	AuditRetentionMode          string `json:"auditRetentionMode"`
 	AuditRetentionDays          int    `json:"auditRetentionDays"`
@@ -102,6 +105,9 @@ func AppSettingsToDTO(s domain.AppSettings) AppSettingsDTO {
 		SessionHotkeyClose:          s.SessionHotkeys.Close,
 		LocalTerminalShellID:        s.LocalTerminal.ShellID,
 		LocalTerminalHotkey:         s.LocalTerminal.OpenHotkey,
+		TerminalSearchHotkey:        s.TerminalTools.SearchHotkey,
+		MultiInputHotkey:            s.TerminalTools.MultiInputHotkey,
+		MultiInputStopHotkey:        s.TerminalTools.MultiInputStopHotkey,
 		AuditLogEnabled:             s.AuditLog.Enabled,
 		AuditRetentionMode:          string(s.AuditLog.RetentionMode),
 		AuditRetentionDays:          s.AuditLog.RetentionDays,
@@ -148,6 +154,11 @@ func DTOToAppSettings(dto AppSettingsDTO) domain.AppSettings {
 		LocalTerminal: domain.LocalTerminalSettings{
 			ShellID:    dto.LocalTerminalShellID,
 			OpenHotkey: dto.LocalTerminalHotkey,
+		},
+		TerminalTools: domain.TerminalToolsSettings{
+			SearchHotkey:         dto.TerminalSearchHotkey,
+			MultiInputHotkey:     dto.MultiInputHotkey,
+			MultiInputStopHotkey: dto.MultiInputStopHotkey,
 		},
 		SessionHotkeys: domain.SessionHotkeysSettings{
 			Create: dto.SessionHotkeyCreate,

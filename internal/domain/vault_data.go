@@ -83,6 +83,7 @@ func NewVaultData() *VaultData {
 			Transfer:       DefaultTransferSettings(),
 			SessionHotkeys: DefaultSessionHotkeysSettings(),
 			LocalTerminal:  DefaultLocalTerminalSettings(),
+			TerminalTools:  DefaultTerminalToolsSettings(),
 			AuditLog:       DefaultAuditLogSettings(),
 			Plugins:        DefaultPluginSettings(),
 		},

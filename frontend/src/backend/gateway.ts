@@ -131,6 +131,8 @@ export interface AppGateway {
 
   DeleteConnection(arg1: string): Promise<void>;
 
+  DuplicateConnection(arg1: string, arg2: string): Promise<wails.ConnectionDTO>;
+
   DeleteFolder(arg1: string): Promise<void>;
 
   DeletePassword(arg1: string): Promise<void>;

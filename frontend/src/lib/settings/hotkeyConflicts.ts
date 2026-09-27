@@ -6,6 +6,9 @@ export interface SessionHotkeyDraft {
   sessionHotkeyPrev: string;
   sessionHotkeyClose: string;
   localTerminalHotkey: string;
+  terminalSearchHotkey: string;
+  multiInputHotkey: string;
+  multiInputStopHotkey: string;
 }
 
 /** Resolves a message key to its text. The dialog passes `$t`; tests pass whatever they need. */
@@ -33,6 +36,9 @@ export function findHotkeyConflict(hotkeys: SessionHotkeyDraft, label: ConflictL
       key: 'settings.hotkeys.action.newLocalTerminal',
       value: normalizeHotkey(hotkeys.localTerminalHotkey),
     },
+    { key: 'settings.hotkeys.action.terminalSearch', value: normalizeHotkey(hotkeys.terminalSearchHotkey) },
+    { key: 'settings.hotkeys.action.multiInput', value: normalizeHotkey(hotkeys.multiInputHotkey) },
+    { key: 'settings.hotkeys.action.multiInputStop', value: normalizeHotkey(hotkeys.multiInputStopHotkey) },
   ];
   for (let i = 0; i < entries.length; i++) {
     for (let j = i + 1; j < entries.length; j++) {

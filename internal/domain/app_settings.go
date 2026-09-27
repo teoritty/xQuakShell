@@ -1,5 +1,7 @@
 package domain
 
+import "strings"
+
 // TerminalSettings configures the embedded terminal appearance.
 type TerminalSettings struct {
 	FontFamily string `json:"fontFamily"`
@@ -113,6 +115,45 @@ func DefaultLocalTerminalSettings() LocalTerminalSettings {
 	return LocalTerminalSettings{OpenHotkey: "Ctrl+Shift+T"}
 }
 
+// TerminalToolsSettings binds the tools that work across open terminals rather than inside one.
+//
+// Search defaults to Ctrl+Shift+F, not Ctrl+F: inside a terminal Ctrl+F already belongs to the
+// program running there - forward-char in bash and zsh, page down in vim, less and man - and taking
+// it would break the key for everyone who uses it. Windows Terminal, GNOME Terminal and Konsole
+// settled on the same binding for the same reason. Alt+M ("multi") reaches no shell binding by
+// default in readline or zsh, and neither does Alt+Shift+M, which ends multi-input - Escape cannot,
+// because it belongs to whatever runs in the terminal.
+type TerminalToolsSettings struct {
+	SearchHotkey         string `json:"searchHotkey,omitempty"`
+	MultiInputHotkey     string `json:"multiInputHotkey,omitempty"`
+	MultiInputStopHotkey string `json:"multiInputStopHotkey,omitempty"`
+}
+
+// DefaultTerminalToolsSettings supplies the bindings a vault starts with.
+func DefaultTerminalToolsSettings() TerminalToolsSettings {
+	return TerminalToolsSettings{
+		SearchHotkey:         "Ctrl+Shift+F",
+		MultiInputHotkey:     "Alt+M",
+		MultiInputStopHotkey: "Alt+Shift+M",
+	}
+}
+
+// WithDefaults fills an empty binding with its default. An empty field would otherwise remove the
+// shortcut silently rather than restore it, and a vault written before these existed has neither.
+func (s TerminalToolsSettings) WithDefaults() TerminalToolsSettings {
+	def := DefaultTerminalToolsSettings()
+	if strings.TrimSpace(s.SearchHotkey) == "" {
+		s.SearchHotkey = def.SearchHotkey
+	}
+	if strings.TrimSpace(s.MultiInputHotkey) == "" {
+		s.MultiInputHotkey = def.MultiInputHotkey
+	}
+	if strings.TrimSpace(s.MultiInputStopHotkey) == "" {
+		s.MultiInputStopHotkey = def.MultiInputStopHotkey
+	}
+	return s
+}
+
 type EmbedSettings struct {
 	SuspendTcpWhenInactive bool `json:"suspendTcpWhenInactive,omitempty"`
 }
@@ -141,6 +182,7 @@ type AppSettings struct {
 	Transfer           TransferSettings       `json:"transfer"`
 	SessionHotkeys     SessionHotkeysSettings `json:"sessionHotkeys"`
 	LocalTerminal      LocalTerminalSettings  `json:"localTerminal"`
+	TerminalTools      TerminalToolsSettings  `json:"terminalTools"`
 	ExternalEditorPath string                 `json:"externalEditorPath,omitempty"`
 	AuditLog           AuditLogSettings       `json:"auditLog"`
 	Plugins            PluginSettings         `json:"plugins"`

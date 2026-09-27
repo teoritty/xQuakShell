@@ -62,6 +62,9 @@ func (f *fakeConnRepo) MoveToFolder(context.Context, []string, string) error    
 func (f *fakeConnRepo) MoveFolder(context.Context, string, string) error           { return nil }
 func (f *fakeConnRepo) ReorderConnections(context.Context, []string, string) error { return nil }
 func (f *fakeConnRepo) ReorderFolders(context.Context, []string, string) error     { return nil }
+func (f *fakeConnRepo) Duplicate(context.Context, string, string, func() (string, error)) (*domain.Connection, error) {
+	return nil, domain.ErrConnectionNotFound
+}
 
 // fakeIdentRepo records imported key material so tests can assert both how
 // many identities were created and which bytes reached the vault.

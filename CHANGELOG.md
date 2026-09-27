@@ -30,6 +30,47 @@ fixes, including security fixes, ship in a new release rather than as patches to
 
 Nothing.
 
+### Added
+
+**Search across terminals.** Ctrl+Shift+F turns the sidebar into a search view, the way an editor's
+search replaces its file tree: a query box with match case, whole word and regular expression
+switches, the terminals to search, and every match grouped by terminal underneath. Enter and
+Shift+Enter walk the matches, bringing each one's terminal to the front with the match scrolled into
+view and selected; Escape hands the keyboard back to the terminal and brings the connection tree
+back exactly as it was. Every match is tinted inside the terminals too, the current one brighter.
+The search covers the whole scrollback, finds a word even where the terminal wrapped it onto the
+next line, and follows new output while the panel is open. It works in SSH sessions, local
+terminals and plugin terminals alike. It starts on the terminal you were in, and opening it with
+text selected searches for that text.
+
+The binding is not Ctrl+F, because inside a terminal Ctrl+F already belongs to the program running
+there — moving the cursor in bash and zsh, paging down in vim, less and man. It can be rebound in
+Settings → Hotkeys, to Ctrl+F as well for anyone who prefers it.
+
+**Typing into several terminals at once.** Alt+M outlines every open terminal in red and puts a
+number on it; click a terminal or press its number to choose it — it turns green — and press Enter.
+From then on whatever you type into one of the green terminals reaches all of them, pastes included,
+and the green outline stays on them so it is always clear what a keystroke will touch. Typing into a
+terminal outside the group reaches that terminal alone. A terminal hidden behind another tab is
+chosen by its tab, which carries the same number. In the picker, A chooses all and N none; Escape
+leaves everything as it was. Alt+M again changes the group. Alt+Shift+M ends it — Escape cannot,
+because it belongs to whatever runs in the terminal — as do Stop in the top bar and Enter in the
+picker with fewer than two chosen; the rest of the time Alt+Shift+M reaches the terminal as usual. A terminal that closes leaves the group, and a group down to one
+ends on its own. On SSH sessions each command is recorded in the audit log of every server it
+reached.
+
+All three shortcuts are listed on the start screen with the others, and can be changed in
+Settings → Hotkeys, where a clash with another shortcut is reported before saving.
+
+**Duplicating a saved connection.** Right-click a connection and choose Duplicate: an exact copy
+appears directly beneath it, named "<name> - copy" in the interface language ("- копия" in
+Russian), then "- copy 2", "- copy 3" as those are taken — duplicating a copy numbers it rather than
+adding another suffix. With several connections selected, each is duplicated. The copy uses the same
+saved passwords and keys, as two connections set up by hand to share them would; everything it owns
+is its own, so editing or deleting either one leaves the other as it was. Port forwards are copied
+with ids of their own, and a plugin connection's secret fields are copied into the vault under the
+new connection rather than shared with the original.
+
 ### Fixed
 
 **Starting xQuakShell a second time no longer risks losing what you changed in the first.** Two

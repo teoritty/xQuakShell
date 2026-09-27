@@ -93,6 +93,16 @@ func (a *AppAPI) SaveConnection(dto ConnectionDTO) (ConnectionDTO, error) {
 	return ConnectionToDTO(*saved), nil
 }
 
+// DuplicateConnection copies a saved connection under name. The id is the only link to the source,
+// so a caller cannot duplicate anything but a connection already in this vault.
+func (a *AppAPI) DuplicateConnection(id, name string) (ConnectionDTO, error) {
+	created, err := a.vaultSvc.DuplicateConnection(a.reqCtx(), id, name)
+	if err != nil {
+		return ConnectionDTO{}, err
+	}
+	return ConnectionToDTO(*created), nil
+}
+
 func (a *AppAPI) DeleteConnection(id string) error {
 	return a.vaultSvc.DeleteConnection(a.reqCtx(), id)
 }

@@ -23,6 +23,11 @@ export function normalizeHotkey(input: string): string {
   return ordered.join('+');
 }
 
+/** A binding as the interface prints it: Windows users know the Meta key as Win. */
+export function hotkeyLabel(input: string): string {
+  return (input || '').replace(/Meta/g, 'Win').replace(/Control/g, 'Ctrl');
+}
+
 export function parseHotkeyEvent(e: KeyboardEvent): string {
   const parts: string[] = [];
   if (e.ctrlKey) parts.push('Ctrl');

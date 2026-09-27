@@ -20,6 +20,16 @@ export function openContextMenu(close: CloseFn): void {
   activeClose = close;
 }
 
+/**
+ * Closes whichever menu is open. For an item that acts on its own rather than reporting back to the
+ * component that owns the menu, and so has no other way to dismiss it.
+ */
+export function closeActiveContextMenu(): void {
+  const close = activeClose;
+  activeClose = null;
+  close?.();
+}
+
 /** Deregister a menu when it closes so we don't hold a stale callback. */
 export function releaseContextMenu(close: CloseFn): void {
   if (activeClose === close) activeClose = null;

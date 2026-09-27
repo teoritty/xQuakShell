@@ -119,6 +119,7 @@ func defaultAppSettings() domain.AppSettings {
 		},
 		SessionHotkeys: hotkeys,
 		LocalTerminal:  domain.DefaultLocalTerminalSettings(),
+		TerminalTools:  domain.DefaultTerminalToolsSettings(),
 		AuditLog:       domain.DefaultAuditLogSettings(),
 		UIScalePercent: 100,
 		Debug:          domain.DefaultDebugSettings(),
@@ -181,6 +182,7 @@ func normalizeSettings(s domain.AppSettings) domain.AppSettings {
 	if strings.TrimSpace(s.LocalTerminal.OpenHotkey) == "" {
 		s.LocalTerminal.OpenHotkey = domain.DefaultLocalTerminalSettings().OpenHotkey
 	}
+	s.TerminalTools = s.TerminalTools.WithDefaults()
 
 	if s.Ping.Mode != domain.PingModeInterval && s.Ping.Mode != domain.PingModeOnChange {
 		s.Ping.Mode = domain.PingModeInterval
