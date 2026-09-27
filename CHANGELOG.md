@@ -12,6 +12,39 @@ The newest versioned heading is the release being prepared. Only the latest rele
 fixes, including security fixes, ship in a new release rather than as patches to an older one
 (see [SECURITY.md](SECURITY.md)).
 
+## [1.4.2]
+
+### Compatibility
+
+| Axis | Version |
+|---|---|
+| `pluginApi` | 1.0.0 (unchanged) |
+| Capabilities | all 1.0.0, unchanged |
+| Manifest schema | unchanged |
+| `bundleFormat` | 1.0.0 (unchanged) |
+| Vault schema | 4 (unchanged) |
+| Vault envelope | 1 (unchanged) |
+| Audit schema | 1 (unchanged) |
+
+### BREAKING
+
+Nothing.
+
+### Fixed
+
+**Starting xQuakShell a second time no longer risks losing what you changed in the first.** Two
+copies started from the same folder each opened the vault and saved their own version of it, so
+whichever saved last quietly undid the other: a key generated in one window was gone the next time
+the other one saved a connection, with no error in either. Starting it again now brings the window
+that is already open to the front and does nothing else. If that window cannot be found — the other
+copy is still starting, or still saving on its way out — the new one waits a few seconds for it,
+and then says xQuakShell is already running and closes.
+
+Copies in different folders are separate installations with separate vaults and still run side by
+side. The folder is claimed through the operating system, so a crash, a forced close or a USB stick
+pulled out mid-session never leaves it marked as in use. On read-only media, where nothing can be
+saved anyway, xQuakShell starts as before.
+
 ## [1.4.1] — 2026-09-26
 
 ### Compatibility
