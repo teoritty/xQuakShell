@@ -1,7 +1,11 @@
 <script lang="ts">
   import { t } from '../i18n/messages';
   import { createEventDispatcher } from 'svelte';
-  import { FolderPlus, MonitorDot, Pencil, Star, Trash2 } from 'lucide-svelte';
+  import { get } from 'svelte/store';
+  import { CopyPlus, FolderPlus, MonitorDot, Pencil, Star, Trash2 } from 'lucide-svelte';
+  import { selectedConnectionIds, selectedConnectionId } from '../stores/appState';
+  import { duplicateConnections } from '../actions/connectionActions';
+  import { closeActiveContextMenu } from './contextMenuManager';
   import type { DiscoveryMenu, DiscoveryMenuItem } from './remoteTree/discoveryActions';
 
   export let x = 0;
@@ -26,6 +30,18 @@
     toggleFavorite: void;
     invokeAction: DiscoveryMenuItem;
   }>();
+
+  // Acts on the selection, as Delete does. A right-click on an unselected row selects it alone
+  // before the menu opens, so the selection is always what the user right-clicked.
+  function duplicate() {
+    const ids = [...get(selectedConnectionIds)];
+    const target = ids.length > 0 ? ids : [get(selectedConnectionId)].filter(Boolean);
+    closeActiveContextMenu();
+    void duplicateConnections(target, {
+      first: $t('tree.duplicateName'),
+      numbered: $t('tree.duplicateNameNumbered'),
+    });
+  }
 </script>
 
 {#if show}
@@ -66,6 +82,10 @@
       <button class="menu-item" on:click={() => dispatch('edit')} role="menuitem">
         <Pencil size={12} />
         <span>{$t('common.edit')}</span>
+      </button>
+      <button class="menu-item" on:click={duplicate} role="menuitem">
+        <CopyPlus size={12} />
+        <span>{$t('tree.action.duplicate')}</span>
       </button>
       <button class="menu-item" on:click={() => dispatch('toggleFavorite')} role="menuitem">
         <span class="star-icon" class:filled={isFavorite}><Star size={12} /></span>

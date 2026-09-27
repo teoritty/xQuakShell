@@ -81,6 +81,18 @@ func (s *VaultService) mergeStoredPluginFields(ctx context.Context, conn *domain
 	return nil
 }
 
+// DuplicateConnection stores an independent copy of a connection under name and pings it, as
+// saving a new connection does. The name is chosen by the caller because it is written in the
+// interface language, which the backend does not speak for the user.
+func (s *VaultService) DuplicateConnection(ctx context.Context, id, name string) (*domain.Connection, error) {
+	created, err := s.connRepo.Duplicate(ctx, id, name, generateForwardRuleID)
+	if err != nil {
+		return nil, err
+	}
+	s.pingAfterConnectionSave(ctx, created)
+	return created, nil
+}
+
 func (s *VaultService) DeleteConnection(ctx context.Context, id string) error {
 	return s.connRepo.Delete(ctx, id)
 }

@@ -42,6 +42,9 @@ type ConnectionRepository interface {
 	MoveFolder(ctx context.Context, folderID, targetParentID string) error
 	ReorderConnections(ctx context.Context, connectionIDs []string, folderID string) error
 	ReorderFolders(ctx context.Context, folderIDs []string, parentID string) error
+	// Duplicate stores an independent copy of a connection under the given name, directly after
+	// the original, with its plugin secrets copied and newRuleID naming its forward rules.
+	Duplicate(ctx context.Context, sourceID, name string, newRuleID func() (string, error)) (*Connection, error)
 }
 
 // KnownHostEntry represents a single entry in the known_hosts list for display in UI.

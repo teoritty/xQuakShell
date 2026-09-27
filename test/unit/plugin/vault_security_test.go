@@ -40,6 +40,9 @@ func (r vaultConnRepo) ReorderConnections(context.Context, []string, string) err
 	return nil
 }
 func (r vaultConnRepo) ReorderFolders(context.Context, []string, string) error { return nil }
+func (r vaultConnRepo) Duplicate(context.Context, string, string, func() (string, error)) (*domain.Connection, error) {
+	return nil, domain.ErrConnectionNotFound
+}
 
 type vaultPasswordRepo struct{}
 

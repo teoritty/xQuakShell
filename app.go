@@ -159,6 +159,10 @@ func (a *App) SaveConnection(dto presentation.ConnectionDTO) (presentation.Conne
 	return a.api.SaveConnection(dto)
 }
 
+func (a *App) DuplicateConnection(id, name string) (presentation.ConnectionDTO, error) {
+	return a.api.DuplicateConnection(id, name)
+}
+
 func (a *App) DeleteConnection(id string) error {
 	return a.api.DeleteConnection(id)
 }

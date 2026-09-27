@@ -50,6 +50,9 @@ func (s sshTestConnRepo) ReorderConnections(context.Context, []string, string) e
 	return nil
 }
 func (s sshTestConnRepo) ReorderFolders(context.Context, []string, string) error { return nil }
+func (s sshTestConnRepo) Duplicate(context.Context, string, string, func() (string, error)) (*domain.Connection, error) {
+	return nil, domain.ErrConnectionNotFound
+}
 
 type sshTestVaultRepo struct{}
 

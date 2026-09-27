@@ -25,6 +25,17 @@ export async function putConnection(c: Partial<Connection>): Promise<Connection 
 // try/catch, which wrapped the mutation + refresh in one try block and
 // skipped the refresh entirely when the mutation itself failed. The error is
 // still reported via showError inside callBackend either way.
+// Rethrows like the mutations below, so a batch of duplicates stops at the first failure instead
+// of refreshing as though all of them had been made.
+export async function duplicateConnectionById(id: string, name: string): Promise<Connection | null> {
+  return callBackend(
+    'Duplicate connection',
+    null,
+    async (app) => (await app.DuplicateConnection(id, name)) as unknown as Connection,
+    { rethrow: true },
+  );
+}
+
 export async function deleteConnectionById(id: string): Promise<void> {
   return callBackendVoid('Delete connection', (app) => app.DeleteConnection(id), { rethrow: true });
 }

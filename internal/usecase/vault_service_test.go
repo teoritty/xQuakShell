@@ -94,6 +94,9 @@ func (m *memoryConnRepo) ReorderConnections(context.Context, []string, string) e
 	return nil
 }
 func (m *memoryConnRepo) ReorderFolders(context.Context, []string, string) error { return nil }
+func (m *memoryConnRepo) Duplicate(context.Context, string, string, func() (string, error)) (*domain.Connection, error) {
+	return nil, domain.ErrConnectionNotFound
+}
 
 type memoryPasswordRepo struct {
 	ids     []string

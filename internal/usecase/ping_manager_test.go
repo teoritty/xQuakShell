@@ -46,6 +46,9 @@ func (s *stubConnRepo) ReorderConnections(context.Context, []string, string) err
 	return nil
 }
 func (s *stubConnRepo) ReorderFolders(context.Context, []string, string) error { return nil }
+func (s *stubConnRepo) Duplicate(context.Context, string, string, func() (string, error)) (*domain.Connection, error) {
+	return nil, domain.ErrConnectionNotFound
+}
 
 type recordingPinger struct {
 	mu     sync.Mutex

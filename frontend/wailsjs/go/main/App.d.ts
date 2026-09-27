@@ -65,6 +65,8 @@ export function DisableAuditSecretLogging():Promise<void>;
 
 export function Download(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function DuplicateConnection(arg1:string,arg2:string):Promise<wails.ConnectionDTO>;
+
 export function EnableAuditSecretLogging(arg1:boolean):Promise<void>;
 
 export function ExecuteDownload(arg1:string,arg2:wails.ExecutePlanDTO):Promise<void>;

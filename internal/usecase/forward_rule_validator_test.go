@@ -91,3 +91,6 @@ func (s *validatorStubConnRepo) ReorderConnections(context.Context, []string, st
 	return nil
 }
 func (s *validatorStubConnRepo) ReorderFolders(context.Context, []string, string) error { return nil }
+func (s *validatorStubConnRepo) Duplicate(context.Context, string, string, func() (string, error)) (*domain.Connection, error) {
+	return nil, domain.ErrConnectionNotFound
+}

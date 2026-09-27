@@ -42,6 +42,7 @@
     "src/terminal/search/searchRun.ts",
     "src/terminal/multiInputState.ts",
     "src/terminal/terminalOrder.ts",
+    "src/lib/duplicateName.ts",
     "src/lib/transfer/*.ts",
     "src/lib/vault/passwordStrength.ts",
     "src/lib/formatBytes.ts",
