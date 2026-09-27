@@ -41,6 +41,8 @@ export interface AppSettings {
   sessionHotkeyClose: string;
   localTerminalShellId: string;
   localTerminalHotkey: string;
+  terminalSearchHotkey: string;
+  multiInputHotkey: string;
   auditLogEnabled: boolean;
   auditRetentionMode: string;
   auditRetentionDays: number;
@@ -79,6 +81,12 @@ export const DEFAULT_SESSION_HOTKEYS: SessionHotkeysSettings = {
 /** The conventional binding for a new local terminal, mirroring the Go default. */
 export const DEFAULT_LOCAL_TERMINAL_HOTKEY = 'Ctrl+Shift+T';
 
+/** The bindings for the tools that work across terminals, mirroring the Go defaults. */
+export const DEFAULT_TERMINAL_TOOL_HOTKEYS = {
+  search: 'Ctrl+Shift+F',
+  multiInput: 'Alt+M',
+};
+
 // `fetchSettings` preserves the original "vault is locked" silence exactly:
 // that error is expected during startup before unlock, so it must return
 // `null` without reporting via lastError (callBackend's `silence` predicate
@@ -94,6 +102,8 @@ export async function fetchSettings(): Promise<AppSettings | null> {
       s.sessionHotkeyPrev = normalizeHotkey(s.sessionHotkeyPrev || DEFAULT_SESSION_HOTKEYS.prev);
       s.sessionHotkeyClose = normalizeHotkey(s.sessionHotkeyClose || DEFAULT_SESSION_HOTKEYS.close);
       s.localTerminalHotkey = normalizeHotkey(s.localTerminalHotkey || DEFAULT_LOCAL_TERMINAL_HOTKEY);
+      s.terminalSearchHotkey = normalizeHotkey(s.terminalSearchHotkey || DEFAULT_TERMINAL_TOOL_HOTKEYS.search);
+      s.multiInputHotkey = normalizeHotkey(s.multiInputHotkey || DEFAULT_TERMINAL_TOOL_HOTKEYS.multiInput);
       s.uiScalePercent = normalizeUiScalePercent(s.uiScalePercent);
       return s;
     },
@@ -131,6 +141,8 @@ export async function putSettings(settings: Partial<AppSettings>): Promise<void>
       sessionHotkeyPrev: normalizeHotkey(settings.sessionHotkeyPrev || DEFAULT_SESSION_HOTKEYS.prev),
       sessionHotkeyClose: normalizeHotkey(settings.sessionHotkeyClose || DEFAULT_SESSION_HOTKEYS.close),
       localTerminalHotkey: normalizeHotkey(settings.localTerminalHotkey || DEFAULT_LOCAL_TERMINAL_HOTKEY),
+      terminalSearchHotkey: normalizeHotkey(settings.terminalSearchHotkey || DEFAULT_TERMINAL_TOOL_HOTKEYS.search),
+      multiInputHotkey: normalizeHotkey(settings.multiInputHotkey || DEFAULT_TERMINAL_TOOL_HOTKEYS.multiInput),
     };
     return app.SaveSettings(payload as AppSettings);
   });

@@ -1,4 +1,9 @@
-import { DEFAULT_LOCAL_TERMINAL_HOTKEY, DEFAULT_SESSION_HOTKEYS, type AppSettings } from '../../api/settings';
+import {
+  DEFAULT_LOCAL_TERMINAL_HOTKEY,
+  DEFAULT_SESSION_HOTKEYS,
+  DEFAULT_TERMINAL_TOOL_HOTKEYS,
+  type AppSettings,
+} from '../../api/settings';
 import { normalizeHotkey } from '../../hotkeys/hotkeys';
 import { DEFAULT_UI_SCALE_PERCENT } from '../uiScale';
 
@@ -40,6 +45,8 @@ export interface SettingsDraft {
   sessionHotkeyClose: string;
   localTerminalShellId: string;
   localTerminalHotkey: string;
+  terminalSearchHotkey: string;
+  multiInputHotkey: string;
   auditLogEnabled: boolean;
   auditRetentionMode: string;
   auditRetentionDays: number;
@@ -81,6 +88,8 @@ export function defaultSettingsDraft(): SettingsDraft {
     sessionHotkeyClose: DEFAULT_SESSION_HOTKEYS.close,
     localTerminalShellId: '',
     localTerminalHotkey: DEFAULT_LOCAL_TERMINAL_HOTKEY,
+    terminalSearchHotkey: DEFAULT_TERMINAL_TOOL_HOTKEYS.search,
+    multiInputHotkey: DEFAULT_TERMINAL_TOOL_HOTKEYS.multiInput,
     auditLogEnabled: false,
     auditRetentionMode: 'days',
     auditRetentionDays: 30,
@@ -137,6 +146,8 @@ export function draftFromSettings(s: AppSettings | null): SettingsDraft {
     // through rather than filled in from the default draft.
     localTerminalShellId: s.localTerminalShellId ?? d.localTerminalShellId,
     localTerminalHotkey: normalizeHotkey(s.localTerminalHotkey || d.localTerminalHotkey),
+    terminalSearchHotkey: normalizeHotkey(s.terminalSearchHotkey || d.terminalSearchHotkey),
+    multiInputHotkey: normalizeHotkey(s.multiInputHotkey || d.multiInputHotkey),
     auditLogEnabled: s.auditLogEnabled ?? d.auditLogEnabled,
     auditRetentionMode: s.auditRetentionMode ?? d.auditRetentionMode,
     auditRetentionDays: s.auditRetentionDays ?? d.auditRetentionDays,
@@ -164,5 +175,7 @@ export function draftToSettings(d: SettingsDraft): Partial<AppSettings> {
     sessionHotkeyPrev: normalizeHotkey(d.sessionHotkeyPrev),
     sessionHotkeyClose: normalizeHotkey(d.sessionHotkeyClose),
     localTerminalHotkey: normalizeHotkey(d.localTerminalHotkey),
+    terminalSearchHotkey: normalizeHotkey(d.terminalSearchHotkey),
+    multiInputHotkey: normalizeHotkey(d.multiInputHotkey),
   };
 }
