@@ -35,7 +35,7 @@ func (b *PluginSessionBridge) HandlePluginUpdateState(pluginID, sessionID, state
 			b.updateSessionState(entry, domain.SessionReady, errMsg)
 		}
 	case domain.SessionError:
-		b.updateSessionState(entry, domain.SessionError, errMsg)
+		b.failPluginSession(entry, errMsg)
 	default:
 		return fmt.Errorf("unsupported plugin session state %q", state)
 	}
@@ -139,13 +139,34 @@ func (b *PluginSessionBridge) RunSession(sessionID string, conn *domain.Connecti
 }
 
 func (b *PluginSessionBridge) updateSessionState(entry *sessionEntry, state domain.SessionState, errMsg string) {
-	sessionID := entry.info.SessionID
-	var info domain.ConnectionSession
-	if !b.registry.Mutate(sessionID, func(e *sessionEntry) {
+	b.applySessionState(entry, func(e *sessionEntry) {
 		e.info.State = state
 		e.info.ErrorMessage = errMsg
+		e.info.ConnectionLost = false
+	})
+}
+
+// failPluginSession applies an error the plugin reported.
+//
+// An error out of ready is a lost connection; any other error is a connect that failed. The host
+// cannot see further into a plugin's protocol than that - a telnet peer hanging up after `exit`
+// looks exactly like one that vanished - and ready-then-failed is the one signal every protocol
+// plugin gives the same way. The prior state is read under the same lock as the write, so a
+// concurrent transition cannot slip between deciding and recording.
+func (b *PluginSessionBridge) failPluginSession(entry *sessionEntry, errMsg string) {
+	b.applySessionState(entry, func(e *sessionEntry) {
+		e.info.ConnectionLost = e.info.State == domain.SessionReady
+		e.info.State = domain.SessionError
+		e.info.ErrorMessage = errMsg
+	})
+}
+
+func (b *PluginSessionBridge) applySessionState(entry *sessionEntry, mutate func(e *sessionEntry)) {
+	var info domain.ConnectionSession
+	if !b.registry.Mutate(entry.info.SessionID, func(e *sessionEntry) {
+		mutate(e)
 		info = e.info
-		e.signalReadyIfTerminal(state)
+		e.signalReadyIfTerminal(e.info.State)
 	}) {
 		return
 	}
