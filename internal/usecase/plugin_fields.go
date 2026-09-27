@@ -9,8 +9,6 @@ import (
 	domainplugin "xquakshell/internal/domain/plugin"
 )
 
-const pluginSecretRefPrefix = "secret:"
-
 type PluginFieldsService struct {
 	vault    domain.VaultRepository
 	registry *PluginRegistry
@@ -69,7 +67,7 @@ func (s *PluginFieldsService) SavePluginFields(ctx context.Context, conn *domain
 		}
 
 		if def.Secret {
-			secretRef := pluginSecretRef(conn.ID, def.ID)
+			secretRef := domain.PluginSecretRef(conn.ID, def.ID)
 			if value == "" {
 				secretsToDelete = append(secretsToDelete, secretRef)
 				continue
@@ -165,10 +163,6 @@ func updateConnectionPluginFieldsLocked(data *domain.VaultData, connID string, f
 		return nil
 	}
 	return fmt.Errorf("connection %s: %w", connID, domain.ErrConnectionNotFound)
-}
-
-func pluginSecretRef(connID, fieldID string) string {
-	return pluginSecretRefPrefix + connID + "." + fieldID
 }
 
 func cloneStringMap(in map[string]string) map[string]string {
