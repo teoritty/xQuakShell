@@ -109,6 +109,8 @@ export interface Session {
   embed?: SessionEmbed;
   state: SessionState;
   errorMessage: string;
+  /** Set by the backend only on an error that is an established session losing its link. */
+  connectionLost?: boolean;
 }
 
 export interface RemoteNode {

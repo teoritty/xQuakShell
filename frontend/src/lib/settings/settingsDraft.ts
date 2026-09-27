@@ -57,6 +57,8 @@ export interface SettingsDraft {
   debugLogWindowEnabled: boolean;
   debugLogLevel: string;
   updateCheckOnStartup: boolean;
+  autoReconnect: boolean;
+  preserveTerminalContext: boolean;
 }
 
 export const DEFAULT_TERMINAL_FONT = 'Cascadia Code, Consolas, Courier New, monospace';
@@ -104,6 +106,8 @@ export function defaultSettingsDraft(): SettingsDraft {
     // if the two disagree the dialog reports a level the process is not running at.
     debugLogLevel: 'warn',
     updateCheckOnStartup: true,
+    autoReconnect: true,
+    preserveTerminalContext: true,
   };
 }
 
@@ -160,6 +164,8 @@ export function draftFromSettings(s: AppSettings | null): SettingsDraft {
     debugLogWindowEnabled: s.debugLogWindowEnabled ?? d.debugLogWindowEnabled,
     debugLogLevel: s.debugLogLevel || d.debugLogLevel,
     updateCheckOnStartup: s.updateCheckOnStartup ?? d.updateCheckOnStartup,
+    autoReconnect: s.autoReconnect ?? d.autoReconnect,
+    preserveTerminalContext: s.preserveTerminalContext ?? d.preserveTerminalContext,
   };
 }
 

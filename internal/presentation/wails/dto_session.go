@@ -14,6 +14,7 @@ type SessionDTO struct {
 	Surface        string           `json:"surface,omitempty"`
 	State          string           `json:"state"`
 	ErrorMessage   string           `json:"errorMessage"`
+	ConnectionLost bool             `json:"connectionLost"`
 	Embed          *SessionEmbedDTO `json:"embed,omitempty"`
 }
 
@@ -67,6 +68,7 @@ func SessionToDTO(s domain.ConnectionSession) SessionDTO {
 		Surface:        s.Surface,
 		State:          string(s.State),
 		ErrorMessage:   s.ErrorMessage,
+		ConnectionLost: s.ConnectionLost,
 	}
 }
 

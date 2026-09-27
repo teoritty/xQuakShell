@@ -189,6 +189,7 @@ type AppSettings struct {
 	Embed              EmbedSettings          `json:"embed"`
 	Debug              DebugSettings          `json:"debug"`
 	Updates            UpdateSettings         `json:"updates"`
+	Reconnect          ReconnectSettings      `json:"reconnect"`
 }
 
 type PluginSettings struct {

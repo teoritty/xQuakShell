@@ -53,6 +53,8 @@ export namespace wails {
 	    debugLogWindowEnabled: boolean;
 	    debugLogLevel: string;
 	    updateCheckOnStartup: boolean;
+	    autoReconnect: boolean;
+	    preserveTerminalContext: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppSettingsDTO(source);
@@ -98,6 +100,8 @@ export namespace wails {
 	        this.debugLogWindowEnabled = source["debugLogWindowEnabled"];
 	        this.debugLogLevel = source["debugLogLevel"];
 	        this.updateCheckOnStartup = source["updateCheckOnStartup"];
+	        this.autoReconnect = source["autoReconnect"];
+	        this.preserveTerminalContext = source["preserveTerminalContext"];
 	    }
 	}
 	export class AuditEntryDTO {
@@ -2086,6 +2090,7 @@ export namespace wails {
 	    surface?: string;
 	    state: string;
 	    errorMessage: string;
+	    connectionLost: boolean;
 	    embed?: SessionEmbedDTO;
 	
 	    static createFrom(source: any = {}) {
@@ -2101,6 +2106,7 @@ export namespace wails {
 	        this.surface = source["surface"];
 	        this.state = source["state"];
 	        this.errorMessage = source["errorMessage"];
+	        this.connectionLost = source["connectionLost"];
 	        this.embed = this.convertValues(source["embed"], SessionEmbedDTO);
 	    }
 	

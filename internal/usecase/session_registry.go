@@ -177,6 +177,8 @@ func (r *SessionRegistry) CompareAndTransition(id string, from, to domain.Sessio
 		return false
 	}
 	entry.info.State = to
+	// The flag describes the error being left, never the state being entered; fn may still set it.
+	entry.info.ConnectionLost = false
 	if fn != nil {
 		fn(entry)
 	}

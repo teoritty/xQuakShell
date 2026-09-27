@@ -32,6 +32,21 @@ function settings(overrides: Partial<AppSettings>): AppSettings {
   assert.equal(d.auditRetentionDays, 0, 'a retention of 0 days must survive as the value it is');
 }
 
+// Reconnect ships on, so a backend that omits the fields (an older build) must read as on, while a
+// deliberate opt-out must stay off.
+{
+  const partial = { ...settings({}) } as Partial<AppSettings>;
+  delete partial.autoReconnect;
+  delete partial.preserveTerminalContext;
+  const omitted = draftFromSettings(partial as AppSettings);
+  assert.equal(omitted.autoReconnect, true, 'auto-reconnect missing from the payload must default to on');
+  assert.equal(omitted.preserveTerminalContext, true, 'context preservation missing from the payload must default to on');
+
+  const off = draftFromSettings(settings({ autoReconnect: false, preserveTerminalContext: false }));
+  assert.equal(off.autoReconnect, false, 'auto-reconnect disabled must not fall back to true');
+  assert.equal(off.preserveTerminalContext, false, 'context preservation disabled must not fall back to true');
+}
+
 {
   const d = draftFromSettings(settings({ terminalFontFamily: '', theme: '', language: '' }));
   const defaults = defaultSettingsDraft();

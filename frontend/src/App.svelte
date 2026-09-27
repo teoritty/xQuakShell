@@ -26,6 +26,7 @@
   import { subscribeToEvents } from './events/subscribe';
   import { resolveHostKeyRpc as resolveHostKey } from './api/sessions';
   import { createSessionFromSelection } from './actions/sessionActions';
+  import { startAutoReconnect, refreshAutoReconnectSetting } from './actions/reconnectActions';
   // The close and cycle hotkeys address whatever the tab bar shows — an SSH session or a plugin
   // surface (ADR-015) — so they route through the tab layer, not the session one.
   import { focusNextTab, focusPrevTab, closeActiveTab } from './actions/tabActions';
@@ -111,6 +112,7 @@
 
   onMount(() => {
     subscribeToEvents();
+    const stopReconnectWatcher = startAutoReconnect();
     initPluginContributionEvents();
     initPluginViewMessageEvents();
     void refreshPluginContributions();
@@ -183,6 +185,7 @@
     const settingsChanged = () => {
       loadHotkeysFromSettings();
       void applyAppearanceSettings();
+      void refreshAutoReconnectSetting();
     };
     window.addEventListener('app-settings-updated', settingsChanged as EventListener);
 
@@ -197,6 +200,7 @@
       document.removeEventListener('keydown', reportActivity);
       window.removeEventListener('keydown', hotkeyHandler, true);
       window.removeEventListener('app-settings-updated', settingsChanged as EventListener);
+      stopReconnectWatcher();
     };
   });
 

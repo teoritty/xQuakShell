@@ -226,6 +226,13 @@ To produce a `.reg` file, run: `regedit /e putty-sessions.reg HKEY_CURRENT_USER\
 ### Reconnect
 
 - If a session fails or disconnects, use **Reconnect** to try again.
+- When an established session loses its connection, **Reconnect** counts down and reconnects on its
+  own: after 5, 15 and 30 seconds, then every 60 seconds until it succeeds. Click it to reconnect
+  now, or **Stop retrying** to keep the tab as it is. A shell closed with `exit` and a connection
+  that failed at the first attempt are not retried automatically.
+- The reconnected session keeps its tab, its tile and, by default, the terminal output. Programs
+  that were running on the server are not restored.
+- Both behaviours can be turned off in **Settings → Network → Reconnect**.
 
 ---
 

@@ -53,6 +53,8 @@ export interface AppSettings {
   debugLogWindowEnabled: boolean;
   debugLogLevel: string;
   updateCheckOnStartup: boolean;
+  autoReconnect: boolean;
+  preserveTerminalContext: boolean;
 }
 
 export interface AuditEntry {

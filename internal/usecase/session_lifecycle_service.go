@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"xquakshell/internal/domain"
 	domainplugin "xquakshell/internal/domain/plugin"
@@ -33,6 +34,9 @@ type SessionLifecycleService struct {
 	passphraseCache domain.PassphraseCache
 	onStateChange   StateChangeFunc
 	hostKeyRequest  HostKeyRequestFunc
+	// transportProbeTimeout overrides defaultTransportProbeTimeout; zero means the default. Tests
+	// shorten it so a probe that never answers does not cost them five seconds.
+	transportProbeTimeout time.Duration
 }
 
 type SessionLifecycleConfig struct {
@@ -243,15 +247,6 @@ func (s *SessionLifecycleService) RetrySession(ctx context.Context, sessionID st
 	return nil
 }
 
-// NotifySessionDisconnected updates state when the SSH connection is lost.
-func (s *SessionLifecycleService) NotifySessionDisconnected(sessionID string) {
-	entry, ok := s.registry.Get(sessionID)
-	if !ok || entry.info.State != domain.SessionReady {
-		return
-	}
-	s.updateState(entry, domain.SessionError, "Connection lost")
-}
-
 func (s *SessionLifecycleService) GetHostKeyInfo(sessionID string) (*domain.HostKeyInfo, error) {
 	entry, ok := s.registry.Get(sessionID)
 	if !ok {
@@ -358,11 +353,19 @@ func (s *SessionLifecycleService) applyHostKeyRequired(entry *sessionEntry, hkIn
 }
 
 func (s *SessionLifecycleService) updateState(entry *sessionEntry, state domain.SessionState, errMsg string) {
+	s.applyState(entry, state, errMsg, false)
+}
+
+// applyState is the one writer of a session's visible state on this path. connectionLost is taken
+// on every transition, not only the failing one, so a flag raised by a dropped link can never
+// outlive the error it described.
+func (s *SessionLifecycleService) applyState(entry *sessionEntry, state domain.SessionState, errMsg string, connectionLost bool) {
 	sessionID := entry.info.SessionID
 	var info domain.ConnectionSession
 	if !s.registry.Mutate(sessionID, func(e *sessionEntry) {
 		e.info.State = state
 		e.info.ErrorMessage = errMsg
+		e.info.ConnectionLost = connectionLost
 		info = e.info
 		e.signalReadyIfTerminal(state)
 	}) {

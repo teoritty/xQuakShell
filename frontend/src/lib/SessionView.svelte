@@ -6,8 +6,12 @@
   import FileTree from './FileTree.svelte';
   import LocalFileTree from './LocalFileTree.svelte';
   import TransferPanel from './TransferPanel.svelte';
+  import { onDestroy } from 'svelte';
   import type { Session } from '../stores/appState';
-  import { closeSession, openSession } from '../actions/sessionActions';
+  import { closeSession } from '../actions/sessionActions';
+  import { reconnectNow, stopAutoReconnect } from '../actions/reconnectActions';
+  import { reconnectCountdowns } from '../stores/reconnectState';
+  import { secondsRemaining } from './reconnect/reconnectPolicy';
   import { connectionProtocols } from '../actions/protocolActions';
   import { hasFilePanel } from './filePanelCapability';
   import { Loader2, XCircle, Circle } from 'lucide-svelte';
@@ -81,11 +85,22 @@
     window.addEventListener('mouseup', onMouseUp);
   }
 
-  async function handleReconnect() {
-    const connId = session.connectionId;
-    await closeSession(session.sessionId);
-    await openSession(connId);
+  $: countdown = $reconnectCountdowns[session.sessionId];
+  let now = Date.now();
+  let tick: ReturnType<typeof setInterval> | null = null;
+  // Repaints the countdown only while one is showing. The deadline in the store is the truth; a
+  // late tick can delay the digit, never make it wrong.
+  $: if (countdown && !tick) {
+    now = Date.now();
+    tick = setInterval(() => (now = Date.now()), 250);
   }
+  $: if (!countdown && tick) {
+    clearInterval(tick);
+    tick = null;
+  }
+  onDestroy(() => {
+    if (tick) clearInterval(tick);
+  });
 </script>
 
 <div class="session-view" class:visible={active}>
@@ -93,8 +108,21 @@
     <div class="session-status error">
       <div class="status-icon"><XCircle size={28} /></div>
       <div class="status-text">{$t('session.connectionError', { message: session.errorMessage })}</div>
+      {#if countdown}
+        <div class="status-hint">{$t('session.reconnectAttempt', { attempt: countdown.attempt })}</div>
+      {/if}
       <div class="status-actions">
-        <button class="primary" on:click={handleReconnect}>{$t('session.reconnect')}</button>
+        <button class="primary reconnect-button" on:click={() => reconnectNow(session.sessionId)}>
+          {#if countdown}
+            <span class="reconnect-spinner" aria-hidden="true"><Loader2 size={14} /></span>
+            {$t('session.reconnectIn', { seconds: secondsRemaining(countdown.deadline, now) })}
+          {:else}
+            {$t('session.reconnect')}
+          {/if}
+        </button>
+        {#if countdown}
+          <button class="secondary" on:click={() => stopAutoReconnect(session.sessionId)}>{$t('session.reconnectStop')}</button>
+        {/if}
         <button class="secondary" on:click={() => closeSession(session.sessionId)}>{$t('common.close')}</button>
       </div>
     </div>
@@ -214,6 +242,27 @@
     display: flex;
     gap: 12px;
     margin-top: 8px;
+  }
+
+  .status-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .reconnect-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    /* The digit changes every second; tabular figures stop the button from twitching in width. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  .reconnect-spinner {
+    display: inline-flex;
+  }
+
+  .reconnect-spinner :global(svg) {
+    animation: spin 1s linear infinite;
   }
 
   .session-content {

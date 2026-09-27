@@ -39,4 +39,12 @@ type ConnectionSession struct {
 	State SessionState `json:"state"`
 	// ErrorMessage holds a human-readable error when State == SessionError.
 	ErrorMessage string `json:"errorMessage,omitempty"`
+	// ConnectionLost is true only while State == SessionError and the error is an established
+	// session losing its transport - a network drop, not a failed connect and not the remote shell
+	// exiting on its own.
+	//
+	// The frontend's automatic reconnect keys on it, and the distinction is the whole point: typing
+	// `exit` closes the PTY exactly the way a dropped link does, and reopening a shell the user just
+	// logged out of is the one reconnect nobody wants.
+	ConnectionLost bool `json:"connectionLost,omitempty"`
 }

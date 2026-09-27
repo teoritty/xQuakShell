@@ -4,8 +4,10 @@ import {
   openSession,
   closeSession,
   createSessionFromSelection,
+  reconnectSession,
 } from './sessionActions';
 import { sessions, activeTabId, connections, selectedConnectionId, lastError } from '../stores/appState';
+import { tileLayout } from '../stores/tileLayout';
 import { get } from 'svelte/store';
 
 function assert(c: boolean, m: string) {
@@ -159,6 +161,87 @@ async function run() {
     const list = get(sessions);
     assert(list.length === 1 && list[0].sessionId === 's1', 'closeSession does not remove the tab when gateway is missing');
     assert(get(lastError) === null, 'closeSession does not set lastError when gateway is missing');
+  }
+
+  // --- reconnectSession ------------------------------------------------------
+
+  // The replacement keeps the old tab's tile even when that tile is not the active one: left to
+  // reconcile, the old tab's tile would collapse and the new tab would land in the active tile.
+  {
+    reset();
+    sessions.set([
+      { sessionId: 'left', connectionId: 'c0', connectionName: 'L', state: 'ready', errorMessage: '' } as any,
+      { sessionId: 'old', connectionId: 'c1', connectionName: 'R', protocol: 'telnet', state: 'error', errorMessage: 'x' } as any,
+    ]);
+    tileLayout.set({
+      tiles: [
+        { id: 'T1', tabs: ['left'], activeTabId: 'left' },
+        { id: 'T2', tabs: ['old'], activeTabId: 'old' },
+      ],
+      orientation: 'h',
+      activeTileId: 'T1',
+      dividers: { main: 0.5, cross: 0.5 },
+    });
+    activeTabId.set('left');
+    const fake = createFakeGateway();
+    fake.program('OpenSession', 'new');
+    fake.program('CloseSession', undefined);
+    setGateway(fake);
+
+    const id = await reconnectSession('old', { preserveTerminal: false });
+    assert(id === 'new', 'reconnectSession returns the new session id');
+    const layout = get(tileLayout);
+    assert(layout.tiles.length === 2, 'the old tab\'s tile survives the replacement');
+    assert(layout.tiles[1].id === 'T2' && layout.tiles[1].tabs.join() === 'new', 'the new tab sits in the old tab\'s tile');
+    assert(layout.tiles[0].tabs.join() === 'left', 'the active tile does not receive the new tab');
+    const replaced = get(sessions)[1];
+    assert(
+      replaced.sessionId === 'new' && replaced.state === 'connecting' && replaced.protocol === 'telnet' && replaced.connectionName === 'R',
+      'the replacement starts connecting and keeps the connection\'s identity',
+    );
+    assert(get(activeTabId) === 'left', 'the focus stays where the user had it');
+  }
+
+  // The new session's first state event beat the RPC reply: it is already in the list, appended at
+  // the end by the event handler. It must move into place without duplicating, keeping its state.
+  {
+    reset();
+    sessions.set([
+      { sessionId: 'old', connectionId: 'c1', connectionName: 'A', state: 'error', errorMessage: '' } as any,
+      { sessionId: 'other', connectionId: 'c2', connectionName: 'B', state: 'ready', errorMessage: '' } as any,
+    ]);
+    activeTabId.set('old');
+    const fake = createFakeGateway();
+    fake.program('OpenSession', () => {
+      sessions.update((l) => [...l, { sessionId: 'new', connectionId: 'c1', connectionName: 'A', state: 'hostkey-required', errorMessage: '' } as any]);
+      return 'new';
+    });
+    fake.program('CloseSession', undefined);
+    setGateway(fake);
+
+    await reconnectSession('old', { preserveTerminal: false });
+    assert(get(sessions).map((s) => s.sessionId).join() === 'new,other', 'the raced arrival is moved into place, not duplicated');
+    assert(get(sessions)[0].state === 'hostkey-required', 'the state the event delivered is kept, not reset to connecting');
+    assert(get(activeTabId) === 'new', 'the focus follows the replaced tab');
+  }
+
+  // The user closed the tab while the new session was opening: the new session is closed too.
+  {
+    reset();
+    sessions.set([{ sessionId: 'old', connectionId: 'c1', connectionName: 'A', state: 'error', errorMessage: '' } as any]);
+    const fake = createFakeGateway();
+    fake.program('OpenSession', () => {
+      sessions.set([]);
+      return 'new';
+    });
+    fake.program('CloseSession', undefined);
+    setGateway(fake);
+
+    const id = await reconnectSession('old', { preserveTerminal: false });
+    assert(id === null, 'nothing is replaced when the tab went away meanwhile');
+    assert(get(sessions).length === 0, 'the new session does not appear in a closed tab\'s place');
+    const closed = fake.calls.filter((c) => c.method === 'CloseSession').map((c) => c.args[0]);
+    assert(closed.join() === 'new', 'the orphaned new session is closed on the backend');
   }
 
   // --- createSessionFromSelection -------------------------------------------

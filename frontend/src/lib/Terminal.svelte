@@ -172,6 +172,12 @@
     resizeDisposable = term.onResize(({ cols, rows }) => {
       io.resize(cols, rows);
     });
+    // A terminal inherited from a lost session already fits its box, so onResize will not fire and
+    // the new session's PTY would stay at its default 80x24 (see PooledTerminal.sizeUnsent).
+    if (pooled?.sizeUnsent) {
+      pooled.sizeUnsent = false;
+      io.resize(term.cols, term.rows);
+    }
 
     // Right-click behaves like a classic console: copy a current selection, or
     // paste when there is nothing selected.
