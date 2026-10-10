@@ -100,6 +100,12 @@ leaves forwarding off.
 
 ### Fixed
 
+**Built with Go 1.26.9, which fixes ten vulnerabilities in the standard library** - in `net/http`,
+`net/textproto` and `crypto/tls` (GO-2026-6603, 6605, 6607 to 6613, 6617) - that the update check,
+the plugin catalogue and the embed tunnels reach. The toolchain is now pinned in `go.mod`, so a
+build picks up a patched standard library because the repository says so, not because the build
+machine happened to have one.
+
 **Starting xQuakShell a second time no longer risks losing what you changed in the first.** Two
 copies started from the same folder each opened the vault and saved their own version of it, so
 whichever saved last quietly undid the other: a key generated in one window was gone the next time
