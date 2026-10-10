@@ -9,6 +9,7 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 
 	"xquakshell/internal/domain"
+	"xquakshell/internal/infra/ssh/agentfwd"
 	"xquakshell/internal/pkg/safego"
 )
 
@@ -73,6 +74,15 @@ func (b *PTYBridge) Start(ctx context.Context, sshClient domain.SSHClient, opts 
 	if err := session.RequestPty(term, int(rows), int(cols), modes); err != nil {
 		session.Close()
 		return nil, fmt.Errorf("pty request: %w", err)
+	}
+
+	// Between pty-req and shell, as OpenSSH sends it: sshd sets SSH_AUTH_SOCK when it starts the
+	// shell, so a forwarding request after that would reach a shell that never learns of it.
+	if opts.Agent != nil {
+		if err := agentfwd.Attach(ctx, sshClient.Client(), session, opts.Agent); err != nil {
+			session.Close()
+			return nil, fmt.Errorf("pty agent forwarding: %w", err)
+		}
 	}
 
 	stdin, err := session.StdinPipe()
