@@ -116,6 +116,9 @@ type PTYOptions struct {
 	Rows    uint32
 	Term    string
 	Command string
+	// Agent, when set, forwards an agent answering through this policy to the shell (ADR-022).
+	// Nil means the shell gets no agent and the server cannot open one.
+	Agent AgentSignPolicy
 }
 
 // TerminalPTYBridge manages a PTY session over SSH, streaming I/O to/from the frontend.

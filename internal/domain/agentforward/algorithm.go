@@ -15,6 +15,14 @@ const (
 
 const keyFormatRSA = "ssh-rsa"
 
+// rsaAlgorithmFor maps the one RSA flag a request may carry to the algorithm it asks for. No flag,
+// and both flags at once, map to nothing: the first is SHA-1, the second is not a request any
+// client sends.
+var rsaAlgorithmFor = map[Flags]string{
+	FlagRSASHA256: "rsa-sha2-256",
+	FlagRSASHA512: "rsa-sha2-512",
+}
+
 // signsAsItself lists the key formats whose signature algorithm is their own name. DSA, security
 // keys and certificates are absent: the vault can hold none of them, and a format we cannot hold is
 // a format no legitimate request will name.
@@ -38,14 +46,10 @@ func SigningAlgorithm(keyFormat, algorithm string, flags Flags) (string, error) 
 		return "", refuseAlgorithm("unsupported flags %#x", uint32(flags))
 	}
 	if keyFormat == keyFormatRSA {
-		switch {
-		case algorithm == "rsa-sha2-256" && rsaFlags == FlagRSASHA256:
-			return algorithm, nil
-		case algorithm == "rsa-sha2-512" && rsaFlags == FlagRSASHA512:
-			return algorithm, nil
-		default:
+		if rsaAlgorithmFor[rsaFlags] == "" || algorithm != rsaAlgorithmFor[rsaFlags] {
 			return "", refuseAlgorithm("rsa algorithm %q with flags %#x", algorithm, uint32(flags))
 		}
+		return algorithm, nil
 	}
 	if !signsAsItself[keyFormat] || algorithm != keyFormat || rsaFlags != 0 {
 		return "", refuseAlgorithm("key %q, algorithm %q, flags %#x", keyFormat, algorithm, uint32(flags))

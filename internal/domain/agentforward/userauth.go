@@ -61,29 +61,46 @@ func ParseUserAuthRequest(data []byte) (UserAuthRequest, error) {
 		req.HostKey = r.str()
 	}
 
-	switch {
-	case !r.done():
+	// Written as a chain of ifs rather than a switch: the mutation gate cannot see the case
+	// expressions of a tagless switch, and these are the conditions it most needs to see.
+	if !r.done() {
 		return UserAuthRequest{}, reject("malformed or trailing data")
-	case msgType != msgUserAuthRequest:
-		return UserAuthRequest{}, reject("message type %d", msgType)
-	case string(service) != serviceConnection:
-		return UserAuthRequest{}, reject("service %q", service)
-	case method != methodPublicKey && method != methodHostbound:
+	}
+	if msgType != msgUserAuthRequest || string(service) != serviceConnection {
+		return UserAuthRequest{}, reject("message type %d, service %q", msgType, service)
+	}
+	if method != methodPublicKey && method != methodHostbound {
 		return UserAuthRequest{}, reject("method %q", method)
-	case !hasSignature:
+	}
+	if !hasSignature {
 		return UserAuthRequest{}, reject("query without signature")
-	case len(req.SessionID) == 0 || len(req.SessionID) > MaxSessionIDLen:
-		return UserAuthRequest{}, reject("session id length %d", len(req.SessionID))
-	case len(req.KeyBlob) == 0 || len(req.KeyBlob) > maxKeyBlobLen:
-		return UserAuthRequest{}, reject("key blob length %d", len(req.KeyBlob))
-	case method == methodHostbound && (len(req.HostKey) == 0 || len(req.HostKey) > maxKeyBlobLen):
-		return UserAuthRequest{}, reject("host key length %d", len(req.HostKey))
+	}
+	if err := checkLengths(req, method == methodHostbound); err != nil {
+		return UserAuthRequest{}, err
 	}
 	if err := validateUser(user); err != nil {
 		return UserAuthRequest{}, err
 	}
 	req.User = string(user)
 	return req, nil
+}
+
+func checkLengths(req UserAuthRequest, hostbound bool) error {
+	if !boundedLen(req.SessionID, MaxSessionIDLen) {
+		return reject("session id length %d", len(req.SessionID))
+	}
+	if !boundedLen(req.KeyBlob, maxKeyBlobLen) {
+		return reject("key blob length %d", len(req.KeyBlob))
+	}
+	if hostbound && !boundedLen(req.HostKey, maxKeyBlobLen) {
+		return reject("host key length %d", len(req.HostKey))
+	}
+	return nil
+}
+
+// boundedLen reports whether b is non-empty and at most limit bytes long.
+func boundedLen(b []byte, limit int) bool {
+	return len(b) > 0 && len(b) <= limit
 }
 
 // validateUser keeps the user name displayable. It is shown in a confirmation dialog the user
