@@ -155,14 +155,7 @@ func NewAppAPI(
 		HostKeyRequest:            api.onHostKeyRequest,
 		ForwardConnLimiterFactory: forwardConnLimiterFactory,
 	}
-	if sshAuth != nil && sshAuth.Enabled() {
-		smCfg.AuthProvider = sshAuth.Provider
-		smCfg.AuthMethodBuilder = sshAuth.Builder
-		smCfg.AuthAttempts = sshAuth.Attempts
-		smCfg.AuthLookup = sshAuth.Lookup
-		smCfg.AuthStarter = sshAuth.Starter
-		smCfg.AuthGrantReader = sshAuth.GrantReader
-	}
+	applySSHAuth(&smCfg, sshAuth)
 	api.wireSessionsAndKeys(usecase.NewSessionManager(smCfg), vaultRepo, sshSession, auditLogRepo)
 	if pluginInbound != nil && api.sessions.PluginBridge() != nil {
 		pluginInbound.SetHandler(api.sessions.PluginBridge())

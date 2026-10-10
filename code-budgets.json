@@ -245,7 +245,7 @@
         "nesting": 0
       },
       "internal/presentation/wails/api.go::NewAppAPI": {
-        "codeLines": 85,
+        "codeLines": 78,
         "params": 30,
         "nesting": 1
       },
