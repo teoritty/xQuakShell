@@ -1,4 +1,4 @@
-import type { Connection } from '../../stores/appState';
+import type { AgentForwarding, Connection } from '../../stores/appState';
 import type { ConnectionDetailsDraft } from './types';
 import type { ConnectionProtocol } from '../../actions/protocolActions';
 import { ensureHopUiId } from './hopIds';
@@ -22,7 +22,13 @@ export function createDraftFromConnection(
     pluginFields: { ...(connection?.pluginFields || {}) },
     storedSecretFields: [...(connection?.storedSecretFields || [])],
     pluginFieldsTouched: {},
+    agentForwarding: copyAgentForwarding(connection?.agentForwarding),
   };
+}
+
+function copyAgentForwarding(af: AgentForwarding | undefined): AgentForwarding | null {
+  if (!af) return null;
+  return { ...af, identityIds: [...(af.identityIds || [])] };
 }
 
 export function resolveDefaultPort(

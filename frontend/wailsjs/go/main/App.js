@@ -478,6 +478,10 @@ export function ResizeSurface(arg1, arg2, arg3) {
   return window['go']['main']['App']['ResizeSurface'](arg1, arg2, arg3);
 }
 
+export function ResolveAgentConfirm(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ResolveAgentConfirm'](arg1, arg2, arg3);
+}
+
 export function ResolveHostKey(arg1, arg2) {
   return window['go']['main']['App']['ResolveHostKey'](arg1, arg2);
 }

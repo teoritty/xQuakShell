@@ -1,4 +1,4 @@
-import type { ConnectionUser, ForwardRule, JumpHop } from '../../stores/appState';
+import type { AgentForwarding, ConnectionUser, ForwardRule, JumpHop } from '../../stores/appState';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved';
 
@@ -22,4 +22,6 @@ export interface ConnectionDetailsDraft {
   // Plugin field ids the user has actually edited this session. A stored secret that is NOT touched
   // is left out of the save payload so the backend keeps it; touching it (even to clear) sends it.
   pluginFieldsTouched: Record<string, boolean>;
+  // Null until the user turns forwarding on, so a connection that never had it saves without it.
+  agentForwarding: AgentForwarding | null;
 }

@@ -22,6 +22,8 @@ export interface StoredKey {
   cachePolicy?: CachePolicy;
   cacheTtlSeconds?: number;
   allowPlugins: boolean;
+  /** The key's half of the consent agent forwarding needs (ADR-022). */
+  allowForwarding: boolean;
   nonExportable: boolean;
   migrationPending: boolean;
   createdAt?: string;
@@ -39,6 +41,7 @@ export interface KeyOptions {
   cachePolicy: CachePolicy;
   cacheTtlSeconds: number;
   allowPlugins: boolean;
+  allowForwarding: boolean;
   nonExportable: boolean;
 }
 
@@ -74,6 +77,7 @@ export const defaultKeyOptions: KeyOptions = {
   cachePolicy: 'until-lock',
   cacheTtlSeconds: 900,
   allowPlugins: false,
+  allowForwarding: false,
   nonExportable: false,
 };
 
@@ -86,6 +90,8 @@ function toStoredKey(raw: StoredKeyShape): StoredKey {
     ...raw,
     policy: raw.policy === 'passphrase' ? 'passphrase' : 'vault',
     cachePolicy: toCachePolicy(raw.cachePolicy),
+    // Anything but an explicit true is no: a missing flag must never read as consent.
+    allowForwarding: raw.allowForwarding === true,
   };
 }
 

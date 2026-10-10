@@ -34,6 +34,14 @@
     </span>
   </label>
 
+  <label class="check">
+    <input type="checkbox" bind:checked={options.allowForwarding} />
+    <span>
+      {$t('security.keys.policy.allowForwarding')}
+      <small>{$t('security.keys.policy.forwardingHint')}</small>
+    </span>
+  </label>
+
   {#if showNonExportable}
     <label class="check">
       <input type="checkbox" bind:checked={options.nonExportable} />

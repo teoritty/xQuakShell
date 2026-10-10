@@ -17,6 +17,7 @@
   import { multiInput, toggleMultiInputMember } from '../../stores/terminalTools';
   import { liveTerminal } from '../../terminal/terminalRegistry';
   import TabMark from '../terminalTools/TabMark.svelte';
+  import AgentTabBadge from './AgentTabBadge.svelte';
   import { Loader2, CheckCircle2, XCircle, Circle, X } from 'lucide-svelte';
 
   export let tile: TileGroup;
@@ -81,6 +82,7 @@
         {/if}
       </span>
       <TabMark id={entry.id} />
+      <AgentTabBadge id={entry.id} />
       <span class="tab-name">{tabTitle(entry.tab)}</span>
       <button class="tab-close" on:click={(e) => close(e, entry.id)} title={$t('tiles.closeTab')}>
         <X size={11} />

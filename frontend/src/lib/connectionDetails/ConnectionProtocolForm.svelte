@@ -2,10 +2,11 @@
   import { createEventDispatcher } from 'svelte';
   import type { ConnectionProtocol } from '../../actions/protocolActions';
   import type { ConnectionFormMode } from './connectionFormMode';
-  import type { ConnectionUser, ForwardRule, JumpHop, SSHIdentityMeta } from '../../stores/appState';
+  import type { AgentForwarding as AgentForwardingSettings, ConnectionUser, ForwardRule, JumpHop, SSHIdentityMeta } from '../../stores/appState';
   import ConnectionUsers from './ConnectionUsers.svelte';
   import JumpHosts from './JumpHosts.svelte';
   import ForwardRules from './ForwardRules.svelte';
+  import AgentForwarding from './AgentForwarding.svelte';
   import PluginConnectionFields from './PluginConnectionFields.svelte';
 
   export let mode: ConnectionFormMode = 'none';
@@ -14,6 +15,7 @@
   export let defaultUserId = '';
   export let jumpHops: JumpHop[] = [];
   export let forwardRules: ForwardRule[] = [];
+  export let agentForwarding: AgentForwardingSettings | null = null;
   export let identities: SSHIdentityMeta[] = [];
   export let pluginFields: Record<string, unknown> = {};
   export let storedSecretFields: string[] = [];
@@ -25,6 +27,7 @@
     defaultuserchange: string;
     hopschange: JumpHop[];
     forwardruleschange: ForwardRule[];
+    agentforwardingchange: AgentForwardingSettings;
     keypick: string;
     keyremove: { userId?: string; hopId?: string; keyId: string };
     passwordchange: { userId?: string; hopId?: string; value: string };
@@ -60,6 +63,13 @@
     {fieldErrors}
     on:dirty={() => dispatch('dirty')}
     on:ruleschange={(e) => dispatch('forwardruleschange', e.detail)}
+  />
+
+  <AgentForwarding
+    {agentForwarding}
+    {identities}
+    on:dirty={() => dispatch('dirty')}
+    on:change={(e) => dispatch('agentforwardingchange', e.detail)}
   />
 {:else if mode === 'plugin' && protocolDef?.fields}
   <PluginConnectionFields

@@ -47,21 +47,7 @@
   import type { ConnectionDetailsDraft, SaveStatus } from './connectionDetails/types';
   import type { Connection, ConnectionUser, ForwardRule, JumpHop } from '../stores/appState';
 
-  let draft: ConnectionDetailsDraft = {
-    editingId: '',
-    name: '',
-    protocol: 'ssh',
-    host: '',
-    port: 22,
-    tags: [],
-    users: [],
-    defaultUserId: '',
-    jumpHops: [],
-    forwardRules: [],
-    pluginFields: {},
-    storedSecretFields: [],
-    pluginFieldsTouched: {},
-  };
+  let draft: ConnectionDetailsDraft = createDraftFromConnection(null, 22);
   let fieldErrors: Record<string, string> = {};
   let dirty = false;
   let saveStatus: SaveStatus = 'idle';
@@ -310,6 +296,7 @@
         defaultUserId={draft.defaultUserId}
         jumpHops={draft.jumpHops}
         forwardRules={draft.forwardRules}
+        agentForwarding={draft.agentForwarding}
         identities={$identities}
         pluginFields={draft.pluginFields}
         storedSecretFields={draft.storedSecretFields}
@@ -319,6 +306,7 @@
         on:defaultuserchange={(e) => { draft.defaultUserId = e.detail; }}
         on:hopschange={(e) => setDraftHops(e.detail)}
         on:forwardruleschange={(e) => setDraftForwardRules(e.detail)}
+        on:agentforwardingchange={(e) => { draft.agentForwarding = e.detail; }}
         on:keypick={(e) => onKeyPick(e.detail)}
         on:keyremove={(e) => onKeyRemove(e.detail)}
         on:passwordchange={(e) => onPasswordChange(e.detail)}

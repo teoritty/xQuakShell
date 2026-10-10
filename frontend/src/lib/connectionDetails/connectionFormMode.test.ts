@@ -62,6 +62,7 @@ const draft: ConnectionDetailsDraft = {
   pluginFields: {},
   storedSecretFields: [],
   pluginFieldsTouched: {},
+  agentForwarding: null,
 };
 
 applyProtocolFieldDefaults(draft, 'telnet', catalogWithTelnet);

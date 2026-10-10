@@ -38,6 +38,7 @@ import {
   dropPassphrasePrompt,
   type PassphrasePromptEvent,
 } from '../stores/passphrasePromptState';
+import { enqueueAgentConfirm, dropAgentConfirm, type AgentConfirmEvent } from '../stores/agentConfirmState';
 
 // SFTPReady is a one-shot broadcast emitted once per session right after the
 // remote filesystem is up. A FileTree component mounts only after its session
@@ -51,7 +52,8 @@ export const sftpReadyPaths = writable<Map<string, string>>(new Map());
 
 /**
  * The questions that stop a connection until the user answers: the SSH host key, the remote
- * identity a plugin protocol presents, and the passphrase of an encrypted key.
+ * identity a plugin protocol presents, the passphrase of an encrypted key, and a signature the
+ * forwarded agent was asked for (ADR-022).
  *
  * They are registered here rather than in the main list because they are one subject, and a change
  * to how one of them is raised should be read next to the others - not found by scrolling a list of
@@ -76,6 +78,15 @@ function subscribeTrustPrompts(rt: NonNullable<ReturnType<typeof getRuntime>>): 
   rt.EventsOn('PassphrasePromptClosed', (data: { requestId: string }) => {
     if (!data?.requestId) return;
     dropPassphrasePrompt(data.requestId);
+  });
+
+  rt.EventsOn('AgentConfirmRequired', (data: AgentConfirmEvent) => enqueueAgentConfirm(data));
+
+  // Sent however the wait ended - answered, timed out, or the session closed - so a dialog cannot
+  // be answered after the request it asks about has already been decided.
+  rt.EventsOn('AgentConfirmClosed', (data: { requestId: string }) => {
+    if (!data?.requestId) return;
+    dropAgentConfirm(data.requestId);
   });
 }
 

@@ -10,6 +10,7 @@
   import HostKeyDialog from './lib/HostKeyDialog.svelte';
   import PeerTrustPrompt from './lib/PeerTrustPrompt.svelte';
   import SessionPassphrasePrompt from './lib/SessionPassphrasePrompt.svelte';
+  import AgentConfirmPrompt from './lib/AgentConfirmPrompt.svelte';
   import PeerTrustManager from './lib/PeerTrustManager.svelte';
   import AuditLogView from './lib/AuditLogView.svelte';
   import ErrorDialog from './lib/ErrorDialog.svelte';
@@ -272,6 +273,7 @@
   <PluginCommandPalette bind:this={commandPalette} />
   <PeerTrustPrompt />
   <SessionPassphrasePrompt />
+  <AgentConfirmPrompt />
 
   {#if showHostKeyDialog}
     <HostKeyDialog
