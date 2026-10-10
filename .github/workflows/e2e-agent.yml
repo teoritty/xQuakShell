@@ -1,0 +1,40 @@
+name: Agent forwarding e2e
+
+# Agent forwarding against real OpenSSH (ADR-022): two containers, a shell on one, and ssh, git,
+# scp and rsync to the other through the forwarded agent. The in-process e2e in `make gates` covers
+# the same paths with an emulated client; this is where the emulation is checked against OpenSSH.
+#
+# It runs only when code it exercises changes. The rest of the time it would spend runner minutes
+# proving nothing new, and automated volume on this account is something to keep small.
+on:
+  pull_request:
+    paths:
+      - 'internal/domain/agentforward/**'
+      - 'internal/domain/agent_forwarding.go'
+      - 'internal/usecase/agent_*.go'
+      - 'internal/infra/ssh/**'
+      - 'test/e2e/agentforwarding/**'
+      - '.github/workflows/e2e-agent.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-agent-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  openssh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.26'
+
+      # The test package does not import main, so frontend/dist is not needed for go:embed.
+      - name: OpenSSH interop
+        run: make e2e-agent

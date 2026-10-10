@@ -1,0 +1,16 @@
+# Driven by agent_docker_test.go, which generates SEED_DIR and tears the project down afterwards.
+services:
+  bastion:
+    build: .
+    environment:
+      ROLE: bastion
+    volumes:
+      - ${SEED_DIR:?SEED_DIR is set by the test}:/seed:ro
+    ports:
+      - "127.0.0.1::22"
+  target:
+    build: .
+    environment:
+      ROLE: target
+    volumes:
+      - ${SEED_DIR:?SEED_DIR is set by the test}:/seed:ro
