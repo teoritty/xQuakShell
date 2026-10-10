@@ -33,7 +33,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
 
       # The test package does not import main, so frontend/dist is not needed for go:embed.
       - name: OpenSSH interop
