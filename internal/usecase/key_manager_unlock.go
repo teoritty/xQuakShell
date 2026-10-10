@@ -173,6 +173,7 @@ func (s *KeyManagerService) SetPolicy(ctx context.Context, id string, opts KeyOp
 		identity.CacheTTLSeconds = opts.CacheTTLSeconds
 		identity.AllowPlugins = opts.AllowPlugins
 		identity.NonExportable = opts.NonExportable
+		identity.AllowForwarding = opts.AllowForwarding
 		fingerprint = identity.Fingerprint
 		return nil
 	})

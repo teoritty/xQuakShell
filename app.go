@@ -203,6 +203,10 @@ func (a *App) CancelPassphrase(requestID string) error {
 	return a.api.CancelPassphrase(requestID)
 }
 
+func (a *App) ResolveAgentConfirm(sessionID, requestID, decision string) error {
+	return a.api.ResolveAgentConfirm(sessionID, requestID, decision)
+}
+
 func (a *App) ResolvePeerTrust(sessionID, action, fingerprint string) error {
 	return a.api.ResolvePeerTrust(sessionID, action, fingerprint)
 }

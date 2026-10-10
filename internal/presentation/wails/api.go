@@ -30,6 +30,7 @@ type AppAPI struct {
 	cancels                     *usecase.CancelRegistry // shared by planner, executor and remote ops: one id space, one registry
 	hostKeys                    *usecase.HostKeyService
 	passphrasePrompts           usecase.PassphrasePrompts
+	agentPrompts                usecase.AgentConfirmPrompts
 	peerTrust                   *usecase.PeerTrustService
 	remoteFS                    *usecase.RemoteFSService
 	localFS                     *usecase.LocalFSService
@@ -156,6 +157,7 @@ func NewAppAPI(
 		ForwardConnLimiterFactory: forwardConnLimiterFactory,
 	}
 	applySSHAuth(&smCfg, sshAuth)
+	api.applyAgentForwarding(&smCfg, auditLogRepo)
 	api.wireSessionsAndKeys(usecase.NewSessionManager(smCfg), vaultRepo, sshSession, auditLogRepo)
 	if pluginInbound != nil && api.sessions.PluginBridge() != nil {
 		pluginInbound.SetHandler(api.sessions.PluginBridge())

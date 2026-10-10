@@ -85,6 +85,8 @@ type ConnectionDTO struct {
 	// placeholder and to leave the field out of the save payload while untouched.
 	StoredSecretFields []string         `json:"storedSecretFields,omitempty"`
 	ForwardRules       []ForwardRuleDTO `json:"forwardRules,omitempty"`
+	// AgentForwarding mirrors domain.Connection.AgentForwarding; nil means off.
+	AgentForwarding *AgentForwardingDTO `json:"agentForwarding,omitempty"`
 }
 
 type KnownHostDTO struct {
@@ -131,6 +133,7 @@ func ConnectionToDTO(c domain.Connection) ConnectionDTO {
 	}
 	dto.PluginFields = pluginFieldsToDTO(c.PluginFields)
 	dto.StoredSecretFields = storedSecretFieldIDs(c.PluginFields)
+	dto.AgentForwarding = agentForwardingToDTO(c.AgentForwarding)
 	return dto
 }
 
@@ -326,6 +329,7 @@ func DTOToConnection(d ConnectionDTO) domain.Connection {
 	if len(d.PluginFields) > 0 {
 		c.PluginFields = cloneStringMap(d.PluginFields)
 	}
+	c.AgentForwarding = agentForwardingFromDTO(d.AgentForwarding)
 	return c
 }
 
