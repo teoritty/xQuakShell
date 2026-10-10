@@ -42,7 +42,7 @@ func (r *reader) str() []byte {
 		return nil
 	}
 	n := binary.BigEndian.Uint32(r.buf)
-	if uint64(n) > uint64(len(r.buf)-4) {
+	if int64(n) > int64(len(r.buf)-4) {
 		r.bad = true
 		return nil
 	}

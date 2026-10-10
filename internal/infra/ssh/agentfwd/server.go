@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 
 	gossh "golang.org/x/crypto/ssh"
 
@@ -87,12 +88,34 @@ func readFrame(r io.Reader) ([]byte, error) {
 	return frame, nil
 }
 
+// writeFrame holds replies to the same bound as requests. None of ours comes near it; the check is
+// what makes the length prefix provably fit, rather than fitting because nothing has grown yet.
 func writeFrame(w io.Writer, msg []byte) error {
-	out := make([]byte, 4+len(msg))
-	binary.BigEndian.PutUint32(out, uint32(len(msg)))
-	copy(out[4:], msg)
-	_, err := w.Write(out)
+	n, err := wireLen(msg)
+	if err != nil {
+		return err
+	}
+	out := binary.BigEndian.AppendUint32(make([]byte, 0, 4+len(msg)), n)
+	_, err = w.Write(append(out, msg...))
 	return err
+}
+
+// wireLen is the length prefix for b, refused past MaxFrameLen so the conversion cannot wrap.
+func wireLen(b []byte) (uint32, error) {
+	return boundedUint32(len(b), agentforward.MaxFrameLen)
+}
+
+// boundedUint32 converts n only once it is known to lie in [0, limit]. The second check never
+// fires for the limits used here; it is there because gosec's overflow analysis follows a
+// constant bound and not a parameter, and a finding suppressed by comment proves nothing.
+func boundedUint32(n, limit int) (uint32, error) {
+	if n > limit {
+		return 0, fmt.Errorf("%w: length %d", errFrame, n)
+	}
+	if n < 0 || n > math.MaxUint32 {
+		return 0, fmt.Errorf("%w: length %d", errFrame, n)
+	}
+	return uint32(n), nil
 }
 
 func handle(ctx context.Context, frame []byte, policy domain.AgentSignPolicy, bindings *agentforward.Bindings) []byte {
@@ -121,8 +144,12 @@ func listIdentities(ctx context.Context, frame []byte, policy domain.AgentSignPo
 	if err != nil {
 		return []byte{agentFailure}
 	}
+	count, err := boundedUint32(len(keys), agentforward.MaxForwardedKeys)
+	if err != nil {
+		return []byte{agentFailure}
+	}
 	out := []byte{agentIdentitiesAnswer}
-	out = binary.BigEndian.AppendUint32(out, uint32(len(keys)))
+	out = binary.BigEndian.AppendUint32(out, count)
 	for _, k := range keys {
 		// The comment is always empty; see domain.AgentPublicKey.
 		out = appendString(appendString(out, k.Blob), nil)
@@ -178,7 +205,14 @@ func extension(ctx context.Context, frame []byte, policy domain.AgentSignPolicy,
 	return []byte{agentSuccess}
 }
 
+// appendString encodes s as an SSH string. Everything it is given - key blobs, signatures - is far
+// below MaxFrameLen, and writeFrame refuses the whole reply if that ever stops being true; the
+// clamp only keeps the conversion from wrapping on the way there.
 func appendString(out, s []byte) []byte {
-	out = binary.BigEndian.AppendUint32(out, uint32(len(s)))
+	n, err := wireLen(s)
+	if err != nil {
+		n = agentforward.MaxFrameLen
+	}
+	out = binary.BigEndian.AppendUint32(out, n)
 	return append(out, s...)
 }
