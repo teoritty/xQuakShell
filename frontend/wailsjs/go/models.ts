@@ -14,6 +14,24 @@ export namespace wails {
 	        this.trusted = source["trusted"];
 	    }
 	}
+	export class AgentForwardingDTO {
+	    enabled: boolean;
+	    identityIds: string[];
+	    confirm: string;
+	    windowMinutes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AgentForwardingDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.identityIds = source["identityIds"];
+	        this.confirm = source["confirm"];
+	        this.windowMinutes = source["windowMinutes"];
+	    }
+	}
 	export class AppSettingsDTO {
 	    lockoutEnabled: boolean;
 	    lockoutIdleMinutes: number;
@@ -333,6 +351,7 @@ export namespace wails {
 	    pluginFields?: Record<string, string>;
 	    storedSecretFields?: string[];
 	    forwardRules?: ForwardRuleDTO[];
+	    agentForwarding?: AgentForwardingDTO;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConnectionDTO(source);
@@ -354,6 +373,7 @@ export namespace wails {
 	        this.pluginFields = source["pluginFields"];
 	        this.storedSecretFields = source["storedSecretFields"];
 	        this.forwardRules = this.convertValues(source["forwardRules"], ForwardRuleDTO);
+	        this.agentForwarding = this.convertValues(source["agentForwarding"], AgentForwardingDTO);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1283,6 +1303,7 @@ export namespace wails {
 	    cachePolicy?: string;
 	    cacheTtlSeconds?: number;
 	    allowPlugins: boolean;
+	    allowForwarding: boolean;
 	    nonExportable: boolean;
 	    migrationPending: boolean;
 	    createdAt?: string;
@@ -1305,6 +1326,7 @@ export namespace wails {
 	        this.cachePolicy = source["cachePolicy"];
 	        this.cacheTtlSeconds = source["cacheTtlSeconds"];
 	        this.allowPlugins = source["allowPlugins"];
+	        this.allowForwarding = source["allowForwarding"];
 	        this.nonExportable = source["nonExportable"];
 	        this.migrationPending = source["migrationPending"];
 	        this.createdAt = source["createdAt"];
@@ -1317,6 +1339,7 @@ export namespace wails {
 	    cachePolicy: string;
 	    cacheTtlSeconds: number;
 	    allowPlugins: boolean;
+	    allowForwarding: boolean;
 	    nonExportable: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -1328,6 +1351,7 @@ export namespace wails {
 	        this.cachePolicy = source["cachePolicy"];
 	        this.cacheTtlSeconds = source["cacheTtlSeconds"];
 	        this.allowPlugins = source["allowPlugins"];
+	        this.allowForwarding = source["allowForwarding"];
 	        this.nonExportable = source["nonExportable"];
 	    }
 	}

@@ -79,6 +79,7 @@ func NewSessionManager(cfg SessionManagerConfig) *SessionManager {
 		VaultRepo:         cfg.VaultRepo,
 		PTYBridgeFactory:  cfg.PTYBridgeFactory,
 		SFTPClientFactory: cfg.SFTPClientFactory,
+		AgentPolicies:     newAgentForwarding(cfg, sshConnector),
 		OnDisconnected:    lifecycle.NotifyConnectionLost,
 	})
 	lifecycle.SetIO(io)

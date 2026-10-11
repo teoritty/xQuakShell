@@ -14,6 +14,8 @@ const (
 	EventPeerTrustRequired          = "PeerTrustRequired"
 	EventPassphraseRequired         = "PassphraseRequired"
 	EventPassphrasePromptClosed     = "PassphrasePromptClosed"
+	EventAgentConfirmRequired       = "AgentConfirmRequired"
+	EventAgentConfirmClosed         = "AgentConfirmClosed"
 	EventSFTPReady                  = "SFTPReady"
 	EventTerminalReady              = "TerminalReady"
 	EventPingUpdated                = "PingUpdated"

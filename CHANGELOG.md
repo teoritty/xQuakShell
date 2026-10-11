@@ -83,7 +83,28 @@ shell you left with `exit` stays closed, and a connection that failed at the fir
 password, an unreachable host — is not retried on a timer. Both the automatic reconnect and keeping
 the terminal can be turned off in Settings → Network → Reconnect.
 
+**Agent forwarding with keys from the vault.** A shell can now lend your keys to the server you
+opened it on, so from there `git pull` from a private repository, `ssh` to the next host, and `scp`
+or `rsync` to another server work without copying a key anywhere. It takes two yeses: a key allows
+forwarding in the Key Manager (off for every key, including existing ones), and a connection picks
+which of those keys it forwards. Every signature then asks first, naming the server that asks, the
+key, the user it logs in as and where the signature will be used - the destination host by its
+known_hosts name when the server's OpenSSH proves it (8.9 and later), and a plain warning when it
+does not. A connection can also offer "allow for N minutes", which covers only the same key to the
+same proven host in the same tab. Only logins are signed: the server cannot get a git commit or
+anything else signed, cannot add, remove or lock keys, and cannot reach the agent after the tab
+closes or the vault locks. Jump hosts and plugin connections never get the agent. Every request,
+allowed or refused, is in the audit log by key fingerprint. Tabs with a forwarded agent carry a key
+mark. The vault schema does not change; a vault saved by an older build loses these settings, which
+leaves forwarding off.
+
 ### Fixed
+
+**Built with Go 1.26.9, which fixes ten vulnerabilities in the standard library** - in `net/http`,
+`net/textproto` and `crypto/tls` (GO-2026-6603, 6605, 6607 to 6613, 6617) - that the update check,
+the plugin catalogue and the embed tunnels reach. The toolchain is now pinned in `go.mod`, so a
+build picks up a patched standard library because the repository says so, not because the build
+machine happened to have one.
 
 **Starting xQuakShell a second time no longer risks losing what you changed in the first.** Two
 copies started from the same folder each opened the vault and saved their own version of it, so

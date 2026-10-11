@@ -35,4 +35,8 @@ type SessionManagerConfig struct {
 	AuthGrantReader            PluginAuthGrantReader
 	DynamicForward             *DynamicForwardCoordinator
 	ForwardConnLimiterFactory  func() domain.ConcurrencyLimiter
+	// AgentConfirm asks the user about a forwarded-agent signature; nil disables forwarding.
+	AgentConfirm AgentConfirmFunc
+	// AgentAudit receives forwarded-agent decisions; nil drops them.
+	AgentAudit domain.AuditLogRepository
 }

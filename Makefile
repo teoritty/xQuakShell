@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build dev clean rebuild portable install check gates test test-go test-frontend typecheck-frontend coverage mutate lint sec gosec govulncheck budgets-update deps-linux require-wails
+.PHONY: help build dev clean rebuild portable install check gates test test-go test-frontend typecheck-frontend coverage mutate e2e-agent lint sec gosec govulncheck budgets-update deps-linux require-wails
 
 # ---------------------------------------------------------------------------
 # Host detection
@@ -79,6 +79,7 @@ help:
 	@echo test - check + Go and frontend test suites
 	@echo coverage - per-package coverage floors for the plugin stack
 	@echo mutate - mutation testing, slow, runs nightly in CI
+	@echo e2e-agent - agent forwarding against real OpenSSH, needs Docker
 	@echo budgets-update - re-record both halves of the size baseline
 	@echo lint - staticcheck
 	@echo sec - govulncheck + gosec
@@ -197,6 +198,13 @@ budgets-update:
 mutate:
 	go run ./scripts/mutate
 	cd frontend && npm run mutate
+
+# Not part of `gates`: it needs a Docker daemon and builds two OpenSSH containers. The in-process
+# e2e in test/unit/agentforwarding covers the same paths inside `gates`; this checks that the client
+# it emulates behaves like real OpenSSH. .github/workflows/e2e-agent.yml runs it when the code
+# under test changes.
+e2e-agent:
+	go test -tags e2e_docker ./test/e2e/agentforwarding/ -count=1 -v -timeout 20m
 
 # Both targets type-check the whole module, which needs frontend/dist to exist
 # for the go:embed in main.go. Run `make install && cd frontend && npm run build`

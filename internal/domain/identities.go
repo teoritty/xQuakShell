@@ -68,6 +68,10 @@ type SSHIdentity struct {
 	// AllowPlugins lets a plugin holding the vault capability read this private key. It is off
 	// by default: before this flag existed every plugin could read every key.
 	AllowPlugins bool `json:"allowPlugins,omitempty"`
+	// AllowForwarding is the key's half of the two-sided consent for agent forwarding (ADR-022):
+	// a connection may lend this key to a server only while it is set. Off by default, so no key
+	// that existed before forwarding did can be lent without the user deciding it.
+	AllowForwarding bool `json:"allowForwarding,omitempty"`
 	// NonExportable blocks export permanently. It can be set but never cleared — a key the user
 	// was promised could not leave the vault must not become exportable by editing a checkbox.
 	NonExportable bool `json:"nonExportable,omitempty"`

@@ -22,6 +22,7 @@ type IdentityDTO struct {
 	CachePolicy      string `json:"cachePolicy,omitempty"`
 	CacheTTLSeconds  int    `json:"cacheTtlSeconds,omitempty"`
 	AllowPlugins     bool   `json:"allowPlugins"`
+	AllowForwarding  bool   `json:"allowForwarding"`
 	NonExportable    bool   `json:"nonExportable"`
 	MigrationPending bool   `json:"migrationPending"`
 	CreatedAt        string `json:"createdAt,omitempty"`
@@ -41,6 +42,7 @@ type KeyOptionsDTO struct {
 	CachePolicy     string `json:"cachePolicy"`
 	CacheTTLSeconds int    `json:"cacheTtlSeconds"`
 	AllowPlugins    bool   `json:"allowPlugins"`
+	AllowForwarding bool   `json:"allowForwarding"`
 	NonExportable   bool   `json:"nonExportable"`
 }
 
@@ -91,6 +93,7 @@ func IdentityToDTO(in domain.SSHIdentity) IdentityDTO {
 		CachePolicy:      string(in.Cache),
 		CacheTTLSeconds:  in.CacheTTLSeconds,
 		AllowPlugins:     in.AllowPlugins,
+		AllowForwarding:  in.AllowForwarding,
 		NonExportable:    in.NonExportable,
 		MigrationPending: in.MigrationPending,
 		Source:           in.Source,
@@ -139,6 +142,7 @@ func DTOToKeyOptions(in KeyOptionsDTO) usecase.KeyOptions {
 		Cache:           cache,
 		CacheTTLSeconds: in.CacheTTLSeconds,
 		AllowPlugins:    in.AllowPlugins,
+		AllowForwarding: in.AllowForwarding,
 		NonExportable:   in.NonExportable,
 	}
 }

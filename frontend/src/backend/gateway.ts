@@ -398,6 +398,8 @@ export interface AppGateway {
 
   CancelPassphrase(arg1: string): Promise<void>;
 
+  ResolveAgentConfirm(arg1: string, arg2: string, arg3: string): Promise<void>;
+
   GetPeerTrust(): Promise<Array<{ scope: string; subject: string; fingerprint: string; addedAt: string }>>;
 
   RemovePeerTrust(arg1: string, arg2: string): Promise<void>;
@@ -488,6 +490,8 @@ export interface StoredKeyShape {
   cachePolicy?: string;
   cacheTtlSeconds?: number;
   allowPlugins: boolean;
+  // Optional on the wire: a backend that predates agent forwarding does not send it.
+  allowForwarding?: boolean;
   nonExportable: boolean;
   migrationPending: boolean;
   createdAt?: string;
@@ -505,5 +509,6 @@ export interface KeyOptionsShape {
   cachePolicy: string;
   cacheTtlSeconds: number;
   allowPlugins: boolean;
+  allowForwarding: boolean;
   nonExportable: boolean;
 }

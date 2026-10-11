@@ -61,6 +61,15 @@ async function run() {
   assert(narrowed[0].policy === 'vault', 'an unknown policy falls back to vault');
   assert(narrowed[0].cachePolicy === 'until-lock', 'an unknown cache policy falls back to until-lock');
 
+  // Forwarding consent (ADR-022) is read strictly: a backend that omits the flag, or sends anything
+  // but true, must not make a key look forwardable in the connection editor.
+  assert(narrowed[0].allowForwarding === false, 'a missing allowForwarding reads as no');
+  fake.program('GetKeys', [{ ...rawKey, allowForwarding: 'true' }, { ...rawKey, id: 'k2', allowForwarding: true }]);
+  const consent = await fetchKeys();
+  assert(consent[0].allowForwarding === false, 'a non-boolean allowForwarding reads as no');
+  assert(consent[1].allowForwarding === true, 'an explicit true is consent');
+  assert(defaultKeyOptions.allowForwarding === false, 'a new key is not forwardable unless the user says so');
+
   fake.program('GetKeys', null);
   assert((await fetchKeys()).length === 0, 'a null listing becomes an empty array, not a crash');
 

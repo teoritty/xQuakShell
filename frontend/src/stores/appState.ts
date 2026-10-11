@@ -16,6 +16,8 @@ export interface SSHIdentityMeta {
   keyType: string;
   fingerprint?: string;
   migrationPending?: boolean;
+  /** Whether the key consents to agent forwarding; the connection editor offers only these. */
+  allowForwarding?: boolean;
 }
 
 export interface KeyAuthConfig {
@@ -71,6 +73,14 @@ export interface JumpHop {
   pluginAuth?: PluginAuthConfig;
 }
 
+/** A connection's agent forwarding settings (ADR-022); absent means off. */
+export interface AgentForwarding {
+  enabled: boolean;
+  identityIds: string[];
+  confirm: 'each' | 'session-window';
+  windowMinutes: number;
+}
+
 export interface Connection {
   id: string;
   folderId: string;
@@ -90,6 +100,7 @@ export interface Connection {
   // back); the editor uses this to show a "saved" placeholder and to keep an untouched secret out
   // of the save payload so re-saving cannot wipe it.
   storedSecretFields?: string[];
+  agentForwarding?: AgentForwarding;
 }
 
 export type SessionState = 'connecting' | 'hostkey-required' | 'trust-required' | 'ready' | 'error' | 'closed';

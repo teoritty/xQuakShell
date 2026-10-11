@@ -23,6 +23,7 @@ type SessionIOService struct {
 	vaultRepo         domain.VaultRepository
 	ptyBridgeFactory  domain.PTYBridgeFactory
 	sftpClientFactory domain.SFTPClientFactory
+	agentPolicies     AgentPolicyProvider
 	onDisconnected    func(sessionID string)
 }
 
@@ -31,7 +32,9 @@ type SessionIOServiceConfig struct {
 	VaultRepo         domain.VaultRepository
 	PTYBridgeFactory  domain.PTYBridgeFactory
 	SFTPClientFactory domain.SFTPClientFactory
-	OnDisconnected    func(sessionID string)
+	// AgentPolicies hands the shell its forwarded agent; nil means no session ever gets one.
+	AgentPolicies  AgentPolicyProvider
+	OnDisconnected func(sessionID string)
 }
 
 func NewSessionIOService(cfg SessionIOServiceConfig) *SessionIOService {
@@ -40,6 +43,7 @@ func NewSessionIOService(cfg SessionIOServiceConfig) *SessionIOService {
 		vaultRepo:         cfg.VaultRepo,
 		ptyBridgeFactory:  cfg.PTYBridgeFactory,
 		sftpClientFactory: cfg.SFTPClientFactory,
+		agentPolicies:     cfg.AgentPolicies,
 		onDisconnected:    cfg.OnDisconnected,
 	}
 }
@@ -180,10 +184,12 @@ func (s *SessionIOService) InitSessionIO(ctx context.Context, sessionID string) 
 		return nil, "", nil
 	}
 
+	opts, err := s.ptyOptions(sessionCtx, sessionID, entry.connectionID)
+	if err != nil {
+		return nil, "", err
+	}
 	bridge := s.ptyBridgeFactory.NewBridge()
-	outputCh, err := bridge.Start(sessionCtx, sshClient, domain.PTYOptions{
-		Cols: 80, Rows: 24, Term: "xterm-256color",
-	})
+	outputCh, err := bridge.Start(sessionCtx, sshClient, opts)
 	if err != nil {
 		return nil, "", fmt.Errorf("pty start: %w", err)
 	}
@@ -206,6 +212,22 @@ func (s *SessionIOService) InitSessionIO(ctx context.Context, sessionID string) 
 	}
 
 	return outputCh, initialPath, nil
+}
+
+// ptyOptions builds the shell's PTY request. A failure to decide about agent forwarding fails the
+// shell rather than starting it without the agent: the user enabled forwarding, and a shell that
+// silently lacks it reads as the feature being broken in a way nobody can see.
+func (s *SessionIOService) ptyOptions(sessionCtx context.Context, sessionID, connectionID string) (domain.PTYOptions, error) {
+	opts := domain.PTYOptions{Cols: 80, Rows: 24, Term: "xterm-256color"}
+	if s.agentPolicies == nil {
+		return opts, nil
+	}
+	policy, err := s.agentPolicies.PolicyFor(sessionCtx, sessionID, connectionID)
+	if err != nil {
+		return opts, fmt.Errorf("pty start: %w", err)
+	}
+	opts.Agent = policy
+	return opts, nil
 }
 
 func (s *SessionIOService) Exec(sessionID, cmd string) (string, error) {

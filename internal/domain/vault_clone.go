@@ -47,6 +47,7 @@ func CloneConnection(in Connection) Connection {
 	out.Users = cloneConnectionUsers(in.Users)
 	out.Tags = cloneStrings(in.Tags)
 	out.JumpChain = cloneJumpChain(in.JumpChain)
+	out.AgentForwarding = in.AgentForwarding.Clone()
 	if in.PluginFields != nil {
 		out.PluginFields = make(map[string]string, len(in.PluginFields))
 		for k, v := range in.PluginFields {

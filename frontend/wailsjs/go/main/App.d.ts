@@ -241,6 +241,8 @@ export function ResizeLocalTerminal(arg1:string,arg2:number,arg3:number):Promise
 
 export function ResizeSurface(arg1:string,arg2:number,arg3:number):Promise<void>;
 
+export function ResolveAgentConfirm(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function ResolveHostKey(arg1:string,arg2:string):Promise<void>;
 
 export function ResolvePassphrase(arg1:string,arg2:string):Promise<void>;

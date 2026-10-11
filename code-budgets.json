@@ -49,8 +49,8 @@
         "scriptCodeLines": 85
       },
       "frontend/src/lib/ConnectionDetails.svelte": {
-        "codeLines": 306,
-        "scriptCodeLines": 234
+        "codeLines": 294,
+        "scriptCodeLines": 220
       },
       "frontend/src/lib/FileTree.svelte": {
         "codeLines": 519,
@@ -245,7 +245,7 @@
         "nesting": 0
       },
       "internal/presentation/wails/api.go::NewAppAPI": {
-        "codeLines": 85,
+        "codeLines": 79,
         "params": 30,
         "nesting": 1
       },

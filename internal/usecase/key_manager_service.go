@@ -177,6 +177,8 @@ type KeyOptions struct {
 	CacheTTLSeconds int
 	AllowPlugins    bool
 	NonExportable   bool
+	// AllowForwarding is the key's consent to agent forwarding (ADR-022).
+	AllowForwarding bool
 }
 
 // newIdentity assembles the metadata for a freshly wrapped key.
@@ -198,6 +200,7 @@ func (s *KeyManagerService) newIdentity(comment, source, passphrase string, mate
 		CacheTTLSeconds: opts.CacheTTLSeconds,
 		AllowPlugins:    opts.AllowPlugins,
 		NonExportable:   opts.NonExportable,
+		AllowForwarding: opts.AllowForwarding,
 		CreatedAt:       s.now(),
 		Source:          source,
 	}

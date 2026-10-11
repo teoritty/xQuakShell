@@ -52,6 +52,9 @@ export function buildConnectionSavePayload(
       draft.storedSecretFields,
       draft.pluginFieldsTouched,
     ),
+    agentForwarding: draft.agentForwarding
+      ? { ...draft.agentForwarding, identityIds: [...draft.agentForwarding.identityIds] }
+      : undefined,
     order: context.order,
   };
 }

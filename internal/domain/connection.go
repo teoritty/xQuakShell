@@ -1,6 +1,10 @@
 package domain
 
-import "fmt"
+import (
+	"fmt"
+
+	"xquakshell/internal/domain/agentforward"
+)
 
 const (
 	// DefaultSSHPort is the standard SSH port.
@@ -37,6 +41,10 @@ type Connection struct {
 
 	// PluginFields stores non-secret values and secret references for plugin protocols.
 	PluginFields map[string]string `json:"pluginFields,omitempty"`
+
+	// AgentForwarding lends vault keys to the final target's shell (ADR-022). Nil means off; the
+	// field is additive and omitempty, so a vault without it is unchanged on disk.
+	AgentForwarding *agentforward.Config `json:"agentForwarding,omitempty"`
 }
 
 // DefaultUser returns the ConnectionUser designated as default, or nil when none is set.
@@ -108,6 +116,9 @@ func (c *Connection) Validate() error {
 	if err := c.JumpChain.ValidateUniqueHopIDs(); err != nil {
 		return err
 	}
+	if err := c.AgentForwarding.Validate(); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidConnectionConfig, err)
+	}
 	return nil
 }
 
@@ -134,6 +145,9 @@ func (c *Connection) ValidateForConnect() error {
 func (c *Connection) validateSSHForConnect() error {
 	if err := c.validateUsersForConnect(); err != nil {
 		return err
+	}
+	if err := c.AgentForwarding.ValidateForConnect(); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidConnectionConfig, err)
 	}
 	return c.validateHopsStrict()
 }

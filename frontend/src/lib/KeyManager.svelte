@@ -78,6 +78,7 @@
       cachePolicy: selected.cachePolicy || 'until-lock',
       cacheTtlSeconds: selected.cacheTtlSeconds || defaultKeyOptions.cacheTtlSeconds,
       allowPlugins: selected.allowPlugins,
+      allowForwarding: selected.allowForwarding,
       nonExportable: selected.nonExportable,
     };
     showPolicy = true;

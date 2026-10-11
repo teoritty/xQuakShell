@@ -86,6 +86,8 @@
         <dd>{memory(key)}</dd>
         <dt>{$t('keys.field.plugins')}</dt>
         <dd>{key.allowPlugins ? $t('security.keys.plugins.allowed') : $t('security.keys.plugins.denied')}</dd>
+        <dt>{$t('keys.field.forwarding')}</dt>
+        <dd>{key.allowForwarding ? $t('security.keys.forwarding.allowed') : $t('security.keys.forwarding.denied')}</dd>
         <dt>{$t('keys.field.export')}</dt>
         <dd>{key.nonExportable ? $t('security.keys.export.sealed') : $t('security.keys.export.allowed')}</dd>
       </dl>
