@@ -37,6 +37,8 @@ type SyncAccountDeps struct {
 	Platform     string
 	// NewEngine builds the engine for a session; key rotation drives the personal vault through it.
 	NewEngine func(SyncSession) *SyncEngine
+	// Backup copies the vault aside before joining an account replaces or merges into it.
+	Backup domain.VaultBackup
 }
 
 // SyncAccountService enables sync on this device: it checks the server's identity, registers a new

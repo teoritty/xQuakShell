@@ -128,6 +128,7 @@ func (a *fakeAKE) LoginFinish(_ []byte, account vaultsync.ID) ([]byte, []byte, [
 type device struct {
 	t         *testing.T
 	failRekey bool
+	backup    *fakeBackup
 	state     *syncstate.DB
 	vault     *syncTestVault
 	svc       *usecase.SyncAccountService
@@ -144,7 +145,8 @@ func newDevice(t *testing.T, h *servertest.Harness, name string) *device {
 	}
 	t.Cleanup(func() { _ = st.Close() })
 	d.state = st
-	d.svc = usecase.NewSyncAccountService(usecase.SyncAccountDeps{Vault: d.vault, NewEngine: d.newEngine,
+	d.backup = &fakeBackup{vault: d.vault}
+	d.svc = usecase.NewSyncAccountService(usecase.SyncAccountDeps{Vault: d.vault, NewEngine: d.newEngine, Backup: d.backup,
 		NewServer: func(string, []byte) (synctrust.AccountServer, error) {
 			d.server = &accountServer{svcServer: &svcServer{h: h}, failRekey: &d.failRekey}
 			return d.server, nil

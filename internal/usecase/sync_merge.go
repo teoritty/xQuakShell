@@ -35,7 +35,7 @@ func (p *pullRun) editedLocally(id vaultsync.ID, local []byte) bool {
 // push re-creates the item. A merge that fails or does not validate falls back to the remote
 // version unchanged: never apply something no device wrote and the validators refuse.
 func (p *pullRun) mergeLocal(out *interpretation, id vaultsync.ID, entry synctrust.Entry, local []byte) (synctrust.Entry, bool) {
-	if local == nil || !p.editedLocally(id, local) {
+	if p.preferRemote || local == nil || !p.editedLocally(id, local) {
 		return entry, true
 	}
 	if entry.Data == nil {

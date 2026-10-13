@@ -22,6 +22,9 @@ type pullRun struct {
 	bodies    map[vaultsync.ID]synctrust.Body
 	namingKey []byte
 	report    PullReport
+	// preferRemote applies the account's versions over local ones without merging: the user chose
+	// to replace this device's data with the account's.
+	preferRemote bool
 }
 
 // Pull brings the local vault up to the server's head of one vault. Commits are verified and
