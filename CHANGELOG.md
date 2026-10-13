@@ -20,7 +20,7 @@ fixes, including security fixes, ship in a new release rather than as patches to
 |---|---|
 | `pluginApi` | 1.0.0 (unchanged) |
 | Capabilities | all 1.0.0, unchanged |
-| Manifest schema | unchanged |
+| Manifest schema | + optional `sync.paths` (additive) |
 | `bundleFormat` | 1.0.0 (unchanged) |
 | Vault schema | 5 (was 4) |
 | Vault envelope | 1 (unchanged) |

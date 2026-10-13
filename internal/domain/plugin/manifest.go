@@ -42,6 +42,9 @@ type Manifest struct {
 	ActivationEvents []string        `json:"activationEvents,omitempty"`
 	Isolation        IsolationMode   `json:"isolation,omitempty"`
 	Signature        string          `json:"signature,omitempty"`
+	// Sync names the data files that follow the user to their other devices. Optional; omitempty
+	// keeps every manifest signed before it existed byte-identical (see BundleFormat).
+	Sync *SyncSpec `json:"sync,omitempty"`
 }
 
 // EngineConfig locates the plugin binary.
@@ -274,6 +277,9 @@ func (m *Manifest) Validate() error {
 		return fmt.Errorf("%w: invalid isolation %q", ErrInvalidManifest, m.Isolation)
 	}
 	if err := m.ValidateCapabilitiesAndFields(); err != nil {
+		return err
+	}
+	if err := m.Sync.Validate(m.EffectiveIsolation()); err != nil {
 		return err
 	}
 	// Structural version contract (ADR-012): the requires{} block must be well-formed and only
