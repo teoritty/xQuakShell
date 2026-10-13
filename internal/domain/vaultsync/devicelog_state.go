@@ -186,3 +186,15 @@ func (s *DeviceLogState) Devices() []ID {
 	slices.SortFunc(ids, func(a, b ID) int { return bytes.Compare(a[:], b[:]) })
 	return ids
 }
+
+// Certificate returns a copy of a certified device's certificate - its name, platform and key - for
+// showing the account's devices; revoked devices keep theirs.
+func (s *DeviceLogState) Certificate(id ID) (DeviceCert, bool) {
+	st, known := s.devices[id]
+	if !known {
+		return DeviceCert{}, false
+	}
+	c := st.cert
+	c.SigningKey = bytes.Clone(st.cert.SigningKey)
+	return c, true
+}

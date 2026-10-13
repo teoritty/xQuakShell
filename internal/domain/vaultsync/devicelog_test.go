@@ -250,3 +250,20 @@ func TestSeveralRevocationsShareOneSuccession(t *testing.T) {
 		t.Fatal("one succession did not settle both revocations")
 	}
 }
+
+func TestDeviceCertificateIsReadableAndACopy(t *testing.T) {
+	aik := testKey(10)
+	s := newLog(t, aik)
+	_ = s.Apply(signEntry(t, s, aik, addDevice(1, testKey(20))))
+	c, ok := s.Certificate(vaultsync.ID{1})
+	if !ok || c.Device != (vaultsync.ID{1}) {
+		t.Fatalf("certificate = %+v, %v", c, ok)
+	}
+	c.SigningKey[0] ^= 1
+	if again, _ := s.Certificate(vaultsync.ID{1}); again.SigningKey[0] == c.SigningKey[0] {
+		t.Fatal("the certificate shares its key with the log state")
+	}
+	if _, ok := s.Certificate(vaultsync.ID{9}); ok {
+		t.Fatal("an unknown device has a certificate")
+	}
+}

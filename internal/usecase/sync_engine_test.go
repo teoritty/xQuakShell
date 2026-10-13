@@ -756,3 +756,19 @@ func TestSnapshotHeadRulesHoldEvenForAGenuineSignature(t *testing.T) {
 		}
 	})
 }
+
+// A refused change is not a held one: no password turns it into an applied change.
+func TestARefusedChangeCannotBeConfirmed(t *testing.T) {
+	w := newSyncWorld(t)
+	w.push(w.meta(), w.item(synctrust.TypeIdentity, "k1", map[string]any{"identity": domain.SSHIdentity{ID: "k1", NonExportable: true}}))
+	w.pull()
+	w.push(w.item(synctrust.TypeIdentity, "k1", map[string]any{"identity": domain.SSHIdentity{ID: "k1"}}))
+	w.pull()
+	id, _ := synctrust.RecordID(w.namingKey, synctrust.TypeIdentity, "k1")
+	if err := w.engine.ConfirmHeld(syncCtx, w.cv.ID, id); !errors.Is(err, usecase.ErrHeldNotFound) {
+		t.Fatalf("err = %v", err)
+	}
+	if d, _ := w.vault.GetData(); !d.Identities["k1"].NonExportable {
+		t.Fatal("confirming a refused change cleared the non-exportable latch")
+	}
+}

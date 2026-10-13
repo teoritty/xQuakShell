@@ -61,6 +61,7 @@ const maxSyncBackoff = 5 * time.Minute
 type SyncScheduler struct {
 	d    SyncSchedulerDeps
 	kick chan struct{}
+	now  chan struct{}
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -70,7 +71,7 @@ type SyncScheduler struct {
 // NewSyncScheduler builds the scheduler idle: nothing runs until Start, so it can be wired at startup
 // while the vault is still locked.
 func NewSyncScheduler(d SyncSchedulerDeps) *SyncScheduler {
-	return &SyncScheduler{d: d, kick: make(chan struct{}, 1)}
+	return &SyncScheduler{d: d, kick: make(chan struct{}, 1), now: make(chan struct{}, 1)}
 }
 
 // Start begins scheduling; a second Start while running does nothing.
@@ -103,6 +104,14 @@ func (s *SyncScheduler) Stop() {
 	wg.Wait()
 }
 
+// SyncNow asks for a round at once, without the debounce: the user pressed the button.
+func (s *SyncScheduler) SyncNow() {
+	select {
+	case s.now <- struct{}{}:
+	default:
+	}
+}
+
 // Notify reports a local edit. It never blocks: one pending kick is as good as many.
 func (s *SyncScheduler) Notify() {
 	select {
@@ -131,6 +140,8 @@ func (s *SyncScheduler) loop(ctx context.Context, events <-chan synctrust.Remote
 			}
 		case <-debounce:
 			debounce, runNow = nil, true
+		case <-s.now:
+			runNow = true
 		case <-retry:
 			retry, runNow = nil, true
 		case <-periodic:

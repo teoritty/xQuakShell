@@ -291,3 +291,10 @@ func TestObservingVaultSignalsOnlySuccessfulWrites(t *testing.T) {
 		t.Fatalf("signals = %d, want 1; only a write that landed is a change to push", signals)
 	}
 }
+
+func TestSyncNowSkipsTheDebounce(t *testing.T) {
+	w := newSchedWorld(t, 0)
+	w.expectSync()
+	w.s.SyncNow()
+	w.expectSync()
+}

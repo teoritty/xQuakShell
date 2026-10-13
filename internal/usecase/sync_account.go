@@ -282,3 +282,23 @@ func (s *SyncAccountService) finish(ctx context.Context, srv synctrust.AccountSe
 	}
 	return SyncSession{Server: auth, Keys: keys, Personal: synctrust.PersonalVaultID(keys.Account())}, nil
 }
+
+// Resume builds the session of the account stored in the vault without touching the network, so the
+// vault opening is never held up by the server; the session connects on its first request. ok is
+// false when sync is not enabled.
+func (s *SyncAccountService) Resume() (SyncSession, bool, error) {
+	data, err := s.d.Vault.GetData()
+	if err != nil || data.Sync == nil || data.Sync.Account == nil {
+		return SyncSession{}, false, err
+	}
+	acct := data.Sync.Account
+	keys, err := NewSyncKeyRing(acct, s.d.Crypto)
+	if err != nil {
+		return SyncSession{}, false, err
+	}
+	srv, err := s.d.NewServer(acct.ServerURL, acct.ServerIdentity)
+	if err != nil {
+		return SyncSession{}, false, err
+	}
+	return SyncSession{Server: NewAuthenticatedServer(srv, keys), Keys: keys, Personal: synctrust.PersonalVaultID(keys.Account())}, true, nil
+}
