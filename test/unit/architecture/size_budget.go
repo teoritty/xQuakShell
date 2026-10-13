@@ -18,6 +18,19 @@ import (
 // they are test support, and D4 exempts tests from size limits entirely.
 var budgetScanRoots = []string{".", "cmd", "internal", "scripts", "test/unit"}
 
+// budgetOptionalRoots may be absent. cmd holds standalone commands, and the fixture trees that
+// scripts/budgets builds in its tests have none. Every other root stays required: a missing
+// internal/ must fail loudly, not pass as a budget that covers nothing.
+var budgetOptionalRoots = map[string]bool{"cmd": true}
+
+func rootAbsent(repoRoot, root string) bool {
+	if !budgetOptionalRoots[root] {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(repoRoot, filepath.FromSlash(root)))
+	return os.IsNotExist(err)
+}
+
 // budgetPrunedDirs are skipped anywhere they appear under a scan root.
 // testdata holds files that are deliberately malformed or oversized because a
 // test asserts against them.
@@ -34,6 +47,9 @@ var budgetPrunedDirs = map[string]bool{
 func GoBudgetFiles(repoRoot string) ([]string, error) {
 	var files []string
 	for _, root := range budgetScanRoots {
+		if rootAbsent(repoRoot, root) {
+			continue
+		}
 		found, err := goFilesUnder(repoRoot, root)
 		if err != nil {
 			return nil, err
@@ -228,6 +244,9 @@ func sortedFileKeys[V any](m map[string]V) []string {
 func goTestFiles(repoRoot string) ([]string, error) {
 	var files []string
 	for _, root := range budgetScanRoots {
+		if rootAbsent(repoRoot, root) {
+			continue
+		}
 		found, err := testFilesUnder(repoRoot, root)
 		if err != nil {
 			return nil, err
