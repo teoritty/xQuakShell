@@ -48,6 +48,8 @@ type pluginRuntime struct {
 	assets              http.Handler
 	locales             *usecase.LocaleObserver
 	cancel              context.CancelFunc
+	pluginData          *usecase.PluginDataSync
+	stopPluginData      context.CancelFunc
 }
 
 type pluginRuntimeDeps struct {
@@ -308,6 +310,9 @@ func (r *pluginRuntime) wireEmbed(api *presentation.AppAPI) {
 func (r *pluginRuntime) shutdown() {
 	if r.cancel != nil {
 		r.cancel()
+	}
+	if r.stopPluginData != nil {
+		r.stopPluginData()
 	}
 }
 
