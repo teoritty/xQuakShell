@@ -313,3 +313,25 @@ var contactMapper = sliceMapper(
 		return nil
 	},
 )
+
+// bindingMapper syncs this member's credential bindings. A binding names exactly one credential.
+var bindingMapper = sliceMapper(
+	func(d *domain.VaultData) *[]domain.CredentialBinding {
+		if d.Sync == nil {
+			d.Sync = &domain.VaultSync{}
+		}
+		return &d.Sync.Bindings
+	},
+	func(b domain.CredentialBinding) string {
+		if b.VaultID == "" || b.ConnectionID == "" || b.UserID == "" {
+			return ""
+		}
+		return b.Key()
+	},
+	func(b *domain.CredentialBinding) error {
+		if (b.IdentityID == "") == (b.PasswordID == "") {
+			return fmt.Errorf("a binding names exactly one credential")
+		}
+		return nil
+	},
+)

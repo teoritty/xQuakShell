@@ -151,7 +151,7 @@ func (p *pullRun) landAs(ctx context.Context, c, meaning vaultsync.Commit, next 
 		return err
 	}
 	if len(out.changes) > 0 {
-		if err := p.e.d.Vault.UpdateData(ctx, func(d *domain.VaultData) error { return synctrust.ApplyScope(d, p.scope, out.changes) }); err != nil {
+		if err := p.e.d.Vault.UpdateData(ctx, func(d *domain.VaultData) error { return p.applyInterpretation(d, out) }); err != nil {
 			return fmt.Errorf("apply synced changes: %w", err)
 		}
 	}
@@ -210,4 +210,16 @@ func newDevices(fresh []vaultsync.DeviceEntry, self vaultsync.ID) []vaultsync.De
 		}
 	}
 	return out
+}
+
+// applyInterpretation applies a commit's changes to the vault and suspends the bindings its
+// repointings call for, in one vault update.
+func (p *pullRun) applyInterpretation(d *domain.VaultData, out interpretation) error {
+	if err := synctrust.ApplyScope(d, p.scope, out.changes); err != nil {
+		return err
+	}
+	for _, s := range out.suspend {
+		synctrust.SuspendBindings(d, p.scope.Vault, s.connection, s.account)
+	}
+	return nil
 }

@@ -213,6 +213,17 @@ func (c *SSHConnector) resolveAuth(ctx context.Context, conn *domain.Connection)
 	if defaultUser == nil {
 		return nil, "", nil, "", fmt.Errorf("default user not configured")
 	}
+	// A team connection's user may take each member's own credential through a binding; a
+	// suspended binding stops here, before anything reaches a host another member repointed.
+	data, err := c.vaultRepo.GetData()
+	if err != nil {
+		return nil, "", nil, "", err
+	}
+	user, err := domain.ResolveCredentials(data, conn, *defaultUser)
+	if err != nil {
+		return nil, "", nil, "", err
+	}
+	defaultUser = &user
 
 	switch defaultUser.Auth {
 	case domain.AuthMethodKey:

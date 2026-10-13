@@ -14,7 +14,12 @@ type interpretation struct {
 	changes    []synctrust.Entry
 	applied    []vaultsync.ID
 	quarantine []synctrust.QuarantineItem
+	// suspend names team connections another account repointed, with that account, whose bindings
+	// of this member's must wait for a confirmation.
+	suspend []suspension
 }
+
+type suspension struct{ connection, account string }
 
 // errSkip marks a record with nothing to apply: a tombstone for something this device never had.
 var errSkip = errors.New("nothing to apply")
@@ -68,6 +73,7 @@ func (p *pullRun) route(out *interpretation, r *vaultsync.Envelope, entry synctr
 	case verdict.Action == synctrust.ActionApply:
 		out.changes = append(out.changes, entry)
 		out.applied = append(out.applied, r.Record)
+		p.noteRepointing(out, r, entry, local)
 	case verdict.Action == synctrust.ActionPending:
 		out.quarantine = append(out.quarantine, p.hold(r, verdict.Reason, true))
 	default:
@@ -188,4 +194,21 @@ func (p *pullRun) nameOf(id vaultsync.ID) (syncKeyName, bool) {
 		return syncKeyName{}, false
 	}
 	return syncKeyName{ty: body.Type, key: key}, true
+}
+
+// noteRepointing records a team connection whose address another account changed: this member's
+// credential bound to it must not follow to the new host unconfirmed (spec §5.9). A change from
+// this member's own account - another of their devices - is their own decision.
+func (p *pullRun) noteRepointing(out *interpretation, r *vaultsync.Envelope, entry synctrust.Entry, local []byte) {
+	if p.scope.Vault == "" || entry.Type != synctrust.TypeConnection || local == nil || entry.Data == nil {
+		return
+	}
+	if !synctrust.AddressChanged(local, entry.Data) {
+		return
+	}
+	account, _, err := p.resolve(r.Author)
+	if err != nil || account == p.e.d.Keys.Account() {
+		return
+	}
+	out.suspend = append(out.suspend, suspension{connection: entry.Key, account: account.String()})
 }

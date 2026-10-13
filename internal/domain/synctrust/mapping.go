@@ -41,15 +41,16 @@ type mapper struct {
 }
 
 var mappers = map[RecordType]mapper{
-	TypeFolder:       folderMapper,
-	TypeConnection:   connectionMapper,
-	TypeIdentity:     identityMapper,
-	TypePassword:     passwordMapper,
-	TypePluginSecret: pluginSecretMapper,
-	TypeKnownHost:    knownHostMapper,
-	TypePeerTrust:    peerTrustMapper,
-	TypeConflict:     conflictMapper,
-	TypeContact:      contactMapper,
+	TypeFolder:            folderMapper,
+	TypeConnection:        connectionMapper,
+	TypeIdentity:          identityMapper,
+	TypePassword:          passwordMapper,
+	TypePluginSecret:      pluginSecretMapper,
+	TypeKnownHost:         knownHostMapper,
+	TypePeerTrust:         peerTrustMapper,
+	TypeConflict:          conflictMapper,
+	TypeContact:           contactMapper,
+	TypeCredentialBinding: bindingMapper,
 }
 
 // mapperFor finds the mapper for t. vault-meta has none on purpose: it is the engine's own record

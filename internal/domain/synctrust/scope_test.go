@@ -168,3 +168,25 @@ func TestContactsSyncInThePersonalVaultOnly(t *testing.T) {
 		t.Fatalf("err = %v, want ErrRecordData for a contact with a malformed account or digest", err)
 	}
 }
+
+func TestBindingsSyncInThePersonalVaultOnly(t *testing.T) {
+	d := mixedVault()
+	b := domain.CredentialBinding{VaultID: team, ConnectionID: "tc", UserID: "u1", IdentityID: "k1"}
+	d.Sync = &domain.VaultSync{Bindings: []domain.CredentialBinding{b}}
+	e, ok := scoped(t, d, synctrust.Scope{})["credential-binding "+b.Key()]
+	if !ok {
+		t.Fatal("a binding follows its member to every device of theirs")
+	}
+	if (synctrust.Scope{Vault: team}).Allows(synctrust.TypeCredentialBinding) {
+		t.Fatal("a team vault allows bindings; which credential a member uses is theirs alone")
+	}
+	dst := domain.NewVaultData()
+	if err := synctrust.Apply(dst, []synctrust.Entry{e}); err != nil || len(dst.Sync.Bindings) != 1 {
+		t.Fatalf("apply: %v", err)
+	}
+	both := synctrust.Entry{Type: synctrust.TypeCredentialBinding, Key: "t/c/u",
+		Data: []byte(`{"vaultId":"t","connectionId":"c","userId":"u","identityId":"k","passwordId":"p"}`)}
+	if err := synctrust.Validate(both); !errors.Is(err, synctrust.ErrRecordData) {
+		t.Fatalf("err = %v, want ErrRecordData: a binding names exactly one credential", err)
+	}
+}

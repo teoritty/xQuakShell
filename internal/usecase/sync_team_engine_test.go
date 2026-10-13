@@ -277,3 +277,78 @@ func TestAnEditorLeavesTeamUpkeepToTheAdmins(t *testing.T) {
 		t.Fatal("an editor appended a membership op")
 	}
 }
+
+// sealAs seals a team record as one of the vault's other members.
+func (w *syncWorld) sealAs(cv *servertest.ClientVault, author *servertest.User, ty synctrust.RecordType, key string, v any) vaultsync.Envelope {
+	w.t.Helper()
+	e := w.teamItem(cv, ty, key, v)
+	e.Author = author.Device
+	msg, _ := e.SigningBytes()
+	e.Sig = ed25519.Sign(author.DSK, msg)
+	return e
+}
+
+func boundTeamConnection(t *testing.T) (*syncWorld, *servertest.ClientVault, *servertest.User) {
+	t.Helper()
+	w := newSyncWorld(t)
+	bob, carol := w.h.Register("bob"), w.h.Register("carol")
+	cv := w.h.NewTeamVault(bob, servertest.Member{User: w.a, Role: vaultsync.RoleEditor}, servertest.Member{User: carol, Role: vaultsync.RoleEditor})
+	cv.Users[w.a.Account] = w.b
+	conn := domain.Connection{ID: "tc", Name: "db", Host: "db.example", Port: 22,
+		Users: []domain.ConnectionUser{{ID: "u1", Username: "deploy", Auth: domain.AuthMethodKey, CredentialSource: domain.CredentialSourcePersonal}}}
+	cv.Accept(w.b, cv.Commit(w.b, w.teamMeta(cv), w.teamItem(cv, synctrust.TypeConnection, "tc", conn)))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	_ = w.vault.UpdateData(syncCtx, func(d *domain.VaultData) error {
+		d.Identities["mine"] = domain.SSHIdentity{ID: "mine"}
+		d.Sync.Bindings = append(d.Sync.Bindings, domain.CredentialBinding{VaultID: cv.ID.String(), ConnectionID: "tc", UserID: "u1", IdentityID: "mine"})
+		return nil
+	})
+	return w, cv, carol
+}
+
+func repointed() domain.Connection {
+	return domain.Connection{ID: "tc", Name: "db", Host: "evil.example", Port: 22,
+		Users: []domain.ConnectionUser{{ID: "u1", Username: "deploy", Auth: domain.AuthMethodKey, CredentialSource: domain.CredentialSourcePersonal}}}
+}
+
+func TestAnotherMemberRepointingAConnectionSuspendsMyBinding(t *testing.T) {
+	w, cv, carol := boundTeamConnection(t)
+	cv.Accept(carol, cv.Commit(carol, w.sealAs(cv, carol, synctrust.TypeConnection, "tc", repointed())))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := w.vault.GetData()
+	if data.Sync.Bindings[0].SuspendedBy != carol.Account.String() {
+		t.Fatalf("binding = %+v; carol's repointing must suspend it, naming her", data.Sync.Bindings[0])
+	}
+	conn := data.Connections[0]
+	if _, err := domain.ResolveCredentials(data, &conn, conn.Users[0]); !errors.Is(err, domain.ErrBindingSuspended) {
+		t.Fatalf("resolve after repointing: %v, want ErrBindingSuspended", err)
+	}
+}
+
+func TestMyOwnRepointingDoesNotSuspendMyBinding(t *testing.T) {
+	w, cv, _ := boundTeamConnection(t)
+	cv.Accept(w.b, cv.Commit(w.b, w.teamItem(cv, synctrust.TypeConnection, "tc", repointed())))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := w.vault.GetData(); data.Sync.Bindings[0].SuspendedBy != "" {
+		t.Fatal("a change from my own account suspended my binding")
+	}
+}
+
+func TestAnotherMemberRenamingAConnectionLeavesMyBinding(t *testing.T) {
+	w, cv, carol := boundTeamConnection(t)
+	renamed := repointed()
+	renamed.Host, renamed.Name = "db.example", "database"
+	cv.Accept(carol, cv.Commit(carol, w.sealAs(cv, carol, synctrust.TypeConnection, "tc", renamed)))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := w.vault.GetData(); data.Sync.Bindings[0].SuspendedBy != "" {
+		t.Fatal("a rename suspended the binding; only a new address does")
+	}
+}

@@ -17,6 +17,8 @@ type VaultSync struct {
 	// Contacts are the accounts whose key this user has seen, synced to every device of theirs: the
 	// anchor a team vault's members are verified from (spec §6.6).
 	Contacts []SyncContact `json:"contacts,omitempty"`
+	// Bindings tie team connection users to this user's own credentials (spec §6.7).
+	Bindings []CredentialBinding `json:"bindings,omitempty"`
 	// Account holds this device's credentials for its sync account; nil until sync is enabled. It
 	// is never synced as a record: these are the keys every record is protected with.
 	Account *SyncAccount `json:"account,omitempty"`

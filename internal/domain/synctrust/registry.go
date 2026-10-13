@@ -34,6 +34,8 @@ const (
 	TypePeerTrust    RecordType = "peer-trust"
 	TypeConflict     RecordType = "conflict"
 	TypeContact      RecordType = "contact"
+	// TypeCredentialBinding ties a team connection user to this member's own credential.
+	TypeCredentialBinding RecordType = "credential-binding"
 
 	settingsPrefix = "settings."
 )
@@ -52,7 +54,7 @@ func SettingsType(section string) RecordType { return RecordType(settingsPrefix 
 // data bumps its number; older builds then show such records read-only (vaultsync.RecordAccess).
 var schemaV1 = []RecordType{
 	TypeVaultMeta, TypeFolder, TypeConnection, TypeIdentity, TypePassword, TypePluginSecret,
-	TypeKnownHost, TypePeerTrust, TypeConflict, TypeContact,
+	TypeKnownHost, TypePeerTrust, TypeConflict, TypeContact, TypeCredentialBinding,
 }
 
 // KnownSchemas is the registry vaultsync.RecordAccess consults.
