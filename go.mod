@@ -7,6 +7,8 @@ toolchain go1.26.9
 require (
 	filippo.io/age v1.3.1
 	github.com/aymanbagabas/go-pty v0.2.3
+	github.com/bytemare/ksf v0.5.0
+	github.com/bytemare/opaque v0.18.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/kayrus/putty v1.0.5
@@ -19,13 +21,20 @@ require (
 )
 
 require (
+	filippo.io/edwards25519 v1.2.0 // indirect
 	filippo.io/hpke v0.4.0 // indirect
+	filippo.io/nistec v0.0.4 // indirect
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
+	github.com/bytemare/ecc v0.9.0 // indirect
+	github.com/bytemare/hash v0.6.2 // indirect
+	github.com/bytemare/hash2curve v0.5.4 // indirect
+	github.com/bytemare/secp256k1 v0.3.0 // indirect
 	github.com/creack/pty v1.1.24 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
+	github.com/gtank/ristretto255 v0.2.0 // indirect
 	github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/labstack/echo/v4 v4.15.3 // indirect

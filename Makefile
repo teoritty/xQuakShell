@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build dev clean rebuild portable install check gates test test-go test-frontend typecheck-frontend coverage mutate e2e-agent lint sec gosec govulncheck budgets-update deps-linux require-wails
+.PHONY: help build dev clean rebuild portable install check gates test test-go test-frontend typecheck-frontend coverage mutate e2e-agent opaque-vectors lint sec gosec govulncheck budgets-update deps-linux require-wails
 
 # ---------------------------------------------------------------------------
 # Host detection
@@ -164,7 +164,7 @@ test: check test-go test-frontend
 # select, so a run on Windows sees `*_windows.go` and CI on ubuntu-latest sees
 # the linux half. The two are complementary rather than identical, and a finding
 # in a linux-only file will still surface first in CI.
-gates: check typecheck-frontend test-go test-frontend coverage lint gosec
+gates: check typecheck-frontend test-go test-frontend coverage opaque-vectors lint gosec
 
 # The timeout is for test/unit/recovery. Every fixture there costs several full scrypt passes at
 # log2N=18, so under -race the package runs about seven minutes on a fast desktop and past Go's
@@ -174,6 +174,13 @@ gates: check typecheck-frontend test-go test-frontend coverage lint gosec
 # security constant, and a hook for lowering it is a hook for lowering it in production too.
 test-go:
 	go test ./... -race -count=1 -timeout 30m
+
+# The sync server and client authenticate passwords with a pinned OPAQUE library (ADR-023). Its own
+# test suite replays the RFC 9807 test vectors; running it from this module checks that the exact
+# version in go.sum computes RFC OPAQUE, which internal/infra/opaque's tests cannot show on their
+# own - they prove the suite configuration, not the protocol arithmetic underneath it.
+opaque-vectors:
+	go test github.com/bytemare/opaque/tests -run TestOpaqueVectors -count=1
 
 test-frontend:
 	cd frontend && npm test
