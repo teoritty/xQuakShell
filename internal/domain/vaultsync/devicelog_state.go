@@ -60,7 +60,8 @@ func (s *DeviceLogState) Apply(e *DeviceEntry) error {
 	if err := s.checkSignature(e, msg); err != nil {
 		return err
 	}
-	if s.pendingSuccession && e.Op != OpSuccession {
+	// Further revocations may precede the one succession that answers them all; nothing else may.
+	if s.pendingSuccession && e.Op != OpSuccession && e.Op != OpRevokeDevice {
 		return ErrSuccessionRequired
 	}
 	next, err := e.hash(msg)

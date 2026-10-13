@@ -227,3 +227,26 @@ func TestNewDeviceLogStateRejectsBadKeys(t *testing.T) {
 		t.Errorf("unknown suite: err = %v", err)
 	}
 }
+
+// Several devices are often revoked at once - a lost laptop and the phone in the same bag - and one
+// succession answers them all; anything else in between still waits for it.
+func TestSeveralRevocationsShareOneSuccession(t *testing.T) {
+	oldAIK, newAIK := testKey(10), testKey(11)
+	s := newLog(t, oldAIK)
+	_ = s.Apply(signEntry(t, s, oldAIK, addDevice(1, testKey(20))))
+	_ = s.Apply(signEntry(t, s, oldAIK, addDevice(2, testKey(21))))
+	for _, id := range []vaultsync.ID{{1}, {2}} {
+		if err := s.Apply(signEntry(t, s, oldAIK, &vaultsync.DeviceEntry{Op: vaultsync.OpRevokeDevice, Revoked: id})); err != nil {
+			t.Fatalf("revoking %v while a succession is pending: %v", id, err)
+		}
+	}
+	if err := s.Apply(signEntry(t, s, oldAIK, addDevice(3, testKey(22)))); !errors.Is(err, vaultsync.ErrSuccessionRequired) {
+		t.Fatalf("an add between revocations and their succession: %v, want ErrSuccessionRequired", err)
+	}
+	if err := s.Apply(succession(t, s, oldAIK, newAIK)); err != nil {
+		t.Fatal(err)
+	}
+	if !s.IsRevoked(vaultsync.ID{1}) || !s.IsRevoked(vaultsync.ID{2}) || s.PendingSuccession() {
+		t.Fatal("one succession did not settle both revocations")
+	}
+}
