@@ -29,6 +29,7 @@ type Service struct {
 	logins     *pendingLogins
 	limits     *limiter
 	challenges *challenges
+	events     *hub
 }
 
 // New builds the service; in-memory state (pending logins, challenges, limits) starts empty.
@@ -39,7 +40,7 @@ func New(cfg Config) *Service {
 	if cfg.TeamQuota == 0 {
 		cfg.TeamQuota = 1 << 30
 	}
-	return &Service{cfg: cfg, logins: newPendingLogins(), limits: newLimiter(), challenges: newChallenges()}
+	return &Service{cfg: cfg, logins: newPendingLogins(), limits: newLimiter(), challenges: newChallenges(), events: newHub()}
 }
 
 const (

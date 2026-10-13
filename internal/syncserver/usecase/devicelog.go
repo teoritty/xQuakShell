@@ -41,7 +41,8 @@ func (s *Service) AppendDeviceLog(ctx context.Context, p Principal, entries []va
 	if len(entries) == 0 || len(entries) > 16 {
 		return ErrMalformed
 	}
-	return s.cfg.Store.WithTx(ctx, func(tx Tx) error {
+	var seq uint64
+	err := s.cfg.Store.WithTx(ctx, func(tx Tx) error {
 		acct, ok, err := tx.AccountByID(p.Account)
 		if err != nil || !ok {
 			return errors.Join(ErrUnauthorized, err)
@@ -65,8 +66,15 @@ func (s *Service) AppendDeviceLog(ctx context.Context, p Principal, entries []va
 		if err := tx.AppendDeviceEntries(acct.ID, entries); err != nil {
 			return err
 		}
+		seq = log.Seq()
 		return syncDevices(tx, acct.ID, entries, log)
 	})
+	// The account's other devices are told at once: an unexpected new device is how a user learns
+	// their sync password is known to someone else (spec section 2.5).
+	if err == nil {
+		s.events.publish([]vaultsync.ID{p.Account}, Event{Account: p.Account, DeviceLogSeq: seq})
+	}
+	return err
 }
 
 // syncDevices mirrors certifications and revocations into the devices table and drops a revoked

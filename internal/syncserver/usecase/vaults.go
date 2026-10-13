@@ -138,7 +138,9 @@ func (s *Service) AppendMembership(ctx context.Context, p Principal, vault vault
 			return ErrForbidden
 		}
 	}
-	return s.cfg.Store.WithTx(ctx, func(tx Tx) error {
+	var notify []vaultsync.ID
+	var seq uint64
+	err := s.cfg.Store.WithTx(ctx, func(tx Tx) error {
 		if _, _, err := requireMember(tx, vault, p.Account); err != nil {
 			return err
 		}
@@ -146,6 +148,7 @@ func (s *Service) AppendMembership(ctx context.Context, p Principal, vault vault
 		if err != nil {
 			return err
 		}
+		notify = m.Members()
 		check := signatureCheck(tx)
 		for i := range ops {
 			if err := m.Apply(&ops[i], check); err != nil {
@@ -161,8 +164,27 @@ func (s *Service) AppendMembership(ctx context.Context, p Principal, vault vault
 		if err := tx.SetVaultMembershipSeq(vault, m.Seq()); err != nil {
 			return err
 		}
+		notify, seq = unionIDs(notify, m.Members()), m.Seq()
 		return tx.ReplaceMembers(vault, roles(m))
 	})
+	// Members from before the batch are told too: a removed member's devices learn at once that they
+	// must drop their copy of the vault.
+	if err == nil {
+		s.events.publish(notify, Event{Vault: vault, MembershipSeq: seq})
+	}
+	return err
+}
+
+func unionIDs(a, b []vaultsync.ID) []vaultsync.ID {
+	seen := map[vaultsync.ID]bool{}
+	var out []vaultsync.ID
+	for _, id := range append(a, b...) {
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // Membership returns a vault's membership log after since.

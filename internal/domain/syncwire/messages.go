@@ -191,8 +191,9 @@ type Snapshot struct {
 
 // Event is a notification frame: a vault advanced, or an account's device log grew.
 type Event struct {
-	Vault        string `json:"vault,omitempty"`
-	Seq          uint64 `json:"seq,omitempty"`
-	Account      string `json:"account,omitempty"`
-	DeviceLogSeq uint64 `json:"deviceLogSeq,omitempty"`
+	Vault         string `json:"vault,omitempty"`
+	Seq           uint64 `json:"seq,omitempty"`
+	MembershipSeq uint64 `json:"membershipSeq,omitempty"`
+	Account       string `json:"account,omitempty"`
+	DeviceLogSeq  uint64 `json:"deviceLogSeq,omitempty"`
 }

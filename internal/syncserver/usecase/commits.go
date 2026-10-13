@@ -26,6 +26,7 @@ func (s *Service) Commit(ctx context.Context, p Principal, vault vaultsync.ID, e
 		return 0, ErrTooLarge
 	}
 	var seq uint64
+	var members []vaultsync.ID
 	err := s.cfg.Store.WithTx(ctx, func(tx Tx) error {
 		v, _, err := requireMember(tx, vault, p.Account)
 		if err != nil {
@@ -42,15 +43,20 @@ func (s *Service) Commit(ctx context.Context, p Principal, vault vaultsync.ID, e
 		if err != nil {
 			return err
 		}
-		if err := verifyCommit(tx, vault, c); err != nil {
+		m, err := verifyCommit(tx, vault, c)
+		if err != nil {
 			return err
 		}
+		members = m.Members()
 		seq = v.Seq + 1
 		if err := tx.InsertCommit(vault, seq, c); err != nil {
 			return err
 		}
 		return tx.UpdateVaultHead(vault, seq, bytes)
 	})
+	if err == nil && members != nil {
+		s.events.publish(members, Event{Vault: vault, Seq: seq})
+	}
 	return seq, err
 }
 
@@ -72,19 +78,19 @@ func (s *Service) checkQuota(v Vault, records []vaultsync.Envelope) (uint64, err
 // verifyCommit runs the shared commit rules against the stored state and the current membership.
 // Clients run the same rules; the server runs them so a hostile client cannot plant a commit every
 // other member would then have to refuse.
-func verifyCommit(tx Tx, vault vaultsync.ID, c vaultsync.Commit) error {
+func verifyCommit(tx Tx, vault vaultsync.ID, c vaultsync.Commit) (*vaultsync.MembershipState, error) {
 	m, err := replayMembership(tx, vault)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	state, err := currentState(tx, vault)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if _, err := state.ApplyCommit(c, m, deviceResolver(tx)); err != nil {
-		return refusal(err)
+		return nil, refusal(err)
 	}
-	return nil
+	return m, nil
 }
 
 func currentState(tx Tx, vault vaultsync.ID) (*vaultsync.VaultState, error) {
