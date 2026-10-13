@@ -19,6 +19,11 @@ type VaultSync struct {
 	Contacts []SyncContact `json:"contacts,omitempty"`
 	// Bindings tie team connection users to this user's own credentials (spec §6.7).
 	Bindings []CredentialBinding `json:"bindings,omitempty"`
+	// Plugins are the plugins installed on the user's devices, by reference (spec §6.4).
+	Plugins []SyncPlugin `json:"plugins,omitempty"`
+	// PluginFiles mirror the data files plugins declared for sync (spec §6.5). The vault is the
+	// synced copy; the plugin's data directory receives it only while the plugin is stopped.
+	PluginFiles []SyncPluginFile `json:"pluginFiles,omitempty"`
 	// Account holds this device's credentials for its sync account; nil until sync is enabled. It
 	// is never synced as a record: these are the keys every record is protected with.
 	Account *SyncAccount `json:"account,omitempty"`

@@ -36,6 +36,10 @@ const (
 	TypeContact      RecordType = "contact"
 	// TypeCredentialBinding ties a team connection user to this member's own credential.
 	TypeCredentialBinding RecordType = "credential-binding"
+	// TypePluginInstall is a plugin installed on one of the user's devices, by reference.
+	TypePluginInstall RecordType = "plugin-install"
+	// TypePluginData is one data file a plugin declared for sync.
+	TypePluginData RecordType = "plugin-data"
 
 	settingsPrefix = "settings."
 )
@@ -54,7 +58,7 @@ func SettingsType(section string) RecordType { return RecordType(settingsPrefix 
 // data bumps its number; older builds then show such records read-only (vaultsync.RecordAccess).
 var schemaV1 = []RecordType{
 	TypeVaultMeta, TypeFolder, TypeConnection, TypeIdentity, TypePassword, TypePluginSecret,
-	TypeKnownHost, TypePeerTrust, TypeConflict, TypeContact, TypeCredentialBinding,
+	TypeKnownHost, TypePeerTrust, TypeConflict, TypeContact, TypeCredentialBinding, TypePluginInstall, TypePluginData,
 }
 
 // KnownSchemas is the registry vaultsync.RecordAccess consults.

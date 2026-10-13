@@ -51,6 +51,8 @@ var mappers = map[RecordType]mapper{
 	TypeConflict:          conflictMapper,
 	TypeContact:           contactMapper,
 	TypeCredentialBinding: bindingMapper,
+	TypePluginInstall:     pluginInstallMapper,
+	TypePluginData:        pluginDataMapper,
 }
 
 // mapperFor finds the mapper for t. vault-meta has none on purpose: it is the engine's own record

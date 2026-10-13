@@ -248,6 +248,11 @@ func cloneVaultSync(in *VaultSync) *VaultSync {
 	}
 	out.Contacts = append([]SyncContact(nil), in.Contacts...)
 	out.Bindings = append([]CredentialBinding(nil), in.Bindings...)
+	out.Plugins = append([]SyncPlugin(nil), in.Plugins...)
+	for _, f := range in.PluginFiles {
+		f.Content = b(f.Content)
+		out.PluginFiles = append(out.PluginFiles, f)
+	}
 	if a := in.Account; a != nil {
 		acct := *a
 		acct.ServerIdentity, acct.Account, acct.Device, acct.DeviceSeed = b(a.ServerIdentity), b(a.Account), b(a.Device), b(a.DeviceSeed)
