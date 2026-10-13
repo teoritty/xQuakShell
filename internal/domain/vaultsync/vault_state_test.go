@@ -236,3 +236,39 @@ func TestApplyCommitWrongVault(t *testing.T) {
 		t.Fatalf("err = %v, want ErrChainBroken for a head of another vault", err)
 	}
 }
+
+func TestRestoreVaultStateReproducesTheVerifiedState(t *testing.T) {
+	c := newCommitFixture(t)
+	r1, r2 := c.record(editor, 1, 1), c.record(editor, 2, 1)
+	cm := c.commit(editor, r1, r2)
+	if err := c.apply(cm); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := vaultsync.RestoreVaultState(vaultID, &cm.Head, []vaultsync.Envelope{r1, r2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.Cursor() != c.state.Cursor() {
+		t.Fatal("restored cursor differs from the one verification produced")
+	}
+	next := c.commit(editor, c.record(editor, 1, 2))
+	if _, err := restored.ApplyCommit(next, c.m.state, c.resolver()); err != nil {
+		t.Fatalf("a commit valid on the verified state fails on the restored one: %v", err)
+	}
+}
+
+func TestRestoreVaultStateRefusesRecordsThatDoNotMatchTheHead(t *testing.T) {
+	c := newCommitFixture(t)
+	r1, r2 := c.record(editor, 1, 1), c.record(editor, 2, 1)
+	cm := c.commit(editor, r1, r2)
+	if _, err := vaultsync.RestoreVaultState(vaultID, &cm.Head, []vaultsync.Envelope{r1}); !errors.Is(err, vaultsync.ErrRootMismatch) {
+		t.Fatalf("err = %v, want ErrRootMismatch; a snapshot missing a record must be refused", err)
+	}
+	if _, err := vaultsync.RestoreVaultState(vaultsync.ID{0x55}, &cm.Head, []vaultsync.Envelope{r1, r2}); !errors.Is(err, vaultsync.ErrChainBroken) {
+		t.Fatalf("err = %v, want ErrChainBroken for a head of another vault", err)
+	}
+	empty, err := vaultsync.RestoreVaultState(vaultID, nil, nil)
+	if err != nil || empty.Cursor().Seq != 0 {
+		t.Fatalf("restoring an empty vault: %v, seq %d", err, empty.Cursor().Seq)
+	}
+}

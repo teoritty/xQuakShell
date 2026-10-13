@@ -134,3 +134,46 @@ func (s *VaultState) applyRecords(records []Envelope, author ID, key []byte, epo
 	}
 	return nil
 }
+
+// RestoreVaultState rebuilds a state from a head and the latest version of every record, as a
+// snapshot delivers them or as the server stored them. The records must reproduce the head's Merkle
+// root exactly, so a snapshot that drops, adds or alters a record is refused. It checks no
+// signature: a client verifies the head's author separately, through the device log, before
+// trusting a snapshot; the server restores only states it already verified commit by commit.
+//
+// A nil head is a vault with no commits yet.
+func RestoreVaultState(vault ID, head *Head, records []Envelope) (*VaultState, error) {
+	s, err := NewVaultState(vault)
+	if err != nil {
+		return nil, err
+	}
+	if head == nil {
+		if len(records) != 0 {
+			return nil, ErrRootMismatch
+		}
+		return s, nil
+	}
+	if head.Vault != vault {
+		return nil, fmt.Errorf("head of vault %s restored as %s: %w", head.Vault, vault, ErrChainBroken)
+	}
+	for i := range records {
+		leaf, err := LeafOf(&records[i])
+		if err != nil {
+			return nil, err
+		}
+		if _, dup := s.leaves[leaf.Record]; dup || records[i].Vault != vault {
+			return nil, ErrRootMismatch
+		}
+		s.leaves[leaf.Record] = leaf
+	}
+	root, err := MerkleRoot(s.Leaves())
+	if err != nil || root != head.MerkleRoot {
+		return nil, ErrRootMismatch
+	}
+	hash, err := head.Hash()
+	if err != nil {
+		return nil, err
+	}
+	s.cursor = ChainCursor{Seq: head.Seq, Hash: hash, MembershipSeq: head.MembershipSeq}
+	return s, nil
+}
