@@ -49,6 +49,7 @@ type pluginRuntime struct {
 	locales             *usecase.LocaleObserver
 	cancel              context.CancelFunc
 	pluginData          *usecase.PluginDataSync
+	pluginRefs          *usecase.PluginReferenceSync
 	stopPluginData      context.CancelFunc
 }
 
