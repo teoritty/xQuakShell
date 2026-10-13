@@ -1,6 +1,7 @@
 package syncflow
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -183,7 +184,7 @@ func TestS14LockDuringSync(t *testing.T) {
 	a := s.registered()
 	timers := make(chan chan time.Time, 64)
 	sched := usecase.NewSyncScheduler(usecase.SyncSchedulerDeps{Engine: a.engine, Events: nil,
-		Vaults: func() []vaultsync.ID { return []vaultsync.ID{a.session.Personal} },
+		Vaults: func(context.Context) ([]vaultsync.ID, error) { return []vaultsync.ID{a.session.Personal}, nil },
 		After: func(time.Duration) <-chan time.Time {
 			ch := make(chan time.Time, 1)
 			timers <- ch
