@@ -23,6 +23,7 @@ func TestNegotiateProtocol(t *testing.T) {
 		{"client at server minimum", ver(1, 1, 0), ver(1, 1, 0), ver(1, 3, 0), ver(1, 1, 0), false},
 		{"client below server minimum", ver(1, 0, 0), ver(1, 1, 0), ver(1, 3, 0), vaultsync.ProtocolVersion{}, true},
 		{"different major", ver(2, 0, 0), ver(1, 0, 0), ver(1, 9, 0), vaultsync.ProtocolVersion{}, true},
+		{"single-version server range", ver(1, 2, 0), ver(1, 2, 0), ver(1, 2, 0), ver(1, 2, 0), false},
 		{"inverted server range", ver(1, 0, 0), ver(1, 2, 0), ver(1, 1, 0), vaultsync.ProtocolVersion{}, true},
 	}
 	for _, c := range cases {

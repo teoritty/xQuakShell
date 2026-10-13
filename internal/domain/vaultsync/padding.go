@@ -53,7 +53,7 @@ func Unpad(padded []byte) ([]byte, error) {
 		return nil, ErrBadPadding
 	}
 	n := binary.BigEndian.Uint32(padded)
-	if uint64(n) > uint64(len(padded)-lengthPrefix) || len(padded) != PaddedSize(int(n)) {
+	if int64(n) > int64(len(padded)-lengthPrefix) || len(padded) != PaddedSize(int(n)) {
 		return nil, ErrBadPadding
 	}
 	end := lengthPrefix + int(n)

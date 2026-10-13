@@ -145,10 +145,10 @@ func TestMembershipCreateOnlyOnce(t *testing.T) {
 
 func TestMembershipCreateValidates(t *testing.T) {
 	cases := map[string]*vaultsync.MemberOp{
-		"nonzero epoch":   {Kind: vaultsync.MemberCreate, Epoch: 1, Wraps: wrapsFor(owner)},
-		"long retention":  {Kind: vaultsync.MemberCreate, RetentionDays: 366, Wraps: wrapsFor(owner)},
-		"wrap for other":  {Kind: vaultsync.MemberCreate, Wraps: wrapsFor(admin)},
-		"unknown suite":   nil,
+		"nonzero epoch":  {Kind: vaultsync.MemberCreate, Epoch: 1, Wraps: wrapsFor(owner)},
+		"long retention": {Kind: vaultsync.MemberCreate, RetentionDays: 366, Wraps: wrapsFor(owner)},
+		"wrap for other": {Kind: vaultsync.MemberCreate, Wraps: wrapsFor(admin)},
+		"unknown suite":  nil,
 	}
 	for name, op := range cases {
 		f := newFixture(t)

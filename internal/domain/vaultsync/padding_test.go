@@ -88,3 +88,9 @@ func FuzzUnpad(f *testing.F) {
 		}
 	})
 }
+
+func TestPadAcceptsExactlyTheMaximum(t *testing.T) {
+	if _, err := vaultsync.Pad(make([]byte, vaultsync.MaxPlaintextSize)); err != nil {
+		t.Fatalf("Pad refused a plaintext of exactly MaxPlaintextSize: %v", err)
+	}
+}

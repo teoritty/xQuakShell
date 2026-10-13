@@ -6,7 +6,7 @@
 // nothing beyond the toolchain the gate is already measuring.
 //
 // Usage: go run ./scripts/coverage
-// Floors can be overridden with DOMAIN_MIN, INFRA_MIN and USECASE_MIN.
+// Floors can be overridden with DOMAIN_MIN, INFRA_MIN, USECASE_MIN and VAULTSYNC_MIN.
 package main
 
 import (
@@ -54,6 +54,13 @@ var gates = []gate{
 		CoverPkg: []string{"xquakshell/internal/usecase"},
 		MinEnv:   "USECASE_MIN",
 		MinPct:   50,
+	},
+	{
+		Label:    "domain/vaultsync",
+		Packages: []string{"./internal/domain/vaultsync/"},
+		CoverPkg: []string{"xquakshell/internal/domain/vaultsync"},
+		MinEnv:   "VAULTSYNC_MIN",
+		MinPct:   90,
 	},
 }
 

@@ -25,7 +25,8 @@ type FieldPolicy func(path []string) FieldClass
 // "deleted here, unchanged there" and "deleted here, edited there" are told apart.
 type AbsentValue struct{}
 
-// Absent is the single AbsentValue.
+// Absent stands in for a missing key so merge can compare it with real values instead of
+// special-casing every lookup; callers drop it from results before encoding.
 var Absent = AbsentValue{}
 
 // Conflict is a credential field both sides changed to different values.

@@ -76,3 +76,20 @@ func TestMerkleRootGolden(t *testing.T) {
 		t.Fatalf("root = %x, want %s; the Merkle construction changed", got, goldenRoot)
 	}
 }
+
+func TestLeafOfCommitsToEnvelope(t *testing.T) {
+	e := signedEnvelope(t, testKey(1))
+	leaf, err := vaultsync.LeafOf(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest, _ := e.Digest()
+	if leaf.Record != e.Record || leaf.Version != e.Version || leaf.Digest != digest {
+		t.Fatalf("leaf = %+v; it must name the envelope's record, version and digest", leaf)
+	}
+	e.Sig[0] ^= 1
+	other, _ := vaultsync.LeafOf(e)
+	if other.Digest == leaf.Digest {
+		t.Fatal("re-signing an envelope left its leaf unchanged")
+	}
+}

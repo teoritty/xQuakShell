@@ -142,15 +142,15 @@ func TestDeviceLogSuccessionNeedsBothSignatures(t *testing.T) {
 func TestDeviceLogValidatesPayloads(t *testing.T) {
 	aik := testKey(10)
 	cases := map[string]*vaultsync.DeviceEntry{
-		"nil cert":        {Op: vaultsync.OpAddDevice},
-		"long name":       {Op: vaultsync.OpAddDevice, Cert: &vaultsync.DeviceCert{Device: vaultsync.ID{1}, SigningKey: make([]byte, 32), Name: strings.Repeat("n", 65)}},
-		"long platform":   {Op: vaultsync.OpAddDevice, Cert: &vaultsync.DeviceCert{Device: vaultsync.ID{1}, SigningKey: make([]byte, 32), Platform: strings.Repeat("p", 33)}},
-		"invalid utf8":    {Op: vaultsync.OpAddDevice, Cert: &vaultsync.DeviceCert{Device: vaultsync.ID{1}, SigningKey: make([]byte, 32), Name: "\xff"}},
-		"short key":       {Op: vaultsync.OpAddDevice, Cert: &vaultsync.DeviceCert{Device: vaultsync.ID{1}, SigningKey: make([]byte, 31)}},
-		"zero device":     {Op: vaultsync.OpAddDevice, Cert: &vaultsync.DeviceCert{SigningKey: make([]byte, 32)}},
-		"revoke unknown":  {Op: vaultsync.OpRevokeDevice, Revoked: vaultsync.ID{9}},
-		"unknown op":      {Op: 99},
-		"succession size": {Op: vaultsync.OpSuccession, NewSuite: vaultsync.Suite1, NewIdentityKey: make([]byte, 32), NewEncryptionKey: make([]byte, 10)},
+		"nil cert":         {Op: vaultsync.OpAddDevice},
+		"long name":        {Op: vaultsync.OpAddDevice, Cert: &vaultsync.DeviceCert{Device: vaultsync.ID{1}, SigningKey: make([]byte, 32), Name: strings.Repeat("n", 65)}},
+		"long platform":    {Op: vaultsync.OpAddDevice, Cert: &vaultsync.DeviceCert{Device: vaultsync.ID{1}, SigningKey: make([]byte, 32), Platform: strings.Repeat("p", 33)}},
+		"invalid utf8":     {Op: vaultsync.OpAddDevice, Cert: &vaultsync.DeviceCert{Device: vaultsync.ID{1}, SigningKey: make([]byte, 32), Name: "\xff"}},
+		"short key":        {Op: vaultsync.OpAddDevice, Cert: &vaultsync.DeviceCert{Device: vaultsync.ID{1}, SigningKey: make([]byte, 31)}},
+		"zero device":      {Op: vaultsync.OpAddDevice, Cert: &vaultsync.DeviceCert{SigningKey: make([]byte, 32)}},
+		"revoke unknown":   {Op: vaultsync.OpRevokeDevice, Revoked: vaultsync.ID{9}},
+		"unknown op":       {Op: 99},
+		"succession size":  {Op: vaultsync.OpSuccession, NewSuite: vaultsync.Suite1, NewIdentityKey: make([]byte, 32), NewEncryptionKey: make([]byte, 10)},
 		"succession suite": {Op: vaultsync.OpSuccession, NewSuite: 99, NewIdentityKey: make([]byte, 32), NewEncryptionKey: aekBytes(2)},
 	}
 	for name, e := range cases {

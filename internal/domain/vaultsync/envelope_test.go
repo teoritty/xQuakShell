@@ -127,3 +127,16 @@ func TestEnvelopeDigestCoversSignature(t *testing.T) {
 		t.Fatal("digest ignores the signature; the Merkle tree would not commit to who signed")
 	}
 }
+
+func TestEnvelopeBodyUpperBound(t *testing.T) {
+	maxBody := vaultsync.PaddedSize(vaultsync.MaxPlaintextSize) + 40
+	e := signedEnvelope(t, testKey(1))
+	e.Body = make([]byte, maxBody)
+	if err := e.Validate(); err != nil {
+		t.Fatalf("a body of the largest padded size failed validation: %v", err)
+	}
+	e.Body = make([]byte, maxBody+1)
+	if err := e.Validate(); err == nil {
+		t.Fatal("a body one byte above the largest padded size passed validation")
+	}
+}

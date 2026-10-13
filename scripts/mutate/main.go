@@ -55,6 +55,9 @@ type target struct {
 var targets = []target{
 	{Label: "domain/discovery", Packages: []string{"./internal/domain/discovery/"}, MinEnv: "MUTATE_DISCOVERY_MIN"},
 	{Label: "domain/plugin", Packages: []string{"./internal/domain/plugin/"}, MinEnv: "MUTATE_DOMAIN_PLUGIN_MIN"},
+	// The sync protocol rules both the application and the server verify with (ADR-023). A
+	// surviving mutant here is a check a hostile server could slip past.
+	{Label: "domain/vaultsync", Packages: []string{"./internal/domain/vaultsync/"}, MinEnv: "MUTATE_VAULTSYNC_MIN"},
 }
 
 // domain/plugin carries the manifest rules and the sandbox mode arithmetic, and
