@@ -38,6 +38,11 @@ func (e *SyncEngine) Pull(ctx context.Context, vault vaultsync.ID) (PullReport, 
 }
 
 func (p *pullRun) pullAll(ctx context.Context) error {
+	if p.state.Cursor().Seq == 0 {
+		if err := p.bootstrap(ctx); err != nil {
+			return err
+		}
+	}
 	for {
 		commits, more, err := p.e.d.Server.Changes(ctx, p.vault, p.state.Cursor().Seq, pullPageSize)
 		if err != nil {
@@ -99,7 +104,16 @@ func (p *pullRun) applyCommit(ctx context.Context, c synctrust.RemoteCommit) err
 	if err != nil {
 		return integrity("commit", err)
 	}
-	out, err := p.interpret(c.Commit)
+	if err := p.land(ctx, c.Commit, next); err != nil {
+		return err
+	}
+	p.report.Commits++
+	return nil
+}
+
+// land applies a verified commit's records to the vault and then advances the stored state to it.
+func (p *pullRun) land(ctx context.Context, c vaultsync.Commit, next *vaultsync.VaultState) error {
+	out, err := p.interpret(c)
 	if err != nil {
 		return err
 	}
@@ -111,11 +125,10 @@ func (p *pullRun) applyCommit(ctx context.Context, c synctrust.RemoteCommit) err
 	if err := p.settleQuarantine(ctx, out); err != nil {
 		return err
 	}
-	if err := p.e.d.State.AdvanceVault(ctx, c.Commit.Head, c.Commit.Records); err != nil {
+	if err := p.e.d.State.AdvanceVault(ctx, c.Head, c.Records); err != nil {
 		return err
 	}
-	p.advance(next, c.Commit.Records)
-	p.report.Commits++
+	p.advance(next, c.Records)
 	p.report.Applied += len(out.changes)
 	return nil
 }

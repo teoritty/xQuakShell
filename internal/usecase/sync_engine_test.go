@@ -30,6 +30,8 @@ type svcServer struct {
 	tamper    func([]synctrust.RemoteCommit) []synctrust.RemoteCommit
 	tamperLog func([]vaultsync.DeviceEntry) []vaultsync.DeviceEntry
 	tamperOps func([]vaultsync.MemberOp) []vaultsync.MemberOp
+	// tamperSnap rewrites the snapshot a new device starts from.
+	tamperSnap func(synctrust.RemoteSnapshot) synctrust.RemoteSnapshot
 	// alwaysMore makes every page claim more commits follow - a server stalling a client in a loop.
 	alwaysMore bool
 	calls      int
@@ -96,7 +98,16 @@ func (s *svcServer) Changes(ctx context.Context, vault vaultsync.ID, since uint6
 }
 
 func (s *svcServer) Snapshot(ctx context.Context, vault vaultsync.ID) (synctrust.RemoteSnapshot, error) {
-	return synctrust.RemoteSnapshot{}, errors.New("not used")
+	p, err := s.principal()
+	if err != nil {
+		return synctrust.RemoteSnapshot{}, err
+	}
+	head, records, err := s.h.Svc.Snapshot(ctx, p, vault)
+	out := synctrust.RemoteSnapshot{Head: head, Records: records}
+	if err == nil && s.tamperSnap != nil {
+		out = s.tamperSnap(out)
+	}
+	return out, remote(err)
 }
 
 func (s *svcServer) Commit(ctx context.Context, c vaultsync.Commit) (uint64, error) {
@@ -503,14 +514,17 @@ func TestHostileServerIsStopped(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			w := newSyncWorld(t)
-			w.push(w.meta(), w.item(synctrust.TypeFolder, "f1", domain.ConnectionFolder{ID: "f1", Name: "Prod"}))
+			w.push(w.meta())
+			w.pull()
+			w.push(w.item(synctrust.TypeFolder, "f1", domain.ConnectionFolder{ID: "f1", Name: "Prod"}),
+				w.item(synctrust.TypeFolder, "f3", domain.ConnectionFolder{ID: "f3", Name: "QA"}))
 			w.push(w.item(synctrust.TypeFolder, "f2", domain.ConnectionFolder{ID: "f2", Name: "Dev"}))
 			before, _ := w.vault.GetData()
 			w.server.tamper = tamper
 			if _, err := w.engine.Pull(syncCtx, w.cv.ID); !errors.Is(err, synctrust.ErrIntegrity) {
 				t.Fatalf("err = %v, want ErrIntegrity", err)
 			}
-			assertUntouched(t, w, before, 0)
+			assertUntouched(t, w, before, 1)
 		})
 	}
 }
@@ -531,6 +545,8 @@ func TestVaultMetaCannotChange(t *testing.T) {
 func TestCommitByAnUncertifiedDeviceIsRefused(t *testing.T) {
 	w := newSyncWorld(t)
 	w.push(w.meta())
+	w.pull()
+	w.push(w.item(synctrust.TypeFolder, "f1", domain.ConnectionFolder{ID: "f1", Name: "Prod"}))
 	_, stranger, _ := ed25519.GenerateKey(rand.Reader)
 	w.server.tamper = func(cs []synctrust.RemoteCommit) []synctrust.RemoteCommit {
 		for i := range cs {
@@ -602,6 +618,8 @@ func TestForgedMembershipIsRefused(t *testing.T) {
 func TestHeadBeyondTheMembershipLogIsRefused(t *testing.T) {
 	w := newSyncWorld(t)
 	w.push(w.meta())
+	w.pull()
+	w.push(w.item(synctrust.TypeFolder, "f1", domain.ConnectionFolder{ID: "f1", Name: "Prod"}))
 	w.server.tamper = func(cs []synctrust.RemoteCommit) []synctrust.RemoteCommit {
 		cs[0].Commit.Head.MembershipSeq = 9
 		return cs
@@ -609,4 +627,129 @@ func TestHeadBeyondTheMembershipLogIsRefused(t *testing.T) {
 	if _, err := w.engine.Pull(syncCtx, w.cv.ID); !errors.Is(err, synctrust.ErrIntegrity) {
 		t.Fatalf("err = %v, want ErrIntegrity", err)
 	}
+}
+
+func TestNewDeviceStartsFromAVerifiedSnapshot(t *testing.T) {
+	w := newSyncWorld(t)
+	w.push(w.meta(), w.item(synctrust.TypeFolder, "f1", domain.ConnectionFolder{ID: "f1", Name: "Prod"}))
+	w.push(w.item(synctrust.TypeFolder, "f1", domain.ConnectionFolder{ID: "f1", Name: "Production"}))
+	w.push(w.item(synctrust.TypeFolder, "f2", domain.ConnectionFolder{ID: "f2", Name: "Dev"}))
+	w.server.tamper = func(cs []synctrust.RemoteCommit) []synctrust.RemoteCommit {
+		if len(cs) > 0 {
+			t.Fatal("a new device replayed history instead of starting from the snapshot")
+		}
+		return cs
+	}
+	if r := w.pull(); r.Commits != 1 || r.Applied != 2 {
+		t.Fatalf("report = %+v; one snapshot, two items", r)
+	}
+	d, _ := w.vault.GetData()
+	names := map[string]string{}
+	for _, f := range d.Folders {
+		names[f.ID] = f.Name
+	}
+	if len(d.Folders) != 2 || names["f1"] != "Production" || names["f2"] != "Dev" {
+		t.Fatalf("folders = %+v", d.Folders)
+	}
+	if sv, _ := w.state.LoadVault(syncCtx, w.cv.ID); sv.Head == nil || sv.Head.Seq != 3 {
+		t.Fatalf("state = %+v; the cursor must start at the snapshot's head", sv.Head)
+	}
+}
+
+func TestHostileSnapshotIsStopped(t *testing.T) {
+	_, stranger, _ := ed25519.GenerateKey(rand.Reader)
+	for name, tamper := range map[string]func(synctrust.RemoteSnapshot) synctrust.RemoteSnapshot{
+		"drop a record": func(s synctrust.RemoteSnapshot) synctrust.RemoteSnapshot {
+			s.Records = s.Records[:1]
+			return s
+		},
+		"flip a body bit": func(s synctrust.RemoteSnapshot) synctrust.RemoteSnapshot {
+			s.Records[1].Body[10] ^= 1
+			return s
+		},
+		"head by a stranger": func(s synctrust.RemoteSnapshot) synctrust.RemoteSnapshot {
+			msg, _ := s.Head.SigningBytes()
+			s.Head.Sig = ed25519.Sign(stranger, msg)
+			return s
+		},
+		"records without a head": func(s synctrust.RemoteSnapshot) synctrust.RemoteSnapshot {
+			s.Head = nil
+			return s
+		},
+		"rolled-back membership": func(s synctrust.RemoteSnapshot) synctrust.RemoteSnapshot {
+			s.Head.MembershipHead[0] ^= 1
+			return s
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := newSyncWorld(t)
+			w.push(w.meta(), w.item(synctrust.TypeFolder, "f1", domain.ConnectionFolder{ID: "f1", Name: "Prod"}))
+			before, _ := w.vault.GetData()
+			w.server.tamperSnap = tamper
+			if _, err := w.engine.Pull(syncCtx, w.cv.ID); !errors.Is(err, synctrust.ErrIntegrity) {
+				t.Fatalf("err = %v, want ErrIntegrity", err)
+			}
+			assertUntouched(t, w, before, 0)
+		})
+	}
+}
+
+// resignedHead re-signs a snapshot head with device B's key after edit, as a malicious device of
+// the account could: the signature is genuine, so only the head rules can refuse it.
+func (w *syncWorld) resignedHead(edit func(*vaultsync.Head)) func(synctrust.RemoteSnapshot) synctrust.RemoteSnapshot {
+	return func(s synctrust.RemoteSnapshot) synctrust.RemoteSnapshot {
+		h := *s.Head
+		edit(&h)
+		msg, _ := h.SigningBytes()
+		h.Sig = ed25519.Sign(w.b.DSK, msg)
+		s.Head = &h
+		return s
+	}
+}
+
+func TestSnapshotHeadRulesHoldEvenForAGenuineSignature(t *testing.T) {
+	t.Run("wrong epoch", func(t *testing.T) {
+		w := newSyncWorld(t)
+		w.push(w.meta())
+		w.server.tamperSnap = w.resignedHead(func(h *vaultsync.Head) { h.CurrentEpoch = 5 })
+		if _, err := w.engine.Pull(syncCtx, w.cv.ID); !errors.Is(err, synctrust.ErrIntegrity) {
+			t.Fatalf("err = %v", err)
+		}
+	})
+	t.Run("record by a stranger under a head that commits to it", func(t *testing.T) {
+		w := newSyncWorld(t)
+		w.push(w.meta())
+		_, stranger, _ := ed25519.GenerateKey(rand.Reader)
+		w.server.tamperSnap = func(s synctrust.RemoteSnapshot) synctrust.RemoteSnapshot {
+			forged := w.item(synctrust.TypeFolder, "f9", domain.ConnectionFolder{ID: "f9", Name: "evil"})
+			msg, _ := forged.SigningBytes()
+			forged.Sig = ed25519.Sign(stranger, msg)
+			s.Records = append(s.Records, forged)
+			var leaves []vaultsync.Leaf
+			for i := range s.Records {
+				l, _ := vaultsync.LeafOf(&s.Records[i])
+				leaves = append(leaves, l)
+			}
+			root, _ := vaultsync.MerkleRoot(leaves)
+			return w.resignedHead(func(h *vaultsync.Head) { h.MerkleRoot = root })(s)
+		}
+		if _, err := w.engine.Pull(syncCtx, w.cv.ID); !errors.Is(err, synctrust.ErrIntegrity) {
+			t.Fatalf("err = %v; a record nobody certified signed must not enter the vault", err)
+		}
+	})
+	t.Run("author revoked at that position", func(t *testing.T) {
+		w := newSyncWorld(t)
+		w.push(w.meta())
+		w.cv.Users[w.a.Account] = w.a
+		if err := w.cv.AppendOps(w.a, vaultsync.MemberOp{Kind: vaultsync.MemberRotateEpoch, Epoch: 1,
+			Wraps: servertest.WrapFor(w.a.Account), RevokedDevices: []vaultsync.ID{w.b.Device}}); err != nil {
+			t.Fatal(err)
+		}
+		w.server.tamperSnap = w.resignedHead(func(h *vaultsync.Head) {
+			h.MembershipSeq, h.MembershipHead, h.CurrentEpoch = w.cv.M.Seq(), w.cv.M.Hash(), 1
+		})
+		if _, err := w.engine.Pull(syncCtx, w.cv.ID); !errors.Is(err, synctrust.ErrIntegrity) {
+			t.Fatalf("err = %v; a device the vault revoked must not author its starting point", err)
+		}
+	})
 }
