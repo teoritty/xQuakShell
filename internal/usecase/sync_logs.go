@@ -1,9 +1,11 @@
 package usecase
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
+	"xquakshell/internal/domain/synctrust"
 	"xquakshell/internal/domain/vaultsync"
 )
 
@@ -37,6 +39,9 @@ func (e *SyncEngine) verifiedDeviceLog(ctx context.Context) (*vaultsync.DeviceLo
 	}
 	if dl.PendingSuccession() {
 		return nil, nil, integrity("device log", fmt.Errorf("a revocation without its succession"))
+	}
+	if id, enc := e.d.Keys.CurrentKeys(); !bytes.Equal(dl.IdentityKey(), id) || !bytes.Equal(dl.EncryptionKey(), enc) {
+		return nil, nil, synctrust.ErrKeysRotated
 	}
 	if err := e.d.State.AppendDeviceLog(ctx, fresh); err != nil {
 		return nil, nil, err

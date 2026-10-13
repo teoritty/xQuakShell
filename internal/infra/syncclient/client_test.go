@@ -477,3 +477,27 @@ func TestEventsRefusedByTheServer(t *testing.T) {
 		t.Fatalf("err = %v, want ErrRemoteUnauthorized", err)
 	}
 }
+
+func TestPasswordRoutesCarryTheTokenAndTheSignature(t *testing.T) {
+	f := newFake(t)
+	var got syncwire.PasswordFinish
+	f.mux.HandleFunc("POST /v1/account/password/init", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, syncwire.PasswordInitReply{OPAQUE: []byte("resp")})
+	})
+	f.mux.HandleFunc("POST /v1/account/password/finish", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		writeJSON(w, 200, struct{}{})
+	})
+	c := helloed(t, f)
+	c.SetAccessToken("tok")
+	resp, err := c.PasswordInit(ctx, []byte("req"))
+	if err != nil || string(resp) != "resp" || f.lastAuth.Load() != "Bearer tok" {
+		t.Fatalf("init = %q, %v, auth %v", resp, err, f.lastAuth.Load())
+	}
+	if err := c.PasswordFinish(ctx, []byte("rec"), []byte("bun"), []byte("sig")); err != nil {
+		t.Fatal(err)
+	}
+	if string(got.Record) != "rec" || string(got.Bundle) != "bun" || string(got.Sig) != "sig" {
+		t.Fatalf("finish carried %+v", got)
+	}
+}

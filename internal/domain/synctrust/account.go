@@ -61,6 +61,10 @@ type AccountServer interface {
 	LoginFinish(ctx context.Context, loginID string, ke3 []byte) (LoginResult, error)
 	DeviceChallenge(ctx context.Context, account, device vaultsync.ID) ([]byte, error)
 	DeviceVerify(ctx context.Context, account, device vaultsync.ID, nonce, sig []byte) (string, error)
+	// PasswordInit and PasswordFinish replace the password record and the bundle; sig is the
+	// account's current identity key over vaultsync.RekeyMessage(account, record, bundle).
+	PasswordInit(ctx context.Context, request []byte) ([]byte, error)
+	PasswordFinish(ctx context.Context, record, bundle, sig []byte) error
 }
 
 // AccountCrypto is the account-key cryptography synccrypto implements.

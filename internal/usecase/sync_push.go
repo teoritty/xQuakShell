@@ -129,6 +129,9 @@ func (p *pullRun) adopt(ctx context.Context, c vaultsync.Commit) error {
 type change struct {
 	id    vaultsync.ID
 	entry synctrust.Entry
+	// schema is the record's schema; zero means this build's, 1. Re-encryption keeps a newer
+	// schema it cannot interpret exactly as it found it.
+	schema uint16
 }
 
 // localChanges diffs the vault against the verified base. Records held or quarantined are left
@@ -212,7 +215,7 @@ func (p *pullRun) sealChange(ch change, epoch uint32) (vaultsync.Envelope, error
 	env := vaultsync.Envelope{Vault: p.vault, Record: ch.id, Version: v + 1, Epoch: epoch, Suite: vaultsync.CurrentSuite,
 		Deleted: ch.entry.Data == nil, Author: p.e.d.Keys.Device(), SigAlg: vaultsync.SigEd25519}
 	if !env.Deleted {
-		raw, err := synctrust.EncodeBody(synctrust.Body{Type: ch.entry.Type, Schema: 1, Data: ch.entry.Data})
+		raw, err := synctrust.EncodeBody(synctrust.Body{Type: ch.entry.Type, Schema: max(ch.schema, 1), Data: ch.entry.Data})
 		if err != nil {
 			return env, err
 		}

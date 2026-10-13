@@ -186,6 +186,9 @@ func (k testKeys) Device() vaultsync.ID  { return k.u.Device }
 func (k testKeys) AccountKeys() (vaultsync.SuiteID, []byte, []byte) {
 	return vaultsync.Suite1, k.u.AIK.Public().(ed25519.PublicKey), k.u.AEK
 }
+func (k testKeys) CurrentKeys() ([]byte, []byte) {
+	return k.u.AIK.Public().(ed25519.PublicKey), k.u.AEK
+}
 func (k testKeys) VaultKey(vaultsync.ID, uint32, []vaultsync.MemberOp) ([]byte, error) {
 	return k.vk, nil
 }

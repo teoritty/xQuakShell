@@ -70,3 +70,15 @@ func (c *Client) DeviceVerify(ctx context.Context, account, device vaultsync.ID,
 		Device: syncwire.HexID(device), Nonce: nonce, Sig: sig}, &reply)
 	return reply.AccessToken, err
 }
+
+// PasswordInit starts an OPAQUE re-registration for the signed-in account.
+func (c *Client) PasswordInit(ctx context.Context, request []byte) ([]byte, error) {
+	var reply syncwire.PasswordInitReply
+	err := c.post(ctx, "/v1/account/password/init", syncwire.PasswordInit{OPAQUE: request}, &reply)
+	return reply.OPAQUE, err
+}
+
+// PasswordFinish replaces the record and the bundle under the account key's signature.
+func (c *Client) PasswordFinish(ctx context.Context, record, bundle, sig []byte) error {
+	return c.post(ctx, "/v1/account/password/finish", syncwire.PasswordFinish{Record: record, Bundle: bundle, Sig: sig}, &struct{}{})
+}

@@ -77,16 +77,15 @@ func (s *SyncAccountService) openBundle(c SyncCredentials, account vaultsync.ID,
 		return nil, integrity("account bundle", err)
 	}
 	encKey, err := s.d.Crypto.EncryptionPublic(encSeed)
-	if err != nil {
-		return nil, integrity("account bundle", err)
+	if err != nil || len(idSeed) != ed25519.SeedSize {
+		return nil, integrity("account bundle", errors.Join(err, fmt.Errorf("bundle key sizes")))
 	}
-	if len(idSeed) != ed25519.SeedSize ||
-		!bytes.Equal(ed25519.NewKeyFromSeed(idSeed).Public().(ed25519.PublicKey), res.IdentityKey) ||
-		!bytes.Equal(encKey, res.EncryptionKey) {
-		return nil, integrity("account bundle", fmt.Errorf("the server advertises other keys than the bundle holds"))
-	}
+	// The genesis keys come from the server unauthenticated. They are only where the device log
+	// replay starts; the log must end at exactly the keys the password-sealed bundle holds, which
+	// no forged genesis or substituted key can reach without the account's own signatures.
 	acct := &domain.SyncAccount{ServerURL: c.ServerURL, ServerIdentity: bytes.Clone(c.Pin), Username: c.Username,
-		Account: account[:], IdentitySeed: idSeed, EncryptionSeed: encSeed, EncryptionKey: encKey}
+		Account: account[:], IdentitySeed: idSeed, EncryptionSeed: encSeed, EncryptionKey: encKey,
+		GenesisIdentityKey: bytes.Clone(res.IdentityKey), GenesisEncryptionKey: bytes.Clone(res.EncryptionKey)}
 	return acct, s.newDevice(acct)
 }
 
@@ -98,17 +97,17 @@ func (s *SyncAccountService) enrolDevice(ctx context.Context, srv synctrust.Acco
 	if err != nil {
 		return err
 	}
-	log, err := vaultsync.NewDeviceLogState(account, vaultsync.Suite1, identityPublic(acct), acct.EncryptionKey)
+	log, err := vaultsync.NewDeviceLogState(account, vaultsync.Suite1, acct.GenesisIdentityKey, acct.GenesisEncryptionKey)
 	if err != nil {
-		return err
+		return integrity("device log", err)
 	}
 	for i := range entries {
 		if err := log.Apply(&entries[i]); err != nil {
 			return integrity("device log", err)
 		}
 	}
-	if !bytes.Equal(log.EncryptionKey(), acct.EncryptionKey) {
-		return integrity("device log", fmt.Errorf("the log's encryption key is not the bundle's"))
+	if !bytes.Equal(log.IdentityKey(), identityPublic(acct)) || !bytes.Equal(log.EncryptionKey(), acct.EncryptionKey) {
+		return integrity("device log", fmt.Errorf("the log ends at other keys than the bundle holds"))
 	}
 	entry, err := s.addDeviceEntry(acct, log)
 	if err != nil {

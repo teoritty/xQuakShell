@@ -56,10 +56,18 @@ func TestServerTLSMessageIsLabelled(t *testing.T) {
 func TestRekeyMessageBindsAccountRecordAndBundle(t *testing.T) {
 	base, _ := vaultsync.RekeyMessage(vaultsync.ID{1}, []byte("rec"), []byte("bundle"))
 	for name, other := range map[string]func() ([]byte, error){
-		"account": func() ([]byte, error) { return vaultsync.RekeyMessage(vaultsync.ID{2}, []byte("rec"), []byte("bundle")) },
-		"record":  func() ([]byte, error) { return vaultsync.RekeyMessage(vaultsync.ID{1}, []byte("rek"), []byte("bundle")) },
-		"bundle":  func() ([]byte, error) { return vaultsync.RekeyMessage(vaultsync.ID{1}, []byte("rec"), []byte("bundlf")) },
-		"shift":   func() ([]byte, error) { return vaultsync.RekeyMessage(vaultsync.ID{1}, []byte("recb"), []byte("undle")) },
+		"account": func() ([]byte, error) {
+			return vaultsync.RekeyMessage(vaultsync.ID{2}, []byte("rec"), []byte("bundle"))
+		},
+		"record": func() ([]byte, error) {
+			return vaultsync.RekeyMessage(vaultsync.ID{1}, []byte("rek"), []byte("bundle"))
+		},
+		"bundle": func() ([]byte, error) {
+			return vaultsync.RekeyMessage(vaultsync.ID{1}, []byte("rec"), []byte("bundlf"))
+		},
+		"shift": func() ([]byte, error) {
+			return vaultsync.RekeyMessage(vaultsync.ID{1}, []byte("recb"), []byte("undle"))
+		},
 	} {
 		got, _ := other()
 		if bytes.Equal(base, got) {

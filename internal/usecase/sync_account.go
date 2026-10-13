@@ -35,6 +35,8 @@ type SyncAccountDeps struct {
 	NowUnixMilli func() int64
 	DeviceName   string
 	Platform     string
+	// NewEngine builds the engine for a session; key rotation drives the personal vault through it.
+	NewEngine func(SyncSession) *SyncEngine
 }
 
 // SyncAccountService enables sync on this device: it checks the server's identity, registers a new
@@ -147,7 +149,8 @@ func (s *SyncAccountService) newAccount(c SyncCredentials) (*domain.SyncAccount,
 		return nil, err
 	}
 	acct := &domain.SyncAccount{ServerURL: c.ServerURL, ServerIdentity: bytes.Clone(c.Pin), Username: c.Username,
-		Account: account[:], IdentitySeed: idKey.Seed(), EncryptionSeed: encSeed, EncryptionKey: encKey}
+		Account: account[:], IdentitySeed: idKey.Seed(), EncryptionSeed: encSeed, EncryptionKey: encKey,
+		GenesisIdentityKey: idKey.Public().(ed25519.PublicKey), GenesisEncryptionKey: bytes.Clone(encKey)}
 	return acct, s.newDevice(acct)
 }
 

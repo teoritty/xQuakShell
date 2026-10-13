@@ -34,6 +34,23 @@ type SyncAccount struct {
 	IdentitySeed   []byte `json:"identitySeed"`
 	EncryptionSeed []byte `json:"encryptionSeed"`
 	EncryptionKey  []byte `json:"encryptionKey"`
+	// GenesisIdentityKey and GenesisEncryptionKey are the account keys the device log starts from.
+	// After a succession they differ from the current ones, and the log is still replayed from them.
+	GenesisIdentityKey   []byte `json:"genesisIdentityKey"`
+	GenesisEncryptionKey []byte `json:"genesisEncryptionKey"`
+	// Pending holds new account keys between generating them and the device log accepting their
+	// succession, so a crash in between cannot lose the keys the log now names.
+	Pending *SyncPendingKeys `json:"pending,omitempty"`
+	// RekeyPending marks a succession whose new bundle has not reached the server yet: until it
+	// does, no new device can sign in, and the user is asked to finish with the sync password.
+	RekeyPending bool `json:"rekeyPending,omitempty"`
+}
+
+// SyncPendingKeys are account keys generated for a succession not yet confirmed.
+type SyncPendingKeys struct {
+	IdentitySeed   []byte `json:"identitySeed"`
+	EncryptionSeed []byte `json:"encryptionSeed"`
+	EncryptionKey  []byte `json:"encryptionKey"`
 }
 
 // SyncConflict is one unresolved credential conflict.

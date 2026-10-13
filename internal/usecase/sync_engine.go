@@ -16,6 +16,8 @@ type SyncEngineDeps struct {
 	Vault  domain.VaultRepository
 	Keys   synctrust.KeyRing
 	Cipher synctrust.RecordCipher
+	// Crypto wraps vault keys; only epoch rotation and rewrap need it.
+	Crypto synctrust.AccountCrypto
 	// NowUnixMilli stamps quarantine entries and commit heads.
 	NowUnixMilli func() int64
 }

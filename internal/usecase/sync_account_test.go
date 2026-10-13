@@ -24,6 +24,8 @@ import (
 type accountServer struct {
 	*svcServer
 	loginResult func(synctrust.LoginResult) synctrust.LoginResult
+	// failRekey loses the next password re-registration, as a dropped connection would.
+	failRekey *bool
 }
 
 var testServerIdentity = bytes.Repeat([]byte{0x51}, 32)
@@ -68,6 +70,27 @@ func (s *accountServer) DeviceVerify(ctx context.Context, account, device vaults
 	return tok, remote(err)
 }
 
+func (s *accountServer) PasswordInit(ctx context.Context, request []byte) ([]byte, error) {
+	if s.failRekey != nil && *s.failRekey {
+		*s.failRekey = false
+		return nil, errors.New("connection reset")
+	}
+	p, err := s.principal()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.h.Svc.PasswordStart(ctx, p, request)
+	return resp, remote(err)
+}
+
+func (s *accountServer) PasswordFinish(ctx context.Context, record, bundle, sig []byte) error {
+	p, err := s.principal()
+	if err != nil {
+		return err
+	}
+	return remote(s.h.Svc.PasswordFinish(ctx, p, record, bundle, sig))
+}
+
 func (s *accountServer) Events(context.Context) (<-chan synctrust.RemoteEvent, error) {
 	return nil, errors.New("not used")
 }
@@ -103,19 +126,27 @@ func (a *fakeAKE) LoginFinish(_ []byte, account vaultsync.ID) ([]byte, []byte, [
 }
 
 type device struct {
-	t       *testing.T
-	vault   *syncTestVault
-	svc     *usecase.SyncAccountService
-	server  *accountServer
-	session usecase.SyncSession
-	engine  *usecase.SyncEngine
+	t         *testing.T
+	failRekey bool
+	state     *syncstate.DB
+	vault     *syncTestVault
+	svc       *usecase.SyncAccountService
+	server    *accountServer
+	session   usecase.SyncSession
+	engine    *usecase.SyncEngine
 }
 
 func newDevice(t *testing.T, h *servertest.Harness, name string) *device {
 	d := &device{t: t, vault: &syncTestVault{data: domain.NewVaultData()}}
-	d.svc = usecase.NewSyncAccountService(usecase.SyncAccountDeps{Vault: d.vault,
+	st, err := syncstate.Open(syncCtx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	d.state = st
+	d.svc = usecase.NewSyncAccountService(usecase.SyncAccountDeps{Vault: d.vault, NewEngine: d.newEngine,
 		NewServer: func(string, []byte) (synctrust.AccountServer, error) {
-			d.server = &accountServer{svcServer: &svcServer{h: h}}
+			d.server = &accountServer{svcServer: &svcServer{h: h}, failRekey: &d.failRekey}
 			return d.server, nil
 		},
 		NewAKE: func([]byte) (vaultsync.PasswordAKEClient, error) { return &fakeAKE{}, nil },
@@ -128,16 +159,15 @@ func creds(password string) usecase.SyncCredentials {
 		Password: []byte(password)}
 }
 
+func (d *device) newEngine(session usecase.SyncSession) *usecase.SyncEngine {
+	return usecase.NewSyncEngine(usecase.SyncEngineDeps{Server: session.Server, State: d.state, Vault: d.vault, Keys: session.Keys,
+		Cipher: synccrypto.Cipher{}, Crypto: synccrypto.Account{}, NowUnixMilli: func() int64 { return 7 }})
+}
+
 func (d *device) start(session usecase.SyncSession) {
 	d.t.Helper()
-	st, err := syncstate.Open(syncCtx, filepath.Join(d.t.TempDir(), "state.db"))
-	if err != nil {
-		d.t.Fatal(err)
-	}
-	d.t.Cleanup(func() { _ = st.Close() })
 	d.session = session
-	d.engine = usecase.NewSyncEngine(usecase.SyncEngineDeps{Server: session.Server, State: st, Vault: d.vault, Keys: session.Keys,
-		Cipher: synccrypto.Cipher{}, NowUnixMilli: func() int64 { return 7 }})
+	d.engine = d.newEngine(session)
 	if err := d.engine.EnsureVaultMeta(syncCtx, session.Personal, rand.Reader); err != nil {
 		d.t.Fatalf("vault meta: %v", err)
 	}

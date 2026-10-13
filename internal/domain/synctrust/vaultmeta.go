@@ -48,9 +48,12 @@ type KeyRing interface {
 	// Account is the signed-in account and this device's id in it.
 	Account() vaultsync.ID
 	Device() vaultsync.ID
-	// AccountKeys are the account's public identity and encryption keys and their suite, the root
-	// the device log is verified from.
+	// AccountKeys are the account's genesis public keys and their suite, the root the device log is
+	// verified from.
 	AccountKeys() (suite vaultsync.SuiteID, identity, encryption []byte)
+	// CurrentKeys are the public keys of the seeds this device holds. They must be the keys the
+	// replayed device log ends with; otherwise another device rotated them.
+	CurrentKeys() (identity, encryption []byte)
 	// VaultKey unwraps the key of one vault epoch from that vault's membership log.
 	VaultKey(vault vaultsync.ID, epoch uint32, ops []vaultsync.MemberOp) ([]byte, error)
 	// Sign signs with this device's signing key.

@@ -157,7 +157,7 @@ func (s *SyncScheduler) runAll(ctx context.Context, stopped map[vaultsync.ID]boo
 			s.report(SyncStatus{Vault: v, State: SyncIdle, Report: r})
 		case ctx.Err() != nil:
 			return nil, backoff
-		case errors.Is(err, synctrust.ErrIntegrity):
+		case errors.Is(err, synctrust.ErrIntegrity), errors.Is(err, synctrust.ErrKeysRotated):
 			stopped[v] = true
 			s.report(SyncStatus{Vault: v, State: SyncStopped, Err: err, Report: r})
 		case errors.As(err, &limited):

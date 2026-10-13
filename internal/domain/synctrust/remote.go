@@ -29,6 +29,10 @@ var (
 	// root that does not match, a device log or membership that does not replay. Sync of the vault
 	// stops and nothing from the failing pull is applied; it is never retried silently.
 	ErrIntegrity = errors.New("sync: data from the server does not verify")
+	// ErrKeysRotated is an account whose device log moved on to keys this device does not hold: a
+	// password change, a reset or a revocation on another device. This device signs in again with
+	// the sync password to fetch them; if it was the device revoked, that sign-in fails.
+	ErrKeysRotated = errors.New("sync: the account's keys were changed on another device; sign in again")
 )
 
 // ConflictError is a commit refused because the vault moved on; the client pulls and rebases onto

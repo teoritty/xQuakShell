@@ -20,11 +20,12 @@ var (
 
 // syncKeyRing is the KeyRing over the account stored in the vault.
 type syncKeyRing struct {
-	account, device vaultsync.ID
-	deviceKey       ed25519.PrivateKey
-	identityKey     []byte
-	encSeed, encKey []byte
-	crypto          synctrust.AccountCrypto
+	account, device       vaultsync.ID
+	deviceKey             ed25519.PrivateKey
+	identityKey           []byte
+	encSeed, encKey       []byte
+	genesisID, genesisEnc []byte
+	crypto                synctrust.AccountCrypto
 }
 
 // NewSyncKeyRing reads the device's keys from the stored account, refusing an account with any
@@ -32,11 +33,13 @@ type syncKeyRing struct {
 func NewSyncKeyRing(a *domain.SyncAccount, crypto synctrust.AccountCrypto) (synctrust.KeyRing, error) {
 	if a == nil || len(a.Account) != len(vaultsync.ID{}) || len(a.Device) != len(vaultsync.ID{}) ||
 		len(a.DeviceSeed) != ed25519.SeedSize || len(a.IdentitySeed) != ed25519.SeedSize ||
-		len(a.EncryptionSeed) == 0 || len(a.EncryptionKey) == 0 {
+		len(a.EncryptionSeed) == 0 || len(a.EncryptionKey) == 0 ||
+		len(a.GenesisIdentityKey) != ed25519.PublicKeySize || len(a.GenesisEncryptionKey) == 0 {
 		return nil, ErrSyncAccount
 	}
 	k := &syncKeyRing{deviceKey: ed25519.NewKeyFromSeed(a.DeviceSeed), encSeed: bytes.Clone(a.EncryptionSeed),
-		encKey: bytes.Clone(a.EncryptionKey), crypto: crypto}
+		encKey: bytes.Clone(a.EncryptionKey), genesisID: bytes.Clone(a.GenesisIdentityKey),
+		genesisEnc: bytes.Clone(a.GenesisEncryptionKey), crypto: crypto}
 	copy(k.account[:], a.Account)
 	copy(k.device[:], a.Device)
 	k.identityKey = ed25519.NewKeyFromSeed(a.IdentitySeed).Public().(ed25519.PublicKey)
@@ -47,7 +50,11 @@ func (k *syncKeyRing) Account() vaultsync.ID { return k.account }
 func (k *syncKeyRing) Device() vaultsync.ID  { return k.device }
 
 func (k *syncKeyRing) AccountKeys() (vaultsync.SuiteID, []byte, []byte) {
-	return vaultsync.Suite1, bytes.Clone(k.identityKey), bytes.Clone(k.encKey)
+	return vaultsync.Suite1, bytes.Clone(k.genesisID), bytes.Clone(k.genesisEnc)
+}
+
+func (k *syncKeyRing) CurrentKeys() ([]byte, []byte) {
+	return bytes.Clone(k.identityKey), bytes.Clone(k.encKey)
 }
 
 func (k *syncKeyRing) Sign(msg []byte) ([]byte, error) { return ed25519.Sign(k.deviceKey, msg), nil }
