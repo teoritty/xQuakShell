@@ -63,8 +63,13 @@ func mapperFor(t RecordType) (mapper, string, error) {
 	return mapper{}, "", fmt.Errorf("%w: %q", ErrRecordType, t)
 }
 
-// Snapshot lists every synced item of d, filed under its record id.
+// Snapshot lists every synced item of the personal vault, filed under its record id.
 func Snapshot(namingKey []byte, d *domain.VaultData) (map[vaultsync.ID]Entry, error) {
+	return SnapshotScope(namingKey, d, Scope{})
+}
+
+// snapshotAll lists every synced item d holds; SnapshotScope calls it on a one-vault projection.
+func snapshotAll(namingKey []byte, d *domain.VaultData) (map[vaultsync.ID]Entry, error) {
 	out := map[vaultsync.ID]Entry{}
 	add := func(e Entry) error {
 		id, err := RecordID(namingKey, e.Type, e.Key)
@@ -105,9 +110,13 @@ func settingsTypes() []RecordType {
 	return out
 }
 
-// Apply validates every change against the domain rules for its type and then applies them all to d.
-// If any change is refused, d is left untouched.
+// Apply validates every change against the domain rules for its type and then applies them all to
+// the personal vault of d. If any change is refused, d is left untouched.
 func Apply(d *domain.VaultData, changes []Entry) error {
+	return ApplyScope(d, Scope{}, changes)
+}
+
+func apply(d *domain.VaultData, changes []Entry) error {
 	muts := make([]mutation, 0, len(changes))
 	for _, c := range changes {
 		m, _, err := mapperFor(c.Type)

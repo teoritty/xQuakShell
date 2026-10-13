@@ -68,6 +68,8 @@ type SyncConflict struct {
 	Local       json.RawMessage `json:"local,omitempty"`
 	Remote      json.RawMessage `json:"remote,omitempty"`
 	AtUnixMilli int64           `json:"at"`
+	// VaultID is the team vault of the item in conflict; empty is the personal vault.
+	VaultID string `json:"vaultId,omitempty"`
 }
 
 // ConflictID names the conflict on one field of one item. Each part is quoted, so no separator can
