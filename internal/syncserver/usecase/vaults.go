@@ -165,7 +165,10 @@ func (s *Service) AppendMembership(ctx context.Context, p Principal, vault vault
 			return err
 		}
 		notify, seq = unionIDs(notify, m.Members()), m.Seq()
-		return tx.ReplaceMembers(vault, roles(m))
+		if err := tx.ReplaceMembers(vault, roles(m)); err != nil {
+			return err
+		}
+		return s.pruneVault(tx, vault, m)
 	})
 	// Members from before the batch are told too: a removed member's devices learn at once that they
 	// must drop their copy of the vault.

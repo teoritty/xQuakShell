@@ -66,7 +66,7 @@ func (r *rig) do(method, path, token string, body any) (int, []byte) {
 	return resp.StatusCode, raw
 }
 
-var errorBody = regexp.MustCompile(`^\{"error":"(malformed|unauthorized|forbidden|not_found|conflict|too_large|rate_limited|unsupported_version|frozen|quota_exceeded|internal)"(,"currentSeq":\d+)?\}\n$`)
+var errorBody = regexp.MustCompile(`^\{"error":"(malformed|unauthorized|forbidden|not_found|conflict|too_large|rate_limited|unsupported_version|frozen|quota_exceeded|internal|history_pruned)"(,"currentSeq":\d+)?\}\n$`)
 
 // assertErrorBody holds every error response to a bare code, never Go error text.
 func assertErrorBody(t *testing.T, status int, body []byte) {
@@ -282,6 +282,7 @@ func TestIDORMatrix(t *testing.T) {
 	endpoints := []endpoint{
 		{"changes", "GET", v + "/changes", nil, reads},
 		{"snapshot", "GET", v + "/snapshot", nil, reads},
+		{"versions", "GET", v + "/records/" + vaultsync.ID{7}.String() + "/versions", nil, reads},
 		{"membership", "GET", v + "/membership", nil, reads},
 		{"membership append", "POST", v + "/membership", func(c string) any { return ir.membershipBody(c) },
 			map[string]int{"none": 401, "account token": 401, "outsider": 404, "removed": 404, "viewer": 403, "frozen": 403, "revoked": 401, "editor": 403}},
@@ -366,5 +367,23 @@ func TestPasswordRoutes(t *testing.T) {
 	status, _ = r.do("POST", "/v1/account/password/finish", u.Access, syncwire.PasswordFinish{Record: record, Bundle: bundle, Sig: ed25519.Sign(u.AIK, msg)})
 	if status != http.StatusOK {
 		t.Fatalf("password finish: %d", status)
+	}
+}
+
+func TestPrunedHistoryIsGoneWithItsCode(t *testing.T) {
+	r := newRig(t)
+	u := r.h.Register("alice")
+	cv := r.h.PersonalVault(u)
+	cv.Accept(u, cv.Commit(u, cv.Record(u, 1)))
+	cv.Accept(u, cv.Commit(u, cv.Tombstone(u, 1)))
+	cv.Accept(u, cv.Purge(u, 1))
+	status, body := r.do("GET", "/v1/vaults/"+u.Vault.String()+"/changes?since=0", u.Access, nil)
+	if status != http.StatusGone || !strings.Contains(string(body), syncwire.CodeHistoryPruned) {
+		t.Fatalf("pull before pruned history: %d %s; want 410 history_pruned", status, body)
+	}
+	assertErrorBody(t, status, body)
+	status, body = r.do("GET", "/v1/vaults/"+u.Vault.String()+"/records/zz/versions", u.Access, nil)
+	if status != http.StatusNotFound {
+		t.Fatalf("malformed record id: %d %s; want 404", status, body)
 	}
 }

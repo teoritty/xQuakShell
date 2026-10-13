@@ -18,12 +18,17 @@ func (t *txn) CommitSeqByID(vault, commitID vaultsync.ID) (uint64, bool, error) 
 
 // InsertCommit stores the head and every record version it carries, all tagged with seq so a pull
 // can return whole commits.
-func (t *txn) InsertCommit(vault vaultsync.ID, seq uint64, c vaultsync.Commit) error {
+func (t *txn) InsertCommit(vault vaultsync.ID, seq uint64, c vaultsync.Commit, received uint64) error {
 	head, err := json.Marshal(syncwire.HeadFrom(&c.Head))
 	if err != nil {
 		return err
 	}
-	if err := t.exec("INSERT INTO commits (vault, seq, commit_id, head) VALUES (?, ?, ?, ?)", vault[:], seq, c.Head.Commit[:], head); err != nil {
+	purged, err := json.Marshal(syncwire.IDStrings(c.Purged))
+	if err != nil {
+		return err
+	}
+	if err := t.exec("INSERT INTO commits (vault, seq, commit_id, head, purged, received) VALUES (?, ?, ?, ?, ?, ?)",
+		vault[:], seq, c.Head.Commit[:], head, purged, received); err != nil {
 		return err
 	}
 	for i := range c.Records {
@@ -32,8 +37,8 @@ func (t *txn) InsertCommit(vault vaultsync.ID, seq uint64, c vaultsync.Commit) e
 			return err
 		}
 		e := &c.Records[i]
-		if err := t.exec("INSERT INTO record_versions (vault, record, version, seq, envelope) VALUES (?, ?, ?, ?, ?)",
-			vault[:], e.Record[:], e.Version, seq, raw); err != nil {
+		if err := t.exec("INSERT INTO record_versions (vault, record, version, seq, epoch, size, envelope) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			vault[:], e.Record[:], e.Version, seq, e.Epoch, len(e.WrappedDEK)+len(e.Body), raw); err != nil {
 			return err
 		}
 	}
@@ -48,6 +53,19 @@ func decodeHead(raw []byte) (vaultsync.Head, error) {
 	return d.ToDomain()
 }
 
+func decodePurged(raw []byte) ([]vaultsync.ID, error) {
+	var ids []string
+	if err := json.Unmarshal(raw, &ids); err != nil {
+		return nil, fmt.Errorf("store: stored purged ids: %w", err)
+	}
+	return syncwire.ParseIDs(ids)
+}
+
+// RecordVersions returns every retained version of one record, oldest first.
+func (t *txn) RecordVersions(vault, record vaultsync.ID) ([]vaultsync.Envelope, error) {
+	return t.envelopes("SELECT envelope FROM record_versions WHERE vault = ? AND record = ? ORDER BY version", vault[:], record[:])
+}
+
 func decodeEnvelope(raw []byte) (vaultsync.Envelope, error) {
 	var d syncwire.Envelope
 	if err := json.Unmarshal(raw, &d); err != nil {
@@ -57,19 +75,23 @@ func decodeEnvelope(raw []byte) (vaultsync.Envelope, error) {
 }
 
 func (t *txn) Commits(vault vaultsync.ID, since uint64, limit int) ([]usecase.StoredCommit, error) {
-	rows, err := t.tx.QueryContext(t.ctx, "SELECT seq, head FROM commits WHERE vault = ? AND seq > ? ORDER BY seq LIMIT ?", vault[:], since, limit)
+	rows, err := t.tx.QueryContext(t.ctx, "SELECT seq, head, purged FROM commits WHERE vault = ? AND seq > ? ORDER BY seq LIMIT ?", vault[:], since, limit)
 	if err != nil {
 		return nil, err
 	}
 	var out []usecase.StoredCommit
 	for rows.Next() {
 		var sc usecase.StoredCommit
-		var raw []byte
-		if err := rows.Scan(&sc.Seq, &raw); err != nil {
+		var raw, purged []byte
+		if err := rows.Scan(&sc.Seq, &raw, &purged); err != nil {
 			_ = rows.Close()
 			return nil, err
 		}
 		if sc.Commit.Head, err = decodeHead(raw); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		if sc.Commit.Purged, err = decodePurged(purged); err != nil {
 			_ = rows.Close()
 			return nil, err
 		}

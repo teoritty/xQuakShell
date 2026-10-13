@@ -168,3 +168,23 @@ func envelopesFrom(es []vaultsync.Envelope) []syncwire.Envelope {
 	}
 	return out
 }
+
+// handleVersions returns one record's retained versions for the trash. A malformed record id is
+// not found, like a malformed vault id.
+func (s *server) handleVersions(w http.ResponseWriter, r *http.Request) {
+	p, vault, ok := s.vaultRequest(w, r)
+	if !ok {
+		return
+	}
+	record, err := syncwire.ParseID(r.PathValue("rid"))
+	if err != nil {
+		writeCode(w, http.StatusNotFound, syncwire.CodeNotFound)
+		return
+	}
+	versions, err := s.svc.Versions(r.Context(), p, vault, record)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, syncwire.Versions{Records: envelopesFrom(versions)})
+}

@@ -9,17 +9,17 @@ import (
 	"xquakshell/internal/syncserver/usecase"
 )
 
-const vaultColumns = "id, owner, seq, membership_seq, bytes, personal, deleted"
+const vaultColumns = "id, owner, seq, membership_seq, bytes, personal, deleted, pruned_seq"
 
 func (t *txn) InsertVault(v usecase.Vault) error {
-	return t.exec("INSERT INTO vaults ("+vaultColumns+") VALUES (?, ?, ?, ?, ?, ?, ?)",
-		v.ID[:], v.Owner[:], v.Seq, v.MembershipSeq, v.Bytes, v.Personal, v.Deleted)
+	return t.exec("INSERT INTO vaults ("+vaultColumns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		v.ID[:], v.Owner[:], v.Seq, v.MembershipSeq, v.Bytes, v.Personal, v.Deleted, v.PrunedSeq)
 }
 
 func scanVault(row interface{ Scan(...any) error }) (usecase.Vault, error) {
 	var v usecase.Vault
 	var id, owner []byte
-	err := row.Scan(&id, &owner, &v.Seq, &v.MembershipSeq, &v.Bytes, &v.Personal, &v.Deleted)
+	err := row.Scan(&id, &owner, &v.Seq, &v.MembershipSeq, &v.Bytes, &v.Personal, &v.Deleted, &v.PrunedSeq)
 	v.ID, v.Owner = scanOptionalID(id), scanOptionalID(owner)
 	return v, err
 }
@@ -116,7 +116,7 @@ func (t *txn) VaultsOf(account vaultsync.ID) ([]usecase.Vault, error) {
 	return out, rows.Err()
 }
 
-const vaultColumnsQualified = "id, v.owner, v.seq, v.membership_seq, v.bytes, v.personal, v.deleted"
+const vaultColumnsQualified = "id, v.owner, v.seq, v.membership_seq, v.bytes, v.personal, v.deleted, v.pruned_seq"
 
 func (t *txn) SharesVault(a, b vaultsync.ID) (bool, error) {
 	var n int

@@ -99,6 +99,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /v1/vaults/{id}/commit", s.handleCommit)
 	mux.HandleFunc("GET /v1/vaults/{id}/changes", s.handleChanges)
 	mux.HandleFunc("GET /v1/vaults/{id}/snapshot", s.handleSnapshot)
+	mux.HandleFunc("GET /v1/vaults/{id}/records/{rid}/versions", s.handleVersions)
 	mux.HandleFunc("GET /v1/events", s.handleEvents)
 	return s.limit(mux)
 }

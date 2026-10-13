@@ -22,7 +22,7 @@ func (s *Service) Commit(ctx context.Context, p Principal, vault vaultsync.ID, e
 	if c.Head.Author != p.Device {
 		return 0, ErrForbidden
 	}
-	if len(c.Records) > maxRecordsPerCommit {
+	if len(c.Records)+len(c.Purged) > maxRecordsPerCommit {
 		return 0, ErrTooLarge
 	}
 	var seq uint64
@@ -49,10 +49,16 @@ func (s *Service) Commit(ctx context.Context, p Principal, vault vaultsync.ID, e
 		}
 		members = m.Members()
 		seq = v.Seq + 1
-		if err := tx.InsertCommit(vault, seq, c); err != nil {
+		if err := tx.InsertCommit(vault, seq, c, s.now()); err != nil {
 			return err
 		}
-		return tx.UpdateVaultHead(vault, seq, bytes)
+		if err := tx.UpdateVaultHead(vault, seq, bytes); err != nil {
+			return err
+		}
+		if err := applyPurges(tx, vault, c.Purged); err != nil {
+			return err
+		}
+		return s.pruneVault(tx, vault, m)
 	})
 	if err == nil && members != nil {
 		s.events.publish(members, Event{Vault: vault, Seq: seq})
@@ -113,10 +119,13 @@ func (s *Service) Changes(ctx context.Context, p Principal, vault vaultsync.ID, 
 	limit = max(1, min(limit, maxChangesPage))
 	var out []StoredCommit
 	err := s.cfg.Store.WithTx(ctx, func(tx Tx) error {
-		if _, _, err := requireMember(tx, vault, p.Account); err != nil {
+		v, _, err := requireMember(tx, vault, p.Account)
+		if err != nil {
 			return err
 		}
-		var err error
+		if since < v.PrunedSeq {
+			return ErrHistoryPruned
+		}
 		out, err = tx.Commits(vault, since, limit+1)
 		return err
 	})

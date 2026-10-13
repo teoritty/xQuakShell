@@ -95,6 +95,12 @@ func idStrings(ids []vaultsync.ID) []string {
 	return out
 }
 
+// IDStrings renders ids in their wire form; nil stays nil.
+func IDStrings(ids []vaultsync.ID) []string { return idStrings(ids) }
+
+// ParseIDs parses ids in their wire form, refusing a malformed one.
+func ParseIDs(ss []string) ([]vaultsync.ID, error) { return parseIDs(ss) }
+
 // HexID renders an id for a URL path segment.
 func HexID(id vaultsync.ID) string { return hex.EncodeToString(id[:]) }
 

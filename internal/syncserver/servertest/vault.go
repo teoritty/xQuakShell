@@ -3,6 +3,7 @@ package servertest
 import (
 	"bytes"
 	"crypto/ed25519"
+	"slices"
 	"testing"
 
 	"xquakshell/internal/domain/vaultsync"
@@ -194,4 +195,37 @@ func (h *Harness) PersonalVault(u *User) *ClientVault {
 	}
 	cv.Learn(ops...)
 	return cv
+}
+
+// Tombstone builds a signed deletion at the next version the local state expects.
+func (cv *ClientVault) Tombstone(u *User, record byte) vaultsync.Envelope {
+	v, _ := cv.State.Version(vaultsync.ID{record})
+	e := vaultsync.Envelope{Vault: cv.ID, Record: vaultsync.ID{record}, Version: v + 1, Epoch: cv.M.Epoch(), Suite: vaultsync.Suite1,
+		Deleted: true, Author: u.Device, SigAlg: vaultsync.SigEd25519}
+	msg, _ := e.SigningBytes()
+	e.Sig = ed25519.Sign(u.DSK, msg)
+	return e
+}
+
+// Purge builds a commit removing tombstones, its root over the state without them.
+func (cv *ClientVault) Purge(u *User, records ...byte) vaultsync.Commit {
+	cv.T.Helper()
+	ids := make([]vaultsync.ID, len(records))
+	for i, r := range records {
+		ids[i] = vaultsync.ID{r}
+	}
+	var list []vaultsync.Leaf
+	for _, l := range cv.State.Leaves() {
+		if !slices.Contains(ids, l.Record) {
+			list = append(list, l)
+		}
+	}
+	root, _ := vaultsync.MerkleRoot(list)
+	cur := cv.State.Cursor()
+	h := vaultsync.Head{Vault: cv.ID, Seq: cur.Seq + 1, PrevHash: cur.Hash, MerkleRoot: root, CurrentEpoch: cv.M.Epoch(),
+		MembershipSeq: cv.M.Seq(), MembershipHead: cv.M.Hash(), Commit: RandomID(cv.T), Author: u.Device,
+		ClientTimeUnixMilli: 1, SigAlg: vaultsync.SigEd25519}
+	msg, _ := h.SigningBytes()
+	h.Sig = ed25519.Sign(u.DSK, msg)
+	return vaultsync.Commit{Head: h, Purged: ids}
 }

@@ -34,16 +34,18 @@ CREATE TABLE tokens (hash BLOB PRIMARY KEY, account BLOB NOT NULL REFERENCES acc
   device BLOB, kind TEXT NOT NULL, expires INTEGER NOT NULL);
 CREATE TABLE vaults (id BLOB PRIMARY KEY, owner BLOB NOT NULL, seq INTEGER NOT NULL DEFAULT 0,
   membership_seq INTEGER NOT NULL DEFAULT 0, bytes INTEGER NOT NULL DEFAULT 0,
-  personal INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0);
+  personal INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0, pruned_seq INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE member_ops (vault BLOB NOT NULL REFERENCES vaults(id) ON DELETE CASCADE, seq INTEGER NOT NULL,
   op BLOB NOT NULL, PRIMARY KEY (vault, seq));
 CREATE TABLE members (vault BLOB NOT NULL REFERENCES vaults(id) ON DELETE CASCADE, account BLOB NOT NULL,
   role INTEGER NOT NULL, PRIMARY KEY (vault, account));
 CREATE INDEX members_account ON members (account);
 CREATE TABLE commits (vault BLOB NOT NULL REFERENCES vaults(id) ON DELETE CASCADE, seq INTEGER NOT NULL,
-  commit_id BLOB NOT NULL, head BLOB NOT NULL, PRIMARY KEY (vault, seq), UNIQUE (vault, commit_id));
+  commit_id BLOB NOT NULL, head BLOB NOT NULL, purged BLOB NOT NULL, received INTEGER NOT NULL,
+  PRIMARY KEY (vault, seq), UNIQUE (vault, commit_id));
 CREATE TABLE record_versions (vault BLOB NOT NULL REFERENCES vaults(id) ON DELETE CASCADE, record BLOB NOT NULL,
-  version INTEGER NOT NULL, seq INTEGER NOT NULL, envelope BLOB NOT NULL, PRIMARY KEY (vault, record, version));
+  version INTEGER NOT NULL, seq INTEGER NOT NULL, epoch INTEGER NOT NULL, size INTEGER NOT NULL,
+  envelope BLOB NOT NULL, PRIMARY KEY (vault, record, version));
 CREATE INDEX record_versions_seq ON record_versions (vault, seq);
 `
 

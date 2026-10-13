@@ -71,6 +71,9 @@ type Vault struct {
 	Bytes         uint64
 	Personal      bool
 	Deleted       bool
+	// PrunedSeq is the newest commit that lost a record version to pruning; a pull from before it
+	// cannot be verified and is answered with ErrHistoryPruned.
+	PrunedSeq uint64
 }
 
 // StoredCommit is a commit with the seq it was accepted at.
@@ -117,8 +120,20 @@ type Tx interface {
 	SharesVault(a, b vaultsync.ID) (bool, error)
 
 	CommitSeqByID(vault, commitID vaultsync.ID) (uint64, bool, error)
-	InsertCommit(vault vaultsync.ID, seq uint64, c vaultsync.Commit) error
+	InsertCommit(vault vaultsync.ID, seq uint64, c vaultsync.Commit, received uint64) error
 	Commits(vault vaultsync.ID, since uint64, limit int) ([]StoredCommit, error)
 	CurrentRecords(vault vaultsync.ID) ([]vaultsync.Envelope, error)
 	LatestHead(vault vaultsync.ID) (vaultsync.Head, bool, error)
+	RecordVersions(vault, record vaultsync.ID) ([]vaultsync.Envelope, error)
+
+	// Pruning. Each delete returns the newest seq whose commit lost a version, or 0.
+	AllVaults() ([]vaultsync.ID, error)
+	DeleteRecords(vault vaultsync.ID, records []vaultsync.ID) (uint64, error)
+	// DeleteSuperseded deletes versions whose successor's commit arrived before cutoff.
+	DeleteSuperseded(vault vaultsync.ID, cutoff uint64) (uint64, error)
+	// DeleteEpochVersions deletes superseded versions sealed under the given epochs.
+	DeleteEpochVersions(vault vaultsync.ID, epochs []uint32) (uint64, error)
+	ReplaceMemberOps(vault vaultsync.ID, ops []vaultsync.MemberOp) error
+	RaisePrunedSeq(vault vaultsync.ID, seq uint64) error
+	RecomputeBytes(vault vaultsync.ID) error
 }

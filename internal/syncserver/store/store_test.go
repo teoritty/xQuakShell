@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
@@ -277,10 +278,10 @@ func TestVaultsMembersAndCommits(t *testing.T) {
 		if err := tx.ReplaceMembers(vaultsync.ID{50}, map[vaultsync.ID]vaultsync.Role{{1}: vaultsync.RoleOwner, {2}: vaultsync.RoleViewer}); err != nil {
 			return err
 		}
-		if err := tx.InsertCommit(vaultsync.ID{50}, 1, vaultsync.Commit{Head: head(1), Records: []vaultsync.Envelope{envelope(1, 1), envelope(2, 1)}}); err != nil {
+		if err := tx.InsertCommit(vaultsync.ID{50}, 1, vaultsync.Commit{Head: head(1), Records: []vaultsync.Envelope{envelope(1, 1), envelope(2, 1)}}, 1); err != nil {
 			return err
 		}
-		if err := tx.InsertCommit(vaultsync.ID{50}, 2, vaultsync.Commit{Head: head(2), Records: []vaultsync.Envelope{envelope(1, 2)}}); err != nil {
+		if err := tx.InsertCommit(vaultsync.ID{50}, 2, vaultsync.Commit{Head: head(2), Records: []vaultsync.Envelope{envelope(1, 2)}}, 1); err != nil {
 			return err
 		}
 		return tx.UpdateVaultHead(vaultsync.ID{50}, 2, 900)
@@ -332,9 +333,94 @@ func TestVaultsMembersAndCommits(t *testing.T) {
 		return tx.SetVaultMembershipSeq(vaultsync.ID{50}, 1)
 	})
 	err := db.WithTx(ctx, func(tx usecase.Tx) error {
-		return tx.InsertCommit(vaultsync.ID{50}, 3, vaultsync.Commit{Head: head(2)})
+		return tx.InsertCommit(vaultsync.ID{50}, 3, vaultsync.Commit{Head: head(2)}, 1)
 	})
 	if err == nil {
 		t.Fatal("a second commit with one commit id was stored")
 	}
+}
+
+// A purged record's ciphertext must not survive in the database file (spec section 10.1, S3).
+func TestPurgedVersionsLeaveTheFile(t *testing.T) {
+	db, path := openTemp(t)
+	marker := bytes.Repeat([]byte("EXHUME-ME-"), 30)
+	e := envelope(1, 1)
+	e.Body = marker
+	tx(t, db, func(tx usecase.Tx) error {
+		if err := tx.InsertVault(usecase.Vault{ID: vaultsync.ID{50}, Owner: vaultsync.ID{1}}); err != nil {
+			return err
+		}
+		return tx.InsertCommit(vaultsync.ID{50}, 1, vaultsync.Commit{Head: head(1), Records: []vaultsync.Envelope{e, envelope(2, 1)}}, 1)
+	})
+	tx(t, db, func(tx usecase.Tx) error {
+		seq, err := tx.DeleteRecords(vaultsync.ID{50}, []vaultsync.ID{{1}})
+		if err != nil || seq != 1 {
+			t.Fatalf("deleted through seq %d, %v; want 1", seq, err)
+		}
+		if err := tx.RecomputeBytes(vaultsync.ID{50}); err != nil {
+			return err
+		}
+		v, _, _ := tx.VaultByID(vaultsync.ID{50})
+		if v.Bytes != 72+296 {
+			t.Fatalf("bytes = %d, want only the remaining record's ciphertext", v.Bytes)
+		}
+		left, _ := tx.RecordVersions(vaultsync.ID{50}, vaultsync.ID{2})
+		if len(left) != 1 {
+			t.Fatal("a purge deleted another record")
+		}
+		return nil
+	})
+	if err := db.Checkpoint(ctx); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+	needle := []byte(base64.StdEncoding.EncodeToString(marker))
+	for _, p := range []string{path, path + "-wal"} {
+		content, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		if bytes.Contains(content, needle) || bytes.Contains(content, marker) {
+			t.Fatalf("%s still contains a purged record's ciphertext", filepath.Base(p))
+		}
+	}
+}
+
+func TestDeleteSupersededKeepsTheLatestVersion(t *testing.T) {
+	db, _ := openTemp(t)
+	tx(t, db, func(tx usecase.Tx) error {
+		if err := tx.InsertVault(usecase.Vault{ID: vaultsync.ID{50}, Owner: vaultsync.ID{1}}); err != nil {
+			return err
+		}
+		if err := tx.InsertCommit(vaultsync.ID{50}, 1, vaultsync.Commit{Head: head(1), Records: []vaultsync.Envelope{envelope(1, 1)}}, 10); err != nil {
+			return err
+		}
+		return tx.InsertCommit(vaultsync.ID{50}, 2, vaultsync.Commit{Head: head(2), Records: []vaultsync.Envelope{envelope(1, 2)}}, 20)
+	})
+	tx(t, db, func(tx usecase.Tx) error {
+		if seq, _ := tx.DeleteSuperseded(vaultsync.ID{50}, 20); seq != 0 {
+			t.Fatal("a version superseded at 20 was deleted by a cutoff of 20; the cutoff is exclusive")
+		}
+		if seq, _ := tx.DeleteSuperseded(vaultsync.ID{50}, 1000); seq != 1 {
+			t.Fatalf("seq = %d, want 1: the superseded version lived in commit 1", seq)
+		}
+		left, _ := tx.RecordVersions(vaultsync.ID{50}, vaultsync.ID{1})
+		if len(left) != 1 || left[0].Version != 2 {
+			t.Fatalf("left = %+v; the latest version is never history", left)
+		}
+		if seq, _ := tx.DeleteEpochVersions(vaultsync.ID{50}, []uint32{0}); seq != 0 {
+			t.Fatal("an epoch delete removed a latest version")
+		}
+		if err := tx.RaisePrunedSeq(vaultsync.ID{50}, 5); err != nil {
+			return err
+		}
+		if err := tx.RaisePrunedSeq(vaultsync.ID{50}, 3); err != nil {
+			return err
+		}
+		v, _, _ := tx.VaultByID(vaultsync.ID{50})
+		if v.PrunedSeq != 5 {
+			t.Fatalf("pruned seq = %d, want 5: it never moves back", v.PrunedSeq)
+		}
+		return nil
+	})
 }

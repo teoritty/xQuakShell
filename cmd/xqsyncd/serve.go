@@ -87,6 +87,7 @@ func serve(ctx context.Context, cfg serveConfig, ln net.Listener) error {
 		TLSConfig:   &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{cert}},
 		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
+	startJanitor(ctx, svc.PruneAll, janitorInterval, cfg.log)
 	done := make(chan error, 1)
 	serveTLS(srv, ln, done)
 	select {
