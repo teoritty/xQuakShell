@@ -67,7 +67,8 @@ type SyncScheduler struct {
 	wg     *sync.WaitGroup
 }
 
-// NewSyncScheduler returns a stopped scheduler.
+// NewSyncScheduler builds the scheduler idle: nothing runs until Start, so it can be wired at startup
+// while the vault is still locked.
 func NewSyncScheduler(d SyncSchedulerDeps) *SyncScheduler {
 	return &SyncScheduler{d: d, kick: make(chan struct{}, 1)}
 }
