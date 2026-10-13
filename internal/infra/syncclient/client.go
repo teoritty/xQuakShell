@@ -33,15 +33,6 @@ type Config struct {
 	Timeout time.Duration
 }
 
-// HelloResult is what a verified hello established.
-type HelloResult struct {
-	IdentityKey []byte
-	Protocol    vaultsync.ProtocolVersion
-	// Context binds the OPAQUE handshake to this server's offer (vaultsync.HelloContext), so a
-	// downgraded offer makes the password exchange fail instead of succeed against a weaker one.
-	Context []byte
-}
-
 // Client talks to one sync server. It is safe for concurrent use.
 type Client struct {
 	base    *url.URL
@@ -145,19 +136,19 @@ func (c *Client) Close() { c.CloseIdleConnections() }
 // Hello opens a session: it negotiates the protocol and suite and verifies that the TLS key of the
 // connection it ran on is signed by the server's identity key - the pinned one, if any. On success
 // that TLS key becomes the only one later requests will talk to.
-func (c *Client) Hello(ctx context.Context) (HelloResult, error) {
+func (c *Client) Hello(ctx context.Context) (synctrust.HelloInfo, error) {
 	req := syncwire.Hello{ClientProtocol: wireVersion(vaultsync.CurrentProtocol), Suite: uint16(vaultsync.CurrentSuite)}
 	var reply syncwire.HelloReply
 	spki, err := c.do(ctx, call{client: c.hello, method: http.MethodPost, path: "/v1/hello", body: req, reply: &reply})
 	if err != nil {
-		return HelloResult{}, err
+		return synctrust.HelloInfo{}, err
 	}
 	if err := c.verifyIdentity(reply, spki); err != nil {
-		return HelloResult{}, err
+		return synctrust.HelloInfo{}, err
 	}
 	res, err := negotiate(reply)
 	if err != nil {
-		return HelloResult{}, err
+		return synctrust.HelloInfo{}, err
 	}
 	c.mu.Lock()
 	c.trusted = spki
@@ -185,23 +176,25 @@ func (c *Client) verifyIdentity(reply syncwire.HelloReply, spki []byte) error {
 	return nil
 }
 
-func negotiate(reply syncwire.HelloReply) (HelloResult, error) {
-	proto, err := vaultsync.NegotiateProtocol(vaultsync.CurrentProtocol, domainVersion(reply.ServerMin), domainVersion(reply.ServerMax))
-	if err != nil {
-		return HelloResult{}, fmt.Errorf("%w: %w", synctrust.ErrRemoteUnsupported, err)
+// negotiate checks the server's offer and binds the password exchange to it: the context covers the
+// identity key, protocol range and suites, so a downgraded offer makes the OPAQUE exchange fail
+// instead of succeed against a weaker one.
+func negotiate(reply syncwire.HelloReply) (synctrust.HelloInfo, error) {
+	if _, err := vaultsync.NegotiateProtocol(vaultsync.CurrentProtocol, domainVersion(reply.ServerMin), domainVersion(reply.ServerMax)); err != nil {
+		return synctrust.HelloInfo{}, fmt.Errorf("%w: %w", synctrust.ErrRemoteUnsupported, err)
 	}
 	suites := make([]vaultsync.SuiteID, 0, len(reply.Suites))
 	for _, s := range reply.Suites {
 		suites = append(suites, vaultsync.SuiteID(s))
 	}
 	if !slices.Contains(suites, vaultsync.CurrentSuite) {
-		return HelloResult{}, synctrust.ErrRemoteUnsupported
+		return synctrust.HelloInfo{}, synctrust.ErrRemoteUnsupported
 	}
 	hc, err := vaultsync.HelloContext(reply.ServerIdentityKey, domainVersion(reply.ServerMin), domainVersion(reply.ServerMax), suites)
 	if err != nil {
-		return HelloResult{}, errors.Join(synctrust.ErrRemoteProtocol, err)
+		return synctrust.HelloInfo{}, errors.Join(synctrust.ErrRemoteProtocol, err)
 	}
-	return HelloResult{IdentityKey: slices.Clone(reply.ServerIdentityKey), Protocol: proto, Context: hc}, nil
+	return synctrust.HelloInfo{IdentityKey: slices.Clone(reply.ServerIdentityKey), Context: hc}, nil
 }
 
 func wireVersion(v vaultsync.ProtocolVersion) syncwire.Version {

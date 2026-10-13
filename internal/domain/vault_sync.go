@@ -14,6 +14,26 @@ type VaultSync struct {
 	// the server accepted first; the other one waits here, encrypted with the rest of the vault and
 	// synced to every device, until a person picks one.
 	Conflicts []SyncConflict `json:"conflicts,omitempty"`
+	// Account holds this device's credentials for its sync account; nil until sync is enabled. It
+	// is never synced as a record: these are the keys every record is protected with.
+	Account *SyncAccount `json:"account,omitempty"`
+}
+
+// SyncAccount is what a device needs to sync. The seeds are secrets and live only here, inside the
+// vault the master password encrypts; the server holds them only sealed under the sync password.
+type SyncAccount struct {
+	ServerURL string `json:"serverUrl"`
+	// ServerIdentity is the server identity key the user confirmed by fingerprint.
+	ServerIdentity []byte `json:"serverIdentity"`
+	Username       string `json:"username"`
+	Account        []byte `json:"account"`
+	Device         []byte `json:"device"`
+	// DeviceSeed is this device's signing key; it never leaves the device.
+	DeviceSeed []byte `json:"deviceSeed"`
+	// IdentitySeed and EncryptionSeed are the account keys from the bundle.
+	IdentitySeed   []byte `json:"identitySeed"`
+	EncryptionSeed []byte `json:"encryptionSeed"`
+	EncryptionKey  []byte `json:"encryptionKey"`
 }
 
 // SyncConflict is one unresolved credential conflict.
