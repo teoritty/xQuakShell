@@ -174,6 +174,24 @@ func (s *DataStore) mkdirNoFollow(dir string, create bool) error {
 	return nil
 }
 
+// RemoveFile deletes one regular file, refusing links on the way exactly as a write does. Remove
+// resolves its path lexically and so would delete through a junction planted halfway.
+func (s *DataStore) RemoveFile(path string) error {
+	if err := s.requireWritable(); err != nil {
+		return err
+	}
+	abs, err := s.resolveZonePath(path)
+	if err != nil {
+		return err
+	}
+	if err := s.checkNoLinks(abs); errors.Is(err, fs.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return os.Remove(abs)
+}
+
 // checkNoLinks requires every segment between the root and abs to be a plain directory and abs
 // itself a regular file. A junction or mount point shows as neither, so it is refused too.
 func (s *DataStore) checkNoLinks(abs string) error {

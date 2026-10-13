@@ -34,6 +34,6 @@ type SyncedFileZone interface {
 	// WriteFileAtomic replaces a file with data through a temp file and a rename in the same
 	// directory, creating missing directories, so a reader never sees a partial file.
 	WriteFileAtomic(path string, data []byte, perm fs.FileMode) error
-	// Remove deletes a file or directory tree.
-	Remove(path string) error
+	// RemoveFile deletes one regular file; one that is already gone is not an error.
+	RemoveFile(path string) error
 }

@@ -174,3 +174,25 @@ func TestReadRegularFileRefusesSymlinksAndOversize(t *testing.T) {
 		t.Fatalf("read through a symlink: %v, want ErrPortablePathDenied", err)
 	}
 }
+
+func TestRemoveFileRemovesOnlyARegularFile(t *testing.T) {
+	s, root := newStore(t)
+	if err := s.WriteFileAtomic("p/a", []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RemoveFile("p/a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "p", "a")); !os.IsNotExist(err) {
+		t.Fatalf("file still there: %v", err)
+	}
+	if err := s.RemoveFile("p/a"); err != nil {
+		t.Fatalf("removing a file that is already gone: %v, want nil", err)
+	}
+	if err := s.RemoveFile("p"); !errors.Is(err, domain.ErrPortablePathDenied) {
+		t.Fatalf("removing a directory: %v, want ErrPortablePathDenied", err)
+	}
+	if err := s.RemoveFile("../x"); !errors.Is(err, domain.ErrPortablePathDenied) {
+		t.Fatalf("removing outside the root: %v, want ErrPortablePathDenied", err)
+	}
+}

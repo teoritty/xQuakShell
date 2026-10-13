@@ -36,6 +36,12 @@ func TestTheZoneRefusesAJunctionedDirectory(t *testing.T) {
 	if got, _ := os.ReadFile(filepath.Join(elsewhere, "secret")); string(got) != "keep" {
 		t.Error("a write through a junction changed a file outside the root")
 	}
+	if err := s.RemoveFile("plugins/p/secret"); !errors.Is(err, domain.ErrPortablePathDenied) {
+		t.Errorf("remove through a junction: %v, want ErrPortablePathDenied", err)
+	}
+	if _, err := os.Stat(filepath.Join(elsewhere, "secret")); err != nil {
+		t.Errorf("a remove through a junction deleted a file outside the root: %v", err)
+	}
 	if _, err := s.ReadRegularFile("plugins/p/secret", 10); !errors.Is(err, domain.ErrPortablePathDenied) {
 		t.Errorf("read through a junction: %v, want ErrPortablePathDenied", err)
 	}
