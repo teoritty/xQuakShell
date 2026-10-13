@@ -145,6 +145,23 @@ func (c *Client) DeviceLog(ctx context.Context, account vaultsync.ID, after uint
 	return out, nil
 }
 
+// MemberLog returns a co-member's whole device log with the genesis keys the server holds for it.
+func (c *Client) MemberLog(ctx context.Context, account vaultsync.ID) (synctrust.MemberLog, error) {
+	var reply syncwire.DeviceLog
+	if err := c.get(ctx, "/v1/accounts/"+syncwire.HexID(account)+"/devicelog", since(0), &reply, 0); err != nil {
+		return synctrust.MemberLog{}, err
+	}
+	out := synctrust.MemberLog{Suite: vaultsync.SuiteID(reply.Suite), IdentityKey: reply.IdentityKey, EncryptionKey: reply.EncryptionKey}
+	for _, w := range reply.Entries {
+		e, err := w.ToDomain()
+		if err != nil {
+			return synctrust.MemberLog{}, protocolErr("device entry", err)
+		}
+		out.Entries = append(out.Entries, e)
+	}
+	return out, nil
+}
+
 // AppendDeviceLog appends entries to the signed-in account's device log.
 func (c *Client) AppendDeviceLog(ctx context.Context, entries []vaultsync.DeviceEntry) error {
 	req := syncwire.DeviceLogAppend{}

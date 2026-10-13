@@ -158,6 +158,9 @@ func (s *Service) AppendMembership(ctx context.Context, p Principal, vault vault
 		if m.PendingRotation() {
 			return malformed(fmt.Errorf("batch ends with a removal and no rotation"))
 		}
+		if err := checkAddedKeys(tx, ops); err != nil {
+			return err
+		}
 		if err := tx.AppendMemberOps(vault, ops); err != nil {
 			return err
 		}
@@ -217,4 +220,28 @@ func (s *Service) Vaults(ctx context.Context, p Principal) ([]Vault, error) {
 		return err
 	})
 	return out, err
+}
+
+// checkAddedKeys holds every add-member op to the fingerprint of the added account's genesis key as
+// this server stored it. Clients anchor a co-member's keys on that fingerprint, so a client that
+// recorded another account's would leave every member trusting the wrong keys; refusing it here is
+// defence in depth for what each client checks again.
+func checkAddedKeys(tx Tx, ops []vaultsync.MemberOp) error {
+	for _, op := range ops {
+		if op.Kind != vaultsync.MemberAdd {
+			continue
+		}
+		a, ok, err := tx.AccountByID(op.Subject)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return malformed(fmt.Errorf("add of an unknown account"))
+		}
+		digest, err := vaultsync.IdentityDigest(a.IdentityKey)
+		if err != nil || digest != op.Fingerprint {
+			return malformed(fmt.Errorf("add of %s records another key", op.Subject))
+		}
+	}
+	return nil
 }

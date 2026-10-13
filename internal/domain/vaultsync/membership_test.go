@@ -97,7 +97,8 @@ func (f *fixture) create() {
 }
 
 func (f *fixture) add(by, who vaultsync.ID, role vaultsync.Role) error {
-	return f.apply(by, &vaultsync.MemberOp{Kind: vaultsync.MemberAdd, Subject: who, Role: role, Verified: true, Epoch: f.state.Epoch(), Wraps: []vaultsync.KeyWrap{wrap(who)}})
+	return f.apply(by, &vaultsync.MemberOp{Kind: vaultsync.MemberAdd, Subject: who, Role: role, Verified: true, Epoch: f.state.Epoch(),
+		Fingerprint: digestOf(f.ps[who]), Wraps: []vaultsync.KeyWrap{wrap(who)}})
 }
 
 func (f *fixture) team() {

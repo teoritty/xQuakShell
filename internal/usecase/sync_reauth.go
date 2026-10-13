@@ -130,6 +130,10 @@ func (a *AuthenticatedServer) Versions(ctx context.Context, vault, record vaults
 	return withAuth(ctx, a, func() ([]vaultsync.Envelope, error) { return a.srv.Versions(ctx, vault, record) })
 }
 
+func (a *AuthenticatedServer) MemberLog(ctx context.Context, account vaultsync.ID) (synctrust.MemberLog, error) {
+	return withAuth(ctx, a, func() (synctrust.MemberLog, error) { return a.srv.MemberLog(ctx, account) })
+}
+
 func (a *AuthenticatedServer) Commit(ctx context.Context, c vaultsync.Commit) (uint64, error) {
 	return withAuth(ctx, a, func() (uint64, error) { return a.srv.Commit(ctx, c) })
 }

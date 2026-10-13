@@ -260,7 +260,7 @@ func (ir *idorRig) membershipBody(caller string) syncwire.MembershipAppend {
 		u = ir.callers["owner"]
 	}
 	subject := servertest.RandomID(ir.t)
-	ops := ir.cv.SignBatch(u, vaultsync.MemberOp{Kind: vaultsync.MemberAdd, Subject: subject, Role: vaultsync.RoleViewer,
+	ops := ir.cv.SignBatch(u, vaultsync.MemberOp{Kind: vaultsync.MemberAdd, Subject: subject, Role: vaultsync.RoleViewer, Fingerprint: [32]byte{1},
 		Verified: true, Epoch: ir.cv.M.Epoch(), Wraps: servertest.WrapFor(subject)})
 	return syncwire.MembershipAppend{Ops: []syncwire.MemberOp{syncwire.MemberOpFrom(&ops[0])}}
 }

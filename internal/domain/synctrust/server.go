@@ -27,6 +27,15 @@ type RemoteSnapshot struct {
 	Records []vaultsync.Envelope
 }
 
+// MemberLog is another account's device log with the genesis keys the server says it replays from.
+// The keys are trusted only when the identity key matches a fingerprint the reader already holds.
+type MemberLog struct {
+	Suite         vaultsync.SuiteID
+	IdentityKey   []byte
+	EncryptionKey []byte
+	Entries       []vaultsync.DeviceEntry
+}
+
 // SyncServer is the server as the sync engine sees it after a verified hello and with a token set.
 // Everything it returns is untrusted until vaultsync verified it.
 type SyncServer interface {
@@ -40,6 +49,8 @@ type SyncServer interface {
 	// on answers with *ConflictError.
 	Commit(ctx context.Context, c vaultsync.Commit) (uint64, error)
 	DeviceLog(ctx context.Context, account vaultsync.ID, since uint64) ([]vaultsync.DeviceEntry, error)
+	// MemberLog fetches a co-member's whole device log and genesis keys, for team vaults.
+	MemberLog(ctx context.Context, account vaultsync.ID) (MemberLog, error)
 	AppendDeviceLog(ctx context.Context, entries []vaultsync.DeviceEntry) error
 	Membership(ctx context.Context, vault vaultsync.ID, since uint64) ([]vaultsync.MemberOp, error)
 	AppendMembership(ctx context.Context, vault vaultsync.ID, ops []vaultsync.MemberOp) error

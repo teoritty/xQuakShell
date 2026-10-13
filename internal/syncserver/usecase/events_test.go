@@ -42,7 +42,7 @@ func TestMembershipChangeNotifiesMembers(t *testing.T) {
 	events, cancel, _ := h.Svc.Subscribe(bob.Account)
 	defer cancel()
 	cv.Users[carol.Account] = carol
-	if err := cv.AppendOps(alice, vaultsync.MemberOp{Kind: vaultsync.MemberAdd, Subject: carol.Account, Role: vaultsync.RoleViewer,
+	if err := cv.AppendOps(alice, vaultsync.MemberOp{Kind: vaultsync.MemberAdd, Subject: carol.Account, Role: vaultsync.RoleViewer, Fingerprint: servertest.Fingerprint(carol),
 		Verified: true, Wraps: servertest.WrapFor(carol.Account)}); err != nil {
 		t.Fatal(err)
 	}

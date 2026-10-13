@@ -33,6 +33,7 @@ const (
 	TypeKnownHost    RecordType = "known-host"
 	TypePeerTrust    RecordType = "peer-trust"
 	TypeConflict     RecordType = "conflict"
+	TypeContact      RecordType = "contact"
 
 	settingsPrefix = "settings."
 )
@@ -51,7 +52,7 @@ func SettingsType(section string) RecordType { return RecordType(settingsPrefix 
 // data bumps its number; older builds then show such records read-only (vaultsync.RecordAccess).
 var schemaV1 = []RecordType{
 	TypeVaultMeta, TypeFolder, TypeConnection, TypeIdentity, TypePassword, TypePluginSecret,
-	TypeKnownHost, TypePeerTrust, TypeConflict,
+	TypeKnownHost, TypePeerTrust, TypeConflict, TypeContact,
 }
 
 // KnownSchemas is the registry vaultsync.RecordAccess consults.

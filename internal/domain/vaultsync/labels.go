@@ -47,6 +47,16 @@ func BundleAAD(account ID, suite SuiteID) ([]byte, error) {
 	return NewCanon(LabelBundle).ID(account).U16(uint16(suite)).Encoded()
 }
 
+// LabelIdentityDigest names the digest of an account identity key that a membership op records.
+const LabelIdentityDigest = "xqs-sync/v1/identity-digest"
+
+// IdentityDigest is what an add-member op records of the member's genesis identity key. A device
+// replaying the membership log accepts that member's device log only when its genesis key has this
+// digest, so the server cannot hand a co-member's devices keys of its own choosing.
+func IdentityDigest(identityKey []byte) ([32]byte, error) {
+	return NewCanon(LabelIdentityDigest).Bytes(identityKey).Sum()
+}
+
 // LabelDeviceAuth separates a device's login proof from every other signature it makes.
 const LabelDeviceAuth = "xqs-sync/v1/device-auth"
 

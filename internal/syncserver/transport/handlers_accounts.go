@@ -157,7 +157,13 @@ func (s *server) handleDeviceLog(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	out := syncwire.DeviceLog{Entries: []syncwire.DeviceEntry{}}
+	keys, err := s.svc.AccountKeys(r.Context(), p, account)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	out := syncwire.DeviceLog{Entries: []syncwire.DeviceEntry{}, Suite: uint16(keys.Suite), IdentityKey: keys.IdentityKey,
+		EncryptionKey: keys.EncryptionKey}
 	for i := range entries {
 		out.Entries = append(out.Entries, syncwire.DeviceEntryFrom(&entries[i]))
 	}

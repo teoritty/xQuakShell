@@ -108,9 +108,13 @@ type AccessReply struct {
 	ExpiresUnixMilli uint64 `json:"expiresUnixMilli"`
 }
 
-// DeviceLog is a slice of an account's device log.
+// DeviceLog is a slice of an account's device log, with the genesis keys it replays from. The keys
+// are untrusted until the reader matched the identity key against a fingerprint it already holds.
 type DeviceLog struct {
-	Entries []DeviceEntry `json:"entries"`
+	Entries       []DeviceEntry `json:"entries"`
+	Suite         uint16        `json:"suite,omitempty"`
+	IdentityKey   []byte        `json:"identityKey,omitempty"`
+	EncryptionKey []byte        `json:"encryptionKey,omitempty"`
 }
 
 // DeviceLogAppend appends entries atomically.

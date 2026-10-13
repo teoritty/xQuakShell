@@ -143,3 +143,28 @@ func TestConflictsBelongToTheirVault(t *testing.T) {
 		t.Fatal("the team vault does not sync its own conflict")
 	}
 }
+
+func TestContactsSyncInThePersonalVaultOnly(t *testing.T) {
+	d := mixedVault()
+	digest := strings.Repeat("ab", 32)
+	d.Sync = &domain.VaultSync{Contacts: []domain.SyncContact{{Account: strings.Repeat("01", 16), IdentityDigest: digest, Verified: true}}}
+	personal := scoped(t, d, synctrust.Scope{})
+	e, ok := personal["contact "+strings.Repeat("01", 16)]
+	if !ok {
+		t.Fatalf("personal snapshot = %v; a contact follows the user to every device", keys(personal))
+	}
+	if (synctrust.Scope{Vault: team}).Allows(synctrust.TypeContact) {
+		t.Fatal("a team vault allows contacts; whom a person verified is theirs alone")
+	}
+	dst := domain.NewVaultData()
+	if err := synctrust.Apply(dst, []synctrust.Entry{e}); err != nil {
+		t.Fatal(err)
+	}
+	if dst.Sync == nil || len(dst.Sync.Contacts) != 1 || dst.Sync.Contacts[0].IdentityDigest != digest || !dst.Sync.Contacts[0].Verified {
+		t.Fatalf("contacts after apply = %+v", dst.Sync)
+	}
+	bad := synctrust.Entry{Type: synctrust.TypeContact, Key: "zz", Data: []byte(`{"account":"zz","identityDigest":"00","verified":false}`)}
+	if err := synctrust.Validate(bad); !errors.Is(err, synctrust.ErrRecordData) {
+		t.Fatalf("err = %v, want ErrRecordData for a contact with a malformed account or digest", err)
+	}
+}

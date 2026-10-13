@@ -169,7 +169,7 @@ func (h *Harness) NewTeamVault(owner *User, others ...Member) *ClientVault {
 	cv.Learn(create)
 	for _, m := range others {
 		cv.Users[m.User.Account] = m.User
-		add := vaultsync.MemberOp{Kind: vaultsync.MemberAdd, Subject: m.User.Account, Role: m.Role, Verified: true,
+		add := vaultsync.MemberOp{Kind: vaultsync.MemberAdd, Subject: m.User.Account, Role: m.Role, Verified: true, Fingerprint: Fingerprint(m.User),
 			Epoch: cv.M.Epoch(), Wraps: WrapFor(m.User.Account)}
 		if err := cv.AppendOps(owner, add); err != nil {
 			h.T.Fatalf("add %s: %v", m.User.Name, err)
@@ -228,4 +228,13 @@ func (cv *ClientVault) Purge(u *User, records ...byte) vaultsync.Commit {
 	msg, _ := h.SigningBytes()
 	h.Sig = ed25519.Sign(u.DSK, msg)
 	return vaultsync.Commit{Head: h, Purged: ids}
+}
+
+// Fingerprint is the identity-key digest an add-member op records for u.
+func Fingerprint(u *User) [32]byte {
+	d, err := vaultsync.IdentityDigest(u.AIK.Public().(ed25519.PublicKey))
+	if err != nil {
+		panic(err)
+	}
+	return d
 }

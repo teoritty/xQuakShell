@@ -44,6 +44,9 @@ func (p *pullRun) interpret(c vaultsync.Commit) (interpretation, error) {
 		if errors.Is(reason, errSkip) {
 			continue
 		}
+		if reason == nil && !p.scope.Allows(entry.Type) {
+			reason = errors.New("a record type a team vault may not hold")
+		}
 		if reason != nil {
 			out.quarantine = append(out.quarantine, p.hold(r, reason.Error(), false))
 			continue
@@ -84,7 +87,7 @@ func (p *pullRun) localSnapshot() (map[vaultsync.ID]synctrust.Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	return synctrust.Snapshot(p.namingKey, data)
+	return synctrust.SnapshotScope(p.namingKey, data, p.scope)
 }
 
 // learnMeta reads the vault's naming key. A vault-meta that is deleted, does not open, or names a

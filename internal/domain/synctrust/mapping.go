@@ -49,6 +49,7 @@ var mappers = map[RecordType]mapper{
 	TypeKnownHost:    knownHostMapper,
 	TypePeerTrust:    peerTrustMapper,
 	TypeConflict:     conflictMapper,
+	TypeContact:      contactMapper,
 }
 
 // mapperFor finds the mapper for t. vault-meta has none on purpose: it is the engine's own record

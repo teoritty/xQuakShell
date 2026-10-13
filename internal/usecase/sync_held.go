@@ -78,7 +78,7 @@ func (e *SyncEngine) ConfirmHeld(ctx context.Context, vault, record vaultsync.ID
 	if reason != nil {
 		return reason
 	}
-	if err := e.d.Vault.UpdateData(ctx, func(d *domain.VaultData) error { return synctrust.Apply(d, []synctrust.Entry{entry}) }); err != nil {
+	if err := e.d.Vault.UpdateData(ctx, func(d *domain.VaultData) error { return synctrust.ApplyScope(d, p.scope, []synctrust.Entry{entry}) }); err != nil {
 		return err
 	}
 	return e.d.State.Release(ctx, vault, record)

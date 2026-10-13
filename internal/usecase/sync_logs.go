@@ -78,7 +78,8 @@ func signatureCheck(resolve vaultsync.DeviceResolver) vaultsync.SignatureCheck {
 
 // verifiedMembership replays a vault's membership log the same way as the device log and returns
 // every op, which the commit check needs at each head's membership position.
-func (e *SyncEngine) verifiedMembership(ctx context.Context, vault vaultsync.ID, check vaultsync.SignatureCheck) ([]vaultsync.MemberOp, error) {
+// observe, when set, sees each op after it verified: a team vault's trust learns its anchors from it.
+func (e *SyncEngine) verifiedMembership(ctx context.Context, vault vaultsync.ID, check vaultsync.SignatureCheck, observe func(*vaultsync.MemberOp)) ([]vaultsync.MemberOp, error) {
 	ms, err := vaultsync.NewMembershipState(vault)
 	if err != nil {
 		return nil, err
@@ -91,6 +92,9 @@ func (e *SyncEngine) verifiedMembership(ctx context.Context, vault vaultsync.ID,
 		if err := ms.Apply(&ops[i], check); err != nil {
 			return nil, integrity("stored membership", err)
 		}
+		if observe != nil {
+			observe(&ops[i])
+		}
 	}
 	fresh, err := e.d.Server.Membership(ctx, vault, ms.Seq())
 	if err != nil {
@@ -99,6 +103,9 @@ func (e *SyncEngine) verifiedMembership(ctx context.Context, vault vaultsync.ID,
 	for i := range fresh {
 		if err := ms.Apply(&fresh[i], check); err != nil {
 			return nil, integrity("membership", err)
+		}
+		if observe != nil {
+			observe(&fresh[i])
 		}
 	}
 	if err := e.d.State.AppendMembership(ctx, fresh); err != nil {

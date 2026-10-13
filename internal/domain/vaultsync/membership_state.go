@@ -18,6 +18,8 @@ type MembershipState struct {
 	hash            [32]byte
 	members         map[ID]Role
 	owner           ID
+	creator         ID
+	fingerprints    map[ID][32]byte
 	epoch           uint32
 	revoked         map[ID]struct{}
 	retentionDays   uint16
@@ -34,7 +36,8 @@ func NewMembershipState(vault ID) (*MembershipState, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &MembershipState{vault: vault, hash: genesis, members: map[ID]Role{}, revoked: map[ID]struct{}{}}, nil
+	return &MembershipState{vault: vault, hash: genesis, members: map[ID]Role{}, revoked: map[ID]struct{}{},
+		fingerprints: map[ID][32]byte{}}, nil
 }
 
 // Apply verifies one operation and applies it to a copy, replacing the state only when every check
@@ -94,6 +97,7 @@ func (s *MembershipState) preconditions(op *MemberOp) (SuiteParams, error) {
 func (s *MembershipState) clone() *MembershipState {
 	c := *s
 	c.members = maps.Clone(s.members)
+	c.fingerprints = maps.Clone(s.fingerprints)
 	c.revoked = maps.Clone(s.revoked)
 	c.rotations = slices.Clone(s.rotations)
 	return &c
@@ -104,6 +108,16 @@ func (s *MembershipState) Seq() uint64 { return s.seq }
 
 // Hash is the chain hash a vault head's MembershipHead refers to.
 func (s *MembershipState) Hash() [32]byte { return s.hash }
+
+// Creator is the account that created the vault; ownership transfers do not change it. Nothing in
+// the log anchors its keys, so a member trusts them through a contact (spec §6.6).
+func (s *MembershipState) Creator() ID { return s.creator }
+
+// MemberFingerprint is the identity-key digest the op that added a current member recorded.
+func (s *MembershipState) MemberFingerprint(account ID) ([32]byte, bool) {
+	fp, ok := s.fingerprints[account]
+	return fp, ok && s.members[account] != RoleNone
+}
 
 // Role is an account's role, RoleNone for a non-member.
 func (s *MembershipState) Role(account ID) Role { return s.members[account] }

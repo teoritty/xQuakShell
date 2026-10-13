@@ -111,7 +111,7 @@ func (s *MembershipState) applyCreate(op *MemberOp) error {
 		return err
 	}
 	s.members[op.Author] = RoleOwner
-	s.owner = op.Author
+	s.owner, s.creator = op.Author, op.Author
 	s.retentionDays = op.RetentionDays
 	s.requireVerified = op.RequireVerified
 	s.rotations = append(s.rotations, Rotation{Epoch: 0, StartedUnixMilli: op.TimeUnixMilli})
@@ -130,6 +130,9 @@ func (s *MembershipState) applyAdd(op *MemberOp) error {
 	if s.requireVerified && !op.Verified {
 		return ErrUnverifiedMember
 	}
+	if op.Fingerprint == ([32]byte{}) {
+		return rejected("add of %s records no key fingerprint", op.Subject)
+	}
 	if op.Epoch != s.epoch {
 		return rejected("add at epoch %d, current %d", op.Epoch, s.epoch)
 	}
@@ -137,6 +140,7 @@ func (s *MembershipState) applyAdd(op *MemberOp) error {
 		return err
 	}
 	s.members[op.Subject] = op.Role
+	s.fingerprints[op.Subject] = op.Fingerprint
 	return nil
 }
 

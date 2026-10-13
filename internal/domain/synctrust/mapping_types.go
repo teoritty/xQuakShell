@@ -1,10 +1,12 @@
 package synctrust
 
 import (
+	"encoding/hex"
 	"fmt"
 	"slices"
 
 	"xquakshell/internal/domain"
+	"xquakshell/internal/domain/vaultsync"
 )
 
 // sliceMapper maps a vault slice whose items carry their own natural key. Upserting replaces the
@@ -286,6 +288,27 @@ var conflictMapper = sliceMapper(
 		}
 		if _, ok := KnownSchemas()[c.RecordType]; !ok {
 			return fmt.Errorf("a conflict on an unknown record type")
+		}
+		return nil
+	},
+)
+
+// contactMapper syncs the accounts this user trusts. Its account and digest are checked for shape
+// here; whether a key matches the digest is the engine's question when it anchors a member's log.
+var contactMapper = sliceMapper(
+	func(d *domain.VaultData) *[]domain.SyncContact {
+		if d.Sync == nil {
+			d.Sync = &domain.VaultSync{}
+		}
+		return &d.Sync.Contacts
+	},
+	func(c domain.SyncContact) string { return c.Account },
+	func(c *domain.SyncContact) error {
+		if _, err := vaultsync.ParseID(c.Account); err != nil {
+			return fmt.Errorf("a contact names no account")
+		}
+		if raw, err := hex.DecodeString(c.IdentityDigest); err != nil || len(raw) != 32 {
+			return fmt.Errorf("a contact carries no key digest")
 		}
 		return nil
 	},

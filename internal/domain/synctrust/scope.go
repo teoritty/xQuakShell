@@ -90,6 +90,9 @@ func project(d *domain.VaultData, s Scope) *domain.VaultData {
 	projectMaps(d, out, s, secretVault)
 	if d.Sync != nil {
 		out.Sync = &domain.VaultSync{}
+		if s.Vault == "" {
+			out.Sync.Contacts = d.Sync.Contacts
+		}
 		for _, c := range d.Sync.Conflicts {
 			if c.VaultID == s.Vault {
 				c.VaultID = ""

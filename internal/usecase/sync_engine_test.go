@@ -45,6 +45,8 @@ type svcServer struct {
 	historyPruned bool
 	// dropAppendReply stores the next membership append but loses its reply.
 	dropAppendReply bool
+	// tamperMemberLog rewrites a co-member's log and keys as served.
+	tamperMemberLog func(vaultsync.ID, synctrust.MemberLog) synctrust.MemberLog
 	// tamperVersions rewrites the retained versions a trash listing reads.
 	tamperVersions func([]vaultsync.Envelope) []vaultsync.Envelope
 }
@@ -68,11 +70,24 @@ func remote(err error) error {
 		return synctrust.ErrRemoteUnauthorized
 	case errors.Is(err, srvusecase.ErrHistoryPruned):
 		return synctrust.ErrHistoryPruned
+	case errors.Is(err, srvusecase.ErrNotFound):
+		return synctrust.ErrRemoteNotFound
 	}
 	return err
 }
 
-func (s *svcServer) Vaults(ctx context.Context) ([]synctrust.RemoteVault, error) { return nil, nil }
+func (s *svcServer) Vaults(ctx context.Context) ([]synctrust.RemoteVault, error) {
+	p, err := s.principal()
+	if err != nil {
+		return nil, err
+	}
+	vaults, err := s.h.Svc.Vaults(ctx, p)
+	out := make([]synctrust.RemoteVault, 0, len(vaults))
+	for _, v := range vaults {
+		out = append(out, synctrust.RemoteVault{Vault: v.ID, Seq: v.Seq, MembershipSeq: v.MembershipSeq})
+	}
+	return out, remote(err)
+}
 
 func (s *svcServer) CreateVault(ctx context.Context, op vaultsync.MemberOp) error {
 	p, err := s.principal()
@@ -169,6 +184,23 @@ func (s *svcServer) DeviceLog(ctx context.Context, account vaultsync.ID, since u
 	return entries, err
 }
 
+func (s *svcServer) MemberLog(ctx context.Context, account vaultsync.ID) (synctrust.MemberLog, error) {
+	p, err := s.principal()
+	if err != nil {
+		return synctrust.MemberLog{}, err
+	}
+	keys, err := s.h.Svc.AccountKeys(ctx, p, account)
+	if err != nil {
+		return synctrust.MemberLog{}, remote(err)
+	}
+	entries, err := s.h.Svc.DeviceLog(ctx, p, account, 0)
+	out := synctrust.MemberLog{Suite: keys.Suite, IdentityKey: keys.IdentityKey, EncryptionKey: keys.EncryptionKey, Entries: entries}
+	if err == nil && s.tamperMemberLog != nil {
+		out = s.tamperMemberLog(account, out)
+	}
+	return out, remote(err)
+}
+
 func (s *svcServer) AppendDeviceLog(ctx context.Context, entries []vaultsync.DeviceEntry) error {
 	p, err := s.principal()
 	if err != nil {
@@ -186,7 +218,7 @@ func (s *svcServer) Membership(ctx context.Context, vault vaultsync.ID, since ui
 	if err == nil && s.tamperOps != nil {
 		ops = s.tamperOps(ops)
 	}
-	return ops, err
+	return ops, remote(err)
 }
 
 func (s *svcServer) AppendMembership(ctx context.Context, vault vaultsync.ID, ops []vaultsync.MemberOp) error {

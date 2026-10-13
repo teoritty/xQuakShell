@@ -14,6 +14,7 @@ import (
 	"sync"
 	"testing"
 
+	"xquakshell/internal/domain/synctrust"
 	"xquakshell/internal/domain/vaultsync"
 	"xquakshell/internal/syncserver/store"
 	"xquakshell/internal/syncserver/usecase"
@@ -136,7 +137,9 @@ func NewUser(t *testing.T, name string) *User {
 	_, aik, _ := ed25519.GenerateKey(rand.Reader)
 	_, dsk, _ := ed25519.GenerateKey(rand.Reader)
 	u := &User{Name: name, Account: RandomID(t), Device: RandomID(t), AIK: aik, DSK: dsk,
-		AEK: bytes.Repeat([]byte{9}, 1216), Vault: RandomID(t), Record: []byte("opaque-record-" + name)}
+		AEK: bytes.Repeat([]byte{9}, 1216), Record: []byte("opaque-record-" + name)}
+	// The personal vault id is derived from the account, as every client derives it.
+	u.Vault = synctrust.PersonalVaultID(u.Account)
 	log, err := vaultsync.NewDeviceLogState(u.Account, vaultsync.Suite1, aik.Public().(ed25519.PublicKey), u.AEK)
 	if err != nil {
 		t.Fatal(err)

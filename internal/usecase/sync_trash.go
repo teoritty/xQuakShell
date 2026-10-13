@@ -92,7 +92,7 @@ func (e *SyncEngine) Restore(ctx context.Context, vault, record vaultsync.ID) er
 	if err != nil || verdict.Action != synctrust.ActionApply {
 		return ErrRestoreWeakens
 	}
-	return e.d.Vault.UpdateData(ctx, func(d *domain.VaultData) error { return synctrust.Apply(d, []synctrust.Entry{entry}) })
+	return e.d.Vault.UpdateData(ctx, func(d *domain.VaultData) error { return synctrust.ApplyScope(d, p.scope, []synctrust.Entry{entry}) })
 }
 
 // ShredNow destroys the vault's trash and history (spec §10.1): a shred rotation retires every

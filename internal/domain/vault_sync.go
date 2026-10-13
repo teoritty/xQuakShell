@@ -14,6 +14,9 @@ type VaultSync struct {
 	// the server accepted first; the other one waits here, encrypted with the rest of the vault and
 	// synced to every device, until a person picks one.
 	Conflicts []SyncConflict `json:"conflicts,omitempty"`
+	// Contacts are the accounts whose key this user has seen, synced to every device of theirs: the
+	// anchor a team vault's members are verified from (spec §6.6).
+	Contacts []SyncContact `json:"contacts,omitempty"`
 	// Account holds this device's credentials for its sync account; nil until sync is enabled. It
 	// is never synced as a record: these are the keys every record is protected with.
 	Account *SyncAccount `json:"account,omitempty"`
@@ -70,6 +73,17 @@ type SyncConflict struct {
 	AtUnixMilli int64           `json:"at"`
 	// VaultID is the team vault of the item in conflict; empty is the personal vault.
 	VaultID string `json:"vaultId,omitempty"`
+}
+
+// SyncContact is one account whose genesis identity key this user trusts. Verified is set when the
+// user compared its fingerprint out of band; otherwise it was trusted on first use, which the UI
+// marks.
+type SyncContact struct {
+	// Account and IdentityDigest are hex: the account id and vaultsync.IdentityDigest of its key.
+	Account        string `json:"account"`
+	IdentityDigest string `json:"identityDigest"`
+	Username       string `json:"username,omitempty"`
+	Verified       bool   `json:"verified"`
 }
 
 // ConflictID names the conflict on one field of one item. Each part is quoted, so no separator can

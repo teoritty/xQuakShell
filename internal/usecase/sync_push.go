@@ -155,7 +155,7 @@ func (p *pullRun) localChanges(ctx context.Context) ([]change, error) {
 	if err != nil {
 		return nil, err
 	}
-	local, err := synctrust.Snapshot(p.namingKey, data)
+	local, err := synctrust.SnapshotScope(p.namingKey, data, p.scope)
 	if err != nil {
 		return nil, err
 	}

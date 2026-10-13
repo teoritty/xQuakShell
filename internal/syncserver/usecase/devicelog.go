@@ -104,6 +104,35 @@ func syncDevices(tx Tx, account vaultsync.ID, entries []vaultsync.DeviceEntry, l
 }
 
 // LookupResult is what an inviting admin needs about an account.
+// GenesisKeys are an account's genesis public keys, from which its device log replays.
+type GenesisKeys struct {
+	Suite         vaultsync.SuiteID
+	IdentityKey   []byte
+	EncryptionKey []byte
+}
+
+// AccountKeys returns another account's genesis keys to a caller that shares a vault with it, as
+// DeviceLog returns its log: a co-member needs both to verify that account's devices. The caller
+// trusts them only if the identity key matches the fingerprint the membership log recorded.
+func (s *Service) AccountKeys(ctx context.Context, p Principal, account vaultsync.ID) (GenesisKeys, error) {
+	var out GenesisKeys
+	err := s.cfg.Store.WithTx(ctx, func(tx Tx) error {
+		if p.Account != account {
+			shares, err := tx.SharesVault(p.Account, account)
+			if err != nil || !shares {
+				return errors.Join(ErrNotFound, err)
+			}
+		}
+		a, ok, err := tx.AccountByID(account)
+		if err != nil || !ok {
+			return errors.Join(ErrNotFound, err)
+		}
+		out = GenesisKeys{Suite: vaultsync.Suite1, IdentityKey: a.IdentityKey, EncryptionKey: a.EncryptionKey}
+		return nil
+	})
+	return out, err
+}
+
 type LookupResult struct {
 	Account       vaultsync.ID
 	IdentityKey   []byte

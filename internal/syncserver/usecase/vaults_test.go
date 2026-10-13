@@ -1,6 +1,7 @@
 package usecase_test
 
 import (
+	"crypto/ed25519"
 	"errors"
 	"testing"
 
@@ -14,7 +15,7 @@ func TestTeamVaultLifecycle(t *testing.T) {
 	alice, bob, carol := h.Register("alice"), h.Register("bob"), h.Register("carol")
 	cv := h.NewTeamVault(alice, servertest.Member{User: bob, Role: vaultsync.RoleEditor})
 	cv.Users[carol.Account] = carol
-	if err := cv.AppendOps(alice, vaultsync.MemberOp{Kind: vaultsync.MemberAdd, Subject: carol.Account, Role: vaultsync.RoleViewer,
+	if err := cv.AppendOps(alice, vaultsync.MemberOp{Kind: vaultsync.MemberAdd, Subject: carol.Account, Role: vaultsync.RoleViewer, Fingerprint: servertest.Fingerprint(carol),
 		Verified: true, Epoch: 0, Wraps: servertest.WrapFor(carol.Account)}); err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +110,7 @@ func TestMembershipRules(t *testing.T) {
 	alice, bob, carol := h.Register("alice"), h.Register("bob"), h.Register("carol")
 	cv := h.NewTeamVault(alice, servertest.Member{User: bob, Role: vaultsync.RoleEditor})
 	cv.Users[carol.Account] = carol
-	err := cv.AppendOps(bob, vaultsync.MemberOp{Kind: vaultsync.MemberAdd, Subject: carol.Account, Role: vaultsync.RoleViewer,
+	err := cv.AppendOps(bob, vaultsync.MemberOp{Kind: vaultsync.MemberAdd, Subject: carol.Account, Role: vaultsync.RoleViewer, Fingerprint: servertest.Fingerprint(carol),
 		Verified: true, Wraps: servertest.WrapFor(carol.Account)})
 	if !isErr(err, usecase.ErrForbidden) {
 		t.Errorf("an editor added a member: %v, want ErrForbidden", err)
@@ -159,3 +160,31 @@ func TestPersonalVaultCommit(t *testing.T) {
 }
 
 func asConflict(err error, target **usecase.ConflictError) bool { return errors.As(err, target) }
+
+func TestAddMemberWithAnotherAccountsFingerprintIsRefused(t *testing.T) {
+	h := servertest.NewHarness(t, 0)
+	alice, bob, carol := h.Register("alice"), h.Register("bob"), h.Register("carol")
+	cv := h.NewTeamVault(alice)
+	cv.Users[bob.Account] = bob
+	err := cv.AppendOps(alice, vaultsync.MemberOp{Kind: vaultsync.MemberAdd, Subject: bob.Account, Role: vaultsync.RoleViewer,
+		Fingerprint: servertest.Fingerprint(carol), Verified: true, Wraps: servertest.WrapFor(bob.Account)})
+	if !isErr(err, usecase.ErrMalformed) {
+		t.Fatalf("err = %v, want ErrMalformed: the recorded fingerprint must be the added account's own", err)
+	}
+}
+
+func TestCoMembersGetEachOthersGenesisKeys(t *testing.T) {
+	h := servertest.NewHarness(t, 0)
+	alice, bob, mallory := h.Register("alice"), h.Register("bob"), h.Register("mallory")
+	h.NewTeamVault(alice, servertest.Member{User: bob, Role: vaultsync.RoleEditor})
+	keys, err := h.Svc.AccountKeys(ctx, h.Principal(bob.Access), alice.Account)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(keys.IdentityKey) != string(alice.AIK.Public().(ed25519.PublicKey)) || string(keys.EncryptionKey) != string(alice.AEK) {
+		t.Fatal("the keys returned are not the account's genesis keys")
+	}
+	if _, err := h.Svc.AccountKeys(ctx, h.Principal(mallory.Access), alice.Account); !isErr(err, usecase.ErrNotFound) {
+		t.Fatalf("err = %v, want ErrNotFound for an account that shares no vault", err)
+	}
+}
