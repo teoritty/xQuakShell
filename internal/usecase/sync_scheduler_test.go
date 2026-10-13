@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"xquakshell/internal/domain"
 	"xquakshell/internal/domain/synctrust"
 	"xquakshell/internal/domain/vaultsync"
 	"xquakshell/internal/usecase"
@@ -265,31 +264,6 @@ func TestStopEndsEverything(t *testing.T) {
 	w.timers.fire(testDebounce)
 	w.timers.fire(testInterval)
 	w.expectNoSync()
-}
-
-type countingVault struct {
-	syncTestVault
-	fail error
-}
-
-func (v *countingVault) UpdateData(ctx context.Context, mutate func(*domain.VaultData) error) error {
-	if v.fail != nil {
-		return v.fail
-	}
-	return v.syncTestVault.UpdateData(ctx, mutate)
-}
-
-func TestObservingVaultSignalsOnlySuccessfulWrites(t *testing.T) {
-	inner := &countingVault{syncTestVault: syncTestVault{data: domain.NewVaultData()}}
-	var signals int
-	v := usecase.NewSyncObservingVault(inner, func() { signals++ })
-	_ = v.UpdateData(syncCtx, func(*domain.VaultData) error { return nil })
-	_ = v.UpdateData(syncCtx, func(*domain.VaultData) error { return errors.New("refused") })
-	inner.fail = errors.New("disk full")
-	_ = v.UpdateData(syncCtx, func(*domain.VaultData) error { return nil })
-	if signals != 1 {
-		t.Fatalf("signals = %d, want 1; only a write that landed is a change to push", signals)
-	}
 }
 
 func TestSyncNowSkipsTheDebounce(t *testing.T) {

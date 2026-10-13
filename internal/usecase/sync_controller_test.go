@@ -236,3 +236,16 @@ func TestNothingRunsAfterTheVaultLocks(t *testing.T) {
 		t.Fatalf("held changes after lock: %v", err)
 	}
 }
+
+func TestAccountInfoCarriesNoSecret(t *testing.T) {
+	_, a := registered(t)
+	cd := control(t, a)
+	info, ok, err := cd.c.AccountInfo()
+	if err != nil || !ok || info.Username != "alice" || len(info.ServerIdentity) != 32 {
+		t.Fatalf("info = %+v, %v, %v", info, ok, err)
+	}
+	h := servertest.NewHarness(t, 0)
+	if _, ok, _ := control(t, newDevice(t, h, "x")).c.AccountInfo(); ok {
+		t.Fatal("account info on a vault without sync")
+	}
+}

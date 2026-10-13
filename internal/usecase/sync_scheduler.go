@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"xquakshell/internal/domain"
 	"xquakshell/internal/domain/synctrust"
 	"xquakshell/internal/domain/vaultsync"
 	"xquakshell/internal/pkg/safego"
@@ -239,26 +238,4 @@ func forwardEvents(ctx context.Context, in <-chan synctrust.RemoteEvent, out cha
 			}
 		}
 	}
-}
-
-// SyncObservingVault reports every local write that landed, so the scheduler can push it. The
-// engine writes through the undecorated repository: what it applies from the server is not a local
-// edit, and signalling it would push every pull straight back.
-type SyncObservingVault struct {
-	domain.VaultRepository
-	onChange func()
-}
-
-// NewSyncObservingVault decorates inner.
-func NewSyncObservingVault(inner domain.VaultRepository, onChange func()) *SyncObservingVault {
-	return &SyncObservingVault{VaultRepository: inner, onChange: onChange}
-}
-
-// UpdateData signals after a successful write only; a refused or failed one changed nothing.
-func (v *SyncObservingVault) UpdateData(ctx context.Context, mutate func(*domain.VaultData) error) error {
-	if err := v.VaultRepository.UpdateData(ctx, mutate); err != nil {
-		return err
-	}
-	v.onChange()
-	return nil
 }

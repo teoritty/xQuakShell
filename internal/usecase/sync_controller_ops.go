@@ -158,3 +158,27 @@ func (c *SyncController) RejectHeld(ctx context.Context, record vaultsync.ID) er
 	}
 	return err
 }
+
+// SyncAccountInfo is what the settings page shows about the account. It carries no secret: the
+// identity key is public, and the seeds never leave the vault.
+type SyncAccountInfo struct {
+	ServerURL      string
+	Username       string
+	ServerIdentity []byte
+	RekeyPending   bool
+}
+
+// AccountInfo describes the stored account; ok is false when sync is not enabled.
+func (c *SyncController) AccountInfo() (SyncAccountInfo, bool, error) {
+	data, err := c.d.Vault.GetData()
+	if err != nil || data.Sync == nil || data.Sync.Account == nil {
+		return SyncAccountInfo{}, false, err
+	}
+	a := data.Sync.Account
+	return SyncAccountInfo{ServerURL: a.ServerURL, Username: a.Username, ServerIdentity: a.ServerIdentity, RekeyPending: a.RekeyPending}, true, nil
+}
+
+// Probe fetches a server's identity for the user to confirm by fingerprint.
+func (c *SyncController) Probe(ctx context.Context, url string) (ServerProbe, error) {
+	return c.d.Accounts.Probe(ctx, url)
+}
