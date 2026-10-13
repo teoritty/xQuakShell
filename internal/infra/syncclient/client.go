@@ -27,7 +27,7 @@ type Config struct {
 	BaseURL string
 	// PinnedIdentity is the server's Ed25519 identity key the user confirmed. Empty means first use:
 	// Hello then reports the key for the user to compare with the fingerprint the server admin
-	// printed, and the caller pins it with Pin once they agree.
+	// printed; once they agree, every later client is built with the key pinned here.
 	PinnedIdentity []byte
 	// Timeout bounds each request; zero means 30 seconds.
 	Timeout time.Duration
@@ -108,13 +108,6 @@ func (c *Client) verifiedPeer(cs tls.ConnectionState) error {
 		return synctrust.ErrServerIdentity
 	}
 	return nil
-}
-
-// Pin records the identity key the user confirmed after a first-use hello.
-func (c *Client) Pin(identity []byte) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.pinned = slices.Clone(identity)
 }
 
 // SetAccessToken sets the bearer token sent with authenticated requests; empty clears it.
