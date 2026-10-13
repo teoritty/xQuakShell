@@ -257,3 +257,29 @@ func TestSavingAnExistingFolderKeepsItsOrder(t *testing.T) {
 		t.Errorf("stored folder = %+v, want the rename at order 1", d.Folders[1])
 	}
 }
+
+// A save from the editor carries no vault id - the UI is not trusted to move items between synced
+// vaults - so the stored item keeps the vault it is in. Overwriting it would turn a team item
+// personal on the next edit.
+func TestSaveKeepsTheVaultAnItemIsIn(t *testing.T) {
+	d := domain.NewVaultData()
+	d.Folders = []domain.ConnectionFolder{{ID: "f", Name: "F", VaultID: "team"}}
+	d.Connections = []domain.Connection{{ID: "c", Name: "x", Host: "h", Port: 22, VaultID: "team"}}
+	v := &memVault{data: d}
+	r := NewConnectionRepo(v)
+	if err := r.Save(context.Background(), &domain.Connection{ID: "c", Name: "renamed", Host: "h", Port: 22}); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SaveFolder(context.Background(), &domain.ConnectionFolder{ID: "f", Name: "renamed"}); err != nil {
+		t.Fatal(err)
+	}
+	if v.data.Connections[0].VaultID != "team" || v.data.Connections[0].Name != "renamed" || v.data.Folders[0].VaultID != "team" {
+		t.Fatalf("connection %+v folder %+v; an edit must not move an item out of its team", v.data.Connections[0], v.data.Folders[0])
+	}
+	if err := r.Save(context.Background(), &domain.Connection{ID: "new", Name: "n", Host: "h", Port: 22, VaultID: "team"}); err != nil {
+		t.Fatal(err)
+	}
+	if v.data.Connections[1].VaultID != "" {
+		t.Fatal("a new item took a vault id from the editor; only sync places items in team vaults")
+	}
+}

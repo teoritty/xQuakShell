@@ -60,6 +60,8 @@ export interface ConnectionUser {
   passAuth?: PassAuthConfig;
   pluginAuth?: PluginAuthConfig;
   label?: string;
+  // 'personal' in a team connection: each member binds a credential of their own to this user.
+  credentialSource?: 'personal';
 }
 
 export interface JumpHop {
@@ -101,6 +103,9 @@ export interface Connection {
   // of the save payload so re-saving cannot wipe it.
   storedSecretFields?: string[];
   agentForwarding?: AgentForwarding;
+  // The team vault the connection is in; absent for a personal connection. Display-only: saving
+  // keeps whatever vault the stored connection is in.
+  vaultId?: string;
 }
 
 export type SessionState = 'connecting' | 'hostkey-required' | 'trust-required' | 'ready' | 'error' | 'closed';

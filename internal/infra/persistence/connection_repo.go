@@ -37,6 +37,9 @@ func (r *ConnectionRepo) SaveFolder(ctx context.Context, f *domain.ConnectionFol
 	}
 
 	return r.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		// The vault an item is in is sync's to decide, never the editor's: a new folder starts
+		// personal and an existing one keeps its vault, so an edit cannot move it out of a team.
+		f.VaultID = ""
 		if f.ID == "" {
 			f.ID = uuid.New().String()
 			f.Order = orderBeforeSiblings(data.Folders, f.ParentID)
@@ -45,6 +48,7 @@ func (r *ConnectionRepo) SaveFolder(ctx context.Context, f *domain.ConnectionFol
 		}
 		for i := range data.Folders {
 			if data.Folders[i].ID == f.ID {
+				f.VaultID = data.Folders[i].VaultID
 				data.Folders[i] = *f
 				return nil
 			}
@@ -184,6 +188,8 @@ func (r *ConnectionRepo) Save(ctx context.Context, c *domain.Connection) error {
 			}
 		}
 
+		// As for folders: the vault a connection is in is sync's to decide, never the editor's.
+		c.VaultID = ""
 		if c.ID == "" {
 			c.ID = uuid.New().String()
 			data.Connections = append(data.Connections, *c)
@@ -191,6 +197,7 @@ func (r *ConnectionRepo) Save(ctx context.Context, c *domain.Connection) error {
 		}
 		for i := range data.Connections {
 			if data.Connections[i].ID == c.ID {
+				c.VaultID = data.Connections[i].VaultID
 				data.Connections[i] = *c
 				return nil
 			}

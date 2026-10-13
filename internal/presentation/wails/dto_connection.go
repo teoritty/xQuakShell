@@ -28,6 +28,8 @@ type ConnectionUserDTO struct {
 	PassAuth   *PassAuthConfigDTO   `json:"passAuth,omitempty"`
 	PluginAuth *PluginAuthConfigDTO `json:"pluginAuth,omitempty"`
 	Label      string               `json:"label,omitempty"`
+	// CredentialSource is "personal" for a team user each member binds a credential of their own to.
+	CredentialSource string `json:"credentialSource,omitempty"`
 }
 
 type KeyAuthConfigDTO struct {
@@ -87,6 +89,9 @@ type ConnectionDTO struct {
 	ForwardRules       []ForwardRuleDTO `json:"forwardRules,omitempty"`
 	// AgentForwarding mirrors domain.Connection.AgentForwarding; nil means off.
 	AgentForwarding *AgentForwardingDTO `json:"agentForwarding,omitempty"`
+	// VaultID names the team vault the connection is in, for display. It is read-only: a save keeps
+	// the vault the stored connection is in, whatever this field says.
+	VaultID string `json:"vaultId,omitempty"`
 }
 
 type KnownHostDTO struct {
@@ -134,6 +139,7 @@ func ConnectionToDTO(c domain.Connection) ConnectionDTO {
 	dto.PluginFields = pluginFieldsToDTO(c.PluginFields)
 	dto.StoredSecretFields = storedSecretFieldIDs(c.PluginFields)
 	dto.AgentForwarding = agentForwardingToDTO(c.AgentForwarding)
+	dto.VaultID = c.VaultID
 	return dto
 }
 
@@ -158,6 +164,7 @@ func connectionUserToDTO(u domain.ConnectionUser) ConnectionUserDTO {
 		Auth:     string(u.Auth),
 		Label:    u.Label,
 	}
+	d.CredentialSource = u.CredentialSource
 	if u.KeyAuth != nil {
 		d.KeyAuth = keyAuthToDTO(u.KeyAuth)
 	}
@@ -343,6 +350,7 @@ func dtoToConnectionUser(d ConnectionUserDTO) domain.ConnectionUser {
 	u.KeyAuth = keyAuthFromDTO(d.KeyAuth)
 	u.PassAuth = passAuthFromDTO(d.PassAuth)
 	u.PluginAuth = pluginAuthFromDTO(d.PluginAuth)
+	u.CredentialSource = d.CredentialSource
 	return u
 }
 
