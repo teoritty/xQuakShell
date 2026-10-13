@@ -214,6 +214,9 @@ type InstalledPlugin struct {
 	// Empty when the bundle has no SHA256SUMS. Used to bind manifest signature verification
 	// to bundle contents.
 	ChecksumsDigest string
+	// ManifestDigest is the hex-encoded SHA-256 of the plugin.json bytes that were validated. A
+	// synced plugin reference names the manifest by it (spec §6.4).
+	ManifestDigest string
 }
 
 // InstallSource indicates where the plugin was loaded from.

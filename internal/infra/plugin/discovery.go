@@ -1,6 +1,8 @@
 package plugin
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -142,7 +144,13 @@ func loadPluginDir(dir string) (domainplugin.InstalledPlugin, error) {
 		Source:          source,
 		InstallMeta:     installMeta,
 		ChecksumsDigest: checksumsDigest,
+		ManifestDigest:  manifestDigest(data),
 	}, nil
+}
+
+func manifestDigest(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 // verifyPluginIntegrity checks an on-disk plugin tree against its own SHA256SUMS before it loads.
