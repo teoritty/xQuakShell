@@ -2311,6 +2311,7 @@ export namespace wails {
 	    username?: string;
 	    fingerprint?: string;
 	    rekeyPending?: boolean;
+	    joinPending?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new SyncStatusDTO(source);
@@ -2329,6 +2330,7 @@ export namespace wails {
 	        this.username = source["username"];
 	        this.fingerprint = source["fingerprint"];
 	        this.rekeyPending = source["rekeyPending"];
+	        this.joinPending = source["joinPending"];
 	    }
 	}
 	

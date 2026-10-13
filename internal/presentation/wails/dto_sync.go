@@ -22,6 +22,7 @@ type SyncStatusDTO struct {
 	Username     string   `json:"username,omitempty"`
 	Fingerprint  string   `json:"fingerprint,omitempty"`
 	RekeyPending bool     `json:"rekeyPending,omitempty"`
+	JoinPending  bool     `json:"joinPending,omitempty"`
 }
 
 // SyncServerProbeDTO is a server identity for the user to compare with what its admin printed.

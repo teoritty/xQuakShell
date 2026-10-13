@@ -249,3 +249,37 @@ func TestAccountInfoCarriesNoSecret(t *testing.T) {
 		t.Fatal("account info on a vault without sync")
 	}
 }
+
+// A login that is waiting for the join choice must still be waiting after a restart: resuming
+// would sync with merge semantics and skip the backup the join takes first.
+func TestAPendingJoinSurvivesARestart(t *testing.T) {
+	h, a := registered(t)
+	a.addFolder("fa", "account")
+	a.sync()
+	c := newDevice(t, h, "tablet")
+	c.addFolder("fc", "device")
+	first := control(t, c)
+	if need, err := first.c.Login(syncCtx, creds("correct horse")); err != nil || !need {
+		t.Fatalf("login = %v, %v", need, err)
+	}
+	first.c.Stop()
+	restarted := control(t, c)
+	if err := restarted.c.Start(syncCtx); err != nil {
+		t.Fatal(err)
+	}
+	if _, on := restarted.c.Status(); on {
+		t.Fatal("sync resumed before the user chose how to join")
+	}
+	if info, _, _ := restarted.c.AccountInfo(); !info.JoinPending {
+		t.Fatal("the pending join is not reported, so the page cannot ask for it")
+	}
+	if _, err := restarted.c.Join(syncCtx, usecase.JoinMerge); err != nil {
+		t.Fatalf("join after restart: %v", err)
+	}
+	if info, _, _ := restarted.c.AccountInfo(); info.JoinPending {
+		t.Fatal("the join flag outlived the join")
+	}
+	if c.backup.taken == nil {
+		t.Fatal("no backup before the join")
+	}
+}

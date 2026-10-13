@@ -18,14 +18,16 @@
 </script>
 
 <SettingsSection tab="sync" section="account" {view}>
-  {#if $syncStatus.enabled}
+  {#if $syncStatus.enabled && $syncStatus.joinPending}
+    <SyncEnableForm initialStep="join" />
+  {:else if $syncStatus.enabled}
     <SyncAccountPanel />
   {:else}
     <SyncEnableForm />
   {/if}
 </SettingsSection>
 
-{#if $syncStatus.enabled}
+{#if $syncStatus.enabled && !$syncStatus.joinPending}
   <SettingsSection tab="sync" section="devices" {view}>
     <SyncDevicesPanel />
   </SettingsSection>

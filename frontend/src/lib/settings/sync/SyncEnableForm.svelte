@@ -6,7 +6,10 @@
   import { enableSync, joinSync, probeSyncServer } from '../../../actions/syncActions';
   import { t } from '../../../i18n/messages';
 
-  let step: 'server' | 'confirm' | 'account' | 'join' | 'joined' = 'server';
+  // 'join' when a sign-in from an earlier session is still waiting for the merge-or-replace choice.
+  export let initialStep: 'server' | 'join' = 'server';
+
+  let step: 'server' | 'confirm' | 'account' | 'join' | 'joined' = initialStep;
   let serverUrl = '';
   let identityKey = '';
   let fingerprint = '';

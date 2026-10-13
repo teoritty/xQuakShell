@@ -89,6 +89,16 @@ func (c *SyncController) Start(ctx context.Context) error {
 	if err != nil || !ok {
 		return err
 	}
+	info, _, err := c.AccountInfo()
+	if err != nil {
+		return err
+	}
+	if info.JoinPending {
+		c.mu.Lock()
+		c.pendingJoin = &s
+		c.mu.Unlock()
+		return nil
+	}
 	c.adopt(ctx, s)
 	return nil
 }

@@ -14,6 +14,7 @@ export interface SyncStatus {
   username?: string;
   fingerprint?: string;
   rekeyPending?: boolean;
+  joinPending?: boolean;
 }
 
 export interface SyncServerProbe {

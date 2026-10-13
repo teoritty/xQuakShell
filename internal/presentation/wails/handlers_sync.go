@@ -98,6 +98,7 @@ func (a *AppAPI) GetSyncStatus() (SyncStatusDTO, error) {
 	if ok {
 		dto.Enabled, dto.ServerURL, dto.Username, dto.RekeyPending = true, info.ServerURL, info.Username, info.RekeyPending
 		dto.Fingerprint = vaultsync.AccountFingerprint(info.ServerIdentity)
+		dto.JoinPending = info.JoinPending
 	}
 	return dto, nil
 }

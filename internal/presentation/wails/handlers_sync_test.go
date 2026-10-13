@@ -232,9 +232,9 @@ func TestSecretConflictValuesAreNotSent(t *testing.T) {
 
 func TestSyncStatusAndLifecycleHooks(t *testing.T) {
 	a, f, _ := syncAPI()
-	f.info = &usecase.SyncAccountInfo{ServerURL: "https://s", Username: "alice", ServerIdentity: make([]byte, 32)}
+	f.info = &usecase.SyncAccountInfo{ServerURL: "https://s", Username: "alice", ServerIdentity: make([]byte, 32), JoinPending: true}
 	st, err := a.GetSyncStatus()
-	if err != nil || !st.Enabled || st.State != "idle" || st.Held != 2 || st.Fingerprint == "" || st.Username != "alice" {
+	if err != nil || !st.Enabled || st.State != "idle" || st.Held != 2 || st.Fingerprint == "" || st.Username != "alice" || !st.JoinPending {
 		t.Fatalf("status = %+v, %v", st, err)
 	}
 	a.startSync()

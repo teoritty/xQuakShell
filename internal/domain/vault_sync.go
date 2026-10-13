@@ -44,6 +44,10 @@ type SyncAccount struct {
 	// RekeyPending marks a succession whose new bundle has not reached the server yet: until it
 	// does, no new device can sign in, and the user is asked to finish with the sync password.
 	RekeyPending bool `json:"rekeyPending,omitempty"`
+	// JoinPending marks a login that found data on both sides and is waiting for the user to choose
+	// merge or replace; until then this device does not sync, so the backup the join takes first is
+	// never skipped by a restart.
+	JoinPending bool `json:"joinPending,omitempty"`
 }
 
 // SyncPendingKeys are account keys generated for a succession not yet confirmed.

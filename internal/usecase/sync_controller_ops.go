@@ -33,6 +33,9 @@ func (c *SyncController) Login(ctx context.Context, cred SyncCredentials) (bool,
 		return false, err
 	}
 	if need {
+		if err := c.d.Accounts.storeAccount(ctx, func(a *domain.SyncAccount) { a.JoinPending = true }); err != nil {
+			return false, err
+		}
 		c.mu.Lock()
 		c.pendingJoin = &s
 		c.mu.Unlock()
@@ -55,6 +58,9 @@ func (c *SyncController) Join(ctx context.Context, choice JoinChoice) (string, e
 	}
 	name, _, err := c.d.Accounts.Join(ctx, *s, choice)
 	if err != nil {
+		return name, err
+	}
+	if err := c.d.Accounts.storeAccount(ctx, func(a *domain.SyncAccount) { a.JoinPending = false }); err != nil {
 		return name, err
 	}
 	c.mu.Lock()
@@ -166,6 +172,7 @@ type SyncAccountInfo struct {
 	Username       string
 	ServerIdentity []byte
 	RekeyPending   bool
+	JoinPending    bool
 }
 
 // AccountInfo describes the stored account; ok is false when sync is not enabled.
@@ -175,7 +182,8 @@ func (c *SyncController) AccountInfo() (SyncAccountInfo, bool, error) {
 		return SyncAccountInfo{}, false, err
 	}
 	a := data.Sync.Account
-	return SyncAccountInfo{ServerURL: a.ServerURL, Username: a.Username, ServerIdentity: a.ServerIdentity, RekeyPending: a.RekeyPending}, true, nil
+	return SyncAccountInfo{ServerURL: a.ServerURL, Username: a.Username, ServerIdentity: a.ServerIdentity,
+		RekeyPending: a.RekeyPending, JoinPending: a.JoinPending}, true, nil
 }
 
 // Probe fetches a server's identity for the user to confirm by fingerprint.
