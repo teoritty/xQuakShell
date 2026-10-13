@@ -35,7 +35,7 @@ const (
 	TypeConflict     RecordType = "conflict"
 	TypeContact      RecordType = "contact"
 	// TypeCredentialBinding ties a team connection user to this member's own credential.
-	TypeCredentialBinding RecordType = "credential-binding"
+	TypeCredentialBinding RecordType = "credential-binding" // #nosec G101 -- a record type name, not a credential
 	// TypePluginInstall is a plugin installed on one of the user's devices, by reference.
 	TypePluginInstall RecordType = "plugin-install"
 	// TypePluginData is one data file a plugin declared for sync.
