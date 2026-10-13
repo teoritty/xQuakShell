@@ -19,6 +19,8 @@ export function ChangeKeyPassphrase(arg1:string,arg2:string,arg3:string):Promise
 
 export function ChangeMasterPassword(arg1:string,arg2:string):Promise<wails.RecoveryKeyDTO>;
 
+export function ChangeSyncPassword(arg1:string,arg2:string):Promise<void>;
+
 export function Chmod(arg1:string,arg2:string,arg3:number):Promise<void>;
 
 export function ChmodRecursive(arg1:string,arg2:string,arg3:number,arg4:string):Promise<void>;
@@ -38,6 +40,8 @@ export function CloseSurface(arg1:string):Promise<void>;
 export function CompleteKeyMigration(arg1:string,arg2:Record<string, string>):Promise<wails.MigrationReportDTO>;
 
 export function CompleteRecoveryReset(arg1:string):Promise<wails.RecoveryKeyDTO>;
+
+export function ConfirmSyncHeld(arg1:string,arg2:string):Promise<void>;
 
 export function CopyLocalPath(arg1:string,arg2:string):Promise<void>;
 
@@ -63,11 +67,15 @@ export function DescribeDiscoveryNode(arg1:string,arg2:string,arg3:string):Promi
 
 export function DisableAuditSecretLogging():Promise<void>;
 
+export function DisableSync():Promise<void>;
+
 export function Download(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function DuplicateConnection(arg1:string,arg2:string):Promise<wails.ConnectionDTO>;
 
 export function EnableAuditSecretLogging(arg1:boolean):Promise<void>;
+
+export function EnableSync(arg1:wails.EnableSyncRequest):Promise<wails.EnableSyncResultDTO>;
 
 export function ExecuteDownload(arg1:string,arg2:wails.ExecutePlanDTO):Promise<void>;
 
@@ -121,6 +129,8 @@ export function GetSessionState(arg1:string):Promise<wails.SessionDTO>;
 
 export function GetSettings():Promise<wails.AppSettingsDTO>;
 
+export function GetSyncStatus():Promise<wails.SyncStatusDTO>;
+
 export function GetTempDir():Promise<string>;
 
 export function GetUpdateStatus():Promise<wails.UpdateStatusDTO>;
@@ -153,6 +163,8 @@ export function IsVaultUnlocked():Promise<boolean>;
 
 export function IssueRecoveryKey(arg1:string):Promise<wails.RecoveryKeyDTO>;
 
+export function JoinSync(arg1:string):Promise<string>;
+
 export function ListGitHubRepositories():Promise<Array<wails.GitHubRepositoryDTO>>;
 
 export function ListLocalPath(arg1:string,arg2:boolean):Promise<Array<wails.LocalNodeDTO>>;
@@ -166,6 +178,12 @@ export function ListPath(arg1:string,arg2:string):Promise<Array<wails.RemoteNode
 export function ListPluginSources():Promise<Array<wails.PluginSourceDTO>>;
 
 export function ListPlugins():Promise<Array<wails.PluginDTO>>;
+
+export function ListSyncConflicts():Promise<Array<wails.SyncConflictDTO>>;
+
+export function ListSyncDevices():Promise<Array<wails.SyncDeviceDTO>>;
+
+export function ListSyncHeld():Promise<Array<wails.SyncHeldDTO>>;
 
 export function LockVault():Promise<void>;
 
@@ -203,9 +221,15 @@ export function PreviewPluginInstall(arg1:string):Promise<wails.PluginInstallPre
 
 export function PreviewSSHConfig(arg1:string):Promise<wails.SSHConfigPreviewDTO>;
 
+export function ProbeSyncServer(arg1:string):Promise<wails.SyncServerProbeDTO>;
+
+export function RejectSyncHeld(arg1:string):Promise<void>;
+
 export function RelayPluginViewMessage(arg1:string,arg2:json.RawMessage):Promise<void>;
 
 export function ReleasePluginViewPanel(arg1:string):Promise<void>;
+
+export function ReloginSync(arg1:string):Promise<void>;
 
 export function RemoveGitHubRepository(arg1:string):Promise<void>;
 
@@ -237,6 +261,8 @@ export function ReportMinimized():Promise<void>;
 
 export function ReportRestored():Promise<void>;
 
+export function ResetSyncPassword(arg1:string):Promise<void>;
+
 export function ResizeLocalTerminal(arg1:string,arg2:number,arg3:number):Promise<void>;
 
 export function ResizeSurface(arg1:string,arg2:number,arg3:number):Promise<void>;
@@ -248,6 +274,10 @@ export function ResolveHostKey(arg1:string,arg2:string):Promise<void>;
 export function ResolvePassphrase(arg1:string,arg2:string):Promise<void>;
 
 export function ResolvePeerTrust(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function ResolveSyncConflict(arg1:string,arg2:boolean):Promise<void>;
+
+export function RevokeSyncDevice(arg1:string,arg2:string):Promise<void>;
 
 export function SaveConnection(arg1:wails.ConnectionDTO):Promise<wails.ConnectionDTO>;
 
@@ -288,6 +318,8 @@ export function StartFileWatch(arg1:string):Promise<void>;
 export function StartPlugin(arg1:string):Promise<void>;
 
 export function SubmitPluginDialog(arg1:string,arg2:Record<string, string>):Promise<void>;
+
+export function SyncNow():Promise<void>;
 
 export function TerminalResize(arg1:string,arg2:number,arg3:number):Promise<void>;
 

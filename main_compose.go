@@ -153,6 +153,7 @@ func composeApp() *App {
 	pluginRuntime.wireEmbed(api)
 
 	wireLocalTerminal(api, auditLogRepo)
+	wireSync(api, vaultRepo, portableLayout.DataRoot(), vaultDir)
 
 	return &App{api: api, plugins: pluginRuntime}
 }

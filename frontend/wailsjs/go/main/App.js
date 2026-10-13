@@ -34,6 +34,10 @@ export function ChangeMasterPassword(arg1, arg2) {
   return window['go']['main']['App']['ChangeMasterPassword'](arg1, arg2);
 }
 
+export function ChangeSyncPassword(arg1, arg2) {
+  return window['go']['main']['App']['ChangeSyncPassword'](arg1, arg2);
+}
+
 export function Chmod(arg1, arg2, arg3) {
   return window['go']['main']['App']['Chmod'](arg1, arg2, arg3);
 }
@@ -72,6 +76,10 @@ export function CompleteKeyMigration(arg1, arg2) {
 
 export function CompleteRecoveryReset(arg1) {
   return window['go']['main']['App']['CompleteRecoveryReset'](arg1);
+}
+
+export function ConfirmSyncHeld(arg1, arg2) {
+  return window['go']['main']['App']['ConfirmSyncHeld'](arg1, arg2);
 }
 
 export function CopyLocalPath(arg1, arg2) {
@@ -122,6 +130,10 @@ export function DisableAuditSecretLogging() {
   return window['go']['main']['App']['DisableAuditSecretLogging']();
 }
 
+export function DisableSync() {
+  return window['go']['main']['App']['DisableSync']();
+}
+
 export function Download(arg1, arg2, arg3) {
   return window['go']['main']['App']['Download'](arg1, arg2, arg3);
 }
@@ -132,6 +144,10 @@ export function DuplicateConnection(arg1, arg2) {
 
 export function EnableAuditSecretLogging(arg1) {
   return window['go']['main']['App']['EnableAuditSecretLogging'](arg1);
+}
+
+export function EnableSync(arg1) {
+  return window['go']['main']['App']['EnableSync'](arg1);
 }
 
 export function ExecuteDownload(arg1, arg2) {
@@ -238,6 +254,10 @@ export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
+export function GetSyncStatus() {
+  return window['go']['main']['App']['GetSyncStatus']();
+}
+
 export function GetTempDir() {
   return window['go']['main']['App']['GetTempDir']();
 }
@@ -302,6 +322,10 @@ export function IssueRecoveryKey(arg1) {
   return window['go']['main']['App']['IssueRecoveryKey'](arg1);
 }
 
+export function JoinSync(arg1) {
+  return window['go']['main']['App']['JoinSync'](arg1);
+}
+
 export function ListGitHubRepositories() {
   return window['go']['main']['App']['ListGitHubRepositories']();
 }
@@ -328,6 +352,18 @@ export function ListPluginSources() {
 
 export function ListPlugins() {
   return window['go']['main']['App']['ListPlugins']();
+}
+
+export function ListSyncConflicts() {
+  return window['go']['main']['App']['ListSyncConflicts']();
+}
+
+export function ListSyncDevices() {
+  return window['go']['main']['App']['ListSyncDevices']();
+}
+
+export function ListSyncHeld() {
+  return window['go']['main']['App']['ListSyncHeld']();
 }
 
 export function LockVault() {
@@ -402,12 +438,24 @@ export function PreviewSSHConfig(arg1) {
   return window['go']['main']['App']['PreviewSSHConfig'](arg1);
 }
 
+export function ProbeSyncServer(arg1) {
+  return window['go']['main']['App']['ProbeSyncServer'](arg1);
+}
+
+export function RejectSyncHeld(arg1) {
+  return window['go']['main']['App']['RejectSyncHeld'](arg1);
+}
+
 export function RelayPluginViewMessage(arg1, arg2) {
   return window['go']['main']['App']['RelayPluginViewMessage'](arg1, arg2);
 }
 
 export function ReleasePluginViewPanel(arg1) {
   return window['go']['main']['App']['ReleasePluginViewPanel'](arg1);
+}
+
+export function ReloginSync(arg1) {
+  return window['go']['main']['App']['ReloginSync'](arg1);
 }
 
 export function RemoveGitHubRepository(arg1) {
@@ -470,6 +518,10 @@ export function ReportRestored() {
   return window['go']['main']['App']['ReportRestored']();
 }
 
+export function ResetSyncPassword(arg1) {
+  return window['go']['main']['App']['ResetSyncPassword'](arg1);
+}
+
 export function ResizeLocalTerminal(arg1, arg2, arg3) {
   return window['go']['main']['App']['ResizeLocalTerminal'](arg1, arg2, arg3);
 }
@@ -492,6 +544,14 @@ export function ResolvePassphrase(arg1, arg2) {
 
 export function ResolvePeerTrust(arg1, arg2, arg3) {
   return window['go']['main']['App']['ResolvePeerTrust'](arg1, arg2, arg3);
+}
+
+export function ResolveSyncConflict(arg1, arg2) {
+  return window['go']['main']['App']['ResolveSyncConflict'](arg1, arg2);
+}
+
+export function RevokeSyncDevice(arg1, arg2) {
+  return window['go']['main']['App']['RevokeSyncDevice'](arg1, arg2);
 }
 
 export function SaveConnection(arg1) {
@@ -572,6 +632,10 @@ export function StartPlugin(arg1) {
 
 export function SubmitPluginDialog(arg1, arg2) {
   return window['go']['main']['App']['SubmitPluginDialog'](arg1, arg2);
+}
+
+export function SyncNow() {
+  return window['go']['main']['App']['SyncNow']();
 }
 
 export function TerminalResize(arg1, arg2, arg3) {

@@ -44,6 +44,8 @@ var notBound = map[string]string{
 	// Backend-initiated callbacks and lifecycle, never called from JS.
 	"EmitPluginContributionsChanged": "backend-initiated event emitter",
 	"EmitPluginStateChanged":         "backend-initiated event emitter",
+	"EmitSyncStatus":                 "backend-initiated event emitter",
+	"SetSyncServices":                "wiring",
 	"EmitDiscoveryTreeChanged":       "backend-initiated event emitter",
 	"EmitNodeDetailsChanged":         "backend-initiated event emitter",
 	"HandlePluginViewMessage":        "implements usecase.PluginViewSink",

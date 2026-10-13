@@ -890,6 +890,40 @@ export namespace wails {
 	}
 	
 	
+	export class EnableSyncRequest {
+	    serverUrl: string;
+	    identityKey: string;
+	    username: string;
+	    password: string;
+	    invite: string;
+	    register: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new EnableSyncRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.serverUrl = source["serverUrl"];
+	        this.identityKey = source["identityKey"];
+	        this.username = source["username"];
+	        this.password = source["password"];
+	        this.invite = source["invite"];
+	        this.register = source["register"];
+	    }
+	}
+	export class EnableSyncResultDTO {
+	    joinNeeded: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new EnableSyncResultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.joinNeeded = source["joinNeeded"];
+	    }
+	}
 	export class ResolvedActionDTO {
 	    target: string;
 	    action: string;
@@ -2179,6 +2213,122 @@ export namespace wails {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
+	    }
+	}
+	export class SyncConflictDTO {
+	    id: string;
+	    recordType: string;
+	    itemKey: string;
+	    path: string[];
+	    secret: boolean;
+	    local?: string;
+	    remote?: string;
+	    atUnixMilli: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncConflictDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.recordType = source["recordType"];
+	        this.itemKey = source["itemKey"];
+	        this.path = source["path"];
+	        this.secret = source["secret"];
+	        this.local = source["local"];
+	        this.remote = source["remote"];
+	        this.atUnixMilli = source["atUnixMilli"];
+	    }
+	}
+	export class SyncDeviceDTO {
+	    id: string;
+	    name: string;
+	    platform: string;
+	    createdUnixMilli: number;
+	    revoked: boolean;
+	    current: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncDeviceDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.platform = source["platform"];
+	        this.createdUnixMilli = source["createdUnixMilli"];
+	        this.revoked = source["revoked"];
+	        this.current = source["current"];
+	    }
+	}
+	export class SyncHeldDTO {
+	    record: string;
+	    type: string;
+	    key: string;
+	    reason: string;
+	    pending: boolean;
+	    atUnixMilli: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncHeldDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.record = source["record"];
+	        this.type = source["type"];
+	        this.key = source["key"];
+	        this.reason = source["reason"];
+	        this.pending = source["pending"];
+	        this.atUnixMilli = source["atUnixMilli"];
+	    }
+	}
+	export class SyncServerProbeDTO {
+	    identityKey: string;
+	    fingerprint: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncServerProbeDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.identityKey = source["identityKey"];
+	        this.fingerprint = source["fingerprint"];
+	    }
+	}
+	export class SyncStatusDTO {
+	    enabled: boolean;
+	    running: boolean;
+	    state: string;
+	    message?: string;
+	    held: number;
+	    quarantined: number;
+	    newDevices?: string[];
+	    serverUrl?: string;
+	    username?: string;
+	    fingerprint?: string;
+	    rekeyPending?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncStatusDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.running = source["running"];
+	        this.state = source["state"];
+	        this.message = source["message"];
+	        this.held = source["held"];
+	        this.quarantined = source["quarantined"];
+	        this.newDevices = source["newDevices"];
+	        this.serverUrl = source["serverUrl"];
+	        this.username = source["username"];
+	        this.fingerprint = source["fingerprint"];
+	        this.rekeyPending = source["rekeyPending"];
 	    }
 	}
 	
