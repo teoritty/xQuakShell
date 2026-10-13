@@ -8,7 +8,11 @@
     "coverage": 76.82926829268293
   },
   "domain/vaultsync": {
-    "efficacy": 95.85492227979275,
-    "coverage": 92.78846153846155
+    "efficacy": 96.01769911504425,
+    "coverage": 93.7759336099585
+  },
+  "syncserver/usecase": {
+    "efficacy": 90,
+    "coverage": 93.33333333333333
   }
 }

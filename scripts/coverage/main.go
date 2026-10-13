@@ -6,7 +6,7 @@
 // nothing beyond the toolchain the gate is already measuring.
 //
 // Usage: go run ./scripts/coverage
-// Floors can be overridden with DOMAIN_MIN, INFRA_MIN, USECASE_MIN, VAULTSYNC_MIN, SYNCCRYPTO_MIN and OPAQUE_MIN.
+// Floors can be overridden with DOMAIN_MIN, INFRA_MIN, USECASE_MIN, VAULTSYNC_MIN, SYNCCRYPTO_MIN, OPAQUE_MIN, SYNCWIRE_MIN and SYNCSERVER_MIN.
 package main
 
 import (
@@ -78,6 +78,20 @@ var gates = []gate{
 		MinEnv:   "OPAQUE_MIN",
 		// The uncovered lines map library errors that well-formed messages cannot trigger.
 		MinPct: 80,
+	},
+	{
+		Label:    "domain/syncwire",
+		Packages: []string{"./internal/domain/syncwire/"},
+		CoverPkg: []string{"xquakshell/internal/domain/syncwire"},
+		MinEnv:   "SYNCWIRE_MIN",
+		MinPct:   90,
+	},
+	{
+		Label:    "syncserver",
+		Packages: []string{"./internal/syncserver/...", "./cmd/xqsyncd/"},
+		CoverPkg: []string{"xquakshell/internal/syncserver/usecase", "xquakshell/internal/syncserver/store", "xquakshell/internal/syncserver/transport"},
+		MinEnv:   "SYNCSERVER_MIN",
+		MinPct:   80,
 	},
 }
 

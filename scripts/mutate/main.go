@@ -58,6 +58,8 @@ var targets = []target{
 	// The sync protocol rules both the application and the server verify with (ADR-023). A
 	// surviving mutant here is a check a hostile server could slip past.
 	{Label: "domain/vaultsync", Packages: []string{"./internal/domain/vaultsync/"}, MinEnv: "MUTATE_VAULTSYNC_MIN"},
+	// The server's use cases (ADR-023). A survivor is a request the server would wrongly accept.
+	{Label: "syncserver/usecase", Packages: []string{"./internal/syncserver/usecase/"}, MinEnv: "MUTATE_SYNCSERVER_MIN"},
 }
 
 // domain/plugin carries the manifest rules and the sandbox mode arithmetic, and
@@ -94,6 +96,9 @@ var targets = []target{
 // the body and key-wrap AAD, the member dropped from the HPKE info, the KSF parameters dropped from
 // the OPAQUE options and the AKE context replaced by an empty one were each made in turn and
 // confirmed to turn a test red. Re-add them when gremlins can complete the packages.
+//
+// ./internal/domain/syncwire/ is absent for the same panic, confirmed by trying it. The hash length
+// check and the trailing-data check were each broken by hand and turned three tests red.
 //
 // ./internal/domain/ is absent for the older reason, which remains true:
 // gremlins v0.5.0 panics part-way through it ("error, this is temporary",
