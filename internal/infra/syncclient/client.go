@@ -21,7 +21,7 @@ import (
 	"xquakshell/internal/domain/vaultsync"
 )
 
-// Config configures a Client.
+// Config names the server and, once the user has confirmed it, the identity key to hold it to.
 type Config struct {
 	// BaseURL is the server's https:// address.
 	BaseURL string
