@@ -9,6 +9,8 @@ export function AddGitHubRepository(arg1:wails.AddGitHubRepositoryRequest):Promi
 
 export function ApplyDiscoveryNodeDetails(arg1:string,arg2:string,arg3:string,arg4:Record<string, string>):Promise<void>;
 
+export function BindCredential(arg1:wails.CredentialBindingDTO):Promise<void>;
+
 export function CancelPassphrase(arg1:string):Promise<void>;
 
 export function CancelPluginDialog(arg1:string):Promise<void>;
@@ -20,6 +22,8 @@ export function ChangeKeyPassphrase(arg1:string,arg2:string,arg3:string):Promise
 export function ChangeMasterPassword(arg1:string,arg2:string):Promise<wails.RecoveryKeyDTO>;
 
 export function ChangeSyncPassword(arg1:string,arg2:string):Promise<void>;
+
+export function ChangeTeamRole(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function Chmod(arg1:string,arg2:string,arg3:number):Promise<void>;
 
@@ -41,6 +45,8 @@ export function CompleteKeyMigration(arg1:string,arg2:Record<string, string>):Pr
 
 export function CompleteRecoveryReset(arg1:string):Promise<wails.RecoveryKeyDTO>;
 
+export function ConfirmCredentialBinding(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function ConfirmSyncHeld(arg1:string,arg2:string):Promise<void>;
 
 export function CopyLocalPath(arg1:string,arg2:string):Promise<void>;
@@ -48,6 +54,8 @@ export function CopyLocalPath(arg1:string,arg2:string):Promise<void>;
 export function CreateFilePath(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function CreateLocalFile(arg1:string):Promise<void>;
+
+export function CreateTeam(arg1:string):Promise<string>;
 
 export function CreateVault(arg1:string):Promise<wails.RecoveryKeyDTO>;
 
@@ -157,6 +165,8 @@ export function InstallGitHubPlugin(arg1:string,arg2:string,arg3:boolean,arg4:bo
 
 export function InstallPlugin(arg1:string,arg2:boolean,arg3:boolean,arg4:boolean,arg5:boolean,arg6:boolean,arg7:boolean):Promise<wails.PluginDTO>;
 
+export function InviteToTeam(arg1:wails.TeamInviteRequest):Promise<void>;
+
 export function InvokeDiscoveryAction(arg1:string,arg2:string,arg3:Array<string>,arg4:string):Promise<void>;
 
 export function IsVaultUnlocked():Promise<boolean>;
@@ -164,6 +174,10 @@ export function IsVaultUnlocked():Promise<boolean>;
 export function IssueRecoveryKey(arg1:string):Promise<wails.RecoveryKeyDTO>;
 
 export function JoinSync(arg1:string):Promise<string>;
+
+export function LeaveTeam(arg1:string):Promise<void>;
+
+export function ListCredentialBindings():Promise<Array<wails.CredentialBindingDTO>>;
 
 export function ListGitHubRepositories():Promise<Array<wails.GitHubRepositoryDTO>>;
 
@@ -187,11 +201,19 @@ export function ListSyncHeld():Promise<Array<wails.SyncHeldDTO>>;
 
 export function ListSyncTrash():Promise<Array<wails.SyncTrashItemDTO>>;
 
+export function ListTeamMembers(arg1:string):Promise<Array<wails.TeamMemberDTO>>;
+
+export function ListTeams():Promise<Array<wails.TeamDTO>>;
+
 export function LockVault():Promise<void>;
+
+export function LookupTeamInvitee(arg1:string):Promise<wails.TeamInviteeDTO>;
 
 export function MkdirLocalPath(arg1:string):Promise<void>;
 
 export function MkdirPath(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function MoveConnectionToTeam(arg1:string,arg2:string):Promise<void>;
 
 export function MoveConnections(arg1:Array<string>,arg2:string):Promise<void>;
 
@@ -242,6 +264,8 @@ export function RemoveLocalPath(arg1:string):Promise<void>;
 export function RemovePath(arg1:string,arg2:string):Promise<void>;
 
 export function RemovePeerTrust(arg1:string,arg2:string):Promise<void>;
+
+export function RemoveTeamMember(arg1:string,arg2:string):Promise<void>;
 
 export function RenameKey(arg1:string,arg2:string):Promise<void>;
 
@@ -317,6 +341,8 @@ export function SetKeyPolicy(arg1:string,arg2:wails.KeyOptionsDTO):Promise<void>
 
 export function SetPluginEnabled(arg1:string,arg2:boolean):Promise<void>;
 
+export function SetTeamPolicy(arg1:string,arg2:number,arg3:boolean):Promise<void>;
+
 export function ShredSyncNow(arg1:string):Promise<void>;
 
 export function StartFileWatch(arg1:string):Promise<void>;
@@ -338,3 +364,5 @@ export function Upload(arg1:string,arg2:string,arg3:string):Promise<void>;
 export function ValidateTrustedPublisherKey(arg1:string):Promise<void>;
 
 export function VaultExists():Promise<boolean>;
+
+export function VerifyTeamMember(arg1:string,arg2:string,arg3:string):Promise<void>;

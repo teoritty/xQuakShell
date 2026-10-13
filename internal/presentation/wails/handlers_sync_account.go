@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 
+	"xquakshell/internal/domain"
 	"xquakshell/internal/domain/synctrust"
 	"xquakshell/internal/domain/vaultsync"
 	"xquakshell/internal/usecase"
@@ -181,6 +182,17 @@ var syncMessages = []struct {
 	{usecase.ErrTrashNotFound, "That item is not in the trash any more."},
 	{usecase.ErrRestoreWeakens, "Restoring that item would weaken this device's security settings, so it was not restored."},
 	{usecase.ErrShredReauth, "The master password is needed to shred the trash and history."},
+	{usecase.ErrInviteKeyChanged, "That account's key is not the one you compared. Look it up again and compare the new fingerprint."},
+	{usecase.ErrContactMismatch, "That account's key changed since you verified it. Compare its new fingerprint before sharing anything with it."},
+	{usecase.ErrNotATeam, "The personal vault has no members."},
+	{usecase.ErrBindingTarget, "Choose a key or password from your own vault."},
+	{domain.ErrConnectionNotFound, "That connection is not in your personal vault."},
+	{vaultsync.ErrNotAuthorized, "Your role in this team does not allow that."},
+	{domain.ErrBindingMissing, "No credential of yours is bound to that connection."},
+	{domain.ErrBindingSuspended, "Another member changed that connection's address. Confirm the new address first."},
+	{vaultsync.ErrUnverifiedMember, "This team admits only verified members. Compare the fingerprint and mark it verified."},
+	{synctrust.ErrRemoteForbidden, "Your role in this team does not allow that."},
+	{synctrust.ErrRemoteNotFound, "That account or team was not found."},
 }
 
 func userSyncError(err error) error {

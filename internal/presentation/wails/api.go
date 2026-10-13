@@ -69,6 +69,8 @@ type AppAPI struct {
 	localeBroadcast             LocaleBroadcaster
 	sync                        SyncCommands
 	syncConflicts               SyncConflictCommands
+	teams                       TeamCommands
+	bindings                    BindingCommands
 }
 
 // NewAppAPI creates a new AppAPI with the given dependencies.

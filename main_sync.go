@@ -62,6 +62,7 @@ func wireSync(api *presentation.AppAPI, vaultRepo *persistence.VaultRepo, dataRo
 		NewEngine: newEngine, After: time.After, OnStatus: api.EmitSyncStatus, Random: rand.Reader})
 	vaultRepo.SetChangeObserver(controller.Notify)
 	api.SetSyncServices(controller, usecase.NewSyncConflictService(vaultRepo))
+	api.SetTeamServices(controller, usecase.NewCredentialBindingService(vaultRepo))
 }
 
 // deviceName labels this device in the account's device list, which every other device of the

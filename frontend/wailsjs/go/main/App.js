@@ -14,6 +14,10 @@ export function ApplyDiscoveryNodeDetails(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['ApplyDiscoveryNodeDetails'](arg1, arg2, arg3, arg4);
 }
 
+export function BindCredential(arg1) {
+  return window['go']['main']['App']['BindCredential'](arg1);
+}
+
 export function CancelPassphrase(arg1) {
   return window['go']['main']['App']['CancelPassphrase'](arg1);
 }
@@ -36,6 +40,10 @@ export function ChangeMasterPassword(arg1, arg2) {
 
 export function ChangeSyncPassword(arg1, arg2) {
   return window['go']['main']['App']['ChangeSyncPassword'](arg1, arg2);
+}
+
+export function ChangeTeamRole(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ChangeTeamRole'](arg1, arg2, arg3);
 }
 
 export function Chmod(arg1, arg2, arg3) {
@@ -78,6 +86,10 @@ export function CompleteRecoveryReset(arg1) {
   return window['go']['main']['App']['CompleteRecoveryReset'](arg1);
 }
 
+export function ConfirmCredentialBinding(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ConfirmCredentialBinding'](arg1, arg2, arg3);
+}
+
 export function ConfirmSyncHeld(arg1, arg2) {
   return window['go']['main']['App']['ConfirmSyncHeld'](arg1, arg2);
 }
@@ -92,6 +104,10 @@ export function CreateFilePath(arg1, arg2, arg3) {
 
 export function CreateLocalFile(arg1) {
   return window['go']['main']['App']['CreateLocalFile'](arg1);
+}
+
+export function CreateTeam(arg1) {
+  return window['go']['main']['App']['CreateTeam'](arg1);
 }
 
 export function CreateVault(arg1) {
@@ -310,6 +326,10 @@ export function InstallPlugin(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
   return window['go']['main']['App']['InstallPlugin'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
+export function InviteToTeam(arg1) {
+  return window['go']['main']['App']['InviteToTeam'](arg1);
+}
+
 export function InvokeDiscoveryAction(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['InvokeDiscoveryAction'](arg1, arg2, arg3, arg4);
 }
@@ -324,6 +344,14 @@ export function IssueRecoveryKey(arg1) {
 
 export function JoinSync(arg1) {
   return window['go']['main']['App']['JoinSync'](arg1);
+}
+
+export function LeaveTeam(arg1) {
+  return window['go']['main']['App']['LeaveTeam'](arg1);
+}
+
+export function ListCredentialBindings() {
+  return window['go']['main']['App']['ListCredentialBindings']();
 }
 
 export function ListGitHubRepositories() {
@@ -370,8 +398,20 @@ export function ListSyncTrash() {
   return window['go']['main']['App']['ListSyncTrash']();
 }
 
+export function ListTeamMembers(arg1) {
+  return window['go']['main']['App']['ListTeamMembers'](arg1);
+}
+
+export function ListTeams() {
+  return window['go']['main']['App']['ListTeams']();
+}
+
 export function LockVault() {
   return window['go']['main']['App']['LockVault']();
+}
+
+export function LookupTeamInvitee(arg1) {
+  return window['go']['main']['App']['LookupTeamInvitee'](arg1);
 }
 
 export function MkdirLocalPath(arg1) {
@@ -380,6 +420,10 @@ export function MkdirLocalPath(arg1) {
 
 export function MkdirPath(arg1, arg2, arg3) {
   return window['go']['main']['App']['MkdirPath'](arg1, arg2, arg3);
+}
+
+export function MoveConnectionToTeam(arg1, arg2) {
+  return window['go']['main']['App']['MoveConnectionToTeam'](arg1, arg2);
 }
 
 export function MoveConnections(arg1, arg2) {
@@ -480,6 +524,10 @@ export function RemovePath(arg1, arg2) {
 
 export function RemovePeerTrust(arg1, arg2) {
   return window['go']['main']['App']['RemovePeerTrust'](arg1, arg2);
+}
+
+export function RemoveTeamMember(arg1, arg2) {
+  return window['go']['main']['App']['RemoveTeamMember'](arg1, arg2);
 }
 
 export function RenameKey(arg1, arg2) {
@@ -630,6 +678,10 @@ export function SetPluginEnabled(arg1, arg2) {
   return window['go']['main']['App']['SetPluginEnabled'](arg1, arg2);
 }
 
+export function SetTeamPolicy(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SetTeamPolicy'](arg1, arg2, arg3);
+}
+
 export function ShredSyncNow(arg1) {
   return window['go']['main']['App']['ShredSyncNow'](arg1);
 }
@@ -672,4 +724,8 @@ export function ValidateTrustedPublisherKey(arg1) {
 
 export function VaultExists() {
   return window['go']['main']['App']['VaultExists']();
+}
+
+export function VerifyTeamMember(arg1, arg2, arg3) {
+  return window['go']['main']['App']['VerifyTeamMember'](arg1, arg2, arg3);
 }

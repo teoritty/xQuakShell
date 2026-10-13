@@ -9,6 +9,7 @@ import (
 
 	"xquakshell/internal/domain"
 	"xquakshell/internal/domain/synctrust"
+	"xquakshell/internal/domain/vaultsync"
 	"xquakshell/internal/syncserver/servertest"
 	"xquakshell/internal/usecase"
 )
@@ -331,5 +332,22 @@ func TestRestoreThroughTheControllerSchedulesARound(t *testing.T) {
 	}
 	if st := cd.round(); st.Report.Pushed == 0 {
 		t.Fatalf("round after a restore: %+v; the restored record must be committed without waiting", st)
+	}
+}
+
+func TestControllerCreatesAndListsTeams(t *testing.T) {
+	_, a := registered(t)
+	cd := control(t, a)
+	if err := cd.c.Start(syncCtx); err != nil {
+		t.Fatal(err)
+	}
+	cd.round()
+	team, err := cd.c.CreateTeam(syncCtx, "Ops")
+	if err != nil {
+		t.Fatal(err)
+	}
+	teams, err := cd.c.Teams(syncCtx)
+	if err != nil || len(teams) != 1 || teams[0].Vault != team || teams[0].Name != "Ops" || teams[0].Role != vaultsync.RoleOwner {
+		t.Fatalf("teams = %+v, %v", teams, err)
 	}
 }

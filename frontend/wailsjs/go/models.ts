@@ -302,6 +302,7 @@ export namespace wails {
 	    passAuth?: PassAuthConfigDTO;
 	    pluginAuth?: PluginAuthConfigDTO;
 	    label?: string;
+	    credentialSource?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConnectionUserDTO(source);
@@ -316,6 +317,7 @@ export namespace wails {
 	        this.passAuth = this.convertValues(source["passAuth"], PassAuthConfigDTO);
 	        this.pluginAuth = this.convertValues(source["pluginAuth"], PluginAuthConfigDTO);
 	        this.label = source["label"];
+	        this.credentialSource = source["credentialSource"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -352,6 +354,7 @@ export namespace wails {
 	    storedSecretFields?: string[];
 	    forwardRules?: ForwardRuleDTO[];
 	    agentForwarding?: AgentForwardingDTO;
+	    vaultId?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConnectionDTO(source);
@@ -374,6 +377,7 @@ export namespace wails {
 	        this.storedSecretFields = source["storedSecretFields"];
 	        this.forwardRules = this.convertValues(source["forwardRules"], ForwardRuleDTO);
 	        this.agentForwarding = this.convertValues(source["agentForwarding"], AgentForwardingDTO);
+	        this.vaultId = source["vaultId"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -563,6 +567,28 @@ export namespace wails {
 		}
 	}
 	
+	export class CredentialBindingDTO {
+	    vault: string;
+	    connection: string;
+	    user: string;
+	    identity?: string;
+	    password?: string;
+	    suspendedBy?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CredentialBindingDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.vault = source["vault"];
+	        this.connection = source["connection"];
+	        this.user = source["user"];
+	        this.identity = source["identity"];
+	        this.password = source["password"];
+	        this.suspendedBy = source["suspendedBy"];
+	    }
+	}
 	export class DeployResultDTO {
 	    added: boolean;
 	    alreadyPresent: boolean;
@@ -2353,6 +2379,82 @@ export namespace wails {
 	        this.deletedUnixMilli = source["deletedUnixMilli"];
 	        this.purgeUnixMilli = source["purgeUnixMilli"];
 	        this.restorable = source["restorable"];
+	    }
+	}
+	export class TeamDTO {
+	    vault: string;
+	    name: string;
+	    role: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TeamDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.vault = source["vault"];
+	        this.name = source["name"];
+	        this.role = source["role"];
+	    }
+	}
+	export class TeamInviteRequest {
+	    vault: string;
+	    username: string;
+	    fingerprint: string;
+	    role: string;
+	    verified: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TeamInviteRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.vault = source["vault"];
+	        this.username = source["username"];
+	        this.fingerprint = source["fingerprint"];
+	        this.role = source["role"];
+	        this.verified = source["verified"];
+	    }
+	}
+	export class TeamInviteeDTO {
+	    username: string;
+	    fingerprint: string;
+	    known: boolean;
+	    verified: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TeamInviteeDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.username = source["username"];
+	        this.fingerprint = source["fingerprint"];
+	        this.known = source["known"];
+	        this.verified = source["verified"];
+	    }
+	}
+	export class TeamMemberDTO {
+	    account: string;
+	    username: string;
+	    fingerprint: string;
+	    role: string;
+	    verified: boolean;
+	    current: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TeamMemberDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.account = source["account"];
+	        this.username = source["username"];
+	        this.fingerprint = source["fingerprint"];
+	        this.role = source["role"];
+	        this.verified = source["verified"];
+	        this.current = source["current"];
 	    }
 	}
 	

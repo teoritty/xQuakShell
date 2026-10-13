@@ -46,6 +46,7 @@ var notBound = map[string]string{
 	"EmitPluginStateChanged":         "backend-initiated event emitter",
 	"EmitSyncStatus":                 "backend-initiated event emitter",
 	"SetSyncServices":                "wiring",
+	"SetTeamServices":                "wiring",
 	"EmitDiscoveryTreeChanged":       "backend-initiated event emitter",
 	"EmitNodeDetailsChanged":         "backend-initiated event emitter",
 	"HandlePluginViewMessage":        "implements usecase.PluginViewSink",

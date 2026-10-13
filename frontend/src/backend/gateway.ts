@@ -3,6 +3,7 @@
 // between frontend code and the Go backend, replacing untyped `window.go.main.App` access.
 import type { wails } from '../../wailsjs/go/models';
 import type { SyncGateway } from './syncGateway';
+import type { TeamGateway } from './teamGateway';
 
 // `RawMessage` in the generated bindings serializes as an arbitrary JSON
 // value over the Wails bridge; there is no corresponding exported TS type.
@@ -93,7 +94,7 @@ export interface ExecutePlanDTO {
 // githubPlugins.test.ts, pluginRuntime.test.ts and plugins.test.ts each drive a gateway with one
 // method proxied away and assert the wrapper degrades instead of throwing. Deleting a guard
 // turns one of those red, which is the correct outcome and the reason this comment names them.
-export interface AppGateway extends SyncGateway {
+export interface AppGateway extends SyncGateway, TeamGateway {
   AddGitHubRepository(arg1: wails.AddGitHubRepositoryRequest): Promise<void>;
 
   CancelTransfer(arg1: string): Promise<void>;
