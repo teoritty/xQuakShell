@@ -58,6 +58,11 @@ func CheckLayerImports(opts CheckOptions) ([]ImportIssue, error) {
 	walkRoots := []string{
 		filepath.Join(opts.RepoRoot, "internal"),
 	}
+	// cmd/ holds the sync server's composition root (ADR-023). It is walked only when present
+	// because WalkDir fails on a missing root, and the directory first appears with the server.
+	if info, err := os.Stat(filepath.Join(opts.RepoRoot, "cmd")); err == nil && info.IsDir() {
+		walkRoots = append(walkRoots, filepath.Join(opts.RepoRoot, "cmd"))
+	}
 	for _, name := range []string{"app.go", "main.go"} {
 		path := filepath.Join(opts.RepoRoot, name)
 		if _, err := os.Stat(path); err == nil {
