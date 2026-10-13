@@ -89,3 +89,21 @@ and nothing in the application imports it either. `test/unit/architecture/rules.
   favour of password-only enrolment. Recorded as a possible future suite option.
 - **Shipping plugin binaries through the server.** A compromised device could then distribute code.
   Plugins sync by reference and each device installs from the source with the usual checks.
+
+## OPAQUE dependency review
+
+Recorded when the dependency entered the module, so the next reviewer knows what was checked and
+what was not.
+
+| Item | Finding |
+|---|---|
+| Module | `github.com/bytemare/opaque` v0.18.0, pinned in `go.mod`; MIT; maintained by the RFC 9807 author |
+| Added to the module graph | `bytemare/{ksf, ecc, hash, hash2curve, secp256k1}`, `gtank/ristretto255`, `filippo.io/{edwards25519, nistec}` |
+| Protocol conformance | The library's RFC 9807 vector suite (`tests/TestOpaqueVectors`, seven cases, ristretto255 and P-256, real and fake records) runs from this module in `make gates` as `make opaque-vectors` |
+| Configuration | `internal/infra/opaque` fixes ristretto255/SHA-512 for OPRF and 3DH, Argon2id at suite 1 (t=3, 256 MiB, p=4, 32-byte output) passed on every call — the library default is 64 MiB, and `TestKSFParametersReachTheLibrary` fails if the parameters stop reaching it — and the hello transcript hash as the AKE context |
+| Constant-time comparison | `LoginFinish` verifies the client MAC through `hmac.Equal` (`internal/hash.go`, `internal/ake/server.go`) |
+| Enumeration | Unknown accounts are answered from `GetFakeRecord`; the adapter test checks the fake KE2 has the real one's length and the client fails with the same error |
+| Secrets in memory | The library clears blinds, the randomized password and server key material it owns (`ClearState`, `Flush`); the adapter calls `ClearState` after every client exchange |
+| Advisories | `govulncheck`: no vulnerabilities; `gosec`: no findings in the adapter |
+| Not done | No independent audit of the Go library is known; the source was read for the points above, not audited line by line |
+| Replaceability | Only `internal/infra/opaque` imports the library; the vaultsync ports and the stored records are library-agnostic bytes |

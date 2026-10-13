@@ -48,9 +48,13 @@ func TestUnwrapRefusesOtherVaultEpochOrMember(t *testing.T) {
 	seed, pub, _ := synccrypto.GenerateEncryptionKey()
 	wrapped, _ := synccrypto.WrapVaultKey(pub, wrapVault, 7, wrapMember, vaultKey(5))
 	cases := map[string]func() ([]byte, error){
-		"vault":  func() ([]byte, error) { return synccrypto.UnwrapVaultKey(seed, vaultsync.ID{0x99}, 7, wrapMember, wrapped) },
-		"epoch":  func() ([]byte, error) { return synccrypto.UnwrapVaultKey(seed, wrapVault, 8, wrapMember, wrapped) },
-		"member": func() ([]byte, error) { return synccrypto.UnwrapVaultKey(seed, wrapVault, 7, vaultsync.ID{0x99}, wrapped) },
+		"vault": func() ([]byte, error) {
+			return synccrypto.UnwrapVaultKey(seed, vaultsync.ID{0x99}, 7, wrapMember, wrapped)
+		},
+		"epoch": func() ([]byte, error) { return synccrypto.UnwrapVaultKey(seed, wrapVault, 8, wrapMember, wrapped) },
+		"member": func() ([]byte, error) {
+			return synccrypto.UnwrapVaultKey(seed, wrapVault, 7, vaultsync.ID{0x99}, wrapped)
+		},
 	}
 	for name, unwrap := range cases {
 		if _, err := unwrap(); !errors.Is(err, synccrypto.ErrOpen) {
@@ -131,4 +135,3 @@ func FuzzUnwrapVaultKey(f *testing.F) {
 		}
 	})
 }
-

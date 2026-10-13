@@ -134,3 +134,18 @@ func FuzzOpenRecord(f *testing.F) {
 		}
 	})
 }
+
+func TestSealRefusesOversizePlaintext(t *testing.T) {
+	if _, _, err := synccrypto.SealRecord(rand.Reader, vaultKey(1), coords(), make([]byte, vaultsync.MaxPlaintextSize+1)); !errors.Is(err, vaultsync.ErrPlaintextTooLarge) {
+		t.Fatalf("err = %v, want ErrPlaintextTooLarge", err)
+	}
+}
+
+func TestSealRefusesRandomnessRunningOutAtANonce(t *testing.T) {
+	// Enough for the data key and the body nonce, not for the wrap nonce: a seal must fail rather
+	// than wrap the key under a short or zero nonce.
+	short := bytes.NewReader(make([]byte, 32+24+10))
+	if _, _, err := synccrypto.SealRecord(short, vaultKey(1), coords(), []byte("x")); err == nil {
+		t.Fatal("SealRecord succeeded after randomness ran out at the wrap nonce")
+	}
+}

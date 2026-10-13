@@ -89,6 +89,12 @@ var targets = []target{
 // wrong-passphrase branch and both generation size checks were each broken in turn and confirmed
 // to turn a test red. Re-add this target when gremlins can complete the package.
 //
+// ./internal/infra/synccrypto/ and ./internal/infra/opaque/ are absent for the same gremlins panic,
+// confirmed by trying synccrypto. Both were mutation-tested by hand instead: the epoch dropped from
+// the body and key-wrap AAD, the member dropped from the HPKE info, the KSF parameters dropped from
+// the OPAQUE options and the AKE context replaced by an empty one were each made in turn and
+// confirmed to turn a test red. Re-add them when gremlins can complete the packages.
+//
 // ./internal/domain/ is absent for the older reason, which remains true:
 // gremlins v0.5.0 panics part-way through it ("error, this is temporary",
 // engine/executor.go:167) and leaves no usable report. That panic is

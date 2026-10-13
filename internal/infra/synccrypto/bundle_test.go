@@ -85,3 +85,16 @@ func FuzzOpenBundle(f *testing.F) {
 		}
 	})
 }
+
+func TestSealBundleRefusesShortRandomness(t *testing.T) {
+	if _, err := synccrypto.SealBundle(bytes.NewReader(make([]byte, 5)), exportKey(9), bundleAccount, sampleKeys()); err == nil {
+		t.Fatal("SealBundle succeeded without randomness for its nonce")
+	}
+}
+
+func TestOpenBundleRefusesEmptyExportKey(t *testing.T) {
+	sealed, _ := synccrypto.SealBundle(rand.Reader, exportKey(9), bundleAccount, sampleKeys())
+	if _, err := synccrypto.OpenBundle(nil, bundleAccount, sealed); !errors.Is(err, synccrypto.ErrOpen) {
+		t.Fatalf("err = %v, want ErrOpen", err)
+	}
+}

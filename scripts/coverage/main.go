@@ -6,7 +6,7 @@
 // nothing beyond the toolchain the gate is already measuring.
 //
 // Usage: go run ./scripts/coverage
-// Floors can be overridden with DOMAIN_MIN, INFRA_MIN, USECASE_MIN and VAULTSYNC_MIN.
+// Floors can be overridden with DOMAIN_MIN, INFRA_MIN, USECASE_MIN, VAULTSYNC_MIN, SYNCCRYPTO_MIN and OPAQUE_MIN.
 package main
 
 import (
@@ -61,6 +61,23 @@ var gates = []gate{
 		CoverPkg: []string{"xquakshell/internal/domain/vaultsync"},
 		MinEnv:   "VAULTSYNC_MIN",
 		MinPct:   90,
+	},
+	{
+		Label:    "infra/synccrypto",
+		Packages: []string{"./internal/infra/synccrypto/"},
+		CoverPkg: []string{"xquakshell/internal/infra/synccrypto"},
+		MinEnv:   "SYNCCRYPTO_MIN",
+		// What stays uncovered is error returns from canonical encoding and from stdlib ciphers
+		// given well-formed keys - branches no input can reach.
+		MinPct: 85,
+	},
+	{
+		Label:    "infra/opaque",
+		Packages: []string{"./internal/infra/opaque/"},
+		CoverPkg: []string{"xquakshell/internal/infra/opaque"},
+		MinEnv:   "OPAQUE_MIN",
+		// The uncovered lines map library errors that well-formed messages cannot trigger.
+		MinPct: 80,
 	},
 }
 
