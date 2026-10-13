@@ -25,6 +25,8 @@ type pullRun struct {
 	report    PullReport
 	// scope is the vault's place in the local vault: the personal items or one team's.
 	scope synctrust.Scope
+	// trust resolves a team vault's members; nil for the personal vault.
+	trust *memberTrust
 	// landed dates each base record by the signed time of the head that carried it: the clock a
 	// tombstone's trash window counts from.
 	landed map[vaultsync.ID]uint64
@@ -87,10 +89,11 @@ func (e *SyncEngine) startPull(ctx context.Context, vault vaultsync.ID) (*pullRu
 	if err != nil {
 		return nil, err
 	}
-	resolve, check, ops, err := e.vaultTrust(ctx, vault, dl)
+	vt, err := e.vaultTrust(ctx, vault, dl)
 	if err != nil {
 		return nil, err
 	}
+	resolve, check, ops := vt.resolve, vt.check, vt.ops
 	stored, err := e.d.State.LoadVault(ctx, vault)
 	if err != nil {
 		return nil, err
@@ -102,7 +105,7 @@ func (e *SyncEngine) startPull(ctx context.Context, vault vaultsync.ID) (*pullRu
 	p := &pullRun{e: e, vault: vault, ops: ops, resolve: resolve, state: state,
 		members: &membershipCursor{vault: vault, ops: ops, check: check},
 		base:    indexEnvelopes(stored.Records), names: map[vaultsync.ID]syncKeyName{},
-		bodies: map[vaultsync.ID]synctrust.Body{}, landed: map[vaultsync.ID]uint64{}, scope: e.scopeOf(vault)}
+		bodies: map[vaultsync.ID]synctrust.Body{}, landed: map[vaultsync.ID]uint64{}, scope: e.scopeOf(vault), trust: vt.members}
 	for id, at := range stored.LandedAt {
 		p.landed[id] = at
 	}

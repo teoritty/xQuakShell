@@ -129,6 +129,9 @@ type Lookup struct {
 	IdentityKey   []byte `json:"identityKey"`
 	EncryptionKey []byte `json:"encryptionKey"`
 	DeviceLogSeq  uint64 `json:"deviceLogSeq"`
+	// GenesisEncryptionKey and Entries let the inviter replay the log itself.
+	GenesisEncryptionKey []byte        `json:"genesisEncryptionKey,omitempty"`
+	Entries              []DeviceEntry `json:"entries,omitempty"`
 }
 
 // VaultSummary is one vault the caller belongs to.

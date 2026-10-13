@@ -134,6 +134,17 @@ func (a *AuthenticatedServer) MemberLog(ctx context.Context, account vaultsync.I
 	return withAuth(ctx, a, func() (synctrust.MemberLog, error) { return a.srv.MemberLog(ctx, account) })
 }
 
+func (a *AuthenticatedServer) Lookup(ctx context.Context, username string) (vaultsync.ID, synctrust.MemberLog, error) {
+	var account vaultsync.ID
+	ml, err := withAuth(ctx, a, func() (synctrust.MemberLog, error) {
+		var err error
+		var out synctrust.MemberLog
+		account, out, err = a.srv.Lookup(ctx, username)
+		return out, err
+	})
+	return account, ml, err
+}
+
 func (a *AuthenticatedServer) Commit(ctx context.Context, c vaultsync.Commit) (uint64, error) {
 	return withAuth(ctx, a, func() (uint64, error) { return a.srv.Commit(ctx, c) })
 }

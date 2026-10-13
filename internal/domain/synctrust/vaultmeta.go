@@ -10,6 +10,8 @@ import (
 
 type vaultMetaData struct {
 	NamingKey []byte `json:"namingKey"`
+	// Name is a team vault's name as its members see it; a personal vault has none.
+	Name string `json:"name,omitempty"`
 }
 
 // NewVaultMetaBody is the body of a vault's vault-meta record. It is written once, in the vault's
@@ -17,14 +19,28 @@ type vaultMetaData struct {
 // key would orphan them all. The engine treats a second, different vault-meta as an integrity
 // failure.
 func NewVaultMetaBody(namingKey []byte) (Body, error) {
+	return NewTeamMetaBody(namingKey, "")
+}
+
+// NewTeamMetaBody is a team vault's vault-meta body, carrying the name its members see.
+func NewTeamMetaBody(namingKey []byte, name string) (Body, error) {
 	if len(namingKey) != NamingKeySize {
 		return Body{}, ErrNamingKey
 	}
-	data, err := json.Marshal(vaultMetaData{NamingKey: namingKey})
+	data, err := json.Marshal(vaultMetaData{NamingKey: namingKey, Name: name})
 	if err != nil {
 		return Body{}, fmt.Errorf("encode vault-meta: %w", err)
 	}
 	return Body{Type: TypeVaultMeta, Schema: 1, Data: data}, nil
+}
+
+// VaultMetaName reads a team vault's name out of a vault-meta body; empty when it carries none.
+func VaultMetaName(b Body) string {
+	v, err := decodeData[vaultMetaData](b.Data)
+	if err != nil {
+		return ""
+	}
+	return v.Name
 }
 
 // VaultMetaNamingKey reads the naming key out of a vault-meta body.

@@ -45,6 +45,8 @@ type svcServer struct {
 	historyPruned bool
 	// dropAppendReply stores the next membership append but loses its reply.
 	dropAppendReply bool
+	// tamperLookup rewrites what a username lookup returns.
+	tamperLookup func(synctrust.MemberLog) synctrust.MemberLog
 	// tamperMemberLog rewrites a co-member's log and keys as served.
 	tamperMemberLog func(vaultsync.ID, synctrust.MemberLog) synctrust.MemberLog
 	// tamperVersions rewrites the retained versions a trash listing reads.
@@ -199,6 +201,22 @@ func (s *svcServer) MemberLog(ctx context.Context, account vaultsync.ID) (synctr
 		out = s.tamperMemberLog(account, out)
 	}
 	return out, remote(err)
+}
+
+func (s *svcServer) Lookup(ctx context.Context, username string) (vaultsync.ID, synctrust.MemberLog, error) {
+	p, err := s.principal()
+	if err != nil {
+		return vaultsync.ID{}, synctrust.MemberLog{}, err
+	}
+	res, err := s.h.Svc.Lookup(ctx, p, username)
+	if err != nil {
+		return vaultsync.ID{}, synctrust.MemberLog{}, remote(err)
+	}
+	out := synctrust.MemberLog{Suite: vaultsync.Suite1, IdentityKey: res.IdentityKey, EncryptionKey: res.GenesisEncryptionKey, Entries: res.Entries}
+	if s.tamperLookup != nil {
+		out = s.tamperLookup(out)
+	}
+	return res.Account, out, nil
 }
 
 func (s *svcServer) AppendDeviceLog(ctx context.Context, entries []vaultsync.DeviceEntry) error {

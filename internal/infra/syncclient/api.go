@@ -162,6 +162,29 @@ func (c *Client) MemberLog(ctx context.Context, account vaultsync.ID) (synctrust
 	return out, nil
 }
 
+// Lookup finds an account by username for an invite.
+func (c *Client) Lookup(ctx context.Context, username string) (vaultsync.ID, synctrust.MemberLog, error) {
+	var reply syncwire.Lookup
+	q := url.Values{}
+	q.Set("username", username)
+	if err := c.get(ctx, "/v1/accounts/lookup", q, &reply, 0); err != nil {
+		return vaultsync.ID{}, synctrust.MemberLog{}, err
+	}
+	account, err := syncwire.ParseID(reply.Account)
+	if err != nil {
+		return vaultsync.ID{}, synctrust.MemberLog{}, protocolErr("account", err)
+	}
+	out := synctrust.MemberLog{Suite: vaultsync.Suite1, IdentityKey: reply.IdentityKey, EncryptionKey: reply.GenesisEncryptionKey}
+	for _, w := range reply.Entries {
+		e, err := w.ToDomain()
+		if err != nil {
+			return vaultsync.ID{}, synctrust.MemberLog{}, protocolErr("device entry", err)
+		}
+		out.Entries = append(out.Entries, e)
+	}
+	return account, out, nil
+}
+
 // AppendDeviceLog appends entries to the signed-in account's device log.
 func (c *Client) AppendDeviceLog(ctx context.Context, entries []vaultsync.DeviceEntry) error {
 	req := syncwire.DeviceLogAppend{}

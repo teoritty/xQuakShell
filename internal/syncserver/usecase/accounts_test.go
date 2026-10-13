@@ -251,6 +251,9 @@ func TestDeviceLogAppendRevokeAndSuccession(t *testing.T) {
 	if !bytes.Equal(look.IdentityKey, u.AIK.Public().(ed25519.PublicKey)) {
 		t.Fatal("lookup must serve the genesis identity key: fingerprints are computed over it")
 	}
+	if !bytes.Equal(look.GenesisEncryptionKey, u.AEK) || len(look.Entries) != int(succ.Seq) {
+		t.Fatalf("lookup serves %d entries and genesis key %x...; an inviter replays the whole log to trust the current key", len(look.Entries), look.GenesisEncryptionKey[:4])
+	}
 }
 
 func TestDeviceLogReadRules(t *testing.T) {

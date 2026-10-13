@@ -188,3 +188,23 @@ func TestCoMembersGetEachOthersGenesisKeys(t *testing.T) {
 		t.Fatalf("err = %v, want ErrNotFound for an account that shares no vault", err)
 	}
 }
+
+// A member leaving cannot rotate the key - it would know the new one - so its own removal may end a
+// batch with the rotation pending for an admin; anyone else's removal may not.
+func TestLeavingLeavesTheRotationToAnAdmin(t *testing.T) {
+	h := servertest.NewHarness(t, 0)
+	alice, bob, carol := h.Register("alice"), h.Register("bob"), h.Register("carol")
+	cv := h.NewTeamVault(alice, servertest.Member{User: bob, Role: vaultsync.RoleAdmin}, servertest.Member{User: carol, Role: vaultsync.RoleEditor})
+	if err := cv.AppendOps(bob, vaultsync.MemberOp{Kind: vaultsync.MemberRemove, Subject: carol.Account}); !isErr(err, usecase.ErrMalformed) {
+		t.Fatalf("an admin removing someone without rotating: %v, want ErrMalformed", err)
+	}
+	if err := cv.AppendOps(carol, vaultsync.MemberOp{Kind: vaultsync.MemberRemove, Subject: carol.Account}); err != nil {
+		t.Fatalf("a member leaving: %v", err)
+	}
+	if !cv.M.PendingRotation() {
+		t.Fatal("the vault does not record that a rotation is owed")
+	}
+	if err := cv.AppendOps(alice, vaultsync.MemberOp{Kind: vaultsync.MemberRotateEpoch, Epoch: 1, Wraps: servertest.WrapFor(alice.Account, bob.Account)}); err != nil {
+		t.Fatalf("the owner settling the rotation: %v", err)
+	}
+}

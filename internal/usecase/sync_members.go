@@ -29,6 +29,8 @@ type memberTrust struct {
 	anchors  map[vaultsync.ID][32]byte
 	creator  vaultsync.ID
 	logs     map[vaultsync.ID]*vaultsync.DeviceLogState
+	// genesis is each loaded member's genesis identity key, the one its fingerprint is shown for.
+	genesis map[vaultsync.ID][]byte
 	// firstUse is the creator contact to store once the membership log verified.
 	firstUse *domain.SyncContact
 }
@@ -38,7 +40,8 @@ func (e *SyncEngine) newMemberTrust(ctx context.Context, own *vaultsync.DeviceLo
 	if err != nil {
 		return nil, err
 	}
-	t := &memberTrust{e: e, ctx: ctx, own: own, anchors: map[vaultsync.ID][32]byte{}, logs: map[vaultsync.ID]*vaultsync.DeviceLogState{}}
+	t := &memberTrust{e: e, ctx: ctx, own: own, anchors: map[vaultsync.ID][32]byte{}, logs: map[vaultsync.ID]*vaultsync.DeviceLogState{},
+		genesis: map[vaultsync.ID][]byte{}}
 	if data.Sync != nil {
 		t.contacts = data.Sync.Contacts
 	}
@@ -121,6 +124,7 @@ func (t *memberTrust) logFor(account vaultsync.ID) (*vaultsync.DeviceLogState, e
 		return nil, integrity("member device log", fmt.Errorf("a revocation without its succession"))
 	}
 	t.logs[account] = log
+	t.genesis[account] = ml.IdentityKey
 	return log, nil
 }
 
@@ -170,24 +174,32 @@ func contactEntry(c domain.SyncContact) synctrust.Entry {
 }
 
 // vaultTrust verifies a vault's membership log and returns how its devices resolve: the personal
-// vault through this account's log alone, a team vault through every member's.
-func (e *SyncEngine) vaultTrust(ctx context.Context, vault vaultsync.ID, own *vaultsync.DeviceLogState) (vaultsync.DeviceResolver, vaultsync.SignatureCheck, []vaultsync.MemberOp, error) {
+// vault through this account's log alone (trust is nil), a team vault through every member's.
+func (e *SyncEngine) vaultTrust(ctx context.Context, vault vaultsync.ID, own *vaultsync.DeviceLogState) (*vaultTrusted, error) {
 	if e.scopeOf(vault).Vault == "" {
 		resolve := e.resolver(own)
 		check := signatureCheck(resolve)
 		ops, err := e.verifiedMembership(ctx, vault, check, nil)
-		return resolve, check, ops, err
+		return &vaultTrusted{resolve: resolve, check: check, ops: ops}, err
 	}
 	t, err := e.newMemberTrust(ctx, own)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 	ops, err := e.verifiedMembership(ctx, vault, t.check, t.observe)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 	if err := t.storeFirstUse(ctx); err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
-	return t.resolve, t.check, ops, nil
+	return &vaultTrusted{resolve: t.resolve, check: t.check, ops: ops, members: t}, nil
+}
+
+// vaultTrusted is what a verified membership log yields for a pull.
+type vaultTrusted struct {
+	resolve vaultsync.DeviceResolver
+	check   vaultsync.SignatureCheck
+	ops     []vaultsync.MemberOp
+	members *memberTrust
 }

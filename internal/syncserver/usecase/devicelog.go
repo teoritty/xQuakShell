@@ -138,6 +138,10 @@ type LookupResult struct {
 	IdentityKey   []byte
 	EncryptionKey []byte
 	DeviceLogSeq  uint64
+	// GenesisEncryptionKey and Entries let an inviter replay the account's log itself and wrap to
+	// the encryption key the log ends with, rather than to EncryptionKey on this server's word.
+	GenesisEncryptionKey []byte
+	Entries              []vaultsync.DeviceEntry
 }
 
 // Lookup returns an account's genesis identity key - the one its fingerprint is computed over - and
@@ -157,7 +161,8 @@ func (s *Service) Lookup(ctx context.Context, p Principal, username string) (Loo
 		if err != nil {
 			return err
 		}
-		res = LookupResult{Account: acct.ID, IdentityKey: acct.IdentityKey, EncryptionKey: log.EncryptionKey(), DeviceLogSeq: log.Seq()}
+		res = LookupResult{Account: acct.ID, IdentityKey: acct.IdentityKey, EncryptionKey: log.EncryptionKey(), DeviceLogSeq: log.Seq(),
+			GenesisEncryptionKey: acct.EncryptionKey, Entries: entries}
 		return nil
 	})
 	return res, err

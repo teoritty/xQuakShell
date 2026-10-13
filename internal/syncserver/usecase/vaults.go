@@ -155,7 +155,7 @@ func (s *Service) AppendMembership(ctx context.Context, p Principal, vault vault
 				return refusal(err)
 			}
 		}
-		if m.PendingRotation() {
+		if m.PendingRotation() && !leaving(ops, p.Account) {
 			return malformed(fmt.Errorf("batch ends with a removal and no rotation"))
 		}
 		if err := checkAddedKeys(tx, ops); err != nil {
@@ -244,4 +244,15 @@ func checkAddedKeys(tx Tx, ops []vaultsync.MemberOp) error {
 		}
 	}
 	return nil
+}
+
+// leaving reports a batch that removes its own author. The leaver must not rotate - it would know
+// the new key - so its removal is the one allowed to leave the rotation to an admin's next sync.
+func leaving(ops []vaultsync.MemberOp, author vaultsync.ID) bool {
+	for _, op := range ops {
+		if op.Kind == vaultsync.MemberRemove && op.Subject == author {
+			return true
+		}
+	}
+	return false
 }

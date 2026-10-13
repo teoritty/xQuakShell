@@ -51,6 +51,9 @@ type SyncServer interface {
 	DeviceLog(ctx context.Context, account vaultsync.ID, since uint64) ([]vaultsync.DeviceEntry, error)
 	// MemberLog fetches a co-member's whole device log and genesis keys, for team vaults.
 	MemberLog(ctx context.Context, account vaultsync.ID) (MemberLog, error)
+	// Lookup finds an account by username for an invite: its id, genesis keys and whole log, which
+	// the inviter replays itself before wrapping anything to the key it ends with.
+	Lookup(ctx context.Context, username string) (vaultsync.ID, MemberLog, error)
 	AppendDeviceLog(ctx context.Context, entries []vaultsync.DeviceEntry) error
 	Membership(ctx context.Context, vault vaultsync.ID, since uint64) ([]vaultsync.MemberOp, error)
 	AppendMembership(ctx context.Context, vault vaultsync.ID, ops []vaultsync.MemberOp) error

@@ -225,3 +225,30 @@ func TestAMembersLogEndingInAnUnfinishedRevocationIsRefused(t *testing.T) {
 		t.Fatalf("err = %v, want ErrIntegrity: a revocation must be followed by its succession", err)
 	}
 }
+
+func TestLeavingATeamDropsItAndLeavesTheRotationOwed(t *testing.T) {
+	w := newSyncWorld(t)
+	bob := w.h.Register("bob")
+	cv := w.teamOf(bob)
+	cv.Accept(w.b, cv.Commit(w.b, w.teamMeta(cv), w.teamItem(cv, synctrust.TypeFolder, "tf", domain.ConnectionFolder{ID: "tf", Name: "Team"})))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.engine.LeaveTeam(syncCtx, cv.ID); err != nil {
+		t.Fatalf("leave: %v", err)
+	}
+	if data, _ := w.vault.GetData(); len(data.Folders) != 0 {
+		t.Fatal("the team's items stayed on a device that left")
+	}
+	ops, err := w.h.Svc.Membership(syncCtx, w.h.Principal(bob.Access), cv.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The leave is signed by the engine's own device, A.
+	cv.Users[w.a.Account] = w.a
+	cv.OpsSoFar = nil
+	cv.Learn(ops...)
+	if cv.M.Role(w.a.Account) != vaultsync.RoleNone || !cv.M.PendingRotation() {
+		t.Fatal("the leave did not remove the account with the rotation left owed")
+	}
+}

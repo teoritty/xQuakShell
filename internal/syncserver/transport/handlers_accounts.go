@@ -139,8 +139,12 @@ func (s *server) handleLookup(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, syncwire.Lookup{Account: res.Account.String(), IdentityKey: res.IdentityKey,
-		EncryptionKey: res.EncryptionKey, DeviceLogSeq: res.DeviceLogSeq})
+	out := syncwire.Lookup{Account: res.Account.String(), IdentityKey: res.IdentityKey, EncryptionKey: res.EncryptionKey,
+		DeviceLogSeq: res.DeviceLogSeq, GenesisEncryptionKey: res.GenesisEncryptionKey}
+	for i := range res.Entries {
+		out.Entries = append(out.Entries, syncwire.DeviceEntryFrom(&res.Entries[i]))
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *server) handleDeviceLog(w http.ResponseWriter, r *http.Request) {

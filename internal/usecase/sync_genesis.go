@@ -13,6 +13,10 @@ import (
 // that already has one it pulls and does nothing more, so a device that just logged in can call it
 // unconditionally.
 func (e *SyncEngine) EnsureVaultMeta(ctx context.Context, vault vaultsync.ID, random io.Reader) error {
+	return e.ensureVaultMeta(ctx, vault, random, "")
+}
+
+func (e *SyncEngine) ensureVaultMeta(ctx context.Context, vault vaultsync.ID, random io.Reader, name string) error {
 	p, err := e.startPull(ctx, vault)
 	if err != nil {
 		return err
@@ -30,7 +34,7 @@ func (e *SyncEngine) EnsureVaultMeta(ctx context.Context, vault vaultsync.ID, ra
 	if _, err := io.ReadFull(random, key); err != nil {
 		return err
 	}
-	body, err := synctrust.NewVaultMetaBody(key)
+	body, err := synctrust.NewTeamMetaBody(key, name)
 	if err != nil {
 		return err
 	}
