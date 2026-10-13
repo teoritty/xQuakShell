@@ -17,6 +17,10 @@ type Config struct {
 	Random io.Reader
 	// FakeAccountSecret keys the stable fake account ids handed out for unknown usernames.
 	FakeAccountSecret []byte
+	// PersonalQuota and TeamQuota bound the ciphertext bytes a vault may hold; zero means the
+	// default (256 MiB and 1 GiB).
+	PersonalQuota uint64
+	TeamQuota     uint64
 }
 
 // Service is the sync server's application layer.
@@ -29,6 +33,12 @@ type Service struct {
 
 // New builds the service; in-memory state (pending logins, challenges, limits) starts empty.
 func New(cfg Config) *Service {
+	if cfg.PersonalQuota == 0 {
+		cfg.PersonalQuota = 256 << 20
+	}
+	if cfg.TeamQuota == 0 {
+		cfg.TeamQuota = 1 << 30
+	}
 	return &Service{cfg: cfg, logins: newPendingLogins(), limits: newLimiter(), challenges: newChallenges()}
 }
 

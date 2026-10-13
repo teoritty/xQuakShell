@@ -81,7 +81,10 @@ type harness struct {
 	clock *fakeClock
 }
 
-func newHarness(t *testing.T) *harness {
+func newHarness(t *testing.T) *harness { return newHarnessWithQuota(t, 0) }
+
+// newHarnessWithQuota sets the team vault quota; 0 keeps the default.
+func newHarnessWithQuota(t *testing.T, teamQuota uint64) *harness {
 	t.Helper()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "xqsyncd.db"))
 	if err != nil {
@@ -89,7 +92,7 @@ func newHarness(t *testing.T) *harness {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	clock := &fakeClock{now: 1_000_000}
-	svc := usecase.New(usecase.Config{Store: db, Clock: clock, AKE: fakeAKE{}, Random: rand.Reader, FakeAccountSecret: []byte("fake-secret")})
+	svc := usecase.New(usecase.Config{Store: db, Clock: clock, AKE: fakeAKE{}, Random: rand.Reader, FakeAccountSecret: []byte("fake-secret"), TeamQuota: teamQuota})
 	return &harness{t: t, svc: svc, db: db, clock: clock}
 }
 
