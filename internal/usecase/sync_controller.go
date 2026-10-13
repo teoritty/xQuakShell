@@ -76,6 +76,20 @@ func (l lockedSyncer) Sync(ctx context.Context, vault vaultsync.ID) (SyncReport,
 	return e.Sync(ctx, vault)
 }
 
+// vaults lists the session's vaults through the running engine, under the engine lock: the listing
+// may drop a team the account left, which writes to the vault.
+func (c *SyncController) vaults(s SyncSession) func(context.Context) ([]vaultsync.ID, error) {
+	return func(ctx context.Context) ([]vaultsync.ID, error) {
+		c.op.Lock()
+		defer c.op.Unlock()
+		e := c.currentEngine()
+		if e == nil {
+			return []vaultsync.ID{s.Personal}, ErrSyncOff
+		}
+		return e.Vaults(ctx)
+	}
+}
+
 func (c *SyncController) currentEngine() *SyncEngine {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -117,7 +131,7 @@ func (c *SyncController) adopt(ctx context.Context, s SyncSession) {
 	c.Stop()
 	engine := c.d.NewEngine(s)
 	sched := NewSyncScheduler(SyncSchedulerDeps{Engine: lockedSyncer{c}, Events: s.Server,
-		Vaults: func() []vaultsync.ID { return []vaultsync.ID{s.Personal} }, After: c.d.After, OnStatus: c.record,
+		Vaults: c.vaults(s), After: c.d.After, OnStatus: c.record,
 		Debounce: syncDebounce, Interval: syncInterval})
 	c.mu.Lock()
 	c.engine, c.session, c.sched = engine, s, sched

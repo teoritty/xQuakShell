@@ -42,7 +42,9 @@ type SyncSchedulerDeps struct {
 	Engine Syncer
 	// Events may be nil; the periodic round still runs.
 	Events synctrust.EventSource
-	Vaults func() []vaultsync.ID
+	// Vaults lists the vaults to sync. On an error it still returns what it can - always the
+	// personal vault - and the round counts as failed so it is retried.
+	Vaults func(context.Context) ([]vaultsync.ID, error)
 	// After is time.After in production and a hand-fired timer in tests.
 	After    func(time.Duration) <-chan time.Time
 	OnStatus func(SyncStatus)
@@ -154,8 +156,9 @@ func (s *SyncScheduler) loop(ctx context.Context, events <-chan synctrust.Remote
 // runAll syncs every vault that is not stopped and returns when to retry, if anything failed.
 func (s *SyncScheduler) runAll(ctx context.Context, stopped map[vaultsync.ID]bool, backoff time.Duration) (<-chan time.Time, time.Duration) {
 	var wait time.Duration
-	failed := false
-	for _, v := range s.d.Vaults() {
+	vaults, err := s.d.Vaults(ctx)
+	failed := err != nil
+	for _, v := range vaults {
 		if stopped[v] {
 			continue
 		}

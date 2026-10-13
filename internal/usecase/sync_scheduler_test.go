@@ -121,6 +121,15 @@ type schedWorld struct {
 	status chan usecase.SyncStatus
 	s      *usecase.SyncScheduler
 	vault  vaultsync.ID
+	mu     sync.Mutex
+	// discoverErr fails the listing of vaults, as an unreachable server would.
+	discoverErr error
+}
+
+func (w *schedWorld) listErr() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.discoverErr
 }
 
 func newSchedWorld(t *testing.T, eventFails int) *schedWorld {
@@ -132,7 +141,7 @@ func newSchedWorldOf(t *testing.T, eventFails int, vaults ...vaultsync.ID) *sche
 		events: &fakeEvents{ch: make(chan synctrust.RemoteEvent, 4), fails: eventFails},
 		status: make(chan usecase.SyncStatus, 64), vault: vaults[0]}
 	w.s = usecase.NewSyncScheduler(usecase.SyncSchedulerDeps{Engine: w.syncer, Events: w.events,
-		Vaults: func() []vaultsync.ID { return vaults }, After: w.timers.After,
+		Vaults: func(context.Context) ([]vaultsync.ID, error) { return vaults, w.listErr() }, After: w.timers.After,
 		OnStatus: func(s usecase.SyncStatus) { w.status <- s }, Debounce: testDebounce, Interval: testInterval})
 	w.s.Start(context.Background())
 	t.Cleanup(w.s.Stop)
@@ -271,4 +280,18 @@ func TestSyncNowSkipsTheDebounce(t *testing.T) {
 	w.expectSync()
 	w.s.SyncNow()
 	w.expectSync()
+}
+
+// A listing that fails still syncs the vaults it returned - the personal vault never depends on the
+// server listing it - and the round counts as failed, so it is retried.
+func TestAFailedVaultListingStillSyncsAndRetries(t *testing.T) {
+	w := newSchedWorld(t, 0)
+	w.expectSync()
+	w.timers.waitArmed(t, testInterval)
+	w.mu.Lock()
+	w.discoverErr = errors.New("server unreachable")
+	w.mu.Unlock()
+	w.timers.fire(testInterval)
+	w.expectSync()
+	w.timers.waitArmed(t, time.Second)
 }
