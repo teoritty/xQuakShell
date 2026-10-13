@@ -82,16 +82,20 @@ func New(cfg Config) (*Client, error) {
 // of the very connection it arrived on before anything else is sent anywhere.
 func (c *Client) httpClient(verify func(tls.ConnectionState) error, oneShot bool) *http.Client {
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			MinVersion:         tls.VersionTLS13,
-			InsecureSkipVerify: true, // #nosec G402 -- replaced by VerifyConnection, see above
-			VerifyConnection:   verify,
-		},
+		TLSClientConfig:     c.tlsConfig(verify),
 		DisableKeepAlives:   oneShot,
 		ForceAttemptHTTP2:   true,
 		TLSHandshakeTimeout: 10 * time.Second,
 	}
 	return &http.Client{Transport: tr, Timeout: c.timeout, CheckRedirect: refuseRedirects}
+}
+
+func (c *Client) tlsConfig(verify func(tls.ConnectionState) error) *tls.Config {
+	return &tls.Config{
+		MinVersion:         tls.VersionTLS13,
+		InsecureSkipVerify: true, // #nosec G402 -- replaced by VerifyConnection, see httpClient
+		VerifyConnection:   verify,
+	}
 }
 
 // refuseRedirects keeps every request on the verified server: a redirect would carry the bearer

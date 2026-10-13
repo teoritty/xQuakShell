@@ -42,3 +42,18 @@ type SyncServer interface {
 	Membership(ctx context.Context, vault vaultsync.ID, since uint64) ([]vaultsync.MemberOp, error)
 	AppendMembership(ctx context.Context, vault vaultsync.ID, ops []vaultsync.MemberOp) error
 }
+
+// RemoteEvent is a notification that a vault advanced or the account's device log grew. It carries
+// no data, only a reason to pull, so a forged or replayed event costs at most one verified pull.
+type RemoteEvent struct {
+	Vault         vaultsync.ID
+	Seq           uint64
+	MembershipSeq uint64
+	DeviceLogSeq  uint64
+}
+
+// EventSource delivers server notifications until ctx ends or the connection drops, when the
+// channel closes; the scheduler reconnects.
+type EventSource interface {
+	Events(ctx context.Context) (<-chan RemoteEvent, error)
+}

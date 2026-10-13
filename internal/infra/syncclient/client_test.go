@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"xquakshell/internal/domain/synctrust"
 	"xquakshell/internal/domain/syncwire"
 	"xquakshell/internal/domain/vaultsync"
@@ -391,5 +393,87 @@ func TestTLS12ServerIsRefused(t *testing.T) {
 	defer c.Close()
 	if _, err := c.Hello(ctx); err == nil {
 		t.Fatal("a server limited to TLS 1.2 completed a hello")
+	}
+}
+
+var upgrader = websocket.Upgrader{}
+
+func TestEventsDeliverAndCloseOnGarbage(t *testing.T) {
+	f := newFake(t)
+	f.mux.HandleFunc("GET /v1/events", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer tok" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_ = conn.WriteJSON(syncwire.Event{Vault: syncwire.HexID(vaultsync.ID{1}), Seq: 4})
+		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"vault":"zz"}`))
+		_ = conn.WriteJSON(syncwire.Event{Vault: syncwire.HexID(vaultsync.ID{2}), Seq: 5})
+		_, _, _ = conn.ReadMessage()
+	})
+	c := helloed(t, f)
+	c.SetAccessToken("tok")
+	ch, err := c.Events(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev, ok := <-ch
+	if !ok || ev.Vault != (vaultsync.ID{1}) || ev.Seq != 4 {
+		t.Fatalf("first event = %+v, %v", ev, ok)
+	}
+	if ev, ok := <-ch; ok {
+		t.Fatalf("an event after a malformed frame was delivered: %+v; a garbled stream must be dropped", ev)
+	}
+}
+
+func TestEventsNeedAVerifiedServer(t *testing.T) {
+	f := newFake(t)
+	c := newClient(t, f, f.pub())
+	if _, err := c.Events(ctx); !errors.Is(err, synctrust.ErrServerIdentity) {
+		t.Fatalf("err = %v, want ErrServerIdentity", err)
+	}
+	if f.hits.Load() != 0 {
+		t.Fatal("the events socket was opened to an unverified server")
+	}
+}
+
+func TestEventsEndWithTheContext(t *testing.T) {
+	f := newFake(t)
+	f.mux.HandleFunc("GET /v1/events", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_, _, _ = conn.ReadMessage()
+	})
+	c := helloed(t, f)
+	cctx, cancel := context.WithCancel(ctx)
+	ch, err := c.Events(cctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	select {
+	case _, ok := <-ch:
+		if ok {
+			t.Fatal("an event appeared from nowhere")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the events channel stayed open after its context ended")
+	}
+}
+
+func TestEventsRefusedByTheServer(t *testing.T) {
+	f := newFake(t)
+	f.mux.HandleFunc("GET /v1/events", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusUnauthorized, syncwire.ErrorBody{Error: syncwire.CodeUnauthorized})
+	})
+	if _, err := helloed(t, f).Events(ctx); !errors.Is(err, synctrust.ErrRemoteUnauthorized) {
+		t.Fatalf("err = %v, want ErrRemoteUnauthorized", err)
 	}
 }
