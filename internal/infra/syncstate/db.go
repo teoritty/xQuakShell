@@ -32,7 +32,7 @@ var (
 
 const schemaV1 = `
 CREATE TABLE heads (vault BLOB PRIMARY KEY, seq INTEGER NOT NULL, head BLOB NOT NULL);
-CREATE TABLE records (vault BLOB NOT NULL, record BLOB NOT NULL, envelope BLOB NOT NULL,
+CREATE TABLE records (vault BLOB NOT NULL, record BLOB NOT NULL, envelope BLOB NOT NULL, at INTEGER NOT NULL,
   PRIMARY KEY (vault, record));
 CREATE TABLE device_entries (account BLOB NOT NULL, seq INTEGER NOT NULL, entry BLOB NOT NULL,
   PRIMARY KEY (account, seq));

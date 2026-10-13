@@ -60,6 +60,8 @@ func remote(err error) error {
 		return &synctrust.ConflictError{CurrentSeq: conflict.CurrentSeq}
 	case errors.Is(err, srvusecase.ErrUnauthorized):
 		return synctrust.ErrRemoteUnauthorized
+	case errors.Is(err, srvusecase.ErrHistoryPruned):
+		return synctrust.ErrHistoryPruned
 	}
 	return err
 }
@@ -84,7 +86,7 @@ func (s *svcServer) Changes(ctx context.Context, vault vaultsync.ID, since uint6
 	}
 	commits, more, err := s.h.Svc.Changes(ctx, p, vault, since, limit)
 	if err != nil {
-		return nil, false, err
+		return nil, false, remote(err)
 	}
 	more = more || s.alwaysMore
 	out := make([]synctrust.RemoteCommit, 0, len(commits))
@@ -107,6 +109,15 @@ func (s *svcServer) Snapshot(ctx context.Context, vault vaultsync.ID) (synctrust
 	if err == nil && s.tamperSnap != nil {
 		out = s.tamperSnap(out)
 	}
+	return out, remote(err)
+}
+
+func (s *svcServer) Versions(ctx context.Context, vault, record vaultsync.ID) ([]vaultsync.Envelope, error) {
+	p, err := s.principal()
+	if err != nil {
+		return nil, err
+	}
+	out, err := s.h.Svc.Versions(ctx, p, vault, record)
 	return out, remote(err)
 }
 

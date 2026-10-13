@@ -107,6 +107,15 @@ func (c *Client) Snapshot(ctx context.Context, vault vaultsync.ID) (synctrust.Re
 	return out, err
 }
 
+// Versions returns the retained versions of one record, for the trash.
+func (c *Client) Versions(ctx context.Context, vault, record vaultsync.ID) ([]vaultsync.Envelope, error) {
+	var reply syncwire.Versions
+	if err := c.get(ctx, vaultPath(vault, "records/"+syncwire.HexID(record)+"/versions"), nil, &reply, bulkReplyLimit); err != nil {
+		return nil, err
+	}
+	return toEnvelopes(reply.Records)
+}
+
 // Commit pushes a commit on top of c.Head.Seq-1.
 func (c *Client) Commit(ctx context.Context, commit vaultsync.Commit) (uint64, error) {
 	if commit.Head.Seq == 0 {

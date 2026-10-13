@@ -128,7 +128,7 @@ func (p *pullRun) land(ctx context.Context, c vaultsync.Commit, next *vaultsync.
 	if err := p.settleQuarantine(ctx, out); err != nil {
 		return err
 	}
-	if err := p.e.d.State.AdvanceVault(ctx, c.Head, c.Records); err != nil {
+	if err := p.e.d.State.AdvanceVault(ctx, c.Head, c.Records, c.Purged); err != nil {
 		return err
 	}
 	p.advance(next, c.Records)

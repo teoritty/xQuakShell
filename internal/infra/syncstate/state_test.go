@@ -104,10 +104,10 @@ func TestAdvanceVault(t *testing.T) {
 	if sv, err := db.LoadVault(ctx, vaultsync.ID{1}); err != nil || sv.Head != nil || len(sv.Records) != 0 {
 		t.Fatalf("unknown vault = %+v, %v; want empty", sv, err)
 	}
-	if err := db.AdvanceVault(ctx, head(1, 1), []vaultsync.Envelope{envelope(1, 2, 1, nil), envelope(1, 3, 1, nil)}); err != nil {
+	if err := db.AdvanceVault(ctx, head(1, 1), []vaultsync.Envelope{envelope(1, 2, 1, nil), envelope(1, 3, 1, nil)}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AdvanceVault(ctx, head(1, 2), []vaultsync.Envelope{envelope(1, 2, 2, nil)}); err != nil {
+	if err := db.AdvanceVault(ctx, head(1, 2), []vaultsync.Envelope{envelope(1, 2, 2, nil)}, nil); err != nil {
 		t.Fatal(err)
 	}
 	sv, err := db.LoadVault(ctx, vaultsync.ID{1})
@@ -126,11 +126,11 @@ func TestAdvanceVault(t *testing.T) {
 
 func TestAdvanceVaultRefusesToGoBack(t *testing.T) {
 	db, _ := openTemp(t)
-	if err := db.AdvanceVault(ctx, head(1, 3), nil); err != nil {
+	if err := db.AdvanceVault(ctx, head(1, 3), nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	for _, seq := range []uint64{3, 2} {
-		if err := db.AdvanceVault(ctx, head(1, seq), []vaultsync.Envelope{envelope(1, 2, 9, nil)}); !errors.Is(err, synctrust.ErrStaleHead) {
+		if err := db.AdvanceVault(ctx, head(1, seq), []vaultsync.Envelope{envelope(1, 2, 9, nil)}, nil); !errors.Is(err, synctrust.ErrStaleHead) {
 			t.Errorf("head %d after 3: err = %v, want ErrStaleHead", seq, err)
 		}
 	}
@@ -141,7 +141,7 @@ func TestAdvanceVaultRefusesToGoBack(t *testing.T) {
 
 func TestAdvanceVaultRefusesForeignRecords(t *testing.T) {
 	db, _ := openTemp(t)
-	if err := db.AdvanceVault(ctx, head(1, 1), []vaultsync.Envelope{envelope(2, 2, 1, nil)}); err == nil {
+	if err := db.AdvanceVault(ctx, head(1, 1), []vaultsync.Envelope{envelope(2, 2, 1, nil)}, nil); err == nil {
 		t.Fatal("a record of vault 2 was stored under vault 1's head")
 	}
 }
@@ -245,7 +245,7 @@ func TestQuarantine(t *testing.T) {
 func TestForgottenVaultLeavesTheFile(t *testing.T) {
 	db, path := openTemp(t)
 	marker := bytes.Repeat([]byte("EXHUME-ME-"), 30)
-	_ = db.AdvanceVault(ctx, head(1, 1), []vaultsync.Envelope{envelope(1, 2, 1, marker[:296])})
+	_ = db.AdvanceVault(ctx, head(1, 1), []vaultsync.Envelope{envelope(1, 2, 1, marker[:296])}, nil)
 	_ = db.Quarantine(ctx, synctrust.QuarantineItem{Envelope: envelope(1, 3, 1, marker[:296]), Reason: "x"})
 	_ = db.PutOutbox(ctx, vaultsync.Commit{Head: head(1, 2), Records: []vaultsync.Envelope{envelope(1, 4, 1, marker[:296])}})
 	if err := db.ForgetVault(ctx, vaultsync.ID{1}); err != nil {
@@ -271,4 +271,39 @@ func TestForgottenVaultLeavesTheFile(t *testing.T) {
 
 func TestImplementsThePort(t *testing.T) {
 	var _ synctrust.StateStore = (*syncstate.DB)(nil)
+}
+
+func TestAdvanceVaultDeletesPurgedRecords(t *testing.T) {
+	db, _ := openTemp(t)
+	if err := db.AdvanceVault(ctx, head(1, 1), []vaultsync.Envelope{envelope(1, 2, 1, nil), envelope(1, 3, 1, nil)}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AdvanceVault(ctx, head(1, 2), nil, []vaultsync.ID{{2}}); err != nil {
+		t.Fatal(err)
+	}
+	sv, _ := db.LoadVault(ctx, vaultsync.ID{1})
+	if len(sv.Records) != 1 || sv.Records[0].Record != (vaultsync.ID{3}) {
+		t.Fatalf("records = %+v; the purged record must leave the verified base", sv.Records)
+	}
+	if _, ok := sv.LandedAt[vaultsync.ID{2}]; ok {
+		t.Fatal("a purged record kept its landing time")
+	}
+}
+
+func TestLandedAtIsTheTimeOfTheHeadThatCarriedTheVersion(t *testing.T) {
+	db, _ := openTemp(t)
+	h1 := head(1, 1)
+	h1.ClientTimeUnixMilli = 100
+	h2 := head(1, 2)
+	h2.ClientTimeUnixMilli = 250
+	if err := db.AdvanceVault(ctx, h1, []vaultsync.Envelope{envelope(1, 2, 1, nil), envelope(1, 3, 1, nil)}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AdvanceVault(ctx, h2, []vaultsync.Envelope{envelope(1, 2, 2, nil)}, nil); err != nil {
+		t.Fatal(err)
+	}
+	sv, _ := db.LoadVault(ctx, vaultsync.ID{1})
+	if sv.LandedAt[vaultsync.ID{2}] != 250 || sv.LandedAt[vaultsync.ID{3}] != 100 {
+		t.Fatalf("landed at = %v; want each record's latest version dated by the head that carried it", sv.LandedAt)
+	}
 }

@@ -118,7 +118,7 @@ func (p *pullRun) adopt(ctx context.Context, c vaultsync.Commit) error {
 	if err != nil {
 		return integrity("own commit", err)
 	}
-	if err := p.e.d.State.AdvanceVault(ctx, c.Head, c.Records); err != nil {
+	if err := p.e.d.State.AdvanceVault(ctx, c.Head, c.Records, c.Purged); err != nil {
 		return err
 	}
 	p.advance(next, c.Records)

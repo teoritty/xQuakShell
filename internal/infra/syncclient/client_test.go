@@ -247,6 +247,7 @@ func TestErrorCodesMapToDomainErrors(t *testing.T) {
 		syncwire.CodeFrozen:             synctrust.ErrRemoteFrozen,
 		syncwire.CodeQuotaExceeded:      synctrust.ErrRemoteQuota,
 		syncwire.CodeInternal:           synctrust.ErrRemoteInternal,
+		syncwire.CodeHistoryPruned:      synctrust.ErrHistoryPruned,
 		"something_new":                 synctrust.ErrRemoteProtocol,
 	} {
 		f := newFake(t)
@@ -499,5 +500,41 @@ func TestPasswordRoutesCarryTheTokenAndTheSignature(t *testing.T) {
 	}
 	if string(got.Record) != "rec" || string(got.Bundle) != "bun" || string(got.Sig) != "sig" {
 		t.Fatalf("finish carried %+v", got)
+	}
+}
+
+func TestVersionsDecodeAndConvert(t *testing.T) {
+	f := newFake(t)
+	env := vaultsync.Envelope{Vault: vaultsync.ID{1}, Record: vaultsync.ID{2}, Version: 3, Epoch: 1, Suite: vaultsync.Suite1,
+		WrappedDEK: bytes.Repeat([]byte{5}, 72), Body: bytes.Repeat([]byte{6}, 296), Author: vaultsync.ID{7},
+		SigAlg: vaultsync.SigEd25519, Sig: bytes.Repeat([]byte{8}, 64)}
+	var gotPath string
+	f.mux.HandleFunc("GET /v1/vaults/{id}/records/{rid}/versions", func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		writeJSON(w, 200, syncwire.Versions{Records: []syncwire.Envelope{syncwire.EnvelopeFrom(&env)}})
+	})
+	got, err := helloed(t, f).Versions(ctx, vaultsync.ID{1}, vaultsync.ID{2})
+	if err != nil || len(got) != 1 || got[0].Version != 3 {
+		t.Fatalf("versions = %+v, %v", got, err)
+	}
+	if want := "/v1/vaults/" + syncwire.HexID(vaultsync.ID{1}) + "/records/" + syncwire.HexID(vaultsync.ID{2}) + "/versions"; gotPath != want {
+		t.Fatalf("path = %q, want %q", gotPath, want)
+	}
+}
+
+func TestCommitSendsPurges(t *testing.T) {
+	f := newFake(t)
+	var got syncwire.Commit
+	f.mux.HandleFunc("POST /v1/vaults/{id}/commit", func(w http.ResponseWriter, r *http.Request) {
+		_ = syncwire.Decode(r.Body, 1<<20, &got)
+		writeJSON(w, 200, syncwire.CommitReply{Seq: 2})
+	})
+	head := vaultsync.Head{Vault: vaultsync.ID{1}, Seq: 2, Commit: vaultsync.ID{3}, Author: vaultsync.ID{7},
+		SigAlg: vaultsync.SigEd25519, Sig: bytes.Repeat([]byte{8}, 64)}
+	if _, err := helloed(t, f).Commit(ctx, vaultsync.Commit{Head: head, Purged: []vaultsync.ID{{9}}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Purged) != 1 || got.ExpectSeq != 1 {
+		t.Fatalf("sent %+v; the purged ids must reach the server", got)
 	}
 }

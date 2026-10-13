@@ -66,11 +66,37 @@ func (s *DB) LoadVault(ctx context.Context, vault vaultsync.ID) (synctrust.Store
 	if err != nil {
 		return synctrust.StoredVault{}, err
 	}
-	return synctrust.StoredVault{Head: &head, Records: records}, nil
+	landed, err := s.landedAt(ctx, vault)
+	if err != nil {
+		return synctrust.StoredVault{}, err
+	}
+	return synctrust.StoredVault{Head: &head, Records: records, LandedAt: landed}, nil
 }
 
-// AdvanceVault stores the records a verified commit changed and moves the head, in one transaction.
-func (s *DB) AdvanceVault(ctx context.Context, head vaultsync.Head, changed []vaultsync.Envelope) error {
+func (s *DB) landedAt(ctx context.Context, vault vaultsync.ID) (map[vaultsync.ID]uint64, error) {
+	rs, err := s.db.QueryContext(ctx, "SELECT record, at FROM records WHERE vault = ?", vault[:])
+	if err != nil {
+		return nil, fmt.Errorf("syncstate: load landing times: %w", err)
+	}
+	defer func() { _ = rs.Close() }()
+	out := map[vaultsync.ID]uint64{}
+	for rs.Next() {
+		var raw []byte
+		var at uint64
+		if err := rs.Scan(&raw, &at); err != nil {
+			return nil, fmt.Errorf("syncstate: load landing times: %w", err)
+		}
+		var id vaultsync.ID
+		copy(id[:], raw)
+		out[id] = at
+	}
+	return out, rs.Err()
+}
+
+// AdvanceVault stores the records a verified commit changed, drops the ones it purged and moves the
+// head, in one transaction. Each stored version is dated by the head that carried it, the time the
+// trash window of a tombstone counts from.
+func (s *DB) AdvanceVault(ctx context.Context, head vaultsync.Head, changed []vaultsync.Envelope, purged []vaultsync.ID) error {
 	headRaw, err := json.Marshal(syncwire.HeadFrom(&head))
 	if err != nil {
 		return fmt.Errorf("syncstate: encode head: %w", err)
@@ -85,8 +111,13 @@ func (s *DB) AdvanceVault(ctx context.Context, head vaultsync.Head, changed []va
 			return fmt.Errorf("syncstate: read head: %w", err)
 		}
 		for i := range changed {
-			if err := putRecord(ctx, tx, head.Vault, &changed[i]); err != nil {
+			if err := putRecord(ctx, tx, &head, &changed[i]); err != nil {
 				return err
+			}
+		}
+		for _, id := range purged {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM records WHERE vault = ? AND record = ?", head.Vault[:], id[:]); err != nil {
+				return fmt.Errorf("syncstate: purge record: %w", err)
 			}
 		}
 		_, err = tx.ExecContext(ctx, "INSERT OR REPLACE INTO heads (vault, seq, head) VALUES (?, ?, ?)",
@@ -95,16 +126,16 @@ func (s *DB) AdvanceVault(ctx context.Context, head vaultsync.Head, changed []va
 	})
 }
 
-func putRecord(ctx context.Context, tx *sql.Tx, vault vaultsync.ID, e *vaultsync.Envelope) error {
-	if e.Vault != vault {
+func putRecord(ctx context.Context, tx *sql.Tx, head *vaultsync.Head, e *vaultsync.Envelope) error {
+	if e.Vault != head.Vault {
 		return ErrForeignRecord
 	}
 	raw, err := json.Marshal(syncwire.EnvelopeFrom(e))
 	if err != nil {
 		return fmt.Errorf("syncstate: encode record: %w", err)
 	}
-	_, err = tx.ExecContext(ctx, "INSERT OR REPLACE INTO records (vault, record, envelope) VALUES (?, ?, ?)",
-		vault[:], e.Record[:], raw)
+	_, err = tx.ExecContext(ctx, "INSERT OR REPLACE INTO records (vault, record, envelope, at) VALUES (?, ?, ?, ?)",
+		head.Vault[:], e.Record[:], raw, head.ClientTimeUnixMilli)
 	return err
 }
 

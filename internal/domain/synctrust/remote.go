@@ -19,6 +19,9 @@ var (
 	ErrRemoteFrozen       = errors.New("sync server: account frozen")
 	ErrRemoteQuota        = errors.New("sync server: storage quota exceeded")
 	ErrRemoteInternal     = errors.New("sync server: internal error")
+	// ErrHistoryPruned is a pull from before history the server deleted; the device re-bootstraps
+	// from the snapshot.
+	ErrHistoryPruned = errors.New("sync server: history this device has not seen was pruned")
 	// ErrRemoteProtocol is a reply that breaks the contract: an unknown error code, a body that does
 	// not decode, a status that means nothing here. It is treated as hostile, never retried blindly.
 	ErrRemoteProtocol = errors.New("sync server: reply breaks the protocol")

@@ -15,6 +15,9 @@ type StoredVault struct {
 	// Head is nil before the device has applied any commit of the vault.
 	Head    *vaultsync.Head
 	Records []vaultsync.Envelope
+	// LandedAt dates each record's stored version by the signed client time of the head that carried
+	// it; a tombstone is purged once its date is a retention window old.
+	LandedAt map[vaultsync.ID]uint64
 }
 
 // QuarantineItem is a record that verified but was not applied: its body failed validation, its
@@ -43,8 +46,9 @@ var (
 // only - ciphertext and public data - so nothing in it opens without the keys in the vault.
 type StateStore interface {
 	LoadVault(ctx context.Context, vault vaultsync.ID) (StoredVault, error)
-	// AdvanceVault stores the records a verified commit changed and moves the head, atomically.
-	AdvanceVault(ctx context.Context, head vaultsync.Head, changed []vaultsync.Envelope) error
+	// AdvanceVault stores the records a verified commit changed, drops those it purged and moves the
+	// head, atomically.
+	AdvanceVault(ctx context.Context, head vaultsync.Head, changed []vaultsync.Envelope, purged []vaultsync.ID) error
 	ForgetVault(ctx context.Context, vault vaultsync.ID) error
 
 	DeviceLog(ctx context.Context, account vaultsync.ID) ([]vaultsync.DeviceEntry, error)

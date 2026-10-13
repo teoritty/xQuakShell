@@ -34,6 +34,8 @@ type SyncServer interface {
 	CreateVault(ctx context.Context, genesis vaultsync.MemberOp) error
 	Changes(ctx context.Context, vault vaultsync.ID, since uint64, limit int) ([]RemoteCommit, bool, error)
 	Snapshot(ctx context.Context, vault vaultsync.ID) (RemoteSnapshot, error)
+	// Versions lists the retained versions of one record, oldest first, for the trash.
+	Versions(ctx context.Context, vault, record vaultsync.ID) ([]vaultsync.Envelope, error)
 	// Commit pushes c on top of c.Head.Seq-1 and returns the seq it was stored at; a vault that moved
 	// on answers with *ConflictError.
 	Commit(ctx context.Context, c vaultsync.Commit) (uint64, error)
