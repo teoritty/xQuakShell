@@ -165,6 +165,35 @@ func (c *SyncController) RejectHeld(ctx context.Context, record vaultsync.ID) er
 	return err
 }
 
+// Trash lists the deleted records of the personal vault.
+func (c *SyncController) Trash(ctx context.Context) ([]TrashItem, error) {
+	var out []TrashItem
+	err := c.withEngine(func(e *SyncEngine, s SyncSession) error {
+		var err error
+		out, err = e.Trash(ctx, s.Personal)
+		return err
+	})
+	return out, err
+}
+
+// RestoreTrash brings a deleted record back; the round it schedules commits it.
+func (c *SyncController) RestoreTrash(ctx context.Context, record vaultsync.ID) error {
+	err := c.withEngine(func(e *SyncEngine, s SyncSession) error { return e.Restore(ctx, s.Personal, record) })
+	if err == nil {
+		c.Notify()
+	}
+	return err
+}
+
+// ShredNow destroys the trash and history of the personal vault on every device and the server.
+// It cannot be undone, so it takes the master password like any other irreversible decision.
+func (c *SyncController) ShredNow(ctx context.Context, masterPassword string) error {
+	if masterPassword == "" || c.d.Vault.VerifyMasterPassword(ctx, masterPassword) != nil {
+		return ErrShredReauth
+	}
+	return c.withEngine(func(e *SyncEngine, s SyncSession) error { return e.ShredNow(ctx, s.Personal) })
+}
+
 // SyncAccountInfo is what the settings page shows about the account. It carries no secret: the
 // identity key is public, and the seeds never leave the vault.
 type SyncAccountInfo struct {

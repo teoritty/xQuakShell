@@ -283,3 +283,53 @@ func TestAPendingJoinSurvivesARestart(t *testing.T) {
 		t.Fatal("no backup before the join")
 	}
 }
+
+func TestShredNowNeedsTheMasterPassword(t *testing.T) {
+	_, a := registered(t)
+	addFolders(a, "f1")
+	a.sync()
+	removeFolder(a, "f1")
+	a.sync()
+	cd := control(t, a)
+	if err := cd.c.Start(syncCtx); err != nil {
+		t.Fatal(err)
+	}
+	cd.round()
+	for _, pw := range []string{"", "wrong"} {
+		if err := cd.c.ShredNow(syncCtx, pw); !errors.Is(err, usecase.ErrShredReauth) {
+			t.Fatalf("master password %q: %v", pw, err)
+		}
+	}
+	if items, _ := cd.c.Trash(syncCtx); len(items) != 1 {
+		t.Fatal("the trash changed without the master password")
+	}
+	if err := cd.c.ShredNow(syncCtx, "master"); err != nil {
+		t.Fatal(err)
+	}
+	if items, err := cd.c.Trash(syncCtx); err != nil || len(items) != 0 {
+		t.Fatalf("trash after shred now = %+v, %v", items, err)
+	}
+}
+
+func TestRestoreThroughTheControllerSchedulesARound(t *testing.T) {
+	_, a := registered(t)
+	addFolders(a, "f1")
+	a.sync()
+	removeFolder(a, "f1")
+	a.sync()
+	cd := control(t, a)
+	if err := cd.c.Start(syncCtx); err != nil {
+		t.Fatal(err)
+	}
+	cd.round()
+	items, err := cd.c.Trash(syncCtx)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("trash = %+v, %v", items, err)
+	}
+	if err := cd.c.RestoreTrash(syncCtx, items[0].Record); err != nil {
+		t.Fatal(err)
+	}
+	if st := cd.round(); st.Report.Pushed == 0 {
+		t.Fatalf("round after a restore: %+v; the restored record must be committed without waiting", st)
+	}
+}

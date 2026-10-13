@@ -43,6 +43,10 @@ type svcServer struct {
 	failCommit bool
 	// historyPruned answers every pull with history_pruned, as after the server pruned.
 	historyPruned bool
+	// dropAppendReply stores the next membership append but loses its reply.
+	dropAppendReply bool
+	// tamperVersions rewrites the retained versions a trash listing reads.
+	tamperVersions func([]vaultsync.Envelope) []vaultsync.Envelope
 }
 
 // principal authenticates the current token the way the transport does, with an expired or revoked
@@ -123,6 +127,9 @@ func (s *svcServer) Versions(ctx context.Context, vault, record vaultsync.ID) ([
 		return nil, err
 	}
 	out, err := s.h.Svc.Versions(ctx, p, vault, record)
+	if err == nil && s.tamperVersions != nil {
+		out = s.tamperVersions(out)
+	}
 	return out, remote(err)
 }
 
@@ -187,7 +194,12 @@ func (s *svcServer) AppendMembership(ctx context.Context, vault vaultsync.ID, op
 	if err != nil {
 		return err
 	}
-	return remote(s.h.Svc.AppendMembership(ctx, p, vault, ops))
+	err = remote(s.h.Svc.AppendMembership(ctx, p, vault, ops))
+	if err == nil && s.dropAppendReply {
+		s.dropAppendReply = false
+		return errors.New("connection reset after the append was stored")
+	}
+	return err
 }
 
 // testKeys is a KeyRing with one fixed vault key: the server fixtures wrap no real keys, and the

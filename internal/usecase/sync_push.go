@@ -53,7 +53,7 @@ func (e *SyncEngine) Sync(ctx context.Context, vault vaultsync.ID) (SyncReport, 
 			err = p.retain(ctx)
 		}
 		var conflict *synctrust.ConflictError
-		if errors.As(err, &conflict) {
+		if errors.As(err, &conflict) || errors.Is(err, errRoundAgain) {
 			report.Pushed += pushed
 			continue
 		}

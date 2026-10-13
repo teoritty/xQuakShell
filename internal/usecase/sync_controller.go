@@ -18,6 +18,9 @@ var (
 	// ErrHeldReauth is a confirmation of a held change without the right master password. One error
 	// for a wrong password and a locked vault, so the gate is no oracle for the password.
 	ErrHeldReauth = errors.New("sync: the master password is needed to accept this change")
+	// ErrShredReauth is a Shred now without the right master password, one error for both causes
+	// for the same reason as ErrHeldReauth.
+	ErrShredReauth = errors.New("sync: the master password is needed to shred the trash and history")
 	// ErrNoPendingJoin is a join choice with no login waiting for it.
 	ErrNoPendingJoin = errors.New("sync: no account is waiting to be joined")
 )
