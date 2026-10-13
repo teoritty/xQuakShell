@@ -197,3 +197,21 @@ type Event struct {
 	Account       string `json:"account,omitempty"`
 	DeviceLogSeq  uint64 `json:"deviceLogSeq,omitempty"`
 }
+
+// PasswordInit starts an OPAQUE re-registration for the signed-in account.
+type PasswordInit struct {
+	OPAQUE []byte `json:"opaque"`
+}
+
+// PasswordInitReply carries the server's registration response.
+type PasswordInitReply struct {
+	OPAQUE []byte `json:"opaque"`
+}
+
+// PasswordFinish replaces the record and the bundle; Sig is the account's current identity key over
+// vaultsync.RekeyMessage of the pair.
+type PasswordFinish struct {
+	Record []byte `json:"record"`
+	Bundle []byte `json:"bundle"`
+	Sig    []byte `json:"sig"`
+}

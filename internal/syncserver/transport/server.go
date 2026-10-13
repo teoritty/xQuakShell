@@ -90,6 +90,8 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /v1/accounts/lookup", s.handleLookup)
 	mux.HandleFunc("GET /v1/accounts/{id}/devicelog", s.handleDeviceLog)
 	mux.HandleFunc("POST /v1/account/devicelog", s.handleDeviceLogAppend)
+	mux.HandleFunc("POST /v1/account/password/init", s.handlePasswordInit)
+	mux.HandleFunc("POST /v1/account/password/finish", s.handlePasswordFinish)
 	mux.HandleFunc("GET /v1/vaults", s.handleVaults)
 	mux.HandleFunc("POST /v1/vaults", s.handleVaultCreate)
 	mux.HandleFunc("GET /v1/vaults/{id}/membership", s.handleMembership)

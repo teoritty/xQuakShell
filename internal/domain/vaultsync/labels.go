@@ -60,3 +60,13 @@ func DeviceAuthMessage(account, device ID, nonce []byte) ([]byte, error) {
 func ServerTLSMessage(spki []byte) ([]byte, error) {
 	return NewCanon(LabelServerTLS).Bytes(spki).Encoded()
 }
+
+// LabelRekey separates the account key's consent to a new password record and bundle.
+const LabelRekey = "xqs-sync/v1/rekey"
+
+// RekeyMessage is what the account's current identity key signs to replace the password record and
+// the bundle. Requiring it means a session alone - a stolen token, a revoked device's leftovers -
+// cannot swap in a bundle of its choosing; only a holder of the current account key can.
+func RekeyMessage(account ID, record, bundle []byte) ([]byte, error) {
+	return NewCanon(LabelRekey).ID(account).Bytes(record).Bytes(bundle).Encoded()
+}

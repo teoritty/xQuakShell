@@ -84,6 +84,12 @@ func (t *txn) DeleteTokensForDevice(device vaultsync.ID) error {
 	return t.exec("DELETE FROM tokens WHERE device = ?", device[:])
 }
 
+// DeleteTokensForAccountExcept keeps only the tokens of one device; account tokens carry no device
+// and always go.
+func (t *txn) DeleteTokensForAccountExcept(account, keep vaultsync.ID) error {
+	return t.exec("DELETE FROM tokens WHERE account = ? AND (device IS NULL OR device != ?)", account[:], keep[:])
+}
+
 func (t *txn) DeleteExpiredTokens(now uint64) error {
 	return t.exec("DELETE FROM tokens WHERE expires <= ?", now)
 }

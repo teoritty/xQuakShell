@@ -100,6 +100,9 @@ type Tx interface {
 	InsertToken(t Token) error
 	TokenByHash(hash []byte) (Token, bool, error)
 	DeleteTokensForDevice(device vaultsync.ID) error
+	// DeleteTokensForAccountExcept ends every session of the account but the given device's.
+	DeleteTokensForAccountExcept(account, keep vaultsync.ID) error
+	UpdateAccountCredentials(account vaultsync.ID, record, bundle []byte) error
 	DeleteExpiredTokens(now uint64) error
 
 	InsertVault(v Vault) error

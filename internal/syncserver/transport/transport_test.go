@@ -343,3 +343,28 @@ func TestUnknownUsernameLoginLooksReal(t *testing.T) {
 		t.Fatalf("known %d/%d bytes vs unknown %d/%d bytes; the reply must not reveal whether the account exists", statusA, len(a), statusB, len(b))
 	}
 }
+
+func TestPasswordRoutes(t *testing.T) {
+	r := newRig(t)
+	u := r.h.Register("alice")
+	status, body := r.do("POST", "/v1/account/password/init", "", syncwire.PasswordInit{OPAQUE: []byte("b")})
+	assertErrorBody(t, status, body)
+	if status != http.StatusUnauthorized {
+		t.Fatalf("password init without a token: %d", status)
+	}
+	status, body = r.do("POST", "/v1/account/password/init", u.Access, syncwire.PasswordInit{OPAQUE: []byte("b")})
+	if status != http.StatusOK {
+		t.Fatalf("password init: %d %s", status, body)
+	}
+	record, bundle := []byte("new-record"), []byte("new-bundle")
+	msg, _ := vaultsync.RekeyMessage(u.Account, record, bundle)
+	status, body = r.do("POST", "/v1/account/password/finish", u.Access, syncwire.PasswordFinish{Record: record, Bundle: bundle, Sig: ed25519.Sign(u.DSK, msg)})
+	assertErrorBody(t, status, body)
+	if status != http.StatusUnauthorized {
+		t.Fatalf("a device key signing for the account key: %d", status)
+	}
+	status, _ = r.do("POST", "/v1/account/password/finish", u.Access, syncwire.PasswordFinish{Record: record, Bundle: bundle, Sig: ed25519.Sign(u.AIK, msg)})
+	if status != http.StatusOK {
+		t.Fatalf("password finish: %d", status)
+	}
+}

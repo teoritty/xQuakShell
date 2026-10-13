@@ -52,3 +52,22 @@ func TestServerTLSMessageIsLabelled(t *testing.T) {
 		t.Fatal("the TLS key signature ignores the key")
 	}
 }
+
+func TestRekeyMessageBindsAccountRecordAndBundle(t *testing.T) {
+	base, _ := vaultsync.RekeyMessage(vaultsync.ID{1}, []byte("rec"), []byte("bundle"))
+	for name, other := range map[string]func() ([]byte, error){
+		"account": func() ([]byte, error) { return vaultsync.RekeyMessage(vaultsync.ID{2}, []byte("rec"), []byte("bundle")) },
+		"record":  func() ([]byte, error) { return vaultsync.RekeyMessage(vaultsync.ID{1}, []byte("rek"), []byte("bundle")) },
+		"bundle":  func() ([]byte, error) { return vaultsync.RekeyMessage(vaultsync.ID{1}, []byte("rec"), []byte("bundlf")) },
+		"shift":   func() ([]byte, error) { return vaultsync.RekeyMessage(vaultsync.ID{1}, []byte("recb"), []byte("undle")) },
+	} {
+		got, _ := other()
+		if bytes.Equal(base, got) {
+			t.Errorf("a different %s signs the same bytes; one consent would replace another bundle", name)
+		}
+	}
+	tls, _ := vaultsync.ServerTLSMessage([]byte("rec"))
+	if bytes.HasPrefix(base, tls[:8]) {
+		t.Error("the rekey message shares its label with another signature")
+	}
+}

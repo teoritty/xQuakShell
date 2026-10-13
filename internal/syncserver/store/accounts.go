@@ -88,3 +88,12 @@ func scanOptionalID(b []byte) vaultsync.ID {
 	copy(id[:], b)
 	return id
 }
+
+// UpdateAccountCredentials replaces the OPAQUE record and the bundle after a password change.
+func (t *txn) UpdateAccountCredentials(account vaultsync.ID, record, bundle []byte) error {
+	ok, err := t.changed("UPDATE accounts SET opaque_record = ?, bundle = ? WHERE id = ?", record, bundle, account[:])
+	if err == nil && !ok {
+		return usecase.ErrNotFound
+	}
+	return err
+}
