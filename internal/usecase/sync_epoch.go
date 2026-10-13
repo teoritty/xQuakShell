@@ -24,6 +24,11 @@ func (e *SyncEngine) RewrapCurrent(ctx context.Context, vault vaultsync.ID, newE
 	if err != nil {
 		return err
 	}
+	// Only an admin may rewrap; in a team this account does not manage, an admin's device rewraps
+	// for it once it sees the new key (team_rotation.go).
+	if !m.Role(e.d.Keys.Account()).CanManage() {
+		return nil
+	}
 	vk, err := e.d.Keys.VaultKey(vault, m.Epoch(), p.ops)
 	if err != nil {
 		return err
@@ -42,38 +47,20 @@ func (e *SyncEngine) RewrapCurrent(ctx context.Context, vault vaultsync.ID, newE
 		Wraps: []vaultsync.KeyWrap{wrap}})
 }
 
-// RotateEpoch moves the vault to a fresh key wrapped to the account's current encryption key,
-// stops accepting the revoked devices from this membership position on (spec §5.4), and
-// re-encrypts every live record under the new key. A shred rotation retires every older epoch as
-// soon as that re-encryption lands (Shred now).
+// RotateEpoch moves the vault to a fresh key wrapped to every member's current encryption key - in
+// the personal vault, this account's own - stops accepting the revoked devices from this membership
+// position on (spec §5.4), and re-encrypts every live record under the new key. A shred rotation
+// retires every older epoch as soon as that re-encryption lands (Shred now).
 func (e *SyncEngine) RotateEpoch(ctx context.Context, vault vaultsync.ID, revoked []vaultsync.ID, shred bool, random io.Reader) error {
-	if e.d.Crypto == nil {
-		return ErrNoCrypto
-	}
 	p, m, err := e.caughtUp(ctx, vault)
 	if err != nil {
 		return err
 	}
-	vk := make([]byte, 32)
-	if _, err := io.ReadFull(random, vk); err != nil {
-		return err
-	}
-	defer clear(vk)
-	account := e.d.Keys.Account()
-	_, enc := e.d.Keys.CurrentKeys()
-	wrapped, err := e.d.Crypto.WrapVaultKey(enc, vault, m.Epoch()+1, account, vk)
+	op, err := p.rotationFor(m, m.Members(), random)
 	if err != nil {
 		return err
 	}
-	wrap, err := vaultsync.NewKeyWrap(account, enc, wrapped)
-	if err != nil {
-		return err
-	}
-	// A rotation may not be dated before the previous one, so a device whose clock is behind dates
-	// its rotation at the previous one instead of having it refused by every verifier.
-	rotations := m.Rotations()
-	op := vaultsync.MemberOp{Kind: vaultsync.MemberRotateEpoch, Epoch: m.Epoch() + 1, Wraps: []vaultsync.KeyWrap{wrap},
-		RevokedDevices: revoked, Shred: shred, TimeUnixMilli: rotations[len(rotations)-1].StartedUnixMilli}
+	op.RevokedDevices, op.Shred = revoked, shred
 	if err := p.appendOp(ctx, m, op); err != nil {
 		return err
 	}
@@ -157,4 +144,22 @@ func (p *pullRun) commitChanges(ctx context.Context, changes []change) error {
 		return err
 	}
 	return p.send(ctx, c)
+}
+
+// RewrapTeams rewraps the current key of every team vault this account manages to
+// newEncryptionKey, before a succession discards the key that opens them.
+func (e *SyncEngine) RewrapTeams(ctx context.Context, newEncryptionKey []byte) error {
+	vaults, err := e.Vaults(ctx)
+	if err != nil {
+		return err
+	}
+	for _, v := range vaults {
+		if e.scopeOf(v).Vault == "" {
+			continue
+		}
+		if err := e.RewrapCurrent(ctx, v, newEncryptionKey); err != nil {
+			return err
+		}
+	}
+	return nil
 }

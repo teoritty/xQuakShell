@@ -208,3 +208,20 @@ func TestLeavingLeavesTheRotationToAnAdmin(t *testing.T) {
 		t.Fatalf("the owner settling the rotation: %v", err)
 	}
 }
+
+// A member who left still signed ops and commits the others must verify, so its device log stays
+// readable to the vault's members; it does not become readable to anyone else.
+func TestAFormerMembersLogStaysReadableToTheVault(t *testing.T) {
+	h := servertest.NewHarness(t, 0)
+	alice, bob, mallory := h.Register("alice"), h.Register("bob"), h.Register("mallory")
+	cv := h.NewTeamVault(alice, servertest.Member{User: bob, Role: vaultsync.RoleEditor})
+	if err := cv.AppendOps(bob, vaultsync.MemberOp{Kind: vaultsync.MemberRemove, Subject: bob.Account}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.Svc.DeviceLog(ctx, h.Principal(alice.Access), bob.Account, 0); err != nil {
+		t.Fatalf("a former member's log: %v; the vault's history must stay verifiable", err)
+	}
+	if _, err := h.Svc.DeviceLog(ctx, h.Principal(mallory.Access), bob.Account, 0); !isErr(err, usecase.ErrNotFound) {
+		t.Fatalf("a stranger reading it: %v, want ErrNotFound", err)
+	}
+}

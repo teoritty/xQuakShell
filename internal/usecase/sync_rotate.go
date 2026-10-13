@@ -161,8 +161,12 @@ func (s *SyncAccountService) succeed(ctx context.Context, session SyncSession, a
 	if err != nil {
 		return nil, err
 	}
-	if err := s.d.NewEngine(session).RewrapCurrent(ctx, session.Personal, encKey); err != nil {
+	engine := s.d.NewEngine(session)
+	if err := engine.RewrapCurrent(ctx, session.Personal, encKey); err != nil {
 		return nil, fmt.Errorf("rewrap personal vault: %w", err)
+	}
+	if err := engine.RewrapTeams(ctx, encKey); err != nil {
+		return nil, fmt.Errorf("rewrap team vaults: %w", err)
 	}
 	pending := &domain.SyncPendingKeys{IdentitySeed: newAIK.Seed(), EncryptionSeed: encSeed, EncryptionKey: encKey}
 	if err := s.storeAccount(ctx, func(a *domain.SyncAccount) { a.Pending = pending }); err != nil {

@@ -12,6 +12,7 @@ import (
 	"xquakshell/internal/domain/vaultsync"
 	"xquakshell/internal/infra/synccrypto"
 	"xquakshell/internal/syncserver/servertest"
+	"xquakshell/internal/usecase"
 )
 
 // teamItem seals a record into a team vault as device B of the engine's account.
@@ -250,5 +251,29 @@ func TestLeavingATeamDropsItAndLeavesTheRotationOwed(t *testing.T) {
 	cv.Learn(ops...)
 	if cv.M.Role(w.a.Account) != vaultsync.RoleNone || !cv.M.PendingRotation() {
 		t.Fatal("the leave did not remove the account with the rotation left owed")
+	}
+}
+
+// A member who is not an admin leaves the team's upkeep to the admins: it neither rotates after
+// another member's device is revoked nor rewraps, which the server would refuse anyway.
+func TestAnEditorLeavesTeamUpkeepToTheAdmins(t *testing.T) {
+	w := newSyncWorld(t)
+	bob, carol := w.h.Register("bob"), w.h.Register("carol")
+	cv := w.h.NewTeamVault(bob, servertest.Member{User: w.a, Role: vaultsync.RoleEditor}, servertest.Member{User: carol, Role: vaultsync.RoleEditor})
+	cv.Users[w.a.Account] = w.b
+	cv.Accept(w.b, cv.Commit(w.b, w.teamMeta(cv)))
+	succeed(t, w.h, carol, secondDevice(t, w.h, carol))
+	before, _ := w.h.Svc.Membership(syncCtx, w.h.Principal(bob.Access), cv.ID, 0)
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatalf("an editor's sync failed: %v", err)
+	}
+	engine := usecase.NewSyncEngine(usecase.SyncEngineDeps{Server: w.server, State: w.state, Vault: w.vault,
+		Keys: testKeys{u: w.a, vk: w.vk}, Cipher: synccrypto.Cipher{}, Crypto: synccrypto.Account{}, NowUnixMilli: func() int64 { return 42 }})
+	if err := engine.RewrapCurrent(syncCtx, cv.ID, w.a.AEK); err != nil {
+		t.Fatalf("an editor's rewrap: %v; it must step aside, not fail", err)
+	}
+	after, _ := w.h.Svc.Membership(syncCtx, w.h.Principal(bob.Access), cv.ID, 0)
+	if len(after) != len(before) {
+		t.Fatal("an editor appended a membership op")
 	}
 }

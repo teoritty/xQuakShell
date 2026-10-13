@@ -35,6 +35,9 @@ func (p *pullRun) retain(ctx context.Context) error {
 		}
 		return errRoundAgain
 	}
+	if err := p.maintainTeam(ctx, m); err != nil {
+		return err
+	}
 	now := uint64(max(p.e.d.NowUnixMilli(), 0))
 	rotations := m.Rotations()
 	if due := p.dueTombstones(m.RetentionDays(), rotations[len(rotations)-1], now); len(due) > 0 {

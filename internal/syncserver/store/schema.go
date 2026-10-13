@@ -40,6 +40,8 @@ CREATE TABLE member_ops (vault BLOB NOT NULL REFERENCES vaults(id) ON DELETE CAS
 CREATE TABLE members (vault BLOB NOT NULL REFERENCES vaults(id) ON DELETE CASCADE, account BLOB NOT NULL,
   role INTEGER NOT NULL, PRIMARY KEY (vault, account));
 CREATE INDEX members_account ON members (account);
+CREATE TABLE participants (vault BLOB NOT NULL REFERENCES vaults(id) ON DELETE CASCADE, account BLOB NOT NULL,
+  PRIMARY KEY (vault, account));
 CREATE TABLE commits (vault BLOB NOT NULL REFERENCES vaults(id) ON DELETE CASCADE, seq INTEGER NOT NULL,
   commit_id BLOB NOT NULL, head BLOB NOT NULL, purged BLOB NOT NULL, received INTEGER NOT NULL,
   PRIMARY KEY (vault, seq), UNIQUE (vault, commit_id));

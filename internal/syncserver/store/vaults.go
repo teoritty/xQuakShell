@@ -72,6 +72,14 @@ func (t *txn) AppendMemberOps(vault vaultsync.ID, ops []vaultsync.MemberOp) erro
 		if err := t.exec("INSERT INTO member_ops (vault, seq, op) VALUES (?, ?, ?)", vault[:], ops[i].Seq, raw); err != nil {
 			return err
 		}
+		for _, a := range []vaultsync.ID{ops[i].Author, ops[i].Subject} {
+			if a.IsZero() {
+				continue
+			}
+			if err := t.exec("INSERT OR IGNORE INTO participants (vault, account) VALUES (?, ?)", vault[:], a[:]); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -118,9 +126,12 @@ func (t *txn) VaultsOf(account vaultsync.ID) ([]usecase.Vault, error) {
 
 const vaultColumnsQualified = "id, v.owner, v.seq, v.membership_seq, v.bytes, v.personal, v.deleted, v.pruned_seq"
 
+// SharesVault reports whether a is a current member of a vault b ever took part in. Participation
+// never ends, because the ops and commits b signed while a member stay in the vault's history and
+// every member must still verify them through b's device log.
 func (t *txn) SharesVault(a, b vaultsync.ID) (bool, error) {
 	var n int
-	err := t.tx.QueryRowContext(t.ctx, `SELECT count(*) FROM members ma JOIN members mb ON ma.vault = mb.vault
-		WHERE ma.account = ? AND mb.account = ?`, a[:], b[:]).Scan(&n)
+	err := t.tx.QueryRowContext(t.ctx, `SELECT count(*) FROM members ma JOIN participants pb ON ma.vault = pb.vault
+		WHERE ma.account = ? AND pb.account = ?`, a[:], b[:]).Scan(&n)
 	return n > 0, err
 }

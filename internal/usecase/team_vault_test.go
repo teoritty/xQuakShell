@@ -130,8 +130,8 @@ func asServerUser(t *testing.T, h *servertest.Harness, d *device) *servertest.Us
 	t.Helper()
 	data, _ := d.vault.GetData()
 	acct := data.Sync.Account
-	u := &servertest.User{Account: vaultsync.ID(acct.Account)}
-	u.Access = h.DeviceLogin(u, vaultsync.ID(acct.Device), ed25519.NewKeyFromSeed(acct.DeviceSeed))
+	u := &servertest.User{Account: vaultsync.ID(acct.Account), Device: vaultsync.ID(acct.Device), DSK: ed25519.NewKeyFromSeed(acct.DeviceSeed)}
+	u.Access = h.DeviceLogin(u, u.Device, u.DSK)
 	return u
 }
 

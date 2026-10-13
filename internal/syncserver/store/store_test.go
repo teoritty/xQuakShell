@@ -272,7 +272,9 @@ func TestVaultsMembersAndCommits(t *testing.T) {
 		if err := tx.InsertVault(usecase.Vault{ID: vaultsync.ID{50}, Owner: vaultsync.ID{1}, Personal: true}); err != nil {
 			return err
 		}
-		if err := tx.AppendMemberOps(vaultsync.ID{50}, []vaultsync.MemberOp{op}); err != nil {
+		add := op
+		add.Seq, add.Kind, add.Subject = 2, vaultsync.MemberAdd, vaultsync.ID{2}
+		if err := tx.AppendMemberOps(vaultsync.ID{50}, []vaultsync.MemberOp{op, add}); err != nil {
 			return err
 		}
 		if err := tx.ReplaceMembers(vaultsync.ID{50}, map[vaultsync.ID]vaultsync.Role{{1}: vaultsync.RoleOwner, {2}: vaultsync.RoleViewer}); err != nil {
@@ -323,7 +325,7 @@ func TestVaultsMembersAndCommits(t *testing.T) {
 			t.Fatalf("vault = %+v", v)
 		}
 		ops, _ := tx.MemberOps(vaultsync.ID{50})
-		if len(ops) != 1 || ops[0].Kind != vaultsync.MemberCreate {
+		if len(ops) != 2 || ops[0].Kind != vaultsync.MemberCreate {
 			t.Fatalf("ops = %+v", ops)
 		}
 		vs, _ := tx.VaultsOf(vaultsync.ID{2})
