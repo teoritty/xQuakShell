@@ -157,7 +157,7 @@ func (u *User) DeviceEntry(t *testing.T, e vaultsync.DeviceEntry) vaultsync.Devi
 	return e
 }
 
-// AddDeviceEntry certifies a device.
+// AddDeviceEntry certifies another device under the account identity key, signed and applied locally.
 func (u *User) AddDeviceEntry(t *testing.T, device vaultsync.ID, dsk ed25519.PrivateKey) vaultsync.DeviceEntry {
 	return u.DeviceEntry(t, vaultsync.DeviceEntry{Op: vaultsync.OpAddDevice, Cert: &vaultsync.DeviceCert{
 		Device: device, SigningKey: dsk.Public().(ed25519.PublicKey), Name: "test", Platform: "linux"}})
@@ -187,7 +187,7 @@ func WrapFor(ids ...vaultsync.ID) []vaultsync.KeyWrap {
 	return out
 }
 
-// Invite issues a one-hour invite.
+// Invite issues a code valid for one hour on the fake clock.
 func (h *Harness) Invite() string {
 	h.T.Helper()
 	code, err := h.Svc.CreateInvite(Ctx, 3_600_000)
@@ -197,7 +197,7 @@ func (h *Harness) Invite() string {
 	return code
 }
 
-// Registration builds a complete registration for u.
+// Registration builds every part RegisterFinish needs for u, signed by its keys.
 func (h *Harness) Registration(u *User, invite string) usecase.Registration {
 	return usecase.Registration{Invite: invite, Username: u.Name, Account: u.Account, Record: u.Record,
 		IdentityKey: u.AIK.Public().(ed25519.PublicKey), EncryptionKey: u.AEK, Bundle: []byte("sealed-bundle"),
