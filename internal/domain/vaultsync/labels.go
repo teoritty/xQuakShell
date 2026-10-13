@@ -53,3 +53,10 @@ const LabelDeviceAuth = "xqs-sync/v1/device-auth"
 func DeviceAuthMessage(account, device ID, nonce []byte) ([]byte, error) {
 	return NewCanon(LabelDeviceAuth).ID(account).ID(device).Bytes(nonce).Encoded()
 }
+
+// ServerTLSMessage is what a server's identity key signs about its TLS public key (SPKI). Clients
+// pin the identity key, so a certificate renewal does not break the pin, while a substituted TLS key
+// without the identity's signature is refused.
+func ServerTLSMessage(spki []byte) ([]byte, error) {
+	return NewCanon(LabelServerTLS).Bytes(spki).Encoded()
+}

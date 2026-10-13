@@ -15,6 +15,9 @@ import (
 // ErrMalformed is any message that does not decode into exactly the shape this package defines.
 var ErrMalformed = errors.New("malformed sync message")
 
+// ErrTooLarge accompanies ErrMalformed when the reason is size, so a server can answer 413.
+var ErrTooLarge = errors.New("sync message exceeds its size limit")
+
 // Error codes are the only thing an error response body ever carries. A closed list of bare
 // tokens means no handler can leak an internal error string by accident: anything else is refused
 // by IsErrorCode before it is written.

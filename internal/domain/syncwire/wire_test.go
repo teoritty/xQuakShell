@@ -127,8 +127,12 @@ func TestDecodeRefusesTrailingValue(t *testing.T) {
 func TestDecodeRefusesOversize(t *testing.T) {
 	var h syncwire.Hello
 	body := `{"suite":1,"clientProtocol":{"major":1}}` + strings.Repeat(" ", 2000)
-	if err := syncwire.Decode(strings.NewReader(body), 64, &h); !errors.Is(err, syncwire.ErrMalformed) {
-		t.Fatalf("err = %v, want ErrMalformed for a body over the limit", err)
+	if err := syncwire.Decode(strings.NewReader(body), 64, &h); !errors.Is(err, syncwire.ErrMalformed) || !errors.Is(err, syncwire.ErrTooLarge) {
+		t.Fatalf("err = %v, want ErrMalformed and ErrTooLarge for a body over the limit", err)
+	}
+	big := `{"suite":` + strings.Repeat("1", 200) + `}`
+	if err := syncwire.Decode(strings.NewReader(big), 64, &h); !errors.Is(err, syncwire.ErrTooLarge) {
+		t.Fatalf("err = %v, want ErrTooLarge for a value cut off by the limit", err)
 	}
 }
 

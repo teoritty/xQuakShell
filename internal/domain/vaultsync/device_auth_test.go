@@ -40,3 +40,15 @@ func TestAccountFingerprintFormat(t *testing.T) {
 		t.Fatal("a fingerprint is not stable for one key")
 	}
 }
+
+func TestServerTLSMessageIsLabelled(t *testing.T) {
+	a, _ := vaultsync.ServerTLSMessage([]byte("spki"))
+	b, _ := vaultsync.DeviceAuthMessage(vaultsync.ID{}, vaultsync.ID{}, []byte("spki"))
+	if bytes.Equal(a, b) {
+		t.Fatal("the TLS key signature shares bytes with a device proof")
+	}
+	c, _ := vaultsync.ServerTLSMessage([]byte("other"))
+	if bytes.Equal(a, c) {
+		t.Fatal("the TLS key signature ignores the key")
+	}
+}

@@ -17,14 +17,22 @@ func Decode(r io.Reader, limit int64, v any) error {
 	lr := &io.LimitedReader{R: r, N: limit + 1}
 	dec := json.NewDecoder(lr)
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(v); err != nil {
-		return fmt.Errorf("%w: %w", ErrMalformed, err)
+	err := dec.Decode(v)
+	if err == nil {
+		_, err = dec.Token()
+		if errors.Is(err, io.EOF) {
+			err = nil
+		} else if err == nil {
+			err = errors.New("data after the JSON value")
+		}
 	}
+	// The size check comes after both reads: an oversized body may fail either as a truncated value
+	// or as trailing bytes, and in both cases the caller must learn it was too large, not malformed.
 	if lr.N <= 0 {
-		return fmt.Errorf("%w: body exceeds %d bytes", ErrMalformed, limit)
+		return fmt.Errorf("%w: %w: body exceeds %d bytes", ErrMalformed, ErrTooLarge, limit)
 	}
-	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-		return fmt.Errorf("%w: data after the JSON value", ErrMalformed)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrMalformed, err)
 	}
 	return nil
 }
