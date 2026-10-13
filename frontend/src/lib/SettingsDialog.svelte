@@ -14,6 +14,7 @@
   import HotkeysSection from './settings/HotkeysSection.svelte';
   import NetworkSection from './settings/NetworkSection.svelte';
   import SecuritySection from './settings/SecuritySection.svelte';
+  import SyncSection from './settings/SyncSection.svelte';
   import SettingsSection from './settings/SettingsSection.svelte';
   import { findHotkeyConflict } from './settings/hotkeyConflicts';
   import {
@@ -36,6 +37,7 @@
     Keyboard,
     FileText,
     Search,
+    RefreshCw,
   } from 'lucide-svelte';
 
   export let show = false;
@@ -76,6 +78,7 @@
     { id: 'hotkeys', icon: Keyboard },
     { id: 'network', icon: Wifi },
     { id: 'security', icon: Shield },
+    { id: 'sync', icon: RefreshCw },
   ];
 
   $: isSearching = searchQuery.trim().length > 0;
@@ -192,6 +195,7 @@
           <HotkeysSection {view} bind:draft bind:conflict={hotkeyConflict} />
           <NetworkSection {view} bind:draft />
           <SecuritySection {view} bind:draft />
+          <SyncSection {view} />
         {/if}
       </div>
     </div>

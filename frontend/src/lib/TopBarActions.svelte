@@ -10,6 +10,7 @@
   // It dispatches rather than binding the flags, so App keeps ownership of which dialog is open.
   import { createEventDispatcher } from 'svelte';
   import { Settings, FileText, Shield, Fingerprint, Terminal, Key, Puzzle } from 'lucide-svelte';
+  import SyncStatusChip from './SyncStatusChip.svelte';
 
   const dispatch = createEventDispatcher();
 
@@ -27,6 +28,7 @@
 </script>
 
 <div class="top-bar-actions">
+  <SyncStatusChip on:open={() => dispatch('sync')} />
   {#each actions as action (action.event)}
     <button class="ghost top-btn" title={$t(action.titleKey)} on:click={() => dispatch(action.event)}>
       <svelte:component this={action.icon} size={14} />

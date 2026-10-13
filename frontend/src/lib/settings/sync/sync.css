@@ -1,0 +1,50 @@
+/* Shared by the sync panels. Scoped under .settings-content like settingsShared.css, because the
+   class names are short and other screens use the same words. */
+.settings-content .sync-error {
+  margin: 0;
+  min-height: 15px;
+  font-size: 11px;
+  color: var(--danger);
+}
+
+.settings-content .sync-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.settings-content .sync-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.settings-content .sync-field {
+  max-width: 320px;
+  width: 100%;
+}
+
+.settings-content .sync-fingerprint {
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  color: var(--text-bright);
+}
+
+.settings-content .sync-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.settings-content .sync-list > li {
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+
+.settings-content .sync-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+}

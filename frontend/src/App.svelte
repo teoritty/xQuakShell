@@ -25,6 +25,7 @@
   import { pluginContributions, initPluginContributionEvents, initPluginViewMessageEvents, refreshPluginContributions } from './stores/pluginState';
   import { sessions, activeTabId, vaultUnlocked, pendingHostKey, pendingRecoveryKey } from './stores/appState';
   import { subscribeToEvents } from './events/subscribe';
+  import { subscribeSyncEvents } from './events/syncEvents';
   import { resolveHostKeyRpc as resolveHostKey } from './api/sessions';
   import { createSessionFromSelection } from './actions/sessionActions';
   import { startAutoReconnect, refreshAutoReconnectSetting } from './actions/reconnectActions';
@@ -113,6 +114,7 @@
 
   onMount(() => {
     subscribeToEvents();
+    subscribeSyncEvents();
     const stopReconnectWatcher = startAutoReconnect();
     initPluginContributionEvents();
     initPluginViewMessageEvents();
@@ -236,6 +238,7 @@
           on:keys={() => (showKeyManager = true)}
           on:plugins={() => (showPlugins = true)}
           on:settings={() => openSettings()}
+          on:sync={() => openSettings('sync')}
         />
       </div>
       <div class="session-area">
