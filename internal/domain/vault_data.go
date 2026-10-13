@@ -23,10 +23,14 @@ type IdentityBlob struct {
 type PasswordBlob struct {
 	Value []byte `json:"value"`
 	Label string `json:"label"`
+	// VaultID is the synced team vault this item belongs to; empty is the personal vault.
+	VaultID string `json:"vaultId,omitempty"`
 }
 
-// CurrentVaultVersion is the latest vault data schema version.
-const CurrentVaultVersion = 4
+// CurrentVaultVersion is the latest vault data schema version. Schema 5 adds the vault id of team
+// items: an older build would drop it on its next write and turn every team item personal, which is
+// why an additive field still moved the version.
+const CurrentVaultVersion = 5
 
 // MinMigratableVaultVersion is the oldest schema this build can upgrade in place. A vault below
 // it is refused rather than guessed at, because the fields the migration reads are the ones that

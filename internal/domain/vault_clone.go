@@ -147,10 +147,8 @@ func clonePasswords(in map[string]PasswordBlob) map[string]PasswordBlob {
 	}
 	out := make(map[string]PasswordBlob, len(in))
 	for k, v := range in {
-		out[k] = PasswordBlob{
-			Value: cloneBytes(v.Value),
-			Label: v.Label,
-		}
+		v.Value = cloneBytes(v.Value)
+		out[k] = v
 	}
 	return out
 }

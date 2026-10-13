@@ -45,6 +45,9 @@ type Connection struct {
 	// AgentForwarding lends vault keys to the final target's shell (ADR-022). Nil means off; the
 	// field is additive and omitempty, so a vault without it is unchanged on disk.
 	AgentForwarding *agentforward.Config `json:"agentForwarding,omitempty"`
+
+	// VaultID is the synced team vault this item belongs to; empty is the personal vault.
+	VaultID string `json:"vaultId,omitempty"`
 }
 
 // DefaultUser returns the ConnectionUser designated as default, or nil when none is set.

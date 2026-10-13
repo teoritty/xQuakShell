@@ -45,6 +45,8 @@ const DefaultCacheTTLSeconds = 900
 type SSHIdentity struct {
 	// ID is the unique identifier within the vault.
 	ID string `json:"id"`
+	// VaultID is the synced team vault this item belongs to; empty is the personal vault.
+	VaultID string `json:"vaultId,omitempty"`
 	// Comment is an optional human-readable label (e.g., original filename).
 	Comment string `json:"comment"`
 	// KeyType describes the algorithm (e.g., "rsa", "ecdsa", "ed25519").

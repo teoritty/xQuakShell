@@ -22,13 +22,17 @@ fixes, including security fixes, ship in a new release rather than as patches to
 | Capabilities | all 1.0.0, unchanged |
 | Manifest schema | unchanged |
 | `bundleFormat` | 1.0.0 (unchanged) |
-| Vault schema | 4 (unchanged) |
+| Vault schema | 5 (was 4) |
 | Vault envelope | 1 (unchanged) |
 | Audit schema | 1 (unchanged) |
 
 ### BREAKING
 
-Nothing.
+**Vault schema 4 → 5.** The first unlock after the upgrade copies the vault aside as
+`vault.age.v4.bak` and rewrites it as schema 5, which records the team vault each synced item
+belongs to. xQuakShell 1.4 and older refuse a schema 5 vault rather than open it and drop that
+field; to go back, restore the backup. Nothing about keys or passwords changes in the upgrade, and
+no passphrase is asked for.
 
 ### Added
 

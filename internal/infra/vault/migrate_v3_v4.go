@@ -16,7 +16,7 @@ import (
 // modern key and could not see whether one was protected. Trusting it would put unprotected keys
 // in the wizard and leave protected ones out of it.
 func PlanMigration(data *domain.VaultData, codec domain.KeyCodec) []domain.PendingKey {
-	if !NeedsMigration(data) {
+	if !NeedsMigration(data) || data.Version >= 4 {
 		return nil
 	}
 	pending := make([]domain.PendingKey, 0)
@@ -33,7 +33,9 @@ func PlanMigration(data *domain.VaultData, codec domain.KeyCodec) []domain.Pendi
 	return pending
 }
 
-// MigrateToCurrent upgrades decrypted v3 data in place to the current schema.
+// MigrateToCurrent upgrades decrypted v3 or v4 data in place to the current schema. Each step runs
+// only for the versions it applies to: schema 4 → 5 adds optional fields and converts nothing, so a
+// v4 vault must not have its keys reported as converted.
 //
 // answers maps identity ID to the passphrase the user supplied; an ID absent from the map is
 // skipped and keeps its original bytes under MigrationPending. Skipping is what stops a forgotten
@@ -53,12 +55,23 @@ func MigrateToCurrent(data *domain.VaultData, codec domain.KeyCodec, newDataKey 
 	}
 
 	report := &domain.MigrationReport{FromVersion: data.Version, ToVersion: domain.CurrentVaultVersion}
+	if data.Version < 4 {
+		if err := migrateKeys(data, codec, newDataKey, answers, report); err != nil {
+			return nil, err
+		}
+	}
+	data.Version = domain.CurrentVaultVersion
+	return report, nil
+}
+
+// migrateKeys rewrites every key of a schema 3 vault into the schema 4 shape.
+func migrateKeys(data *domain.VaultData, codec domain.KeyCodec, newDataKey func() ([]byte, error), answers map[string]string, report *domain.MigrationReport) error {
 	for id := range data.Identities {
 		identity := data.Identities[id]
 		blob := data.KeyBlobs[id]
 		converted, err := convertIdentity(&identity, &blob, codec, newDataKey, answers[id])
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if converted {
 			report.Converted = append(report.Converted, id)
@@ -68,9 +81,7 @@ func MigrateToCurrent(data *domain.VaultData, codec domain.KeyCodec, newDataKey 
 		data.Identities[id] = identity
 		data.KeyBlobs[id] = blob
 	}
-
-	data.Version = domain.CurrentVaultVersion
-	return report, nil
+	return nil
 }
 
 // convertIdentity rewrites one v3 key into the schema 4 shape, reporting whether it succeeded.
