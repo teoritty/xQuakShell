@@ -352,3 +352,54 @@ func TestAnotherMemberRenamingAConnectionLeavesMyBinding(t *testing.T) {
 		t.Fatal("a rename suspended the binding; only a new address does")
 	}
 }
+
+// A viewer holds the team key but may not write: its local edits of team items stay on its device
+// instead of every round failing on the server's refusal.
+func TestAViewerKeepsItsEditsLocal(t *testing.T) {
+	w := newSyncWorld(t)
+	bob := w.h.Register("bob")
+	cv := w.h.NewTeamVault(bob, servertest.Member{User: w.a, Role: vaultsync.RoleViewer})
+	cv.Users[w.a.Account] = w.b
+	cv.Users[bob.Account] = bob
+	meta := w.teamMeta(cv)
+	meta.Author = bob.Device
+	msg, _ := meta.SigningBytes()
+	meta.Sig = ed25519.Sign(bob.DSK, msg)
+	cv.Accept(bob, cv.Commit(bob, meta))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	_ = w.vault.UpdateData(syncCtx, func(d *domain.VaultData) error {
+		d.Folders = append(d.Folders, domain.ConnectionFolder{ID: "x", Name: "x", VaultID: cv.ID.String()})
+		return nil
+	})
+	r, err := w.engine.Sync(syncCtx, cv.ID)
+	if err != nil || r.Pushed != 0 {
+		t.Fatalf("viewer round: %+v, %v; nothing is pushed and nothing fails", r, err)
+	}
+}
+
+// The server cannot hide a membership op - a removal, say - from one client: every op chains to
+// the one before it, so the log with a gap does not verify.
+func TestAWithheldMembershipOpIsDetected(t *testing.T) {
+	w := newSyncWorld(t)
+	bob, carol := w.h.Register("bob"), w.h.Register("carol")
+	cv := w.h.NewTeamVault(bob, servertest.Member{User: w.a, Role: vaultsync.RoleEditor}, servertest.Member{User: carol, Role: vaultsync.RoleEditor})
+	cv.Users[w.a.Account] = w.b
+	if err := cv.AppendOps(bob, vaultsync.MemberOp{Kind: vaultsync.MemberRemove, Subject: carol.Account},
+		vaultsync.MemberOp{Kind: vaultsync.MemberRotateEpoch, Epoch: 1, Wraps: servertest.WrapFor(bob.Account, w.a.Account)}); err != nil {
+		t.Fatal(err)
+	}
+	w.server.tamperOps = func(ops []vaultsync.MemberOp) []vaultsync.MemberOp {
+		var out []vaultsync.MemberOp
+		for _, op := range ops {
+			if op.Kind != vaultsync.MemberRemove {
+				out = append(out, op)
+			}
+		}
+		return out
+	}
+	if _, err := w.engine.Sync(syncCtx, cv.ID); !errors.Is(err, synctrust.ErrIntegrity) {
+		t.Fatalf("err = %v, want ErrIntegrity: a withheld removal breaks the membership chain", err)
+	}
+}

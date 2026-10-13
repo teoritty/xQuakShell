@@ -89,6 +89,15 @@ func (p *pullRun) flushOutbox(ctx context.Context) error {
 
 // push commits what this device changed since the version it last verified.
 func (p *pullRun) push(ctx context.Context) (int, error) {
+	// A viewer holds the key but may not write; its local edits stay on its device rather than
+	// failing every round on a refusal the server must give.
+	m, err := p.members.at(uint64(len(p.ops)))
+	if err != nil {
+		return 0, err
+	}
+	if !m.Role(p.e.d.Keys.Account()).CanWrite() {
+		return 0, nil
+	}
 	changes, err := p.localChanges(ctx)
 	if err != nil || len(changes) == 0 {
 		return 0, err
