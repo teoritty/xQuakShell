@@ -30,6 +30,13 @@ type VaultSync struct {
 	PluginFilesOnDisk map[string]string `json:"pluginFilesOnDisk,omitempty"`
 	// PluginDataOff lists plugins whose data this device does not sync; device-local, never synced.
 	PluginDataOff []string `json:"pluginDataOff,omitempty"`
+	// PluginsHere maps each plugin this device recorded as installed to the build it recorded;
+	// device-local, never synced. It tells a plugin uninstalled here from one uninstalled on another
+	// device, and an upgrade made here from one made elsewhere.
+	PluginsHere map[string]string `json:"pluginsHere,omitempty"`
+	// PluginsRemovedElsewhere lists plugins another device uninstalled that are still installed and
+	// disabled here, until the user uninstalls or keeps them; device-local, never synced.
+	PluginsRemovedElsewhere []string `json:"pluginsRemovedElsewhere,omitempty"`
 	// Account holds this device's credentials for its sync account; nil until sync is enabled. It
 	// is never synced as a record: these are the keys every record is protected with.
 	Account *SyncAccount `json:"account,omitempty"`

@@ -252,6 +252,10 @@ func cloneVaultSync(in *VaultSync) *VaultSync {
 	out.Bindings = append([]CredentialBinding(nil), in.Bindings...)
 	out.Plugins = append([]SyncPlugin(nil), in.Plugins...)
 	out.PluginDataOff = append([]string(nil), in.PluginDataOff...)
+	if in.PluginsHere != nil {
+		out.PluginsHere = maps.Clone(in.PluginsHere)
+	}
+	out.PluginsRemovedElsewhere = append([]string(nil), in.PluginsRemovedElsewhere...)
 	if in.PluginFilesOnDisk != nil {
 		out.PluginFilesOnDisk = maps.Clone(in.PluginFilesOnDisk)
 	}
