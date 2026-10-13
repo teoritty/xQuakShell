@@ -56,7 +56,7 @@ func (p *pullRun) pullAll(ctx context.Context) error {
 }
 
 func (e *SyncEngine) startPull(ctx context.Context, vault vaultsync.ID) (*pullRun, error) {
-	dl, err := e.verifiedDeviceLog(ctx)
+	dl, fresh, err := e.verifiedDeviceLog(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +78,7 @@ func (e *SyncEngine) startPull(ctx context.Context, vault vaultsync.ID) (*pullRu
 		members: &membershipCursor{vault: vault, ops: ops, check: check},
 		base:    indexEnvelopes(stored.Records), names: map[vaultsync.ID]syncKeyName{},
 		bodies: map[vaultsync.ID]synctrust.Body{}}
+	p.report.NewDevices = newDevices(fresh, e.d.Keys.Device())
 	if meta, ok := p.base[synctrust.VaultMetaID(vault)]; ok {
 		if err := p.learnMeta(meta); err != nil {
 			return nil, err
@@ -145,4 +146,16 @@ func (p *pullRun) advance(next *vaultsync.VaultState, records []vaultsync.Envelo
 		p.base[r.Record] = r
 		delete(p.bodies, r.Record)
 	}
+}
+
+// newDevices lists the devices a pull saw certified for the first time, other than this one, so the
+// user is told when a device joins the account: the alert that catches a stolen sync password.
+func newDevices(fresh []vaultsync.DeviceEntry, self vaultsync.ID) []vaultsync.DeviceCert {
+	var out []vaultsync.DeviceCert
+	for _, e := range fresh {
+		if e.Op == vaultsync.OpAddDevice && e.Cert != nil && e.Cert.Device != self {
+			out = append(out, *e.Cert)
+		}
+	}
+	return out
 }

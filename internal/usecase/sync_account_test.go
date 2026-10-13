@@ -390,3 +390,50 @@ func TestKeyRingUsesOnlyThisAccountsWrapAtThatEpoch(t *testing.T) {
 		t.Fatalf("another member's wrap: %v", err)
 	}
 }
+
+func TestOtherDevicesAreToldWhenADeviceJoins(t *testing.T) {
+	h, a := registered(t)
+	a.sync()
+	b := newDevice(t, h, "phone")
+	s, err := b.svc.Login(syncCtx, creds("correct horse"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.start(s)
+	r := a.sync()
+	if len(r.Pull.NewDevices) != 1 || r.Pull.NewDevices[0].Name != "phone" || r.Pull.NewDevices[0].Device != b.session.Keys.Device() {
+		t.Fatalf("new devices = %+v; the user must be told a device joined", r.Pull.NewDevices)
+	}
+	if again := a.sync(); len(again.Pull.NewDevices) != 0 {
+		t.Fatal("the same device was announced twice")
+	}
+	if own := b.sync(); len(own.Pull.NewDevices) != 0 {
+		t.Fatalf("a device was announced to itself: %+v", own.Pull.NewDevices)
+	}
+}
+
+func TestAFirstPullNeverAnnouncesTheDeviceItself(t *testing.T) {
+	h, a := registered(t)
+	a.sync()
+	c := newDevice(t, h, "tablet")
+	s, err := c.svc.Login(syncCtx, creds("correct horse"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, _ := syncstate.Open(syncCtx, filepath.Join(t.TempDir(), "state.db"))
+	t.Cleanup(func() { _ = st.Close() })
+	engine := usecase.NewSyncEngine(usecase.SyncEngineDeps{Server: s.Server, State: st, Vault: c.vault, Keys: s.Keys,
+		Cipher: synccrypto.Cipher{}, NowUnixMilli: func() int64 { return 7 }})
+	r, err := engine.Pull(syncCtx, s.Personal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range r.NewDevices {
+		if d.Device == s.Keys.Device() {
+			t.Fatal("the device was announced to itself")
+		}
+	}
+	if len(r.NewDevices) != 1 || r.NewDevices[0].Name != "laptop" {
+		t.Fatalf("new devices = %+v", r.NewDevices)
+	}
+}

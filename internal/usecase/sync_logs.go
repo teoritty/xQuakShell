@@ -10,38 +10,38 @@ import (
 // verifiedDeviceLog replays the account's device log from the account keys this device holds: the
 // stored entries first, then whatever the server has beyond them. Only entries that replay are
 // stored, so state.db never holds a log this device could not verify.
-func (e *SyncEngine) verifiedDeviceLog(ctx context.Context) (*vaultsync.DeviceLogState, error) {
+func (e *SyncEngine) verifiedDeviceLog(ctx context.Context) (*vaultsync.DeviceLogState, []vaultsync.DeviceEntry, error) {
 	account := e.d.Keys.Account()
 	suite, identity, encryption := e.d.Keys.AccountKeys()
 	dl, err := vaultsync.NewDeviceLogState(account, suite, identity, encryption)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	stored, err := e.d.State.DeviceLog(ctx, account)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for i := range stored {
 		if err := dl.Apply(&stored[i]); err != nil {
-			return nil, integrity("stored device log", err)
+			return nil, nil, integrity("stored device log", err)
 		}
 	}
 	fresh, err := e.d.Server.DeviceLog(ctx, account, dl.Seq())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for i := range fresh {
 		if err := dl.Apply(&fresh[i]); err != nil {
-			return nil, integrity("device log", err)
+			return nil, nil, integrity("device log", err)
 		}
 	}
 	if dl.PendingSuccession() {
-		return nil, integrity("device log", fmt.Errorf("a revocation without its succession"))
+		return nil, nil, integrity("device log", fmt.Errorf("a revocation without its succession"))
 	}
 	if err := e.d.State.AppendDeviceLog(ctx, fresh); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return dl, nil
+	return dl, fresh, nil
 }
 
 // resolver maps a device to its account and signing key through the account's device log. In the

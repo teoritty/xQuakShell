@@ -37,6 +37,8 @@ type PullReport struct {
 	Applied     int
 	Held        int
 	Quarantined int
+	// NewDevices are devices certified in the account since the last pull.
+	NewDevices []vaultsync.DeviceCert
 }
 
 // pullPageSize is how many commits one changes request asks for.
