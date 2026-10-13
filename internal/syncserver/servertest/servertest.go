@@ -88,12 +88,15 @@ type Harness struct {
 	Svc   *usecase.Service
 	DB    *store.DB
 	Clock *FakeClock
+	// DBPath is the database file, for tests that inspect what deleted data left on disk.
+	DBPath string
 }
 
 // NewHarness opens a store in a temp dir; teamQuota 0 keeps the default.
 func NewHarness(t *testing.T, teamQuota uint64) *Harness {
 	t.Helper()
-	db, err := store.Open(Ctx, filepath.Join(t.TempDir(), "xqsyncd.db"))
+	path := filepath.Join(t.TempDir(), "xqsyncd.db")
+	db, err := store.Open(Ctx, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +104,7 @@ func NewHarness(t *testing.T, teamQuota uint64) *Harness {
 	clock := &FakeClock{now: 1_000_000}
 	svc := usecase.New(usecase.Config{Store: db, Clock: clock, AKE: FakeAKE{}, Random: rand.Reader,
 		FakeAccountSecret: []byte("fake-secret"), TeamQuota: teamQuota})
-	return &Harness{T: t, Svc: svc, DB: db, Clock: clock}
+	return &Harness{T: t, Svc: svc, DB: db, Clock: clock, DBPath: path}
 }
 
 // RandomID draws a fresh id.
