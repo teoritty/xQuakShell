@@ -2,6 +2,7 @@ package usecase_test
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"xquakshell/internal/domain"
@@ -290,5 +291,64 @@ func TestEditBeatsAConcurrentDeletion(t *testing.T) {
 	}
 	if !recreated {
 		t.Fatal("the edited item was not pushed back over the tombstone")
+	}
+}
+
+func conflictWorld(t *testing.T) *syncWorld {
+	w := readyWorld(t)
+	w.edit(func(d *domain.VaultData) { d.Connections[0].Host = "mine.example" })
+	w.server.beforeCommit = func() {
+		w.catchUp()
+		w.push(w.item(synctrust.TypeConnection, "c1", domain.Connection{ID: "c1", Name: "web", Host: "theirs.example", Port: 22}))
+	}
+	w.sync()
+	return w
+}
+
+func TestResolvingAConflictWritesTheChosenValueAndSyncsIt(t *testing.T) {
+	w := conflictWorld(t)
+	svc := usecase.NewSyncConflictService(w.vault)
+	list, err := svc.List()
+	if err != nil || len(list) != 1 {
+		t.Fatalf("conflicts = %+v, %v", list, err)
+	}
+	if err := svc.Resolve(syncCtx, list[0].ID, true); err != nil {
+		t.Fatal(err)
+	}
+	d, _ := w.vault.GetData()
+	if d.Connections[0].Host != "mine.example" || len(d.Sync.Conflicts) != 0 {
+		t.Fatalf("host %q, conflicts %d; the chosen value must be written and the conflict gone", d.Connections[0].Host, len(d.Sync.Conflicts))
+	}
+	w.sync()
+	var hostPushed, conflictDeleted bool
+	for _, c := range w.catchUp() {
+		for _, r := range c.Records {
+			if r.Deleted {
+				conflictDeleted = true
+				continue
+			}
+			var conn domain.Connection
+			if b := w.openAs(r); b.Type == synctrust.TypeConnection && json.Unmarshal(b.Data, &conn) == nil && conn.Host == "mine.example" {
+				hostPushed = true
+			}
+		}
+	}
+	if !hostPushed || !conflictDeleted {
+		t.Fatalf("pushed host %v, deleted conflict %v; the resolution must reach every device", hostPushed, conflictDeleted)
+	}
+}
+
+func TestKeepingTheCurrentValueOnlyRemovesTheConflict(t *testing.T) {
+	w := conflictWorld(t)
+	svc := usecase.NewSyncConflictService(w.vault)
+	list, _ := svc.List()
+	if err := svc.Resolve(syncCtx, list[0].ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := w.vault.GetData(); d.Connections[0].Host != "theirs.example" || len(d.Sync.Conflicts) != 0 {
+		t.Fatal("keeping the current value changed it, or left the conflict")
+	}
+	if err := svc.Resolve(syncCtx, list[0].ID, false); !errors.Is(err, usecase.ErrConflictNotFound) {
+		t.Fatalf("resolving twice: %v", err)
 	}
 }
