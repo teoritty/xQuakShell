@@ -54,8 +54,8 @@ func sampleOp() vaultsync.MemberOp {
 	return vaultsync.MemberOp{Vault: vaultsync.ID{40}, Seq: 41, Prev: [32]byte{42}, Kind: vaultsync.MemberRotateEpoch,
 		Author: vaultsync.ID{43}, AuthorDevice: vaultsync.ID{44}, Subject: vaultsync.ID{45}, Role: vaultsync.RoleEditor,
 		Verified: true, Fingerprint: [32]byte{46}, Suite: vaultsync.Suite1, Epoch: 47,
-		Wraps: []vaultsync.KeyWrap{{Member: vaultsync.ID{48}, Digest: [32]byte{53}, Ciphertext: bytes.Repeat([]byte{49}, 1168)},
-			{Member: vaultsync.ID{54}, Digest: [32]byte{55}}},
+		Wraps: []vaultsync.KeyWrap{{Member: vaultsync.ID{48}, Digest: [32]byte{53}, Recipient: [32]byte{56}, Ciphertext: bytes.Repeat([]byte{49}, 1168)},
+			{Member: vaultsync.ID{54}, Digest: [32]byte{55}, Recipient: [32]byte{57}}},
 		RevokedDevices: []vaultsync.ID{{50}}, RetentionDays: 30, RequireVerified: true, Shred: true, TimeUnixMilli: 51,
 		SigAlg: vaultsync.SigEd25519, Sig: bytes.Repeat([]byte{52}, 64)}
 }
@@ -240,6 +240,12 @@ func TestEveryFieldIsChecked(t *testing.T) {
 		"op.fingerprint": func() error {
 			d := syncwire.MemberOpFrom(&op)
 			d.Fingerprint = short
+			_, err := d.ToDomain()
+			return err
+		},
+		"op.wrap recipient": func() error {
+			d := syncwire.MemberOpFrom(&op)
+			d.Wraps[0].Recipient = short
 			_, err := d.ToDomain()
 			return err
 		},

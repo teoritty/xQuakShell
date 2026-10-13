@@ -159,7 +159,7 @@ func TestWrapWithWrongDigestIsRefused(t *testing.T) {
 }
 
 func TestNewKeyWrapRefusesAnEmptyCiphertext(t *testing.T) {
-	if _, err := vaultsync.NewKeyWrap(owner, nil); err == nil {
+	if _, err := vaultsync.NewKeyWrap(owner, aekBytes(1), nil); err == nil {
 		t.Fatal("an empty wrap would be indistinguishable from a pruned one")
 	}
 }

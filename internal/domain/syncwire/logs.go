@@ -82,6 +82,7 @@ func (d DeviceEntry) ToDomain() (vaultsync.DeviceEntry, error) {
 type KeyWrap struct {
 	Member     string `json:"member"`
 	Digest     []byte `json:"digest"`
+	Recipient  []byte `json:"recipient"`
 	Ciphertext []byte `json:"ciphertext,omitempty"`
 }
 
@@ -119,7 +120,8 @@ func MemberOpFrom(op *vaultsync.MemberOp) MemberOp {
 		RequireVerified: op.RequireVerified, Shred: op.Shred, TimeUnixMilli: op.TimeUnixMilli, SigAlg: uint16(op.SigAlg), Sig: bytes.Clone(op.Sig),
 	}
 	for _, w := range op.Wraps {
-		d.Wraps = append(d.Wraps, KeyWrap{Member: w.Member.String(), Digest: bytes.Clone(w.Digest[:]), Ciphertext: bytes.Clone(w.Ciphertext)})
+		d.Wraps = append(d.Wraps, KeyWrap{Member: w.Member.String(), Digest: bytes.Clone(w.Digest[:]), Recipient: bytes.Clone(w.Recipient[:]),
+			Ciphertext: bytes.Clone(w.Ciphertext)})
 	}
 	return d
 }
@@ -172,7 +174,11 @@ func parseWraps(ws []KeyWrap) ([]vaultsync.KeyWrap, error) {
 		if err != nil {
 			return nil, err
 		}
-		out[i] = vaultsync.KeyWrap{Member: member, Digest: digest, Ciphertext: w.Ciphertext}
+		recipient, err := parseHash(w.Recipient)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = vaultsync.KeyWrap{Member: member, Digest: digest, Recipient: recipient, Ciphertext: w.Ciphertext}
 	}
 	return out, nil
 }

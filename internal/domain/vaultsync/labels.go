@@ -47,6 +47,9 @@ func BundleAAD(account ID, suite SuiteID) ([]byte, error) {
 	return NewCanon(LabelBundle).ID(account).U16(uint16(suite)).Encoded()
 }
 
+// LabelEncryptionDigest names the digest of the encryption key a vault-key wrap is sealed to.
+const LabelEncryptionDigest = "xqs-sync/v1/encryption-digest"
+
 // LabelIdentityDigest names the digest of an account identity key that a membership op records.
 const LabelIdentityDigest = "xqs-sync/v1/identity-digest"
 

@@ -43,14 +43,18 @@ const (
 // epoch's wraps (spec §10.1) and the log still verifies: a stripped wrap is pruned, valid in a
 // replayed log and useless for opening anything.
 type KeyWrap struct {
-	Member     ID
-	Digest     [32]byte
+	Member ID
+	Digest [32]byte
+	// Recipient is the EncryptionDigest of the key the wrap was sealed to. Signed with the op, it
+	// tells an admin which members' keys changed since their wrap was made - a wrap that no longer
+	// opens for its member - while the ciphertext itself reveals nothing about its recipient.
+	Recipient  [32]byte
 	Ciphertext []byte
 }
 
 // NewKeyWrap binds a sealed vault key to its digest. An empty ciphertext is refused: it would be
 // indistinguishable from a pruned wrap.
-func NewKeyWrap(member ID, ciphertext []byte) (KeyWrap, error) {
+func NewKeyWrap(member ID, recipientKey, ciphertext []byte) (KeyWrap, error) {
 	if len(ciphertext) == 0 {
 		return KeyWrap{}, rejected("empty wrap for %s", member)
 	}
@@ -58,7 +62,16 @@ func NewKeyWrap(member ID, ciphertext []byte) (KeyWrap, error) {
 	if err != nil {
 		return KeyWrap{}, err
 	}
-	return KeyWrap{Member: member, Digest: d, Ciphertext: slices.Clone(ciphertext)}, nil
+	r, err := EncryptionDigest(recipientKey)
+	if err != nil {
+		return KeyWrap{}, err
+	}
+	return KeyWrap{Member: member, Digest: d, Recipient: r, Ciphertext: slices.Clone(ciphertext)}, nil
+}
+
+// EncryptionDigest names an account encryption key in a wrap without carrying the key itself.
+func EncryptionDigest(key []byte) ([32]byte, error) {
+	return NewCanon(LabelEncryptionDigest).Bytes(key).Sum()
 }
 
 func wrapDigest(ciphertext []byte) ([32]byte, error) {
@@ -69,7 +82,9 @@ func wrapDigest(ciphertext []byte) ([32]byte, error) {
 func (w KeyWrap) Pruned() bool { return len(w.Ciphertext) == 0 }
 
 // Strip is the wrap as the server keeps it once the epoch retired: the signed digest without the key.
-func (w KeyWrap) Strip() KeyWrap { return KeyWrap{Member: w.Member, Digest: w.Digest} }
+func (w KeyWrap) Strip() KeyWrap {
+	return KeyWrap{Member: w.Member, Digest: w.Digest, Recipient: w.Recipient}
+}
 
 // MemberOp is one link of a vault's membership log. Fields a kind does not use stay zero and are
 // still signed, so every kind signs one fixed layout.
@@ -104,7 +119,7 @@ func (op *MemberOp) SigningBytes() ([]byte, error) {
 		Hash(op.Fingerprint).U16(uint16(op.Suite)).U32(op.Epoch)
 	c.U64(uint64(len(op.Wraps)))
 	for _, w := range op.Wraps {
-		c.ID(w.Member).Hash(w.Digest)
+		c.ID(w.Member).Hash(w.Digest).Hash(w.Recipient)
 	}
 	c.IDs(op.RevokedDevices).U16(op.RetentionDays).Bool(op.RequireVerified).Bool(op.Shred).U64(op.TimeUnixMilli).U16(uint16(op.SigAlg))
 	return c.Encoded()

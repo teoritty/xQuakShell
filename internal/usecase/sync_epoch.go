@@ -34,7 +34,7 @@ func (e *SyncEngine) RewrapCurrent(ctx context.Context, vault vaultsync.ID, newE
 	if err != nil {
 		return err
 	}
-	wrap, err := vaultsync.NewKeyWrap(account, wrapped)
+	wrap, err := vaultsync.NewKeyWrap(account, newEncryptionKey, wrapped)
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func (e *SyncEngine) RotateEpoch(ctx context.Context, vault vaultsync.ID, revoke
 	if err != nil {
 		return err
 	}
-	wrap, err := vaultsync.NewKeyWrap(account, wrapped)
+	wrap, err := vaultsync.NewKeyWrap(account, enc, wrapped)
 	if err != nil {
 		return err
 	}

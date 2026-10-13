@@ -78,7 +78,7 @@ func (e *SyncEngine) genesisOp(vault vaultsync.ID, vk []byte) (vaultsync.MemberO
 	if err != nil {
 		return vaultsync.MemberOp{}, err
 	}
-	wrap, err := vaultsync.NewKeyWrap(account, wrapped)
+	wrap, err := vaultsync.NewKeyWrap(account, enc, wrapped)
 	if err != nil {
 		return vaultsync.MemberOp{}, err
 	}
@@ -201,7 +201,7 @@ func (e *SyncEngine) wrapTo(vault vaultsync.ID, epoch uint32, ops []vaultsync.Me
 	if err != nil {
 		return vaultsync.KeyWrap{}, err
 	}
-	return vaultsync.NewKeyWrap(member, wrapped)
+	return vaultsync.NewKeyWrap(member, encKey, wrapped)
 }
 
 func (e *SyncEngine) contact(account vaultsync.ID) (domain.SyncContact, bool) {

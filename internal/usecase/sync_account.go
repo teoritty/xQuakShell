@@ -240,7 +240,7 @@ func (s *SyncAccountService) personalGenesis(acct *domain.SyncAccount) (vaultsyn
 	if err != nil {
 		return vaultsync.MemberOp{}, err
 	}
-	wrap, err := vaultsync.NewKeyWrap(account, wrapped)
+	wrap, err := vaultsync.NewKeyWrap(account, acct.EncryptionKey, wrapped)
 	if err != nil {
 		return vaultsync.MemberOp{}, err
 	}

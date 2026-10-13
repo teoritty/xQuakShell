@@ -17,7 +17,7 @@ var signingGolden = map[string]string{
 	"envelope":     "425a942706d046d3ed0d1461585b2b82c3f31f67ee3e109d55e4d08918c801fc",
 	"head":         "b15e2f67d7923b528cf2d19391d4d7ecf9b4501d2ab37f63af534cb07111f09a",
 	"device-entry": "ee709a3e957a4c54bd34061add4d81dbcc8b267aac669803ce19da9e5f697b60",
-	"member-op":    "b7a91013ecee078c7b683d4ef18bbb472a24bad76fee763325bd088c9418d139",
+	"member-op":    "1d7ef01bcf6a5b79c8353bc9cf71a5904b4158fb9cd447de34382f1c7c871225",
 }
 
 func signingSamples(t *testing.T) map[string][]byte {
@@ -41,7 +41,7 @@ func signingSamples(t *testing.T) map[string][]byte {
 		Vault: vaultsync.ID{24}, Seq: 25, Prev: [32]byte{26}, Kind: vaultsync.MemberRotateEpoch, Author: vaultsync.ID{27},
 		AuthorDevice: vaultsync.ID{28}, Subject: vaultsync.ID{29}, Role: vaultsync.RoleEditor, Verified: true,
 		Fingerprint: [32]byte{30}, Suite: vaultsync.Suite1, Epoch: 31,
-		Wraps:          []vaultsync.KeyWrap{{Member: vaultsync.ID{32}, Digest: [32]byte{37}, Ciphertext: []byte{33}}},
+		Wraps:          []vaultsync.KeyWrap{{Member: vaultsync.ID{32}, Digest: [32]byte{37}, Recipient: [32]byte{38}, Ciphertext: []byte{33}}},
 		RevokedDevices: []vaultsync.ID{{34}}, RetentionDays: 35, RequireVerified: true, Shred: true, TimeUnixMilli: 36,
 		SigAlg: vaultsync.SigEd25519,
 	}

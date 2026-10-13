@@ -81,7 +81,7 @@ func (p *pullRun) rotationFor(m *vaultsync.MembershipState, members []vaultsync.
 		if err != nil {
 			return vaultsync.MemberOp{}, err
 		}
-		w, err := vaultsync.NewKeyWrap(member, wrapped)
+		w, err := vaultsync.NewKeyWrap(member, enc, wrapped)
 		if err != nil {
 			return vaultsync.MemberOp{}, err
 		}

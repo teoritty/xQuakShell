@@ -188,7 +188,7 @@ func (u *User) CreateOp(t *testing.T, vault vaultsync.ID) vaultsync.MemberOp {
 func WrapFor(ids ...vaultsync.ID) []vaultsync.KeyWrap {
 	out := make([]vaultsync.KeyWrap, len(ids))
 	for i, id := range ids {
-		w, err := vaultsync.NewKeyWrap(id, bytes.Repeat([]byte{id[0]}, 1168))
+		w, err := vaultsync.NewKeyWrap(id, bytes.Repeat([]byte{9}, 1216), bytes.Repeat([]byte{id[0]}, 1168))
 		if err != nil {
 			panic(err)
 		}

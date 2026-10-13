@@ -46,7 +46,7 @@ func checker(ps map[vaultsync.ID]party) vaultsync.SignatureCheck {
 }
 
 func wrap(member vaultsync.ID) vaultsync.KeyWrap {
-	w, err := vaultsync.NewKeyWrap(member, bytes.Repeat([]byte{member[0]}, 1168))
+	w, err := vaultsync.NewKeyWrap(member, aekBytes(member[0]), bytes.Repeat([]byte{member[0]}, 1168))
 	if err != nil {
 		panic(err)
 	}

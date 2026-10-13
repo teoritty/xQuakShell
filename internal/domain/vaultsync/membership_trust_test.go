@@ -57,3 +57,28 @@ func TestIdentityDigestSeparatesKeys(t *testing.T) {
 		t.Fatal("identity digests must differ per key and never be zero")
 	}
 }
+
+// A wrap records which encryption key it was sealed to, signed with the op, so an admin can tell a
+// member whose key changed since - their wrap no longer opens for them - without the ciphertext
+// revealing anything.
+func TestAWrapRecordsItsRecipientKey(t *testing.T) {
+	key := aekBytes(7)
+	w, err := vaultsync.NewKeyWrap(admin, key, make([]byte, 1168))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, _ := vaultsync.EncryptionDigest(key)
+	if w.Recipient != want || w.Strip().Recipient != want {
+		t.Fatal("a wrap, stripped or not, must keep the digest of the key it was sealed to")
+	}
+	other, _ := vaultsync.EncryptionDigest(aekBytes(8))
+	if other == want {
+		t.Fatal("encryption digests must differ per key")
+	}
+	f := newFixture(t)
+	op := f.op(owner, &vaultsync.MemberOp{Kind: vaultsync.MemberCreate, Wraps: wrapsFor(owner), RetentionDays: 30})
+	op.Wraps[0].Recipient[0] ^= 1
+	if err := f.state.Apply(op, checker(f.ps)); !errors.Is(err, vaultsync.ErrBadSignature) {
+		t.Fatalf("err = %v, want ErrBadSignature: the recipient is signed with the op", err)
+	}
+}
