@@ -264,3 +264,29 @@ func ensureMaps(d *domain.VaultData) {
 		d.PluginSecrets = map[string][]byte{}
 	}
 }
+
+// conflictMapper syncs the vault's unresolved conflicts. A conflict's id is derived from its own
+// content, so a device cannot file one conflict under another's record and silently replace it.
+var conflictMapper = sliceMapper(
+	func(d *domain.VaultData) *[]domain.SyncConflict {
+		if d.Sync == nil {
+			d.Sync = &domain.VaultSync{}
+		}
+		return &d.Sync.Conflicts
+	},
+	func(c domain.SyncConflict) string {
+		if c.ID != domain.ConflictID(c.RecordType, c.ItemKey, c.Path) {
+			return ""
+		}
+		return c.ID
+	},
+	func(c *domain.SyncConflict) error {
+		if len(c.Path) == 0 || c.ItemKey == "" {
+			return fmt.Errorf("a conflict names no field")
+		}
+		if _, ok := KnownSchemas()[c.RecordType]; !ok {
+			return fmt.Errorf("a conflict on an unknown record type")
+		}
+		return nil
+	},
+)

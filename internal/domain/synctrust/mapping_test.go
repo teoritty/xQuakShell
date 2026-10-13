@@ -268,3 +268,46 @@ func TestValidateChecksWithoutApplying(t *testing.T) {
 		t.Fatal("a settings deletion validated")
 	}
 }
+
+func conflict(itemKey string, path ...string) domain.SyncConflict {
+	return domain.SyncConflict{ID: domain.ConflictID("password", itemKey, path), RecordType: "password", ItemKey: itemKey,
+		Path: path, Local: json.RawMessage(`"bG9jYWw="`), Remote: json.RawMessage(`"cmVtb3Rl"`), AtUnixMilli: 5}
+}
+
+func TestConflictsSyncAsRecords(t *testing.T) {
+	src := domain.NewVaultData()
+	src.Sync = &domain.VaultSync{Conflicts: []domain.SyncConflict{conflict("p1", "value")}}
+	dst := domain.NewVaultData()
+	if err := synctrust.Apply(dst, asChanges(t, snapshot(t, src))); err != nil {
+		t.Fatal(err)
+	}
+	if dst.Sync == nil || !reflect.DeepEqual(dst.Sync.Conflicts, src.Sync.Conflicts) {
+		t.Fatalf("conflicts = %+v", dst.Sync)
+	}
+	if err := synctrust.Apply(dst, []synctrust.Entry{{Type: synctrust.TypeConflict, Key: conflict("p1", "value").ID}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(dst.Sync.Conflicts) != 0 {
+		t.Fatal("resolving a conflict elsewhere did not remove it here")
+	}
+}
+
+func TestConflictIDMustMatchItsContent(t *testing.T) {
+	c := conflict("p1", "value")
+	c.ItemKey = "p2"
+	data, _ := json.Marshal(c)
+	if err := synctrust.Validate(synctrust.Entry{Type: synctrust.TypeConflict, Key: c.ID, Data: data}); err == nil {
+		t.Fatal("a conflict whose id names another item was accepted")
+	}
+	c = conflict("p1")
+	data, _ = json.Marshal(c)
+	if err := synctrust.Validate(synctrust.Entry{Type: synctrust.TypeConflict, Key: c.ID, Data: data}); err == nil {
+		t.Fatal("a conflict without a field path was accepted")
+	}
+}
+
+func TestConflictIDsCannotBeForged(t *testing.T) {
+	if domain.ConflictID("a", "b\",\"c", nil) == domain.ConflictID("a", "b", []string{"c"}) {
+		t.Fatal("an item key containing the separator forged another conflict's id")
+	}
+}

@@ -48,10 +48,11 @@ var mappers = map[RecordType]mapper{
 	TypePluginSecret: pluginSecretMapper,
 	TypeKnownHost:    knownHostMapper,
 	TypePeerTrust:    peerTrustMapper,
+	TypeConflict:     conflictMapper,
 }
 
-// mapperFor finds the mapper for t. vault-meta and conflict records have none on purpose: they are
-// the engine's own records and never become part of the vault the user edits.
+// mapperFor finds the mapper for t. vault-meta has none on purpose: it is the engine's own record
+// and never becomes part of the vault the user edits.
 func mapperFor(t RecordType) (mapper, string, error) {
 	if section, ok := IsSettingsType(t); ok {
 		return settingsMapper(section), section, nil

@@ -60,6 +60,9 @@ type VaultData struct {
 	PeerTrust []PeerTrustEntry `json:"peerTrust,omitempty"`
 
 	Settings *AppSettings `json:"settings,omitempty"`
+
+	// Sync is this device's sync state; nil until sync is enabled.
+	Sync *VaultSync `json:"sync,omitempty"`
 }
 
 // NewVaultData returns an empty VaultData at the current schema version.
