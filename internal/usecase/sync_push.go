@@ -49,8 +49,12 @@ func (e *SyncEngine) Sync(ctx context.Context, vault vaultsync.ID) (SyncReport, 
 			return report, err
 		}
 		pushed, err := p.push(ctx)
+		if err == nil {
+			err = p.retain(ctx)
+		}
 		var conflict *synctrust.ConflictError
 		if errors.As(err, &conflict) {
+			report.Pushed += pushed
 			continue
 		}
 		report.Pushed += pushed
@@ -89,23 +93,28 @@ func (p *pullRun) push(ctx context.Context) (int, error) {
 	if err != nil || len(changes) == 0 {
 		return 0, err
 	}
-	c, err := p.buildCommit(changes)
+	c, err := p.buildCommit(changes, nil)
 	if err != nil {
 		return 0, err
 	}
+	return len(c.Records), p.send(ctx, c)
+}
+
+// send records a commit in the outbox, pushes it and adopts it.
+func (p *pullRun) send(ctx context.Context, c vaultsync.Commit) error {
 	// Recorded before it is sent: after a crash or a lost reply, the same commit with the same id is
 	// resent rather than a second one built, which the server would store twice.
 	if err := p.e.d.State.PutOutbox(ctx, c); err != nil {
-		return 0, err
+		return err
 	}
 	if _, err := p.e.d.Server.Commit(ctx, c); err != nil {
 		var conflict *synctrust.ConflictError
 		if errors.As(err, &conflict) {
-			return 0, errors.Join(err, p.e.d.State.ClearOutbox(ctx, p.vault, c.Head.Commit))
+			return errors.Join(err, p.e.d.State.ClearOutbox(ctx, p.vault, c.Head.Commit))
 		}
-		return 0, err
+		return err
 	}
-	return len(c.Records), p.adopt(ctx, c)
+	return p.adopt(ctx, c)
 }
 
 // adopt applies this device's own accepted commit through the same verification as anyone else's.
@@ -121,7 +130,7 @@ func (p *pullRun) adopt(ctx context.Context, c vaultsync.Commit) error {
 	if err := p.e.d.State.AdvanceVault(ctx, c.Head, c.Records, c.Purged); err != nil {
 		return err
 	}
-	p.advance(next, c.Records)
+	p.advance(next, c)
 	return p.e.d.State.ClearOutbox(ctx, p.vault, c.Head.Commit)
 }
 
@@ -192,8 +201,9 @@ func (p *pullRun) heldIDs(ctx context.Context) (map[vaultsync.ID]bool, error) {
 	return out, nil
 }
 
-// buildCommit seals and signs the changes and a head over them at the current membership position.
-func (p *pullRun) buildCommit(changes []change) (vaultsync.Commit, error) {
+// buildCommit seals and signs the changes and a head over them at the current membership position;
+// purged tombstones leave the tree with the same commit.
+func (p *pullRun) buildCommit(changes []change, purged []vaultsync.ID) (vaultsync.Commit, error) {
 	m, err := p.members.at(uint64(len(p.ops)))
 	if err != nil {
 		return vaultsync.Commit{}, err
@@ -206,8 +216,8 @@ func (p *pullRun) buildCommit(changes []change) (vaultsync.Commit, error) {
 		}
 		records = append(records, env)
 	}
-	head, err := p.signHead(records, m)
-	return vaultsync.Commit{Head: head, Records: records}, err
+	head, err := p.signHead(records, purged, m)
+	return vaultsync.Commit{Head: head, Records: records, Purged: purged}, err
 }
 
 func (p *pullRun) sealChange(ch change, epoch uint32) (vaultsync.Envelope, error) {
@@ -235,10 +245,13 @@ func (p *pullRun) sealChange(ch change, epoch uint32) (vaultsync.Envelope, error
 	return env, err
 }
 
-func (p *pullRun) signHead(records []vaultsync.Envelope, m *vaultsync.MembershipState) (vaultsync.Head, error) {
+func (p *pullRun) signHead(records []vaultsync.Envelope, purged []vaultsync.ID, m *vaultsync.MembershipState) (vaultsync.Head, error) {
 	leaves := map[vaultsync.ID]vaultsync.Leaf{}
 	for _, l := range p.state.Leaves() {
 		leaves[l.Record] = l
+	}
+	for _, id := range purged {
+		delete(leaves, id)
 	}
 	for i := range records {
 		l, err := vaultsync.LeafOf(&records[i])

@@ -44,8 +44,9 @@ func (e *SyncEngine) RewrapCurrent(ctx context.Context, vault vaultsync.ID, newE
 
 // RotateEpoch moves the vault to a fresh key wrapped to the account's current encryption key,
 // stops accepting the revoked devices from this membership position on (spec §5.4), and
-// re-encrypts every live record under the new key.
-func (e *SyncEngine) RotateEpoch(ctx context.Context, vault vaultsync.ID, revoked []vaultsync.ID, random io.Reader) error {
+// re-encrypts every live record under the new key. A shred rotation retires every older epoch as
+// soon as that re-encryption lands (Shred now).
+func (e *SyncEngine) RotateEpoch(ctx context.Context, vault vaultsync.ID, revoked []vaultsync.ID, shred bool, random io.Reader) error {
 	if e.d.Crypto == nil {
 		return ErrNoCrypto
 	}
@@ -72,7 +73,7 @@ func (e *SyncEngine) RotateEpoch(ctx context.Context, vault vaultsync.ID, revoke
 	// its rotation at the previous one instead of having it refused by every verifier.
 	rotations := m.Rotations()
 	op := vaultsync.MemberOp{Kind: vaultsync.MemberRotateEpoch, Epoch: m.Epoch() + 1, Wraps: []vaultsync.KeyWrap{wrap},
-		RevokedDevices: revoked, TimeUnixMilli: rotations[len(rotations)-1].StartedUnixMilli}
+		RevokedDevices: revoked, Shred: shred, TimeUnixMilli: rotations[len(rotations)-1].StartedUnixMilli}
 	if err := p.appendOp(ctx, m, op); err != nil {
 		return err
 	}
@@ -151,19 +152,9 @@ func (p *pullRun) staleRecords(current uint32) []change {
 
 // commitChanges builds, records, sends and adopts one commit of the given changes.
 func (p *pullRun) commitChanges(ctx context.Context, changes []change) error {
-	c, err := p.buildCommit(changes)
+	c, err := p.buildCommit(changes, nil)
 	if err != nil {
 		return err
 	}
-	if err := p.e.d.State.PutOutbox(ctx, c); err != nil {
-		return err
-	}
-	if _, err := p.e.d.Server.Commit(ctx, c); err != nil {
-		var conflict *synctrust.ConflictError
-		if errors.As(err, &conflict) {
-			return errors.Join(err, p.e.d.State.ClearOutbox(ctx, p.vault, c.Head.Commit))
-		}
-		return err
-	}
-	return p.adopt(ctx, c)
+	return p.send(ctx, c)
 }

@@ -41,6 +41,8 @@ type svcServer struct {
 	dropReply bool
 	// failCommit loses the next commit before the server stores it.
 	failCommit bool
+	// historyPruned answers every pull with history_pruned, as after the server pruned.
+	historyPruned bool
 }
 
 // principal authenticates the current token the way the transport does, with an expired or revoked
@@ -79,6 +81,9 @@ func (s *svcServer) CreateVault(ctx context.Context, op vaultsync.MemberOp) erro
 func (s *svcServer) Changes(ctx context.Context, vault vaultsync.ID, since uint64, limit int) ([]synctrust.RemoteCommit, bool, error) {
 	if s.calls++; s.calls > 50 {
 		return nil, false, errors.New("the client keeps asking: it is looping")
+	}
+	if s.historyPruned {
+		return nil, false, synctrust.ErrHistoryPruned
 	}
 	p, err := s.principal()
 	if err != nil {

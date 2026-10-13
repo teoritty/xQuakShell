@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"xquakshell/internal/domain"
@@ -22,6 +23,9 @@ type pullRun struct {
 	bodies    map[vaultsync.ID]synctrust.Body
 	namingKey []byte
 	report    PullReport
+	// landed dates each base record by the signed time of the head that carried it: the clock a
+	// tombstone's trash window counts from.
+	landed map[vaultsync.ID]uint64
 	// preferRemote applies the account's versions over local ones without merging: the user chose
 	// to replace this device's data with the account's.
 	preferRemote bool
@@ -46,8 +50,21 @@ func (p *pullRun) pullAll(ctx context.Context) error {
 			return err
 		}
 	}
+	resynced := false
 	for {
 		commits, more, err := p.e.d.Server.Changes(ctx, p.vault, p.state.Cursor().Seq, pullPageSize)
+		// Resynced at most once per pull: a server that keeps claiming pruned history after handing
+		// over a snapshot is stalling, and the next round asks again.
+		if errors.Is(err, synctrust.ErrHistoryPruned) {
+			if resynced {
+				return nil
+			}
+			resynced = true
+			if err := p.resync(ctx); err != nil {
+				return err
+			}
+			continue
+		}
 		if err != nil {
 			return err
 		}
@@ -85,7 +102,10 @@ func (e *SyncEngine) startPull(ctx context.Context, vault vaultsync.ID) (*pullRu
 	p := &pullRun{e: e, vault: vault, ops: ops, resolve: resolve, state: state,
 		members: &membershipCursor{vault: vault, ops: ops, check: check},
 		base:    indexEnvelopes(stored.Records), names: map[vaultsync.ID]syncKeyName{},
-		bodies: map[vaultsync.ID]synctrust.Body{}}
+		bodies: map[vaultsync.ID]synctrust.Body{}, landed: map[vaultsync.ID]uint64{}}
+	for id, at := range stored.LandedAt {
+		p.landed[id] = at
+	}
 	p.report.NewDevices = newDevices(fresh, e.d.Keys.Device())
 	if meta, ok := p.base[synctrust.VaultMetaID(vault)]; ok {
 		if err := p.learnMeta(meta); err != nil {
@@ -116,7 +136,14 @@ func (p *pullRun) applyCommit(ctx context.Context, c synctrust.RemoteCommit) err
 
 // land applies a verified commit's records to the vault and then advances the stored state to it.
 func (p *pullRun) land(ctx context.Context, c vaultsync.Commit, next *vaultsync.VaultState) error {
-	out, err := p.interpret(c)
+	return p.landAs(ctx, c, c, next)
+}
+
+// landAs stores c but applies meaning to the vault: they differ only for a resync, where records
+// deleted and purged while this device was away reach the vault as deletions they never were on
+// the wire.
+func (p *pullRun) landAs(ctx context.Context, c, meaning vaultsync.Commit, next *vaultsync.VaultState) error {
+	out, err := p.interpret(meaning)
 	if err != nil {
 		return err
 	}
@@ -131,7 +158,7 @@ func (p *pullRun) land(ctx context.Context, c vaultsync.Commit, next *vaultsync.
 	if err := p.e.d.State.AdvanceVault(ctx, c.Head, c.Records, c.Purged); err != nil {
 		return err
 	}
-	p.advance(next, c.Records)
+	p.advance(next, c)
 	p.report.Applied += len(out.changes)
 	return nil
 }
@@ -156,11 +183,17 @@ func (p *pullRun) settleQuarantine(ctx context.Context, out interpretation) erro
 }
 
 // advance moves the run onto a commit it verified and stored.
-func (p *pullRun) advance(next *vaultsync.VaultState, records []vaultsync.Envelope) {
+func (p *pullRun) advance(next *vaultsync.VaultState, c vaultsync.Commit) {
 	p.state = next
-	for _, r := range records {
+	for _, r := range c.Records {
 		p.base[r.Record] = r
+		p.landed[r.Record] = c.Head.ClientTimeUnixMilli
 		delete(p.bodies, r.Record)
+	}
+	for _, id := range c.Purged {
+		delete(p.base, id)
+		delete(p.landed, id)
+		delete(p.bodies, id)
 	}
 }
 

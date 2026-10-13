@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"xquakshell/internal/domain"
@@ -135,10 +136,13 @@ type device struct {
 	server    *accountServer
 	session   usecase.SyncSession
 	engine    *usecase.SyncEngine
+	// now is the device's clock; tests move it to cross retention windows.
+	now atomic.Int64
 }
 
 func newDevice(t *testing.T, h *servertest.Harness, name string) *device {
 	d := &device{t: t, vault: &syncTestVault{data: domain.NewVaultData()}}
+	d.now.Store(7)
 	st, err := syncstate.Open(syncCtx, filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -152,7 +156,7 @@ func newDevice(t *testing.T, h *servertest.Harness, name string) *device {
 			return d.server, nil
 		},
 		NewAKE: func([]byte) (vaultsync.PasswordAKEClient, error) { return &fakeAKE{}, nil },
-		Crypto: synccrypto.Account{}, Random: rand.Reader, NowUnixMilli: func() int64 { return 7 }, DeviceName: name, Platform: "test"})
+		Crypto: synccrypto.Account{}, Random: rand.Reader, NowUnixMilli: d.now.Load, DeviceName: name, Platform: "test"})
 	return d
 }
 
@@ -163,7 +167,7 @@ func creds(password string) usecase.SyncCredentials {
 
 func (d *device) newEngine(session usecase.SyncSession) *usecase.SyncEngine {
 	return usecase.NewSyncEngine(usecase.SyncEngineDeps{Server: session.Server, State: d.state, Vault: d.vault, Keys: session.Keys,
-		Cipher: synccrypto.Cipher{}, Crypto: synccrypto.Account{}, NowUnixMilli: func() int64 { return 7 }})
+		Cipher: synccrypto.Cipher{}, Crypto: synccrypto.Account{}, NowUnixMilli: d.now.Load})
 }
 
 func (d *device) start(session usecase.SyncSession) {

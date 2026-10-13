@@ -34,7 +34,7 @@ func (e *SyncEngine) EnsureVaultMeta(ctx context.Context, vault vaultsync.ID, ra
 	if err != nil {
 		return err
 	}
-	c, err := p.buildCommit([]change{{id: synctrust.VaultMetaID(vault), entry: synctrust.Entry{Type: synctrust.TypeVaultMeta, Data: body.Data}}})
+	c, err := p.buildCommit([]change{{id: synctrust.VaultMetaID(vault), entry: synctrust.Entry{Type: synctrust.TypeVaultMeta, Data: body.Data}}}, nil)
 	if err != nil {
 		return err
 	}

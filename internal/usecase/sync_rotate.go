@@ -227,7 +227,7 @@ func (s *SyncAccountService) finishRotation(ctx context.Context, srv synctrust.A
 	if err := s.storeAccount(ctx, func(a *domain.SyncAccount) { a.RekeyPending = false }); err != nil {
 		return session, err
 	}
-	return session, s.d.NewEngine(session).RotateEpoch(ctx, session.Personal, r.revoke, s.d.Random)
+	return session, s.d.NewEngine(session).RotateEpoch(ctx, session.Personal, r.revoke, false, s.d.Random)
 }
 
 // rekey re-registers OPAQUE under password and replaces the bundle, consented by the new account key.
