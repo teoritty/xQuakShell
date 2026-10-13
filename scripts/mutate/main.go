@@ -100,6 +100,11 @@ var targets = []target{
 // ./internal/domain/syncwire/ is absent for the same panic, confirmed by trying it. The hash length
 // check and the trailing-data check were each broken by hand and turned three tests red.
 //
+// ./internal/domain/synctrust/ is absent for the same panic, confirmed by trying it twice. Its
+// rules were mutation-tested by hand instead: the weakening classification of each guarded
+// setting, the quarantine release, the writable check and the conflict mapper were each broken in
+// turn and confirmed to turn a test red. Re-add it when gremlins can complete the package.
+//
 // ./internal/domain/ is absent for the older reason, which remains true:
 // gremlins v0.5.0 panics part-way through it ("error, this is temporary",
 // engine/executor.go:167) and leaves no usable report. That panic is
