@@ -13,7 +13,9 @@ import {
   reloginSyncRpc,
   resetSyncPasswordRpc,
   resolveSyncConflictRpc,
+  restoreSyncTrashRpc,
   revokeSyncDeviceRpc,
+  shredSyncNowRpc,
   syncNowRpc,
   type EnableSyncRequest,
   type SyncServerProbe,
@@ -79,3 +81,10 @@ export const confirmSyncHeld = (record: string, masterPassword: string) =>
   attempt(() => confirmSyncHeldRpc(record, masterPassword));
 export const rejectSyncHeld = (record: string) => attempt(() => rejectSyncHeldRpc(record));
 export const resolveSyncConflict = (id: string, useOther: boolean) => attempt(() => resolveSyncConflictRpc(id, useOther));
+export const restoreSyncTrash = (record: string) => attempt(() => restoreSyncTrashRpc(record));
+
+/** Shred now cannot be undone; an empty master password is refused here so it is never sent. */
+export async function shredSyncNow(masterPassword: string): Promise<string> {
+  if (masterPassword === '') return 'Enter the master password.';
+  return attempt(() => shredSyncNowRpc(masterPassword));
+}

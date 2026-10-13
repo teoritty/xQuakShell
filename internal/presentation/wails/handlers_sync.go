@@ -45,6 +45,9 @@ type SyncCommands interface {
 	HeldChanges(ctx context.Context) ([]usecase.HeldChange, error)
 	ConfirmHeld(ctx context.Context, record vaultsync.ID, masterPassword string) error
 	RejectHeld(ctx context.Context, record vaultsync.ID) error
+	Trash(ctx context.Context) ([]usecase.TrashItem, error)
+	RestoreTrash(ctx context.Context, record vaultsync.ID) error
+	ShredNow(ctx context.Context, masterPassword string) error
 }
 
 // SyncConflictCommands lists and resolves credential conflicts.

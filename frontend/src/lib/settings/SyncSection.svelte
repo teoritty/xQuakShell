@@ -7,6 +7,7 @@
   import SyncAccountPanel from './sync/SyncAccountPanel.svelte';
   import SyncDevicesPanel from './sync/SyncDevicesPanel.svelte';
   import SyncChangesPanel from './sync/SyncChangesPanel.svelte';
+  import SyncTrashPanel from './sync/SyncTrashPanel.svelte';
   import { syncStatus } from '../../stores/syncState';
   import { refreshSyncStatus } from '../../actions/syncActions';
   import type { SettingsSearchViewState } from '../settingsSearch';
@@ -33,5 +34,8 @@
   </SettingsSection>
   <SettingsSection tab="sync" section="changes" {view}>
     <SyncChangesPanel />
+  </SettingsSection>
+  <SettingsSection tab="sync" section="trash" {view}>
+    <SyncTrashPanel />
   </SettingsSection>
 {/if}

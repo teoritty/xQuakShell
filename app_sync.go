@@ -65,3 +65,12 @@ func (a *App) ListSyncConflicts() ([]wails.SyncConflictDTO, error) { return a.ap
 func (a *App) ResolveSyncConflict(id string, useOther bool) error {
 	return a.api.ResolveSyncConflict(id, useOther)
 }
+
+// ListSyncTrash lists deleted records of the synced vault.
+func (a *App) ListSyncTrash() ([]wails.SyncTrashItemDTO, error) { return a.api.ListSyncTrash() }
+
+// RestoreSyncTrash brings a deleted record back.
+func (a *App) RestoreSyncTrash(record string) error { return a.api.RestoreSyncTrash(record) }
+
+// ShredSyncNow destroys the synced vault's trash and history everywhere.
+func (a *App) ShredSyncNow(masterPassword string) error { return a.api.ShredSyncNow(masterPassword) }

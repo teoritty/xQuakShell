@@ -1,7 +1,7 @@
 import { get } from 'svelte/store';
 import { setGateway, setRuntime } from '../backend/context';
 import { createFakeGateway } from '../backend/fakeGateway';
-import { enableSync, joinSync, probeSyncServer, refreshSyncStatus, confirmSyncHeld, syncNow } from './syncActions';
+import { enableSync, joinSync, probeSyncServer, refreshSyncStatus, confirmSyncHeld, syncNow, restoreSyncTrash, shredSyncNow } from './syncActions';
 import { applySyncRound, offSyncStatus, syncStatus } from '../stores/syncState';
 import { subscribeSyncEvents } from '../events/syncEvents';
 
@@ -94,6 +94,23 @@ async function run() {
     assert(get(syncStatus).state === 'stopped', 'a stopped round reaches the indicator');
     handler!({ junk: true });
     assert(get(syncStatus).state === 'stopped', 'a malformed event is ignored');
+  }
+
+  // Restore passes the record through; shred refuses an empty master password before any RPC.
+  {
+    const fake = createFakeGateway();
+    fake.program('RestoreSyncTrash', undefined);
+    fake.program('ShredSyncNow', () => {
+      throw new Error('The master password is needed to shred the trash and history.');
+    });
+    fake.program('GetSyncStatus', enabled);
+    setGateway(fake);
+    assert((await restoreSyncTrash('0a0b')) === '', 'a restore that succeeds returns no message');
+    assert(fake.calls.some((c) => c.method === 'RestoreSyncTrash' && c.args[0] === '0a0b'), 'the record id reaches the backend');
+    assert((await shredSyncNow('')) !== '', 'shred without a master password is refused');
+    assert(!fake.calls.some((c) => c.method === 'ShredSyncNow'), 'an empty master password never reaches the backend');
+    const msg = await shredSyncNow('wrong');
+    assert(msg.includes('master password'), 'the backend refusal is returned for the form');
   }
 
   // Without a gateway nothing throws.

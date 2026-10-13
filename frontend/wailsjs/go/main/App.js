@@ -366,6 +366,10 @@ export function ListSyncHeld() {
   return window['go']['main']['App']['ListSyncHeld']();
 }
 
+export function ListSyncTrash() {
+  return window['go']['main']['App']['ListSyncTrash']();
+}
+
 export function LockVault() {
   return window['go']['main']['App']['LockVault']();
 }
@@ -550,6 +554,10 @@ export function ResolveSyncConflict(arg1, arg2) {
   return window['go']['main']['App']['ResolveSyncConflict'](arg1, arg2);
 }
 
+export function RestoreSyncTrash(arg1) {
+  return window['go']['main']['App']['RestoreSyncTrash'](arg1);
+}
+
 export function RevokeSyncDevice(arg1, arg2) {
   return window['go']['main']['App']['RevokeSyncDevice'](arg1, arg2);
 }
@@ -620,6 +628,10 @@ export function SetKeyPolicy(arg1, arg2) {
 
 export function SetPluginEnabled(arg1, arg2) {
   return window['go']['main']['App']['SetPluginEnabled'](arg1, arg2);
+}
+
+export function ShredSyncNow(arg1) {
+  return window['go']['main']['App']['ShredSyncNow'](arg1);
 }
 
 export function StartFileWatch(arg1) {

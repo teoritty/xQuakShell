@@ -178,6 +178,9 @@ var syncMessages = []struct {
 	{usecase.ErrNoPendingJoin, "No sign-in is waiting to be joined."},
 	{usecase.ErrNoBackup, "The vault could not be backed up, so nothing was changed."},
 	{usecase.ErrSyncBusy, "Another device keeps changing the vault. Sync will try again shortly."},
+	{usecase.ErrTrashNotFound, "That item is not in the trash any more."},
+	{usecase.ErrRestoreWeakens, "Restoring that item would weaken this device's security settings, so it was not restored."},
+	{usecase.ErrShredReauth, "The master password is needed to shred the trash and history."},
 }
 
 func userSyncError(err error) error {

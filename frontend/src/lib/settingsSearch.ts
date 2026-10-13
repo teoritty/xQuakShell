@@ -55,6 +55,7 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
   { tabId: 'sync', sectionId: 'account' },
   { tabId: 'sync', sectionId: 'devices' },
   { tabId: 'sync', sectionId: 'changes' },
+  { tabId: 'sync', sectionId: 'trash' },
 ];
 
 /** The message key holding a tab's caption. */

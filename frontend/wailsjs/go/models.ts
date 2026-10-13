@@ -2333,6 +2333,28 @@ export namespace wails {
 	        this.joinPending = source["joinPending"];
 	    }
 	}
+	export class SyncTrashItemDTO {
+	    record: string;
+	    type: string;
+	    key: string;
+	    deletedUnixMilli: number;
+	    purgeUnixMilli: number;
+	    restorable: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncTrashItemDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.record = source["record"];
+	        this.type = source["type"];
+	        this.key = source["key"];
+	        this.deletedUnixMilli = source["deletedUnixMilli"];
+	        this.purgeUnixMilli = source["purgeUnixMilli"];
+	        this.restorable = source["restorable"];
+	    }
+	}
 	
 	export class UnlockResultDTO {
 	    method: string;

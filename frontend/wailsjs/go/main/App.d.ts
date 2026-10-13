@@ -185,6 +185,8 @@ export function ListSyncDevices():Promise<Array<wails.SyncDeviceDTO>>;
 
 export function ListSyncHeld():Promise<Array<wails.SyncHeldDTO>>;
 
+export function ListSyncTrash():Promise<Array<wails.SyncTrashItemDTO>>;
+
 export function LockVault():Promise<void>;
 
 export function MkdirLocalPath(arg1:string):Promise<void>;
@@ -277,6 +279,8 @@ export function ResolvePeerTrust(arg1:string,arg2:string,arg3:string):Promise<vo
 
 export function ResolveSyncConflict(arg1:string,arg2:boolean):Promise<void>;
 
+export function RestoreSyncTrash(arg1:string):Promise<void>;
+
 export function RevokeSyncDevice(arg1:string,arg2:string):Promise<void>;
 
 export function SaveConnection(arg1:wails.ConnectionDTO):Promise<wails.ConnectionDTO>;
@@ -312,6 +316,8 @@ export function SetGitHubRepositoryTrust(arg1:wails.SetGitHubRepositoryTrustRequ
 export function SetKeyPolicy(arg1:string,arg2:wails.KeyOptionsDTO):Promise<void>;
 
 export function SetPluginEnabled(arg1:string,arg2:boolean):Promise<void>;
+
+export function ShredSyncNow(arg1:string):Promise<void>;
 
 export function StartFileWatch(arg1:string):Promise<void>;
 

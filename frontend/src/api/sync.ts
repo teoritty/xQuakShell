@@ -10,9 +10,10 @@ import type {
   SyncHeld,
   SyncServerProbe,
   SyncStatus,
+  SyncTrashItem,
 } from '../backend/syncGateway';
 
-export type { EnableSyncRequest, SyncConflict, SyncDevice, SyncHeld, SyncServerProbe, SyncStatus };
+export type { EnableSyncRequest, SyncConflict, SyncDevice, SyncHeld, SyncServerProbe, SyncStatus, SyncTrashItem };
 
 const inline = { rethrow: true, silence: () => true };
 
@@ -80,4 +81,16 @@ export function listSyncConflictsRpc(): Promise<SyncConflict[]> {
 
 export function resolveSyncConflictRpc(id: string, useOther: boolean): Promise<void> {
   return callBackend('Resolve conflict', undefined, (app) => app.ResolveSyncConflict(id, useOther), inline);
+}
+
+export function listSyncTrashRpc(): Promise<SyncTrashItem[]> {
+  return callBackend<SyncTrashItem[]>('Sync trash', [], (app) => app.ListSyncTrash(), inline);
+}
+
+export function restoreSyncTrashRpc(record: string): Promise<void> {
+  return callBackend('Restore item', undefined, (app) => app.RestoreSyncTrash(record), inline);
+}
+
+export function shredSyncNowRpc(masterPassword: string): Promise<void> {
+  return callBackend('Shred now', undefined, (app) => app.ShredSyncNow(masterPassword), inline);
 }

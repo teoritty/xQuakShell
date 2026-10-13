@@ -66,6 +66,17 @@ type SyncHeldDTO struct {
 	AtUnixMilli int64  `json:"atUnixMilli"`
 }
 
+// SyncTrashItemDTO is a deleted record in the trash. Type and Key are empty when its content no
+// longer opens, which is also when it cannot be restored.
+type SyncTrashItemDTO struct {
+	Record           string `json:"record"`
+	Type             string `json:"type"`
+	Key              string `json:"key"`
+	DeletedUnixMilli int64  `json:"deletedUnixMilli"`
+	PurgeUnixMilli   int64  `json:"purgeUnixMilli"`
+	Restorable       bool   `json:"restorable"`
+}
+
 // SyncConflictDTO is a credential conflict. Values of secret fields are not sent: the person picks
 // a side by device and time, and a password never has to be on screen to do it.
 type SyncConflictDTO struct {

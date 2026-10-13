@@ -60,6 +60,15 @@ export interface SyncConflict {
   atUnixMilli: number;
 }
 
+export interface SyncTrashItem {
+  record: string;
+  type: string;
+  key: string;
+  deletedUnixMilli: number;
+  purgeUnixMilli: number;
+  restorable: boolean;
+}
+
 export interface SyncGateway {
   GetSyncStatus(): Promise<SyncStatus>;
   ProbeSyncServer(serverUrl: string): Promise<SyncServerProbe>;
@@ -77,4 +86,7 @@ export interface SyncGateway {
   RejectSyncHeld(record: string): Promise<void>;
   ListSyncConflicts(): Promise<SyncConflict[]>;
   ResolveSyncConflict(id: string, useOther: boolean): Promise<void>;
+  ListSyncTrash(): Promise<SyncTrashItem[]>;
+  RestoreSyncTrash(record: string): Promise<void>;
+  ShredSyncNow(masterPassword: string): Promise<void>;
 }

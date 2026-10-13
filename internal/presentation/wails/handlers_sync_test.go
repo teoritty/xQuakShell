@@ -22,6 +22,8 @@ type fakeSync struct {
 	revoked          []vaultsync.ID
 	confirmed        vaultsync.ID
 	masterPassword   string
+	restored         vaultsync.ID
+	shredPassword    string
 	err              error
 	info             *usecase.SyncAccountInfo
 }
@@ -72,6 +74,14 @@ func (f *fakeSync) ConfirmHeld(_ context.Context, id vaultsync.ID, pw string) er
 	return f.err
 }
 func (f *fakeSync) RejectHeld(context.Context, vaultsync.ID) error { return f.err }
+func (f *fakeSync) Trash(context.Context) ([]usecase.TrashItem, error) {
+	return []usecase.TrashItem{{Record: vaultsync.ID{3}, Type: "folder", Key: "f1", DeletedUnixMilli: 5, PurgeUnixMilli: 9, Restorable: true}}, f.err
+}
+func (f *fakeSync) RestoreTrash(_ context.Context, id vaultsync.ID) error {
+	f.restored = id
+	return f.err
+}
+func (f *fakeSync) ShredNow(_ context.Context, pw string) error { f.shredPassword = pw; return f.err }
 
 type fakeConflicts struct {
 	list     []domain.SyncConflict
@@ -255,5 +265,57 @@ func TestDevicesAndHeldAreMapped(t *testing.T) {
 	held, err := a.ListSyncHeld()
 	if err != nil || len(held) != 1 || held[0].Type != "settings.plugins" || !held[0].Pending {
 		t.Fatalf("held = %+v, %v", held, err)
+	}
+}
+
+func TestSyncTrashHandlers(t *testing.T) {
+	a, f, _ := syncAPI()
+	items, err := a.ListSyncTrash()
+	if err != nil || len(items) != 1 || items[0].Key != "f1" || !items[0].Restorable || items[0].PurgeUnixMilli != 9 {
+		t.Fatalf("trash = %+v, %v", items, err)
+	}
+	record := hex.EncodeToString((&vaultsync.ID{3})[:])
+	if items[0].Record != record {
+		t.Fatalf("record = %q, want the hex id the restore takes back", items[0].Record)
+	}
+	if err := a.RestoreSyncTrash(record); err != nil || f.restored != (vaultsync.ID{3}) {
+		t.Fatalf("restore: %v, restored %x", err, f.restored)
+	}
+	for _, bad := range []string{"", "zz", "00", hex.EncodeToString(make([]byte, 16))} {
+		if err := a.RestoreSyncTrash(bad); !errors.Is(err, errInvalidSyncRequest) {
+			t.Errorf("restore %q: %v, want the invalid-request error", bad, err)
+		}
+	}
+	f.err = usecase.ErrTrashNotFound
+	if err := a.RestoreSyncTrash(record); err == nil || !strings.Contains(err.Error(), "not in the trash") {
+		t.Fatalf("restore of an item gone: %v", err)
+	}
+	f.err = usecase.ErrRestoreWeakens
+	if err := a.RestoreSyncTrash(record); err == nil || !strings.Contains(err.Error(), "weaken") {
+		t.Fatalf("restore that weakens: %v", err)
+	}
+	f.err = nil
+	if err := a.ShredSyncNow(""); !errors.Is(err, errInvalidSyncRequest) || f.shredPassword != "" {
+		t.Fatalf("shred without a password: %v; it must not reach the controller", err)
+	}
+	if err := a.ShredSyncNow("master"); err != nil || f.shredPassword != "master" {
+		t.Fatalf("shred: %v", err)
+	}
+	f.err = usecase.ErrShredReauth
+	if err := a.ShredSyncNow("wrong"); err == nil || !strings.Contains(err.Error(), "master password") {
+		t.Fatalf("shred with a wrong password: %v", err)
+	}
+}
+
+func TestSyncTrashHandlersWithoutSync(t *testing.T) {
+	a := &AppAPI{}
+	if _, err := a.ListSyncTrash(); !errors.Is(err, errSyncUnavailable) {
+		t.Fatalf("list: %v", err)
+	}
+	if err := a.RestoreSyncTrash("00"); !errors.Is(err, errSyncUnavailable) {
+		t.Fatalf("restore: %v", err)
+	}
+	if err := a.ShredSyncNow("master"); !errors.Is(err, errSyncUnavailable) {
+		t.Fatalf("shred: %v", err)
 	}
 }
