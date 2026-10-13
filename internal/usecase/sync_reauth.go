@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"xquakshell/internal/domain/synctrust"
 	"xquakshell/internal/domain/vaultsync"
@@ -15,6 +16,9 @@ import (
 type AuthenticatedServer struct {
 	srv  synctrust.AccountServer
 	keys synctrust.KeyRing
+
+	mu        sync.Mutex
+	connected bool
 }
 
 var (
@@ -29,7 +33,27 @@ func NewAuthenticatedServer(srv synctrust.AccountServer, keys synctrust.KeyRing)
 
 // Authenticate signs a fresh challenge and installs the access token it buys.
 func (a *AuthenticatedServer) Authenticate(ctx context.Context) error {
+	if err := a.connect(ctx, false); err != nil {
+		return err
+	}
 	return authenticateDevice(ctx, a.srv, a.keys.Account(), a.keys.Device(), a.keys.Sign)
+}
+
+// connect runs hello, which verifies the server's TLS key against the pinned identity, once per
+// session or again when forced. Building a session does not touch the network: it happens at
+// unlock, and an unreachable server must not delay the vault opening.
+func (a *AuthenticatedServer) connect(ctx context.Context, force bool) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.connected && !force {
+		return nil
+	}
+	a.connected = false
+	if _, err := a.srv.Hello(ctx); err != nil {
+		return err
+	}
+	a.connected = true
+	return nil
 }
 
 func authenticateDevice(ctx context.Context, srv synctrust.AccountServer, account, device vaultsync.ID, sign func([]byte) ([]byte, error)) error {
@@ -54,12 +78,23 @@ func authenticateDevice(ctx context.Context, srv synctrust.AccountServer, accoun
 }
 
 func withAuth[T any](ctx context.Context, a *AuthenticatedServer, f func() (T, error)) (T, error) {
+	var zero T
+	if err := a.connect(ctx, false); err != nil {
+		return zero, err
+	}
 	v, err := f()
+	// A renewed certificate fails the pin of every pooled connection; one fresh hello verifies the
+	// new TLS key against the same identity, and a server that is not that identity fails it.
+	if errors.Is(err, synctrust.ErrServerIdentity) {
+		if cerr := a.connect(ctx, true); cerr != nil {
+			return zero, errors.Join(err, cerr)
+		}
+		v, err = f()
+	}
 	if !errors.Is(err, synctrust.ErrRemoteUnauthorized) {
 		return v, err
 	}
 	if aerr := a.Authenticate(ctx); aerr != nil {
-		var zero T
 		return zero, errors.Join(err, aerr)
 	}
 	return f()

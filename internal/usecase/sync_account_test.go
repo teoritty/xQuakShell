@@ -469,3 +469,46 @@ func TestAFirstPullNeverAnnouncesTheDeviceItself(t *testing.T) {
 		t.Fatalf("new devices = %+v", r.NewDevices)
 	}
 }
+
+// countingHello counts hellos and can fail the first request after one, as a renewed server
+// certificate makes every pooled connection fail its pin check.
+type countingHello struct {
+	*accountServer
+	hellos       int
+	identityOnce bool
+}
+
+func (c *countingHello) Hello(ctx context.Context) (synctrust.HelloInfo, error) {
+	c.hellos++
+	return c.accountServer.Hello(ctx)
+}
+
+func (c *countingHello) Vaults(ctx context.Context) ([]synctrust.RemoteVault, error) {
+	if c.identityOnce {
+		c.identityOnce = false
+		return nil, synctrust.ErrServerIdentity
+	}
+	return c.accountServer.Vaults(ctx)
+}
+
+func TestAuthenticatedServerConnectsOnFirstUseAndAfterARenewal(t *testing.T) {
+	h, a := registered(t)
+	srv := &countingHello{accountServer: &accountServer{svcServer: &svcServer{h: h}}}
+	auth := usecase.NewAuthenticatedServer(srv, a.session.Keys)
+	if srv.hellos != 0 {
+		t.Fatal("constructing the session already talked to the server; it must not before the vault is used")
+	}
+	if _, err := auth.Vaults(syncCtx); err != nil {
+		t.Fatal(err)
+	}
+	if srv.hellos != 1 {
+		t.Fatalf("hellos = %d; the first request must verify the server first", srv.hellos)
+	}
+	srv.identityOnce = true
+	if _, err := auth.Vaults(syncCtx); err != nil {
+		t.Fatalf("a renewed certificate was not re-verified: %v", err)
+	}
+	if srv.hellos != 2 {
+		t.Fatalf("hellos = %d, want a second hello after the identity failure", srv.hellos)
+	}
+}
