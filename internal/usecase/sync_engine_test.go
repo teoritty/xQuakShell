@@ -41,19 +41,46 @@ type svcServer struct {
 	failCommit bool
 }
 
-func (s *svcServer) p() srvusecase.Principal { return s.h.Principal(s.token) }
+// principal authenticates the current token the way the transport does, with an expired or revoked
+// token surfacing as the client would see it rather than failing the test.
+func (s *svcServer) principal() (srvusecase.Principal, error) {
+	p, err := s.h.Svc.Authenticate(syncCtx, s.token, srvusecase.TokenAccess, srvusecase.TokenAccount)
+	return p, remote(err)
+}
+
+// remote maps a server use-case error onto what the client hands the engine.
+func remote(err error) error {
+	var conflict *srvusecase.ConflictError
+	switch {
+	case err == nil:
+		return nil
+	case errors.As(err, &conflict):
+		return &synctrust.ConflictError{CurrentSeq: conflict.CurrentSeq}
+	case errors.Is(err, srvusecase.ErrUnauthorized):
+		return synctrust.ErrRemoteUnauthorized
+	}
+	return err
+}
 
 func (s *svcServer) Vaults(ctx context.Context) ([]synctrust.RemoteVault, error) { return nil, nil }
 
 func (s *svcServer) CreateVault(ctx context.Context, op vaultsync.MemberOp) error {
-	return s.h.Svc.CreateVault(ctx, s.p(), op)
+	p, err := s.principal()
+	if err != nil {
+		return err
+	}
+	return remote(s.h.Svc.CreateVault(ctx, p, op))
 }
 
 func (s *svcServer) Changes(ctx context.Context, vault vaultsync.ID, since uint64, limit int) ([]synctrust.RemoteCommit, bool, error) {
 	if s.calls++; s.calls > 50 {
 		return nil, false, errors.New("the client keeps asking: it is looping")
 	}
-	commits, more, err := s.h.Svc.Changes(ctx, s.p(), vault, since, limit)
+	p, err := s.principal()
+	if err != nil {
+		return nil, false, err
+	}
+	commits, more, err := s.h.Svc.Changes(ctx, p, vault, since, limit)
 	if err != nil {
 		return nil, false, err
 	}
@@ -81,10 +108,13 @@ func (s *svcServer) Commit(ctx context.Context, c vaultsync.Commit) (uint64, err
 		s.failCommit = false
 		return 0, errors.New("connection reset before the request arrived")
 	}
-	seq, err := s.h.Svc.Commit(ctx, s.p(), c.Head.Vault, c.Head.Seq-1, c)
-	var conflict *srvusecase.ConflictError
-	if errors.As(err, &conflict) {
-		return 0, &synctrust.ConflictError{CurrentSeq: conflict.CurrentSeq}
+	p, err := s.principal()
+	if err != nil {
+		return 0, err
+	}
+	seq, err := s.h.Svc.Commit(ctx, p, c.Head.Vault, c.Head.Seq-1, c)
+	if err = remote(err); err != nil {
+		return 0, err
 	}
 	if err == nil && s.dropReply {
 		s.dropReply = false
@@ -94,7 +124,11 @@ func (s *svcServer) Commit(ctx context.Context, c vaultsync.Commit) (uint64, err
 }
 
 func (s *svcServer) DeviceLog(ctx context.Context, account vaultsync.ID, since uint64) ([]vaultsync.DeviceEntry, error) {
-	entries, err := s.h.Svc.DeviceLog(ctx, s.p(), account, since)
+	p, err := s.principal()
+	if err != nil {
+		return nil, err
+	}
+	entries, err := s.h.Svc.DeviceLog(ctx, p, account, since)
 	if err == nil && s.tamperLog != nil {
 		entries = s.tamperLog(entries)
 	}
@@ -102,11 +136,19 @@ func (s *svcServer) DeviceLog(ctx context.Context, account vaultsync.ID, since u
 }
 
 func (s *svcServer) AppendDeviceLog(ctx context.Context, entries []vaultsync.DeviceEntry) error {
-	return s.h.Svc.AppendDeviceLog(ctx, s.p(), entries)
+	p, err := s.principal()
+	if err != nil {
+		return err
+	}
+	return remote(s.h.Svc.AppendDeviceLog(ctx, p, entries))
 }
 
 func (s *svcServer) Membership(ctx context.Context, vault vaultsync.ID, since uint64) ([]vaultsync.MemberOp, error) {
-	ops, err := s.h.Svc.Membership(ctx, s.p(), vault, since)
+	p, err := s.principal()
+	if err != nil {
+		return nil, err
+	}
+	ops, err := s.h.Svc.Membership(ctx, p, vault, since)
 	if err == nil && s.tamperOps != nil {
 		ops = s.tamperOps(ops)
 	}
@@ -114,7 +156,11 @@ func (s *svcServer) Membership(ctx context.Context, vault vaultsync.ID, since ui
 }
 
 func (s *svcServer) AppendMembership(ctx context.Context, vault vaultsync.ID, ops []vaultsync.MemberOp) error {
-	return s.h.Svc.AppendMembership(ctx, s.p(), vault, ops)
+	p, err := s.principal()
+	if err != nil {
+		return err
+	}
+	return remote(s.h.Svc.AppendMembership(ctx, p, vault, ops))
 }
 
 // testKeys is a KeyRing with one fixed vault key: the server fixtures wrap no real keys, and the
