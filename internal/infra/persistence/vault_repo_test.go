@@ -284,3 +284,33 @@ func TestVaultRepo_GetDataRejectsWhenLocked(t *testing.T) {
 		t.Fatalf("expected ErrVaultLocked, got %v", err)
 	}
 }
+
+// The change observer is how sync learns there is something to push. It must fire for an update
+// that landed and for nothing else, and it runs outside the lock: it may read the vault back.
+func TestVaultRepo_ChangeObserverSeesOnlyLandedUpdates(t *testing.T) {
+	repo := NewVaultRepo(t.TempDir())
+	var seen int
+	repo.SetChangeObserver(func() {
+		if _, err := repo.GetData(); err != nil {
+			t.Errorf("the observer cannot read the vault: %v", err)
+		}
+		seen++
+	})
+	ctx := context.Background()
+	if err := repo.UpdateData(ctx, func(*domain.VaultData) error { return nil }); !errors.Is(err, domain.ErrVaultLocked) {
+		t.Fatalf("locked update: %v", err)
+	}
+	if err := repo.Create(ctx, "a long enough master password"); err != nil {
+		t.Fatal(err)
+	}
+	_ = repo.UpdateData(ctx, func(*domain.VaultData) error { return errors.New("refused") })
+	if seen != 0 {
+		t.Fatalf("observer fired %d times for updates that did not land", seen)
+	}
+	if err := repo.UpdateData(ctx, func(d *domain.VaultData) error { d.KnownHosts = append(d.KnownHosts, "h"); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if seen != 1 {
+		t.Fatalf("observer fired %d times for one landed update", seen)
+	}
+}
