@@ -44,3 +44,12 @@ func VKWrapInfo(vault ID, epoch uint32, member ID) ([]byte, error) {
 func BundleAAD(account ID, suite SuiteID) ([]byte, error) {
 	return NewCanon(LabelBundle).ID(account).U16(uint16(suite)).Encoded()
 }
+
+// LabelDeviceAuth separates a device's login proof from every other signature it makes.
+const LabelDeviceAuth = "xqs-sync/v1/device-auth"
+
+// DeviceAuthMessage is what a device signs to prove it holds its key: bound to the account, the
+// device and the server's single-use nonce, so a proof is good for one login of one device only.
+func DeviceAuthMessage(account, device ID, nonce []byte) ([]byte, error) {
+	return NewCanon(LabelDeviceAuth).ID(account).ID(device).Bytes(nonce).Encoded()
+}

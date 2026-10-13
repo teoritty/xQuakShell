@@ -61,6 +61,14 @@ func (t *txn) InsertInvite(codeHash []byte, expires uint64) error {
 	return t.exec("INSERT INTO invites (code_hash, expires) VALUES (?, ?)", codeHash, expires)
 }
 
+// InviteUsable reports an unexpired, unused invite without consuming it, so registration can refuse
+// early without the code being spent on a request that then fails.
+func (t *txn) InviteUsable(codeHash []byte, now uint64) (bool, error) {
+	var n int
+	err := t.tx.QueryRowContext(t.ctx, "SELECT count(*) FROM invites WHERE code_hash = ? AND used_by IS NULL AND expires > ?", codeHash, now).Scan(&n)
+	return n > 0, err
+}
+
 // ConsumeInvite marks an unexpired, unused invite as used by account, in one statement so two
 // registrations racing for one code cannot both succeed.
 func (t *txn) ConsumeInvite(codeHash []byte, now uint64, account vaultsync.ID) (bool, error) {

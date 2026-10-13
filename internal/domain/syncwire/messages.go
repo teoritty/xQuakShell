@@ -38,7 +38,12 @@ type RegisterInitReply struct {
 
 // RegisterFinish uploads the OPAQUE record, the sealed bundle, the first device log entry and the
 // personal vault's genesis operation, all accepted or refused together.
+//
+// Invite and Username travel again because the server keeps no state between the two steps: the
+// invite is consumed here, in the transaction that creates the account, and nowhere else.
 type RegisterFinish struct {
+	Invite        string      `json:"invite"`
+	Username      string      `json:"username"`
 	Account       string      `json:"account"`
 	Record        []byte      `json:"record"`
 	IdentityKey   []byte      `json:"identityKey"`

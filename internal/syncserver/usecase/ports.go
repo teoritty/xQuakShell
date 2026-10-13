@@ -89,6 +89,7 @@ type Tx interface {
 	ListAccounts() ([]Account, error)
 
 	InsertInvite(codeHash []byte, expires uint64) error
+	InviteUsable(codeHash []byte, now uint64) (bool, error)
 	ConsumeInvite(codeHash []byte, now uint64, account vaultsync.ID) (bool, error)
 
 	DeviceEntries(account vaultsync.ID) ([]vaultsync.DeviceEntry, error)

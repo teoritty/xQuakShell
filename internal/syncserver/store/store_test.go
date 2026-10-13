@@ -178,11 +178,17 @@ func TestInvitesAreSingleUseAndExpire(t *testing.T) {
 		return tx.InsertInvite([]byte("h2"), 1000)
 	})
 	tx(t, db, func(tx usecase.Tx) error {
+		if ok, _ := tx.InviteUsable([]byte("h2"), 50); !ok {
+			t.Fatal("a fresh invite is not usable")
+		}
 		if ok, err := tx.ConsumeInvite([]byte("h2"), 50, vaultsync.ID{1}); err != nil || !ok {
 			t.Fatalf("valid invite refused: %v, %v", ok, err)
 		}
 		if ok, _ := tx.ConsumeInvite([]byte("h2"), 50, vaultsync.ID{2}); ok {
 			t.Fatal("an invite was consumed twice")
+		}
+		if ok, _ := tx.InviteUsable([]byte("h2"), 50); ok {
+			t.Fatal("a consumed invite is still reported usable")
 		}
 		return nil
 	})
