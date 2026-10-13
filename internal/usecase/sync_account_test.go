@@ -417,7 +417,7 @@ func TestKeyRingUsesOnlyThisAccountsWrapAtThatEpoch(t *testing.T) {
 		t.Fatalf("epoch 3: %v; a wrap for epoch 0 must not be tried for another epoch", err)
 	}
 	foreign := ops[0]
-	foreign.Wraps = []vaultsync.KeyWrap{{Member: vaultsync.ID{9}, Ciphertext: foreign.Wraps[0].Ciphertext}}
+	foreign.Wraps = []vaultsync.KeyWrap{{Member: vaultsync.ID{9}, Digest: foreign.Wraps[0].Digest, Ciphertext: foreign.Wraps[0].Ciphertext}}
 	if _, err := a.session.Keys.VaultKey(a.session.Personal, 0, []vaultsync.MemberOp{foreign}); !errors.Is(err, usecase.ErrNoVaultKey) {
 		t.Fatalf("another member's wrap: %v", err)
 	}

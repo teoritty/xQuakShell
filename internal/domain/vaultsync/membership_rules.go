@@ -1,6 +1,11 @@
 package vaultsync
 
+import "math"
+
 func (s *MembershipState) applyKind(op *MemberOp) error {
+	if op.Shred && op.Kind != MemberRotateEpoch {
+		return rejected("shred on kind %d", op.Kind)
+	}
 	switch op.Kind {
 	case MemberCreate:
 		return s.applyCreate(op)
@@ -39,7 +44,9 @@ func (s *MembershipState) requireOwner(op *MemberOp) error {
 	return nil
 }
 
-// checkWraps requires exactly one wrap per wanted member, nobody else, at the suite's wrap size.
+// checkWraps requires exactly one wrap per wanted member and nobody else. A wrap that still carries
+// its ciphertext must have the suite's size and match the digest the op signs; a pruned one is
+// accepted, because the server strips retired epochs' wraps from logs every device replays.
 func (s *MembershipState) checkWraps(wraps []KeyWrap, want []ID) error {
 	if len(wraps) != len(want) {
 		return rejected("%d wraps for %d members", len(wraps), len(want))
@@ -52,10 +59,36 @@ func (s *MembershipState) checkWraps(wraps []KeyWrap, want []ID) error {
 		if !wanted[w.Member] {
 			return rejected("wrap for %s, who is not to receive one", w.Member)
 		}
-		if len(w.Ciphertext) != s.params.VKWrapSize {
-			return rejected("wrap size %d", len(w.Ciphertext))
+		if err := s.checkWrapContent(w); err != nil {
+			return err
 		}
 		delete(wanted, w.Member)
+	}
+	return nil
+}
+
+func (s *MembershipState) checkWrapContent(w KeyWrap) error {
+	if w.Pruned() {
+		return nil
+	}
+	if len(w.Ciphertext) != s.params.VKWrapSize {
+		return rejected("wrap size %d", len(w.Ciphertext))
+	}
+	d, err := wrapDigest(w.Ciphertext)
+	if err != nil {
+		return err
+	}
+	if d != w.Digest {
+		return rejected("wrap for %s does not match its digest", w.Member)
+	}
+	return nil
+}
+
+// CheckNextEpoch refuses a rotation past the last epoch: a wrap to 0 would reuse the first epoch's
+// coordinates in every AAD and HPKE info, so old ciphertext would open under the new key's labels.
+func CheckNextEpoch(current uint32) error {
+	if current == math.MaxUint32 {
+		return rejected("epoch %d is the last", current)
 	}
 	return nil
 }
@@ -138,8 +171,16 @@ func (s *MembershipState) applyRotate(op *MemberOp) error {
 	if err := s.requireManage(op); err != nil {
 		return err
 	}
+	if err := CheckNextEpoch(s.epoch); err != nil {
+		return err
+	}
 	if op.Epoch != s.epoch+1 {
 		return rejected("rotation to epoch %d from %d", op.Epoch, s.epoch)
+	}
+	// Retirement counts from rotation times, so a rotation dated before the previous one would
+	// retire that epoch's keys early, before its trash and history had aged out.
+	if last := s.rotations[len(s.rotations)-1]; op.TimeUnixMilli < last.StartedUnixMilli {
+		return rejected("rotation at %d before the previous one at %d", op.TimeUnixMilli, last.StartedUnixMilli)
 	}
 	if err := s.checkWraps(op.Wraps, s.Members()); err != nil {
 		return err
@@ -148,7 +189,7 @@ func (s *MembershipState) applyRotate(op *MemberOp) error {
 		s.revoked[d] = struct{}{}
 	}
 	s.epoch = op.Epoch
-	s.rotations = append(s.rotations, Rotation{Epoch: op.Epoch, StartedUnixMilli: op.TimeUnixMilli})
+	s.rotations = append(s.rotations, Rotation{Epoch: op.Epoch, StartedUnixMilli: op.TimeUnixMilli, Shred: op.Shred})
 	s.pendingRotation = false
 	return nil
 }

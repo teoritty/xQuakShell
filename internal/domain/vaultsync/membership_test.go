@@ -46,7 +46,11 @@ func checker(ps map[vaultsync.ID]party) vaultsync.SignatureCheck {
 }
 
 func wrap(member vaultsync.ID) vaultsync.KeyWrap {
-	return vaultsync.KeyWrap{Member: member, Ciphertext: bytes.Repeat([]byte{member[0]}, 1168)}
+	w, err := vaultsync.NewKeyWrap(member, bytes.Repeat([]byte{member[0]}, 1168))
+	if err != nil {
+		panic(err)
+	}
+	return w
 }
 
 type fixture struct {

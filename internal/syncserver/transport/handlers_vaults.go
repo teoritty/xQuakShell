@@ -109,7 +109,7 @@ func (s *server) handleCommit(w http.ResponseWriter, r *http.Request) {
 	if !s.decode(w, r, s.cfg.MaxCommitBody, &req) {
 		return
 	}
-	c, err := commitFrom(req)
+	c, err := req.ToDomain()
 	if err != nil {
 		writeCode(w, http.StatusBadRequest, syncwire.CodeMalformed)
 		return
@@ -120,22 +120,6 @@ func (s *server) handleCommit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, syncwire.CommitReply{Seq: seq})
-}
-
-func commitFrom(req syncwire.Commit) (vaultsync.Commit, error) {
-	head, err := req.Head.ToDomain()
-	if err != nil {
-		return vaultsync.Commit{}, err
-	}
-	c := vaultsync.Commit{Head: head, Records: make([]vaultsync.Envelope, 0, len(req.Records))}
-	for _, d := range req.Records {
-		e, err := d.ToDomain()
-		if err != nil {
-			return vaultsync.Commit{}, err
-		}
-		c.Records = append(c.Records, e)
-	}
-	return c, nil
 }
 
 func (s *server) handleChanges(w http.ResponseWriter, r *http.Request) {
@@ -154,7 +138,7 @@ func (s *server) handleChanges(w http.ResponseWriter, r *http.Request) {
 	}
 	out := syncwire.Changes{Commits: []syncwire.CommitEntry{}, More: more}
 	for _, sc := range commits {
-		out.Commits = append(out.Commits, syncwire.CommitEntry{Seq: sc.Seq, Head: syncwire.HeadFrom(&sc.Commit.Head), Records: envelopesFrom(sc.Commit.Records)})
+		out.Commits = append(out.Commits, syncwire.CommitEntryFrom(sc.Seq, &sc.Commit))
 	}
 	writeJSON(w, http.StatusOK, out)
 }

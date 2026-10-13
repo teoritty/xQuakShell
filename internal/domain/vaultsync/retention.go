@@ -12,6 +12,8 @@ const (
 type Rotation struct {
 	Epoch            uint32
 	StartedUnixMilli uint64
+	// Shred retires every epoch before this one as soon as no current version uses it (Shred now).
+	Shred bool
 }
 
 const dayMillis uint64 = 24 * 60 * 60 * 1000
@@ -25,19 +27,37 @@ func elapsed(start, now, d uint64) bool {
 }
 
 // EpochRetired reports whether epoch's key may be destroyed (spec section 10.1): no current record
-// version still uses it, and a full retention window has passed since its successor began, by which
-// time every trash and history version written under it has aged out. With a zero window - Shred
-// now - it retires as soon as the successor exists.
+// version still uses it, and either a later rotation shredded or a full retention window has passed
+// since its successor began, by which time every trash and history version written under it has
+// aged out. With a zero window it retires as soon as the successor exists.
 func EpochRetired(epoch uint32, rotations []Rotation, inUse func(uint32) bool, retentionDays uint16, nowUnixMilli uint64) bool {
 	if inUse(epoch) {
 		return false
 	}
+	succeeded := false
 	for _, r := range rotations {
+		if r.Epoch <= epoch {
+			continue
+		}
+		if r.Shred {
+			return true
+		}
 		if r.Epoch == epoch+1 {
-			return elapsed(r.StartedUnixMilli, nowUnixMilli, windowMillis(retentionDays))
+			succeeded = elapsed(r.StartedUnixMilli, nowUnixMilli, windowMillis(retentionDays))
 		}
 	}
-	return false
+	return succeeded
+}
+
+// RetiredEpochs lists, in order, every epoch EpochRetired allows to be destroyed.
+func RetiredEpochs(rotations []Rotation, inUse func(uint32) bool, retentionDays uint16, nowUnixMilli uint64) []uint32 {
+	var out []uint32
+	for _, r := range rotations {
+		if EpochRetired(r.Epoch, rotations, inUse, retentionDays, nowUnixMilli) {
+			out = append(out, r.Epoch)
+		}
+	}
+	return out
 }
 
 // PurgeDue reports whether a tombstone has outlived the trash window.

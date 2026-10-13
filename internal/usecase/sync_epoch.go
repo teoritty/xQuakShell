@@ -34,8 +34,12 @@ func (e *SyncEngine) RewrapCurrent(ctx context.Context, vault vaultsync.ID, newE
 	if err != nil {
 		return err
 	}
+	wrap, err := vaultsync.NewKeyWrap(account, wrapped)
+	if err != nil {
+		return err
+	}
 	return p.appendOp(ctx, m, vaultsync.MemberOp{Kind: vaultsync.MemberRewrap, Subject: account, Epoch: m.Epoch(),
-		Wraps: []vaultsync.KeyWrap{{Member: account, Ciphertext: wrapped}}})
+		Wraps: []vaultsync.KeyWrap{wrap}})
 }
 
 // RotateEpoch moves the vault to a fresh key wrapped to the account's current encryption key,
@@ -60,8 +64,15 @@ func (e *SyncEngine) RotateEpoch(ctx context.Context, vault vaultsync.ID, revoke
 	if err != nil {
 		return err
 	}
-	op := vaultsync.MemberOp{Kind: vaultsync.MemberRotateEpoch, Epoch: m.Epoch() + 1,
-		Wraps: []vaultsync.KeyWrap{{Member: account, Ciphertext: wrapped}}, RevokedDevices: revoked}
+	wrap, err := vaultsync.NewKeyWrap(account, wrapped)
+	if err != nil {
+		return err
+	}
+	// A rotation may not be dated before the previous one, so a device whose clock is behind dates
+	// its rotation at the previous one instead of having it refused by every verifier.
+	rotations := m.Rotations()
+	op := vaultsync.MemberOp{Kind: vaultsync.MemberRotateEpoch, Epoch: m.Epoch() + 1, Wraps: []vaultsync.KeyWrap{wrap},
+		RevokedDevices: revoked, TimeUnixMilli: rotations[len(rotations)-1].StartedUnixMilli}
 	if err := p.appendOp(ctx, m, op); err != nil {
 		return err
 	}
@@ -88,7 +99,7 @@ func (e *SyncEngine) caughtUp(ctx context.Context, vault vaultsync.ID) (*pullRun
 func (p *pullRun) appendOp(ctx context.Context, m *vaultsync.MembershipState, op vaultsync.MemberOp) error {
 	op.Vault, op.Seq, op.Prev = p.vault, m.Seq()+1, m.Hash()
 	op.Author, op.AuthorDevice, op.Suite, op.SigAlg = p.e.d.Keys.Account(), p.e.d.Keys.Device(), vaultsync.Suite1, vaultsync.SigEd25519
-	op.TimeUnixMilli = uint64(max(p.e.d.NowUnixMilli(), 0))
+	op.TimeUnixMilli = max(uint64(max(p.e.d.NowUnixMilli(), 0)), op.TimeUnixMilli)
 	msg, err := op.SigningBytes()
 	if err != nil {
 		return err

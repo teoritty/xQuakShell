@@ -11,6 +11,9 @@ type Leaf struct {
 	Record  ID
 	Version uint64
 	Digest  [32]byte
+	// Deleted marks a tombstone, the only kind of leaf a purge may remove. It is not hashed on its
+	// own: the digest already covers the envelope's deleted flag.
+	Deleted bool
 }
 
 // LeafOf derives the leaf for an envelope.
@@ -19,7 +22,7 @@ func LeafOf(e *Envelope) (Leaf, error) {
 	if err != nil {
 		return Leaf{}, err
 	}
-	return Leaf{Record: e.Record, Version: e.Version, Digest: d}, nil
+	return Leaf{Record: e.Record, Version: e.Version, Digest: d, Deleted: e.Deleted}, nil
 }
 
 // MerkleRoot commits to a whole vault state. Leaves are sorted by record id, so the root depends on

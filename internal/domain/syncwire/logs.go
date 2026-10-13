@@ -78,9 +78,11 @@ func (d DeviceEntry) ToDomain() (vaultsync.DeviceEntry, error) {
 }
 
 // KeyWrap is the wire form of vaultsync.KeyWrap.
+// A pruned wrap travels without its ciphertext.
 type KeyWrap struct {
 	Member     string `json:"member"`
-	Ciphertext []byte `json:"ciphertext"`
+	Digest     []byte `json:"digest"`
+	Ciphertext []byte `json:"ciphertext,omitempty"`
 }
 
 // MemberOp is the wire form of vaultsync.MemberOp.
@@ -101,6 +103,7 @@ type MemberOp struct {
 	RevokedDevices  []string  `json:"revokedDevices,omitempty"`
 	RetentionDays   uint16    `json:"retentionDays,omitempty"`
 	RequireVerified bool      `json:"requireVerified,omitempty"`
+	Shred           bool      `json:"shred,omitempty"`
 	TimeUnixMilli   uint64    `json:"timeUnixMilli"`
 	SigAlg          uint16    `json:"sigAlg"`
 	Sig             []byte    `json:"sig"`
@@ -113,10 +116,10 @@ func MemberOpFrom(op *vaultsync.MemberOp) MemberOp {
 		Author: op.Author.String(), AuthorDevice: op.AuthorDevice.String(), Subject: optionalID(op.Subject),
 		Role: uint8(op.Role), Verified: op.Verified, Fingerprint: bytes.Clone(op.Fingerprint[:]), Suite: uint16(op.Suite),
 		Epoch: op.Epoch, RevokedDevices: idStrings(op.RevokedDevices), RetentionDays: op.RetentionDays,
-		RequireVerified: op.RequireVerified, TimeUnixMilli: op.TimeUnixMilli, SigAlg: uint16(op.SigAlg), Sig: bytes.Clone(op.Sig),
+		RequireVerified: op.RequireVerified, Shred: op.Shred, TimeUnixMilli: op.TimeUnixMilli, SigAlg: uint16(op.SigAlg), Sig: bytes.Clone(op.Sig),
 	}
 	for _, w := range op.Wraps {
-		d.Wraps = append(d.Wraps, KeyWrap{Member: w.Member.String(), Ciphertext: bytes.Clone(w.Ciphertext)})
+		d.Wraps = append(d.Wraps, KeyWrap{Member: w.Member.String(), Digest: bytes.Clone(w.Digest[:]), Ciphertext: bytes.Clone(w.Ciphertext)})
 	}
 	return d
 }
@@ -151,7 +154,7 @@ func (d MemberOp) ToDomain() (vaultsync.MemberOp, error) {
 	}
 	op.Seq, op.Kind, op.Role, op.Verified = d.Seq, vaultsync.MemberOpKind(d.Kind), vaultsync.Role(d.Role), d.Verified
 	op.Suite, op.Epoch, op.RetentionDays, op.RequireVerified = vaultsync.SuiteID(d.Suite), d.Epoch, d.RetentionDays, d.RequireVerified
-	op.TimeUnixMilli, op.SigAlg, op.Sig = d.TimeUnixMilli, vaultsync.SigAlg(d.SigAlg), d.Sig
+	op.Shred, op.TimeUnixMilli, op.SigAlg, op.Sig = d.Shred, d.TimeUnixMilli, vaultsync.SigAlg(d.SigAlg), d.Sig
 	return op, nil
 }
 
@@ -165,7 +168,11 @@ func parseWraps(ws []KeyWrap) ([]vaultsync.KeyWrap, error) {
 		if err != nil {
 			return nil, err
 		}
-		out[i] = vaultsync.KeyWrap{Member: member, Ciphertext: w.Ciphertext}
+		digest, err := parseHash(w.Digest)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = vaultsync.KeyWrap{Member: member, Digest: digest, Ciphertext: w.Ciphertext}
 	}
 	return out, nil
 }

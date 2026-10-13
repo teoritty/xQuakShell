@@ -54,8 +54,9 @@ func sampleOp() vaultsync.MemberOp {
 	return vaultsync.MemberOp{Vault: vaultsync.ID{40}, Seq: 41, Prev: [32]byte{42}, Kind: vaultsync.MemberRotateEpoch,
 		Author: vaultsync.ID{43}, AuthorDevice: vaultsync.ID{44}, Subject: vaultsync.ID{45}, Role: vaultsync.RoleEditor,
 		Verified: true, Fingerprint: [32]byte{46}, Suite: vaultsync.Suite1, Epoch: 47,
-		Wraps:          []vaultsync.KeyWrap{{Member: vaultsync.ID{48}, Ciphertext: bytes.Repeat([]byte{49}, 1168)}},
-		RevokedDevices: []vaultsync.ID{{50}}, RetentionDays: 30, RequireVerified: true, TimeUnixMilli: 51,
+		Wraps: []vaultsync.KeyWrap{{Member: vaultsync.ID{48}, Digest: [32]byte{53}, Ciphertext: bytes.Repeat([]byte{49}, 1168)},
+			{Member: vaultsync.ID{54}, Digest: [32]byte{55}}},
+		RevokedDevices: []vaultsync.ID{{50}}, RetentionDays: 30, RequireVerified: true, Shred: true, TimeUnixMilli: 51,
 		SigAlg: vaultsync.SigEd25519, Sig: bytes.Repeat([]byte{52}, 64)}
 }
 
@@ -242,6 +243,19 @@ func TestEveryFieldIsChecked(t *testing.T) {
 			_, err := d.ToDomain()
 			return err
 		},
+		"op.wrap digest": func() error {
+			d := syncwire.MemberOpFrom(&op)
+			d.Wraps[0].Digest = short
+			_, err := d.ToDomain()
+			return err
+		},
+		"commit.purged": func() error {
+			c := vaultsync.Commit{Head: h, Purged: []vaultsync.ID{{1}}}
+			d := syncwire.CommitFrom(&c)
+			d.Purged[0] = bad
+			_, err := d.ToDomain()
+			return err
+		},
 		"op.wrap member": func() error {
 			d := syncwire.MemberOpFrom(&op)
 			d.Wraps[0].Member = bad
@@ -267,5 +281,40 @@ func TestIDHelpers(t *testing.T) {
 	}
 	if body := (syncwire.ErrorBody{Error: syncwire.CodeNotFound}); !syncwire.IsErrorCode(body.Error) {
 		t.Fatal("the not_found body is not a known code")
+	}
+}
+
+func TestCommitRoundTripCarriesPurges(t *testing.T) {
+	e := sampleEnvelope()
+	want := vaultsync.Commit{Head: sampleHead(), Records: []vaultsync.Envelope{e}, Purged: []vaultsync.ID{{9}, {10}}}
+	d := roundTrip(t, syncwire.CommitFrom(&want))
+	if d.ExpectSeq != want.Head.Seq-1 {
+		t.Fatalf("expectSeq = %d, want the seq below the head", d.ExpectSeq)
+	}
+	got, err := d.ToDomain()
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("commit round trip: got %+v, want %+v, %v", got, want, err)
+	}
+	entry := roundTrip(t, syncwire.CommitEntryFrom(7, &want))
+	back, err := entry.ToDomain()
+	if err != nil || entry.Seq != 7 || !reflect.DeepEqual(back, want) {
+		t.Fatalf("commit entry round trip: got %+v, want %+v, %v", back, want, err)
+	}
+}
+
+func TestCommitWithoutPurgesOmitsTheField(t *testing.T) {
+	c := vaultsync.Commit{Head: sampleHead()}
+	raw, err := json.Marshal(syncwire.CommitFrom(&c))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "purged") {
+		t.Fatal("a commit without purges must look exactly as before on the wire")
+	}
+}
+
+func TestHistoryPrunedIsAnErrorCode(t *testing.T) {
+	if !syncwire.IsErrorCode(syncwire.CodeHistoryPruned) {
+		t.Fatal("history_pruned must be in the closed list, or the server cannot send it")
 	}
 }

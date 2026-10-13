@@ -15,11 +15,7 @@ import (
 // PutOutbox records the commit about to be sent. There is at most one per vault: a second would be
 // built on a head the first has not reached yet, and the server could only refuse it.
 func (s *DB) PutOutbox(ctx context.Context, c vaultsync.Commit) error {
-	wire := syncwire.Commit{ExpectSeq: c.Head.Seq - 1, Head: syncwire.HeadFrom(&c.Head)}
-	for i := range c.Records {
-		wire.Records = append(wire.Records, syncwire.EnvelopeFrom(&c.Records[i]))
-	}
-	raw, err := json.Marshal(wire)
+	raw, err := json.Marshal(syncwire.CommitFrom(&c))
 	if err != nil {
 		return fmt.Errorf("syncstate: encode outbox: %w", err)
 	}
@@ -51,19 +47,11 @@ func (s *DB) Outbox(ctx context.Context, vault vaultsync.ID) (*vaultsync.Commit,
 	if err := json.Unmarshal(raw, &wire); err != nil {
 		return nil, fmt.Errorf("syncstate: decode outbox: %w", err)
 	}
-	head, err := wire.Head.ToDomain()
+	c, err := wire.ToDomain()
 	if err != nil {
 		return nil, err
 	}
-	c := &vaultsync.Commit{Head: head}
-	for _, w := range wire.Records {
-		e, err := w.ToDomain()
-		if err != nil {
-			return nil, err
-		}
-		c.Records = append(c.Records, e)
-	}
-	return c, nil
+	return &c, nil
 }
 
 // ClearOutbox drops the pending commit once the server acknowledged it. It matches the commit id, so

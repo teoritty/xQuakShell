@@ -1,5 +1,7 @@
 package syncwire
 
+import "xquakshell/internal/domain/vaultsync"
+
 // Version is the wire form of vaultsync.ProtocolVersion.
 type Version struct {
 	Major uint16 `json:"major"`
@@ -152,11 +154,22 @@ type MembershipAppend struct {
 	Ops []MemberOp `json:"ops"`
 }
 
-// Commit pushes one commit on top of ExpectSeq.
+// Commit pushes one commit on top of ExpectSeq. Purged lists tombstones the commit removes.
 type Commit struct {
 	ExpectSeq uint64     `json:"expectSeq"`
 	Records   []Envelope `json:"records"`
+	Purged    []string   `json:"purged,omitempty"`
 	Head      Head       `json:"head"`
+}
+
+// CommitFrom converts a domain commit for the wire, on top of the seq below its head.
+func CommitFrom(c *vaultsync.Commit) Commit {
+	return Commit{ExpectSeq: c.Head.Seq - 1, Records: envelopesFrom(c.Records), Purged: idStrings(c.Purged), Head: HeadFrom(&c.Head)}
+}
+
+// ToDomain converts and checks every record, purged id and the head.
+func (d Commit) ToDomain() (vaultsync.Commit, error) {
+	return commitToDomain(d.Head, d.Records, d.Purged)
 }
 
 // CommitReply is the seq the commit was stored at.
@@ -174,6 +187,49 @@ type ConflictReply struct {
 type CommitEntry struct {
 	Seq     uint64     `json:"seq"`
 	Head    Head       `json:"head"`
+	Records []Envelope `json:"records"`
+	Purged  []string   `json:"purged,omitempty"`
+}
+
+// CommitEntryFrom converts a stored commit for the wire.
+func CommitEntryFrom(seq uint64, c *vaultsync.Commit) CommitEntry {
+	return CommitEntry{Seq: seq, Head: HeadFrom(&c.Head), Records: envelopesFrom(c.Records), Purged: idStrings(c.Purged)}
+}
+
+// ToDomain converts and checks every record, purged id and the head.
+func (d CommitEntry) ToDomain() (vaultsync.Commit, error) {
+	return commitToDomain(d.Head, d.Records, d.Purged)
+}
+
+func commitToDomain(head Head, records []Envelope, purged []string) (vaultsync.Commit, error) {
+	var c vaultsync.Commit
+	var err error
+	if c.Head, err = head.ToDomain(); err != nil {
+		return vaultsync.Commit{}, err
+	}
+	if c.Purged, err = parseIDs(purged); err != nil {
+		return vaultsync.Commit{}, err
+	}
+	for _, r := range records {
+		e, err := r.ToDomain()
+		if err != nil {
+			return vaultsync.Commit{}, err
+		}
+		c.Records = append(c.Records, e)
+	}
+	return c, nil
+}
+
+func envelopesFrom(es []vaultsync.Envelope) []Envelope {
+	out := make([]Envelope, 0, len(es))
+	for i := range es {
+		out = append(out, EnvelopeFrom(&es[i]))
+	}
+	return out
+}
+
+// Versions is every retained version of one record, oldest first, for the trash.
+type Versions struct {
 	Records []Envelope `json:"records"`
 }
 

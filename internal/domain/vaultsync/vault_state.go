@@ -6,10 +6,13 @@ import (
 	"slices"
 )
 
-// Commit is one step of a vault's feed: a signed head and the record versions it carries.
+// Commit is one step of a vault's feed: a signed head, the record versions it carries, and the
+// tombstones it purges (spec §10.1). Purged needs no signature of its own: the head's Merkle root is
+// over the state without those leaves, so a purge the author did not make fails the root check.
 type Commit struct {
 	Head    Head
 	Records []Envelope
+	Purged  []ID
 }
 
 // DeviceResolver returns the account a device belongs to and its signing key. The server answers
@@ -74,6 +77,9 @@ func (s *VaultState) ApplyCommit(c Commit, m *MembershipState, resolve DeviceRes
 	if err := next.applyRecords(c.Records, h.Author, key, m.Epoch()); err != nil {
 		return nil, err
 	}
+	if err := next.applyPurges(c.Purged, c.Records); err != nil {
+		return nil, err
+	}
 	root, err := MerkleRoot(next.Leaves())
 	if err != nil {
 		return nil, err
@@ -131,6 +137,25 @@ func (s *VaultState) applyRecords(records []Envelope, author ID, key []byte, epo
 			return err
 		}
 		s.leaves[e.Record] = leaf
+	}
+	return nil
+}
+
+// applyPurges removes tombstone leaves. A purge of a live record would be a deletion nobody can see
+// in the trash, and a purge of an unknown record or a record the same commit writes has no meaning;
+// all three are refused rather than ignored, because each is a server or device lying about state.
+func (s *VaultState) applyPurges(purged []ID, records []Envelope) error {
+	written := make(map[ID]bool, len(records))
+	for i := range records {
+		written[records[i].Record] = true
+	}
+	for _, id := range purged {
+		// A duplicate finds its leaf already gone and fails the lookup like an unknown record.
+		leaf, ok := s.leaves[id]
+		if !ok || written[id] || !leaf.Deleted {
+			return fmt.Errorf("record %s: %w", id, ErrPurge)
+		}
+		delete(s.leaves, id)
 	}
 	return nil
 }

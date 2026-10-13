@@ -4,21 +4,23 @@ package vaultsync
 // with exactly one of these, so bytes produced for one purpose are useless for any other. They are
 // part of the wire contract: changing one is a protocol major.
 const (
-	LabelBundle     = "xqs-sync/v1/bundle"
-	LabelVKWrap     = "xqs-sync/v1/vk-wrap"
-	LabelDEKWrap    = "xqs-sync/v1/dek-wrap"
-	LabelBody       = "xqs-sync/v1/body"
-	LabelRecordSig  = "xqs-sync/v1/record-sig"
-	LabelEnvelope   = "xqs-sync/v1/envelope"
-	LabelHeadSig    = "xqs-sync/v1/head-sig"
-	LabelHeadHash   = "xqs-sync/v1/head-hash"
-	LabelMemberSig  = "xqs-sync/v1/member-sig"
-	LabelMemberHash = "xqs-sync/v1/member-hash"
-	LabelDeviceSig  = "xqs-sync/v1/device-sig"
-	LabelDeviceHash = "xqs-sync/v1/device-hash"
-	LabelServerTLS  = "xqs-sync/v1/server-tls"
-	LabelMerkleLeaf = "xqs-sync/v1/merkle-leaf"
-	LabelMerkleNode = "xqs-sync/v1/merkle-node"
+	LabelBundle = "xqs-sync/v1/bundle"
+	LabelVKWrap = "xqs-sync/v1/vk-wrap"
+	// LabelVKWrapDigest hashes a wrap's ciphertext for the membership op to sign in its place.
+	LabelVKWrapDigest = "xqs-sync/v1/vk-wrap-digest"
+	LabelDEKWrap      = "xqs-sync/v1/dek-wrap"
+	LabelBody         = "xqs-sync/v1/body"
+	LabelRecordSig    = "xqs-sync/v1/record-sig"
+	LabelEnvelope     = "xqs-sync/v1/envelope"
+	LabelHeadSig      = "xqs-sync/v1/head-sig"
+	LabelHeadHash     = "xqs-sync/v1/head-hash"
+	LabelMemberSig    = "xqs-sync/v1/member-sig"
+	LabelMemberHash   = "xqs-sync/v1/member-hash"
+	LabelDeviceSig    = "xqs-sync/v1/device-sig"
+	LabelDeviceHash   = "xqs-sync/v1/device-hash"
+	LabelServerTLS    = "xqs-sync/v1/server-tls"
+	LabelMerkleLeaf   = "xqs-sync/v1/merkle-leaf"
+	LabelMerkleNode   = "xqs-sync/v1/merkle-node"
 )
 
 // BodyAAD is the additional data a record body is sealed with. Binding vault, record, version,

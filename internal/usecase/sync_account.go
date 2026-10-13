@@ -240,13 +240,17 @@ func (s *SyncAccountService) personalGenesis(acct *domain.SyncAccount) (vaultsyn
 	if err != nil {
 		return vaultsync.MemberOp{}, err
 	}
+	wrap, err := vaultsync.NewKeyWrap(account, wrapped)
+	if err != nil {
+		return vaultsync.MemberOp{}, err
+	}
 	genesis, err := vaultsync.NewMembershipState(vault)
 	if err != nil {
 		return vaultsync.MemberOp{}, err
 	}
 	op := vaultsync.MemberOp{Vault: vault, Seq: 1, Prev: genesis.Hash(), Kind: vaultsync.MemberCreate, Author: account,
 		AuthorDevice: vaultsync.ID(acct.Device), Suite: vaultsync.Suite1, RetentionDays: personalVaultRetentionDays,
-		Wraps: []vaultsync.KeyWrap{{Member: account, Ciphertext: wrapped}}, TimeUnixMilli: uint64(max(s.d.NowUnixMilli(), 0)),
+		Wraps: []vaultsync.KeyWrap{wrap}, TimeUnixMilli: uint64(max(s.d.NowUnixMilli(), 0)),
 		SigAlg: vaultsync.SigEd25519}
 	msg, err := op.SigningBytes()
 	if err != nil {

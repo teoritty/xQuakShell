@@ -59,4 +59,5 @@ var (
 	ErrRecordVersion       error = integrityError("record version does not follow the current one")
 	ErrEpochMismatch       error = integrityError("commit does not use the vault's current epoch")
 	ErrMembershipMismatch  error = integrityError("commit names a membership state other than the one given")
+	ErrPurge               error = integrityError("purge names a record that is not a tombstone of this vault")
 )

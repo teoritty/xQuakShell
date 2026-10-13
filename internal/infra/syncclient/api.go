@@ -67,22 +67,13 @@ func (c *Client) Changes(ctx context.Context, vault vaultsync.ID, after uint64, 
 	}
 	out := make([]synctrust.RemoteCommit, 0, len(reply.Commits))
 	for _, e := range reply.Commits {
-		commit, err := toCommit(e.Head, e.Records)
+		commit, err := e.ToDomain()
 		if err != nil {
-			return nil, false, err
+			return nil, false, protocolErr("commit", err)
 		}
 		out = append(out, synctrust.RemoteCommit{Seq: e.Seq, Commit: commit})
 	}
 	return out, reply.More, nil
-}
-
-func toCommit(h syncwire.Head, records []syncwire.Envelope) (vaultsync.Commit, error) {
-	head, err := h.ToDomain()
-	if err != nil {
-		return vaultsync.Commit{}, protocolErr("head", err)
-	}
-	envs, err := toEnvelopes(records)
-	return vaultsync.Commit{Head: head, Records: envs}, err
 }
 
 func toEnvelopes(records []syncwire.Envelope) ([]vaultsync.Envelope, error) {
@@ -121,10 +112,7 @@ func (c *Client) Commit(ctx context.Context, commit vaultsync.Commit) (uint64, e
 	if commit.Head.Seq == 0 {
 		return 0, fmt.Errorf("syncclient: commit at seq 0")
 	}
-	req := syncwire.Commit{ExpectSeq: commit.Head.Seq - 1, Head: syncwire.HeadFrom(&commit.Head)}
-	for i := range commit.Records {
-		req.Records = append(req.Records, syncwire.EnvelopeFrom(&commit.Records[i]))
-	}
+	req := syncwire.CommitFrom(&commit)
 	var reply syncwire.CommitReply
 	_, err := c.do(ctx, call{client: c.api, method: http.MethodPost, path: vaultPath(commit.Head.Vault, "commit"),
 		body: req, reply: &reply, auth: true})

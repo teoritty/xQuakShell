@@ -33,11 +33,13 @@ const (
 	CodeFrozen             = "frozen"
 	CodeQuotaExceeded      = "quota_exceeded"
 	CodeInternal           = "internal"
+	// CodeHistoryPruned answers a pull from before history the server deleted: take the snapshot.
+	CodeHistoryPruned = "history_pruned"
 )
 
 var errorCodes = []string{
 	CodeMalformed, CodeUnauthorized, CodeForbidden, CodeNotFound, CodeConflict, CodeTooLarge,
-	CodeRateLimited, CodeUnsupportedVersion, CodeFrozen, CodeQuotaExceeded, CodeInternal,
+	CodeRateLimited, CodeUnsupportedVersion, CodeFrozen, CodeQuotaExceeded, CodeInternal, CodeHistoryPruned,
 }
 
 // ErrorCodes lists every code an error response may carry.
