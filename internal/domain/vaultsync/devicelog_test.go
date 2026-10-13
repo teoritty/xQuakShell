@@ -267,3 +267,27 @@ func TestDeviceCertificateIsReadableAndACopy(t *testing.T) {
 		t.Fatal("an unknown device has a certificate")
 	}
 }
+
+// The genesis position commits to the account's keys, so the first entry - signed by the identity
+// key - also vouches for the encryption key. A server that hands out another encryption key for an
+// account makes that account's log fail at its first entry instead of having invites wrapped to it.
+func TestGenesisBindsTheAccountKeys(t *testing.T) {
+	aik := testKey(1)
+	honest := newLog(t, aik)
+	first := signEntry(t, honest, aik, addDevice(1, testKey(2)))
+	for name, keys := range map[string][2][]byte{
+		"encryption key": {aik.Public().(ed25519.PublicKey), aekBytes(9)},
+		"identity key":   {testKey(3).Public().(ed25519.PublicKey), aekBytes(1)},
+	} {
+		forged, err := vaultsync.NewDeviceLogState(account, vaultsync.Suite1, keys[0], keys[1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := forged.Apply(first); !errors.Is(err, vaultsync.ErrDeviceLog) {
+			t.Errorf("substituted %s: err = %v, want ErrDeviceLog", name, err)
+		}
+	}
+	if err := honest.Apply(first); err != nil {
+		t.Fatalf("the honest log refused its own first entry: %v", err)
+	}
+}

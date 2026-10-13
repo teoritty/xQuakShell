@@ -36,7 +36,10 @@ func NewDeviceLogState(account ID, suite SuiteID, identityKey, encryptionKey []b
 	if len(identityKey) != params.SigningKeySize || len(encryptionKey) != params.EncryptionKeySize {
 		return nil, fmt.Errorf("%w: account key size", ErrDeviceLog)
 	}
-	genesis, err := NewCanon(LabelDeviceHash).ID(account).Sum()
+	// The genesis position commits to the account keys. The first entry is signed by the identity
+	// key and chains from here, so it vouches for the encryption key too - the key team invites wrap
+	// vault keys to, which nothing else signed would bind.
+	genesis, err := NewCanon(LabelDeviceHash).ID(account).U16(uint16(suite)).Bytes(identityKey).Bytes(encryptionKey).Sum()
 	if err != nil {
 		return nil, err
 	}
