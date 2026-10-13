@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"slices"
@@ -152,4 +153,42 @@ func (p *pullRun) scratchMembership() (*vaultsync.MembershipState, error) {
 		}
 	}
 	return s, nil
+}
+
+// SetTeamPolicy sets a team vault's retention window and whether it admits unverified members.
+func (e *SyncEngine) SetTeamPolicy(ctx context.Context, vault vaultsync.ID, retentionDays uint16, requireVerified bool) error {
+	if e.scopeOf(vault).Vault == "" {
+		return ErrNotATeam
+	}
+	p, m, err := e.caughtUp(ctx, vault)
+	if err != nil {
+		return err
+	}
+	return p.appendOp(ctx, m, vaultsync.MemberOp{Kind: vaultsync.MemberSetPolicy, RetentionDays: retentionDays, RequireVerified: requireVerified})
+}
+
+// VerifyMember records that this user compared a member's fingerprint out of band. The fingerprint
+// is checked against the member's genesis key as this device verified it, never taken on trust.
+func (e *SyncEngine) VerifyMember(ctx context.Context, vault, account vaultsync.ID, fingerprint string) error {
+	p, err := e.startPull(ctx, vault)
+	if err != nil {
+		return err
+	}
+	if p.trust == nil {
+		return ErrNotATeam
+	}
+	if _, err := p.trust.logFor(account); err != nil {
+		return err
+	}
+	genesis := p.trust.genesis[account]
+	if vaultsync.AccountFingerprint(genesis) != fingerprint {
+		return ErrInviteKeyChanged
+	}
+	digest, err := vaultsync.IdentityDigest(genesis)
+	if err != nil {
+		return err
+	}
+	c, _ := e.contact(account)
+	c.Account, c.IdentityDigest, c.Verified = account.String(), hex.EncodeToString(digest[:]), true
+	return e.storeContact(ctx, c)
 }
