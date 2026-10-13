@@ -24,6 +24,12 @@ type VaultSync struct {
 	// PluginFiles mirror the data files plugins declared for sync (spec §6.5). The vault is the
 	// synced copy; the plugin's data directory receives it only while the plugin is stopped.
 	PluginFiles []SyncPluginFile `json:"pluginFiles,omitempty"`
+	// PluginFilesOnDisk is device-local and never synced: the digest of each plugin file as this
+	// device last wrote or read it on disk, keyed by SyncPluginFile.Key. It is what tells a local
+	// edit from an incoming one that has not reached the disk yet.
+	PluginFilesOnDisk map[string]string `json:"pluginFilesOnDisk,omitempty"`
+	// PluginDataOff lists plugins whose data this device does not sync; device-local, never synced.
+	PluginDataOff []string `json:"pluginDataOff,omitempty"`
 	// Account holds this device's credentials for its sync account; nil until sync is enabled. It
 	// is never synced as a record: these are the keys every record is protected with.
 	Account *SyncAccount `json:"account,omitempty"`

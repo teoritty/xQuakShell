@@ -45,6 +45,8 @@ type PluginManager struct {
 	processSuspended  func(pluginID string)
 	connChecker       PluginConnectionChecker
 	retention         PluginRetentionChecker
+	startGuard        func(ctx context.Context, pluginID string) func()
+	processIdle       func(pluginID string)
 
 	mu              sync.Mutex
 	sessionCounts   map[string]int
@@ -416,6 +418,9 @@ func (m *PluginManager) emitStateChange(pluginID, state, sessionID string) {
 	}
 	if state == "suspended" && m.processSuspended != nil {
 		m.processSuspended(pluginID)
+	}
+	if (state == "stopped" || state == "suspended") && m.processIdle != nil {
+		m.processIdle(pluginID)
 	}
 	if m.stateChange != nil {
 		m.stateChange(pluginID, state, sessionID)

@@ -1,5 +1,7 @@
 package domain
 
+import "maps"
+
 // CloneVaultData returns a deep copy of vault data suitable for snapshots.
 // Nil input returns nil.
 func CloneVaultData(in *VaultData) *VaultData {
@@ -249,6 +251,10 @@ func cloneVaultSync(in *VaultSync) *VaultSync {
 	out.Contacts = append([]SyncContact(nil), in.Contacts...)
 	out.Bindings = append([]CredentialBinding(nil), in.Bindings...)
 	out.Plugins = append([]SyncPlugin(nil), in.Plugins...)
+	out.PluginDataOff = append([]string(nil), in.PluginDataOff...)
+	if in.PluginFilesOnDisk != nil {
+		out.PluginFilesOnDisk = maps.Clone(in.PluginFilesOnDisk)
+	}
 	for _, f := range in.PluginFiles {
 		f.Content = b(f.Content)
 		out.PluginFiles = append(out.PluginFiles, f)
