@@ -67,3 +67,18 @@ func TestRecordAccess(t *testing.T) {
 		t.Errorf("unknown type: %d, want opaque", got)
 	}
 }
+
+func TestHelloContextBindsTheOffer(t *testing.T) {
+	key := []byte("identity")
+	base, _ := vaultsync.HelloContext(key, ver(1, 0, 0), ver(1, 2, 0), []vaultsync.SuiteID{1})
+	variants := map[string][]byte{}
+	variants["key"], _ = vaultsync.HelloContext([]byte("other"), ver(1, 0, 0), ver(1, 2, 0), []vaultsync.SuiteID{1})
+	variants["max"], _ = vaultsync.HelloContext(key, ver(1, 0, 0), ver(1, 1, 0), []vaultsync.SuiteID{1})
+	variants["min"], _ = vaultsync.HelloContext(key, ver(1, 1, 0), ver(1, 2, 0), []vaultsync.SuiteID{1})
+	variants["suites"], _ = vaultsync.HelloContext(key, ver(1, 0, 0), ver(1, 2, 0), []vaultsync.SuiteID{1, 2})
+	for name, got := range variants {
+		if string(got) == string(base) {
+			t.Errorf("changing the offered %s left the AKE context unchanged; a downgrade would go unnoticed", name)
+		}
+	}
+}

@@ -21,6 +21,8 @@ func (i GoroutineIssue) String() string {
 // every goroutine through safego.
 var goroutineScanRoots = []string{
 	"internal",
+	// The sync server's composition root (ADR-023).
+	"cmd",
 	"app.go",
 	"main.go",
 	"main_plugins.go",

@@ -16,7 +16,7 @@ import (
 // this purpose: a checker that grew into a God Object stops being read, and an
 // unread checker is an unenforced rule. test/fixtures and test/bench are out -
 // they are test support, and D4 exempts tests from size limits entirely.
-var budgetScanRoots = []string{".", "internal", "scripts", "test/unit"}
+var budgetScanRoots = []string{".", "cmd", "internal", "scripts", "test/unit"}
 
 // budgetPrunedDirs are skipped anywhere they appear under a scan root.
 // testdata holds files that are deliberately malformed or oversized because a

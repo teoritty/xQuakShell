@@ -71,3 +71,21 @@ func RecordAccess(known map[string]uint16, recordType string, schema uint16) Sch
 	}
 	return SchemaWritable
 }
+
+// LabelHelloContext separates the hello transcript hash from every other digest.
+const LabelHelloContext = "xqs-sync/v1/hello-context"
+
+// HelloContext is the OPAQUE AKE context both sides derive from what the server offered in hello:
+// its identity key, its protocol range and its suites. A network attacker who alters any of them on
+// the way to the client makes the two sides derive different contexts, and the login fails instead
+// of silently proceeding on a downgraded offer.
+func HelloContext(identityKey []byte, serverMin, serverMax ProtocolVersion, suites []SuiteID) ([]byte, error) {
+	c := NewCanon(LabelHelloContext).Bytes(identityKey).
+		U16(serverMin.Major).U16(serverMin.Minor).U16(serverMin.Patch).
+		U16(serverMax.Major).U16(serverMax.Minor).U16(serverMax.Patch).U64(uint64(len(suites)))
+	for _, s := range suites {
+		c.U16(uint16(s))
+	}
+	sum, err := c.Sum()
+	return sum[:], err
+}
