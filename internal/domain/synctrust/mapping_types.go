@@ -22,6 +22,7 @@ func sliceMapper[T any](field func(*domain.VaultData) *[]T, keyOf func(T) string
 			}
 			return out, nil
 		},
+		keyOf: keyFrom(keyOf),
 		upsert: func(key string, data []byte) (mutation, error) {
 			v, err := decodeData[T](data)
 			if err != nil {
@@ -105,6 +106,13 @@ var knownHostMapper = mapper{
 		}
 		return out, nil
 	},
+	keyOf: func(data []byte) (string, error) {
+		v, err := decodeData[knownHostData](data)
+		if err != nil {
+			return "", err
+		}
+		return knownHostKey(v.Line)
+	},
 	upsert: func(key string, data []byte) (mutation, error) {
 		v, err := decodeData[knownHostData](data)
 		if err != nil {
@@ -166,6 +174,7 @@ func mapMapper[T any](list func(*domain.VaultData) []T, keyOf func(T) string, pu
 			}
 			return out, nil
 		},
+		keyOf: keyFrom(keyOf),
 		upsert: func(key string, data []byte) (mutation, error) {
 			v, err := decodeData[T](data)
 			if err != nil {

@@ -35,6 +35,7 @@ type mutation func(*domain.VaultData)
 
 type mapper struct {
 	entries func(d *domain.VaultData) ([]Entry, error)
+	keyOf   func(data []byte) (string, error)
 	upsert  func(key string, data []byte) (mutation, error)
 	remove  func(key string) (mutation, error)
 }
@@ -129,6 +130,45 @@ func Apply(d *domain.VaultData, changes []Entry) error {
 	return nil
 }
 
+// NaturalKey reads the natural key a record's data names. The engine derives the record id from it
+// and refuses a record filed under any other id.
+func NaturalKey(t RecordType, data []byte) (string, error) {
+	m, _, err := mapperFor(t)
+	if err != nil {
+		return "", err
+	}
+	return m.keyOf(data)
+}
+
+// Validate runs the same checks Apply would for one change, without applying it, so the engine can
+// quarantine a single bad record instead of refusing the whole commit it arrived in.
+func Validate(e Entry) error {
+	m, _, err := mapperFor(e.Type)
+	if err != nil {
+		return err
+	}
+	if e.Data == nil {
+		_, err = m.remove(e.Key)
+	} else {
+		_, err = m.upsert(e.Key, e.Data)
+	}
+	return err
+}
+
+// keyFrom builds a mapper's keyOf from its data type and key function.
+func keyFrom[T any](keyOf func(T) string) func([]byte) (string, error) {
+	return func(data []byte) (string, error) {
+		v, err := decodeData[T](data)
+		if err != nil {
+			return "", err
+		}
+		if k := keyOf(v); k != "" {
+			return k, nil
+		}
+		return "", fmt.Errorf("%w: no natural key", ErrRecordData)
+	}
+}
+
 // decodeData parses record data strictly; an unknown field means a newer schema or a hostile
 // device, and the schema number already routes the first case away from here.
 func decodeData[T any](raw []byte) (T, error) {
@@ -165,6 +205,12 @@ func settingsMapper(section string) mapper {
 				return nil, fmt.Errorf("encode settings %s: %w", section, err)
 			}
 			return []Entry{{Key: section, Data: raw}}, nil
+		},
+		keyOf: func(data []byte) (string, error) {
+			if _, err := ApplySection(domain.AppSettings{}, section, data); err != nil {
+				return "", fmt.Errorf("%w: %w", ErrRecordData, err)
+			}
+			return section, nil
 		},
 		upsert: func(key string, data []byte) (mutation, error) {
 			if err := checkKey(section, key); err != nil {

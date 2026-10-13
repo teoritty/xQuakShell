@@ -25,6 +25,10 @@ var (
 	// ErrServerIdentity is a server whose TLS key is not signed by the pinned identity key, or whose
 	// identity key is not the pinned one. Nothing is sent to it.
 	ErrServerIdentity = errors.New("sync server: identity does not match the pinned key")
+	// ErrIntegrity is data from the server that does not verify: a broken chain, a bad signature, a
+	// root that does not match, a device log or membership that does not replay. Sync of the vault
+	// stops and nothing from the failing pull is applied; it is never retried silently.
+	ErrIntegrity = errors.New("sync: data from the server does not verify")
 )
 
 // ConflictError is a commit refused because the vault moved on; the client pulls and rebases onto

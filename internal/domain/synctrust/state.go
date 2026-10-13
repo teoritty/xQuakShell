@@ -17,13 +17,16 @@ type StoredVault struct {
 	Records []vaultsync.Envelope
 }
 
-// QuarantineItem is a record that verified but could not be applied: its body failed validation, its
-// schema is unknown, or Classify refused it. It stays here, out of the vault, until the user drops it
-// or a newer version replaces it.
+// QuarantineItem is a record that verified but was not applied: its body failed validation, its
+// schema is unknown, Classify refused it, or Classify held it for the master password. It stays
+// here, out of the vault, until the user confirms or drops it, or a newer version replaces it.
 type QuarantineItem struct {
 	Envelope    vaultsync.Envelope
 	Reason      string
 	AtUnixMilli int64
+	// Pending marks a change held for the master password (ActionPending) rather than refused: the
+	// user can confirm it, where a refused record can only be dropped.
+	Pending bool
 }
 
 var (

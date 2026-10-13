@@ -81,14 +81,14 @@ func (s *DB) Quarantine(ctx context.Context, item synctrust.QuarantineItem) erro
 	if err != nil {
 		return fmt.Errorf("syncstate: encode quarantine: %w", err)
 	}
-	_, err = s.db.ExecContext(ctx, "INSERT OR REPLACE INTO quarantine (vault, record, envelope, reason, at) VALUES (?, ?, ?, ?, ?)",
-		e.Vault[:], e.Record[:], raw, item.Reason, item.AtUnixMilli)
+	_, err = s.db.ExecContext(ctx, "INSERT OR REPLACE INTO quarantine (vault, record, envelope, reason, at, pending) VALUES (?, ?, ?, ?, ?, ?)",
+		e.Vault[:], e.Record[:], raw, item.Reason, item.AtUnixMilli, item.Pending)
 	return err
 }
 
 // Quarantined lists a vault's quarantined records.
 func (s *DB) Quarantined(ctx context.Context, vault vaultsync.ID) ([]synctrust.QuarantineItem, error) {
-	rs, err := s.db.QueryContext(ctx, "SELECT envelope, reason, at FROM quarantine WHERE vault = ? ORDER BY record", vault[:])
+	rs, err := s.db.QueryContext(ctx, "SELECT envelope, reason, at, pending FROM quarantine WHERE vault = ? ORDER BY record", vault[:])
 	if err != nil {
 		return nil, fmt.Errorf("syncstate: query quarantine: %w", err)
 	}
@@ -97,7 +97,7 @@ func (s *DB) Quarantined(ctx context.Context, vault vaultsync.ID) ([]synctrust.Q
 	for rs.Next() {
 		var raw []byte
 		var item synctrust.QuarantineItem
-		if err := rs.Scan(&raw, &item.Reason, &item.AtUnixMilli); err != nil {
+		if err := rs.Scan(&raw, &item.Reason, &item.AtUnixMilli, &item.Pending); err != nil {
 			return nil, fmt.Errorf("syncstate: scan quarantine: %w", err)
 		}
 		if item.Envelope, err = decodeAs[vaultsync.Envelope, syncwire.Envelope](raw); err != nil {

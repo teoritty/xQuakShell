@@ -221,6 +221,17 @@ func TestQuarantine(t *testing.T) {
 	if err != nil || len(got) != 1 || got[0].Envelope.Version != 2 || got[0].Reason != "unknown schema" {
 		t.Fatalf("quarantine = %+v, %v; a newer version replaces the older one", got, err)
 	}
+	held := synctrust.QuarantineItem{Envelope: envelope(1, 3, 1, nil), Reason: "weakens plugin trust", Pending: true}
+	if err := db.Quarantine(ctx, held); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = db.Quarantined(ctx, vaultsync.ID{1})
+	if len(got) != 2 || got[0].Pending || !got[1].Pending {
+		t.Fatalf("quarantine = %+v; a held change must stay distinguishable from a refused one", got)
+	}
+	if err := db.Release(ctx, vaultsync.ID{1}, vaultsync.ID{3}); err != nil {
+		t.Fatal(err)
+	}
 	if err := db.Release(ctx, vaultsync.ID{1}, vaultsync.ID{2}); err != nil {
 		t.Fatal(err)
 	}

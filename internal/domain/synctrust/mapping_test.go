@@ -239,3 +239,32 @@ func TestPeerTrustKeysDoNotCollide(t *testing.T) {
 		t.Fatalf("two different scope/subject pairs collided: %v", err)
 	}
 }
+
+func TestNaturalKeyAgreesWithSnapshot(t *testing.T) {
+	for _, e := range snapshot(t, populatedVault()) {
+		key, err := synctrust.NaturalKey(e.Type, e.Data)
+		if err != nil || key != e.Key {
+			t.Errorf("%s: natural key %q, %v; snapshot filed it as %q", e.Type, key, err, e.Key)
+		}
+	}
+	if _, err := synctrust.NaturalKey(synctrust.TypeFolder, json.RawMessage(`{"id":"f","name":"x","parentId":"","order":0,"z":1}`)); err == nil {
+		t.Error("a natural key was read from data that does not decode strictly")
+	}
+	if _, err := synctrust.NaturalKey("evil", json.RawMessage(`{}`)); !errors.Is(err, synctrust.ErrRecordType) {
+		t.Errorf("unknown type: %v", err)
+	}
+}
+
+func TestValidateChecksWithoutApplying(t *testing.T) {
+	bad, _ := json.Marshal(domain.Connection{ID: "c9", Port: 70000})
+	if err := synctrust.Validate(synctrust.Entry{Type: synctrust.TypeConnection, Key: "c9", Data: bad}); !errors.Is(err, synctrust.ErrRecordData) {
+		t.Fatalf("err = %v, want ErrRecordData", err)
+	}
+	good, _ := json.Marshal(domain.ConnectionFolder{ID: "f9", Name: "x"})
+	if err := synctrust.Validate(synctrust.Entry{Type: synctrust.TypeFolder, Key: "f9", Data: good}); err != nil {
+		t.Fatal(err)
+	}
+	if err := synctrust.Validate(synctrust.Entry{Type: synctrust.SettingsType("terminal"), Key: "terminal"}); err == nil {
+		t.Fatal("a settings deletion validated")
+	}
+}

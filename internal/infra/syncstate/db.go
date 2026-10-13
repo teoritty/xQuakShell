@@ -40,7 +40,7 @@ CREATE TABLE member_ops (vault BLOB NOT NULL, seq INTEGER NOT NULL, op BLOB NOT 
   PRIMARY KEY (vault, seq));
 CREATE TABLE outbox (vault BLOB PRIMARY KEY, commit_id BLOB NOT NULL, payload BLOB NOT NULL);
 CREATE TABLE quarantine (vault BLOB NOT NULL, record BLOB NOT NULL, envelope BLOB NOT NULL,
-  reason TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (vault, record));
+  reason TEXT NOT NULL, at INTEGER NOT NULL, pending INTEGER NOT NULL, PRIMARY KEY (vault, record));
 `
 
 // DB is an open state database.
