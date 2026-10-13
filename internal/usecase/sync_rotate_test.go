@@ -1,12 +1,16 @@
 package usecase_test
 
 import (
+	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
 	"errors"
 	"testing"
 
 	"xquakshell/internal/domain"
 	"xquakshell/internal/domain/synctrust"
 	"xquakshell/internal/domain/vaultsync"
+	"xquakshell/internal/infra/synccrypto"
 	"xquakshell/internal/syncserver/servertest"
 	"xquakshell/internal/usecase"
 )
@@ -182,6 +186,52 @@ func TestInterruptedRekeyIsRememberedAndFinished(t *testing.T) {
 		t.Fatal("finishing did not clear the marker")
 	}
 	if _, err := newDevice(t, h, "tablet").svc.Login(syncCtx, creds("new horse")); err != nil {
+		t.Fatalf("login after finishing: %v", err)
+	}
+}
+
+// A crash after the device log accepted a succession but before the device promoted the new keys
+// leaves them only as pending; the log already names them and the server's bundle is the old one.
+// Signing in again must adopt the pending keys, not refuse the bundle forever.
+func TestPendingKeysTheLogNamesAreAdopted(t *testing.T) {
+	h, a, _ := twoDevices(t)
+	acct := a.vault.data.Sync.Account
+	_, newAIK, _ := ed25519.GenerateKey(rand.Reader)
+	encSeed, encKey, _ := synccrypto.GenerateEncryptionKey()
+	// The real flow rewraps the vault's current key to the new encryption key before anything else.
+	if err := a.engine.RewrapCurrent(syncCtx, a.session.Personal, encKey); err != nil {
+		t.Fatal(err)
+	}
+	_ = a.vault.UpdateData(syncCtx, func(d *domain.VaultData) error {
+		d.Sync.Account.Pending = &domain.SyncPendingKeys{IdentitySeed: newAIK.Seed(), EncryptionSeed: encSeed, EncryptionKey: encKey}
+		return nil
+	})
+	account := vaultsync.ID(acct.Account)
+	entries, _ := a.session.Server.DeviceLog(syncCtx, account, 0)
+	log, _ := vaultsync.NewDeviceLogState(account, vaultsync.Suite1, acct.GenesisIdentityKey, acct.GenesisEncryptionKey)
+	for i := range entries {
+		_ = log.Apply(&entries[i])
+	}
+	succ := vaultsync.DeviceEntry{Account: account, Seq: log.Seq() + 1, Prev: log.Hash(), Op: vaultsync.OpSuccession,
+		NewSuite: vaultsync.Suite1, NewIdentityKey: newAIK.Public().(ed25519.PublicKey), NewEncryptionKey: encKey, SigAlg: vaultsync.SigEd25519}
+	msg, _ := succ.SigningBytes()
+	succ.Sig, succ.SuccessorSig = ed25519.Sign(ed25519.NewKeyFromSeed(acct.IdentitySeed), msg), ed25519.Sign(newAIK, msg)
+	if err := a.session.Server.AppendDeviceLog(syncCtx, []vaultsync.DeviceEntry{succ}); err != nil {
+		t.Fatal(err)
+	}
+	s, err := a.svc.Relogin(syncCtx, []byte("correct horse"))
+	if err != nil {
+		t.Fatalf("relogin with keys the log names pending: %v", err)
+	}
+	d, _ := a.vault.GetData()
+	if d.Sync.Account.Pending != nil || !d.Sync.Account.RekeyPending || !bytes.Equal(d.Sync.Account.EncryptionKey, encKey) {
+		t.Fatal("the pending keys were not adopted with the rekey still to finish")
+	}
+	a.restart(s)
+	if _, err := a.svc.ResetPassword(syncCtx, []byte("correct horse")); err != nil {
+		t.Fatalf("finishing: %v", err)
+	}
+	if _, err := newDevice(t, h, "tablet").svc.Login(syncCtx, creds("correct horse")); err != nil {
 		t.Fatalf("login after finishing: %v", err)
 	}
 }

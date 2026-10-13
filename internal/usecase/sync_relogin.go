@@ -31,9 +31,14 @@ func (s *SyncAccountService) Relogin(ctx context.Context, password []byte) (Sync
 	if err != nil {
 		return SyncSession{}, err
 	}
-	next, err := s.refreshedKeys(ctx, srv, hello, acct, password)
+	next, adopted, err := s.adoptPending(ctx, srv, acct)
 	if err != nil {
 		return SyncSession{}, err
+	}
+	if !adopted {
+		if next, err = s.refreshedKeys(ctx, srv, hello, acct, password); err != nil {
+			return SyncSession{}, err
+		}
 	}
 	keys, err := NewSyncKeyRing(next, s.d.Crypto)
 	if err != nil {
@@ -84,4 +89,31 @@ func (s *SyncAccountService) refreshedKeys(ctx context.Context, srv synctrust.Ac
 		return nil, ErrSyncDeviceRevoked
 	}
 	return &next, nil
+}
+
+// adoptPending finishes a succession that crashed between the device log accepting it and this
+// device promoting its keys: if the log ends at the pending keys, they become the account's, with
+// the rekey still to do. The server's bundle is the old one then, so refreshing from it would fail.
+func (s *SyncAccountService) adoptPending(ctx context.Context, srv synctrust.AccountServer, acct *domain.SyncAccount) (*domain.SyncAccount, bool, error) {
+	if acct.Pending == nil {
+		return nil, false, nil
+	}
+	keys, err := NewSyncKeyRing(acct, s.d.Crypto)
+	if err != nil {
+		return nil, false, err
+	}
+	auth := NewAuthenticatedServer(srv, keys)
+	if err := auth.Authenticate(ctx); err != nil {
+		return nil, false, err
+	}
+	next := *acct
+	next.IdentitySeed, next.EncryptionSeed, next.EncryptionKey = acct.Pending.IdentitySeed, acct.Pending.EncryptionSeed, acct.Pending.EncryptionKey
+	next.Pending, next.RekeyPending = nil, true
+	if _, err := s.verifiedLog(ctx, auth, &next); err != nil {
+		if errors.Is(err, synctrust.ErrKeysRotated) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return &next, true, nil
 }
