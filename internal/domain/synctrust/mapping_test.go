@@ -311,3 +311,41 @@ func TestConflictIDsCannotBeForged(t *testing.T) {
 		t.Fatal("an item key containing the separator forged another conflict's id")
 	}
 }
+
+// A vault decoded from an older file may hold nil maps for fields it never had; applying a synced
+// item into one must create the map, not panic.
+func TestApplyIntoAVaultWithNilMaps(t *testing.T) {
+	src := populatedVault()
+	dst := &domain.VaultData{Settings: domain.NewVaultData().Settings}
+	if err := synctrust.Apply(dst, asChanges(t, snapshot(t, src))); err != nil {
+		t.Fatal(err)
+	}
+	if len(dst.Identities) != 1 || len(dst.KeyBlobs) != 1 || len(dst.Passwords) != 1 || len(dst.PluginSecrets) != 1 {
+		t.Fatalf("maps not filled: %+v", dst)
+	}
+}
+
+func TestBadDataIsRefusedEverywhereItEnters(t *testing.T) {
+	if _, err := synctrust.NaturalKey(synctrust.SettingsType("terminal"), json.RawMessage(`{"fontSize":"big"}`)); !errors.Is(err, synctrust.ErrRecordData) {
+		t.Errorf("settings key from bad data: %v", err)
+	}
+	if _, _, err := synctrust.MergeData(synctrust.TypeFolder, json.RawMessage(`[1]`), json.RawMessage(`{}`), json.RawMessage(`{}`)); err == nil {
+		t.Error("a base that is not an object merged")
+	}
+	if _, _, err := synctrust.MergeData(synctrust.TypeFolder, nil, json.RawMessage(`{}`), json.RawMessage(`"x"`)); err == nil {
+		t.Error("a remote that is not an object merged")
+	}
+	d := populatedVault()
+	if err := synctrust.SetField(d, synctrust.TypeConnection, "c1", []string{"host"}, json.RawMessage(`{`)); !errors.Is(err, synctrust.ErrRecordData) {
+		t.Errorf("an undecodable value: %v", err)
+	}
+	if err := synctrust.SetField(d, "evil", "c1", []string{"host"}, json.RawMessage(`"x"`)); !errors.Is(err, synctrust.ErrRecordType) {
+		t.Errorf("an unknown type: %v", err)
+	}
+	if _, err := synctrust.Classify(synctrust.TypeKnownHost, json.RawMessage(`{"line":1}`), json.RawMessage(`{"line":"h ssh-rsa A"}`)); err == nil {
+		t.Error("an undecodable local known host was classified")
+	}
+	if _, err := synctrust.NewVaultMetaBody(nil); !errors.Is(err, synctrust.ErrNamingKey) {
+		t.Errorf("vault-meta without a key: %v", err)
+	}
+}

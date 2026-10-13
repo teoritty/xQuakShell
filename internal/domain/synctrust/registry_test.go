@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"xquakshell/internal/domain/synctrust"
 	"xquakshell/internal/domain/vaultsync"
@@ -105,4 +107,23 @@ func FuzzDecodeBody(f *testing.F) {
 			t.Fatalf("decoded an incomplete body: %+v", b)
 		}
 	})
+}
+
+func TestPersonalVaultIDIsStableAndPerAccount(t *testing.T) {
+	a := synctrust.PersonalVaultID(vaultsync.ID{1})
+	if a.IsZero() || a != synctrust.PersonalVaultID(vaultsync.ID{1}) || a == synctrust.PersonalVaultID(vaultsync.ID{2}) {
+		t.Fatal("the personal vault id must be stable for one account and distinct across accounts")
+	}
+	if a == synctrust.VaultMetaID(vaultsync.ID{1}) {
+		t.Fatal("the personal vault id collides with a vault-meta record id")
+	}
+}
+
+func TestRemoteErrorsSayWhatToDo(t *testing.T) {
+	if !strings.Contains((&synctrust.ConflictError{CurrentSeq: 7}).Error(), "7") {
+		t.Error("a conflict does not say where the vault moved to")
+	}
+	if !strings.Contains((&synctrust.RateLimitedError{RetryAfter: 3 * time.Second}).Error(), "3s") {
+		t.Error("a rate limit does not say how long to wait")
+	}
 }
