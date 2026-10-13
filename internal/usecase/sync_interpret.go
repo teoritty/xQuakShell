@@ -16,8 +16,7 @@ type interpretation struct {
 	quarantine []synctrust.QuarantineItem
 }
 
-// errSkip marks a record with nothing to apply: a tombstone for something this device never had,
-// or a record kind the engine handles elsewhere.
+// errSkip marks a record with nothing to apply: a tombstone for something this device never had.
 var errSkip = errors.New("nothing to apply")
 
 // interpret decides each record of a verified commit. The vault-meta record goes first, because
@@ -55,6 +54,10 @@ func (p *pullRun) interpret(c vaultsync.Commit) (interpretation, error) {
 }
 
 func (p *pullRun) route(out *interpretation, r *vaultsync.Envelope, entry synctrust.Entry, local []byte) {
+	entry, ok := p.mergeLocal(out, r.Record, entry, local)
+	if !ok {
+		return
+	}
 	verdict, err := synctrust.Classify(entry.Type, local, entry.Data)
 	switch {
 	case err != nil:
@@ -140,9 +143,6 @@ func (p *pullRun) decode(r *vaultsync.Envelope) (synctrust.Entry, error) {
 		return synctrust.Entry{}, errors.New("a record type this version does not know")
 	case vaultsync.SchemaReadOnly:
 		return synctrust.Entry{}, errors.New("written by a newer version of xQuakShell")
-	}
-	if body.Type == synctrust.TypeConflict {
-		return synctrust.Entry{}, errSkip
 	}
 	return p.checkFiled(r, body)
 }

@@ -33,6 +33,12 @@ type svcServer struct {
 	// alwaysMore makes every page claim more commits follow - a server stalling a client in a loop.
 	alwaysMore bool
 	calls      int
+	// beforeCommit runs once before the next commit reaches the server: another device racing in.
+	beforeCommit func()
+	// dropReply loses the reply of the next accepted commit, as a dropped connection would.
+	dropReply bool
+	// failCommit loses the next commit before the server stores it.
+	failCommit bool
 }
 
 func (s *svcServer) p() srvusecase.Principal { return s.h.Principal(s.token) }
@@ -67,7 +73,24 @@ func (s *svcServer) Snapshot(ctx context.Context, vault vaultsync.ID) (synctrust
 }
 
 func (s *svcServer) Commit(ctx context.Context, c vaultsync.Commit) (uint64, error) {
-	return s.h.Svc.Commit(ctx, s.p(), c.Head.Vault, c.Head.Seq-1, c)
+	if hook := s.beforeCommit; hook != nil {
+		s.beforeCommit = nil
+		hook()
+	}
+	if s.failCommit {
+		s.failCommit = false
+		return 0, errors.New("connection reset before the request arrived")
+	}
+	seq, err := s.h.Svc.Commit(ctx, s.p(), c.Head.Vault, c.Head.Seq-1, c)
+	var conflict *srvusecase.ConflictError
+	if errors.As(err, &conflict) {
+		return 0, &synctrust.ConflictError{CurrentSeq: conflict.CurrentSeq}
+	}
+	if err == nil && s.dropReply {
+		s.dropReply = false
+		return 0, errors.New("connection reset before the reply")
+	}
+	return seq, err
 }
 
 func (s *svcServer) DeviceLog(ctx context.Context, account vaultsync.ID, since uint64) ([]vaultsync.DeviceEntry, error) {
@@ -348,10 +371,15 @@ func TestInvalidAndUnknownRecordsAreQuarantined(t *testing.T) {
 func TestWeakeningChangesAreHeld(t *testing.T) {
 	w := newSyncWorld(t)
 	s := *domain.NewVaultData().Settings
-	s.Plugins.RequireSignedPlugins = false
-	sections, _ := synctrust.SplitSettings(s)
 	id, _ := synctrust.RecordID(w.namingKey, synctrust.SettingsType("plugins"), "plugins")
-	w.push(w.meta(), w.sealed(id, synctrust.Body{Type: synctrust.SettingsType("plugins"), Schema: 1, Data: sections["plugins"]}))
+	section := func() synctrust.Body {
+		sections, _ := synctrust.SplitSettings(s)
+		return synctrust.Body{Type: synctrust.SettingsType("plugins"), Schema: 1, Data: sections["plugins"]}
+	}
+	w.push(w.meta(), w.sealed(id, section()))
+	w.pull()
+	s.Plugins.RequireSignedPlugins = false
+	w.push(w.sealed(id, section()))
 	r := w.pull()
 	if r.Held != 1 || r.Applied != 0 {
 		t.Fatalf("report = %+v", r)
@@ -366,8 +394,9 @@ func TestWeakeningChangesAreHeld(t *testing.T) {
 
 func TestClearingNonExportableIsRefused(t *testing.T) {
 	w := newSyncWorld(t)
-	w.vault.data.Identities["k1"] = domain.SSHIdentity{ID: "k1", NonExportable: true}
-	w.push(w.meta(), w.item(synctrust.TypeIdentity, "k1", map[string]any{"identity": domain.SSHIdentity{ID: "k1"}}))
+	w.push(w.meta(), w.item(synctrust.TypeIdentity, "k1", map[string]any{"identity": domain.SSHIdentity{ID: "k1", NonExportable: true}}))
+	w.pull()
+	w.push(w.item(synctrust.TypeIdentity, "k1", map[string]any{"identity": domain.SSHIdentity{ID: "k1"}}))
 	r := w.pull()
 	if r.Quarantined != 1 || r.Held != 0 {
 		t.Fatalf("report = %+v", r)

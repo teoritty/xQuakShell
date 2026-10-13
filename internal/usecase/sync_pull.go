@@ -19,6 +19,7 @@ type pullRun struct {
 	state     *vaultsync.VaultState
 	base      map[vaultsync.ID]vaultsync.Envelope
 	names     map[vaultsync.ID]syncKeyName
+	bodies    map[vaultsync.ID]synctrust.Body
 	namingKey []byte
 	report    PullReport
 }
@@ -32,19 +33,24 @@ func (e *SyncEngine) Pull(ctx context.Context, vault vaultsync.ID) (PullReport, 
 	if err != nil {
 		return PullReport{}, err
 	}
+	err = p.pullAll(ctx)
+	return p.report, err
+}
+
+func (p *pullRun) pullAll(ctx context.Context) error {
 	for {
-		commits, more, err := e.d.Server.Changes(ctx, vault, p.state.Cursor().Seq, pullPageSize)
+		commits, more, err := p.e.d.Server.Changes(ctx, p.vault, p.state.Cursor().Seq, pullPageSize)
 		if err != nil {
-			return p.report, err
+			return err
 		}
 		for _, c := range commits {
 			if err := p.applyCommit(ctx, c); err != nil {
-				return p.report, err
+				return err
 			}
 		}
 		// An empty page that claims more would loop forever; the next pull asks again.
 		if !more || len(commits) == 0 {
-			return p.report, nil
+			return nil
 		}
 	}
 }
@@ -70,7 +76,8 @@ func (e *SyncEngine) startPull(ctx context.Context, vault vaultsync.ID) (*pullRu
 	}
 	p := &pullRun{e: e, vault: vault, ops: ops, resolve: resolve, state: state,
 		members: &membershipCursor{vault: vault, ops: ops, check: check},
-		base:    indexEnvelopes(stored.Records), names: map[vaultsync.ID]syncKeyName{}}
+		base:    indexEnvelopes(stored.Records), names: map[vaultsync.ID]syncKeyName{},
+		bodies: map[vaultsync.ID]synctrust.Body{}}
 	if meta, ok := p.base[synctrust.VaultMetaID(vault)]; ok {
 		if err := p.learnMeta(meta); err != nil {
 			return nil, err
@@ -106,10 +113,7 @@ func (p *pullRun) applyCommit(ctx context.Context, c synctrust.RemoteCommit) err
 	if err := p.e.d.State.AdvanceVault(ctx, c.Commit.Head, c.Commit.Records); err != nil {
 		return err
 	}
-	p.state = next
-	for _, r := range c.Commit.Records {
-		p.base[r.Record] = r
-	}
+	p.advance(next, c.Commit.Records)
 	p.report.Commits++
 	p.report.Applied += len(out.changes)
 	return nil
@@ -132,4 +136,13 @@ func (p *pullRun) settleQuarantine(ctx context.Context, out interpretation) erro
 		}
 	}
 	return nil
+}
+
+// advance moves the run onto a commit it verified and stored.
+func (p *pullRun) advance(next *vaultsync.VaultState, records []vaultsync.Envelope) {
+	p.state = next
+	for _, r := range records {
+		p.base[r.Record] = r
+		delete(p.bodies, r.Record)
+	}
 }
