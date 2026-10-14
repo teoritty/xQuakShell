@@ -137,7 +137,14 @@ func newSchedWorld(t *testing.T, eventFails int) *schedWorld {
 }
 
 func newSchedWorldOf(t *testing.T, eventFails int, vaults ...vaultsync.ID) *schedWorld {
-	w := &schedWorld{t: t, timers: newFakeTimers(), syncer: &fakeSyncer{calls: make(chan vaultsync.ID, 16)},
+	return newSchedWorldFailing(t, eventFails, nil, vaults...)
+}
+
+// newSchedWorldFailing starts a scheduler whose engine already fails with syncErr. The error has to
+// be in place before Start: the first round runs at once, and setting it afterwards raced that round,
+// which then sometimes succeeded and armed no backoff timer at all.
+func newSchedWorldFailing(t *testing.T, eventFails int, syncErr error, vaults ...vaultsync.ID) *schedWorld {
+	w := &schedWorld{t: t, timers: newFakeTimers(), syncer: &fakeSyncer{calls: make(chan vaultsync.ID, 16), err: syncErr},
 		events: &fakeEvents{ch: make(chan synctrust.RemoteEvent, 4), fails: eventFails},
 		status: make(chan usecase.SyncStatus, 64), vault: vaults[0]}
 	w.s = usecase.NewSyncScheduler(usecase.SyncSchedulerDeps{Engine: w.syncer, Events: w.events,
@@ -236,8 +243,7 @@ func TestIntegrityFailureStopsTheVault(t *testing.T) {
 }
 
 func TestRateLimitWaitsAsAsked(t *testing.T) {
-	w := newSchedWorld(t, 0)
-	w.syncer.fail(&synctrust.RateLimitedError{RetryAfter: 42 * time.Second})
+	w := newSchedWorldFailing(t, 0, &synctrust.RateLimitedError{RetryAfter: 42 * time.Second}, vaultsync.ID{7})
 	w.expectSync()
 	w.timers.waitArmed(t, 42*time.Second)
 	w.syncer.fail(nil)
@@ -246,8 +252,7 @@ func TestRateLimitWaitsAsAsked(t *testing.T) {
 }
 
 func TestFailuresBackOff(t *testing.T) {
-	w := newSchedWorld(t, 0)
-	w.syncer.fail(errors.New("network down"))
+	w := newSchedWorldFailing(t, 0, errors.New("network down"), vaultsync.ID{7})
 	w.expectSync()
 	w.timers.waitArmed(t, time.Second)
 	w.timers.fire(time.Second)
