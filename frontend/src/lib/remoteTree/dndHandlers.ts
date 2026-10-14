@@ -28,6 +28,26 @@ function foldersNeedingMoveToRoot(folderIds: string[], folders: Folder[]): strin
   });
 }
 
+/**
+ * Resolves a mixed-type gap to the same-type neighbour that forms it. Dropping a connection in the
+ * gap between the last child of an expanded folder and the next folder below targets the folder, a
+ * different type, so the drop is redirected to "after the previous connection".
+ */
+function sameTypeGap(
+  targetNode: TreeNode,
+  position: 'before' | 'after',
+  primaryType: 'folder' | 'connection',
+  flatNodes: TreeNode[]
+): { target: TreeNode; position: 'before' | 'after' } {
+  if (targetNode.type === primaryType) return { target: targetNode, position };
+  const tIdx = flatNodes.findIndex((n) => n.id === targetNode.id);
+  const neighbour = position === 'before' ? flatNodes[tIdx - 1] : flatNodes[tIdx + 1];
+  if (neighbour && neighbour.type === primaryType) {
+    return { target: neighbour, position: position === 'before' ? 'after' : 'before' };
+  }
+  return { target: targetNode, position };
+}
+
 export async function executeDropBetween(
   payload: DragPayload,
   targetNode: TreeNode,
@@ -42,28 +62,7 @@ export async function executeDropBetween(
   const primaryId = payloadPrimaryId(payload);
   if (!primaryType || !primaryId) return;
 
-  // Resolve mixed-type gaps to the same-type neighbour that forms the gap.
-  // e.g. dropping a connection in the gap between the last child of an
-  // expanded folder and the next folder below: the target is the folder
-  // (different type), so redirect to "after the previous connection".
-  let effTarget = targetNode;
-  let effPos = position;
-  if (targetNode.type !== primaryType) {
-    const tIdx = flatNodes.findIndex((n) => n.id === targetNode.id);
-    if (position === 'before') {
-      const prev = flatNodes[tIdx - 1];
-      if (prev && prev.type === primaryType) {
-        effTarget = prev;
-        effPos = 'after';
-      }
-    } else {
-      const next = flatNodes[tIdx + 1];
-      if (next && next.type === primaryType) {
-        effTarget = next;
-        effPos = 'before';
-      }
-    }
-  }
+  const { target: effTarget, position: effPos } = sameTypeGap(targetNode, position, primaryType, flatNodes);
 
   const siblings = flatNodes.filter(
     (n) =>

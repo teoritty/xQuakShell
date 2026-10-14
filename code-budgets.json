@@ -155,9 +155,9 @@
         "nesting": 2
       },
       "frontend/src/lib/remoteTree/dndHandlers.ts::executeDropBetween": {
-        "codeLines": 62,
+        "codeLines": 45,
         "params": 6,
-        "nesting": 3
+        "nesting": 2
       },
       "internal/domain/plugin/channel_port.go::NewChannelHandle": {
         "codeLines": 11,
