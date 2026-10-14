@@ -74,9 +74,11 @@
 <div class="section">
   <h4>{$t('sync.enable.title')}</h4>
   <p class="sync-hint">{$t('sync.connect.hint')}</p>
-  <form class="sync-form" on:submit|preventDefault={submit}>
+  <!-- novalidate, and a text field for the address: the browser's own URL check refused a host
+       typed without https:// and blocked the submit without a word, where parseSyncLink accepts it. -->
+  <form class="sync-form" novalidate on:submit|preventDefault={submit}>
     <label class="sync-label" for="sync-address">{$t('sync.connect.address')}</label>
-    <input id="sync-address" class="sync-field" type="url" placeholder="https://sync.example.org:8443" bind:value={form.address} disabled={busy} autocomplete="url" />
+    <input id="sync-address" class="sync-field" type="text" inputmode="url" spellcheck="false" placeholder="https://sync.example.org:8443" bind:value={form.address} disabled={busy} autocomplete="url" />
     {#if form.address.trim() && !link}
       <p class="sync-error">{$t('sync.connect.badAddress')}</p>
     {:else if probing}
