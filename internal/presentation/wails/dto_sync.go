@@ -2,6 +2,7 @@ package wails
 
 import (
 	"encoding/hex"
+	"errors"
 
 	"xquakshell/internal/domain"
 	"xquakshell/internal/domain/synctrust"
@@ -23,6 +24,12 @@ type SyncStatusDTO struct {
 	Fingerprint  string   `json:"fingerprint,omitempty"`
 	RekeyPending bool     `json:"rekeyPending,omitempty"`
 	JoinPending  bool     `json:"joinPending,omitempty"`
+	// StopReason says what a stopped account needs: "signIn" after keys changed elsewhere,
+	// "revoked" for a removed device, "integrity" for a verification failure.
+	StopReason string `json:"stopReason,omitempty"`
+	// Applied counts the changes the reporting round wrote into the vault; above zero, the open
+	// views re-read it.
+	Applied int `json:"applied,omitempty"`
 }
 
 // SyncServerProbeDTO is a server identity for the user to compare with what its admin printed.
@@ -113,10 +120,25 @@ func syncStatusDTO(st usecase.SyncStatus, running bool) SyncStatusDTO {
 	if st.Err != nil {
 		dto.Message = userSyncError(st.Err).Error()
 	}
+	if dto.State == "stopped" {
+		dto.StopReason = syncStopReason(st.Err)
+	}
+	dto.Applied = st.Report.Pull.Applied
 	for _, d := range st.Report.Pull.NewDevices {
 		dto.NewDevices = append(dto.NewDevices, d.Name)
 	}
 	return dto
+}
+
+// syncStopReason names what a stopped account needs, in the order syncMessages matches them.
+func syncStopReason(err error) string {
+	switch {
+	case errors.Is(err, usecase.ErrSyncDeviceRevoked):
+		return "revoked"
+	case errors.Is(err, synctrust.ErrKeysRotated):
+		return "signIn"
+	}
+	return "integrity"
 }
 
 func deviceDTO(d usecase.DeviceInfo) SyncDeviceDTO {

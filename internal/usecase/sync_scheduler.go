@@ -19,8 +19,9 @@ const (
 	SyncRunning
 	// SyncFailed is a round that failed and will be retried.
 	SyncFailed
-	// SyncStopped is a vault that failed verification. It stays stopped until sync restarts, which
-	// only the user can do: retrying would keep asking a hostile server for more of the same.
+	// SyncStopped is a vault that failed verification, or whose account keys moved on without this
+	// device, or a device that was removed. It stays stopped until sync restarts, which only the
+	// user can do: retrying would keep asking a hostile server for more of the same.
 	SyncStopped
 )
 
@@ -170,7 +171,8 @@ func (s *SyncScheduler) runAll(ctx context.Context, stopped map[vaultsync.ID]boo
 			s.report(SyncStatus{Vault: v, State: SyncIdle, Report: r})
 		case ctx.Err() != nil:
 			return nil, backoff
-		case errors.Is(err, synctrust.ErrIntegrity), errors.Is(err, synctrust.ErrKeysRotated):
+		// A revoked device asking again gets the same refusal every time; only the person can act.
+		case errors.Is(err, synctrust.ErrIntegrity), errors.Is(err, synctrust.ErrKeysRotated), errors.Is(err, ErrSyncDeviceRevoked):
 			stopped[v] = true
 			s.report(SyncStatus{Vault: v, State: SyncStopped, Err: err, Report: r})
 		case errors.As(err, &limited):

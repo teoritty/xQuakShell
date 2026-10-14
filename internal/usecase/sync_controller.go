@@ -55,6 +55,7 @@ type SyncController struct {
 	session     SyncSession
 	sched       *SyncScheduler
 	last        SyncStatus
+	perVault    map[vaultsync.ID]SyncStatus
 	pendingJoin *SyncSession
 
 	op sync.Mutex
@@ -145,6 +146,8 @@ func (c *SyncController) Stop() {
 	c.mu.Lock()
 	sched := c.sched
 	c.engine, c.sched, c.session = nil, nil, SyncSession{}
+	// A new session starts from its own reports: a stop reason of the old keys must not outlive them.
+	c.perVault, c.last = nil, SyncStatus{}
 	c.mu.Unlock()
 	if sched != nil {
 		sched.Stop()
@@ -173,16 +176,24 @@ func (c *SyncController) SyncNow() error {
 	return nil
 }
 
+// record keeps the vault's status and reports the account's. The rolled-up status carries the
+// Applied count of the round that just reported, so a listener knows to re-read the vault.
 func (c *SyncController) record(st SyncStatus) {
 	c.mu.Lock()
-	c.last = st
+	if c.perVault == nil {
+		c.perVault = map[vaultsync.ID]SyncStatus{}
+	}
+	c.perVault[st.Vault] = st
+	agg := rollupStatus(c.perVault, c.session.Personal)
+	agg.Report.Pull.Applied = st.Report.Pull.Applied
+	c.last = agg
 	c.mu.Unlock()
 	if c.d.OnStatus != nil {
-		c.d.OnStatus(st)
+		c.d.OnStatus(agg)
 	}
 }
 
-// Status is the last status a round reported, and whether sync is running.
+// Status is the account's status across its vaults, and whether sync is running.
 func (c *SyncController) Status() (SyncStatus, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

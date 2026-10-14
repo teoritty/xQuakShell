@@ -58,6 +58,13 @@ func (a *AuthenticatedServer) connect(ctx context.Context, force bool) error {
 
 func authenticateDevice(ctx context.Context, srv synctrust.AccountServer, account, device vaultsync.ID, sign func([]byte) ([]byte, error)) error {
 	nonce, err := srv.DeviceChallenge(ctx, account, device)
+	// The server issues a challenge to every active device of the account and refuses only a device
+	// it no longer lists: one revoked by another device, or one whose account was deleted. Saying so
+	// lets the person act on it instead of watching an unexplained failure retry forever. A hostile
+	// server can claim it, but it can refuse service anyway; nothing is trusted on the strength of it.
+	if errors.Is(err, synctrust.ErrRemoteUnauthorized) {
+		return fmt.Errorf("device challenge: %w: %w", ErrSyncDeviceRevoked, err)
+	}
 	if err != nil {
 		return fmt.Errorf("device challenge: %w", err)
 	}
