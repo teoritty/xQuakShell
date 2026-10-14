@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"path/filepath"
 
@@ -9,6 +10,7 @@ import (
 	"xquakshell/internal/infra/persistence"
 	infraplugin "xquakshell/internal/infra/plugin"
 	"xquakshell/internal/pkg/safego"
+	presentation "xquakshell/internal/presentation/wails"
 	"xquakshell/internal/usecase"
 )
 
@@ -19,8 +21,8 @@ import (
 // Three moments write a plugin's directory, all under the plugin's lock: the start guard, before a
 // process comes up; a stop or a suspension; and the periodic scan, which writes only for a plugin
 // that is idle at that moment. The plugins themselves are recorded by reference on the same cadence
-// (spec §6.4).
-func wirePluginDataSync(rt *pluginRuntime, zone domain.SyncedFileZone, vaultRepo *persistence.VaultRepo, dataRoot string) {
+// (spec §6.4), at once after an install or uninstall here. Both are handed to the Sync page.
+func wirePluginDataSync(api *presentation.AppAPI, rt *pluginRuntime, zone domain.SyncedFileZone, vaultRepo *persistence.VaultRepo, dataRoot string) {
 	if rt == nil || rt.manager == nil {
 		return
 	}
@@ -35,6 +37,7 @@ func wirePluginDataSync(rt *pluginRuntime, zone domain.SyncedFileZone, vaultRepo
 			}
 			return filepath.ToSlash(rel)
 		},
+		Reported: api.EmitPluginDataReport,
 	})
 	// The scan loop lives as long as the process; shutdown cancels it with the rest of the runtime.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -51,7 +54,7 @@ func wirePluginDataSync(rt *pluginRuntime, zone domain.SyncedFileZone, vaultRepo
 	safego.GoNamed("pluginData.scan", func() { svc.Run(ctx) })
 
 	manager := rt.manager
-	refs := usecase.NewPluginReferenceSync(usecase.PluginReferenceDeps{
+	deps := usecase.PluginReferenceDeps{
 		Vault:     vaultRepo,
 		Installed: manager.Registry().List,
 		// A plugin uninstalled on another device is disabled and stopped here; uninstalling it would
@@ -62,7 +65,22 @@ func wirePluginDataSync(rt *pluginRuntime, zone domain.SyncedFileZone, vaultRepo
 			}
 			return manager.StopPlugin(ctx, pluginID)
 		},
-	})
+		Enable: func(ctx context.Context, pluginID string) error { return manager.SetPluginEnabled(ctx, pluginID, true) },
+	}
+	// A nil *GitHubPluginService stored in the interface would not compare equal to nil, and the
+	// use case's "no installer" guard would miss it.
+	if rt.githubPluginService != nil {
+		deps.Installer = rt.githubPluginService
+	}
+	refs := usecase.NewPluginReferenceSync(deps)
 	rt.pluginRefs = refs
+	manager.SetInstalledChangedHandler(func() {
+		safego.GoNamed("pluginRefs.onInstall", func() {
+			if err := refs.Record(ctx); err != nil && !errors.Is(err, domain.ErrVaultLocked) {
+				log.Printf("plugin references: record after install: %v", err)
+			}
+		})
+	})
 	safego.GoNamed("pluginRefs.record", func() { refs.Run(ctx) })
+	api.SetPluginSyncServices(refs, svc)
 }

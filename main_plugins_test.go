@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"xquakshell/internal/domain"
+	"xquakshell/internal/infra/persistence"
+	"xquakshell/internal/infra/portable"
 	"xquakshell/internal/usecase"
 )
 
@@ -17,13 +21,16 @@ import (
 // field added later is covered the day it is added rather than the day someone
 // remembers to extend a test.
 //
-// The check runs after wireEmbed because assembly is split across the two:
-// newPluginRuntime builds the graph, wireEmbed fills in what needs the AppAPI
-// (embedBridge). Only the pair of them together is supposed to leave the struct
-// complete, so only the pair of them is worth asserting.
+// The check runs after wireEmbed and wirePluginDataSync because assembly is
+// split across them: newPluginRuntime builds the graph, wireEmbed fills in what
+// needs the AppAPI (embedBridge), and wirePluginDataSync what needs the vault
+// and the portable data zone (plugin sync). Only all three together are
+// supposed to leave the struct complete, so only that is worth asserting.
 func TestPluginRuntimeLeavesNoFieldUnwired(t *testing.T) {
 	api, runtime := composeDiscoveryRuntime(t)
 	runtime.wireEmbed(api)
+	dataRoot := t.TempDir()
+	wirePluginDataSync(api, runtime, portable.NewDataStore(dataRoot, "", nil), persistence.NewVaultRepo(t.TempDir()), dataRoot)
 
 	// Closed allowlist for fields a bare compose legitimately leaves nil. It is
 	// empty on purpose: every field is wired today, including both GitHub
@@ -137,4 +144,22 @@ func TestPluginRuntimeShutdownCancelsAndRepeats(t *testing.T) {
 	r.shutdown()
 
 	(&pluginRuntime{}).shutdown()
+}
+
+// TestWirePluginDataSyncConnectsTheSyncPage: after composition the Sync page's plugin handlers reach
+// the real services. The proof is the locked-vault answer, which only the real use cases produce by
+// reading the vault; an unwired handler answers "sync unavailable" from its own nil check.
+func TestWirePluginDataSyncConnectsTheSyncPage(t *testing.T) {
+	api, runtime := composeDiscoveryRuntime(t)
+	if _, err := api.ListSyncPluginOffers(); err == nil || !strings.Contains(err.Error(), "unavailable") {
+		t.Fatalf("before wiring: %v, want the unavailable answer", err)
+	}
+	dataRoot := t.TempDir()
+	wirePluginDataSync(api, runtime, portable.NewDataStore(dataRoot, "", nil), persistence.NewVaultRepo(t.TempDir()), dataRoot)
+	if _, err := api.ListSyncPluginOffers(); !errors.Is(err, domain.ErrVaultLocked) {
+		t.Fatalf("offers after wiring: %v, want the locked vault the real service read", err)
+	}
+	if _, err := api.ListSyncPluginData(); !errors.Is(err, domain.ErrVaultLocked) {
+		t.Fatalf("data after wiring: %v, want the locked vault the real service read", err)
+	}
 }

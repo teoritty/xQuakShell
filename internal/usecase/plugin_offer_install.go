@@ -15,6 +15,8 @@ var (
 	// ErrPluginOfferManual is an offer for a plugin installed from a file elsewhere: there is nothing
 	// to download, and the user installs it by hand on this device.
 	ErrPluginOfferManual = errors.New("this plugin was installed from a file; install it manually on this device")
+	// ErrPluginInstallUnavailable is an offer on a device whose GitHub install pipeline is not wired.
+	ErrPluginInstallUnavailable = errors.New("installing plugins is unavailable on this device")
 )
 
 // PluginOfferInstaller is the GitHub install pipeline an offer runs through.
@@ -47,6 +49,9 @@ func (s *PluginReferenceSync) githubOffer(pluginID string) (domain.SyncPlugin, e
 	rec := data.Sync.Plugins[i]
 	if rec.Source.Kind != domain.PluginSourceGitHub {
 		return domain.SyncPlugin{}, ErrPluginOfferManual
+	}
+	if s.d.Installer == nil {
+		return domain.SyncPlugin{}, ErrPluginInstallUnavailable
 	}
 	return rec, nil
 }

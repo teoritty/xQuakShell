@@ -429,3 +429,16 @@ func TestKeepingAPluginRemovedElsewhereEnablesItAgain(t *testing.T) {
 		t.Fatalf("record = %+v; the kept build is the new version", r)
 	}
 }
+
+func TestAnOfferWithoutAnInstallPipelineIsRefusedNotAPanic(t *testing.T) {
+	d := domain.NewVaultData()
+	d.Sync = &domain.VaultSync{Account: &domain.SyncAccount{Username: "u"}, Plugins: []domain.SyncPlugin{echoRecord("v1.0.0", digestA)}}
+	svc := usecase.NewPluginReferenceSync(usecase.PluginReferenceDeps{Vault: &syncTestVault{data: d},
+		Installed: func() []domainplugin.InstalledPlugin { return nil }})
+	if err := svc.InstallOffer(syncCtx, usecase.OfferInstallRequest{PluginID: "com.example.echo"}); !errors.Is(err, usecase.ErrPluginInstallUnavailable) {
+		t.Fatalf("install = %v, want ErrPluginInstallUnavailable", err)
+	}
+	if _, err := svc.PreviewOffer(syncCtx, "com.example.echo"); !errors.Is(err, usecase.ErrPluginInstallUnavailable) {
+		t.Fatalf("preview = %v, want ErrPluginInstallUnavailable", err)
+	}
+}

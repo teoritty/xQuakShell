@@ -71,6 +71,8 @@ type AppAPI struct {
 	syncConflicts               SyncConflictCommands
 	teams                       TeamCommands
 	bindings                    BindingCommands
+	pluginOffers                PluginOfferCommands
+	pluginData                  PluginDataCommands
 }
 
 // NewAppAPI creates a new AppAPI with the given dependencies.

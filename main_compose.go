@@ -154,7 +154,7 @@ func composeApp() *App {
 
 	wireLocalTerminal(api, auditLogRepo)
 	wireSync(api, vaultRepo, portableLayout.DataRoot(), vaultDir)
-	wirePluginDataSync(pluginRuntime, portableData, vaultRepo, vaultDir)
+	wirePluginDataSync(api, pluginRuntime, portableData, vaultRepo, vaultDir)
 
 	return &App{api: api, plugins: pluginRuntime}
 }
