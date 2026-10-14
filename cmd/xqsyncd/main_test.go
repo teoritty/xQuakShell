@@ -54,7 +54,7 @@ func TestInitRefusesToOverwrite(t *testing.T) {
 
 func TestKeyFileIsOwnerOnly(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("POSIX permission bits do not apply; the Windows ACL is set by the service installer (phase 8)")
+		t.Skip("POSIX permission bits do not apply; on Windows the file is DPAPI-sealed and the directory ACL is set by xqsyncd service install")
 	}
 	dir := initDir(t)
 	info, err := os.Stat(filepath.Join(dir, keyFileName))

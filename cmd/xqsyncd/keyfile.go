@@ -44,9 +44,13 @@ func newKeyFile(rnd io.Reader) (*keyFile, error) {
 // writeKeyFile creates the key file with owner-only permissions and refuses to replace an existing
 // one: overwriting it would lock every account out, since their OPAQUE records depend on its keys.
 func writeKeyFile(dir string, k *keyFile) error {
-	raw, err := json.Marshal(k)
+	plain, err := json.Marshal(k)
 	if err != nil {
 		return err
+	}
+	raw, err := sealKeyFile(plain)
+	if err != nil {
+		return fmt.Errorf("xqsyncd: seal key file: %w", err)
 	}
 	path := filepath.Join(dir, keyFileName)
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
@@ -67,6 +71,10 @@ func readKeyFile(dir string) (*keyFile, error) {
 	raw, err := os.ReadFile(filepath.Join(dir, keyFileName)) // #nosec G304 -- the directory is the operator's own --dir
 	if err != nil {
 		return nil, fmt.Errorf("xqsyncd: read key file: %w", err)
+	}
+	raw, err = openKeyFile(raw)
+	if err != nil {
+		return nil, fmt.Errorf("xqsyncd: unseal key file: %w", err)
 	}
 	var k keyFile
 	if err := json.Unmarshal(raw, &k); err != nil {
