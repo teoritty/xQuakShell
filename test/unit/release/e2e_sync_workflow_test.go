@@ -69,3 +69,45 @@ func TestReleaseAndNightlyShipTheSyncServer(t *testing.T) {
 		}
 	}
 }
+
+// The nightly fuzz job names its targets by hand, and `go test -fuzz` with a name that matches
+// nothing passes without fuzzing anything. Every listed target must exist in the package named
+// beside it, and every sync decoder's fuzz target must be listed.
+func TestNightlyFuzzesEverySyncDecoder(t *testing.T) {
+	job := jobSection(t, readNightlyWorkflow(t), "fuzz")
+	listed := regexp.MustCompile(`(?m)^\s+(internal/[\w/]+) (Fuzz\w+)$`).FindAllStringSubmatch(job, -1)
+	if len(listed) == 0 {
+		t.Fatal("the nightly fuzz job lists no targets")
+	}
+	root, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, m := range listed {
+		pkg, name := m[1], m[2]
+		seen[name] = true
+		files, _ := filepath.Glob(filepath.Join(root, filepath.FromSlash(pkg), "*_test.go"))
+		found := false
+		for _, f := range files {
+			if b, err := os.ReadFile(f); err == nil && strings.Contains(string(b), "func "+name+"(") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s lists %s, which %s does not define; that run would fuzz nothing", "nightly.yml", name, pkg)
+		}
+	}
+	for _, pkg := range []string{"internal/domain/plugin", "internal/domain/synctrust", "internal/domain/syncwire",
+		"internal/domain/vaultsync", "internal/infra/opaque", "internal/infra/synccrypto"} {
+		files, _ := filepath.Glob(filepath.Join(root, filepath.FromSlash(pkg), "*_test.go"))
+		for _, f := range files {
+			b, _ := os.ReadFile(f)
+			for _, m := range regexp.MustCompile(`func (Fuzz\w+)\(`).FindAllStringSubmatch(string(b), -1) {
+				if !seen[m[1]] {
+					t.Errorf("%s in %s is not in the nightly fuzz job", m[1], pkg)
+				}
+			}
+		}
+	}
+}

@@ -226,6 +226,48 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
+  # Long runs of the sync decoders' fuzz targets (spec 12.3); `make gates` replays only their seed
+  # corpora. Gated like the builds, so an untouched day costs nothing, and independent of publish:
+  # a fuzz finding is a bug to fix, not a reason to withhold the night's build. A failing input is
+  # kept as an artifact so it can be committed as a regression seed.
+  fuzz:
+    needs: decide
+    if: needs.decide.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Fuzz the sync decoders, one minute each
+        run: |
+          set -euo pipefail
+          while read -r pkg target; do
+            echo "::group::$target ($pkg)"
+            go test "./$pkg" -run '^$' -fuzz "^${target}\$" -fuzztime 60s
+            echo "::endgroup::"
+          done <<'TARGETS'
+          internal/domain/plugin FuzzValidSyncFile
+          internal/domain/plugin FuzzSyncSpecMatches
+          internal/domain/synctrust FuzzDecodeBody
+          internal/domain/syncwire FuzzDecodeCommit
+          internal/domain/vaultsync FuzzMergeObjects
+          internal/domain/vaultsync FuzzUnpad
+          internal/infra/opaque FuzzServerLoginStart
+          internal/infra/synccrypto FuzzOpenBundle
+          internal/infra/synccrypto FuzzUnwrapVaultKey
+          internal/infra/synccrypto FuzzOpenRecord
+          TARGETS
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: fuzz-failures
+          path: '**/testdata/fuzz/**'
+
   # The sync server, packaged by the same program as in release.yml.
   xqsyncd:
     needs: decide
