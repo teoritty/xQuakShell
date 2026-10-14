@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build dev clean rebuild portable install check gates test test-go test-frontend typecheck-frontend coverage mutate e2e-agent opaque-vectors lint sec gosec govulncheck budgets-update deps-linux require-wails
+.PHONY: help build dev clean rebuild portable install check gates test test-go test-frontend typecheck-frontend coverage mutate e2e-agent e2e-sync opaque-vectors lint sec gosec govulncheck budgets-update deps-linux require-wails
 
 # ---------------------------------------------------------------------------
 # Host detection
@@ -212,6 +212,12 @@ mutate:
 # under test changes.
 e2e-agent:
 	go test -tags e2e_docker ./test/e2e/agentforwarding/ -count=1 -v -timeout 20m
+
+# The sync scenarios against the real xqsyncd binary, out of process (spec 12.7). Starts its own
+# server unless E2E_SYNC_URL and E2E_SYNC_DIR name an installed one (e2e-sync.yml does that, against
+# the systemd unit and the Windows service). Real OPAQUE at full cost: minutes, not seconds.
+e2e-sync:
+	go test -tags e2e_sync ./test/e2e/sync/ -count=1 -v -timeout 20m
 
 # Both targets type-check the whole module, which needs frontend/dist to exist
 # for the go:embed in main.go. Run `make install && cd frontend && npm run build`
