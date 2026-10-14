@@ -49,7 +49,7 @@ func main() {
 }
 
 func goBuild(root string, tg target, out string) error {
-	cmd := exec.Command("go", "build", "-trimpath", "-ldflags", "-s -w", "-o", out, "./cmd/xqsyncd")
+	cmd := exec.Command("go", "build", "-trimpath", "-ldflags", "-s -w", "-o", out, "./cmd/xqsyncd") // #nosec G204 -- the go toolchain with fixed arguments; out is a path this program chose
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "GOOS="+tg.goos, "GOARCH="+tg.goarch, "CGO_ENABLED=0")
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
@@ -61,7 +61,7 @@ func pack(root, label, out string, build buildFunc) ([]string, error) {
 	if !safeLabel.MatchString(label) {
 		return nil, errors.New("xqsyncdpack: -label must be a plain version label")
 	}
-	if err := os.MkdirAll(out, 0o755); err != nil {
+	if err := os.MkdirAll(out, 0o750); err != nil {
 		return nil, err
 	}
 	work, err := os.MkdirTemp("", "xqsyncdpack")
