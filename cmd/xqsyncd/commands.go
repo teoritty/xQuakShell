@@ -41,6 +41,9 @@ func cmdInit(args []string, out io.Writer) error {
 	dir := fs.String("dir", "", "server data directory")
 	var hosts hostList
 	fs.Var(&hosts, "host", "host name or address for the self-signed certificate (repeatable)")
+	// A service manager runs init before every start; on an initialised directory it must change
+	// nothing, and still print the fingerprint into the service log for the operator to read.
+	keep := fs.Bool("keep-existing", false, "succeed without changes when the directory is initialised")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -51,6 +54,10 @@ func cmdInit(args []string, out io.Writer) error {
 		hosts = hostList{"localhost"}
 	}
 	if err := os.MkdirAll(*dir, 0o700); err != nil {
+		return err
+	}
+	if existing, err := readKeyFile(*dir); err == nil && *keep {
+		_, err = fmt.Fprintf(out, "already initialised %s\nidentity fingerprint: %s\n", *dir, identityFingerprint(existing))
 		return err
 	}
 	k, err := newKeyFile(defaultRand)
