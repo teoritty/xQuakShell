@@ -212,6 +212,7 @@ If you find a vulnerability, please follow the process in [SECURITY.md](./SECURI
 - [Plugin API Reference](./docs/plugin-api.md)
 - [Plugin Manifest schema](./docs/plugin-manifest.md)
 - [Security Model](./docs/security-model.md)
+- [Sync Server (xqsyncd)](./docs/sync-server.md) — installing and running the self-hosted sync server
 - [Contributing](./CONTRIBUTING.md)
 - [Security Policy](./SECURITY.md)
 

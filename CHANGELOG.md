@@ -25,6 +25,11 @@ fixes, including security fixes, ship in a new release rather than as patches to
 | Vault schema | 5 (was 4) |
 | Vault envelope | 1 (unchanged) |
 | Audit schema | 1 (unchanged) |
+| `syncProtocol` | 1.0.0 (new) |
+| Sync crypto suite | 1 (new) |
+| Sync record schemas | 1 for every record type (new) |
+| Sync state schema (`data/sync/state.db`) | 1 (new) |
+| Server store schema (`xqsyncd.db`) | 1 (new) |
 
 ### BREAKING
 
@@ -35,6 +40,38 @@ field; to go back, restore the backup. Nothing about keys or passwords changes i
 no passphrase is asked for.
 
 ### Added
+
+**Sync between your devices, through a server you run.** Settings → Sync connects a vault to
+`xqsyncd`, the self-hosted sync server that ships with this release for Windows and Linux
+([admin guide](docs/sync-server.md)). Everything is encrypted and signed on the device; the server
+cannot read a host name, a password or a folder name, cannot alter a record, and cannot roll a vault
+back or add a device without every device noticing. On first connection you compare the server's
+fingerprint with the one its operator gave you. A second device signs in with the sync password;
+every other device announces it and can remove it, which replaces the account keys. Edits made
+offline on two devices merge field by field; the same credential edited on both becomes a conflict
+you resolve. A change from another device that would weaken this one — turning off plugin
+signature checks, loosening the lockout, replacing a known host key — waits for this device's
+master password. Sync is off until you turn it on, and needs a master password of at least 12
+characters.
+
+**Teams.** A team vault shares connections with other accounts on the same server. You invite a
+person after comparing their fingerprint over another channel, and give them the admin, editor or
+viewer role. Credentials are not shared: each member binds their own key or password to
+a team connection, and a member who changes a shared connection's address suspends everyone
+else's binding to it until they confirm. Removing a member moves the team to new keys, so nothing
+written afterwards opens for them.
+
+**Trash and Shred now.** Deleted synced items stay in a trash for the vault's retention window
+(30 days by default) and can be restored. After that they are purged from the server, and within
+one and a half more windows the keys that covered them are destroyed on every device. Shred now does all
+of it at once.
+
+**Plugins from your other devices.** A plugin installed on one device is offered on the others —
+never installed by itself. Installing the offer runs the usual download, checksum, signature and
+consent steps and then checks that the build is exactly the one your other device installed; a
+release replaced behind the same tag is refused unless you accept it as a new version. A plugin may
+declare files of its own (`sync.paths` in `plugin.json`) that follow you between devices; they are
+written only while the plugin is stopped, and the Sync page shows what waits for a restart.
 
 **Search across terminals.** Ctrl+Shift+F turns the sidebar into a search view, the way an editor's
 search replaces its file tree: a query box with match case, whole word and regular expression
