@@ -32,6 +32,12 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	for _, p := range []string{"journal_mode(wal)", "foreign_keys(1)", "secure_delete(1)", "busy_timeout(5000)"} {
 		q.Add("_pragma", p)
 	}
+	// Every use case transaction reads before it writes. A deferred transaction reads under a
+	// snapshot, and when another connection commits first, SQLite refuses the upgrade to a writer at
+	// once with SQLITE_BUSY - the busy timeout cannot help, since no wait makes the snapshot current.
+	// Taking the write lock at BEGIN makes a second writer wait its turn instead. The cost is that
+	// transactions run one at a time, which a server holding a few teams' vaults never notices.
+	q.Add("_txlock", "immediate")
 	db, err := sql.Open("sqlite", path+"?"+q.Encode())
 	if err != nil {
 		return nil, fmt.Errorf("store: open: %w", err)
