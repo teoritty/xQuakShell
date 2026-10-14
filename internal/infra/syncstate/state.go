@@ -152,6 +152,23 @@ func (s *DB) ForgetVault(ctx context.Context, vault vaultsync.ID) error {
 	})
 }
 
+// stateTables is every table that holds sync state; ForgetAll names tables from this literal list
+// only, never from input. A table added to the schema and not here would survive turning sync off,
+// which TestForgetAllLeavesNoRowInAnyTable catches by reading the schema itself.
+var stateTables = []string{"heads", "records", "member_ops", "outbox", "quarantine", "device_entries"}
+
+// ForgetAll removes everything the store holds, in one transaction.
+func (s *DB) ForgetAll(ctx context.Context) error {
+	return s.withTx(ctx, func(tx *sql.Tx) error {
+		for _, table := range stateTables {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM "+table); err != nil { // #nosec G202 -- table from stateTables
+				return fmt.Errorf("syncstate: forget %s: %w", table, err)
+			}
+		}
+		return nil
+	})
+}
+
 // DeviceLog returns an account's device log in order.
 func (s *DB) DeviceLog(ctx context.Context, account vaultsync.ID) ([]vaultsync.DeviceEntry, error) {
 	return rows(ctx, s.db, decodeAs[vaultsync.DeviceEntry, syncwire.DeviceEntry],

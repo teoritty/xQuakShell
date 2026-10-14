@@ -50,6 +50,9 @@ type StateStore interface {
 	// head, atomically.
 	AdvanceVault(ctx context.Context, head vaultsync.Head, changed []vaultsync.Envelope, purged []vaultsync.ID) error
 	ForgetVault(ctx context.Context, vault vaultsync.ID) error
+	// ForgetAll empties the store: every vault, every log, every pending change. Turning sync off
+	// calls it, so nothing of the account - team vaults included - stays on the device.
+	ForgetAll(ctx context.Context) error
 
 	DeviceLog(ctx context.Context, account vaultsync.ID) ([]vaultsync.DeviceEntry, error)
 	AppendDeviceLog(ctx context.Context, entries []vaultsync.DeviceEntry) error

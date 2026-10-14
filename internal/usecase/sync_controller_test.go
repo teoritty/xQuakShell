@@ -185,6 +185,9 @@ func TestControllerListsDevicesAndDisables(t *testing.T) {
 	if sv, _ := b.state.LoadVault(syncCtx, b.session.Personal); sv.Head != nil {
 		t.Fatal("disabling kept the sync state")
 	}
+	if log, _ := b.state.DeviceLog(syncCtx, b.session.Keys.Account()); len(log) != 0 {
+		t.Fatalf("disabling kept %d device log entries; the account this device left stays behind", len(log))
+	}
 	if err := cb.c.Start(syncCtx); err != nil {
 		t.Fatal(err)
 	}

@@ -269,6 +269,60 @@ func TestForgottenVaultLeavesTheFile(t *testing.T) {
 	}
 }
 
+// Turning sync off leaves nothing of the account behind: no team vault, no device log, no pending
+// commit. The tables are read from the schema itself, so a table added later and missed by
+// ForgetAll fails here rather than surviving every "disable".
+func TestForgetAllLeavesNoRowInAnyTable(t *testing.T) {
+	db, path := openTemp(t)
+	for _, v := range []byte{1, 2} {
+		if err := db.AdvanceVault(ctx, head(v, 1), []vaultsync.Envelope{envelope(v, 2, 1, nil)}, nil); err != nil {
+			t.Fatal(err)
+		}
+		_ = db.Quarantine(ctx, synctrust.QuarantineItem{Envelope: envelope(v, 3, 1, nil), Reason: "x"})
+		_ = db.PutOutbox(ctx, vaultsync.Commit{Head: head(v, 2), Records: []vaultsync.Envelope{envelope(v, 4, 1, nil)}})
+	}
+	if err := db.AppendDeviceLog(ctx, []vaultsync.DeviceEntry{entry(1)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AppendMembership(ctx, []vaultsync.MemberOp{op(1)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ForgetAll(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Checkpoint(ctx); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := sql.Open("sqlite", "file:"+path+"?mode=ro")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = raw.Close() }()
+	rs, err := raw.QueryContext(ctx, "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tables []string
+	for rs.Next() {
+		var name string
+		_ = rs.Scan(&name)
+		tables = append(tables, name)
+	}
+	_ = rs.Close()
+	if len(tables) < 6 {
+		t.Fatalf("tables = %v; the schema lookup found too few to mean anything", tables)
+	}
+	for _, table := range tables {
+		var n int
+		if err := raw.QueryRowContext(ctx, "SELECT count(*) FROM "+table).Scan(&n); err != nil { // #nosec G202 -- names from sqlite_master
+			t.Fatal(err)
+		}
+		if n != 0 {
+			t.Errorf("table %s holds %d rows after ForgetAll; turning sync off must forget the whole account", table, n)
+		}
+	}
+}
+
 func TestImplementsThePort(t *testing.T) {
 	var _ synctrust.StateStore = (*syncstate.DB)(nil)
 }

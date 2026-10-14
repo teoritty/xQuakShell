@@ -110,19 +110,24 @@ func (c *SyncController) replaceSession(ctx context.Context, f func() (SyncSessi
 
 // Disable stops syncing on this device and forgets its sync account and state. The account and
 // the data on the server stay, for the other devices.
+//
+// The whole state store is emptied, not only the personal vault: team vaults, the device log and
+// any pending commit belong to the account this device is leaving. It also runs on a device that
+// is not syncing - a removed device, or one whose sign-in never finished - which has no session to
+// say which vaults it held.
 func (c *SyncController) Disable(ctx context.Context) error {
-	c.mu.Lock()
-	personal := c.session.Personal
-	c.mu.Unlock()
 	c.Stop()
+	c.mu.Lock()
+	c.pendingJoin = nil
+	c.mu.Unlock()
 	err := c.d.Vault.UpdateData(ctx, func(d *domain.VaultData) error {
 		d.Sync = nil
 		return nil
 	})
-	if err != nil || personal.IsZero() {
+	if err != nil {
 		return err
 	}
-	return c.d.State.ForgetVault(ctx, personal)
+	return c.d.State.ForgetAll(ctx)
 }
 
 // Devices lists the account's devices from the verified log, revoked ones included.
