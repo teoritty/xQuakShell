@@ -930,6 +930,7 @@
     "sync.teams.role.viewer": "Viewer",
     "sync.teams.title": "Teams",
     "sync.teams.unknownMember": "a team member",
+    "sync.teams.unnamed": "A team still loading",
     "sync.teams.unverified": "Not verified",
     "sync.teams.verified": "Fingerprint verified",
     "sync.teams.viewerHint": "You are a viewer in this team: you can use its connections, and changes you make to them stay on this device.",

@@ -948,6 +948,7 @@
     "sync.teams.role.viewer": "Наблюдатель",
     "sync.teams.title": "Команды",
     "sync.teams.unknownMember": "участник команды",
+    "sync.teams.unnamed": "Команда загружается",
     "sync.teams.unverified": "Не сверен",
     "sync.teams.verified": "Отпечаток сверен",
     "sync.teams.viewerHint": "В этой команде вы наблюдатель: подключениями команды можно пользоваться, а ваши изменения в них остаются только на этом устройстве.",

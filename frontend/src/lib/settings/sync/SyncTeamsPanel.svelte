@@ -53,7 +53,7 @@
       {#each teams as team (team.vault)}
         <li>
           <button type="button" class="ghost" class:active={selected?.vault === team.vault} on:click={() => (selected = team)}>
-            {team.name || team.vault.slice(0, 8)}
+            {team.name || $t('sync.teams.unnamed')}
           </button>
           <span class="sync-meta">{$t('sync.teams.role.' + team.role)}</span>
         </li>
