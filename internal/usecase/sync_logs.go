@@ -3,6 +3,7 @@ package usecase
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 
 	"xquakshell/internal/domain/synctrust"
@@ -37,6 +38,11 @@ func (e *SyncEngine) verifiedDeviceLog(ctx context.Context) (*vaultsync.DeviceLo
 			return nil, nil, integrity("device log", err)
 		}
 	}
+	// A device the log revokes learns so first, whatever else the log says: nothing after its own
+	// revocation is for it, and the person should hear "removed", not "tampering".
+	if dl.IsRevoked(e.d.Keys.Device()) {
+		return nil, nil, ErrSyncDeviceRevoked
+	}
 	if dl.PendingSuccession() {
 		return nil, nil, integrity("device log", fmt.Errorf("a revocation without its succession"))
 	}
@@ -47,6 +53,22 @@ func (e *SyncEngine) verifiedDeviceLog(ctx context.Context) (*vaultsync.DeviceLo
 		return nil, nil, err
 	}
 	return dl, fresh, nil
+}
+
+// explainIntegrity looks again at the device log when a round failed verification. A device
+// revoked, or left behind by a key rotation, while a round was under way reads a log from before the
+// change and commits from after it - a vault re-encrypted to keys it never received - and failed
+// verification for a routine event on another device. If the log now says so, the round's error
+// carries that reason first, so the person is told what to do; the verification failure stays in
+// the error, and nothing from the round was applied either way.
+func (e *SyncEngine) explainIntegrity(ctx context.Context, err error) error {
+	if !errors.Is(err, synctrust.ErrIntegrity) {
+		return err
+	}
+	if _, _, lerr := e.verifiedDeviceLog(ctx); errors.Is(lerr, ErrSyncDeviceRevoked) || errors.Is(lerr, synctrust.ErrKeysRotated) {
+		return errors.Join(lerr, err)
+	}
+	return err
 }
 
 // resolver maps a device to its account and signing key through the account's device log. In the

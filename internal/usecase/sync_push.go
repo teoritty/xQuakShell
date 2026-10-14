@@ -34,6 +34,11 @@ type SyncReport struct {
 // Sync runs one round for a vault: resend a commit a crash or a lost reply left in the outbox, pull,
 // then push this device's changes, rebasing when another device got there first.
 func (e *SyncEngine) Sync(ctx context.Context, vault vaultsync.ID) (SyncReport, error) {
+	r, err := e.syncRound(ctx, vault)
+	return r, e.explainIntegrity(ctx, err)
+}
+
+func (e *SyncEngine) syncRound(ctx context.Context, vault vaultsync.ID) (SyncReport, error) {
 	var report SyncReport
 	for attempt := 0; attempt < maxRebases; attempt++ {
 		p, err := e.startPull(ctx, vault)
