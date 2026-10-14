@@ -1,8 +1,10 @@
 package usecase
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net"
 
 	"xquakshell/internal/domain"
 	"xquakshell/internal/domain/synctrust"
@@ -48,11 +50,26 @@ const pullPageSize = 100
 
 // integrity marks err as a verification failure. The wrapped cause stays inspectable for the audit
 // log; the UI shows only that the vault stopped.
+//
+// A failure to reach the data is not a verification failure and is returned as it is. Verifying a
+// commit fetches the device logs of the members who signed it, and a rate limit or a dropped
+// connection during that fetch used to come back wrapped as integrity: the vault stopped for good
+// and told the person to suspect the server, for a 429. Nothing is applied in either case; the
+// difference is that an availability failure is retried, as it must be.
 func integrity(what string, err error) error {
-	if errors.Is(err, synctrust.ErrIntegrity) {
+	if errors.Is(err, synctrust.ErrIntegrity) || unavailable(err) {
 		return err
 	}
 	return fmt.Errorf("%w: %s: %w", synctrust.ErrIntegrity, what, err)
+}
+
+// unavailable reports a failure to reach the server or to get an answer in time, as opposed to an
+// answer that is wrong. A server that refuses or contradicts is never in this list.
+func unavailable(err error) bool {
+	var limited *synctrust.RateLimitedError
+	var netErr net.Error
+	return errors.As(err, &limited) || errors.As(err, &netErr) || errors.Is(err, synctrust.ErrRemoteInternal) ||
+		errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 // syncKeyName names the record a key-derived id belongs to, learnt from its body.
