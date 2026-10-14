@@ -56,8 +56,8 @@ func (s *Service) RegisterStart(ctx context.Context, invite, username string, ac
 		return nil, ErrMalformed
 	}
 	err := s.cfg.Store.WithTx(ctx, func(tx Tx) error {
-		if ok, err := tx.InviteUsable(inviteHash(invite), s.now()); err != nil || !ok {
-			return errors.Join(ErrForbidden, err)
+		if err := refuseUnless(tx.InviteUsable(inviteHash(invite), s.now())); err != nil {
+			return err
 		}
 		return checkIdentifiersFree(tx, username, account)
 	})
@@ -73,10 +73,24 @@ func (s *Service) RegisterStart(ctx context.Context, invite, username string, ac
 
 func checkIdentifiersFree(tx Tx, username string, account vaultsync.ID) error {
 	if _, taken, err := tx.AccountByUsername(username); err != nil || taken {
-		return errors.Join(ErrForbidden, err)
+		return refuseUnless(!taken, err)
 	}
 	if _, taken, err := tx.AccountByID(account); err != nil || taken {
-		return errors.Join(ErrForbidden, err)
+		return refuseUnless(!taken, err)
+	}
+	return nil
+}
+
+// refuseUnless answers a check that read the store: the store's own failure as it is - a server
+// fault, which the client retries - or ErrForbidden when the check came out against the request.
+// The two used to be joined, so a busy database answered 403, and the client told a person
+// registering that their role did not allow it.
+func refuseUnless(pass bool, err error) error {
+	if err != nil {
+		return err
+	}
+	if !pass {
+		return ErrForbidden
 	}
 	return nil
 }
@@ -115,10 +129,10 @@ func (s *Service) RegisterFinish(ctx context.Context, r Registration) error {
 			return err
 		}
 		if _, exists, err := tx.VaultByID(r.Vault.Vault); err != nil || exists {
-			return errors.Join(ErrForbidden, err)
+			return refuseUnless(!exists, err)
 		}
-		if ok, err := tx.ConsumeInvite(inviteHash(r.Invite), s.now(), r.Account); err != nil || !ok {
-			return errors.Join(ErrForbidden, err)
+		if err := refuseUnless(tx.ConsumeInvite(inviteHash(r.Invite), s.now(), r.Account)); err != nil {
+			return err
 		}
 		return storeRegistration(tx, account, device, r, members)
 	})

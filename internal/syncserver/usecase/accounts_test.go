@@ -2,8 +2,10 @@ package usecase_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"errors"
 	"testing"
 
 	"xquakshell/internal/domain/vaultsync"
@@ -111,6 +113,40 @@ func TestRegisterStartChecks(t *testing.T) {
 	inv = h.Invite()
 	if _, err := h.Svc.RegisterStart(ctx, inv, u.Name, vaultsync.ID{}, []byte("b")); !isErr(err, usecase.ErrMalformed) {
 		t.Errorf("zero account id: err = %v", err)
+	}
+}
+
+// brokenStore fails every read a registration check makes, as a busy or failing database would.
+type brokenStore struct{ usecase.Store }
+
+type brokenTx struct{ usecase.Tx }
+
+var errDisk = errors.New("disk I/O error")
+
+func (s brokenStore) WithTx(ctx context.Context, fn func(usecase.Tx) error) error {
+	return s.Store.WithTx(ctx, func(tx usecase.Tx) error { return fn(brokenTx{tx}) })
+}
+func (brokenTx) InviteUsable([]byte, uint64) (bool, error) { return false, errDisk }
+func (brokenTx) AccountByUsername(string) (usecase.Account, bool, error) {
+	return usecase.Account{}, false, errDisk
+}
+
+// A store that cannot answer is a server fault, which the client retries; it is never a refusal.
+// Joined with ErrForbidden it answered 403, and the client told a person registering that their
+// role did not allow it, with nothing to retry.
+func TestAFailingStoreIsNotARefusal(t *testing.T) {
+	h := servertest.NewHarness(t, 0)
+	inv := h.Invite()
+	u := servertest.NewUser(t, "alice")
+	svc := usecase.New(usecase.Config{Store: brokenStore{h.DB}, Clock: h.Clock, AKE: servertest.FakeAKE{}, Random: rand.Reader,
+		FakeAccountSecret: []byte("fake-secret")})
+	_, err := svc.RegisterStart(ctx, inv, u.Name, u.Account, []byte("b"))
+	if !errors.Is(err, errDisk) || errors.Is(err, usecase.ErrForbidden) {
+		t.Fatalf("register start over a failing store: %v; want the store's error, not ErrForbidden", err)
+	}
+	err = svc.RegisterFinish(ctx, h.Registration(u, inv))
+	if !errors.Is(err, errDisk) || errors.Is(err, usecase.ErrForbidden) {
+		t.Fatalf("register finish over a failing store: %v; want the store's error, not ErrForbidden", err)
 	}
 }
 

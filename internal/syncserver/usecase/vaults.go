@@ -104,7 +104,7 @@ func (s *Service) CreateVault(ctx context.Context, p Principal, create vaultsync
 	}
 	return s.cfg.Store.WithTx(ctx, func(tx Tx) error {
 		if _, exists, err := tx.VaultByID(create.Vault); err != nil || exists {
-			return errors.Join(ErrForbidden, err)
+			return refuseUnless(!exists, err)
 		}
 		m, err := vaultsync.NewMembershipState(create.Vault)
 		if err != nil {
