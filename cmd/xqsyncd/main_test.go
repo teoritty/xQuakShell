@@ -68,8 +68,40 @@ func TestFingerprintIsStable(t *testing.T) {
 	var a, b bytes.Buffer
 	_ = run(context.Background(), []string{"fingerprint", "--dir", dir}, &a)
 	_ = run(context.Background(), []string{"fingerprint", "--dir", dir}, &b)
-	if a.String() != b.String() || len(strings.Fields(a.String())) != 12 {
-		t.Fatalf("fingerprint %q / %q", a.String(), b.String())
+	first, link, _ := strings.Cut(a.String(), "\n")
+	if a.String() != b.String() || len(strings.Fields(first)) != 12 {
+		t.Fatalf("fingerprint %q / %q; the first line is the twelve groups scripts read", a.String(), b.String())
+	}
+	want := "connect link: https://localhost:8443/#fp=" + strings.ReplaceAll(first, " ", "-") + "\n"
+	if link != want {
+		t.Fatalf("link line %q, want %q; the link carries exactly the fingerprint above it", link, want)
+	}
+}
+
+func TestFingerprintLinkNamesTheCertificateHost(t *testing.T) {
+	dir := t.TempDir()
+	if err := run(context.Background(), []string{"init", "--dir", dir, "--host", "sync.example.org", "--host", "10.0.0.5"}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := run(context.Background(), []string{"fingerprint", "--dir", dir, "--port", "9443"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "connect link: https://sync.example.org:9443/#fp=") {
+		t.Fatalf("output %q; the link names the certificate's first host and the given port", out.String())
+	}
+	out.Reset()
+	_ = run(context.Background(), []string{"fingerprint", "--dir", dir, "--host", "10.0.0.5"}, &out)
+	if !strings.Contains(out.String(), "https://10.0.0.5:8443/#fp=") {
+		t.Fatalf("output %q; --host overrides the certificate", out.String())
+	}
+}
+
+func TestPortOfAListeningAddress(t *testing.T) {
+	for addr, want := range map[string]string{"[::]:8443": "8443", "127.0.0.1:51234": "51234", "bad": "8443"} {
+		if got := portOf(addr); got != want {
+			t.Errorf("portOf(%q) = %q, want %q", addr, got, want)
+		}
 	}
 }
 

@@ -70,6 +70,8 @@ func cmdInit(args []string, out io.Writer) error {
 	if err := writeSelfSignedCert(*dir, hosts, time.Now()); err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(out, "initialised %s\nidentity fingerprint: %s\n", *dir, identityFingerprint(k))
+	fp := identityFingerprint(k)
+	_, err = fmt.Fprintf(out, "initialised %s\nidentity fingerprint: %s\nconnect link: %s\n", *dir, fp,
+		connectLink(hosts[0], defaultLinkPort, fp))
 	return err
 }

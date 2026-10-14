@@ -94,7 +94,8 @@ func serve(ctx context.Context, cfg serveConfig, ln net.Listener) error {
 	startJanitor(ctx, svc.PruneAll, janitorInterval, cfg.log)
 	// The bound address, not the requested one: with port 0 this is how a harness learns the port.
 	if cfg.log != nil {
-		cfg.log.Info("xqsyncd listening", "addr", ln.Addr().String())
+		cfg.log.Info("xqsyncd listening", "addr", ln.Addr().String(),
+			"link", connectLink(certHost(cert), portOf(ln.Addr().String()), identityFingerprint(k)))
 	}
 	done := make(chan error, 1)
 	serveTLS(srv, ln, done)

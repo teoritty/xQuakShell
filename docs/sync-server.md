@@ -87,6 +87,25 @@ and asks the user to compare it with the one you gave them, over a channel other
 they are connecting through. Once confirmed, the client pins the server's identity key and refuses
 any other — including a certificate an attacker on the path managed to get issued.
 
+### The connect link
+
+`init`, `fingerprint` and every `serve` start also print a **connect link** — the server's address
+with the fingerprint in its fragment:
+
+```text
+connect link: https://sync.example.org:8443/#fp=04512-99031-…
+```
+
+Give users the link instead of the address and the fingerprint separately. Pasted into
+Settings → Sync, it fills the address and makes the comparison for them: the application connects
+only if the server presents exactly that fingerprint, and refuses with nothing sent otherwise. The
+fragment never reaches the server. Hand the link over the same kind of channel you would use for
+the fingerprint — whoever can change the link in transit can change a fingerprint read out there
+too.
+
+`fingerprint` names the certificate's first host and port 8443; `--host` and `--port` override
+both, for a server behind a different name or port. `serve` logs the port it actually listens on.
+
 ## TLS certificates
 
 `init` creates a self-signed certificate, and that is sufficient: clients do not trust TLS

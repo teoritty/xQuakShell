@@ -17,11 +17,13 @@ package main
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"xquakshell/internal/domain/vaultsync"
@@ -73,6 +75,8 @@ func usageError() error {
 func cmdFingerprint(args []string, out io.Writer) error {
 	fs := newFlags("fingerprint")
 	dir := fs.String("dir", "", "server data directory")
+	host := fs.String("host", "", "host name for the connect link (default: the certificate's first name)")
+	port := fs.String("port", defaultLinkPort, "port for the connect link")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -80,7 +84,14 @@ func cmdFingerprint(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintln(out, identityFingerprint(k))
+	if *host == "" {
+		*host = "localhost"
+		if cert, err := tls.LoadX509KeyPair(filepath.Join(*dir, certFileName), filepath.Join(*dir, keyPEMName)); err == nil {
+			*host = certHost(cert)
+		}
+	}
+	fp := identityFingerprint(k)
+	_, err = fmt.Fprintf(out, "%s\nconnect link: %s\n", fp, connectLink(*host, *port, fp))
 	return err
 }
 

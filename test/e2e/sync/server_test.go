@@ -95,8 +95,9 @@ func newServer(t *testing.T) *server {
 	} else if s.dir == "" {
 		t.Fatal("E2E_SYNC_URL needs E2E_SYNC_DIR: invites and the fingerprint come from the data directory")
 	}
-	out := strings.Fields(xqsyncd(t, "fingerprint", "--dir", s.dir))
-	s.fingerprint = strings.Join(out, " ")
+	// The first line is the fingerprint; the second is the connect link that carries it.
+	first, _, _ := strings.Cut(xqsyncd(t, "fingerprint", "--dir", s.dir), "\n")
+	s.fingerprint = strings.Join(strings.Fields(first), " ")
 	s.url = s.proxy()
 	return s
 }
