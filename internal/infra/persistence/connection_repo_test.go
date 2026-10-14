@@ -258,9 +258,9 @@ func TestSavingAnExistingFolderKeepsItsOrder(t *testing.T) {
 	}
 }
 
-// A save from the editor carries no vault id - the UI is not trusted to move items between synced
-// vaults - so the stored item keeps the vault it is in. Overwriting it would turn a team item
-// personal on the next edit.
+// An edit never moves an item between synced vaults - that is a move, with its own rules for the
+// credentials - so the stored item keeps the vault it is in. Overwriting it would turn a team item
+// personal on the next edit. Only a new item, one without an id, is placed where it was asked to go.
 func TestSaveKeepsTheVaultAnItemIsIn(t *testing.T) {
 	d := domain.NewVaultData()
 	d.Folders = []domain.ConnectionFolder{{ID: "f", Name: "F", VaultID: "team"}}

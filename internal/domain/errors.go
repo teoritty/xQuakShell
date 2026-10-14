@@ -115,6 +115,12 @@ var ErrDirectoryNotFound = errors.New("directory not found")
 // ErrCircularFolder indicates a folder move would create a circular parent chain.
 var ErrCircularFolder = errors.New("circular folder hierarchy detected")
 
+// ErrVaultMismatch is a connection or folder placed in a folder of another synced vault. The item
+// would sync to its own vault while its folder synced to the other one, and every other member of
+// either vault would receive an item whose folder they do not have - which the tree cannot show.
+// Changing vaults is a move, never a folder change.
+var ErrVaultMismatch = errors.New("that folder is in another vault; move the item there instead")
+
 // ErrConnectionNotFound indicates no connection exists with the given ID.
 var ErrConnectionNotFound = errors.New("connection not found")
 
