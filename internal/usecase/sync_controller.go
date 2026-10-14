@@ -216,13 +216,7 @@ func (c *SyncController) followVaults(st SyncStatus) bool {
 				changed = true
 			}
 		}
-		if c.knownVaults != nil {
-			for _, id := range st.Vaults {
-				if !slices.Contains(c.knownVaults, id) {
-					c.joining = append(c.joining, id)
-				}
-			}
-		}
+		c.noteJoined(st.Vaults)
 		c.knownVaults = slices.Clone(st.Vaults)
 	}
 	if st.State != SyncRunning && slices.Contains(c.joining, st.Vault) {
@@ -230,6 +224,19 @@ func (c *SyncController) followVaults(st SyncStatus) bool {
 		changed = true
 	}
 	return changed
+}
+
+// noteJoined remembers the vaults of a pass that the last pass did not list. The first pass
+// joins nothing: every vault in it is the account's from before. The caller holds c.mu.
+func (c *SyncController) noteJoined(vaults []vaultsync.ID) {
+	if c.knownVaults == nil {
+		return
+	}
+	for _, id := range vaults {
+		if !slices.Contains(c.knownVaults, id) {
+			c.joining = append(c.joining, id)
+		}
+	}
 }
 
 // Status is the account's status across its vaults, and whether sync is running.
