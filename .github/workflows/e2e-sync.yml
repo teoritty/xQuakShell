@@ -1,0 +1,144 @@
+name: Sync e2e
+
+# The sync scenarios against xqsyncd running under a real service manager (spec 12.7): the systemd
+# unit from packaging/linux on Linux, `xqsyncd service install` on Windows. `make gates` covers the
+# same protocol in process and `make e2e-sync` against a plain process; this is where the packaging
+# - hardening, the dynamic user, the virtual account and its ACL - is checked.
+#
+# It runs only when code it exercises changes, and its two jobs run one after the other: automated
+# volume on this account is something to keep small.
+on:
+  pull_request:
+    paths:
+      - 'cmd/xqsyncd/**'
+      - 'internal/syncserver/**'
+      - 'internal/infra/syncclient/**'
+      - 'internal/infra/synccrypto/**'
+      - 'internal/infra/syncstate/**'
+      - 'internal/infra/opaque/**'
+      - 'internal/domain/vaultsync/**'
+      - 'internal/domain/synctrust/**'
+      - 'internal/domain/syncwire/**'
+      - 'internal/usecase/sync_*.go'
+      - 'packaging/linux/xqsyncd.service'
+      - 'test/e2e/sync/**'
+      - '.github/workflows/e2e-sync.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    # systemd-analyze security --threshold needs systemd 250 or newer.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Install the unit under a test name
+        run: |
+          set -euo pipefail
+          CGO_ENABLED=0 go build -trimpath -o xqsyncd ./cmd/xqsyncd
+          sudo install -m 0755 xqsyncd /usr/local/bin/xqsyncd-e2e
+          sed -e 's#/usr/local/bin/xqsyncd #/usr/local/bin/xqsyncd-e2e #g' \
+              -e 's#^StateDirectory=xqsyncd$#StateDirectory=xqsyncd-e2e#' \
+              -e 's#--addr :8443#--addr 127.0.0.1:8443#' \
+              packaging/linux/xqsyncd.service | sudo tee /etc/systemd/system/xqsyncd-e2e.service >/dev/null
+          sudo systemctl daemon-reload
+
+      # The exposure score of the shipped unit must stay at or below a fixed value (spec 9.5), so a
+      # change that loosens the sandbox fails here rather than in a review. 2.5 was set before the
+      # first runner measurement; when a run prints a lower score, lower the threshold to it.
+      - name: Hardening score
+        run: systemd-analyze security --threshold=2.5 xqsyncd-e2e.service
+
+      - name: Start
+        run: |
+          set -euo pipefail
+          sudo systemctl start xqsyncd-e2e
+          for i in $(seq 1 30); do
+            if curl -sk https://127.0.0.1:8443/ -o /dev/null; then exit 0; fi
+            sleep 1
+          done
+          sudo journalctl -u xqsyncd-e2e --no-pager
+          exit 1
+
+      # Root reads the key and certificate the dynamic user created, and mints invites through the
+      # admin command, which opens the same database the service has open (SQLite WAL).
+      - name: Scenarios against the service
+        run: |
+          sudo -E env "PATH=$PATH" "HOME=$HOME" \
+            E2E_SYNC_URL=https://127.0.0.1:8443 E2E_SYNC_DIR=/var/lib/xqsyncd-e2e \
+            XQSYNCD_BIN=/usr/local/bin/xqsyncd-e2e \
+            go test -tags e2e_sync ./test/e2e/sync/ -count=1 -v -timeout 20m
+
+      - name: Remove
+        if: always()
+        run: |
+          sudo journalctl -u xqsyncd-e2e --no-pager | tail -50 || true
+          sudo systemctl stop xqsyncd-e2e || true
+          sudo rm -f /etc/systemd/system/xqsyncd-e2e.service /usr/local/bin/xqsyncd-e2e
+          sudo systemctl daemon-reload
+
+  windows:
+    needs: linux
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Install the service under a test name
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force C:\xqsyncd-e2e | Out-Null
+          go build -trimpath -o C:\xqsyncd-e2e\xqsyncd.exe ./cmd/xqsyncd
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          C:\xqsyncd-e2e\xqsyncd.exe service install --name xqsyncd-e2e --addr 127.0.0.1:8443 --host 127.0.0.1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Wait for the service
+        shell: pwsh
+        run: |
+          for ($i = 0; $i -lt 30; $i++) {
+            if ((Test-NetConnection 127.0.0.1 -Port 8443 -WarningAction SilentlyContinue).TcpTestSucceeded) { exit 0 }
+            Start-Sleep -Seconds 1
+          }
+          Get-EventLog -LogName Application -Source xqsyncd-e2e -Newest 20 -ErrorAction SilentlyContinue | Format-List
+          exit 1
+
+      # Spec 9.5: the data directory is readable by the service account and Administrators only.
+      - name: Data directory ACL
+        shell: pwsh
+        run: |
+          $acl = Get-Acl "$env:ProgramData\xqsyncd-e2e"
+          if (-not $acl.AreAccessRulesProtected) { throw "the DACL inherits from ProgramData" }
+          $who = $acl.Access | ForEach-Object { $_.IdentityReference.Value } | Sort-Object
+          $want = @('BUILTIN\Administrators', 'NT SERVICE\xqsyncd-e2e') | Sort-Object
+          if (Compare-Object $who $want) { throw "unexpected grantees: $($who -join ', ')" }
+
+      - name: Scenarios against the service
+        shell: pwsh
+        env:
+          E2E_SYNC_URL: https://127.0.0.1:8443
+          XQSYNCD_BIN: C:\xqsyncd-e2e\xqsyncd.exe
+        run: |
+          $env:E2E_SYNC_DIR = "$env:ProgramData\xqsyncd-e2e"
+          go test -tags e2e_sync ./test/e2e/sync/ -count=1 -v -timeout 20m
+
+      - name: Remove
+        if: always()
+        shell: pwsh
+        run: C:\xqsyncd-e2e\xqsyncd.exe service uninstall --name xqsyncd-e2e
