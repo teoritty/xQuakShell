@@ -64,6 +64,7 @@ func (m *PluginManager) UninstallPlugin(ctx context.Context, pluginID string, re
 		}
 	}
 
+	m.notifyInstalledChanged()
 	return nil
 }
 

@@ -14,6 +14,7 @@ import (
 	infrapersistence "xquakshell/internal/infra/persistence"
 	infraplugin "xquakshell/internal/infra/plugin"
 	"xquakshell/internal/infra/plugin/bundle"
+	"xquakshell/internal/infra/portable"
 	"xquakshell/internal/usecase"
 )
 
@@ -162,5 +163,33 @@ func TestInstallExpectedStillEnforcesConsents(t *testing.T) {
 	want.Consents.MultiSession = true
 	if err := rig.service.InstallExpected(context.Background(), want); err != nil {
 		t.Fatalf("install with the consent given: %v", err)
+	}
+}
+
+func TestInstallAndUninstallTellTheInstalledChangedHandler(t *testing.T) {
+	dataRoot := t.TempDir()
+	manager := usecase.NewPluginManagerWithConfig(usecase.PluginManagerConfig{
+		Registry: usecase.NewPluginRegistry(), Host: idleProcessHost{},
+		LoadBundle: infraplugin.LoadPluginSource, InstallBundle: infraplugin.InstallFromSource, InstallRoot: dataRoot,
+		PortableData: portable.NewDataStore(dataRoot, "", nil),
+	})
+	calls := 0
+	manager.SetInstalledChangedHandler(func() { calls++ })
+
+	src := packBundle(t, offerManifest)
+	if _, err := manager.Install(src, domainplugin.InstallTrustPolicy{}, false, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("handler called %d times after an install; the synced plugin list records it at once (spec 6.4)", calls)
+	}
+	if err := manager.UninstallPlugin(context.Background(), "com.example.offered", false); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("handler called %d times after install and uninstall, want 2", calls)
+	}
+	if err := manager.UninstallPlugin(context.Background(), "com.example.offered", false); err == nil || calls != 2 {
+		t.Fatalf("a failed uninstall: err %v, calls %d; nothing changed, so nothing is recorded", err, calls)
 	}
 }

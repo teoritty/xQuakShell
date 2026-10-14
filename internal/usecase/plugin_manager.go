@@ -47,6 +47,7 @@ type PluginManager struct {
 	retention         PluginRetentionChecker
 	startGuard        func(ctx context.Context, pluginID string) func()
 	processIdle       func(pluginID string)
+	installedChanged  func()
 
 	mu              sync.Mutex
 	sessionCounts   map[string]int

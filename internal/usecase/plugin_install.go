@@ -144,6 +144,7 @@ func (m *PluginManager) Install(sourcePath string, policy domainplugin.InstallTr
 	if installed.Manifest.RequiresChannelExecConsent() {
 		m.auditStart(installed.Manifest.ID, "install", "channelExec", false)
 	}
+	m.notifyInstalledChanged()
 	return installed, nil
 }
 

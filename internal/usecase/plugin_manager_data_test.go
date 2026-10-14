@@ -69,3 +69,22 @@ func TestProcessIdleHandlerFiresOnStopAndSuspendOnly(t *testing.T) {
 		t.Fatalf("idle = %v; a suspension is idle, a crash is not", idle)
 	}
 }
+
+func TestRestartPluginStopsThenStartsThroughTheGuard(t *testing.T) {
+	host := &stubProcessHost{}
+	manager, _ := newHookedManager(t, host)
+	if err := manager.Registry().Load([]domainplugin.InstalledPlugin{dataPlugin("com.example.p")}); err != nil {
+		t.Fatal(err)
+	}
+	guarded := 0
+	manager.SetStartGuard(func(context.Context, string) func() { guarded++; return func() {} })
+	if err := manager.RestartPlugin(context.Background(), "com.example.p"); err != nil {
+		t.Fatal(err)
+	}
+	if host.startCount() != 1 || guarded != 1 {
+		t.Fatalf("starts %d, guarded %d; a restart applies waiting data through the start guard, then starts once", host.startCount(), guarded)
+	}
+	if err := manager.RestartPlugin(context.Background(), "com.example.missing"); err == nil {
+		t.Fatal("restarting a plugin that is not installed succeeded")
+	}
+}
