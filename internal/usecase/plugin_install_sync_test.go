@@ -14,12 +14,43 @@ import (
 )
 
 type refWorld struct {
-	t        *testing.T
-	vault    *syncTestVault
-	mu       sync.Mutex
-	plugins  []domainplugin.InstalledPlugin
-	disabled []string
-	svc      *usecase.PluginReferenceSync
+	t         *testing.T
+	vault     *syncTestVault
+	mu        sync.Mutex
+	plugins   []domainplugin.InstalledPlugin
+	disabled  []string
+	enabled   []string
+	installer *fakeOfferInstaller
+	svc       *usecase.PluginReferenceSync
+}
+
+// fakeOfferInstaller stands in for the GitHub pipeline: a successful install puts a plugin with
+// the build the release really carries (served, not the expectation) into the world.
+type fakeOfferInstaller struct {
+	w        *refWorld
+	served   string // the manifest digest the "release" carries
+	err      error
+	requests []usecase.ExpectedInstall
+	previews []string
+}
+
+func (f *fakeOfferInstaller) PreviewInstall(_ context.Context, repoURL, tag string) (usecase.GitHubPluginPreviewDTO, error) {
+	f.previews = append(f.previews, repoURL+"@"+tag)
+	return usecase.GitHubPluginPreviewDTO{RepositoryURL: repoURL, ReleaseTag: tag}, f.err
+}
+
+func (f *fakeOfferInstaller) InstallExpected(_ context.Context, req usecase.ExpectedInstall) error {
+	f.requests = append(f.requests, req)
+	if f.err != nil {
+		return f.err
+	}
+	if f.served != req.ManifestDigest && !req.AcceptDifferent {
+		return usecase.ErrPluginDigestMismatch
+	}
+	p := githubInstalled("com.example.echo", strings.TrimPrefix(req.Tag, "v"), f.served)
+	p.InstallMeta.RepositoryURL, p.InstallMeta.ReleaseTag = req.RepoURL, req.Tag
+	f.w.install(p)
+	return nil
 }
 
 func newRefWorld(t *testing.T) *refWorld {
@@ -27,8 +58,11 @@ func newRefWorld(t *testing.T) *refWorld {
 	d := domain.NewVaultData()
 	d.Sync = &domain.VaultSync{Account: &domain.SyncAccount{Username: "u"}}
 	w := &refWorld{t: t, vault: &syncTestVault{data: d}}
+	w.installer = &fakeOfferInstaller{w: w, served: digestA}
 	w.svc = usecase.NewPluginReferenceSync(usecase.PluginReferenceDeps{
-		Vault: w.vault,
+		Installer: w.installer,
+		Enable:    func(_ context.Context, id string) error { w.enabled = append(w.enabled, id); return nil },
+		Vault:     w.vault,
 		Installed: func() []domainplugin.InstalledPlugin {
 			w.mu.Lock()
 			defer w.mu.Unlock()
@@ -270,5 +304,128 @@ func TestANestedGitHubPathIsNotARepository(t *testing.T) {
 	w.record()
 	if r := w.records()["com.example.echo"]; r.Source.Kind != domain.PluginSourceManual {
 		t.Fatalf("record = %+v; a URL that is not owner/name is never offered as a GitHub install", r)
+	}
+}
+
+func echoRecord(tag, digest string) domain.SyncPlugin {
+	return domain.SyncPlugin{ID: "com.example.echo", Version: strings.TrimPrefix(tag, "v"), ManifestDigest: digest,
+		SumsDigest: strings.Repeat("cd", 32),
+		Source:     domain.SyncPluginSource{Kind: domain.PluginSourceGitHub, Repo: "example/com.example.echo", Tag: tag}}
+}
+
+func TestInstallingAnOfferRunsThePipelineHeldToTheRecord(t *testing.T) {
+	w := newRefWorld(t)
+	w.arrive(echoRecord("v1.0.0", digestA))
+	consents := domainplugin.InstallConsents{Exec: true}
+	if err := w.svc.InstallOffer(syncCtx, usecase.OfferInstallRequest{PluginID: "com.example.echo", Consents: consents}); err != nil {
+		t.Fatal(err)
+	}
+	want := usecase.ExpectedInstall{RepoURL: "https://github.com/example/com.example.echo", Tag: "v1.0.0",
+		ManifestDigest: digestA, SumsDigest: strings.Repeat("cd", 32), Consents: consents}
+	if len(w.installer.requests) != 1 || w.installer.requests[0] != want {
+		t.Fatalf("pipeline requests = %+v, want exactly %+v: the source and digests of the record, the user's consents", w.installer.requests, want)
+	}
+	if _, ok := w.offers()["com.example.echo"]; ok {
+		t.Fatal("a plugin installed from its offer is still offered")
+	}
+	if d, _ := w.vault.GetData(); d.Sync.PluginsHere["com.example.echo"] == "" {
+		t.Fatal("the installed build was not remembered as this device's; the next scan would misread it as unverified")
+	}
+}
+
+func TestAReplacedReleaseIsRefusedUnlessAccepted(t *testing.T) {
+	w := newRefWorld(t)
+	rec := echoRecord("v1.0.0", digestA)
+	w.arrive(rec)
+	w.installer.served = digestB
+	err := w.svc.InstallOffer(syncCtx, usecase.OfferInstallRequest{PluginID: "com.example.echo"})
+	if !errors.Is(err, usecase.ErrPluginDigestMismatch) {
+		t.Fatalf("err = %v, want ErrPluginDigestMismatch", err)
+	}
+	if w.records()["com.example.echo"] != rec {
+		t.Fatal("a refused install changed the record")
+	}
+	if err := w.svc.InstallOffer(syncCtx, usecase.OfferInstallRequest{PluginID: "com.example.echo", AcceptDifferent: true}); err != nil {
+		t.Fatal(err)
+	}
+	if r := w.records()["com.example.echo"]; r.ManifestDigest != digestB {
+		t.Fatalf("record = %+v; an accepted build is the new version on every device", r)
+	}
+}
+
+func TestAnUpdateOfferInstallsTheRecordedTag(t *testing.T) {
+	w := newRefWorld(t)
+	w.install(githubInstalled("com.example.echo", "1.0.0", digestA))
+	w.record()
+	w.arrive(echoRecord("v2.0.0", digestB))
+	w.installer.served = digestB
+	if err := w.svc.InstallOffer(syncCtx, usecase.OfferInstallRequest{PluginID: "com.example.echo"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.installer.requests[0].Tag; got != "v2.0.0" {
+		t.Fatalf("installed tag %q, want the upgrade's v2.0.0", got)
+	}
+	if _, ok := w.offers()["com.example.echo"]; ok {
+		t.Fatal("the update is still offered after installing it")
+	}
+}
+
+func TestAManualOrUnknownOfferHasNoInstall(t *testing.T) {
+	w := newRefWorld(t)
+	manual := echoRecord("v1.0.0", digestA)
+	manual.Source = domain.SyncPluginSource{Kind: domain.PluginSourceManual}
+	w.arrive(manual)
+	if err := w.svc.InstallOffer(syncCtx, usecase.OfferInstallRequest{PluginID: "com.example.echo"}); !errors.Is(err, usecase.ErrPluginOfferManual) {
+		t.Fatalf("manual offer: %v, want ErrPluginOfferManual", err)
+	}
+	if _, err := w.svc.PreviewOffer(syncCtx, "com.example.echo"); !errors.Is(err, usecase.ErrPluginOfferManual) {
+		t.Fatalf("manual preview: %v, want ErrPluginOfferManual", err)
+	}
+	if err := w.svc.InstallOffer(syncCtx, usecase.OfferInstallRequest{PluginID: "com.example.other"}); !errors.Is(err, usecase.ErrPluginOfferNotFound) {
+		t.Fatalf("unknown offer: %v, want ErrPluginOfferNotFound", err)
+	}
+	if len(w.installer.requests)+len(w.installer.previews) != 0 {
+		t.Fatal("the pipeline was reached for an offer that has no GitHub source")
+	}
+}
+
+func TestAnOfferPreviewNamesTheRecordedRelease(t *testing.T) {
+	w := newRefWorld(t)
+	w.arrive(echoRecord("v1.2.0", digestA))
+	if _, err := w.svc.PreviewOffer(syncCtx, "com.example.echo"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(w.installer.previews, []string{"https://github.com/example/com.example.echo@v1.2.0"}) {
+		t.Fatalf("previews = %v; the consent screen shows the recorded release", w.installer.previews)
+	}
+}
+
+func TestKeepingAPluginRemovedElsewhereEnablesItAgain(t *testing.T) {
+	w := newRefWorld(t)
+	w.install(githubInstalled("com.example.echo", "1.0.0", digestA))
+	w.record()
+	w.removeRecord("com.example.echo")
+	w.record()
+	if err := w.svc.KeepPlugin(syncCtx, "com.example.echo"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(w.enabled, []string{"com.example.echo"}) {
+		t.Fatalf("enabled = %v; keeping a plugin another device removed turns it back on", w.enabled)
+	}
+	if _, ok := w.records()["com.example.echo"]; !ok {
+		t.Fatal("keeping did not record the plugin again")
+	}
+
+	m := newRefWorld(t)
+	m.arrive(echoRecord("v1.0.0", digestA))
+	m.install(githubInstalled("com.example.echo", "1.0.0", digestB))
+	if err := m.svc.KeepPlugin(syncCtx, "com.example.echo"); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.enabled) != 0 {
+		t.Fatalf("enabled = %v; keeping a mismatching build does not touch whether it runs", m.enabled)
+	}
+	if r := m.records()["com.example.echo"]; r.ManifestDigest != digestB {
+		t.Fatalf("record = %+v; the kept build is the new version", r)
 	}
 }

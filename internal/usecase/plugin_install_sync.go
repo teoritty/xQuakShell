@@ -48,6 +48,10 @@ type PluginReferenceDeps struct {
 	Installed func() []domainplugin.InstalledPlugin
 	// Disable turns a plugin off on this device, for one another device uninstalled.
 	Disable func(ctx context.Context, pluginID string) error
+	// Enable turns such a plugin back on when the user keeps it.
+	Enable func(ctx context.Context, pluginID string) error
+	// Installer is the GitHub install pipeline an offer runs through.
+	Installer PluginOfferInstaller
 }
 
 // PluginReferenceSync mirrors the plugins installed on this device into the vault by reference and
