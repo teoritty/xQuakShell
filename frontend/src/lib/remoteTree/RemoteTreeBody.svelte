@@ -2,6 +2,7 @@
   import { t } from '../../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import RemoteTreeNode from './RemoteTreeNode.svelte';
+  import RemoteTreeVaultRow from './RemoteTreeVaultRow.svelte';
   import RemoteTreeFavorites from './RemoteTreeFavorites.svelte';
   import type { Connection } from '../../stores/appState';
   import {
@@ -60,6 +61,9 @@
        rows, so two plugins publishing the same node id under one connection
        cannot collapse into a single keyed row. -->
   {#each flatNodes as node (node.type + '-' + node.id)}
+    {#if node.type === 'vault'}
+    <RemoteTreeVaultRow {node} />
+    {:else}
     <RemoteTreeNode
       {node}
       selected={node.type === 'discovery'
@@ -104,6 +108,7 @@
       on:toggleDiscoveryRoot={(e) => dispatch('toggleDiscoveryRoot', e.detail)}
       on:toggleDiscoveryNode={(e) => dispatch('toggleDiscoveryNode', e.detail)}
     />
+    {/if}
   {/each}
   {#if flatNodes.length === 0}
     <div class="empty-tree">{$t('tree.empty')}</div>

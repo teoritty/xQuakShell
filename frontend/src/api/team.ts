@@ -59,6 +59,7 @@ export function confirmCredentialBindingRpc(vault: string, connection: string, u
   return callBackend('Confirm address', undefined, (app) => app.ConfirmCredentialBinding(vault, connection, user), inline);
 }
 
-export function moveConnectionToTeamRpc(connection: string, vault: string): Promise<void> {
-  return callBackend('Move to team', undefined, (app) => app.MoveConnectionToTeam(connection, vault), inline);
+/** Moves a connection to vault ('' is the personal one) and resolves to the id it has there. */
+export function moveConnectionToVaultRpc(connection: string, vault: string, folder: string): Promise<string> {
+  return callBackend('Move connection', '', (app) => app.MoveConnectionToVault(connection, vault, folder), inline);
 }

@@ -61,7 +61,12 @@ person after comparing their fingerprint over another channel, and give them the
 viewer role. Credentials are not shared: each member binds their own key or password to
 a team connection, and a member who changes a shared connection's address suspends everyone
 else's binding to it until they confirm. Removing a member moves the team to new keys, so nothing
-written afterwards opens for them.
+written afterwards opens for them. Each team appears in the connection tree under its own row,
+below your personal connections; create a connection or folder there to keep it in the team, or
+move one in and out from the tree's menu, the editor's "Stored in" field, or by dragging it onto
+another vault. A move into a team links your own key or password for you, and a move back takes
+that link with it as the connection's credential. A viewer sees the team's connections and can
+use them, but cannot add, change or move them.
 
 **Trash and Shred now.** Deleted synced items stay in a trash for the vault's retention window
 (30 days by default) and can be restored. After that they are purged from the server, and within

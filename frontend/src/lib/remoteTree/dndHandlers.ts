@@ -11,6 +11,7 @@ import {
   payloadPrimaryType,
 } from './dndGuards';
 import type { DragPayload, TreeNode } from './types';
+import { folderVault, nodeVault, redirectAcrossVaults } from './vaultDnd';
 
 function foldersNeedingMove(folderIds: string[], targetFolderId: string, folders: Folder[]): string[] {
   return folderIds.filter((id) => {
@@ -60,7 +61,9 @@ export async function executeDropBetween(
 
   const primaryType = payloadPrimaryType(payload);
   const primaryId = payloadPrimaryId(payload);
-  if (!primaryType || !primaryId) return;
+  // A drop across vaults is a move, never this reorder: redirectAcrossVaults hands it to the
+  // confirmation and reports it handled.
+  if (!primaryType || !primaryId || redirectAcrossVaults(payload, nodeVault(targetNode), targetNode.parentId, connections, folders)) return;
 
   const { target: effTarget, position: effPos } = sameTypeGap(targetNode, position, primaryType, flatNodes);
 
@@ -116,6 +119,7 @@ export async function executeDropOnFolder(
   connections: Connection[],
   folders: Folder[]
 ): Promise<void> {
+  if (redirectAcrossVaults(payload, folderVault(targetFolderId, folders), targetFolderId, connections, folders)) return;
   if (isNoOpDropOnFolder(payload, targetFolderId, connections, folders)) return;
   if (payload.connectionIds.length > 0) {
     await moveConnections(payload.connectionIds, targetFolderId);
@@ -152,6 +156,8 @@ export async function executeDropOnRootEnd(
   connections: Connection[],
   folders: Folder[]
 ): Promise<void> {
+  // The empty area below the tree is the personal vault's top level.
+  if (redirectAcrossVaults(payload, '', '', connections, folders)) return;
   if (!allowsReorder(payload)) {
     await executeDropOnRoot(payload, connections, folders);
     return;

@@ -9,13 +9,13 @@
     inviteMember,
     leaveTeam,
     lookupInvitee,
-    moveConnectionToTeam,
     removeMember,
     verifyMember,
   } from '../../../actions/teamActions';
   import { errorMessage } from '../../../actions/syncActions';
   import { connections } from '../../../stores/appState';
   import { syncStatus } from '../../../stores/syncState';
+  import { requestVaultMove } from '../../../stores/teamState';
   import { t } from '../../../i18n/messages';
 
   export let team: Team;
@@ -63,6 +63,12 @@
     }
     removing = '';
     void act(() => removeMember(team.vault, account));
+  }
+
+  // The same confirmation as a drop on the team in the tree: it says who gains the connection.
+  function moveIn() {
+    requestVaultMove({ connectionIds: [moving], vault: team.vault, folder: '' });
+    moving = '';
   }
 
   async function lookup() {
@@ -151,7 +157,7 @@
           <option value={c.id}>{c.name}</option>
         {/each}
       </select>
-      <button type="button" class="secondary" on:click={() => act(() => moveConnectionToTeam(moving, team.vault))} disabled={busy || !moving}>
+      <button type="button" class="secondary" on:click={moveIn} disabled={busy || !moving}>
         {$t('sync.teams.moveAction')}
       </button>
     </div>

@@ -6,13 +6,17 @@
   import { RefreshCw, AlertTriangle } from 'lucide-svelte';
   import { pluginDataNotices, syncStatus } from '../stores/syncState';
   import { vaultUnlocked } from '../stores/appState';
-  import { refreshSyncStatus } from '../actions/syncActions';
+  import { refreshSyncStatus, refreshTeams } from '../actions/syncActions';
   import { t } from '../i18n/messages';
 
   const dispatch = createEventDispatcher();
 
   // The account lives in the vault, so what to show is known only once it is open.
   $: if ($vaultUnlocked) void refreshSyncStatus();
+  // The tree groups team items by this list, so it is read as soon as sync is known to be on, and
+  // cleared when it goes off. A boolean, so a round's status update does not read it again.
+  $: syncOn = $vaultUnlocked && $syncStatus.enabled;
+  $: syncOn, void refreshTeams();
 
   // A plugin data conflict also asks for the person: the losing version is in the trash only for the
   // retention window, so it is worth a look before it is gone.

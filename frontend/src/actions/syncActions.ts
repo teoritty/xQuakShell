@@ -21,7 +21,10 @@ import {
   type EnableSyncRequest,
   type SyncServerProbe,
 } from '../api/sync';
+import { listTeamsRpc } from '../api/team';
 import { syncRevision, syncStatus } from '../stores/syncState';
+import { teams } from '../stores/teamState';
+import { get } from 'svelte/store';
 import { refreshFolders } from './folderActions';
 import { refreshAllConnections, refreshIdentities } from './connectionActions';
 import { applyAppearanceSettings } from './settingsActions';
@@ -51,6 +54,22 @@ async function mutate(fn: () => Promise<unknown>): Promise<string> {
   return msg;
 }
 
+/**
+ * Re-reads the team list every view places items by. With sync off there are no teams; a failed
+ * read keeps the last list, since a team does not stop existing because one request failed.
+ */
+export async function refreshTeams(): Promise<void> {
+  if (!get(syncStatus).enabled) {
+    teams.set([]);
+    return;
+  }
+  try {
+    teams.set(await listTeamsRpc());
+  } catch {
+    // The Sync page shows the reason when the person opens it.
+  }
+}
+
 export async function refreshSyncStatus(): Promise<void> {
   try {
     syncStatus.set(await getSyncStatusRpc());
@@ -77,7 +96,7 @@ export function refreshAfterSync(): Promise<void> {
     queuedRefresh = new Promise((resolve) => {
       setTimeout(() => {
         queuedRefresh = null;
-        void Promise.all([refreshFolders(), refreshAllConnections(), refreshIdentities(), applyAppearanceSettings()])
+        void Promise.all([refreshFolders(), refreshAllConnections(), refreshIdentities(), applyAppearanceSettings(), refreshTeams()])
           .finally(() => {
             syncRevision.update((n) => n + 1);
             resolve();
@@ -165,7 +184,11 @@ export const changeSyncPassword = (oldPw: string, newPw: string) => attempt(() =
 export const resetSyncPassword = (newPw: string) => attempt(() => resetSyncPasswordRpc(newPw));
 export const revokeSyncDevice = (id: string, password: string) => attempt(() => revokeSyncDeviceRpc(id, password));
 export const acknowledgeSyncDevices = (ids: string[]) => attempt(() => acknowledgeSyncDevicesRpc(ids));
-export const disableSync = () => attempt(() => disableSyncRpc());
+export async function disableSync(): Promise<string> {
+  const error = await attempt(() => disableSyncRpc());
+  await refreshTeams();
+  return error;
+}
 export const syncNow = () => attempt(() => syncNowRpc());
 export const confirmSyncHeld = (record: string, masterPassword: string) =>
   mutate(() => confirmSyncHeldRpc(record, masterPassword));

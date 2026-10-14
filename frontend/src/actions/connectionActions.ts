@@ -70,7 +70,12 @@ export async function saveConnection(c: Partial<Connection>): Promise<Connection
   return saved;
 }
 
-export async function createNewConnectionInFolder(folderId: string): Promise<Connection | null> {
+/**
+ * Creates a connection in folderId, or at the top level of vaultId when there is no folder: a team's
+ * vault id puts it in that team, empty is the personal vault. Inside a folder the folder's vault
+ * decides and vaultId may be left out.
+ */
+export async function createNewConnectionInFolder(folderId: string, vaultId = ''): Promise<Connection | null> {
   const uid = newLocalId('u-');
   const saved = await saveConnection({
     name: 'New connection',
@@ -79,6 +84,7 @@ export async function createNewConnectionInFolder(folderId: string): Promise<Con
     folderId,
     users: [{ id: uid, username: '', authMethod: 'key' }],
     defaultUserId: uid,
+    ...(vaultId ? { vaultId } : {}),
   });
   if (saved) {
     selectedConnectionId.set(saved.id);

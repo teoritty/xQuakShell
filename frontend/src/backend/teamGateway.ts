@@ -53,5 +53,5 @@ export interface TeamGateway {
   ListCredentialBindings(): Promise<CredentialBinding[]>;
   BindCredential(binding: CredentialBinding): Promise<void>;
   ConfirmCredentialBinding(vault: string, connection: string, user: string): Promise<void>;
-  MoveConnectionToTeam(connection: string, vault: string): Promise<void>;
+  MoveConnectionToVault(connection: string, vault: string, folder: string): Promise<string>;
 }

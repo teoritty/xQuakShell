@@ -1,5 +1,6 @@
 // Team orchestration: each action calls one RPC and returns the message to show next to the form -
 // an empty string is success - so a component never has to know how an error is shaped.
+import { get } from 'svelte/store';
 import {
   bindCredentialRpc,
   changeTeamRoleRpc,
@@ -7,7 +8,7 @@ import {
   createTeamRpc,
   inviteToTeamRpc,
   leaveTeamRpc,
-  moveConnectionToTeamRpc,
+  moveConnectionToVaultRpc,
   lookupTeamInviteeRpc,
   removeTeamMemberRpc,
   setTeamPolicyRpc,
@@ -15,7 +16,9 @@ import {
   type CredentialBinding,
   type TeamInvitee,
 } from '../api/team';
-import { errorMessage } from './syncActions';
+import { errorMessage, refreshTeams } from './syncActions';
+import { refreshAllConnections } from './connectionActions';
+import { detailsConnectionId, favorites, selectedConnectionId, selectedConnectionIds } from '../stores/appState';
 
 async function attempt(fn: () => Promise<unknown>): Promise<string> {
   try {
@@ -34,6 +37,7 @@ export async function createTeam(name: string): Promise<{ vault: string; error: 
   const error = await attempt(async () => {
     vault = await createTeamRpc(trimmed);
   });
+  if (!error) await refreshTeams();
   return { vault, error };
 }
 
@@ -55,11 +59,49 @@ export const inviteMember = (vault: string, invitee: TeamInvitee, role: string, 
 
 export const changeRole = (vault: string, account: string, role: string) => attempt(() => changeTeamRoleRpc(vault, account, role));
 export const removeMember = (vault: string, account: string) => attempt(() => removeTeamMemberRpc(vault, account));
-export const leaveTeam = (vault: string) => attempt(() => leaveTeamRpc(vault));
+export async function leaveTeam(vault: string): Promise<string> {
+  const error = await attempt(() => leaveTeamRpc(vault));
+  await Promise.all([refreshTeams(), refreshAllConnections()]);
+  return error;
+}
 export const verifyMember = (vault: string, account: string, fingerprint: string) =>
   attempt(() => verifyTeamMemberRpc(vault, account, fingerprint));
 export const setTeamPolicy = (vault: string, days: number, requireVerified: boolean) =>
   attempt(() => setTeamPolicyRpc(vault, days, requireVerified));
 export const bindCredential = (binding: CredentialBinding) => attempt(() => bindCredentialRpc(binding));
 export const confirmBinding = (b: CredentialBinding) => attempt(() => confirmCredentialBindingRpc(b.vault, b.connection, b.user));
-export const moveConnectionToTeam = (connection: string, vault: string) => attempt(() => moveConnectionToTeamRpc(connection, vault));
+
+/**
+ * Moves connections into vault ('' is the personal one), at its top level or into folder. A moved
+ * connection gets a new id, so whatever pointed at the old one - the selection, the open editor,
+ * a favourite - is pointed at the new one; without that, moving the connection the editor shows
+ * would close the editor, and a moved favourite would silently stop being one.
+ *
+ * Moves run one at a time and stop at the first refusal; the ones already made stay made and are
+ * shown, since each is complete on its own.
+ */
+export async function moveConnectionsToVault(ids: string[], vault: string, folder: string): Promise<string> {
+  const moved = new Map<string, string>();
+  let error = '';
+  for (const id of ids) {
+    try {
+      moved.set(id, await moveConnectionToVaultRpc(id, vault, folder));
+    } catch (e) {
+      error = errorMessage(e);
+      break;
+    }
+  }
+  if (moved.size > 0) {
+    await refreshAllConnections();
+    followMovedConnections(moved);
+  }
+  return error;
+}
+
+function followMovedConnections(moved: Map<string, string>): void {
+  const follow = (id: string) => moved.get(id) ?? id;
+  favorites.update((set) => new Set([...set].map(follow)));
+  selectedConnectionIds.update((set) => new Set([...set].map(follow)));
+  selectedConnectionId.update(follow);
+  detailsConnectionId.update(follow);
+}

@@ -6,6 +6,8 @@ export interface Folder {
   name: string;
   parentId: string;
   order: number;
+  /** The team vault the folder is in; absent for a personal folder. Honoured only on creation. */
+  vaultId?: string;
 }
 
 // The key manager's listing, as the connection editor needs it. The optional fields are the ones
@@ -103,8 +105,9 @@ export interface Connection {
   // of the save payload so re-saving cannot wipe it.
   storedSecretFields?: string[];
   agentForwarding?: AgentForwarding;
-  // The team vault the connection is in; absent for a personal connection. Display-only: saving
-  // keeps whatever vault the stored connection is in.
+  // The team vault the connection is in; absent for a personal connection. Saving an existing
+  // connection keeps whatever vault it is in - moving is moveConnectionsToVault - and only a new one
+  // is created where this names.
   vaultId?: string;
 }
 

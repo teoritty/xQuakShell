@@ -8,6 +8,7 @@
   import { createTeam } from '../../../actions/teamActions';
   import { errorMessage } from '../../../actions/syncActions';
   import { syncRevision, syncStatus } from '../../../stores/syncState';
+  import { teams as sharedTeams } from '../../../stores/teamState';
   import { t } from '../../../i18n/messages';
 
   let teams: Team[] = [];
@@ -21,6 +22,8 @@
   async function load(..._deps: unknown[]) {
     try {
       teams = await listTeamsRpc();
+      // The tree and the editor place items by the same list; this read keeps theirs current too.
+      sharedTeams.set(teams);
       error = '';
       if (selected) selected = teams.find((x) => x.vault === selected?.vault) ?? null;
     } catch (e) {
