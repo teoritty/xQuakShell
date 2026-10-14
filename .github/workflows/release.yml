@@ -183,8 +183,34 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
+  # The sync server (spec 9.5). Pure Go, so one runner cross-compiles every target; the packaging is
+  # a Go program shared with nightly.yml so the two cannot ship the server differently.
+  xqsyncd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Derive version
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [ "${{ github.ref_type }}" != "tag" ]; then TAG="dryrun-$(echo "${{ github.sha }}" | cut -c1-7)"; fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Build the server archives
+        run: go run ./scripts/xqsyncdpack -label "$TAG" -out dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: xqsyncd-archives
+          path: dist/*
+          if-no-files-found: error
+
   publish:
-    needs: [windows, linux]
+    needs: [windows, linux, xqsyncd]
     # The only guard between a manual build check and a public release. Without it a
     # workflow_dispatch run would publish a release named after a branch.
     if: github.ref_type == 'tag'

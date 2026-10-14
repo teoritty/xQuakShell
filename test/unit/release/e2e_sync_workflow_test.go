@@ -55,3 +55,17 @@ func TestE2ESyncChecksTheServicesThemselves(t *testing.T) {
 		}
 	}
 }
+
+// The sync server ships with every release and every nightly: publish waits for its archives, and
+// both workflows package it with the same program, so they cannot ship it differently.
+func TestReleaseAndNightlyShipTheSyncServer(t *testing.T) {
+	for name, w := range map[string]string{"release.yml": readReleaseWorkflow(t), "nightly.yml": readNightlyWorkflow(t)} {
+		w = withoutComments(w)
+		if !regexp.MustCompile(`(?m)^\s+needs: \[[^\]]*\bxqsyncd\b[^\]]*\]$`).MatchString(jobSection(t, w, "publish")) {
+			t.Errorf("%s: publish does not wait for the xqsyncd archives", name)
+		}
+		if !strings.Contains(jobSection(t, w, "xqsyncd"), "go run ./scripts/xqsyncdpack") {
+			t.Errorf("%s: the server is not packaged by scripts/xqsyncdpack", name)
+		}
+	}
+}

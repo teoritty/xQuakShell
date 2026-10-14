@@ -226,8 +226,31 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
+  # The sync server, packaged by the same program as in release.yml.
+  xqsyncd:
+    needs: decide
+    if: needs.decide.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    env:
+      LABEL: ${{ needs.decide.outputs.label }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Build the server archives
+        run: go run ./scripts/xqsyncdpack -label "$LABEL" -out dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: xqsyncd-archives
+          path: dist/*
+          if-no-files-found: error
+
   publish:
-    needs: [decide, windows, linux]
+    needs: [decide, windows, linux, xqsyncd]
     runs-on: ubuntu-latest
     permissions:
       contents: write
