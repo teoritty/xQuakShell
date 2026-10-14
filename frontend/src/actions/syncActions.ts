@@ -59,16 +59,18 @@ export async function refreshSyncStatus(): Promise<void> {
   }
 }
 
+const REFRESH_FOLD_MS = 1500;
 let queuedRefresh: Promise<void> | null = null;
 
 /**
  * Re-reads everything sync can change that the app keeps on screen - the tree, the keys, the
  * appearance - and tells every open list to reload. Each refresh owns its own error display.
  *
- * Calls that arrive together are folded into one. Several of the lists re-verify against the
- * server when they reload, and a join or a burst of rounds used to reload them all once per call:
- * enough requests at once that the server's rate limit answered "Too many attempts" in the middle
- * of the Sync page.
+ * Calls that arrive within REFRESH_FOLD_MS are folded into one. Several of the lists re-verify
+ * against the server when they reload, and a pass over several vaults reports each of them in turn:
+ * reloading once per report sent enough requests at once that the server's per-address rate limit
+ * (40 at once, 20 a second) answered "Too many attempts" in the middle of the Sync page. A pass
+ * over a handful of vaults finishes inside the window, so it costs one reload.
  */
 export function refreshAfterSync(): Promise<void> {
   if (!queuedRefresh) {
@@ -80,7 +82,7 @@ export function refreshAfterSync(): Promise<void> {
             syncRevision.update((n) => n + 1);
             resolve();
           });
-      }, 250);
+      }, REFRESH_FOLD_MS);
     });
   }
   return queuedRefresh;
