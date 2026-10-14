@@ -6,6 +6,7 @@
 //	xqsyncd fingerprint --dir D            print the identity fingerprint clients compare
 //	xqsyncd admin invite create [--ttl 24h] --dir D
 //	xqsyncd admin account list|freeze|unfreeze|delete [username] --dir D
+//	xqsyncd service install|uninstall [--name N] [--dir D] [--addr A]   (Windows; systemd units ship in packaging/linux)
 //
 // Administration works on the database directly. There is no administrative network API: it would
 // be attack surface on the one machine that holds every user's ciphertext, for no user benefit.
@@ -25,6 +26,14 @@ import (
 )
 
 func main() {
+	// Under the Windows service control manager the process answers to it instead of to signals.
+	if handled, err := runIfService(os.Args[1:]); handled || err != nil {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	// The composition root owns the process lifetime: this is the one place a root context is right.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	err := run(ctx, os.Args[1:], os.Stdout)
@@ -48,13 +57,15 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return cmdFingerprint(args[1:], out)
 	case "admin":
 		return cmdAdmin(ctx, args[1:], out)
+	case "service":
+		return cmdService(ctx, args[1:], out)
 	default:
 		return usageError()
 	}
 }
 
 func usageError() error {
-	return fmt.Errorf("usage: xqsyncd init|serve|fingerprint|admin ... --dir DIR")
+	return fmt.Errorf("usage: xqsyncd init|serve|fingerprint|admin|service ... --dir DIR")
 }
 
 func cmdFingerprint(args []string, out io.Writer) error {
@@ -86,7 +97,7 @@ func cmdServe(ctx context.Context, args []string) error {
 		return err
 	}
 	cfg := serveConfig{dir: *dir, certPath: orDefault(*cert, *dir, certFileName), keyPath: orDefault(*key, *dir, keyPEMName),
-		log: slog.New(slog.NewTextHandler(os.Stderr, nil))}
+		log: slog.New(slog.NewTextHandler(logOutput, nil))}
 	ln, err := listen(ctx, *addr)
 	if err != nil {
 		return err
