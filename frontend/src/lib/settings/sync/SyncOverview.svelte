@@ -75,7 +75,7 @@
   {#if stop === 'signIn'}
     <div class="sync-attention" role="status">
       <p>{$syncStatus.message}</p>
-      <PasswordField bind:value={password} ariaLabel={$t('sync.relogin.newPassword')} placeholder={$t('sync.relogin.newPassword')} disabled={busy} compact />
+      <PasswordField bind:value={password} ariaLabel={$t('sync.enable.password')} placeholder={$t('sync.enable.password')} disabled={busy} compact />
       <div class="sync-actions">
         <button type="button" class="primary" on:click={() => run(() => reloginSync(password))} disabled={busy || !password}>{$t('sync.relogin.action')}</button>
       </div>

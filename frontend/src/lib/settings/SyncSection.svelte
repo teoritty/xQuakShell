@@ -49,7 +49,9 @@
 
   $: showAdvanced = advanced || view.isSearching;
   $: enabled = $syncStatus.enabled;
-  $: ready = enabled && !$syncStatus.joinPending;
+  // A stopped account cannot verify anything, so its lists would only repeat its error; the
+  // overview says what to do, and the lists come back once it is done.
+  $: ready = enabled && !$syncStatus.joinPending && $syncStatus.state !== 'stopped';
 
   onMount(refreshSyncStatus);
 </script>

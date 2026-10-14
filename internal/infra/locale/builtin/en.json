@@ -903,7 +903,6 @@
     "sync.plugins.uninstall": "Uninstall",
     "sync.plugins.uninstallConfirm": "Click again to uninstall",
     "sync.relogin.action": "Sign in",
-    "sync.relogin.newPassword": "New sync password",
     "sync.shred.action": "Shred the trash and history",
     "sync.shred.confirm": "Click again to shred - this cannot be undone",
     "sync.shred.hint": "Shred now permanently destroys the trash and history of this vault on every device and on the server. To make even old copies the server might keep unreadable, change the sync password afterwards.",
