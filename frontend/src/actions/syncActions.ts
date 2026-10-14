@@ -59,13 +59,31 @@ export async function refreshSyncStatus(): Promise<void> {
   }
 }
 
+let queuedRefresh: Promise<void> | null = null;
+
 /**
  * Re-reads everything sync can change that the app keeps on screen - the tree, the keys, the
  * appearance - and tells every open list to reload. Each refresh owns its own error display.
+ *
+ * Calls that arrive together are folded into one. Several of the lists re-verify against the
+ * server when they reload, and a join or a burst of rounds used to reload them all once per call:
+ * enough requests at once that the server's rate limit answered "Too many attempts" in the middle
+ * of the Sync page.
  */
-export async function refreshAfterSync(): Promise<void> {
-  await Promise.all([refreshFolders(), refreshAllConnections(), refreshIdentities(), applyAppearanceSettings()]);
-  syncRevision.update((n) => n + 1);
+export function refreshAfterSync(): Promise<void> {
+  if (!queuedRefresh) {
+    queuedRefresh = new Promise((resolve) => {
+      setTimeout(() => {
+        queuedRefresh = null;
+        void Promise.all([refreshFolders(), refreshAllConnections(), refreshIdentities(), applyAppearanceSettings()])
+          .finally(() => {
+            syncRevision.update((n) => n + 1);
+            resolve();
+          });
+      }, 250);
+    });
+  }
+  return queuedRefresh;
 }
 
 export async function probeSyncServer(url: string): Promise<{ probe?: SyncServerProbe; error?: string }> {

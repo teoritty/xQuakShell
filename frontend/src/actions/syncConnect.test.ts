@@ -83,6 +83,17 @@ async function run() {
     assert(get(syncRevision) === before + 1, 'open lists are told the vault changed');
     assert(fake.calls.some((c) => c.method === 'GetAllConnections'), 'the connection tree is re-read');
   }
+
+  // A burst of refreshes is one refresh: every open list re-verifies against the server on reload,
+  // and one reload per call tripped the server's rate limit after a join.
+  {
+    const fake = createFakeGateway();
+    setGateway(fake);
+    const before = get(syncRevision);
+    await Promise.all([refreshAfterSync(), refreshAfterSync(), refreshAfterSync()]);
+    const reads = fake.calls.filter((c) => c.method === 'GetAllConnections').length;
+    assert(reads === 1 && get(syncRevision) === before + 1, `${reads} reads, revision +${get(syncRevision) - before}; a burst is folded into one`);
+  }
   console.log('syncConnect tests passed');
 }
 
