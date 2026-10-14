@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"time"
 )
 
 type target struct{ goos, goarch string }
@@ -135,7 +136,7 @@ func writeTarGz(path, dir string, files map[string]entry) error {
 		if e.exec {
 			mode = 0o755
 		}
-		if err := tw.WriteHeader(&tar.Header{Name: dir + "/" + name, Mode: mode, Size: int64(len(body))}); err != nil {
+		if err := tw.WriteHeader(&tar.Header{Name: dir + "/" + name, Mode: mode, Size: int64(len(body)), ModTime: time.Now().UTC().Truncate(time.Second)}); err != nil {
 			return errors.Join(err, f.Close())
 		}
 		if _, err := tw.Write(body); err != nil {
