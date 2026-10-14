@@ -1,7 +1,7 @@
 import { get } from 'svelte/store';
 import type { Connection, Folder } from '../../stores/appState';
-import { pendingVaultMove } from '../../stores/teamState';
-import { classifyVaultDrop, nodeVault, redirectAcrossVaults } from './vaultDnd';
+import { pendingVaultMove, teams } from '../../stores/teamState';
+import { classifyVaultDrop, nodeVault, redirectAcrossVaults, refusesVaultDrop } from './vaultDnd';
 import type { TreeNode } from './types';
 
 function assert(c: boolean, m: string) {
@@ -36,6 +36,7 @@ assert(nodeVault(node({ type: 'folder', folder: folder('pf') })) === '', 'onto a
 assert(nodeVault(node({ type: 'vault', group: { vault: 'v2', name: 'W', writable: true, viewer: false } })) === 'v2', 'onto a team row');
 
 // A move is never done by the drop itself: it waits for the confirmation, with the target folder.
+teams.set([{ vault: 'v1', name: 'Ops', role: 'editor' }, { vault: 'v2', name: 'Read', role: 'viewer' }]);
 {
   pendingVaultMove.set(null);
   assert(redirectAcrossVaults(drag(['p1']), 'v1', 'tf', connections, folders), 'a cross-vault drop is handled here');
@@ -44,6 +45,17 @@ assert(nodeVault(node({ type: 'vault', group: { vault: 'v2', name: 'W', writable
   pendingVaultMove.set(null);
   assert(redirectAcrossVaults(drag([], ['pf']), 'v1', '', connections, folders) && get(pendingVaultMove) === null, 'a refused drop asks nothing');
   assert(!redirectAcrossVaults(drag(['p1']), '', 'pf', connections, folders), 'a drop within the vault is left to the caller');
+}
+
+// A viewer moves nothing in or out: the backend would refuse it after the person confirmed, so the
+// drop asks nothing and the indicator never promises it.
+{
+  pendingVaultMove.set(null);
+  assert(redirectAcrossVaults(drag(['u1']), '', '', connections, folders) && get(pendingVaultMove) === null, "out of a viewer's team");
+  assert(redirectAcrossVaults(drag(['p1']), 'v2', '', connections, folders) && get(pendingVaultMove) === null, "into a viewer's team");
+  const onto = node({ type: 'vault', group: { vault: 'v2', name: 'Read', writable: false, viewer: true } });
+  assert(refusesVaultDrop(drag(['p1']), onto, connections, folders), 'no indicator over a team the account only views');
+  assert(!refusesVaultDrop(drag(['p1']), node({ connection: conn('t1', 'v1') }), connections, folders), 'an editor team takes the drop');
 }
 
 console.log('vaultDnd: all assertions passed');

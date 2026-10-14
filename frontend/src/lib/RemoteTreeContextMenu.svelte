@@ -56,7 +56,10 @@
   $: moveTargets = [{ vault: '', name: $t('tree.vault.personal') },
     ...$teams.filter(canWrite).map((x) => ({ vault: x.vault, name: x.name || $t('sync.teams.unnamed') }))]
     .filter((d) => !(here.size === 1 && here.has(d.vault)));
-  $: offerMove = ($teams.length > 0 || [...here].some(Boolean)) && moveTargets.length > 0;
+  // A move takes the connection out of where it is, so a viewer's team items offer none: the backend
+  // would refuse it, and a menu item that only ever fails is worse than none.
+  $: movable = [...here].every((v) => v === '' || canWrite($teams.find((x) => x.vault === v)));
+  $: offerMove = ($teams.length > 0 || [...here].some(Boolean)) && moveTargets.length > 0 && movable;
 
   function moveTo(vault: string) {
     const connectionIds = selection();

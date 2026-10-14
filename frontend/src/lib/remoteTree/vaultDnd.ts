@@ -3,7 +3,8 @@
 // other people or takes it away from them - so it is never done as a folder change: the backend
 // refuses that, and the drop asks the person to confirm the move instead.
 import type { Connection, Folder } from '../../stores/appState';
-import { requestVaultMove } from '../../stores/teamState';
+import { get } from 'svelte/store';
+import { canWrite, requestVaultMove, teams } from '../../stores/teamState';
 import type { DragPayload, TreeNode } from './types';
 
 /**
@@ -37,9 +38,27 @@ export function folderVault(folderId: string, folders: Folder[]): string {
   return folders.find((f) => f.id === folderId)?.vaultId ?? '';
 }
 
+/**
+ * Whether this account may take the dragged connections out of their vaults and into target. A
+ * viewer's move would be refused by the backend after the person confirmed it, so it is refused
+ * here instead, before anything is asked.
+ */
+function writableEnds(payload: DragPayload, target: string, connections: Connection[]): boolean {
+  const list = get(teams);
+  const writable = (vault: string) => vault === '' || canWrite(list.find((x) => x.vault === vault));
+  const sources = connections.filter((c) => payload.connectionIds.includes(c.id)).map((c) => c.vaultId ?? '');
+  return writable(target) && sources.every(writable);
+}
+
+/** What a drop into target does, with the account's roles taken into account. */
+function vaultDrop(payload: DragPayload, target: string, connections: Connection[], folders: Folder[]): 'same' | 'move' | 'refuse' {
+  const kind = classifyVaultDrop(payload, target, connections, folders);
+  return kind === 'move' && !writableEnds(payload, target, connections) ? 'refuse' : kind;
+}
+
 /** Whether a drop on node is one that cannot happen, so no indicator promises it. */
 export function refusesVaultDrop(payload: DragPayload, node: TreeNode, connections: Connection[], folders: Folder[]): boolean {
-  return classifyVaultDrop(payload, nodeVault(node), connections, folders) === 'refuse';
+  return vaultDrop(payload, nodeVault(node), connections, folders) === 'refuse';
 }
 
 /**
@@ -53,7 +72,7 @@ export function redirectAcrossVaults(
   connections: Connection[],
   folders: Folder[]
 ): boolean {
-  const kind = classifyVaultDrop(payload, targetVault, connections, folders);
+  const kind = vaultDrop(payload, targetVault, connections, folders);
   if (kind === 'move') requestVaultMove({ connectionIds: payload.connectionIds, vault: targetVault, folder: targetFolder });
   return kind !== 'same';
 }

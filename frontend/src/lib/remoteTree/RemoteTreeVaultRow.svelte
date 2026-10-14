@@ -6,11 +6,11 @@
   import { ChevronDown, ChevronRight, FolderPlus, Plus, Users } from 'lucide-svelte';
   import { t } from '../../i18n/messages';
   import { connections, folders } from '../../stores/appState';
-  import { collapsedVaults, requestVaultMove } from '../../stores/teamState';
+  import { collapsedVaults } from '../../stores/teamState';
   import { createNewConnectionInFolder, moveConnections } from '../../actions/connectionActions';
   import { createFolderAndReveal, moveFolders } from '../../actions/folderActions';
   import { parseDragPayload } from './dndHandlers';
-  import { classifyVaultDrop } from './vaultDnd';
+  import { redirectAcrossVaults } from './vaultDnd';
   import type { TreeNode, VaultGroup } from './types';
 
   export let node: TreeNode;
@@ -44,9 +44,8 @@
     dropping = false;
     const payload = parseDragPayload(e.dataTransfer?.getData('application/json') ?? '');
     if (!payload || !group.writable) return;
-    const kind = classifyVaultDrop(payload, group.vault, $connections, $folders);
-    if (kind === 'move') requestVaultMove({ connectionIds: payload.connectionIds, vault: group.vault, folder: '' });
-    if (kind !== 'same') return;
+    // A move from another vault goes to the confirmation; within the team it is a move to its top.
+    if (redirectAcrossVaults(payload, group.vault, '', $connections, $folders)) return;
     if (payload.connectionIds.length > 0) void moveConnections(payload.connectionIds, '');
     void moveFolders(payload.folderIds, '');
   }
