@@ -442,8 +442,8 @@ export function MkdirPath(arg1, arg2, arg3) {
   return window['go']['main']['App']['MkdirPath'](arg1, arg2, arg3);
 }
 
-export function MoveConnectionToTeam(arg1, arg2) {
-  return window['go']['main']['App']['MoveConnectionToTeam'](arg1, arg2);
+export function MoveConnectionToVault(arg1, arg2, arg3) {
+  return window['go']['main']['App']['MoveConnectionToVault'](arg1, arg2, arg3);
 }
 
 export function MoveConnections(arg1, arg2) {

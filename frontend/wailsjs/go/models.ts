@@ -1097,6 +1097,7 @@ export namespace wails {
 	    name: string;
 	    parentId: string;
 	    order: number;
+	    vaultId?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new FolderDTO(source);
@@ -1108,6 +1109,7 @@ export namespace wails {
 	        this.name = source["name"];
 	        this.parentId = source["parentId"];
 	        this.order = source["order"];
+	        this.vaultId = source["vaultId"];
 	    }
 	}
 	

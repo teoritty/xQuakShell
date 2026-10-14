@@ -223,7 +223,7 @@ export function MkdirLocalPath(arg1:string):Promise<void>;
 
 export function MkdirPath(arg1:string,arg2:string,arg3:string):Promise<void>;
 
-export function MoveConnectionToTeam(arg1:string,arg2:string):Promise<void>;
+export function MoveConnectionToVault(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function MoveConnections(arg1:Array<string>,arg2:string):Promise<void>;
 

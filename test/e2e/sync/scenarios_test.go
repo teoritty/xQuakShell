@@ -114,7 +114,10 @@ func TestS6TeamLifecycle(t *testing.T) {
 	alice.edit(func(v *domain.VaultData) {
 		v.Connections = append(v.Connections, domain.Connection{ID: "c1", Name: "db", Host: "db.example", Port: 22})
 	})
-	if err := retry(func() error { return alice.engine.MoveConnectionToTeam(ctx, "c1", team) }); err != nil {
+	if err := retry(func() error {
+		_, err := alice.engine.MoveConnection(ctx, usecase.MoveConnectionRequest{Connection: "c1", To: team.String()})
+		return err
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := alice.syncVault(team); err != nil {

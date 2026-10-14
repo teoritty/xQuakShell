@@ -64,6 +64,12 @@ func (a *AppAPI) GetFolders() ([]FolderDTO, error) {
 
 func (a *AppAPI) SaveFolder(dto FolderDTO) (FolderDTO, error) {
 	f := DTOToFolder(dto)
+	if f.ID == "" {
+		if err := a.requireWritableTeam(dto.VaultID); err != nil {
+			return FolderDTO{}, err
+		}
+		f.VaultID = dto.VaultID
+	}
 	if err := a.vaultSvc.SaveFolder(a.reqCtx(), &f); err != nil {
 		return FolderDTO{}, err
 	}
@@ -86,6 +92,13 @@ func (a *AppAPI) GetAllConnections() ([]ConnectionDTO, error) {
 
 func (a *AppAPI) SaveConnection(dto ConnectionDTO) (ConnectionDTO, error) {
 	c := DTOToConnection(dto)
+	// Only a new connection is placed by the vault id it carries; an edit keeps the stored one.
+	if c.ID == "" {
+		if err := a.requireWritableTeam(dto.VaultID); err != nil {
+			return ConnectionDTO{}, err
+		}
+		c.VaultID = dto.VaultID
+	}
 	saved, err := a.vaultSvc.SaveConnection(a.reqCtx(), &c, cloneStringMap(dto.PluginFields))
 	if err != nil {
 		return ConnectionDTO{}, err

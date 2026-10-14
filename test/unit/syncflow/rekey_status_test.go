@@ -26,7 +26,7 @@ func TestKeyChangesElsewhereAreNotReportedAsTampering(t *testing.T) {
 	a.edit(func(v *domain.VaultData) {
 		v.Connections = append(v.Connections, domain.Connection{ID: "c1", Name: "db", Host: "db.example", Port: 22})
 	})
-	if err := a.engine.MoveConnectionToTeam(ctx, "c1", team); err != nil {
+	if _, err := a.engine.MoveConnection(ctx, usecase.MoveConnectionRequest{Connection: "c1", To: team.String()}); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.syncVault(team); err != nil {

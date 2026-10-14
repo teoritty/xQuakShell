@@ -57,7 +57,8 @@ func (a *App) ConfirmCredentialBinding(vault, connection, user string) error {
 	return a.api.ConfirmCredentialBinding(vault, connection, user)
 }
 
-// MoveConnectionToTeam moves a personal connection into a team; its credentials stay personal.
-func (a *App) MoveConnectionToTeam(connection, vault string) error {
-	return a.api.MoveConnectionToTeam(connection, vault)
+// MoveConnectionToVault moves a connection between the personal vault and team vaults and returns
+// its new id; its credentials stay personal.
+func (a *App) MoveConnectionToVault(connection, vault, folder string) (string, error) {
+	return a.api.MoveConnectionToVault(connection, vault, folder)
 }

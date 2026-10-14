@@ -22,7 +22,8 @@ type TeamCommands interface {
 	LeaveTeam(ctx context.Context, vault vaultsync.ID) error
 	VerifyTeamMember(ctx context.Context, vault, account vaultsync.ID, fingerprint string) error
 	SetTeamPolicy(ctx context.Context, vault vaultsync.ID, retentionDays uint16, requireVerified bool) error
-	MoveConnectionToTeam(ctx context.Context, connection string, vault vaultsync.ID) error
+	MoveConnection(ctx context.Context, req usecase.MoveConnectionRequest) (string, error)
+	CanWriteTeam(ctx context.Context, vault vaultsync.ID) (bool, error)
 }
 
 // BindingCommands manages this member's credential bindings to team connections.
@@ -239,16 +240,47 @@ func (a *AppAPI) SetTeamPolicy(vault string, retentionDays int, requireVerified 
 	return userSyncError(a.teams.SetTeamPolicy(a.reqCtx(), v, uint16(retentionDays), requireVerified)) // #nosec G115 -- bounded above
 }
 
-// MoveConnectionToTeam moves a personal connection into a team; its credentials stay personal.
-func (a *AppAPI) MoveConnectionToTeam(connection, vault string) error {
+// MoveConnectionToVault moves a connection into a team vault, or into the personal vault when vault
+// is empty, at the top level or into folder of that vault. It returns the id the connection has
+// there: a move gives it a new one. Credentials stay personal either way.
+func (a *AppAPI) MoveConnectionToVault(connection, vault, folder string) (string, error) {
+	if a.teams == nil {
+		return "", errSyncUnavailable
+	}
+	if !validSyncField(connection) || (folder != "" && !validSyncField(folder)) {
+		return "", errInvalidSyncRequest
+	}
+	if vault != "" {
+		if _, ok := parseSyncID(vault); !ok {
+			return "", errInvalidSyncRequest
+		}
+	}
+	id, err := a.teams.MoveConnection(a.reqCtx(), usecase.MoveConnectionRequest{Connection: connection, To: vault, Folder: folder})
+	return id, userSyncError(err)
+}
+
+// requireWritableTeam refuses to create an item in a team vault this account cannot write to. A
+// viewer's new item would never leave this device, which reads as a sync failure later rather than
+// as the refusal it is now. An empty vault is the personal one, always writable.
+func (a *AppAPI) requireWritableTeam(vault string) error {
+	if vault == "" {
+		return nil
+	}
 	if a.teams == nil {
 		return errSyncUnavailable
 	}
-	v, ok := parseSyncID(vault)
-	if !ok || !validSyncField(connection) {
+	id, ok := parseSyncID(vault)
+	if !ok {
 		return errInvalidSyncRequest
 	}
-	return userSyncError(a.teams.MoveConnectionToTeam(a.reqCtx(), connection, v))
+	can, err := a.teams.CanWriteTeam(a.reqCtx(), id)
+	if err != nil {
+		return userSyncError(err)
+	}
+	if !can {
+		return userSyncError(vaultsync.ErrNotAuthorized)
+	}
+	return nil
 }
 
 // ListCredentialBindings lists this member's bindings to team connections.

@@ -12,6 +12,9 @@ type FolderDTO struct {
 	Name     string `json:"name"`
 	ParentID string `json:"parentId"`
 	Order    int    `json:"order"`
+	// VaultID is the team vault the folder is in, empty for the personal vault. As for a connection
+	// it is honoured only when the folder is created.
+	VaultID string `json:"vaultId,omitempty"`
 }
 
 type PluginAuthConfigDTO struct {
@@ -89,8 +92,9 @@ type ConnectionDTO struct {
 	ForwardRules       []ForwardRuleDTO `json:"forwardRules,omitempty"`
 	// AgentForwarding mirrors domain.Connection.AgentForwarding; nil means off.
 	AgentForwarding *AgentForwardingDTO `json:"agentForwarding,omitempty"`
-	// VaultID names the team vault the connection is in, for display. It is read-only: a save keeps
-	// the vault the stored connection is in, whatever this field says.
+	// VaultID names the team vault the connection is in. A save of an existing connection keeps the
+	// vault it is in, whatever this field says - changing vaults is MoveConnectionToVault - and only
+	// a new connection is created where it names, once the account is checked to write there.
 	VaultID string `json:"vaultId,omitempty"`
 }
 
@@ -101,7 +105,7 @@ type KnownHostDTO struct {
 }
 
 func FolderToDTO(f domain.ConnectionFolder) FolderDTO {
-	return FolderDTO{ID: f.ID, Name: f.Name, ParentID: f.ParentID, Order: f.Order}
+	return FolderDTO{ID: f.ID, Name: f.Name, ParentID: f.ParentID, Order: f.Order, VaultID: f.VaultID}
 }
 
 func FoldersToDTO(fs []domain.ConnectionFolder) []FolderDTO {

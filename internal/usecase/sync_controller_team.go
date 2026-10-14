@@ -205,11 +205,27 @@ func (c *SyncController) SetTeamPolicy(ctx context.Context, vault vaultsync.ID, 
 	})
 }
 
-// MoveConnectionToTeam moves a personal connection into a team and schedules a round to push it.
-func (c *SyncController) MoveConnectionToTeam(ctx context.Context, connection string, vault vaultsync.ID) error {
-	err := c.withEngine(func(e *SyncEngine, _ SyncSession) error { return e.MoveConnectionToTeam(ctx, connection, vault) })
+// MoveConnection moves a connection into another vault and schedules a round to push both ends.
+func (c *SyncController) MoveConnection(ctx context.Context, req MoveConnectionRequest) (string, error) {
+	var id string
+	err := c.withEngine(func(e *SyncEngine, _ SyncSession) error {
+		var err error
+		id, err = e.MoveConnection(ctx, req)
+		return err
+	})
 	if err == nil {
 		c.Notify()
 	}
-	return err
+	return id, err
+}
+
+// CanWriteTeam reports whether this account may add items to a team vault. It reads the cached team
+// list Teams keeps, so creating a connection does not verify the team against the server again.
+func (c *SyncController) CanWriteTeam(ctx context.Context, vault vaultsync.ID) (bool, error) {
+	teams, err := c.Teams(ctx)
+	if err != nil {
+		return false, err
+	}
+	i := slices.IndexFunc(teams, func(t TeamInfo) bool { return t.Vault == vault })
+	return i >= 0 && teams[i].Role.CanWrite(), nil
 }

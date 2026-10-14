@@ -18,6 +18,9 @@ type fakeTeams struct {
 	invited usecase.InviteRequest
 	role    vaultsync.Role
 	removed vaultsync.ID
+	moved   usecase.MoveConnectionRequest
+	// writable is what CanWriteTeam answers.
+	writable bool
 }
 
 func (f *fakeTeams) Teams(context.Context) ([]usecase.TeamInfo, error) {
@@ -48,8 +51,14 @@ func (f *fakeTeams) LeaveTeam(context.Context, vaultsync.ID) error { return f.er
 func (f *fakeTeams) VerifyTeamMember(context.Context, vaultsync.ID, vaultsync.ID, string) error {
 	return f.err
 }
-func (f *fakeTeams) SetTeamPolicy(context.Context, vaultsync.ID, uint16, bool) error  { return f.err }
-func (f *fakeTeams) MoveConnectionToTeam(context.Context, string, vaultsync.ID) error { return f.err }
+func (f *fakeTeams) SetTeamPolicy(context.Context, vaultsync.ID, uint16, bool) error { return f.err }
+func (f *fakeTeams) MoveConnection(_ context.Context, r usecase.MoveConnectionRequest) (string, error) {
+	f.moved = r
+	return "new-id", f.err
+}
+func (f *fakeTeams) CanWriteTeam(context.Context, vaultsync.ID) (bool, error) {
+	return f.writable, f.err
+}
 
 type fakeBindings struct {
 	bound domain.CredentialBinding
@@ -127,7 +136,9 @@ func TestTeamHandlersRefuseInvalidInput(t *testing.T) {
 		"bad days":       a.SetTeamPolicy(hexV, 366, false),
 		"bad binding":    a.BindCredential(CredentialBindingDTO{Vault: "x", Connection: "c", User: "u", Identity: "k"}),
 		"zero vault":     a.LeaveTeam(hex.EncodeToString(make([]byte, 16))),
-		"move no conn":   a.MoveConnectionToTeam("", hexV),
+		"move no conn":   func() error { _, err := a.MoveConnectionToVault("", hexV, ""); return err }(),
+		"move bad vault": func() error { _, err := a.MoveConnectionToVault("c", "zz", ""); return err }(),
+		"new in bad":     a.requireWritableTeam("zz"),
 	} {
 		if !errors.Is(err, errInvalidSyncRequest) {
 			t.Errorf("%s: %v, want the invalid-request error", name, err)
@@ -152,6 +163,40 @@ func TestTeamHandlersMapRefusalsToSentences(t *testing.T) {
 	b.err = domain.ErrBindingSuspended
 	if err := a.ConfirmCredentialBinding(hexV, "c", "u"); err == nil || !strings.Contains(err.Error(), "address") {
 		t.Fatalf("suspended: %v", err)
+	}
+}
+
+// An empty vault is the personal one: a move there goes out as an empty destination, never as a
+// parse failure, and the new id comes back for the tree to select.
+func TestMoveConnectionToVaultPassesTheDestinationThrough(t *testing.T) {
+	a, f, _ := teamAPI()
+	if id, err := a.MoveConnectionToVault("c", "", ""); err != nil || id != "new-id" || f.moved.To != "" || f.moved.Connection != "c" {
+		t.Fatalf("to personal: %q, %v, %+v", id, err, f.moved)
+	}
+	if _, err := a.MoveConnectionToVault("c", hexV, "f"); err != nil || f.moved.To != hexV || f.moved.Folder != "f" {
+		t.Fatalf("to a team folder: %v, %+v", err, f.moved)
+	}
+	f.err = domain.ErrVaultMismatch
+	if _, err := a.MoveConnectionToVault("c", hexV, "f"); err == nil || !strings.Contains(err.Error(), "another vault") {
+		t.Fatalf("a folder of another vault: %v", err)
+	}
+}
+
+// A new item in a team needs a role that writes; the personal vault needs nothing, sync or not.
+func TestCreatingInATeamNeedsARoleThatWrites(t *testing.T) {
+	a, f, _ := teamAPI()
+	if err := a.requireWritableTeam(hexV); err == nil || !strings.Contains(err.Error(), "role") {
+		t.Fatalf("a viewer creating in the team: %v, want the role refusal", err)
+	}
+	f.writable = true
+	if err := a.requireWritableTeam(hexV); err != nil {
+		t.Fatalf("an editor creating in the team: %v", err)
+	}
+	if err := (&AppAPI{}).requireWritableTeam(""); err != nil {
+		t.Fatalf("the personal vault without sync: %v", err)
+	}
+	if err := (&AppAPI{}).requireWritableTeam(hexV); !errors.Is(err, errSyncUnavailable) {
+		t.Fatalf("a team without sync: %v, want errSyncUnavailable", err)
 	}
 }
 

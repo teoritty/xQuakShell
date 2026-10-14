@@ -194,39 +194,6 @@ func (e *SyncEngine) VerifyMember(ctx context.Context, vault, account vaultsync.
 	return e.storeContact(ctx, c)
 }
 
-// MoveConnectionToTeam moves a personal connection into a team vault this account may write to. The
-// host is shared, the credential is not (spec §6.7): every user named with an inline key or password
-// becomes a personal-source user, and this account binds it to the credential it used before, which
-// stays in the personal vault. The connection lands at the team's top level; the next round pushes
-// it to the team.
-func (e *SyncEngine) MoveConnectionToTeam(ctx context.Context, connection string, vault vaultsync.ID) error {
-	if e.scopeOf(vault).Vault == "" {
-		return ErrNotATeam
-	}
-	_, m, err := withMembers(e.startPull(ctx, vault))
-	if err != nil {
-		return err
-	}
-	if !m.Role(e.d.Keys.Account()).CanWrite() {
-		return vaultsync.ErrNotAuthorized
-	}
-	return e.d.Vault.UpdateData(ctx, func(d *domain.VaultData) error {
-		i := slices.IndexFunc(d.Connections, func(c domain.Connection) bool { return c.ID == connection && c.VaultID == "" })
-		if i < 0 {
-			return domain.ErrConnectionNotFound
-		}
-		c := &d.Connections[i]
-		c.VaultID, c.FolderID = vault.String(), ""
-		for j := range c.Users {
-			if b, ok := bindingFor(c, &c.Users[j]); ok {
-				d.Sync = ensureSync(d.Sync)
-				d.Sync.Bindings = append(slices.DeleteFunc(d.Sync.Bindings, func(x domain.CredentialBinding) bool { return x.Key() == b.Key() }), b)
-			}
-		}
-		return nil
-	})
-}
-
 // bindingFor turns an inline key or password of a user into this account's binding, clearing the
 // reference from the shared user. Plugin authentication carries no personal credential to bind.
 func bindingFor(c *domain.Connection, u *domain.ConnectionUser) (domain.CredentialBinding, bool) {
