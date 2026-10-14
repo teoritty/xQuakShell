@@ -2311,6 +2311,84 @@ export namespace wails {
 	        this.atUnixMilli = source["atUnixMilli"];
 	    }
 	}
+	export class SyncPluginDataDTO {
+	    pluginId: string;
+	    name: string;
+	    enabled: boolean;
+	    waiting: number;
+	    files: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncPluginDataDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pluginId = source["pluginId"];
+	        this.name = source["name"];
+	        this.enabled = source["enabled"];
+	        this.waiting = source["waiting"];
+	        this.files = source["files"];
+	    }
+	}
+	export class SyncPluginInstallRequest {
+	    pluginId: string;
+	    secret: boolean;
+	    auth: boolean;
+	    tunnel: boolean;
+	    multiSession: boolean;
+	    network: boolean;
+	    exec: boolean;
+	    acceptDifferent: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncPluginInstallRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pluginId = source["pluginId"];
+	        this.secret = source["secret"];
+	        this.auth = source["auth"];
+	        this.tunnel = source["tunnel"];
+	        this.multiSession = source["multiSession"];
+	        this.network = source["network"];
+	        this.exec = source["exec"];
+	        this.acceptDifferent = source["acceptDifferent"];
+	    }
+	}
+	export class SyncPluginInstallResultDTO {
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncPluginInstallResultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	    }
+	}
+	export class SyncPluginOfferDTO {
+	    pluginId: string;
+	    version: string;
+	    state: string;
+	    repo?: string;
+	    tag?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncPluginOfferDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pluginId = source["pluginId"];
+	        this.version = source["version"];
+	        this.state = source["state"];
+	        this.repo = source["repo"];
+	        this.tag = source["tag"];
+	    }
+	}
 	export class SyncServerProbeDTO {
 	    identityKey: string;
 	    fingerprint: string;

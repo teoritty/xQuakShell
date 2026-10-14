@@ -326,6 +326,10 @@ export function InstallPlugin(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
   return window['go']['main']['App']['InstallPlugin'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
+export function InstallSyncPluginOffer(arg1) {
+  return window['go']['main']['App']['InstallSyncPluginOffer'](arg1);
+}
+
 export function InviteToTeam(arg1) {
   return window['go']['main']['App']['InviteToTeam'](arg1);
 }
@@ -344,6 +348,10 @@ export function IssueRecoveryKey(arg1) {
 
 export function JoinSync(arg1) {
   return window['go']['main']['App']['JoinSync'](arg1);
+}
+
+export function KeepSyncPlugin(arg1) {
+  return window['go']['main']['App']['KeepSyncPlugin'](arg1);
 }
 
 export function LeaveTeam(arg1) {
@@ -392,6 +400,14 @@ export function ListSyncDevices() {
 
 export function ListSyncHeld() {
   return window['go']['main']['App']['ListSyncHeld']();
+}
+
+export function ListSyncPluginData() {
+  return window['go']['main']['App']['ListSyncPluginData']();
+}
+
+export function ListSyncPluginOffers() {
+  return window['go']['main']['App']['ListSyncPluginOffers']();
 }
 
 export function ListSyncTrash() {
@@ -484,6 +500,10 @@ export function PreviewPluginInstall(arg1) {
 
 export function PreviewSSHConfig(arg1) {
   return window['go']['main']['App']['PreviewSSHConfig'](arg1);
+}
+
+export function PreviewSyncPluginOffer(arg1) {
+  return window['go']['main']['App']['PreviewSyncPluginOffer'](arg1);
 }
 
 export function ProbeSyncServer(arg1) {
@@ -602,6 +622,10 @@ export function ResolveSyncConflict(arg1, arg2) {
   return window['go']['main']['App']['ResolveSyncConflict'](arg1, arg2);
 }
 
+export function RestartSyncPlugin(arg1) {
+  return window['go']['main']['App']['RestartSyncPlugin'](arg1);
+}
+
 export function RestoreSyncTrash(arg1) {
   return window['go']['main']['App']['RestoreSyncTrash'](arg1);
 }
@@ -676,6 +700,10 @@ export function SetKeyPolicy(arg1, arg2) {
 
 export function SetPluginEnabled(arg1, arg2) {
   return window['go']['main']['App']['SetPluginEnabled'](arg1, arg2);
+}
+
+export function SetSyncPluginData(arg1, arg2) {
+  return window['go']['main']['App']['SetSyncPluginData'](arg1, arg2);
 }
 
 export function SetTeamPolicy(arg1, arg2, arg3) {

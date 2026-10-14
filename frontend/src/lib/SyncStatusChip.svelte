@@ -4,7 +4,7 @@
   // the person - a verification failure or keys rotated elsewhere - and will not fix itself.
   import { createEventDispatcher } from 'svelte';
   import { RefreshCw, AlertTriangle } from 'lucide-svelte';
-  import { syncStatus } from '../stores/syncState';
+  import { pluginDataNotices, syncStatus } from '../stores/syncState';
   import { vaultUnlocked } from '../stores/appState';
   import { refreshSyncStatus } from '../actions/syncActions';
   import { t } from '../i18n/messages';
@@ -14,7 +14,13 @@
   // The account lives in the vault, so what to show is known only once it is open.
   $: if ($vaultUnlocked) void refreshSyncStatus();
 
-  $: attention = $syncStatus.state === 'stopped' || $syncStatus.held > 0 || !!$syncStatus.newDevices?.length;
+  // A plugin data conflict also asks for the person: the losing version is in the trash only for the
+  // retention window, so it is worth a look before it is gone.
+  $: attention =
+    $syncStatus.state === 'stopped' ||
+    $syncStatus.held > 0 ||
+    !!$syncStatus.newDevices?.length ||
+    $pluginDataNotices.length > 0;
   $: title = $syncStatus.message || $t('sync.state.' + $syncStatus.state);
 </script>
 

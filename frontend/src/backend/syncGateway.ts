@@ -1,6 +1,7 @@
 // The sync half of the Wails bridge (ADR-023), typed structurally like the rest of AppGateway.
 // It is its own interface so the gateway file, which every feature touches, does not grow by a
 // screenful each time one arrives.
+import type { wails } from '../../wailsjs/go/models';
 
 export interface SyncStatus {
   enabled: boolean;
@@ -69,6 +70,47 @@ export interface SyncTrashItem {
   restorable: boolean;
 }
 
+/** A plugin another device recorded that needs the user here (spec 6.4). */
+export interface SyncPluginOffer {
+  pluginId: string;
+  version: string;
+  state: 'install' | 'manual' | 'mismatch' | 'removed' | 'update';
+  repo?: string;
+  tag?: string;
+}
+
+export interface SyncPluginInstallRequest {
+  pluginId: string;
+  secret: boolean;
+  auth: boolean;
+  tunnel: boolean;
+  multiSession: boolean;
+  network: boolean;
+  exec: boolean;
+  acceptDifferent: boolean;
+}
+
+/** 'mismatch': the release differs from the recorded build and nothing was installed. */
+export interface SyncPluginInstallResult {
+  status: 'installed' | 'mismatch';
+}
+
+/** A plugin whose data follows the user (spec 6.5). */
+export interface SyncPluginData {
+  pluginId: string;
+  name: string;
+  enabled: boolean;
+  waiting: number;
+  files: number;
+}
+
+/** The SyncPluginData event: file names only. */
+export interface SyncPluginDataReport {
+  pluginId: string;
+  conflicts: string[] | null;
+  skipped: string[] | null;
+}
+
 export interface SyncGateway {
   GetSyncStatus(): Promise<SyncStatus>;
   ProbeSyncServer(serverUrl: string): Promise<SyncServerProbe>;
@@ -89,4 +131,11 @@ export interface SyncGateway {
   ListSyncTrash(): Promise<SyncTrashItem[]>;
   RestoreSyncTrash(record: string): Promise<void>;
   ShredSyncNow(masterPassword: string): Promise<void>;
+  ListSyncPluginOffers(): Promise<SyncPluginOffer[]>;
+  PreviewSyncPluginOffer(pluginId: string): Promise<wails.GitHubPluginPreviewResponseDTO>;
+  InstallSyncPluginOffer(req: SyncPluginInstallRequest): Promise<SyncPluginInstallResult>;
+  KeepSyncPlugin(pluginId: string): Promise<void>;
+  ListSyncPluginData(): Promise<SyncPluginData[]>;
+  SetSyncPluginData(pluginId: string, enabled: boolean): Promise<void>;
+  RestartSyncPlugin(pluginId: string): Promise<void>;
 }

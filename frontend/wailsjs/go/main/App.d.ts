@@ -165,6 +165,8 @@ export function InstallGitHubPlugin(arg1:string,arg2:string,arg3:boolean,arg4:bo
 
 export function InstallPlugin(arg1:string,arg2:boolean,arg3:boolean,arg4:boolean,arg5:boolean,arg6:boolean,arg7:boolean):Promise<wails.PluginDTO>;
 
+export function InstallSyncPluginOffer(arg1:wails.SyncPluginInstallRequest):Promise<wails.SyncPluginInstallResultDTO>;
+
 export function InviteToTeam(arg1:wails.TeamInviteRequest):Promise<void>;
 
 export function InvokeDiscoveryAction(arg1:string,arg2:string,arg3:Array<string>,arg4:string):Promise<void>;
@@ -174,6 +176,8 @@ export function IsVaultUnlocked():Promise<boolean>;
 export function IssueRecoveryKey(arg1:string):Promise<wails.RecoveryKeyDTO>;
 
 export function JoinSync(arg1:string):Promise<string>;
+
+export function KeepSyncPlugin(arg1:string):Promise<void>;
 
 export function LeaveTeam(arg1:string):Promise<void>;
 
@@ -198,6 +202,10 @@ export function ListSyncConflicts():Promise<Array<wails.SyncConflictDTO>>;
 export function ListSyncDevices():Promise<Array<wails.SyncDeviceDTO>>;
 
 export function ListSyncHeld():Promise<Array<wails.SyncHeldDTO>>;
+
+export function ListSyncPluginData():Promise<Array<wails.SyncPluginDataDTO>>;
+
+export function ListSyncPluginOffers():Promise<Array<wails.SyncPluginOfferDTO>>;
 
 export function ListSyncTrash():Promise<Array<wails.SyncTrashItemDTO>>;
 
@@ -244,6 +252,8 @@ export function PreviewGitHubPluginInstall(arg1:string,arg2:string):Promise<wail
 export function PreviewPluginInstall(arg1:string):Promise<wails.PluginInstallPreviewDTO>;
 
 export function PreviewSSHConfig(arg1:string):Promise<wails.SSHConfigPreviewDTO>;
+
+export function PreviewSyncPluginOffer(arg1:string):Promise<wails.GitHubPluginPreviewResponseDTO>;
 
 export function ProbeSyncServer(arg1:string):Promise<wails.SyncServerProbeDTO>;
 
@@ -303,6 +313,8 @@ export function ResolvePeerTrust(arg1:string,arg2:string,arg3:string):Promise<vo
 
 export function ResolveSyncConflict(arg1:string,arg2:boolean):Promise<void>;
 
+export function RestartSyncPlugin(arg1:string):Promise<void>;
+
 export function RestoreSyncTrash(arg1:string):Promise<void>;
 
 export function RevokeSyncDevice(arg1:string,arg2:string):Promise<void>;
@@ -340,6 +352,8 @@ export function SetGitHubRepositoryTrust(arg1:wails.SetGitHubRepositoryTrustRequ
 export function SetKeyPolicy(arg1:string,arg2:wails.KeyOptionsDTO):Promise<void>;
 
 export function SetPluginEnabled(arg1:string,arg2:boolean):Promise<void>;
+
+export function SetSyncPluginData(arg1:string,arg2:boolean):Promise<void>;
 
 export function SetTeamPolicy(arg1:string,arg2:number,arg3:boolean):Promise<void>;
 

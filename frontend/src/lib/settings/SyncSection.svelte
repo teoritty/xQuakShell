@@ -10,6 +10,7 @@
   import SyncTrashPanel from './sync/SyncTrashPanel.svelte';
   import SyncTeamsPanel from './sync/SyncTeamsPanel.svelte';
   import SyncBindingsPanel from './sync/SyncBindingsPanel.svelte';
+  import SyncPluginsPanel from './sync/SyncPluginsPanel.svelte';
   import { syncStatus } from '../../stores/syncState';
   import { refreshSyncStatus } from '../../actions/syncActions';
   import type { SettingsSearchViewState } from '../settingsSearch';
@@ -45,5 +46,8 @@
   </SettingsSection>
   <SettingsSection tab="sync" section="credentials" {view}>
     <SyncBindingsPanel />
+  </SettingsSection>
+  <SettingsSection tab="sync" section="plugins" {view}>
+    <SyncPluginsPanel />
   </SettingsSection>
 {/if}

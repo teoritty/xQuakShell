@@ -1,5 +1,6 @@
 <script lang="ts">
-  // preview -> consent -> install, for both origins.
+  // preview -> consent -> install, for every origin: a registered source, a local folder or bundle,
+  // and a plugin offered by the user's other devices (spec 6.4).
   //
   // It owns the sequence so no section has to know that an install is three calls, and so the two
   // origins cannot drift apart: a local folder and a repository differ only in which preview RPC
@@ -17,7 +18,9 @@
   } from './installConsent';
   import { t } from '../../i18n/messages';
   import { installFromPath, installFromSource } from '../../actions/pluginsActions';
-  import { previewPluginInstall } from '../../api/plugins';
+  import { installOfferedPlugin } from '../../actions/syncPluginActions';
+  import { listPlugins, previewPluginInstall } from '../../api/plugins';
+  import { previewSyncPluginOfferRpc } from '../../api/syncPlugins';
   import { previewGitHubPluginInstall } from '../../api/githubPlugins';
   import { githubInstallPreviewLines } from '../pluginDisplay';
   import type { GitHubPluginMetadata } from '../../api/githubPlugins';
@@ -35,8 +38,11 @@
   let blockedReason = '';
 
   /** What confirm() will do. Set by whichever entry point opened the dialog. */
-  let pending: { kind: 'source'; sourceId: string; tag: string } | { kind: 'path'; path: string } | null =
-    null;
+  let pending:
+    | { kind: 'source'; sourceId: string; tag: string }
+    | { kind: 'path'; path: string }
+    | { kind: 'offer'; pluginId: string }
+    | null = null;
 
   function fail(e: unknown, context: string) {
     const message = e instanceof Error ? e.message : String(e);
@@ -92,10 +98,48 @@
     }
   }
 
+  /**
+   * Opens the confirmation for a plugin the user's other devices recorded. The consent screen is the
+   * same one a source install shows: an offer is a suggestion from the user's own devices, and it
+   * grants nothing the user has not read here.
+   */
+  export async function fromOffer(pluginId: string) {
+    try {
+      const preview = await previewSyncPluginOfferRpc(pluginId);
+      if (!preview) throw new Error('Sync is unavailable.');
+      title = `Install ${preview.name}`;
+      summary = githubInstallPreviewLines(preview.name, preview.releaseTag, preview.version, $t);
+      consents = requiredConsents(preview);
+      warnings = sourceTrustWarnings(preview);
+      originWarning = $t('sync.plugins.fromOtherDevice');
+      blockedReason = preview.platformSupported ? '' : `No release asset targets ${preview.currentPlatform}.`;
+      pending = { kind: 'offer', pluginId };
+      open = true;
+    } catch (e) {
+      fail(e, 'Preview install');
+    }
+  }
+
+  /** An offer install ends in 'installed', in 'mismatch' (nothing installed), or throws. */
+  async function confirmOffer(pluginId: string, answers: ConsentAnswers) {
+    const res = await installOfferedPlugin(pluginId, answers, false);
+    if (res.error) throw new Error(res.error);
+    reset();
+    if (res.status === 'mismatch') {
+      dispatch('mismatch', { pluginId, answers });
+      return;
+    }
+    dispatch('installed', { plugins: await listPlugins() });
+  }
+
   async function confirm(answers: ConsentAnswers) {
     if (!pending) return;
     busy = true;
     try {
+      if (pending.kind === 'offer') {
+        await confirmOffer(pending.pluginId, answers);
+        return;
+      }
       const plugins =
         pending.kind === 'source'
           ? await installFromSource(pending.sourceId, pending.tag, answers)

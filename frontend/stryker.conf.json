@@ -48,6 +48,7 @@
     "src/lib/formatBytes.ts",
     "src/lib/transferRate.ts",
     "src/lib/transferPresentation.ts",
+    "src/lib/settings/sync/pluginOffers.ts",
     "!src/**/*.test.ts"
   ],
   "reporters": [

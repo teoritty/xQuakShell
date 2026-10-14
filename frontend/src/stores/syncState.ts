@@ -19,3 +19,17 @@ export function applySyncRound(round: SyncStatus): void {
     newDevices: round.newDevices,
   }));
 }
+
+/** A plugin data report worth the user's attention: files edited on two devices, or left out. */
+export interface PluginDataNotice {
+  pluginId: string;
+  conflicts: string[];
+  skipped: string[];
+}
+
+/** The newest notice per plugin, until the user dismisses it on the Sync page. */
+export const pluginDataNotices = writable<PluginDataNotice[]>([]);
+
+export function dismissPluginDataNotice(pluginId: string): void {
+  pluginDataNotices.update((list) => list.filter((n) => n.pluginId !== pluginId));
+}
