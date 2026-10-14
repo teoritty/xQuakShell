@@ -16,6 +16,9 @@
   export let confirmDisabled = false;
 
   const dispatch = createEventDispatcher();
+  // Named by its title for assistive technology, and found by role like every other dialog: a bare
+  // div was invisible to both, which is also why no test could address it by role.
+  const titleId = `confirm-title-${Math.random().toString(36).slice(2)}`;
 
   let checked = false;
 
@@ -38,14 +41,15 @@
 </script>
 
 {#if show}
-  <div class="confirm-backdrop" on:click={cancel} on:keydown={handleKeydown}>
-    <div class="confirm-dialog" class:critical on:click|stopPropagation on:keydown|stopPropagation>
+  <div class="confirm-backdrop" role="presentation" on:click={cancel} on:keydown={handleKeydown}>
+    <div class="confirm-dialog" class:critical role="alertdialog" aria-modal="true" aria-labelledby={titleId} tabindex="-1"
+      on:click|stopPropagation on:keydown|stopPropagation>
       <div class="confirm-header">
-        <span class="confirm-title">
+        <span class="confirm-title" id={titleId}>
           {#if critical}<AlertTriangle size={16} />{/if}
           {title || $t('common.confirm.title')}
         </span>
-        <button class="confirm-close" on:click={cancel}><X size={14} /></button>
+        <button class="confirm-close" aria-label={cancelLabel || $t('common.cancel')} on:click={cancel}><X size={14} /></button>
       </div>
       <div class="confirm-body">
         <p class="confirm-message">{message || $t('common.confirm.message')}</p>
