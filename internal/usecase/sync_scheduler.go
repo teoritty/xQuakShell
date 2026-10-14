@@ -139,6 +139,11 @@ func (s *SyncScheduler) loop(ctx context.Context, events <-chan synctrust.Remote
 			runNow = false
 			retry, backoff = s.runAll(ctx, stopped, backoff)
 		}
+		// While a failed pass waits for its retry, an edit, an event or the periodic tick does not
+		// start another: the retry syncs every vault anyway, and passes started by events from the
+		// other devices kept a rate-limited client asking once a second and the limit never lifted.
+		// Only the person pressing Sync now goes ahead of the wait.
+		idle := retry == nil
 		select {
 		case <-ctx.Done():
 			return
@@ -147,22 +152,21 @@ func (s *SyncScheduler) loop(ctx context.Context, events <-chan synctrust.Remote
 				debounce = s.d.After(s.d.Debounce)
 			}
 		case <-debounce:
-			debounce, runNow = nil, true
+			debounce, runNow = nil, idle
 		case <-s.now:
 			runNow = true
 		case <-retry:
 			retry, runNow = nil, true
 		case <-periodic:
-			periodic, runNow = s.d.After(s.d.Interval), true
+			periodic, runNow = s.d.After(s.d.Interval), idle
 		case <-events:
-			runNow = true
+			runNow = idle
 		}
 	}
 }
 
 // runAll syncs every vault that is not stopped and returns when to retry, if anything failed.
 func (s *SyncScheduler) runAll(ctx context.Context, stopped map[vaultsync.ID]bool, backoff time.Duration) (<-chan time.Time, time.Duration) {
-	var wait time.Duration
 	vaults, err := s.d.Vaults(ctx)
 	failed := err != nil
 	report := func(st SyncStatus) {
@@ -186,17 +190,16 @@ func (s *SyncScheduler) runAll(ctx context.Context, stopped map[vaultsync.ID]boo
 			stopped[v] = true
 			report(SyncStatus{Vault: v, State: SyncStopped, Err: err, Report: r})
 		case errors.As(err, &limited):
-			wait = max(wait, limited.RetryAfter)
+			// The rest of the pass would only spend more of the limit; it waits with this vault.
 			report(SyncStatus{Vault: v, State: SyncFailed, Err: err, Report: r})
+			next := max(limited.RetryAfter, nextSyncBackoff(backoff))
+			return s.d.After(next), next
 		default:
 			failed = true
 			report(SyncStatus{Vault: v, State: SyncFailed, Err: err, Report: r})
 		}
 	}
-	switch {
-	case wait > 0:
-		return s.d.After(wait), backoff
-	case failed:
+	if failed {
 		next := nextSyncBackoff(backoff)
 		return s.d.After(next), next
 	}

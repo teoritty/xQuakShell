@@ -319,3 +319,49 @@ func TestEveryReportNamesThePassVaults(t *testing.T) {
 		}
 	}
 }
+
+// A rate limit that keeps coming back is waited out longer each time, never less than the server
+// asked: waiting only Retry-After kept three clients behind one address asking every second, and
+// the limit never lifted for any of them.
+func TestRepeatedRateLimitsBackOff(t *testing.T) {
+	w := newSchedWorldFailing(t, 0, &synctrust.RateLimitedError{RetryAfter: time.Second}, vaultsync.ID{7})
+	w.expectSync()
+	w.timers.waitArmed(t, time.Second)
+	w.timers.fire(time.Second)
+	w.expectSync()
+	w.timers.waitArmed(t, 2*time.Second)
+	w.timers.fire(2 * time.Second)
+	w.expectSync()
+	w.timers.waitArmed(t, 4*time.Second)
+}
+
+// A rate-limited vault ends the pass: the other vaults would only spend more of the same limit.
+func TestARateLimitEndsThePass(t *testing.T) {
+	a, b := vaultsync.ID{1}, vaultsync.ID{2}
+	timers := newFakeTimers()
+	syncer := &fakeSyncer{calls: make(chan vaultsync.ID, 16),
+		errFor: map[vaultsync.ID]error{a: &synctrust.RateLimitedError{RetryAfter: 3 * time.Second}}}
+	s := usecase.NewSyncScheduler(usecase.SyncSchedulerDeps{Engine: syncer,
+		Vaults: func(context.Context) ([]vaultsync.ID, error) { return []vaultsync.ID{a, b}, nil }, After: timers.After,
+		OnStatus: func(usecase.SyncStatus) {}, Debounce: testDebounce, Interval: testInterval})
+	s.Start(context.Background())
+	t.Cleanup(s.Stop)
+	if v := <-syncer.calls; v != a {
+		t.Fatalf("first synced %v", v)
+	}
+	timers.waitArmed(t, 3*time.Second)
+	select {
+	case v := <-syncer.calls:
+		t.Fatalf("synced %v after the rate limit; the pass must end there", v)
+	default:
+	}
+}
+
+// The person pressing Sync now goes ahead of a wait.
+func TestSyncNowDoesNotWaitOutABackoff(t *testing.T) {
+	w := newSchedWorldFailing(t, 0, errors.New("network down"), vaultsync.ID{7})
+	w.expectSync()
+	w.timers.waitArmed(t, time.Second)
+	w.s.SyncNow()
+	w.expectSync()
+}
