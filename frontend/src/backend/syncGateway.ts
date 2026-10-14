@@ -23,6 +23,8 @@ export interface SyncStatus {
   joinPending?: boolean;
   /** Changes the reporting round wrote into the vault; above zero, open views re-read it. */
   applied?: number;
+  /** A team was joined or left since the last pass; open views re-read the vault. */
+  vaultsChanged?: boolean;
 }
 
 export interface SyncServerProbe {

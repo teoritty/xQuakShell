@@ -300,3 +300,22 @@ func TestAFailedVaultListingStillSyncsAndRetries(t *testing.T) {
 	w.expectSync()
 	w.timers.waitArmed(t, time.Second)
 }
+
+// Every report names the vaults of its pass, which is how the controller drops a team the account
+// left and notices one it joined.
+func TestEveryReportNamesThePassVaults(t *testing.T) {
+	a, b := vaultsync.ID{1}, vaultsync.ID{2}
+	w := newSchedWorldOf(t, 0, a, b)
+	w.expectSyncOf(a)
+	w.expectSyncOf(b)
+	for range 4 {
+		select {
+		case st := <-w.status:
+			if len(st.Vaults) != 2 || st.Vaults[0] != a || st.Vaults[1] != b {
+				t.Fatalf("report for %s names vaults %v; want the pass's %v", st.Vault, st.Vaults, []vaultsync.ID{a, b})
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("no status reported")
+		}
+	}
+}

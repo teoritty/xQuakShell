@@ -87,3 +87,40 @@ func TestControllerReportsTheAccountNotTheLastVault(t *testing.T) {
 		t.Fatalf("Status() = %v; it answers for the account", st.State)
 	}
 }
+
+// A team the account left must not keep the account stopped, nor be counted, after it is gone.
+func TestALeftVaultStopsCountingTowardTheAccount(t *testing.T) {
+	personal, team, _ := rollupIDs()
+	var seen []SyncStatus
+	c := NewSyncController(SyncControllerDeps{OnStatus: func(st SyncStatus) { seen = append(seen, st) }})
+	c.session.Personal = personal
+	both := []vaultsync.ID{personal, team}
+	c.record(SyncStatus{Vault: team, State: SyncStopped, Err: synctrust.ErrIntegrity, Vaults: both})
+	c.record(SyncStatus{Vault: personal, State: SyncIdle, Vaults: both})
+	if last := seen[len(seen)-1]; last.State != SyncStopped || last.VaultsChanged {
+		t.Fatalf("state %v, changed %v; the first pass sets the vaults without calling it a change", last.State, last.VaultsChanged)
+	}
+	c.record(SyncStatus{Vault: personal, State: SyncIdle, Vaults: []vaultsync.ID{personal}})
+	last := seen[len(seen)-1]
+	if last.State != SyncIdle || last.Err != nil {
+		t.Fatalf("state %v / %v; a left team's old failure no longer speaks for the account", last.State, last.Err)
+	}
+	if !last.VaultsChanged {
+		t.Fatal("leaving a team is a change the views must show")
+	}
+	c.record(SyncStatus{Vault: personal, State: SyncIdle, Vaults: []vaultsync.ID{personal}})
+	if seen[len(seen)-1].VaultsChanged {
+		t.Fatal("an unchanged set of vaults is reported as changed")
+	}
+}
+
+func TestAJoinedTeamIsAChange(t *testing.T) {
+	personal, team, _ := rollupIDs()
+	var seen []SyncStatus
+	c := NewSyncController(SyncControllerDeps{OnStatus: func(st SyncStatus) { seen = append(seen, st) }})
+	c.record(SyncStatus{Vault: personal, State: SyncIdle, Vaults: []vaultsync.ID{personal}})
+	c.record(SyncStatus{Vault: team, State: SyncRunning, Vaults: []vaultsync.ID{personal, team}})
+	if !seen[len(seen)-1].VaultsChanged {
+		t.Fatal("a team joined with nothing to apply yet must still reach the views")
+	}
+}

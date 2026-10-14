@@ -2425,6 +2425,7 @@ export namespace wails {
 	    accountFingerprint?: string;
 	    stopReason?: string;
 	    applied?: number;
+	    vaultsChanged?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new SyncStatusDTO(source);
@@ -2447,6 +2448,7 @@ export namespace wails {
 	        this.accountFingerprint = source["accountFingerprint"];
 	        this.stopReason = source["stopReason"];
 	        this.applied = source["applied"];
+	        this.vaultsChanged = source["vaultsChanged"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

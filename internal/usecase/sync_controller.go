@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"sync"
 	"time"
 
@@ -56,6 +57,7 @@ type SyncController struct {
 	sched       *SyncScheduler
 	last        SyncStatus
 	perVault    map[vaultsync.ID]SyncStatus
+	knownVaults []vaultsync.ID
 	pendingJoin *SyncSession
 
 	op sync.Mutex
@@ -147,7 +149,7 @@ func (c *SyncController) Stop() {
 	sched := c.sched
 	c.engine, c.sched, c.session = nil, nil, SyncSession{}
 	// A new session starts from its own reports: a stop reason of the old keys must not outlive them.
-	c.perVault, c.last = nil, SyncStatus{}
+	c.perVault, c.knownVaults, c.last = nil, nil, SyncStatus{}
 	c.mu.Unlock()
 	if sched != nil {
 		sched.Stop()
@@ -185,7 +187,9 @@ func (c *SyncController) record(st SyncStatus) {
 		c.perVault = map[vaultsync.ID]SyncStatus{}
 	}
 	c.perVault[st.Vault] = st
+	changed := c.followVaults(st.Vaults)
 	agg := rollupStatus(c.perVault, c.session.Personal)
+	agg.VaultsChanged = changed
 	round := st.Report
 	round.Pull.Held, round.Pull.Quarantined = agg.Report.Pull.Held, agg.Report.Pull.Quarantined
 	agg.Vault, agg.Report = st.Vault, round
@@ -194,6 +198,27 @@ func (c *SyncController) record(st SyncStatus) {
 	if c.d.OnStatus != nil {
 		c.d.OnStatus(agg)
 	}
+}
+
+// followVaults forgets the reports of vaults a pass no longer lists and says whether the set
+// changed. A report from before the first pass, or from a caller that does not list vaults, keeps
+// what is known. The caller holds c.mu.
+func (c *SyncController) followVaults(vaults []vaultsync.ID) bool {
+	if vaults == nil {
+		return false
+	}
+	for id := range c.perVault {
+		if !slices.Contains(vaults, id) {
+			delete(c.perVault, id)
+		}
+	}
+	changed := c.knownVaults != nil && !sameVaults(c.knownVaults, vaults)
+	c.knownVaults = slices.Clone(vaults)
+	return changed
+}
+
+func sameVaults(a, b []vaultsync.ID) bool {
+	return len(a) == len(b) && !slices.ContainsFunc(a, func(id vaultsync.ID) bool { return !slices.Contains(b, id) })
 }
 
 // Status is the account's status across its vaults, and whether sync is running.

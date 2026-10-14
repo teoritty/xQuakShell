@@ -31,6 +31,12 @@ type SyncStatus struct {
 	State  SyncState
 	Err    error
 	Report SyncReport
+	// Vaults lists every vault of the pass that reported this status; the controller drops the
+	// reports of vaults no longer in it, such as a team the account left.
+	Vaults []vaultsync.ID
+	// VaultsChanged is set on the account's status when the set of vaults differs from the last
+	// pass's: a team joined or left, which the views must show although nothing was applied.
+	VaultsChanged bool
 }
 
 // Syncer runs one sync round for a vault; SyncEngine is the implementation.
@@ -159,28 +165,32 @@ func (s *SyncScheduler) runAll(ctx context.Context, stopped map[vaultsync.ID]boo
 	var wait time.Duration
 	vaults, err := s.d.Vaults(ctx)
 	failed := err != nil
+	report := func(st SyncStatus) {
+		st.Vaults = vaults
+		s.report(st)
+	}
 	for _, v := range vaults {
 		if stopped[v] {
 			continue
 		}
-		s.report(SyncStatus{Vault: v, State: SyncRunning})
+		report(SyncStatus{Vault: v, State: SyncRunning})
 		r, err := s.d.Engine.Sync(ctx, v)
 		var limited *synctrust.RateLimitedError
 		switch {
 		case err == nil:
-			s.report(SyncStatus{Vault: v, State: SyncIdle, Report: r})
+			report(SyncStatus{Vault: v, State: SyncIdle, Report: r})
 		case ctx.Err() != nil:
 			return nil, backoff
 		// A revoked device asking again gets the same refusal every time; only the person can act.
 		case errors.Is(err, synctrust.ErrIntegrity), errors.Is(err, synctrust.ErrKeysRotated), errors.Is(err, ErrSyncDeviceRevoked):
 			stopped[v] = true
-			s.report(SyncStatus{Vault: v, State: SyncStopped, Err: err, Report: r})
+			report(SyncStatus{Vault: v, State: SyncStopped, Err: err, Report: r})
 		case errors.As(err, &limited):
 			wait = max(wait, limited.RetryAfter)
-			s.report(SyncStatus{Vault: v, State: SyncFailed, Err: err, Report: r})
+			report(SyncStatus{Vault: v, State: SyncFailed, Err: err, Report: r})
 		default:
 			failed = true
-			s.report(SyncStatus{Vault: v, State: SyncFailed, Err: err, Report: r})
+			report(SyncStatus{Vault: v, State: SyncFailed, Err: err, Report: r})
 		}
 	}
 	switch {

@@ -33,6 +33,8 @@ type SyncStatusDTO struct {
 	// Applied counts the changes the reporting round wrote into the vault; above zero, the open
 	// views re-read it.
 	Applied int `json:"applied,omitempty"`
+	// VaultsChanged is a team joined or left since the last pass; the views re-read the vault.
+	VaultsChanged bool `json:"vaultsChanged,omitempty"`
 }
 
 // SyncServerProbeDTO is a server identity for the user to compare with what its admin printed.
@@ -131,7 +133,7 @@ func syncStatusDTO(st usecase.SyncStatus, running bool) SyncStatusDTO {
 	if dto.State == "stopped" {
 		dto.StopReason = syncStopReason(st.Err)
 	}
-	dto.Applied = st.Report.Pull.Applied
+	dto.Applied, dto.VaultsChanged = st.Report.Pull.Applied, st.VaultsChanged
 	return dto
 }
 

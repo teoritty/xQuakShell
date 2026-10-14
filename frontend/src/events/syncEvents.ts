@@ -12,9 +12,9 @@ export function subscribeSyncEvents(): void {
   rt.EventsOn('SyncStatus', (data: SyncStatus) => {
     if (data && typeof data.state === 'string') {
       applySyncRound(data);
-      // A pull wrote into the vault: the tree, the keys and every open list show it now, and a form
+      // A pull wrote into the vault, or a team was joined or left: the tree, the keys and every open list show it now, and a form
       // open on a changed item rebases instead of saving its stale copy over it.
-      if (data.applied) void refreshAfterSync();
+      if (data.applied || data.vaultsChanged) void refreshAfterSync();
     }
   });
   // A plugin's files were edited on two devices (the local edit won, the other is in the trash) or
