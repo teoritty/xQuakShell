@@ -98,7 +98,13 @@ type fakeConflicts struct {
 	useOther bool
 }
 
-func (f *fakeConflicts) List() ([]domain.SyncConflict, error) { return f.list, nil }
+func (f *fakeConflicts) Described() ([]usecase.DescribedConflict, error) {
+	out := make([]usecase.DescribedConflict, 0, len(f.list))
+	for _, c := range f.list {
+		out = append(out, usecase.DescribedConflict{SyncConflict: c, ItemName: "named " + c.ItemKey, PathNames: make([]string, len(c.Path))})
+	}
+	return out, nil
+}
 func (f *fakeConflicts) Resolve(_ context.Context, id string, useOther bool) error {
 	f.resolved, f.useOther = id, useOther
 	return nil

@@ -21,9 +21,11 @@ var (
 // TrashItem is one deleted record as the trash shows it. Type and Key are empty and Restorable is
 // false when no retained version opens - purged history, or an epoch that retired.
 type TrashItem struct {
-	Record           vaultsync.ID
-	Type             synctrust.RecordType
-	Key              string
+	Record vaultsync.ID
+	Type   synctrust.RecordType
+	Key    string
+	// Name is what the person called the item, empty when its type has no name.
+	Name             string
 	DeletedUnixMilli int64
 	PurgeUnixMilli   int64
 	Restorable       bool
@@ -46,8 +48,14 @@ func (e *SyncEngine) Trash(ctx context.Context, vault vaultsync.ID) ([]TrashItem
 			return nil, err
 		}
 		if ok {
+			// A resolved conflict or a dropped binding is the engine's bookkeeping, not something the
+			// person deleted; restoring one would bring back a question already answered.
+			if synctrust.Internal(body.Type) {
+				continue
+			}
 			it.Type, it.Restorable = body.Type, true
 			it.Key, _ = synctrust.NaturalKey(body.Type, body.Data)
+			it.Name = synctrust.Describe(body.Type, body.Data)
 		}
 		out = append(out, it)
 	}

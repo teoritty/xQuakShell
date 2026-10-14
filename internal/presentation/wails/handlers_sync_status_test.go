@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"xquakshell/internal/domain"
 	"xquakshell/internal/domain/synctrust"
 	"xquakshell/internal/domain/vaultsync"
 	"xquakshell/internal/usecase"
@@ -86,5 +87,18 @@ func TestAcknowledgingDevicesValidatesEveryID(t *testing.T) {
 	}
 	if err := a.AcknowledgeSyncDevices([]string{good}); err != nil || len(f.acknowledged) != 1 || f.acknowledged[0][0] != 0xab {
 		t.Fatalf("acknowledge: %v, %v", err, f.acknowledged)
+	}
+}
+
+func TestAConflictOverAReferenceShowsNoID(t *testing.T) {
+	a, _, c := syncAPI()
+	c.list = []domain.SyncConflict{{ID: "r", RecordType: "connection", ItemKey: "c1", Path: []string{"users", "[id=u-1]", "passAuth", "passwordId"},
+		Local: []byte(`"5bba7c56-1a9b-4617"`), Remote: []byte(`"e3c1b10f-2d3a-44e3"`)}}
+	list, err := a.ListSyncConflicts()
+	if err != nil || len(list) != 1 {
+		t.Fatalf("list = %+v, %v", list, err)
+	}
+	if got := list[0]; !got.Secret || got.Local != "" || got.Remote != "" || got.ItemName != "named c1" || len(got.PathNames) != 4 {
+		t.Fatalf("conflict = %+v; a saved-password reference is an internal id, not something to show", got)
 	}
 }

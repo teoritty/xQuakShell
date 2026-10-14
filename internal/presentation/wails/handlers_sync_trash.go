@@ -16,7 +16,7 @@ func (a *AppAPI) ListSyncTrash() ([]SyncTrashItemDTO, error) {
 	out := make([]SyncTrashItemDTO, 0, len(items))
 	for _, it := range items {
 		out = append(out, SyncTrashItemDTO{Record: hex.EncodeToString(it.Record[:]), Type: string(it.Type), Key: it.Key,
-			DeletedUnixMilli: it.DeletedUnixMilli, PurgeUnixMilli: it.PurgeUnixMilli, Restorable: it.Restorable})
+			Name: it.Name, DeletedUnixMilli: it.DeletedUnixMilli, PurgeUnixMilli: it.PurgeUnixMilli, Restorable: it.Restorable})
 	}
 	return out, nil
 }

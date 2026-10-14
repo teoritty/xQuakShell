@@ -32,6 +32,29 @@ func (s *SyncConflictService) List() ([]domain.SyncConflict, error) {
 	return data.Sync.Conflicts, nil
 }
 
+// DescribedConflict is a conflict with the names a person recognises: the item's, and one name
+// per path segment for the elements it runs through (a connection user by its login).
+type DescribedConflict struct {
+	domain.SyncConflict
+	ItemName  string
+	PathNames []string
+}
+
+// Described lists the unresolved conflicts, each named against the vault as it is now.
+func (s *SyncConflictService) Described() ([]DescribedConflict, error) {
+	data, err := s.vault.GetData()
+	if err != nil || data.Sync == nil {
+		return nil, err
+	}
+	out := make([]DescribedConflict, 0, len(data.Sync.Conflicts))
+	for _, c := range data.Sync.Conflicts {
+		t := synctrust.RecordType(c.RecordType)
+		out = append(out, DescribedConflict{SyncConflict: c, ItemName: synctrust.DescribeItem(data, t, c.ItemKey),
+			PathNames: synctrust.DescribePath(data, t, c.ItemKey, c.Path)})
+	}
+	return out, nil
+}
+
 // Resolve settles one conflict. useOther writes the value that lost the merge over the one in
 // force; otherwise the value in force stays. Either way the conflict is removed in the same vault
 // transaction, so an item never changes without its conflict going with it.

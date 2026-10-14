@@ -71,6 +71,7 @@ type SyncHeldDTO struct {
 	Record      string `json:"record"`
 	Type        string `json:"type"`
 	Key         string `json:"key"`
+	Name        string `json:"name,omitempty"`
 	Reason      string `json:"reason"`
 	Pending     bool   `json:"pending"`
 	AtUnixMilli int64  `json:"atUnixMilli"`
@@ -82,18 +83,22 @@ type SyncTrashItemDTO struct {
 	Record           string `json:"record"`
 	Type             string `json:"type"`
 	Key              string `json:"key"`
+	Name             string `json:"name,omitempty"`
 	DeletedUnixMilli int64  `json:"deletedUnixMilli"`
 	PurgeUnixMilli   int64  `json:"purgeUnixMilli"`
 	Restorable       bool   `json:"restorable"`
 }
 
 // SyncConflictDTO is a credential conflict. Values of secret fields are not sent: the person picks
-// a side by device and time, and a password never has to be on screen to do it.
+// a side by device and time, and a password never has to be on screen to do it. ItemName and
+// PathNames name what the ids in ItemKey and Path point at, for display.
 type SyncConflictDTO struct {
 	ID          string   `json:"id"`
 	RecordType  string   `json:"recordType"`
 	ItemKey     string   `json:"itemKey"`
+	ItemName    string   `json:"itemName,omitempty"`
 	Path        []string `json:"path"`
+	PathNames   []string `json:"pathNames"`
 	Secret      bool     `json:"secret"`
 	Local       string   `json:"local,omitempty"`
 	Remote      string   `json:"remote,omitempty"`
@@ -163,12 +168,16 @@ func deviceDTO(d usecase.DeviceInfo) SyncDeviceDTO {
 }
 
 func heldDTO(h usecase.HeldChange) SyncHeldDTO {
-	return SyncHeldDTO{Record: hex.EncodeToString(h.Record[:]), Type: string(h.Type), Key: h.Key, Reason: h.Reason,
+	return SyncHeldDTO{Record: hex.EncodeToString(h.Record[:]), Type: string(h.Type), Key: h.Key, Name: h.Name, Reason: h.Reason,
 		Pending: h.Pending, AtUnixMilli: h.AtUnixMilli}
 }
 
-// secretConflict reports a conflict over a field whose value is a secret.
+// secretConflict reports a conflict whose values are not for the screen: a secret, or a reference
+// to a saved key or password, whose value is an internal id the person would not recognise.
 func secretConflict(c domain.SyncConflict) bool {
+	if n := len(c.Path); n > 0 && (c.Path[n-1] == "passwordId" || c.Path[n-1] == "identityIds" || c.Path[n-1] == "identityId") {
+		return true
+	}
 	switch synctrust.RecordType(c.RecordType) {
 	case synctrust.TypePassword, synctrust.TypePluginSecret:
 		return true
@@ -178,9 +187,10 @@ func secretConflict(c domain.SyncConflict) bool {
 	return false
 }
 
-func conflictDTO(c domain.SyncConflict) SyncConflictDTO {
-	dto := SyncConflictDTO{ID: c.ID, RecordType: c.RecordType, ItemKey: c.ItemKey, Path: c.Path, Secret: secretConflict(c),
-		AtUnixMilli: c.AtUnixMilli}
+func conflictDTO(dc usecase.DescribedConflict) SyncConflictDTO {
+	c := dc.SyncConflict
+	dto := SyncConflictDTO{ID: c.ID, RecordType: c.RecordType, ItemKey: c.ItemKey, ItemName: dc.ItemName, Path: c.Path,
+		PathNames: dc.PathNames, Secret: secretConflict(c), AtUnixMilli: c.AtUnixMilli}
 	if !dto.Secret {
 		dto.Local, dto.Remote = string(c.Local), string(c.Remote)
 	}

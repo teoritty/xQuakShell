@@ -19,9 +19,11 @@ var (
 // HeldChange is a record waiting in quarantine, as the user sees it. Type and Key are empty when
 // the record does not open on this device.
 type HeldChange struct {
-	Record      vaultsync.ID
-	Type        synctrust.RecordType
-	Key         string
+	Record vaultsync.ID
+	Type   synctrust.RecordType
+	Key    string
+	// Name is what the person called the item, empty for a settings section or an unreadable item.
+	Name        string
 	Reason      string
 	Pending     bool
 	AtUnixMilli int64
@@ -50,6 +52,7 @@ func (e *SyncEngine) HeldChanges(ctx context.Context, vault vaultsync.ID) ([]Hel
 		if body, err := p.open(&it.Envelope); err == nil {
 			h.Type = body.Type
 			h.Key, _ = synctrust.NaturalKey(body.Type, body.Data)
+			h.Name = synctrust.Describe(body.Type, body.Data)
 		}
 		out = append(out, h)
 	}

@@ -10,7 +10,6 @@ import (
 
 	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"xquakshell/internal/domain"
 	"xquakshell/internal/domain/vaultsync"
 	"xquakshell/internal/usecase"
 )
@@ -54,7 +53,7 @@ type SyncCommands interface {
 
 // SyncConflictCommands lists and resolves credential conflicts.
 type SyncConflictCommands interface {
-	List() ([]domain.SyncConflict, error)
+	Described() ([]usecase.DescribedConflict, error)
 	Resolve(ctx context.Context, id string, useOther bool) error
 }
 

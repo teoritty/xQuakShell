@@ -151,7 +151,7 @@ func (a *AppAPI) ListSyncConflicts() ([]SyncConflictDTO, error) {
 	if a.syncConflicts == nil {
 		return nil, errSyncUnavailable
 	}
-	list, err := a.syncConflicts.List()
+	list, err := a.syncConflicts.Described()
 	if err != nil {
 		return nil, userSyncError(err)
 	}
