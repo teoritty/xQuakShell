@@ -114,13 +114,28 @@ func TestALeftVaultStopsCountingTowardTheAccount(t *testing.T) {
 	}
 }
 
-func TestAJoinedTeamIsAChange(t *testing.T) {
+// A joined team reaches the views when its first round is done: announced as it first appears,
+// before it was pulled, the views re-read a vault that did not hold it yet and were never told again.
+func TestAJoinedTeamIsAChangeOnceItSynced(t *testing.T) {
 	personal, team, _ := rollupIDs()
 	var seen []SyncStatus
 	c := NewSyncController(SyncControllerDeps{OnStatus: func(st SyncStatus) { seen = append(seen, st) }})
+	both := []vaultsync.ID{personal, team}
 	c.record(SyncStatus{Vault: personal, State: SyncIdle, Vaults: []vaultsync.ID{personal}})
-	c.record(SyncStatus{Vault: team, State: SyncRunning, Vaults: []vaultsync.ID{personal, team}})
+	c.record(SyncStatus{Vault: personal, State: SyncRunning, Vaults: both})
+	c.record(SyncStatus{Vault: personal, State: SyncIdle, Vaults: both})
+	c.record(SyncStatus{Vault: team, State: SyncRunning, Vaults: both})
+	for i, st := range seen {
+		if st.VaultsChanged {
+			t.Fatalf("report %d says changed before the new team synced", i)
+		}
+	}
+	c.record(SyncStatus{Vault: team, State: SyncIdle, Vaults: both})
 	if !seen[len(seen)-1].VaultsChanged {
-		t.Fatal("a team joined with nothing to apply yet must still reach the views")
+		t.Fatal("a team joined with nothing to apply must still reach the views once it synced")
+	}
+	c.record(SyncStatus{Vault: team, State: SyncIdle, Vaults: both})
+	if seen[len(seen)-1].VaultsChanged {
+		t.Fatal("a team is announced once, not on every round")
 	}
 }

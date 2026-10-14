@@ -58,6 +58,7 @@ type SyncController struct {
 	last        SyncStatus
 	perVault    map[vaultsync.ID]SyncStatus
 	knownVaults []vaultsync.ID
+	joining     []vaultsync.ID
 	pendingJoin *SyncSession
 
 	op sync.Mutex
@@ -149,7 +150,7 @@ func (c *SyncController) Stop() {
 	sched := c.sched
 	c.engine, c.sched, c.session = nil, nil, SyncSession{}
 	// A new session starts from its own reports: a stop reason of the old keys must not outlive them.
-	c.perVault, c.knownVaults, c.last = nil, nil, SyncStatus{}
+	c.perVault, c.knownVaults, c.joining, c.last = nil, nil, nil, SyncStatus{}
 	c.mu.Unlock()
 	if sched != nil {
 		sched.Stop()
@@ -186,8 +187,8 @@ func (c *SyncController) record(st SyncStatus) {
 	if c.perVault == nil {
 		c.perVault = map[vaultsync.ID]SyncStatus{}
 	}
+	changed := c.followVaults(st)
 	c.perVault[st.Vault] = st
-	changed := c.followVaults(st.Vaults)
 	agg := rollupStatus(c.perVault, c.session.Personal)
 	agg.VaultsChanged = changed
 	round := st.Report
@@ -200,25 +201,34 @@ func (c *SyncController) record(st SyncStatus) {
 	}
 }
 
-// followVaults forgets the reports of vaults a pass no longer lists and says whether the set
-// changed. A report from before the first pass, or from a caller that does not list vaults, keeps
-// what is known. The caller holds c.mu.
-func (c *SyncController) followVaults(vaults []vaultsync.ID) bool {
-	if vaults == nil {
-		return false
-	}
-	for id := range c.perVault {
-		if !slices.Contains(vaults, id) {
-			delete(c.perVault, id)
+// followVaults forgets the reports of vaults a pass no longer lists and says whether the views
+// must re-read: at once when a vault left, and when a vault that joined finishes its first round.
+// Saying so when the joined vault first appears was too early - its team was not in the vault yet,
+// and the views re-read nothing new and were never told again. A report from before the first
+// pass, or from a caller that does not list vaults, keeps what is known. The caller holds c.mu.
+func (c *SyncController) followVaults(st SyncStatus) bool {
+	changed := false
+	if st.Vaults != nil {
+		for id := range c.perVault {
+			if !slices.Contains(st.Vaults, id) {
+				delete(c.perVault, id)
+				changed = true
+			}
 		}
+		if c.knownVaults != nil {
+			for _, id := range st.Vaults {
+				if !slices.Contains(c.knownVaults, id) {
+					c.joining = append(c.joining, id)
+				}
+			}
+		}
+		c.knownVaults = slices.Clone(st.Vaults)
 	}
-	changed := c.knownVaults != nil && !sameVaults(c.knownVaults, vaults)
-	c.knownVaults = slices.Clone(vaults)
+	if st.State != SyncRunning && slices.Contains(c.joining, st.Vault) {
+		c.joining = slices.DeleteFunc(c.joining, func(id vaultsync.ID) bool { return id == st.Vault })
+		changed = true
+	}
 	return changed
-}
-
-func sameVaults(a, b []vaultsync.ID) bool {
-	return len(a) == len(b) && !slices.ContainsFunc(a, func(id vaultsync.ID) bool { return !slices.Contains(b, id) })
 }
 
 // Status is the account's status across its vaults, and whether sync is running.
