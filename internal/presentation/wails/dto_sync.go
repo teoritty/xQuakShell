@@ -12,18 +12,21 @@ import (
 
 // SyncStatusDTO is the sync indicator and the header of the settings page.
 type SyncStatusDTO struct {
-	Enabled      bool     `json:"enabled"`
-	Running      bool     `json:"running"`
-	State        string   `json:"state"`
-	Message      string   `json:"message,omitempty"`
-	Held         int      `json:"held"`
-	Quarantined  int      `json:"quarantined"`
-	NewDevices   []string `json:"newDevices,omitempty"`
-	ServerURL    string   `json:"serverUrl,omitempty"`
-	Username     string   `json:"username,omitempty"`
-	Fingerprint  string   `json:"fingerprint,omitempty"`
-	RekeyPending bool     `json:"rekeyPending,omitempty"`
-	JoinPending  bool     `json:"joinPending,omitempty"`
+	Enabled      bool   `json:"enabled"`
+	Running      bool   `json:"running"`
+	State        string `json:"state"`
+	Message      string `json:"message,omitempty"`
+	Held         int    `json:"held"`
+	Quarantined  int    `json:"quarantined"`
+	ServerURL    string `json:"serverUrl,omitempty"`
+	Username     string `json:"username,omitempty"`
+	Fingerprint  string `json:"fingerprint,omitempty"`
+	RekeyPending bool   `json:"rekeyPending,omitempty"`
+	JoinPending  bool   `json:"joinPending,omitempty"`
+	// NewDevices joined the account after this device and wait until the person acknowledges them.
+	NewDevices []SyncDeviceDTO `json:"newDevices,omitempty"`
+	// AccountFingerprint is this account's own fingerprint, for a team admin to compare.
+	AccountFingerprint string `json:"accountFingerprint,omitempty"`
 	// StopReason says what a stopped account needs: "signIn" after keys changed elsewhere,
 	// "revoked" for a removed device, "integrity" for a verification failure.
 	StopReason string `json:"stopReason,omitempty"`
@@ -124,8 +127,21 @@ func syncStatusDTO(st usecase.SyncStatus, running bool) SyncStatusDTO {
 		dto.StopReason = syncStopReason(st.Err)
 	}
 	dto.Applied = st.Report.Pull.Applied
-	for _, d := range st.Report.Pull.NewDevices {
-		dto.NewDevices = append(dto.NewDevices, d.Name)
+	return dto
+}
+
+// withSyncAccount adds what the device knows about the account: where it syncs, both fingerprints,
+// and the devices waiting to be acknowledged.
+func withSyncAccount(dto SyncStatusDTO, info usecase.SyncAccountInfo, fresh []usecase.NewDeviceNotice) SyncStatusDTO {
+	dto.Enabled, dto.ServerURL, dto.Username, dto.RekeyPending = true, info.ServerURL, info.Username, info.RekeyPending
+	dto.Fingerprint = vaultsync.AccountFingerprint(info.ServerIdentity)
+	if len(info.AccountIdentity) > 0 {
+		dto.AccountFingerprint = vaultsync.AccountFingerprint(info.AccountIdentity)
+	}
+	dto.JoinPending = info.JoinPending
+	for _, d := range fresh {
+		dto.NewDevices = append(dto.NewDevices, SyncDeviceDTO{ID: hex.EncodeToString(d.Device[:]), Name: d.Name,
+			Platform: d.Platform, CreatedUnixMilli: d.CreatedUnixMilli})
 	}
 	return dto
 }

@@ -55,6 +55,25 @@ func (a *AppAPI) RevokeSyncDevice(deviceID, password string) error {
 	return userSyncError(a.sync.RevokeDevices(a.reqCtx(), []vaultsync.ID{id}, []byte(password)))
 }
 
+// AcknowledgeSyncDevices clears the notices of devices the person recognised as their own.
+func (a *AppAPI) AcknowledgeSyncDevices(deviceIDs []string) error {
+	if a.sync == nil {
+		return errSyncUnavailable
+	}
+	if len(deviceIDs) == 0 || len(deviceIDs) > 256 {
+		return errInvalidSyncRequest
+	}
+	ids := make([]vaultsync.ID, 0, len(deviceIDs))
+	for _, s := range deviceIDs {
+		id, ok := parseSyncID(s)
+		if !ok {
+			return errInvalidSyncRequest
+		}
+		ids = append(ids, id)
+	}
+	return userSyncError(a.sync.AcknowledgeNewDevices(a.reqCtx(), ids))
+}
+
 // DisableSync stops syncing on this device and forgets its sync account here.
 func (a *AppAPI) DisableSync() error {
 	if a.sync == nil {

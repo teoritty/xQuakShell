@@ -20,6 +20,8 @@ type fakeSync struct {
 	joinNeeded       bool
 	join             usecase.JoinChoice
 	revoked          []vaultsync.ID
+	acknowledged     []vaultsync.ID
+	newDevices       []usecase.NewDeviceNotice
 	confirmed        vaultsync.ID
 	masterPassword   string
 	restored         vaultsync.ID
@@ -59,6 +61,13 @@ func (f *fakeSync) ChangePassword(context.Context, []byte, []byte) error { retur
 func (f *fakeSync) ResetPassword(context.Context, []byte) error          { return f.err }
 func (f *fakeSync) RevokeDevices(_ context.Context, ids []vaultsync.ID, _ []byte) error {
 	f.revoked = ids
+	return f.err
+}
+func (f *fakeSync) NewDevices(context.Context) ([]usecase.NewDeviceNotice, error) {
+	return f.newDevices, nil
+}
+func (f *fakeSync) AcknowledgeNewDevices(_ context.Context, ids []vaultsync.ID) error {
+	f.acknowledged = ids
 	return f.err
 }
 func (f *fakeSync) Disable(context.Context) error { return f.err }

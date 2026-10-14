@@ -176,8 +176,9 @@ func (c *SyncController) SyncNow() error {
 	return nil
 }
 
-// record keeps the vault's status and reports the account's. The rolled-up status carries the
-// Applied count of the round that just reported, so a listener knows to re-read the vault.
+// record keeps the vault's status and reports the account's: the state, the error and the held and
+// quarantined counts are the account's, while the vault and the rest of the report are the round's
+// that just reported - its Applied count is how a listener knows to re-read the vault.
 func (c *SyncController) record(st SyncStatus) {
 	c.mu.Lock()
 	if c.perVault == nil {
@@ -185,7 +186,9 @@ func (c *SyncController) record(st SyncStatus) {
 	}
 	c.perVault[st.Vault] = st
 	agg := rollupStatus(c.perVault, c.session.Personal)
-	agg.Report.Pull.Applied = st.Report.Pull.Applied
+	round := st.Report
+	round.Pull.Held, round.Pull.Quarantined = agg.Report.Pull.Held, agg.Report.Pull.Quarantined
+	agg.Vault, agg.Report = st.Vault, round
 	c.last = agg
 	c.mu.Unlock()
 	if c.d.OnStatus != nil {

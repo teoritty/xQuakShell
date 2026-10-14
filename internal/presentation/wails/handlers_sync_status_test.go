@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"xquakshell/internal/domain/synctrust"
+	"xquakshell/internal/domain/vaultsync"
 	"xquakshell/internal/usecase"
 )
 
@@ -45,5 +46,45 @@ func TestTheStatusCarriesWhatTheRoundApplied(t *testing.T) {
 	dto := syncStatusDTO(usecase.SyncStatus{State: usecase.SyncIdle, Report: usecase.SyncReport{Pull: usecase.PullReport{Applied: 2}}}, true)
 	if dto.Applied != 2 {
 		t.Fatalf("applied = %d; the frontend re-reads the vault only when told something arrived", dto.Applied)
+	}
+}
+
+func TestTheStatusCarriesNewDevicesAndTheAccountFingerprint(t *testing.T) {
+	a, f, _ := syncAPI()
+	identity := make([]byte, 32)
+	identity[0] = 7
+	f.info = &usecase.SyncAccountInfo{ServerURL: "https://s", Username: "alice", ServerIdentity: make([]byte, 32), AccountIdentity: identity}
+	f.newDevices = []usecase.NewDeviceNotice{{Device: vaultsync.ID{0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab, 0xab}, Name: "tablet", Platform: "android"}}
+	st, err := a.GetSyncStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(st.NewDevices) != 1 || st.NewDevices[0].Name != "tablet" || st.NewDevices[0].ID != strings.Repeat("ab", 16) {
+		t.Fatalf("new devices = %+v; a device that joined is shown until acknowledged", st.NewDevices)
+	}
+	if st.AccountFingerprint == "" || st.AccountFingerprint == st.Fingerprint {
+		t.Fatalf("account fingerprint %q, server %q; the account's own fingerprint is what a team admin compares",
+			st.AccountFingerprint, st.Fingerprint)
+	}
+}
+
+func TestAcknowledgingDevicesValidatesEveryID(t *testing.T) {
+	a, f, _ := syncAPI()
+	good := strings.Repeat("ab", 16)
+	for name, ids := range map[string][]string{
+		"none":     nil,
+		"not hex":  {good, "zz"},
+		"too long": {good + "00"},
+		"zero":     {strings.Repeat("0", 32)},
+	} {
+		if err := a.AcknowledgeSyncDevices(ids); !errors.Is(err, errInvalidSyncRequest) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	if f.acknowledged != nil {
+		t.Fatal("an invalid request reached the controller")
+	}
+	if err := a.AcknowledgeSyncDevices([]string{good}); err != nil || len(f.acknowledged) != 1 || f.acknowledged[0][0] != 0xab {
+		t.Fatalf("acknowledge: %v, %v", err, f.acknowledged)
 	}
 }

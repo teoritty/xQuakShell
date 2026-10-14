@@ -205,8 +205,11 @@ type SyncAccountInfo struct {
 	ServerURL      string
 	Username       string
 	ServerIdentity []byte
-	RekeyPending   bool
-	JoinPending    bool
+	// AccountIdentity is the account's genesis identity key: the one a team admin compares by
+	// fingerprint before inviting this account, which a password change does not move.
+	AccountIdentity []byte
+	RekeyPending    bool
+	JoinPending     bool
 }
 
 // AccountInfo describes the stored account; ok is false when sync is not enabled.
@@ -217,7 +220,7 @@ func (c *SyncController) AccountInfo() (SyncAccountInfo, bool, error) {
 	}
 	a := data.Sync.Account
 	return SyncAccountInfo{ServerURL: a.ServerURL, Username: a.Username, ServerIdentity: a.ServerIdentity,
-		RekeyPending: a.RekeyPending, JoinPending: a.JoinPending}, true, nil
+		AccountIdentity: a.GenesisIdentityKey, RekeyPending: a.RekeyPending, JoinPending: a.JoinPending}, true, nil
 }
 
 // Probe fetches a server's identity for the user to confirm by fingerprint.

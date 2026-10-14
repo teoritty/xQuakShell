@@ -39,6 +39,8 @@ type SyncCommands interface {
 	ChangePassword(ctx context.Context, old, next []byte) error
 	ResetPassword(ctx context.Context, next []byte) error
 	RevokeDevices(ctx context.Context, devices []vaultsync.ID, password []byte) error
+	NewDevices(ctx context.Context) ([]usecase.NewDeviceNotice, error)
+	AcknowledgeNewDevices(ctx context.Context, devices []vaultsync.ID) error
 	Disable(ctx context.Context) error
 	SyncNow() error
 	Devices(ctx context.Context) ([]usecase.DeviceInfo, error)
@@ -61,12 +63,32 @@ func (a *AppAPI) SetSyncServices(sync SyncCommands, conflicts SyncConflictComman
 	a.sync, a.syncConflicts = sync, conflicts
 }
 
-// EmitSyncStatus is the controller's status callback: it forwards each change to the indicator.
+// EmitSyncStatus is the controller's status callback: it forwards each change to the indicator,
+// with the account's side read from the vault, so a device that joined shows at once.
 func (a *AppAPI) EmitSyncStatus(st usecase.SyncStatus) {
 	if a.ctx == nil {
 		return
 	}
-	wailsrt.EventsEmit(a.ctx, EventSyncStatus, syncStatusDTO(st, true))
+	dto := syncStatusDTO(st, true)
+	if a.sync != nil {
+		if withAccount, err := a.addSyncAccount(dto); err == nil {
+			dto = withAccount
+		}
+	}
+	wailsrt.EventsEmit(a.ctx, EventSyncStatus, dto)
+}
+
+// addSyncAccount fills the account side of a status when sync is enabled.
+func (a *AppAPI) addSyncAccount(dto SyncStatusDTO) (SyncStatusDTO, error) {
+	info, ok, err := a.sync.AccountInfo()
+	if err != nil || !ok {
+		return dto, err
+	}
+	fresh, err := a.sync.NewDevices(a.reqCtx())
+	if err != nil {
+		return dto, err
+	}
+	return withSyncAccount(dto, info, fresh), nil
 }
 
 // startSync resumes sync after the vault opened. A failure is logged, never fatal: the vault must
@@ -93,15 +115,9 @@ func (a *AppAPI) GetSyncStatus() (SyncStatusDTO, error) {
 		return SyncStatusDTO{State: "off"}, nil
 	}
 	st, running := a.sync.Status()
-	dto := syncStatusDTO(st, running)
-	info, ok, err := a.sync.AccountInfo()
+	dto, err := a.addSyncAccount(syncStatusDTO(st, running))
 	if err != nil {
 		return SyncStatusDTO{}, userSyncError(err)
-	}
-	if ok {
-		dto.Enabled, dto.ServerURL, dto.Username, dto.RekeyPending = true, info.ServerURL, info.Username, info.RekeyPending
-		dto.Fingerprint = vaultsync.AccountFingerprint(info.ServerIdentity)
-		dto.JoinPending = info.JoinPending
 	}
 	return dto, nil
 }

@@ -38,6 +38,11 @@ func (a *App) RevokeSyncDevice(deviceID, password string) error {
 	return a.api.RevokeSyncDevice(deviceID, password)
 }
 
+// AcknowledgeSyncDevices clears the notices of devices the user recognised.
+func (a *App) AcknowledgeSyncDevices(deviceIDs []string) error {
+	return a.api.AcknowledgeSyncDevices(deviceIDs)
+}
+
 // DisableSync stops syncing on this device.
 func (a *App) DisableSync() error { return a.api.DisableSync() }
 

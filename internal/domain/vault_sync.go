@@ -37,6 +37,11 @@ type VaultSync struct {
 	// PluginsRemovedElsewhere lists plugins another device uninstalled that are still installed and
 	// disabled here, until the user uninstalls or keeps them; device-local, never synced.
 	PluginsRemovedElsewhere []string `json:"pluginsRemovedElsewhere,omitempty"`
+	// AcknowledgedDevices lists, hex, the devices that joined after this one and that the person
+	// here said are theirs; device-local, never synced. A device that joined is the one event the
+	// account's other devices exist to announce - it is how a stolen sync password shows - so every
+	// later device is announced until it is listed here or removed, not for one sync round.
+	AcknowledgedDevices []string `json:"acknowledgedDevices,omitempty"`
 	// Account holds this device's credentials for its sync account; nil until sync is enabled. It
 	// is never synced as a record: these are the keys every record is protected with.
 	Account *SyncAccount `json:"account,omitempty"`
