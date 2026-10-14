@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -141,6 +142,45 @@ func (s *PluginDataSync) Waiting() map[string]int {
 		}
 	}
 	return out
+}
+
+// PluginDataStatus is one plugin whose data follows the user, as the sync panel lists it.
+type PluginDataStatus struct {
+	Plugin string
+	Name   string
+	// Enabled is this device's toggle; off keeps the plugin's files out of sync here only.
+	Enabled bool
+	// Waiting counts incoming files held until the plugin stops.
+	Waiting int
+	// Files counts the plugin's files the vault carries between devices.
+	Files int
+}
+
+// Status lists the installed plugins that declare synced data.
+func (s *PluginDataSync) Status() ([]PluginDataStatus, error) {
+	data, err := s.d.Vault.GetData()
+	if err != nil {
+		return nil, err
+	}
+	var off []string
+	files := map[string]int{}
+	if data.Sync != nil {
+		off = data.Sync.PluginDataOff
+		for _, f := range data.Sync.PluginFiles {
+			files[f.Plugin]++
+		}
+	}
+	waiting := s.Waiting()
+	var out []PluginDataStatus
+	for _, m := range s.d.Catalog.SyncedManifests() {
+		if m.Sync == nil || len(m.Sync.Paths) == 0 {
+			continue
+		}
+		out = append(out, PluginDataStatus{Plugin: m.ID, Name: m.Name, Enabled: !slices.Contains(off, m.ID),
+			Waiting: waiting[m.ID], Files: files[m.ID]})
+	}
+	slices.SortFunc(out, func(a, b PluginDataStatus) int { return strings.Compare(a.Plugin, b.Plugin) })
+	return out, nil
 }
 
 // SetSyncEnabled turns syncing of one plugin's data on or off on this device only.

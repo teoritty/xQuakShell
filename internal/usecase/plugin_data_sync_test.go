@@ -298,3 +298,29 @@ func TestPluginDataANarrowedManifestDeletesNothingElsewhere(t *testing.T) {
 		t.Fatal("a path this device no longer declares was pushed as a deletion to every device")
 	}
 }
+
+func TestPluginDataStatusListsDeclaringPluginsWithWaitingAndToggle(t *testing.T) {
+	w := newPluginDataWorld(t)
+	w.catalog.manifests[0].Name = "Notes"
+	w.catalog.manifests = append(w.catalog.manifests, domainplugin.Manifest{ID: "com.example.plain", Name: "Plain"})
+	w.writeDisk("state.json", "s1")
+	w.reconcile()
+	w.arrive("state.json", "s2")
+	w.catalog.setRunning(testPluginID, true)
+	w.reconcile()
+
+	got, err := w.svc.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []usecase.PluginDataStatus{{Plugin: testPluginID, Name: "Notes", Enabled: true, Waiting: 1, Files: 1}}
+	if !slices.Equal(got, want) {
+		t.Fatalf("status = %+v, want %+v: only plugins declaring sync.paths, with what waits for a restart", got, want)
+	}
+	if err := w.svc.SetSyncEnabled(syncCtx, testPluginID, false); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := w.svc.Status(); len(got) != 1 || got[0].Enabled {
+		t.Fatalf("status after turning sync off here = %+v; the toggle shows off", got)
+	}
+}
