@@ -82,6 +82,22 @@ type StoredCommit struct {
 	Commit vaultsync.Commit
 }
 
+// InviteInfo is one invite as the operator sees it. ID is the hex of the stored hash, never a code.
+type InviteInfo struct {
+	ID      string
+	Expires uint64
+	Used    bool
+}
+
+// ServerStats counts what the server holds. Bytes is ciphertext, the figure quotas are kept against.
+type ServerStats struct {
+	Accounts int
+	Frozen   int
+	Vaults   int
+	Commits  int
+	Bytes    uint64
+}
+
 // Tx is the set of queries the use cases run, one method per query.
 type Tx interface {
 	InsertAccount(a Account) error
@@ -94,6 +110,13 @@ type Tx interface {
 	InsertInvite(codeHash []byte, expires uint64) error
 	InviteUsable(codeHash []byte, now uint64) (bool, error)
 	ConsumeInvite(codeHash []byte, now uint64, account vaultsync.ID) (bool, error)
+	// ListInvites lists every invite by the hex of its stored hash; the code itself is not stored.
+	ListInvites() ([]InviteInfo, error)
+	// DeleteUnusedInvite deletes the unused invites whose hash hex starts with prefix, and reports
+	// how many it deleted.
+	DeleteUnusedInvite(prefix string) (int, error)
+	// Stats counts what the server holds, for the operator.
+	Stats() (ServerStats, error)
 
 	DeviceEntries(account vaultsync.ID) ([]vaultsync.DeviceEntry, error)
 	AppendDeviceEntries(account vaultsync.ID, entries []vaultsync.DeviceEntry) error
