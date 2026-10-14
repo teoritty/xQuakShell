@@ -37,13 +37,16 @@ type serveConfig struct {
 	certPath string
 	keyPath  string
 	log      *slog.Logger
+	// personalQuota and teamQuota bound a vault's ciphertext; zero keeps the use case's default.
+	personalQuota uint64
+	teamQuota     uint64
 }
 
 // openService opens the store and builds the use cases with the key file's secrets. The OPAQUE
 // context is derived from exactly what transport.New advertises in hello, so a client that saw a
 // different offer cannot complete a login.
-func openService(ctx context.Context, dir string, k *keyFile) (*usecase.Service, *store.DB, error) {
-	db, err := store.Open(ctx, filepath.Join(dir, dbFileName))
+func openService(ctx context.Context, cfg serveConfig, k *keyFile) (*usecase.Service, *store.DB, error) {
+	db, err := store.Open(ctx, filepath.Join(cfg.dir, dbFileName))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -58,7 +61,8 @@ func openService(ctx context.Context, dir string, k *keyFile) (*usecase.Service,
 		_ = db.Close()
 		return nil, nil, fmt.Errorf("xqsyncd: OPAQUE key material: %w", err)
 	}
-	svc := usecase.New(usecase.Config{Store: db, Clock: systemClock{}, AKE: ake, Random: defaultRand, FakeAccountSecret: k.FakeAccountSecret})
+	svc := usecase.New(usecase.Config{Store: db, Clock: systemClock{}, AKE: ake, Random: defaultRand, FakeAccountSecret: k.FakeAccountSecret,
+		PersonalQuota: cfg.personalQuota, TeamQuota: cfg.teamQuota})
 	return svc, db, nil
 }
 
@@ -68,7 +72,7 @@ func serve(ctx context.Context, cfg serveConfig, ln net.Listener) error {
 	if err != nil {
 		return err
 	}
-	svc, db, err := openService(ctx, cfg.dir, k)
+	svc, db, err := openService(ctx, cfg, k)
 	if err != nil {
 		return err
 	}

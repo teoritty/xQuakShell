@@ -2,10 +2,12 @@
 // keys and signed logs, and cannot open any vault it holds.
 //
 //	xqsyncd init --dir D [--host H ...]   create the key file and a self-signed TLS certificate
-//	xqsyncd serve --dir D [--addr :8443]  run the server
+//	xqsyncd serve --dir D [--addr :8443] [--personal-quota-mib 256] [--team-quota-mib 1024]
 //	xqsyncd fingerprint --dir D            print the identity fingerprint clients compare
-//	xqsyncd admin invite create [--ttl 24h] --dir D
+//	xqsyncd admin invite create [--ttl 24h] | invite list | invite revoke ID --dir D
 //	xqsyncd admin account list|freeze|unfreeze|delete [username] --dir D
+//	xqsyncd admin stats --dir D
+//	xqsyncd admin backup --to B [--max-age 720h] --dir D   (the database only; back server.key up apart)
 //	xqsyncd service install|uninstall [--name N] [--dir D] [--addr A]   (Windows; systemd units ship in packaging/linux)
 //
 // Administration works on the database directly. There is no administrative network API: it would
@@ -88,19 +90,28 @@ func identityFingerprint(k *keyFile) string {
 }
 
 func cmdServe(ctx context.Context, args []string) error {
+	cfg, addr, err := parseServe(args)
+	if err != nil {
+		return err
+	}
+	ln, err := listen(ctx, addr)
+	if err != nil {
+		return err
+	}
+	return serve(ctx, cfg, ln)
+}
+
+func parseServe(args []string) (serveConfig, string, error) {
 	fs := newFlags("serve")
 	dir := fs.String("dir", "", "server data directory")
 	addr := fs.String("addr", ":8443", "listen address")
 	cert := fs.String("tls-cert", "", "TLS certificate (default DIR/tls.crt)")
 	key := fs.String("tls-key", "", "TLS key (default DIR/tls.key)")
+	personal := fs.Uint64("personal-quota-mib", 0, "ciphertext quota per personal vault in MiB (default 256)")
+	team := fs.Uint64("team-quota-mib", 0, "ciphertext quota per team vault in MiB (default 1024)")
 	if err := fs.Parse(args); err != nil {
-		return err
+		return serveConfig{}, "", err
 	}
-	cfg := serveConfig{dir: *dir, certPath: orDefault(*cert, *dir, certFileName), keyPath: orDefault(*key, *dir, keyPEMName),
-		log: slog.New(slog.NewTextHandler(logOutput, nil))}
-	ln, err := listen(ctx, *addr)
-	if err != nil {
-		return err
-	}
-	return serve(ctx, cfg, ln)
+	return serveConfig{dir: *dir, certPath: orDefault(*cert, *dir, certFileName), keyPath: orDefault(*key, *dir, keyPEMName),
+		log: slog.New(slog.NewTextHandler(logOutput, nil)), personalQuota: *personal << 20, teamQuota: *team << 20}, *addr, nil
 }
