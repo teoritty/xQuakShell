@@ -117,6 +117,10 @@ type Tx interface {
 	DeleteUnusedInvite(prefix string) (int, error)
 	// Stats counts what the server holds, for the operator.
 	Stats() (ServerStats, error)
+	// MemberCount counts a vault's current members.
+	MemberCount(vault vaultsync.ID) (int, error)
+	// DeleteVault deletes a vault with its commits, record versions and membership.
+	DeleteVault(vault vaultsync.ID) error
 
 	DeviceEntries(account vaultsync.ID) ([]vaultsync.DeviceEntry, error)
 	AppendDeviceEntries(account vaultsync.ID, entries []vaultsync.DeviceEntry) error

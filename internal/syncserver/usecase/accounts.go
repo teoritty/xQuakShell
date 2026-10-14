@@ -184,9 +184,16 @@ func (s *Service) SetFrozen(ctx context.Context, username string, frozen bool) e
 	})
 }
 
-// DeleteAccount removes an account, its devices and its tokens (admin CLI).
+// DeleteAccount removes an account, its devices and its tokens, and every vault it is the only
+// member of with all of that vault's ciphertext (admin CLI, spec 9.3). A vault other accounts still
+// share stays; its admins see the member's keys go stale and remove it.
 func (s *Service) DeleteAccount(ctx context.Context, username string) error {
 	return s.cfg.Store.WithTx(ctx, func(tx Tx) error {
+		if a, ok, err := tx.AccountByUsername(username); err != nil || !ok {
+			return errors.Join(err, ErrNotFound)
+		} else if err := deleteSoleVaults(tx, a.ID); err != nil {
+			return err
+		}
 		deleted, err := tx.DeleteAccount(username)
 		if err == nil && !deleted {
 			return ErrNotFound
@@ -204,4 +211,23 @@ func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
 		return err
 	})
 	return out, err
+}
+
+func deleteSoleVaults(tx Tx, account vaultsync.ID) error {
+	vaults, err := tx.VaultsOf(account)
+	if err != nil {
+		return err
+	}
+	for _, v := range vaults {
+		n, err := tx.MemberCount(v.ID)
+		if err != nil {
+			return err
+		}
+		if n <= 1 {
+			if err := tx.DeleteVault(v.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

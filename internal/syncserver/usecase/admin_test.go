@@ -77,3 +77,28 @@ func TestStatsCountWhatTheServerHolds(t *testing.T) {
 		t.Fatalf("stats = %+v; want 2 accounts, 1 frozen, 2 vaults", st)
 	}
 }
+
+// Deleting an account deletes every vault it alone belongs to - its personal vault and a team with
+// no other member - with their commits and record versions (spec 9.3). A team other accounts still
+// share stays.
+func TestDeleteAccountDeletesTheVaultsItAloneHolds(t *testing.T) {
+	h := servertest.NewHarness(t, 0)
+	alice := h.Register("alice")
+	bob := h.Register("bob")
+	h.NewTeamVault(alice)
+	h.NewTeamVault(alice, servertest.Member{User: bob, Role: vaultsync.RoleEditor})
+	before, _ := h.Svc.Stats(ctx)
+	if before.Vaults != 4 {
+		t.Fatalf("vaults before = %d, want 4 (two personal, two teams)", before.Vaults)
+	}
+	if err := h.Svc.DeleteAccount(ctx, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := h.Svc.Stats(ctx)
+	if after.Accounts != 1 || after.Vaults != 2 {
+		t.Fatalf("after deleting alice: %+v; want bob's personal vault and the team bob shares", after)
+	}
+	if _, err := h.Svc.Vaults(ctx, h.Principal(bob.Access)); err != nil {
+		t.Fatalf("bob's vaults: %v", err)
+	}
+}

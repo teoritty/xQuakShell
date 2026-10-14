@@ -3,6 +3,7 @@ package store
 import (
 	"strings"
 
+	"xquakshell/internal/domain/vaultsync"
 	"xquakshell/internal/syncserver/usecase"
 )
 
@@ -42,4 +43,16 @@ func (t *txn) Stats() (usecase.ServerStats, error) {
 		(SELECT count(*) FROM vaults WHERE deleted = 0), (SELECT count(*) FROM commits),
 		(SELECT coalesce(sum(bytes), 0) FROM vaults WHERE deleted = 0)`).Scan(&st.Accounts, &st.Frozen, &st.Vaults, &st.Commits, &st.Bytes)
 	return st, err
+}
+
+func (t *txn) MemberCount(vault vaultsync.ID) (int, error) {
+	var n int
+	err := t.tx.QueryRowContext(t.ctx, "SELECT count(*) FROM members WHERE vault = ?", vault[:]).Scan(&n)
+	return n, err
+}
+
+// DeleteVault relies on ON DELETE CASCADE for commits, record versions, member ops, members and
+// participants; secure_delete overwrites the ciphertext in the file.
+func (t *txn) DeleteVault(vault vaultsync.ID) error {
+	return t.exec("DELETE FROM vaults WHERE id = ?", vault[:])
 }
