@@ -65,8 +65,16 @@ func withDefaults(cfg Config) Config {
 	if cfg.MaxCommitBody == 0 {
 		cfg.MaxCommitBody = 20 << 20
 	}
+	// The sustained rate bounds what one address can make the server do; the burst has to carry one
+	// client's pass over every vault it syncs, which fetches the device log and membership of each.
+	// A burst of 40 throttled a member of a few teams on every pass, and two devices behind one NAT
+	// kept each other throttled. Passwords are not what this protects: logins have their own backoff
+	// per username and address.
 	if cfg.RatePerSecond == 0 {
-		cfg.RatePerSecond, cfg.Burst = 20, 40
+		cfg.RatePerSecond = 20
+	}
+	if cfg.Burst == 0 {
+		cfg.Burst = 200
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()

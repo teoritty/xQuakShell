@@ -128,3 +128,16 @@ func TestAdminFlagsAfterTheAccountName(t *testing.T) {
 		t.Fatalf("freeze NAME --dir D: %v; want the unknown-account refusal from the right directory", err)
 	}
 }
+
+func TestServeRateFlags(t *testing.T) {
+	cfg, _, err := parseServe([]string{"--dir", "d", "--rate-per-second", "50", "--burst", "500"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ratePerSecond != 50 || cfg.burst != 500 {
+		t.Fatalf("rate %v, burst %d; an operator behind a shared NAT raises both", cfg.ratePerSecond, cfg.burst)
+	}
+	if cfg, _, _ = parseServe([]string{"--dir", "d"}); cfg.ratePerSecond != 0 || cfg.burst != 0 {
+		t.Fatal("without the flags the transport's defaults apply")
+	}
+}

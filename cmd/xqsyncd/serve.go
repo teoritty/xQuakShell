@@ -40,6 +40,9 @@ type serveConfig struct {
 	// personalQuota and teamQuota bound a vault's ciphertext; zero keeps the use case's default.
 	personalQuota uint64
 	teamQuota     uint64
+	// ratePerSecond and burst bound requests per client address; zero keeps the transport's default.
+	ratePerSecond float64
+	burst         int
 }
 
 // openService opens the store and builds the use cases with the key file's secrets. The OPAQUE
@@ -81,7 +84,8 @@ func serve(ctx context.Context, cfg serveConfig, ln net.Listener) error {
 	if err != nil {
 		return err
 	}
-	handler, err := transport.New(transport.Config{IdentitySeed: k.IdentitySeed, TLSPublicKey: spki, Logger: cfg.log}, svc)
+	handler, err := transport.New(transport.Config{IdentitySeed: k.IdentitySeed, TLSPublicKey: spki, Logger: cfg.log,
+		RatePerSecond: cfg.ratePerSecond, Burst: cfg.burst}, svc)
 	if err != nil {
 		return err
 	}

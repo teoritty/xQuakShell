@@ -120,9 +120,12 @@ func parseServe(args []string) (serveConfig, string, error) {
 	key := fs.String("tls-key", "", "TLS key (default DIR/tls.key)")
 	personal := fs.Uint64("personal-quota-mib", 0, "ciphertext quota per personal vault in MiB (default 256)")
 	team := fs.Uint64("team-quota-mib", 0, "ciphertext quota per team vault in MiB (default 1024)")
+	rps := fs.Float64("rate-per-second", 0, "sustained requests per client address (default 20)")
+	burst := fs.Int("burst", 0, "requests a client address may make at once (default 200)")
 	if err := fs.Parse(args); err != nil {
 		return serveConfig{}, "", err
 	}
 	return serveConfig{dir: *dir, certPath: orDefault(*cert, *dir, certFileName), keyPath: orDefault(*key, *dir, keyPEMName),
-		log: slog.New(slog.NewTextHandler(logOutput, nil)), personalQuota: *personal << 20, teamQuota: *team << 20}, *addr, nil
+		log: slog.New(slog.NewTextHandler(logOutput, nil)), personalQuota: *personal << 20, teamQuota: *team << 20,
+		ratePerSecond: *rps, burst: *burst}, *addr, nil
 }

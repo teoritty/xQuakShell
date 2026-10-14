@@ -139,6 +139,12 @@ Each client address may make 20 requests a second (bursts of 40); the applicatio
 to. Each personal vault may hold 256 MiB of ciphertext and each team vault 1 GiB; change these with
 `serve --personal-quota-mib N --team-quota-mib N`.
 
+Requests are limited per client address: 20 a second sustained, 200 at once. A client's sync pass
+fetches the device log and membership of every vault it syncs, so a member of many teams needs the
+burst. Users behind one NAT share one address; raise both with
+`serve --rate-per-second N --burst N` if they report "Too many attempts". Sign-in attempts have
+their own backoff per username and address, independent of this limit.
+
 ## Backups
 
 The data directory holds two things that must be backed up **differently**:
