@@ -354,3 +354,46 @@ func TestControllerCreatesAndListsTeams(t *testing.T) {
 		t.Fatalf("teams = %+v, %v", teams, err)
 	}
 }
+
+// The Sync page lists teams on every reload; re-verifying each team against the server for it
+// tripped the rate limit. A team is verified again only once its stored head or membership moved.
+func TestTeamsAreNotReverifiedUntilTheyChange(t *testing.T) {
+	_, a := registered(t)
+	cd := control(t, a)
+	if err := cd.c.Start(syncCtx); err != nil {
+		t.Fatal(err)
+	}
+	cd.round()
+	team, err := cd.c.CreateTeam(syncCtx, "Ops")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cd.round()
+	if teams, err := cd.c.Teams(syncCtx); err != nil || len(teams) != 1 {
+		t.Fatalf("teams = %+v, %v", teams, err)
+	}
+	fetched := 0
+	a.server.svcServer.tamperLog = func(es []vaultsync.DeviceEntry) []vaultsync.DeviceEntry { fetched++; return es }
+	for range 3 {
+		if teams, err := cd.c.Teams(syncCtx); err != nil || len(teams) != 1 || teams[0].Name != "Ops" {
+			t.Fatalf("teams = %+v, %v", teams, err)
+		}
+	}
+	if fetched != 0 {
+		t.Fatalf("listing an unchanged team fetched the device log %d times", fetched)
+	}
+	if err := cd.c.SetTeamPolicy(syncCtx, team, 45, false); err != nil {
+		t.Fatal(err)
+	}
+	// The op reaches the state store with the next pull, and the listing follows the store.
+	_ = cd.c.SyncNow()
+	cd.round()
+	cd.round()
+	before := fetched
+	if _, err := cd.c.Teams(syncCtx); err != nil {
+		t.Fatal(err)
+	}
+	if fetched == before {
+		t.Fatal("a team whose membership moved was listed from the cache; its role may have changed")
+	}
+}

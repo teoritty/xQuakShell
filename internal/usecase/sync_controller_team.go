@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"slices"
 
 	"xquakshell/internal/domain/vaultsync"
 )
@@ -14,10 +15,18 @@ type TeamInfo struct {
 }
 
 // Teams lists the team vaults the account belongs to, with each one's name and this account's role.
+//
+// The list is read every time the Sync page reloads, which is after every round that changed
+// something. Verifying each team against the server for it - its device logs, membership and name,
+// twice over - made one reload cost tens of requests and tripped the server's rate limit for a
+// member of a handful of teams. A team's name and the role in it change only with a commit or a
+// membership op, both of which land in the state store, so a team is verified again only when its
+// stored head or membership moved; the vaults are the last pass's, which the scheduler already
+// fetched.
 func (c *SyncController) Teams(ctx context.Context) ([]TeamInfo, error) {
 	var out []TeamInfo
 	err := c.withEngine(func(e *SyncEngine, s SyncSession) error {
-		vaults, err := e.Vaults(ctx)
+		vaults, err := c.teamVaults(ctx, e)
 		if err != nil {
 			return err
 		}
@@ -25,7 +34,7 @@ func (c *SyncController) Teams(ctx context.Context) ([]TeamInfo, error) {
 			if v == s.Personal {
 				continue
 			}
-			info, err := e.teamInfo(ctx, v)
+			info, err := c.cachedTeamInfo(ctx, e, v)
 			if err != nil {
 				return err
 			}
@@ -36,12 +45,74 @@ func (c *SyncController) Teams(ctx context.Context) ([]TeamInfo, error) {
 	return out, err
 }
 
-func (e *SyncEngine) teamInfo(ctx context.Context, vault vaultsync.ID) (TeamInfo, error) {
-	_, m, err := withMembers(e.startPull(ctx, vault))
+// teamVaults are the vaults of the scheduler's last pass, or the server's list before there was one.
+func (c *SyncController) teamVaults(ctx context.Context, e *SyncEngine) ([]vaultsync.ID, error) {
+	c.mu.Lock()
+	known := slices.Clone(c.knownVaults)
+	c.mu.Unlock()
+	if known != nil {
+		return known, nil
+	}
+	return e.Vaults(ctx)
+}
+
+// teamStamp is what a team's listing depends on, read from the state store without the network.
+type teamStamp struct {
+	seq uint64
+	ops int
+}
+
+type cachedTeam struct {
+	stamp teamStamp
+	info  TeamInfo
+}
+
+func (c *SyncController) cachedTeamInfo(ctx context.Context, e *SyncEngine, v vaultsync.ID) (TeamInfo, error) {
+	stamp, err := e.teamStamp(ctx, v)
 	if err != nil {
 		return TeamInfo{}, err
 	}
-	name, err := e.TeamName(ctx, vault)
+	c.mu.Lock()
+	hit, ok := c.teams[v]
+	c.mu.Unlock()
+	if ok && hit.stamp == stamp {
+		return hit.info, nil
+	}
+	info, err := e.teamInfo(ctx, v)
+	if err != nil {
+		return TeamInfo{}, err
+	}
+	c.mu.Lock()
+	if c.teams == nil {
+		c.teams = map[vaultsync.ID]cachedTeam{}
+	}
+	c.teams[v] = cachedTeam{stamp: stamp, info: info}
+	c.mu.Unlock()
+	return info, nil
+}
+
+func (e *SyncEngine) teamStamp(ctx context.Context, v vaultsync.ID) (teamStamp, error) {
+	stored, err := e.d.State.LoadVault(ctx, v)
+	if err != nil {
+		return teamStamp{}, err
+	}
+	ops, err := e.d.State.Membership(ctx, v)
+	if err != nil {
+		return teamStamp{}, err
+	}
+	stamp := teamStamp{ops: len(ops)}
+	if stored.Head != nil {
+		stamp.seq = stored.Head.Seq
+	}
+	return stamp, nil
+}
+
+func (e *SyncEngine) teamInfo(ctx context.Context, vault vaultsync.ID) (TeamInfo, error) {
+	p, m, err := withMembers(e.startPull(ctx, vault))
+	if err != nil {
+		return TeamInfo{}, err
+	}
+	name, err := p.teamName()
 	return TeamInfo{Vault: vault, Name: name, Role: m.Role(e.d.Keys.Account())}, err
 }
 
@@ -54,9 +125,26 @@ func (c *SyncController) CreateTeam(ctx context.Context, name string) (vaultsync
 		return err
 	})
 	if err == nil {
+		c.noteVault(id, true)
 		c.Notify()
 	}
 	return id, err
+}
+
+// noteVault adds or removes a vault this device created or left in the last pass's list, so the
+// team list shows the change before the next pass confirms it. A list not taken yet stays untaken:
+// Teams then asks the server.
+func (c *SyncController) noteVault(id vaultsync.ID, present bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.knownVaults == nil {
+		return
+	}
+	c.knownVaults = slices.DeleteFunc(c.knownVaults, func(v vaultsync.ID) bool { return v == id })
+	if present {
+		c.knownVaults = append(c.knownVaults, id)
+	}
+	delete(c.teams, id)
 }
 
 // LookupInvitee finds an account to invite and the fingerprint to compare.
@@ -98,7 +186,11 @@ func (c *SyncController) RemoveTeamMember(ctx context.Context, vault, account va
 
 // LeaveTeam removes this account from a team vault and drops its local copy.
 func (c *SyncController) LeaveTeam(ctx context.Context, vault vaultsync.ID) error {
-	return c.withEngine(func(e *SyncEngine, _ SyncSession) error { return e.LeaveTeam(ctx, vault) })
+	err := c.withEngine(func(e *SyncEngine, _ SyncSession) error { return e.LeaveTeam(ctx, vault) })
+	if err == nil {
+		c.noteVault(vault, false)
+	}
+	return err
 }
 
 // VerifyTeamMember records that this user compared a member's fingerprint.

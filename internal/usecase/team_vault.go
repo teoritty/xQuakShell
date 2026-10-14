@@ -279,7 +279,12 @@ func (e *SyncEngine) TeamName(ctx context.Context, vault vaultsync.ID) (string, 
 	if err != nil {
 		return "", err
 	}
-	meta, ok := p.base[synctrust.VaultMetaID(vault)]
+	return p.teamName()
+}
+
+// teamName reads the name from the vault-meta a started pull holds.
+func (p *pullRun) teamName() (string, error) {
+	meta, ok := p.base[synctrust.VaultMetaID(p.vault)]
 	if !ok {
 		return "", nil
 	}
