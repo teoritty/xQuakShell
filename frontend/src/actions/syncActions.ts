@@ -20,7 +20,10 @@ import {
   type EnableSyncRequest,
   type SyncServerProbe,
 } from '../api/sync';
-import { syncStatus } from '../stores/syncState';
+import { syncRevision, syncStatus } from '../stores/syncState';
+import { refreshFolders } from './folderActions';
+import { refreshAllConnections, refreshIdentities } from './connectionActions';
+import { applyAppearanceSettings } from './settingsActions';
 
 export function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
@@ -38,12 +41,28 @@ async function attempt(fn: () => Promise<unknown>): Promise<string> {
   return msg;
 }
 
+/** attempt for an action that writes into the vault: the views re-read it afterwards. */
+async function mutate(fn: () => Promise<unknown>): Promise<string> {
+  const msg = await attempt(fn);
+  await refreshAfterSync();
+  return msg;
+}
+
 export async function refreshSyncStatus(): Promise<void> {
   try {
     syncStatus.set(await getSyncStatusRpc());
   } catch {
     // The status keeps its last value; the next event or refresh corrects it.
   }
+}
+
+/**
+ * Re-reads everything sync can change that the app keeps on screen - the tree, the keys, the
+ * appearance - and tells every open list to reload. Each refresh owns its own error display.
+ */
+export async function refreshAfterSync(): Promise<void> {
+  await Promise.all([refreshFolders(), refreshAllConnections(), refreshIdentities(), applyAppearanceSettings()]);
+  syncRevision.update((n) => n + 1);
 }
 
 export async function probeSyncServer(url: string): Promise<{ probe?: SyncServerProbe; error?: string }> {
@@ -65,7 +84,7 @@ export async function enableSync(req: EnableSyncRequest): Promise<{ joinNeeded: 
 
 export async function joinSync(choice: 'merge' | 'replace'): Promise<{ backup: string; error: string }> {
   let backup = '';
-  const error = await attempt(async () => {
+  const error = await mutate(async () => {
     backup = await joinSyncRpc(choice);
   });
   return { backup, error };
@@ -78,10 +97,10 @@ export const revokeSyncDevice = (id: string, password: string) => attempt(() => 
 export const disableSync = () => attempt(() => disableSyncRpc());
 export const syncNow = () => attempt(() => syncNowRpc());
 export const confirmSyncHeld = (record: string, masterPassword: string) =>
-  attempt(() => confirmSyncHeldRpc(record, masterPassword));
-export const rejectSyncHeld = (record: string) => attempt(() => rejectSyncHeldRpc(record));
-export const resolveSyncConflict = (id: string, useOther: boolean) => attempt(() => resolveSyncConflictRpc(id, useOther));
-export const restoreSyncTrash = (record: string) => attempt(() => restoreSyncTrashRpc(record));
+  mutate(() => confirmSyncHeldRpc(record, masterPassword));
+export const rejectSyncHeld = (record: string) => mutate(() => rejectSyncHeldRpc(record));
+export const resolveSyncConflict = (id: string, useOther: boolean) => mutate(() => resolveSyncConflictRpc(id, useOther));
+export const restoreSyncTrash = (record: string) => mutate(() => restoreSyncTrashRpc(record));
 
 /** Shred now cannot be undone; an empty master password is refused here so it is never sent. */
 export async function shredSyncNow(masterPassword: string): Promise<string> {

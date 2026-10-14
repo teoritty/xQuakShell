@@ -6,6 +6,10 @@ export function AcknowledgeRecoveryKey() {
   return window['go']['main']['App']['AcknowledgeRecoveryKey']();
 }
 
+export function AcknowledgeSyncDevices(arg1) {
+  return window['go']['main']['App']['AcknowledgeSyncDevices'](arg1);
+}
+
 export function AddGitHubRepository(arg1) {
   return window['go']['main']['App']['AddGitHubRepository'](arg1);
 }

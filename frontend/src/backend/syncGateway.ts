@@ -8,14 +8,21 @@ export interface SyncStatus {
   running: boolean;
   state: 'off' | 'idle' | 'running' | 'failed' | 'stopped';
   message?: string;
+  /** What a stopped account needs: sign in again, let the removed device go, or look into tampering. */
+  stopReason?: 'signIn' | 'revoked' | 'integrity';
   held: number;
   quarantined: number;
-  newDevices?: string[];
+  /** Devices that joined after this one, announced until acknowledged. */
+  newDevices?: SyncDevice[];
   serverUrl?: string;
   username?: string;
   fingerprint?: string;
+  /** This account's own fingerprint, the one a team admin compares before inviting it. */
+  accountFingerprint?: string;
   rekeyPending?: boolean;
   joinPending?: boolean;
+  /** Changes the reporting round wrote into the vault; above zero, open views re-read it. */
+  applied?: number;
 }
 
 export interface SyncServerProbe {
@@ -45,6 +52,8 @@ export interface SyncHeld {
   record: string;
   type: string;
   key: string;
+  /** What the person called the item; absent for a settings section. */
+  name?: string;
   reason: string;
   pending: boolean;
   atUnixMilli: number;
@@ -54,7 +63,10 @@ export interface SyncConflict {
   id: string;
   recordType: string;
   itemKey: string;
+  itemName?: string;
   path: string[];
+  /** One entry per path segment: the element's name for an "[id=…]" selector, "" otherwise. */
+  pathNames: string[];
   secret: boolean;
   local?: string;
   remote?: string;
@@ -65,6 +77,7 @@ export interface SyncTrashItem {
   record: string;
   type: string;
   key: string;
+  name?: string;
   deletedUnixMilli: number;
   purgeUnixMilli: number;
   restorable: boolean;
@@ -120,6 +133,7 @@ export interface SyncGateway {
   ChangeSyncPassword(oldPassword: string, newPassword: string): Promise<void>;
   ResetSyncPassword(newPassword: string): Promise<void>;
   RevokeSyncDevice(deviceId: string, password: string): Promise<void>;
+  AcknowledgeSyncDevices(deviceIds: string[]): Promise<void>;
   DisableSync(): Promise<void>;
   SyncNow(): Promise<void>;
   ListSyncDevices(): Promise<SyncDevice[]>;

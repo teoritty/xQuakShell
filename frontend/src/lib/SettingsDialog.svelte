@@ -22,6 +22,7 @@
     draftFromSettings,
     draftToSettings,
   } from './settings/settingsDraft';
+  import { rebaseDraft } from './draftRebase';
   import { getAuditSessionState } from '../api/audit';
   import { tabHasSearchMatches, tabLabelKey, type SettingsTabId } from './settingsSearch';
   import { applyUiScalePercent } from './uiScale';
@@ -50,6 +51,9 @@
   let searchPinnedTab: SettingsTabId | null = null;
 
   let draft = defaultSettingsDraft();
+  // What the dialog opened with: Save writes only what the person changed since, onto the settings
+  // as they are then, so a setting another device synced in while the dialog was open survives it.
+  let openedDraft = draft;
   let hotkeyConflict = '';
   // Not part of the draft: secret logging is session state the backend owns, while the scale and
   // language are remembered only so cancelling can undo their live previews.
@@ -119,6 +123,7 @@
   async function loadSettings() {
     loading = true;
     draft = draftFromSettings(await getSettings());
+    openedDraft = { ...draft };
     uiScaleAtOpen = draft.uiScalePercent;
     languageAtOpen = draft.language;
     const sessionState = await getAuditSessionState();
@@ -141,7 +146,8 @@
     hotkeyConflict = findHotkeyConflict(draft, $t);
     if (hotkeyConflict) return;
     saving = true;
-    await saveSettings(draftToSettings(draft));
+    const latest = draftFromSettings(await getSettings());
+    await saveSettings(draftToSettings(rebaseDraft(draft, openedDraft, latest)));
     window.dispatchEvent(new CustomEvent('app-settings-updated'));
     uiScaleAtOpen = draft.uiScalePercent;
     languageAtOpen = draft.language;

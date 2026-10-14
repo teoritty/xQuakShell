@@ -5,6 +5,8 @@ import {json} from '../models';
 
 export function AcknowledgeRecoveryKey():Promise<void>;
 
+export function AcknowledgeSyncDevices(arg1:Array<string>):Promise<void>;
+
 export function AddGitHubRepository(arg1:wails.AddGitHubRepositoryRequest):Promise<void>;
 
 export function ApplyDiscoveryNodeDetails(arg1:string,arg2:string,arg3:string,arg4:Record<string, string>):Promise<void>;

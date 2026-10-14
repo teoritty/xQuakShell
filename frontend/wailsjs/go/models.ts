@@ -2245,7 +2245,9 @@ export namespace wails {
 	    id: string;
 	    recordType: string;
 	    itemKey: string;
+	    itemName?: string;
 	    path: string[];
+	    pathNames: string[];
 	    secret: boolean;
 	    local?: string;
 	    remote?: string;
@@ -2260,7 +2262,9 @@ export namespace wails {
 	        this.id = source["id"];
 	        this.recordType = source["recordType"];
 	        this.itemKey = source["itemKey"];
+	        this.itemName = source["itemName"];
 	        this.path = source["path"];
+	        this.pathNames = source["pathNames"];
 	        this.secret = source["secret"];
 	        this.local = source["local"];
 	        this.remote = source["remote"];
@@ -2293,6 +2297,7 @@ export namespace wails {
 	    record: string;
 	    type: string;
 	    key: string;
+	    name?: string;
 	    reason: string;
 	    pending: boolean;
 	    atUnixMilli: number;
@@ -2306,6 +2311,7 @@ export namespace wails {
 	        this.record = source["record"];
 	        this.type = source["type"];
 	        this.key = source["key"];
+	        this.name = source["name"];
 	        this.reason = source["reason"];
 	        this.pending = source["pending"];
 	        this.atUnixMilli = source["atUnixMilli"];
@@ -2410,12 +2416,15 @@ export namespace wails {
 	    message?: string;
 	    held: number;
 	    quarantined: number;
-	    newDevices?: string[];
 	    serverUrl?: string;
 	    username?: string;
 	    fingerprint?: string;
 	    rekeyPending?: boolean;
 	    joinPending?: boolean;
+	    newDevices?: SyncDeviceDTO[];
+	    accountFingerprint?: string;
+	    stopReason?: string;
+	    applied?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new SyncStatusDTO(source);
@@ -2429,18 +2438,40 @@ export namespace wails {
 	        this.message = source["message"];
 	        this.held = source["held"];
 	        this.quarantined = source["quarantined"];
-	        this.newDevices = source["newDevices"];
 	        this.serverUrl = source["serverUrl"];
 	        this.username = source["username"];
 	        this.fingerprint = source["fingerprint"];
 	        this.rekeyPending = source["rekeyPending"];
 	        this.joinPending = source["joinPending"];
+	        this.newDevices = this.convertValues(source["newDevices"], SyncDeviceDTO);
+	        this.accountFingerprint = source["accountFingerprint"];
+	        this.stopReason = source["stopReason"];
+	        this.applied = source["applied"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class SyncTrashItemDTO {
 	    record: string;
 	    type: string;
 	    key: string;
+	    name?: string;
 	    deletedUnixMilli: number;
 	    purgeUnixMilli: number;
 	    restorable: boolean;
@@ -2454,6 +2485,7 @@ export namespace wails {
 	        this.record = source["record"];
 	        this.type = source["type"];
 	        this.key = source["key"];
+	        this.name = source["name"];
 	        this.deletedUnixMilli = source["deletedUnixMilli"];
 	        this.purgeUnixMilli = source["purgeUnixMilli"];
 	        this.restorable = source["restorable"];

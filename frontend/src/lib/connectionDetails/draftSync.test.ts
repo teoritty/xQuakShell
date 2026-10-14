@@ -1,17 +1,21 @@
-import { nextDraftSync, type DraftSyncInputs } from './draftSync';
+import { followRecord, nextDraftSync, recordKey, type DraftSyncInputs } from './draftSync';
+import { rebaseDraft } from '../draftRebase';
+import { createDraftFromConnection } from './connectionDraft';
+import type { Connection } from '../../stores/appState';
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg);
 }
+
+const desk: Connection = { id: 'c1', name: 'Desk', host: 'old.example', port: 22, protocol: 'ssh' } as Connection;
 
 // An open panel, showing the record it last adopted, with nothing pending.
 function settled(over: Partial<DraftSyncInputs> = {}): DraftSyncInputs {
   return {
     connId: 'c1',
     draftId: 'c1',
-    recordName: 'Desk',
-    boundRecordName: 'Desk',
-    dirty: false,
+    recordKey: recordKey(desk),
+    boundRecordKey: recordKey(desk),
     catalogKey: 'cat-1',
     boundCatalogKey: 'cat-1',
     ...over,
@@ -21,40 +25,55 @@ function settled(over: Partial<DraftSyncInputs> = {}): DraftSyncInputs {
 assert(nextDraftSync(settled()) === 'none', 'a settled panel must not re-read anything');
 assert(nextDraftSync(settled({ connId: '' })) === 'none', 'a closed panel has nothing to sync');
 
-// The reported defect: renaming from the tree changes the record, never its id.
+// A rename from the tree and a host changed on another device both move the record, never its id.
 assert(
-  nextDraftSync(settled({ recordName: 'Desk (office)' })) === 'follow-name',
+  nextDraftSync(settled({ recordKey: recordKey({ ...desk, name: 'Desk (office)' }) })) === 'follow-record',
   'a name changed elsewhere must reach the panel',
 );
-
-// Typing moves the draft and leaves the record alone, so it can never look like a rename made
-// elsewhere. This is the assertion that matters: `dirty` lags a keystroke by one reactive pass, so
-// asking "does the draft differ from the record" answered "yes, and nothing is unsaved" mid-word and
-// wrote the record back over every character typed.
 assert(
-  nextDraftSync(settled({ recordName: 'Desk', boundRecordName: 'Desk', dirty: false })) === 'none',
-  'a draft that moved while the record stood still is not a rename',
+  nextDraftSync(settled({ recordKey: recordKey({ ...desk, host: 'new.example' }) })) === 'follow-record',
+  'a host changed on another device must reach the panel, not only a rename',
 );
 
-// The user's own unsaved edit outranks a rename from elsewhere — the autosave settles the two.
-assert(
-  nextDraftSync(settled({ recordName: 'Desk (office)', dirty: true })) === 'none',
-  'a dirty draft must never be overwritten from the record',
-);
-
-// A different connection is a full rebuild, and it wins over both other cases.
+// A different connection is a full rebuild, and it wins over every other case.
 assert(nextDraftSync(settled({ draftId: 'c2' })) === 'rebuild', 'a new connection rebuilds the draft');
 assert(
-  nextDraftSync(settled({ draftId: 'c2', dirty: true, recordName: 'Other' })) === 'rebuild',
-  'switching connections rebuilds even from a dirty draft',
+  nextDraftSync(settled({ draftId: 'c2', recordKey: recordKey({ ...desk, name: 'Other' }) })) === 'rebuild',
+  'switching connections rebuilds whatever else moved',
 );
 
-// A catalog change re-binds the protocol fields and is decided first. The name is not lost by that:
-// re-binding records the new catalog key and not the new record name, so the next pass follows it.
+// A catalog change re-binds the protocol fields and is decided first; the record is followed on the
+// next pass, because re-binding records the new catalog key and not the new record.
 assert(nextDraftSync(settled({ catalogKey: 'cat-2' })) === 'catalog', 'a new catalog re-binds fields');
 assert(
-  nextDraftSync(settled({ catalogKey: 'cat-2', recordName: 'Renamed' })) === 'catalog',
-  'the catalog is decided before the name',
+  nextDraftSync(settled({ catalogKey: 'cat-2', recordKey: recordKey({ ...desk, name: 'Renamed' }) })) === 'catalog',
+  'the catalog is decided before the record',
 );
+
+// rebaseDraft is a per-field three-way merge.
+{
+  const base = { name: 'a', host: 'h1', port: 22 };
+  const draft = { name: 'typed', host: 'h1', port: 22 };
+  const latest = { name: 'a', host: 'h2', port: 2222 };
+  const out = rebaseDraft(draft, base, latest);
+  assert(out.name === 'typed', 'the person\'s unsaved edit survives the record moving');
+  assert(out.host === 'h2' && out.port === 2222, 'every field the person did not touch follows the record');
+  const both = rebaseDraft({ ...draft, host: 'mine' }, base, latest);
+  assert(both.host === 'mine', 'where both changed the same field, the edit on screen wins and autosaves');
+}
+
+// The data loss this exists to stop, end to end: another device changed the host while the panel
+// was open; the person then renamed the connection. The draft that autosaves must carry the other
+// device's host, not the one the panel opened with.
+{
+  const opened = createDraftFromConnection(desk, 22);
+  const renamed = { ...opened, name: 'Desk renamed' };
+  const remote: Connection = { ...desk, host: 'moved.example' };
+  const followed = followRecord(renamed, desk, remote, []);
+  assert(followed.host === 'moved.example', `host = ${followed.host}; saving the stale host would revert the other device everywhere`);
+  assert(followed.name === 'Desk renamed', 'the rename being typed is kept');
+  const untouched = followRecord(opened, desk, remote, []);
+  assert(untouched.host === 'moved.example' && untouched.name === 'Desk', 'an untouched panel shows the record as it now is');
+}
 
 console.log('draftSync tests passed');

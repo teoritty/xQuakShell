@@ -25,7 +25,7 @@
   } from './connectionDetails/connectionFormMode';
   import type { ConnectionProtocol } from '../actions/protocolActions';
   import { buildConnectionSavePayload } from './connectionDetails/savePayload';
-  import { nextDraftSync } from './connectionDetails/draftSync';
+  import { followRecord, nextDraftSync, recordKey } from './connectionDetails/draftSync';
   import { adoptPersistedHopIds } from './connectionDetails/hopIds';
   import { adoptPersistedRuleIds } from './connectionDetails/forwardRuleIds';
   import {
@@ -53,7 +53,7 @@
   let saveStatus: SaveStatus = 'idle';
   let addingTag = false;
   let newTagValue = '';
-  let boundCatalogKey = '', boundRecordName = '';
+  let boundCatalogKey = '', boundRecord: Connection | null = null;
   let formMode: ConnectionFormMode = 'none';
   let formProtocolDef: ConnectionProtocol | null = null;
   const autosaveState = createAutosaveTimerState();
@@ -67,13 +67,13 @@
     void refreshConnectionProtocols();
   });
 
-  // Why a rename made anywhere else has to reach an open panel, why the name is the only field that
-  // can arrive this way, and why the record is compared against itself rather than against the
-  // draft, is in draftSync.ts.
-  $: switch (nextDraftSync({ connId, draftId: draft.editingId, recordName: $detailsConnection?.name ?? '', boundRecordName, dirty, catalogKey: protocolCatalogKey, boundCatalogKey })) {
-    case 'rebuild': boundCatalogKey = protocolCatalogKey; boundRecordName = $detailsConnection?.name ?? ''; syncDraftFromConnection(); break;
+  // Why a change made anywhere else - a rename in the tree, an edit on another device - has to reach
+  // an open panel, why the record is compared against itself rather than against the draft, and
+  // how an unsaved edit survives the record moving under it, is in draftSync.ts.
+  $: switch (nextDraftSync({ connId, draftId: draft.editingId, recordKey: recordKey($detailsConnection), boundRecordKey: recordKey(boundRecord), catalogKey: protocolCatalogKey, boundCatalogKey })) {
+    case 'rebuild': boundCatalogKey = protocolCatalogKey; boundRecord = $detailsConnection; syncDraftFromConnection(); break;
     case 'catalog': boundCatalogKey = protocolCatalogKey; resyncProtocolCatalog(); break;
-    case 'follow-name': boundRecordName = $detailsConnection?.name ?? ''; if (draft.name.trim() !== boundRecordName) draft.name = boundRecordName; break;
+    case 'follow-record': draft = followRecord(draft, boundRecord, $detailsConnection, protocols); boundRecord = $detailsConnection; updateFormMode(); break;
   }
 
   function updateFormMode() {
