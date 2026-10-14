@@ -2,16 +2,18 @@
   // This member's own credentials for team connections whose users take one from each member.
   // A binding another member suspended by repointing the connection shows who did it and waits for
   // a confirmation of the new address before the credential is used again.
-  import { onMount } from 'svelte';
-  import { listCredentialBindingsRpc, type CredentialBinding } from '../../../api/team';
+  import { listCredentialBindingsRpc, listTeamMembersRpc, type CredentialBinding } from '../../../api/team';
   import { bindCredential, confirmBinding } from '../../../actions/teamActions';
   import { errorMessage } from '../../../actions/syncActions';
   import { fetchKeys, type StoredKey } from '../../../api/keys';
   import { connections } from '../../../stores/appState';
+  import { syncRevision } from '../../../stores/syncState';
   import { t } from '../../../i18n/messages';
 
   let bindings: CredentialBinding[] = [];
   let keys: StoredKey[] = [];
+  // Who suspended a binding, by name: the account id alone told the person nothing.
+  let names: Record<string, string> = {};
   let target = '';
   let key = '';
   let busy = false;
@@ -22,15 +24,24 @@
     c.vaultId ? (c.users ?? []).filter((u) => u.credentialSource === 'personal').map((u) => ({ c, u })) : [],
   );
 
-  onMount(load);
+  $: void load($syncRevision);
 
-  async function load() {
+  async function load(..._deps: unknown[]) {
     try {
       [bindings, keys] = await Promise.all([listCredentialBindingsRpc(), fetchKeys()]);
+      names = await suspenderNames(bindings);
       error = '';
     } catch (e) {
       error = errorMessage(e);
     }
+  }
+
+  async function suspenderNames(list: CredentialBinding[]): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    for (const vault of new Set(list.filter((b) => b.suspendedBy).map((b) => b.vault))) {
+      for (const m of await listTeamMembersRpc(vault)) if (m.username) out[m.account] = m.username;
+    }
+    return out;
   }
 
   function label(b: CredentialBinding): string {
@@ -53,17 +64,16 @@
   }
 </script>
 
+{#if bindings.length > 0 || open.length > 0}
 <div class="section">
   <h4>{$t('sync.bindings.title')}</h4>
-  {#if bindings.length === 0}
-    <p class="sync-hint">{$t('sync.bindings.none')}</p>
-  {:else}
+  {#if bindings.length > 0}
     <ul class="sync-list">
       {#each bindings as b (b.vault + b.connection + b.user)}
         <li>
           <div>{label(b)}</div>
           {#if b.suspendedBy}
-            <div class="sync-error">{$t('sync.bindings.suspended', { account: b.suspendedBy.slice(0, 8) })}</div>
+            <div class="sync-error">{$t('sync.bindings.suspended', { account: names[b.suspendedBy] ?? $t('sync.teams.unknownMember') })}</div>
             <div class="sync-actions">
               <button type="button" class="primary" on:click={() => act(() => confirmBinding(b))} disabled={busy}>{$t('sync.bindings.confirm')}</button>
             </div>
@@ -91,3 +101,4 @@
   {/if}
   <p class="sync-error" role="alert">{error}</p>
 </div>
+{/if}

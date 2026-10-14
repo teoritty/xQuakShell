@@ -49,6 +49,9 @@
     "src/lib/transferRate.ts",
     "src/lib/transferPresentation.ts",
     "src/lib/settings/sync/pluginOffers.ts",
+    "src/lib/settings/sync/syncLink.ts",
+    "src/lib/settings/sync/syncLabels.ts",
+    "src/lib/draftRebase.ts",
     "!src/**/*.test.ts"
   ],
   "reporters": [

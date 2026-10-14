@@ -1,11 +1,13 @@
 <script lang="ts">
   // Team vaults the account belongs to, and creating one. Choosing a team opens its members and
-  // the actions this account's role allows there.
-  import { onMount } from 'svelte';
+  // the actions this account's role allows there. The account's own fingerprint is shown here
+  // because this is where it is needed: an admin compares it, over another channel, before
+  // inviting this account, and a person who cannot read theirs out can only tick "matches" blind.
   import SyncTeamDetail from './SyncTeamDetail.svelte';
   import { listTeamsRpc, type Team } from '../../../api/team';
   import { createTeam } from '../../../actions/teamActions';
   import { errorMessage } from '../../../actions/syncActions';
+  import { syncRevision, syncStatus } from '../../../stores/syncState';
   import { t } from '../../../i18n/messages';
 
   let teams: Team[] = [];
@@ -14,9 +16,9 @@
   let busy = false;
   let error = '';
 
-  onMount(load);
+  $: void load($syncRevision);
 
-  async function load() {
+  async function load(..._deps: unknown[]) {
     try {
       teams = await listTeamsRpc();
       error = '';
@@ -40,6 +42,10 @@
 
 <div class="section">
   <h4>{$t('sync.teams.title')}</h4>
+  {#if $syncStatus.accountFingerprint}
+    <p class="sync-hint">{$t('security.sync.teams.ownHint')}</p>
+    <p class="sync-fingerprint">{$syncStatus.accountFingerprint}</p>
+  {/if}
   {#if teams.length === 0}
     <p class="sync-hint">{$t('sync.teams.none')}</p>
   {:else}

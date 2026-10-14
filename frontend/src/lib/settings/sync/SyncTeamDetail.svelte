@@ -15,6 +15,7 @@
   } from '../../../actions/teamActions';
   import { errorMessage } from '../../../actions/syncActions';
   import { connections } from '../../../stores/appState';
+  import { syncStatus } from '../../../stores/syncState';
   import { t } from '../../../i18n/messages';
 
   export let team: Team;
@@ -26,6 +27,9 @@
   let compared = false;
   let role = 'editor';
   let moving = '';
+  // Removing a member moves the team to new keys, so it asks a second click like every other step
+  // that cannot be taken back.
+  let removing = '';
   let busy = false;
   let error = '';
 
@@ -52,6 +56,15 @@
     dispatch('changed');
   }
 
+  function removeClicked(account: string) {
+    if (removing !== account) {
+      removing = account;
+      return;
+    }
+    removing = '';
+    void act(() => removeMember(team.vault, account));
+  }
+
   async function lookup() {
     busy = true;
     const res = await lookupInvitee(username);
@@ -74,12 +87,17 @@
 
 <div class="section">
   <h4>{team.name}</h4>
+  {#if team.role === 'viewer'}
+    <p class="sync-hint">{$t('sync.teams.viewerHint')}</p>
+  {/if}
   <ul class="sync-list">
     {#each members as m (m.account)}
       <li>
-        <div>{m.username || m.account.slice(0, 8)} {#if m.current}({$t('sync.devices.this')}){/if}</div>
+        <div>{m.current ? $syncStatus.username : m.username || $t('sync.teams.unknownMember')} {#if m.current}({$t('sync.teams.you')}){/if}</div>
         <div class="sync-meta">{m.fingerprint}</div>
-        <div class="sync-meta">{m.verified ? $t('sync.teams.verified') : $t('sync.teams.unverified')}</div>
+        {#if !m.current}
+          <div class="sync-meta">{m.verified ? $t('sync.teams.verified') : $t('sync.teams.unverified')}</div>
+        {/if}
         <div class="sync-actions">
           {#if manager && m.role !== 'owner' && !m.current}
             <select value={m.role} on:change={(e) => act(() => changeRole(team.vault, m.account, e.currentTarget.value))} disabled={busy}>
@@ -87,8 +105,8 @@
               <option value="editor">{$t('sync.teams.role.editor')}</option>
               <option value="viewer">{$t('sync.teams.role.viewer')}</option>
             </select>
-            <button type="button" class="secondary" on:click={() => act(() => removeMember(team.vault, m.account))} disabled={busy}>
-              {$t('sync.teams.remove')}
+            <button type="button" class="secondary" on:click={() => removeClicked(m.account)} disabled={busy}>
+              {removing === m.account ? $t('sync.teams.removeConfirm') : $t('sync.teams.remove')}
             </button>
           {:else}
             <span class="sync-meta">{$t('sync.teams.role.' + m.role)}</span>
@@ -110,9 +128,9 @@
       <button type="button" class="secondary" on:click={lookup} disabled={busy || !username.trim()}>{$t('sync.teams.lookup')}</button>
     </div>
     {#if invitee}
-      <p class="sync-hint">{$t('sync.teams.compare')}</p>
+      <p class="sync-hint">{$t('security.sync.teams.compare')}</p>
       <p class="sync-fingerprint">{invitee.fingerprint}</p>
-      <label><input type="checkbox" bind:checked={compared} /> {$t('sync.teams.compared')}</label>
+      <label><input type="checkbox" bind:checked={compared} /> {$t('security.sync.teams.compared')}</label>
       <div class="sync-actions">
         <select bind:value={role} disabled={busy}>
           <option value="admin">{$t('sync.teams.role.admin')}</option>

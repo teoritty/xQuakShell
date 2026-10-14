@@ -1,10 +1,10 @@
 <script lang="ts">
   // The account's devices. Removing one asks for the sync password: the account keys rotate and
   // the new bundle is sealed under it, so the removed device can never fetch them again.
-  import { onMount } from 'svelte';
   import PasswordField from '../../vault/PasswordField.svelte';
   import { listSyncDevicesRpc, type SyncDevice } from '../../../api/sync';
   import { errorMessage, revokeSyncDevice } from '../../../actions/syncActions';
+  import { syncRevision, syncStatus } from '../../../stores/syncState';
   import { t } from '../../../i18n/messages';
 
   let devices: SyncDevice[] = [];
@@ -13,9 +13,11 @@
   let busy = false;
   let error = '';
 
-  onMount(load);
+  // The list follows the device log: a device that joined, or one removed elsewhere, shows without
+  // the page reopening.
+  $: void load($syncRevision, $syncStatus.newDevices?.length);
 
-  async function load() {
+  async function load(..._deps: unknown[]) {
     try {
       devices = await listSyncDevicesRpc();
       error = '';

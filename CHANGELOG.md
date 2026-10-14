@@ -45,8 +45,10 @@ no passphrase is asked for.
 `xqsyncd`, the self-hosted sync server that ships with this release for Windows and Linux
 ([admin guide](docs/sync-server.md)). Everything is encrypted and signed on the device; the server
 cannot read a host name, a password or a folder name, cannot alter a record, and cannot roll a vault
-back or add a device without every device noticing. On first connection you compare the server's
-fingerprint with the one its operator gave you. A second device signs in with the sync password;
+back or add a device without every device noticing. Signing in is one screen: paste the connect link
+the server prints (`https://host:8443/#fp=…`) and the application checks the server's fingerprint
+itself, or enter the address and compare the fingerprint it shows with the one its operator gave
+you. Fingerprints, the device list, the sync password and Shred now sit under Advanced. A second device signs in with the sync password;
 every other device announces it and can remove it, which replaces the account keys. Edits made
 offline on two devices merge field by field; the same credential edited on both becomes a conflict
 you resolve. A change from another device that would weaken this one — turning off plugin

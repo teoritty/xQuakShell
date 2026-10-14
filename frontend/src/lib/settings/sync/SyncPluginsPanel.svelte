@@ -2,8 +2,9 @@
   // Plugins on the Sync page (spec 6.4-6.5): the plugins the user's other devices recorded, and the
   // plugins whose data follows the user. Nothing here installs or uninstalls by itself - every
   // install goes through the same consent screen as the Plugins screen, and an uninstall is a
-  // button pressed twice because it is the one action that can lose data.
-  import { onMount } from 'svelte';
+  // button pressed twice because it is the one action that can lose data. Offers, conflicts and
+  // updates waiting for a restart show whenever there are any; the per-plugin switches only with
+  // the advanced settings, since syncing a plugin's data is the default and rarely changed.
   import InstallFlow from '../../plugins/InstallFlow.svelte';
   import type { ConsentAnswers } from '../../plugins/installConsent';
   import { offerActions, offerMessageKey } from './pluginOffers';
@@ -17,8 +18,10 @@
   import { removePlugin } from '../../../actions/pluginsActions';
   import { errorMessage } from '../../../actions/syncActions';
   import type { SyncPluginData, SyncPluginOffer } from '../../../api/syncPlugins';
-  import { dismissPluginDataNotice, pluginDataNotices } from '../../../stores/syncState';
+  import { dismissPluginDataNotice, pluginDataNotices, syncRevision } from '../../../stores/syncState';
   import { t } from '../../../i18n/messages';
+
+  export let advanced = false;
 
   let offers: SyncPluginOffer[] = [];
   let data: SyncPluginData[] = [];
@@ -28,9 +31,10 @@
   let busy = false;
   let error = '';
 
-  onMount(load);
+  $: needsYou = $pluginDataNotices.length > 0 || data.some((d) => d.waiting > 0);
+  $: void load($syncRevision);
 
-  async function load() {
+  async function load(..._deps: unknown[]) {
     const res = await loadPluginSync();
     offers = res.offers;
     data = res.data;
@@ -77,11 +81,10 @@
   const nameOf = (id: string) => data.find((d) => d.pluginId === id)?.name || id;
 </script>
 
+{#if offers.length > 0 || mismatch}
 <div class="section">
   <h4>{$t('sync.plugins.offers.title')}</h4>
-  {#if offers.length === 0}
-    <p class="sync-hint">{$t('sync.plugins.offers.none')}</p>
-  {:else}
+  {#if offers.length > 0}
     <ul class="sync-list">
       {#each offers as o (o.pluginId)}
         <li>
@@ -107,7 +110,9 @@
     </div>
   {/if}
 </div>
+{/if}
 
+{#if advanced || needsYou}
 <div class="section">
   <h4>{$t('sync.plugins.data.title')}</h4>
   {#each $pluginDataNotices as n (n.pluginId)}
@@ -147,6 +152,7 @@
   {/if}
   <p class="sync-error" role="alert">{error}</p>
 </div>
+{/if}
 
 <InstallFlow
   bind:this={installFlow}

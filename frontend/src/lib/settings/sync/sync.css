@@ -48,3 +48,78 @@
   font-size: 11px;
   color: var(--text-secondary);
 }
+
+.settings-content .sync-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 420px;
+}
+
+.settings-content .sync-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.settings-content .sync-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+
+.settings-content .sync-identity.mismatch {
+  border-color: var(--danger);
+}
+
+.settings-content .sync-ok {
+  font-size: 11px;
+  color: var(--success, #4caf50);
+}
+
+.settings-content .sync-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-content .sync-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+}
+
+.settings-content .sync-dot.ok {
+  background: var(--success, #4caf50);
+}
+
+.settings-content .sync-dot.bad {
+  background: var(--danger);
+}
+
+.settings-content .sync-attention {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--accent, var(--border));
+  background: var(--bg-secondary, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-content .sync-attention.danger {
+  border-left-color: var(--danger);
+}
+
+.settings-content .sync-attention p {
+  margin: 0;
+}
+
+.settings-content .sync-advanced-toggle {
+  margin: 12px 0 4px;
+}
