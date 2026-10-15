@@ -59,10 +59,14 @@ In `data/`, next to the binary:
 Back up `data/`, or copy the whole directory, and your setup moves with it. Deleting this directory
 removes the application and its data together.
 
-## If the window is blank or does not appear
+## If the window is blank, or dies with `Gdk-Message: Error 71`
 
 Some GPU and virtual-machine driver combinations do not work with WebKitGTK's default rendering
-path. Both of these are WebKitGTK settings, not application settings:
+path. On the proprietary NVIDIA driver this is the usual cause of both a blank window and an
+immediate exit with `Error 71 (Protocol error) dispatching to Wayland display` or
+`Failed to create GBM buffer` — one failure, seen from two distances.
+
+Both of these are WebKitGTK settings, not application settings:
 
 ```sh
 WEBKIT_DISABLE_DMABUF_RENDERER=1 ./xquakshell.sh   # try this first
@@ -70,7 +74,10 @@ WEBKIT_DISABLE_COMPOSITING_MODE=1 ./xquakshell.sh  # then this
 ```
 
 If one of them helps, put it in the `Exec=` line of the installed desktop entry so the menu launcher
-uses it too.
+uses it too. The full explanation, and how to set it for every WebKitGTK application at once, is in
+Environment Workarounds:
+
+    https://github.com/teoritty/xQuakShell/blob/main/docs/environment-workarounds.md
 
 ## Verifying the download
 
