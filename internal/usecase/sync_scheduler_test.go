@@ -335,6 +335,23 @@ func TestRepeatedRateLimitsBackOff(t *testing.T) {
 	w.timers.waitArmed(t, 4*time.Second)
 }
 
+// The growth stops at maxRateLimitBackoff: a limit lifts in seconds, and a five-minute wait after it
+// lifted left the vault stale until the person pressed Sync now.
+func TestRateLimitBackoffStaysShort(t *testing.T) {
+	w := newSchedWorldFailing(t, 0, &synctrust.RateLimitedError{RetryAfter: time.Second}, vaultsync.ID{7})
+	w.expectSync()
+	for _, d := range []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second} {
+		w.timers.waitArmed(t, d)
+		w.timers.fire(d)
+		w.expectSync()
+	}
+	const ceiling = 30 * time.Second // maxRateLimitBackoff
+	w.timers.waitArmed(t, ceiling)
+	w.timers.fire(ceiling)
+	w.expectSync()
+	w.timers.waitArmed(t, ceiling)
+}
+
 // A rate-limited vault ends the pass: the other vaults would only spend more of the same limit.
 func TestARateLimitEndsThePass(t *testing.T) {
 	a, b := vaultsync.ID{1}, vaultsync.ID{2}

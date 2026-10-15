@@ -63,6 +63,12 @@ type SyncSchedulerDeps struct {
 
 const maxSyncBackoff = 5 * time.Minute
 
+// maxRateLimitBackoff caps how far repeated rate limits push the next pass, short of maxSyncBackoff.
+// A rate limit is a server that is up and answering, and it lifts within seconds; growing to five
+// minutes left a team member behind a shared NAT looking at a stale vault long after the limit was
+// gone, until they pressed Sync now. The wait still grows, so clients sharing an address spread out.
+const maxRateLimitBackoff = 30 * time.Second
+
 // SyncScheduler decides when to sync: on start, after local edits settle, when the server reports
 // a change, and on a slow periodic fallback. It runs only between Start and Stop, which the caller
 // ties to the vault being unlocked: the keys live in the vault (plan P4-4).
@@ -192,7 +198,7 @@ func (s *SyncScheduler) runAll(ctx context.Context, stopped map[vaultsync.ID]boo
 		case errors.As(err, &limited):
 			// The rest of the pass would only spend more of the limit; it waits with this vault.
 			report(SyncStatus{Vault: v, State: SyncFailed, Err: err, Report: r})
-			next := max(limited.RetryAfter, nextSyncBackoff(backoff))
+			next := max(limited.RetryAfter, min(nextSyncBackoff(backoff), maxRateLimitBackoff))
 			return s.d.After(next), next
 		default:
 			failed = true
