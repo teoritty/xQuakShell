@@ -20,6 +20,7 @@
   import type { SyncPluginData, SyncPluginOffer } from '../../../api/syncPlugins';
   import { dismissPluginDataNotice, pluginDataNotices, syncRevision } from '../../../stores/syncState';
   import { t } from '../../../i18n/messages';
+  import { showError } from '../../../stores/appState';
 
   export let advanced = false;
 
@@ -158,5 +159,8 @@
   bind:this={installFlow}
   on:installed={load}
   on:mismatch={(e) => (mismatch = e.detail)}
-  on:error={(e) => (error = e.detail.message)}
+  on:error={(e) => showError(e.detail.message)}
 />
+<!-- An install failure goes to the app-wide error dialog: the consent dialog stays open over this
+     panel to allow a retry, and the panel's own error line sits in a section shown only with the
+     advanced settings, so a refusal written there was seen by nobody. -->
