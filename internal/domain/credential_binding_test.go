@@ -27,6 +27,31 @@ func TestResolveCredentialsUsesThePersonalBinding(t *testing.T) {
 	}
 }
 
+func TestResolveCredentialsFollowsTheBindingNotTheSharedMethod(t *testing.T) {
+	conn, user := teamConn()
+	user.Auth = AuthMethodPassword
+	user.PassAuth = &PasswordAuthConfig{VaultRef: "someone-elses"}
+	d := NewVaultData()
+	d.Identities["mine"] = SSHIdentity{ID: "mine"}
+	d.Sync = &VaultSync{Bindings: []CredentialBinding{{VaultID: "t", ConnectionID: "c1", UserID: "u1", IdentityID: "mine"}}}
+	got, err := ResolveCredentials(d, conn, user)
+	if err != nil || got.Auth != AuthMethodKey || got.KeyAuth == nil || got.KeyAuth.IdentityIDs[0] != "mine" {
+		t.Fatalf("resolved = %+v, %v; a member's key binding authenticates a user the team set up with a password", got, err)
+	}
+	if got.PassAuth != nil {
+		t.Fatalf("passAuth = %+v survived; a reference another member wrote into the shared record must never be used", got.PassAuth)
+	}
+
+	_, keyUser := teamConn()
+	keyUser.KeyAuth = &KeyAuthConfig{IdentityIDs: []string{"someone-elses"}}
+	d.Passwords["pw"] = PasswordBlob{Label: "pw"}
+	d.Sync.Bindings[0] = CredentialBinding{VaultID: "t", ConnectionID: "c1", UserID: "u1", PasswordID: "pw"}
+	got, err = ResolveCredentials(d, conn, keyUser)
+	if err != nil || got.Auth != AuthMethodPassword || got.PassAuth == nil || got.PassAuth.VaultRef != "pw" || got.KeyAuth != nil {
+		t.Fatalf("resolved = %+v, %v; a password binding authenticates a key user with the password alone", got, err)
+	}
+}
+
 func TestResolveCredentialsRefusals(t *testing.T) {
 	conn, user := teamConn()
 	d := NewVaultData()

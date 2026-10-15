@@ -27,6 +27,7 @@ func (s *VaultService) SaveConnection(ctx context.Context, conn *domain.Connecti
 		if err := s.mergeStoredPluginFields(ctx, conn); err != nil {
 			return nil, err
 		}
+		dropPersonalSourceReferences(conn)
 	}
 	if err := s.connRepo.Save(ctx, conn); err != nil {
 		return nil, err
@@ -79,6 +80,18 @@ func (s *VaultService) mergeStoredPluginFields(ctx context.Context, conn *domain
 	}
 	conn.PluginFields = merged
 	return nil
+}
+
+// dropPersonalSourceReferences clears the key or password reference of every user whose credential
+// each member binds from their own vault. The shared record is what every member of the team
+// receives: a reference written into it names an item of the writer's personal vault, which nobody
+// else holds and which ResolveCredentials ignores anyway, so keeping it only tells the team the id.
+func dropPersonalSourceReferences(conn *domain.Connection) {
+	for i := range conn.Users {
+		if conn.Users[i].CredentialSource == domain.CredentialSourcePersonal {
+			conn.Users[i].KeyAuth, conn.Users[i].PassAuth = nil, nil
+		}
+	}
 }
 
 // DuplicateConnection stores an independent copy of a connection under name and pings it, as

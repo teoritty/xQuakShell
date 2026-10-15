@@ -37,6 +37,12 @@ func (b CredentialBinding) Key() string { return b.VaultID + "/" + b.ConnectionI
 // credential, or with this member's bound identity or password for a personal source. A binding
 // must name a credential of the personal vault - a team key would defeat the point of binding - and
 // a suspended one is refused, so a host another member repointed never receives the credential.
+//
+// The binding, not the shared user, decides whether that is a key or a password. The shared user's
+// method is whatever the member who moved the connection in happened to use; matching against it
+// left a member who bound a key to a password user - the only kind of credential the bindings panel
+// offered - with ErrBindingMissing for a binding that was plainly there. Any inline reference the
+// shared record still carries is replaced, so a value written there by another member is never used.
 func ResolveCredentials(d *VaultData, conn *Connection, user ConnectionUser) (ConnectionUser, error) {
 	if user.CredentialSource != CredentialSourcePersonal {
 		return user, nil
@@ -56,19 +62,23 @@ func ResolveCredentials(d *VaultData, conn *Connection, user ConnectionUser) (Co
 	if b.SuspendedBy != "" {
 		return user, ErrBindingSuspended
 	}
-	switch user.Auth {
-	case AuthMethodKey:
+	if user.Auth != AuthMethodKey && user.Auth != AuthMethodPassword {
+		return user, fmt.Errorf("a personal credential source with %q: %w", user.Auth, ErrInvalidConnectionConfig)
+	}
+	user.KeyAuth, user.PassAuth = nil, nil
+	switch {
+	case b.IdentityID != "":
 		if ident, ok := d.Identities[b.IdentityID]; !ok || ident.VaultID != "" {
 			return user, ErrBindingMissing
 		}
-		user.KeyAuth = &KeyAuthConfig{IdentityIDs: []string{b.IdentityID}}
-	case AuthMethodPassword:
+		user.Auth, user.KeyAuth = AuthMethodKey, &KeyAuthConfig{IdentityIDs: []string{b.IdentityID}}
+	case b.PasswordID != "":
 		if pw, ok := d.Passwords[b.PasswordID]; !ok || pw.VaultID != "" {
 			return user, ErrBindingMissing
 		}
-		user.PassAuth = &PasswordAuthConfig{VaultRef: b.PasswordID}
+		user.Auth, user.PassAuth = AuthMethodPassword, &PasswordAuthConfig{VaultRef: b.PasswordID}
 	default:
-		return user, fmt.Errorf("a personal credential source with %q: %w", user.Auth, ErrInvalidConnectionConfig)
+		return user, ErrBindingMissing
 	}
 	return user, nil
 }

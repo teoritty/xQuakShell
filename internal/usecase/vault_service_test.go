@@ -280,6 +280,27 @@ func TestVaultServiceSaveConnectionReloadsAfterSave(t *testing.T) {
 	}
 }
 
+func TestVaultServiceSaveConnectionKeepsMembersReferencesOutOfTheSharedRecord(t *testing.T) {
+	ctx := context.Background()
+	connRepo := newMemoryConnRepo()
+	svc := newTestVaultService(connRepo, &memoryPasswordRepo{}, &memoryIdentityRepo{}, nil)
+	conn := &domain.Connection{Name: "db", Host: "10.0.0.1", Port: 22, Protocol: domain.ProtocolSSH, VaultID: "team", Users: []domain.ConnectionUser{
+		{ID: "shared", Username: "deploy", Auth: domain.AuthMethodPassword, CredentialSource: domain.CredentialSourcePersonal,
+			PassAuth: &domain.PasswordAuthConfig{VaultRef: "writers-own-password"}},
+		{ID: "inline", Username: "ops", Auth: domain.AuthMethodKey, KeyAuth: &domain.KeyAuthConfig{IdentityIDs: []string{"k"}}},
+	}}
+	saved, err := svc.SaveConnection(ctx, conn, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u := saved.Users[0]; u.PassAuth != nil || u.KeyAuth != nil || u.CredentialSource != domain.CredentialSourcePersonal {
+		t.Fatalf("shared user = %+v; a member's own password reference must not reach every member of the team", u)
+	}
+	if u := saved.Users[1]; u.KeyAuth == nil || u.KeyAuth.IdentityIDs[0] != "k" {
+		t.Fatalf("inline user = %+v; an inline credential is the connection's own and stays", u)
+	}
+}
+
 func TestVaultServiceSaveConnectionPropagatesSaveError(t *testing.T) {
 	ctx := context.Background()
 	connRepo := newMemoryConnRepo()
