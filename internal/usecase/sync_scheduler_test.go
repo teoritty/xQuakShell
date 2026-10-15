@@ -320,6 +320,35 @@ func TestEveryReportNamesThePassVaults(t *testing.T) {
 	}
 }
 
+// A failed listing returns only the personal vault, which says nothing about the teams. Naming it as
+// the pass's vaults told the controller every team was left: offline, the team list emptied, its
+// items showed as "a team still loading", and a viewer's locked form opened for edits.
+func TestAFailedListingNamesNoVaults(t *testing.T) {
+	personal, team := vaultsync.ID{1}, vaultsync.ID{2}
+	w := newSchedWorldOf(t, 0, personal, team)
+	w.expectSyncOf(personal)
+	w.expectSyncOf(team)
+	w.timers.waitArmed(t, testInterval)
+	for len(w.status) > 0 {
+		<-w.status
+	}
+	w.mu.Lock()
+	w.discoverErr = errors.New("server unreachable")
+	w.mu.Unlock()
+	w.timers.fire(testInterval)
+	w.expectSyncOf(personal)
+	for range 2 {
+		select {
+		case st := <-w.status:
+			if st.Vaults != nil {
+				t.Fatalf("report names vaults %v after a failed listing; want nil, so the controller keeps the teams it knows", st.Vaults)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("no status reported")
+		}
+	}
+}
+
 // A rate limit that keeps coming back is waited out longer each time, never less than the server
 // asked: waiting only Retry-After kept three clients behind one address asking every second, and
 // the limit never lifted for any of them.

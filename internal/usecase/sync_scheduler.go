@@ -175,8 +175,14 @@ func (s *SyncScheduler) loop(ctx context.Context, events <-chan synctrust.Remote
 func (s *SyncScheduler) runAll(ctx context.Context, stopped map[vaultsync.ID]bool, backoff time.Duration) (<-chan time.Time, time.Duration) {
 	vaults, err := s.d.Vaults(ctx)
 	failed := err != nil
+	// A failed listing still returns the personal vault to sync, but it is not the account's list:
+	// naming it would tell the controller every team was left. Nil keeps what the controller knows.
+	listed := vaults
+	if failed {
+		listed = nil
+	}
 	report := func(st SyncStatus) {
-		st.Vaults = vaults
+		st.Vaults = listed
 		s.report(st)
 	}
 	for _, v := range vaults {
