@@ -353,9 +353,10 @@ func TestAnotherMemberRenamingAConnectionLeavesMyBinding(t *testing.T) {
 	}
 }
 
-// A viewer holds the team key but may not write: its local edits of team items stay on its device
-// instead of every round failing on the server's refusal.
-func TestAViewerKeepsItsEditsLocal(t *testing.T) {
+// A viewer holds the team key but may not write. Its local edits of team items are put back to what
+// the team holds: pushing them fails every round on the server's refusal, and keeping them used to
+// hide every later change the owners made to the same item.
+func TestAViewersLocalEditsArePutBack(t *testing.T) {
 	w := newSyncWorld(t)
 	bob := w.h.Register("bob")
 	cv := w.h.NewTeamVault(bob, servertest.Member{User: w.a, Role: vaultsync.RoleViewer})
@@ -365,17 +366,38 @@ func TestAViewerKeepsItsEditsLocal(t *testing.T) {
 	meta.Author = bob.Device
 	msg, _ := meta.SigningBytes()
 	meta.Sig = ed25519.Sign(bob.DSK, msg)
-	cv.Accept(bob, cv.Commit(bob, meta))
+	shared := domain.Connection{ID: "tc", Name: "db", Host: "db.example", Port: 22,
+		Users: []domain.ConnectionUser{{ID: "u1", Username: "deploy", Auth: domain.AuthMethodKey, CredentialSource: domain.CredentialSourcePersonal}}}
+	cv.Accept(bob, cv.Commit(bob, meta, w.sealAs(cv, bob, synctrust.TypeConnection, "tc", shared)))
 	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
 		t.Fatal(err)
 	}
 	_ = w.vault.UpdateData(syncCtx, func(d *domain.VaultData) error {
 		d.Folders = append(d.Folders, domain.ConnectionFolder{ID: "x", Name: "x", VaultID: cv.ID.String()})
+		d.Connections[slices.IndexFunc(d.Connections, func(c domain.Connection) bool { return c.ID == "tc" })].Name = "mine"
 		return nil
 	})
 	r, err := w.engine.Sync(syncCtx, cv.ID)
 	if err != nil || r.Pushed != 0 {
 		t.Fatalf("viewer round: %+v, %v; nothing is pushed and nothing fails", r, err)
+	}
+	data, _ := w.vault.GetData()
+	if slices.ContainsFunc(data.Folders, func(f domain.ConnectionFolder) bool { return f.ID == "x" }) {
+		t.Error("a folder the viewer added to the team stayed in its vault")
+	}
+	if i := slices.IndexFunc(data.Connections, func(c domain.Connection) bool { return c.ID == "tc" }); i < 0 || data.Connections[i].Name != "db" {
+		t.Fatalf("connections = %+v; the viewer's rename must give way to the name the team holds", data.Connections)
+	}
+
+	renamed := shared
+	renamed.Name = "database"
+	cv.Accept(bob, cv.Commit(bob, w.sealAs(cv, bob, synctrust.TypeConnection, "tc", renamed)))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	data, _ = w.vault.GetData()
+	if i := slices.IndexFunc(data.Connections, func(c domain.Connection) bool { return c.ID == "tc" }); i < 0 || data.Connections[i].Name != "database" {
+		t.Fatalf("connections = %+v; the owner's later rename must reach the viewer", data.Connections)
 	}
 }
 

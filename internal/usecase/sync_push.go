@@ -9,6 +9,7 @@ import (
 	"maps"
 	"slices"
 
+	"xquakshell/internal/domain"
 	"xquakshell/internal/domain/synctrust"
 	"xquakshell/internal/domain/vaultsync"
 )
@@ -48,12 +49,13 @@ func (e *SyncEngine) syncRound(ctx context.Context, vault vaultsync.ID) (SyncRep
 		if err := p.flushOutbox(ctx); err != nil {
 			return report, err
 		}
-		err = p.pullAll(ctx)
-		report.Pull = addPull(report.Pull, p.report)
-		if err != nil {
+		if err := p.pullAll(ctx); err != nil {
+			report.Pull = addPull(report.Pull, p.report)
 			return report, err
 		}
 		pushed, err := p.push(ctx)
+		// After the push: a viewer's push puts its local edits back, and the views must re-read that.
+		report.Pull = addPull(report.Pull, p.report)
 		if err == nil {
 			err = p.retain(ctx)
 		}
@@ -94,14 +96,14 @@ func (p *pullRun) flushOutbox(ctx context.Context) error {
 
 // push commits what this device changed since the version it last verified.
 func (p *pullRun) push(ctx context.Context) (int, error) {
-	// A viewer holds the key but may not write; its local edits stay on its device rather than
-	// failing every round on a refusal the server must give.
+	// A viewer holds the key but may not write. Its local edits are put back rather than pushed into
+	// a refusal the server must give every round.
 	m, err := p.members.at(uint64(len(p.ops)))
 	if err != nil {
 		return 0, err
 	}
 	if !m.Role(p.e.d.Keys.Account()).CanWrite() {
-		return 0, nil
+		return 0, p.revertToBase(ctx)
 	}
 	changes, err := p.localChanges(ctx)
 	if err != nil || len(changes) == 0 {
@@ -112,6 +114,31 @@ func (p *pullRun) push(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	return len(c.Records), p.send(ctx, c)
+}
+
+// revertToBase returns a viewer's copy of the team to what the team verifiably holds. Kept local
+// edits used to be permanent: the merge of every later change preferred them, so a viewer who once
+// renamed a connection never saw the owners' next rename of it, while the status read "Up to date".
+// What a viewer may own is not in this scope - its credentials and plugin secrets are personal - so
+// nothing of its own is lost.
+func (p *pullRun) revertToBase(ctx context.Context) error {
+	changes, err := p.localChanges(ctx)
+	if err != nil || len(changes) == 0 {
+		return err
+	}
+	entries := make([]synctrust.Entry, 0, len(changes))
+	for _, c := range changes {
+		e := synctrust.Entry{Type: c.entry.Type, Key: c.entry.Key}
+		if b, ok := p.baseBody(c.id); ok {
+			e.Data = b.Data
+		}
+		entries = append(entries, e)
+	}
+	err = p.e.d.Vault.UpdateData(ctx, func(d *domain.VaultData) error { return synctrust.ApplyScope(d, p.scope, entries) })
+	if err == nil {
+		p.report.Applied += len(entries)
+	}
+	return err
 }
 
 // send records a commit in the outbox, pushes it and adopts it.
