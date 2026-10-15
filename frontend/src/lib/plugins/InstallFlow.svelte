@@ -19,7 +19,7 @@
   import { t } from '../../i18n/messages';
   import { installFromPath, installFromSource } from '../../actions/pluginsActions';
   import { installOfferedPlugin } from '../../actions/syncPluginActions';
-  import { listPlugins, previewPluginInstall } from '../../api/plugins';
+  import { getPluginSettings, listPlugins, previewPluginInstall } from '../../api/plugins';
   import { previewSyncPluginOfferRpc } from '../../api/syncPlugins';
   import { previewGitHubPluginInstall } from '../../api/githubPlugins';
   import { githubInstallPreviewLines } from '../pluginDisplay';
@@ -50,6 +50,14 @@
     reset();
   }
 
+  // The install would be refused at its last step for want of a trusted signature; saying so before
+  // the person reads and grants every permission spares them a consent screen that cannot succeed.
+  async function signaturePolicyBlock(untrusted: boolean): Promise<string> {
+    if (!untrusted) return '';
+    const policy = await getPluginSettings();
+    return policy.requireSignedPlugins ? $t('security.plugin.warning.signedRequired') : '';
+  }
+
   function reset() {
     open = false;
     busy = false;
@@ -72,7 +80,7 @@
       warnings = sourceTrustWarnings(preview);
       originWarning = '';
       blockedReason = preview.platformSupported
-        ? ''
+        ? await signaturePolicyBlock(preview.unsignedPlugin)
         : `No release asset targets ${preview.currentPlatform}.`;
       pending = { kind: 'source', sourceId: source.id, tag: preview.releaseTag || releaseTag };
       open = true;
@@ -90,7 +98,7 @@
       consents = requiredConsents(preview);
       warnings = localTrustWarnings(preview);
       originWarning = $t(LOCAL_INSTALL_WARNING_KEY);
-      blockedReason = '';
+      blockedReason = await signaturePolicyBlock(preview.unsignedWarning || preview.untrustedSignatureWarning);
       pending = { kind: 'path', path };
       open = true;
     } catch (e) {
@@ -112,7 +120,9 @@
       consents = requiredConsents(preview);
       warnings = sourceTrustWarnings(preview);
       originWarning = $t('sync.plugins.fromOtherDevice');
-      blockedReason = preview.platformSupported ? '' : `No release asset targets ${preview.currentPlatform}.`;
+      blockedReason = preview.platformSupported
+        ? await signaturePolicyBlock(preview.unsignedPlugin)
+        : `No release asset targets ${preview.currentPlatform}.`;
       pending = { kind: 'offer', pluginId };
       open = true;
     } catch (e) {

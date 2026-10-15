@@ -607,6 +607,7 @@
     "security.plugin.warning.noAssetForPlatform": "Нет файла релиза для платформы {platform}.",
     "security.plugin.warning.noChecksum": "К плагину не приложена контрольная сумма, проверить его файлы нельзя.",
     "security.plugin.warning.unsigned": "Плагин не подписан. Ничто не подтверждает, кто его собрал.",
+    "security.plugin.warning.signedRequired": "Плагин не подписан доверенным издателем, а в Настройки → Безопасность это обязательно. Чтобы установить его, отключите там «Требовать подписанные плагины от доверенных издателей».",
     "security.plugin.warning.untrustedSignature": "Плагин подписан ключом, которому вы не доверяете.",
     "security.plugin.warning.untrustedSource": "Этот репозиторий не отмечен как доверенный.",
     "security.sync.connect.compareFirst": "Сначала сверьте отпечаток с тем, что дал администратор сервера.",

@@ -593,6 +593,7 @@
     "security.plugin.warning.noAssetForPlatform": "No release asset targets {platform}.",
     "security.plugin.warning.noChecksum": "No checksum accompanies this plugin, so its files cannot be verified.",
     "security.plugin.warning.unsigned": "This plugin is not signed. Nothing proves who built it.",
+    "security.plugin.warning.signedRequired": "This plugin is not signed by a trusted publisher, and Settings → Security requires that. Turn off \"Require signed plugins from trusted publishers\" there to install it.",
     "security.plugin.warning.untrustedSignature": "This plugin is signed by a key you do not trust.",
     "security.plugin.warning.untrustedSource": "This repository is not marked as trusted.",
     "security.sync.connect.compareFirst": "Compare the fingerprint with the one your server's administrator gave you first.",
