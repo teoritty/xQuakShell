@@ -30,3 +30,9 @@ export function requestVaultMove(req: VaultMoveRequest): void {
 export function canWrite(team: Team | undefined): boolean {
   return !!team && team.role !== 'viewer';
 }
+
+/** Whether the item is in a team this account may only view. A team still loading is not judged. */
+export function isViewOnly(list: Team[], item: { vaultId?: string } | null | undefined): boolean {
+  const team = item?.vaultId ? list.find((x) => x.vault === item.vaultId) : undefined;
+  return !!team && !canWrite(team);
+}

@@ -46,6 +46,7 @@
   import { importPasswordIfChanged } from './connectionDetails/authSecrets';
   import { linkPersonalCredential, linksPersonally } from '../actions/personalCredentialActions';
   import ConnectionVaultField from './connectionDetails/ConnectionVaultField.svelte';
+  import { isViewOnly, teams } from '../stores/teamState';
   import type { ConnectionDetailsDraft, SaveStatus } from './connectionDetails/types';
   import type { Connection, ConnectionUser, ForwardRule, JumpHop } from '../stores/appState';
 
@@ -64,6 +65,8 @@
   $: protocolCatalogKey = connectionProtocolCatalogKey(protocols);
   $: connId = $detailsConnection?.id || '';
   $: formSectionKey = `${connId}:${formMode}:${protocolCatalogKey}`;
+  // A viewer's shared fields are locked; what stays open are its own credentials for the connection.
+  $: viewOnly = isViewOnly($teams, $detailsConnection);
 
   onMount(() => {
     void refreshConnectionProtocols();
@@ -139,6 +142,7 @@
       }
 
       dirty = false;
+      if (viewOnly) syncDraftFromConnection(); // the backend kept the record; show it as it is
       reconcileSavedConnection(saved, generation);
       saveStatus = 'saved';
       scheduleSavedIndicatorReset(
@@ -274,25 +278,27 @@
   <div class="details-body" role="group" on:keydown={(e) => commitFieldEditOnEnter(e, autosaveState, runAutosave)}>
     <ConnectionVaultField />
 
-    <ConnectionBaseFields
-      bind:name={draft.name}
-      bind:protocol={draft.protocol}
-      bind:host={draft.host}
-      bind:port={draft.port}
-      {protocols}
-      on:dirty={markDirty}
-      on:protocolchange={onProtocolChange}
-    />
+    <fieldset class="shared-fields" disabled={viewOnly}>
+      <ConnectionBaseFields
+        bind:name={draft.name}
+        bind:protocol={draft.protocol}
+        bind:host={draft.host}
+        bind:port={draft.port}
+        {protocols}
+        on:dirty={markDirty}
+        on:protocolchange={onProtocolChange}
+      />
 
-    <ConnectionTags
-      tags={draft.tags}
-      {addingTag}
-      {newTagValue}
-      on:dirty={markDirty}
-      on:tagschange={(e) => { draft.tags = e.detail; }}
-      on:addingtagchange={(e) => { addingTag = e.detail; }}
-      on:newtagvaluechange={(e) => { newTagValue = e.detail; }}
-    />
+      <ConnectionTags
+        tags={draft.tags}
+        {addingTag}
+        {newTagValue}
+        on:dirty={markDirty}
+        on:tagschange={(e) => { draft.tags = e.detail; }}
+        on:addingtagchange={(e) => { addingTag = e.detail; }}
+        on:newtagvaluechange={(e) => { newTagValue = e.detail; }}
+      />
+    </fieldset>
 
     {#key formSectionKey}
       <ConnectionProtocolForm
@@ -345,5 +351,10 @@
     flex-direction: column;
     gap: 8px;
     overflow-y: auto;
+  }
+
+  /* Only groups the shared fields so a viewer's can be disabled at once; it draws nothing. */
+  .shared-fields {
+    display: contents;
   }
 </style>

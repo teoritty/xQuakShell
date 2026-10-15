@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"xquakshell/internal/domain"
+	"xquakshell/internal/domain/vaultsync"
 )
 
 // --- Vault schema version ---
@@ -99,16 +100,43 @@ func (a *AppAPI) SaveConnection(dto ConnectionDTO) (ConnectionDTO, error) {
 		}
 		c.VaultID = dto.VaultID
 	}
-	saved, err := a.vaultSvc.SaveConnection(a.reqCtx(), &c, cloneStringMap(dto.PluginFields))
+	var saved *domain.Connection
+	var err error
+	if a.storedInReadOnlyTeam(c.ID) {
+		// A viewer's edit used to land in its own vault only, never reached the team, and then kept
+		// every later change of that connection from reaching the viewer either. Only what is the
+		// viewer's own - the secret plugin fields - is stored; the shared record stays as it is.
+		saved, err = a.vaultSvc.SaveMemberSecrets(a.reqCtx(), c.ID, cloneStringMap(dto.PluginFields))
+	} else {
+		saved, err = a.vaultSvc.SaveConnection(a.reqCtx(), &c, cloneStringMap(dto.PluginFields))
+	}
 	if err != nil {
 		return ConnectionDTO{}, err
 	}
 	return ConnectionToDTO(*saved), nil
 }
 
+// storedInReadOnlyTeam reports whether the saved connection id lives in a team this account may only
+// view. A new connection, or one not found, is not: SaveConnection places or refuses those itself.
+// Only a verified viewer role counts. While the role cannot be read - sync off or locked - the edit
+// goes through as before, and the sync engine puts a viewer's vault back on its next pass anyway.
+func (a *AppAPI) storedInReadOnlyTeam(id string) bool {
+	if id == "" {
+		return false
+	}
+	stored, err := a.vaultSvc.GetConnection(a.reqCtx(), id)
+	if err != nil || stored.VaultID == "" {
+		return false
+	}
+	return errors.Is(a.requireWritableTeam(stored.VaultID), vaultsync.ErrNotAuthorized)
+}
+
 // DuplicateConnection copies a saved connection under name. The id is the only link to the source,
 // so a caller cannot duplicate anything but a connection already in this vault.
 func (a *AppAPI) DuplicateConnection(id, name string) (ConnectionDTO, error) {
+	if err := a.refuseInReadOnlyTeam(id); err != nil {
+		return ConnectionDTO{}, err
+	}
 	created, err := a.vaultSvc.DuplicateConnection(a.reqCtx(), id, name)
 	if err != nil {
 		return ConnectionDTO{}, err
@@ -117,7 +145,19 @@ func (a *AppAPI) DuplicateConnection(id, name string) (ConnectionDTO, error) {
 }
 
 func (a *AppAPI) DeleteConnection(id string) error {
+	if err := a.refuseInReadOnlyTeam(id); err != nil {
+		return err
+	}
 	return a.vaultSvc.DeleteConnection(a.reqCtx(), id)
+}
+
+// refuseInReadOnlyTeam stops a viewer's delete or duplicate of a team connection here, as a
+// refusal, instead of letting it happen in this vault alone until the next sync puts it back.
+func (a *AppAPI) refuseInReadOnlyTeam(id string) error {
+	if a.storedInReadOnlyTeam(id) {
+		return userSyncError(vaultsync.ErrNotAuthorized)
+	}
+	return nil
 }
 
 func (a *AppAPI) MoveConnections(connectionIDs []string, targetFolderID string) error {

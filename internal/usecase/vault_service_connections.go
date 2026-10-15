@@ -82,6 +82,22 @@ func (s *VaultService) mergeStoredPluginFields(ctx context.Context, conn *domain
 	return nil
 }
 
+// SaveMemberSecrets is SaveConnection for a team connection this account may only view: the record
+// on file is kept as it is and only the secret plugin fields of incoming are stored, in the
+// personal vault. A viewer still brings their own password; it just cannot change the host.
+func (s *VaultService) SaveMemberSecrets(ctx context.Context, id string, incomingPluginFields map[string]string) (*domain.Connection, error) {
+	stored, err := s.connRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if s.pluginFields != nil {
+		if err := s.pluginFields.SaveSecretFields(ctx, stored, incomingPluginFields); err != nil {
+			return nil, err
+		}
+	}
+	return s.connRepo.GetByID(ctx, id)
+}
+
 // dropPersonalSourceReferences clears the key or password reference of every user whose credential
 // each member binds from their own vault. The shared record is what every member of the team
 // receives: a reference written into it names an item of the writer's personal vault, which nobody
