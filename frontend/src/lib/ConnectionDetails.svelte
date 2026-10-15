@@ -45,6 +45,7 @@
   } from './connectionDetails/autosave';
   import { importPasswordIfChanged } from './connectionDetails/authSecrets';
   import { linkPersonalCredential, linksPersonally } from '../actions/personalCredentialActions';
+  import ConnectionVaultField from './connectionDetails/ConnectionVaultField.svelte';
   import type { ConnectionDetailsDraft, SaveStatus } from './connectionDetails/types';
   import type { Connection, ConnectionUser, ForwardRule, JumpHop } from '../stores/appState';
 
@@ -271,6 +272,8 @@
   <!-- Enter ends the edit of whichever field has focus, plugin fields included. One handler for the
        whole form rather than one per component: see commitFieldEditOnEnter in autosave.ts. -->
   <div class="details-body" role="group" on:keydown={(e) => commitFieldEditOnEnter(e, autosaveState, runAutosave)}>
+    <ConnectionVaultField />
+
     <ConnectionBaseFields
       bind:name={draft.name}
       bind:protocol={draft.protocol}
