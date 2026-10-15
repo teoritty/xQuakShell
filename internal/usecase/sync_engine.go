@@ -41,6 +41,9 @@ type PullReport struct {
 	Applied     int
 	Held        int
 	Quarantined int
+	// MembershipSeq is how far the vault's verified membership log reaches, zero when the round
+	// never read it. A role change or a removal moves it without carrying a record to apply.
+	MembershipSeq int
 	// NewDevices are devices certified in the account since the last pull.
 	NewDevices []vaultsync.DeviceCert
 }

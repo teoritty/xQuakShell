@@ -115,6 +115,22 @@ func TestChangingARole(t *testing.T) {
 	}
 }
 
+func TestARoundReportsWhereTheMembershipLogStands(t *testing.T) {
+	_, a, bob, team := teamWithBob(t)
+	before, err := a.engine.Sync(syncCtx, team)
+	if err != nil || before.Pull.MembershipSeq == 0 {
+		t.Fatalf("first round: seq %d, %v; a team round reports its membership position", before.Pull.MembershipSeq, err)
+	}
+	if err := a.engine.ChangeRole(syncCtx, team, bob.Account, vaultsync.RoleViewer); err != nil {
+		t.Fatal(err)
+	}
+	after, err := a.engine.Sync(syncCtx, team)
+	if err != nil || after.Pull.MembershipSeq != before.Pull.MembershipSeq+1 {
+		t.Fatalf("after a role change: seq %d -> %d, %v; a role change carries no record, only the position shows it",
+			before.Pull.MembershipSeq, after.Pull.MembershipSeq, err)
+	}
+}
+
 func TestTeamNameTravelsInTheVaultMeta(t *testing.T) {
 	_, a, _, team := teamWithBob(t)
 	members, _ := a.engine.Members(syncCtx, team)

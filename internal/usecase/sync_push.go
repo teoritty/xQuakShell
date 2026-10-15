@@ -78,7 +78,8 @@ func (e *SyncEngine) syncRound(ctx context.Context, vault vaultsync.ID) (SyncRep
 
 func addPull(a, b PullReport) PullReport {
 	return PullReport{Commits: a.Commits + b.Commits, Applied: a.Applied + b.Applied, Held: a.Held + b.Held,
-		Quarantined: a.Quarantined + b.Quarantined, NewDevices: append(a.NewDevices, b.NewDevices...)}
+		Quarantined: a.Quarantined + b.Quarantined, MembershipSeq: max(a.MembershipSeq, b.MembershipSeq),
+		NewDevices: append(a.NewDevices, b.NewDevices...)}
 }
 
 // flushOutbox resends the commit a previous round recorded but never saw acknowledged. The server

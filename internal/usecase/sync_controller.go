@@ -57,6 +57,7 @@ type SyncController struct {
 	sched       *SyncScheduler
 	last        SyncStatus
 	perVault    map[vaultsync.ID]SyncStatus
+	membership  map[vaultsync.ID]int
 	knownVaults []vaultsync.ID
 	joining     []vaultsync.ID
 	teams       map[vaultsync.ID]cachedTeam
@@ -151,7 +152,7 @@ func (c *SyncController) Stop() {
 	sched := c.sched
 	c.engine, c.sched, c.session = nil, nil, SyncSession{}
 	// A new session starts from its own reports: a stop reason of the old keys must not outlive them.
-	c.perVault, c.knownVaults, c.joining, c.teams, c.last = nil, nil, nil, nil, SyncStatus{}
+	c.perVault, c.membership, c.knownVaults, c.joining, c.teams, c.last = nil, nil, nil, nil, nil, SyncStatus{}
 	c.mu.Unlock()
 	if sched != nil {
 		sched.Stop()
@@ -189,6 +190,7 @@ func (c *SyncController) record(st SyncStatus) {
 		c.perVault = map[vaultsync.ID]SyncStatus{}
 	}
 	changed := c.followVaults(st)
+	changed = c.followMembership(st) || changed
 	c.perVault[st.Vault] = st
 	agg := rollupStatus(c.perVault, c.session.Personal)
 	agg.VaultsChanged = changed
@@ -224,6 +226,24 @@ func (c *SyncController) followVaults(st SyncStatus) bool {
 		changed = true
 	}
 	return changed
+}
+
+// followMembership says whether a vault's membership log moved since the last round that read it.
+// A role change or a removal carries no record, so nothing is applied and the views would keep a
+// role the account no longer has: a viewer an editable form whose edits are silently put back. A
+// round that never read the log reports zero and is skipped, or a failure would read as a move.
+// The caller holds c.mu.
+func (c *SyncController) followMembership(st SyncStatus) bool {
+	seq := st.Report.Pull.MembershipSeq
+	if seq == 0 {
+		return false
+	}
+	if c.membership == nil {
+		c.membership = map[vaultsync.ID]int{}
+	}
+	last, seen := c.membership[st.Vault]
+	c.membership[st.Vault] = seq
+	return seen && last != seq
 }
 
 // noteJoined remembers the vaults of a pass that the last pass did not list. The first pass

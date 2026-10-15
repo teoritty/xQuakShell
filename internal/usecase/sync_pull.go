@@ -110,6 +110,7 @@ func (e *SyncEngine) startPull(ctx context.Context, vault vaultsync.ID) (*pullRu
 		p.landed[id] = at
 	}
 	p.report.NewDevices = newDevices(fresh, e.d.Keys.Device())
+	p.report.MembershipSeq = len(ops)
 	if meta, ok := p.base[synctrust.VaultMetaID(vault)]; ok {
 		if err := p.learnMeta(meta); err != nil {
 			return nil, err

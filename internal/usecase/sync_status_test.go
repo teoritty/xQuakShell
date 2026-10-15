@@ -114,6 +114,37 @@ func TestALeftVaultStopsCountingTowardTheAccount(t *testing.T) {
 	}
 }
 
+// A role change or a removal is a membership op with no record, so nothing is applied; the views
+// learn of it only from the membership position moving, or a viewer keeps an editable form.
+func TestAMembershipChangeIsAChangeTheViewsMustShow(t *testing.T) {
+	personal, team, _ := rollupIDs()
+	var seen []SyncStatus
+	c := NewSyncController(SyncControllerDeps{OnStatus: func(st SyncStatus) { seen = append(seen, st) }})
+	at := func(seq int, state SyncState) SyncStatus {
+		return SyncStatus{Vault: team, State: state, Report: SyncReport{Pull: PullReport{MembershipSeq: seq}}}
+	}
+	c.record(SyncStatus{Vault: personal, State: SyncIdle})
+	c.record(at(3, SyncIdle))
+	if seen[len(seen)-1].VaultsChanged {
+		t.Fatal("the first position seen is where the views already are, not a change")
+	}
+	c.record(at(4, SyncIdle))
+	if !seen[len(seen)-1].VaultsChanged {
+		t.Fatal("the membership moved and the views were not told")
+	}
+	c.record(at(4, SyncIdle))
+	if seen[len(seen)-1].VaultsChanged {
+		t.Fatal("an unmoved membership is reported as changed")
+	}
+	c.record(at(0, SyncFailed))
+	c.record(at(4, SyncIdle))
+	for _, st := range seen[len(seen)-2:] {
+		if st.VaultsChanged {
+			t.Fatal("a failed round knows no position; it must not read as the membership moving")
+		}
+	}
+}
+
 // A joined team reaches the views when its first round is done: announced as it first appears,
 // before it was pulled, the views re-read a vault that did not hold it yet and were never told again.
 func TestAJoinedTeamIsAChangeOnceItSynced(t *testing.T) {
