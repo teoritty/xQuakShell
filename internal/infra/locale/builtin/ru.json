@@ -406,6 +406,7 @@
     "plugins.sources.urlLabel": "URL репозитория",
     "plugins.state.disabled": "Выключен",
     "plugins.state.notRunning": "Не запущен",
+    "plugins.state.onDemand": "Запускается с каждой сессией",
     "plugins.state.running": "Работает",
     "plugins.status.installed": "Установлен {version}",
     "plugins.status.notInstalled": "Не установлен",

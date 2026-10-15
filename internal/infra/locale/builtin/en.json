@@ -398,6 +398,7 @@
     "plugins.sources.urlLabel": "Repository URL",
     "plugins.state.disabled": "Disabled",
     "plugins.state.notRunning": "Not running",
+    "plugins.state.onDemand": "Starts with each session",
     "plugins.state.running": "Running",
     "plugins.status.installed": "Installed {version}",
     "plugins.status.notInstalled": "Not installed",

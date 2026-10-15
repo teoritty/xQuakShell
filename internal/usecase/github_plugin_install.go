@@ -132,9 +132,18 @@ func (s *GitHubPluginService) commitInstall(
 	_ = s.storage.UpdateFetchedAt(ctx, normalizedURL, time.Now())
 	_ = s.InvalidateMetadataCache(ctx, normalizedURL, "")
 
+	s.autoStart(ctx, installed)
+	return nil
+}
+
+// autoStart starts a freshly installed plugin so it is ready at once. A plugin that runs per
+// session has nothing to start until a session opens; the warning logged here for every such
+// install read as a failure on a plugin that was working as designed.
+func (s *GitHubPluginService) autoStart(ctx context.Context, installed domainplugin.InstalledPlugin) {
+	if installed.Manifest.RequiresSessionScopedProcess() {
+		return
+	}
 	if err := s.pluginManager.EnsureRunning(ctx, installed.Manifest.ID); err != nil {
 		slog.Warn("plugin installed but failed to auto-start", "plugin", installed.Manifest.ID, "error", err)
 	}
-
-	return nil
 }

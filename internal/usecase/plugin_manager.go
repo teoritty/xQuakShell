@@ -84,6 +84,7 @@ func (m *PluginManager) List() []PluginInfo {
 			RequiresSecretAccess: p.Manifest.RequiresSecretAccess(),
 			Signed:               p.Manifest.Signature != "",
 			Enabled:              m.isPluginEnabled(p.Manifest.ID),
+			OnDemand:             p.Manifest.RequiresSessionScopedProcess(),
 			InstalledReleaseTag:  installedReleaseTag(p),
 			SandboxMode:          string(m.aggregateSandboxMode(p.Manifest.ID)),
 			DiscoveryIcons:       m.registry.DiscoveryIconDataURIs(p.Manifest.ID),
@@ -103,7 +104,10 @@ type PluginInfo struct {
 	RequiresSecretAccess bool
 	Signed               bool
 	Enabled              bool
-	InstalledReleaseTag  string
+	// OnDemand is a plugin whose processes start with each session and end with it. Not running
+	// is its normal state between sessions, not a failure to start.
+	OnDemand            bool
+	InstalledReleaseTag string
 	// SandboxMode is the OS-level boundary the plugin's running processes are behind, or "" when
 	// none are running. The weakest of them wins — see WeakestSandboxMode.
 	SandboxMode string

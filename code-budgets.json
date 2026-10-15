@@ -335,7 +335,7 @@
         "nesting": 1
       },
       "internal/usecase/github_plugin_install.go::GitHubPluginService.commitInstall": {
-        "codeLines": 30,
+        "codeLines": 28,
         "params": 11,
         "nesting": 2
       },

@@ -24,6 +24,8 @@ export interface PluginInfo {
   requiresSecretAccess: boolean;
   signed: boolean;
   enabled: boolean;
+  /** Runs only inside sessions; between them "not running" is its normal, idle state. */
+  onDemand?: boolean;
   /**
    * The OS-level boundary this plugin's running processes are behind: `enforced`,
    * `enforced-partial`, `unavailable`, `disabled`, or absent when the plugin is not

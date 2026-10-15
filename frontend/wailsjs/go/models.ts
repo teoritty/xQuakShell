@@ -1832,6 +1832,7 @@ export namespace wails {
 	    requiresSecretAccess: boolean;
 	    signed: boolean;
 	    enabled: boolean;
+	    onDemand?: boolean;
 	    sandboxMode?: string;
 	    discoveryIcons?: Record<string, string>;
 	
@@ -1850,6 +1851,7 @@ export namespace wails {
 	        this.requiresSecretAccess = source["requiresSecretAccess"];
 	        this.signed = source["signed"];
 	        this.enabled = source["enabled"];
+	        this.onDemand = source["onDemand"];
 	        this.sandboxMode = source["sandboxMode"];
 	        this.discoveryIcons = source["discoveryIcons"];
 	    }
