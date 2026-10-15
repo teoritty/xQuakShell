@@ -1,4 +1,4 @@
-import { conflictFieldLabel, itemLabel, kindLabel } from './syncLabels';
+import { conflictFieldLabel, itemLabel, kindLabel, syncStateLabel } from './syncLabels';
 
 function assert(c: boolean, m: string) {
   if (!c) throw new Error(m);
@@ -14,6 +14,9 @@ const pack: Record<string, string> = {
   'sync.field.users': 'User',
   'sync.field.passwordId': 'Password',
   'sync.field.host': 'Host',
+  'sync.state.idle': 'Up to date',
+  'sync.state.waiting': 'Up to date, with {count} change(s) waiting for you',
+  'sync.state.running': 'Syncing',
 };
 // The same contract as $t: a template with {vars}, and the key itself when the packs have nothing.
 const t = (key: string, vars?: Record<string, string | number>) =>
@@ -39,3 +42,10 @@ assert(conflictFieldLabel(['host'], [''], t) === 'Host', 'a top-level field');
 assert(conflictFieldLabel(['someNewField'], [''], t) === 'someNewField', 'an untranslated field keeps its own name');
 
 console.log('syncLabels tests passed');
+
+assert(syncStateLabel({ state: 'idle', held: 0 }, t) === 'Up to date', 'a settled vault with nothing waiting is up to date');
+assert(
+  syncStateLabel({ state: 'idle', held: 2 }, t) === 'Up to date, with 2 change(s) waiting for you',
+  'a change waiting for the master password is said, not hidden behind "Up to date"',
+);
+assert(syncStateLabel({ state: 'running', held: 2 }, t) === 'Syncing', 'a running pass says it is running');

@@ -48,3 +48,13 @@ export function conflictFieldLabel(path: string[], names: string[] | undefined, 
   });
   return parts.join(' · ');
 }
+
+/**
+ * The sync state in words. "Up to date" is only true of the records this device took: while a
+ * change from another device waits for this one's master password, the vault is not up to date,
+ * and saying it was sent the person past the one thing waiting for them.
+ */
+export function syncStateLabel(status: { state: string; held: number }, t: Translate): string {
+  if (status.state === 'idle' && status.held > 0) return t('sync.state.waiting', { count: status.held });
+  return t('sync.state.' + status.state);
+}

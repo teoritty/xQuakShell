@@ -15,6 +15,7 @@
     syncNow,
   } from '../../../actions/syncActions';
   import { t } from '../../../i18n/messages';
+  import { syncStateLabel } from './syncLabels';
 
   let busy = false;
   let error = '';
@@ -58,7 +59,7 @@
   <div class="sync-status-row">
     <span class="sync-dot" class:ok={$syncStatus.state === 'idle'} class:bad={stop !== '' || $syncStatus.state === 'failed'}></span>
     <span>{$syncStatus.username} · {host}</span>
-    <span class="sync-meta">{$t('sync.state.' + $syncStatus.state)}</span>
+    <span class="sync-meta">{syncStateLabel($syncStatus, $t)}</span>
     <button type="button" class="secondary" on:click={() => run(() => syncNow())} disabled={busy || !$syncStatus.running}>{$t('sync.account.syncNow')}</button>
   </div>
 

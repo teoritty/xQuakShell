@@ -925,6 +925,7 @@
     "sync.state.off": "Sync is off",
     "sync.state.running": "Syncing…",
     "sync.state.stopped": "Sync stopped and needs you",
+    "sync.state.waiting": "Up to date, with {count} change(s) waiting for you",
     "sync.teams.create": "Create team",
     "sync.teams.invite": "Invite",
     "sync.teams.leave": "Leave this team",

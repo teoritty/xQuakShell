@@ -943,6 +943,7 @@
     "sync.state.off": "Синхронизация выключена",
     "sync.state.running": "Синхронизация…",
     "sync.state.stopped": "Синхронизация остановлена и ждёт вас",
+    "sync.state.waiting": "Синхронизировано; ждут вашего решения: {count}",
     "sync.teams.create": "Создать команду",
     "sync.teams.invite": "Пригласить",
     "sync.teams.leave": "Покинуть команду",

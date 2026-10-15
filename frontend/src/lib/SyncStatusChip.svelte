@@ -8,6 +8,7 @@
   import { vaultUnlocked } from '../stores/appState';
   import { refreshSyncStatus, refreshTeams } from '../actions/syncActions';
   import { t } from '../i18n/messages';
+  import { syncStateLabel } from './settings/sync/syncLabels';
 
   const dispatch = createEventDispatcher();
 
@@ -25,7 +26,7 @@
     $syncStatus.held > 0 ||
     !!$syncStatus.newDevices?.length ||
     $pluginDataNotices.length > 0;
-  $: title = $syncStatus.message || $t('sync.state.' + $syncStatus.state);
+  $: title = $syncStatus.message || syncStateLabel($syncStatus, $t);
 </script>
 
 {#if $syncStatus.enabled}
