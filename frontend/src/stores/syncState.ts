@@ -3,6 +3,7 @@
 // what GetSyncStatus last said.
 import { writable } from 'svelte/store';
 import type { SyncStatus } from '../backend/syncGateway';
+import type { CredentialBinding } from '../backend/teamGateway';
 
 export const offSyncStatus: SyncStatus = { enabled: false, running: false, state: 'off', held: 0, quarantined: 0 };
 
@@ -15,6 +16,9 @@ export const syncStatus = writable<SyncStatus>(offSyncStatus);
  * device had changed.
  */
 export const syncRevision = writable(0);
+
+/** This member's links from team connection users to credentials of their own vault. */
+export const credentialBindings = writable<CredentialBinding[]>([]);
 
 /** Merges one round's status into what is known about the account. */
 export function applySyncRound(round: SyncStatus): void {

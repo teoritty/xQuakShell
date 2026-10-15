@@ -44,6 +44,7 @@
     scheduleSavedIndicatorReset,
   } from './connectionDetails/autosave';
   import { importPasswordIfChanged } from './connectionDetails/authSecrets';
+  import { linkPersonalCredential, linksPersonally } from '../actions/personalCredentialActions';
   import type { ConnectionDetailsDraft, SaveStatus } from './connectionDetails/types';
   import type { Connection, ConnectionUser, ForwardRule, JumpHop } from '../stores/appState';
 
@@ -200,6 +201,8 @@
 
   function onKeyChosen(keyId: string) {
     showKeyPicker = false;
+    // A team user's key is this member's own link, never a change to the record the team shares.
+    if ($detailsConnection && linksPersonally($detailsConnection, keyPickTarget)) return void linkPersonalCredential($detailsConnection, keyPickTarget, { identity: keyId });
     const next = addIdentityToTarget({ users: draft.users, hops: draft.jumpHops }, keyPickTarget, keyId);
     draft.users = next.users;
     draft.jumpHops = next.hops;
