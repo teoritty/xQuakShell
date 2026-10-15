@@ -2,10 +2,13 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"xquakshell/internal/domain"
+	"xquakshell/internal/domain/synctrust"
 	"xquakshell/internal/domain/vaultsync"
 )
 
@@ -49,7 +52,7 @@ func (e *SyncEngine) MoveConnection(ctx context.Context, req MoveConnectionReque
 		return req.Connection, nil
 	}
 	for _, v := range []string{from, req.To} {
-		if err := e.requireWritable(ctx, v); err != nil {
+		if err := waitOutRateLimit(ctx, sleepCtx, func() error { return e.requireWritable(ctx, v) }); err != nil {
 			return "", err
 		}
 	}
@@ -59,6 +62,43 @@ func (e *SyncEngine) MoveConnection(ctx context.Context, req MoveConnectionReque
 		return "", err
 	}
 	return id, nil
+}
+
+// moveRateLimitRetries and moveRateLimitMaxWait bound how long a move waits for the server's rate
+// limit. A move is one click the person is watching: a few seconds of waiting reads as work, while
+// "Too many attempts" in the middle of moving forty connections reads as breakage - and the limit is
+// per address, so every member behind one office NAT spends from the same budget.
+const (
+	moveRateLimitRetries = 3
+	moveRateLimitMaxWait = 10 * time.Second
+)
+
+// waitOutRateLimit runs fn and, while the server answers that it is rate limited, waits as long as
+// it asked - capped - and runs fn again. Any other outcome, and the last refusal, is returned.
+func waitOutRateLimit(ctx context.Context, sleep func(context.Context, time.Duration) error, fn func() error) error {
+	err := fn()
+	for range moveRateLimitRetries {
+		var limited *synctrust.RateLimitedError
+		if !errors.As(err, &limited) {
+			return err
+		}
+		if serr := sleep(ctx, min(max(limited.RetryAfter, time.Second), moveRateLimitMaxWait)); serr != nil {
+			return err
+		}
+		err = fn()
+	}
+	return err
+}
+
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
 // requireWritable checks that this account may change vault, given as items carry it. The personal
