@@ -33,9 +33,8 @@
     identitiesForTarget,
     removeIdentityFromHop,
     removeIdentityFromUser,
-    setHopPassword,
-    setUserPassword,
   } from './connectionDetails/authDraftMutations';
+  import { saveDraftNow, withPassword } from './connectionDetails/draftHandoff';
   import {
     cancelPendingAutosave, commitFieldEditOnEnter,
     createAutosaveTimerState,
@@ -76,7 +75,7 @@
   // an open panel, why the record is compared against itself rather than against the draft, and
   // how an unsaved edit survives the record moving under it, is in draftSync.ts.
   $: switch (nextDraftSync({ connId, draftId: draft.editingId, recordKey: recordKey($detailsConnection), boundRecordKey: recordKey(boundRecord), catalogKey: protocolCatalogKey, boundCatalogKey })) {
-    case 'rebuild': boundCatalogKey = protocolCatalogKey; boundRecord = $detailsConnection; syncDraftFromConnection(); break;
+    case 'rebuild': if (dirty && draft.editingId) void saveDraftNow(draft, boundRecord, saveConnection); boundCatalogKey = protocolCatalogKey; boundRecord = $detailsConnection; syncDraftFromConnection(); break;
     case 'catalog': boundCatalogKey = protocolCatalogKey; resyncProtocolCatalog(); break;
     case 'follow-record': draft = followRecord(draft, boundRecord, $detailsConnection, protocols); boundRecord = $detailsConnection; updateFormMode(); break;
   }
@@ -214,26 +213,6 @@
     markDirty();
   }
 
-  async function onUserPasswordChange(userId: string, value: string) {
-    const editingId = draft.editingId;
-    const pwId = await importPasswordIfChanged(value, `user-${userId}`);
-    if (!pwId || draft.editingId !== editingId) return;
-    if (!draft.users.some((u) => u.id === userId)) return;
-    draft.users = setUserPassword(draft.users, userId, pwId);
-    markDirty();
-  }
-
-
-  async function onHopPasswordChange(hopId: string, value: string) {
-    const editingId = draft.editingId;
-    const pwId = await importPasswordIfChanged(value, `hop-${hopId}`);
-    if (!pwId || draft.editingId !== editingId) return;
-    if (!draft.jumpHops.some((h) => h.id === hopId)) return;
-    draft.jumpHops = setHopPassword(draft.jumpHops, hopId, pwId);
-    markDirty();
-  }
-
-
   function onKeyRemove(detail: { userId?: string; hopId?: string; keyId: string }) {
     if (detail.userId) {
       draft.users = removeIdentityFromUser(draft.users, detail.userId, detail.keyId);
@@ -246,14 +225,15 @@
     }
   }
 
-  function onPasswordChange(detail: { userId?: string; hopId?: string; value: string }) {
-    if (detail.userId) {
-      void onUserPasswordChange(detail.userId, detail.value);
-      return;
-    }
-    if (detail.hopId) {
-      void onHopPasswordChange(detail.hopId, detail.value);
-    }
+  async function onPasswordChange({ userId, hopId, value }: { userId?: string; hopId?: string; value: string }) {
+    const [before, record] = [draft, boundRecord];
+    const pwId = await importPasswordIfChanged(value, userId ? `user-${userId}` : `hop-${hopId}`);
+    const moved = draft.editingId !== before.editingId;
+    const next = pwId ? withPassword(moved ? before : draft, { userId, hopId }, pwId) : null;
+    if (!next) return;
+    if (moved) return void saveDraftNow(next, record, saveConnection); // the editor went on; the password stays where it was typed
+    draft = next;
+    markDirty();
   }
 
   function setDraftUsers(users: ConnectionUser[]) {
@@ -321,7 +301,7 @@
         on:agentforwardingchange={(e) => { draft.agentForwarding = e.detail; }}
         on:keypick={(e) => onKeyPick(e.detail)}
         on:keyremove={(e) => onKeyRemove(e.detail)}
-        on:passwordchange={(e) => onPasswordChange(e.detail)}
+        on:passwordchange={(e) => void onPasswordChange(e.detail)}
         on:fieldchange={handleFieldChange}
       />
     {/key}
