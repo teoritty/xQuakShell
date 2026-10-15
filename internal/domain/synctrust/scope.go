@@ -22,6 +22,8 @@ type Scope struct {
 
 // teamTypes are the record types a team vault may hold (spec §4.2). Host keys, peer trust,
 // settings and plugin installs stay personal: a member must not plant them for the others.
+// TypePluginSecret stays listed only so that a team vault an older build filled with them still
+// verifies: ApplyScope drops those records rather than refusing the commit that carries them.
 var teamTypes = []RecordType{TypeFolder, TypeConnection, TypeIdentity, TypePassword, TypePluginSecret, TypeConflict}
 
 // Allows reports whether records of type t may live in this scope's vault.
@@ -43,6 +45,9 @@ func SnapshotScope(namingKey []byte, d *domain.VaultData, s Scope) (map[vaultsyn
 // A change of a type the vault may not hold, or one that names an item of another vault, refuses
 // the whole set, as Apply refuses any invalid change.
 func ApplyScope(d *domain.VaultData, s Scope, changes []Entry) error {
+	if s.Vault != "" {
+		changes = withoutPluginSecrets(changes)
+	}
 	for _, c := range changes {
 		if !s.Allows(c.Type) {
 			return fmt.Errorf("%w: %s in a team vault", ErrRecordType, c.Type)
@@ -62,9 +67,18 @@ func ApplyScope(d *domain.VaultData, s Scope, changes []Entry) error {
 	return nil
 }
 
+// withoutPluginSecrets drops the plugin secrets a team commit carries. Only a build that shared a
+// moved connection's plugin password with the whole team writes them. Upserting one would plant
+// another member's credential in this account; deleting one would remove this account's own value
+// filed under the same reference - on the owner's second device, the very secret being moved.
+func withoutPluginSecrets(changes []Entry) []Entry {
+	return slices.DeleteFunc(slices.Clone(changes), func(c Entry) bool { return c.Type == TypePluginSecret })
+}
+
 // project copies the part of d one vault syncs, with vault ids cleared. Personal-only data - host
-// keys, peer trust, settings - belongs to the personal scope alone. A plugin secret follows the
-// vault of the connection whose fields refer to it.
+// keys, peer trust, settings - belongs to the personal scope alone. So does every plugin secret,
+// including those of team connections: the host is shared, the credential is not (spec §6.7), and
+// each member keeps their own value under the reference the shared connection names.
 func project(d *domain.VaultData, s Scope) *domain.VaultData {
 	out := &domain.VaultData{Version: d.Version, Identities: map[string]domain.SSHIdentity{}, KeyBlobs: map[string]domain.IdentityBlob{},
 		Passwords: map[string]domain.PasswordBlob{}, PluginSecrets: map[string][]byte{}}
@@ -77,17 +91,13 @@ func project(d *domain.VaultData, s Scope) *domain.VaultData {
 			out.Folders = append(out.Folders, f)
 		}
 	}
-	secretVault := map[string]string{}
 	for _, c := range d.Connections {
-		for _, ref := range c.PluginFields {
-			secretVault[ref] = c.VaultID
-		}
 		if c.VaultID == s.Vault {
 			c.VaultID = ""
 			out.Connections = append(out.Connections, c)
 		}
 	}
-	projectMaps(d, out, s, secretVault)
+	projectMaps(d, out, s)
 	if d.Sync != nil {
 		out.Sync = &domain.VaultSync{}
 		if s.Vault == "" {
@@ -104,7 +114,7 @@ func project(d *domain.VaultData, s Scope) *domain.VaultData {
 	return out
 }
 
-func projectMaps(d, out *domain.VaultData, s Scope, secretVault map[string]string) {
+func projectMaps(d, out *domain.VaultData, s Scope) {
 	for id, ident := range d.Identities {
 		if ident.VaultID == s.Vault {
 			ident.VaultID = ""
@@ -120,10 +130,8 @@ func projectMaps(d, out *domain.VaultData, s Scope, secretVault map[string]strin
 			out.Passwords[id] = p
 		}
 	}
-	for k, v := range d.PluginSecrets {
-		if secretVault[k] == s.Vault {
-			out.PluginSecrets[k] = v
-		}
+	if s.Vault == "" {
+		maps.Copy(out.PluginSecrets, d.PluginSecrets)
 	}
 }
 
@@ -146,18 +154,12 @@ func ownerOf(d *domain.VaultData, t RecordType, key string) (string, bool) {
 		if v, ok := d.Passwords[key]; ok {
 			return v.VaultID, true
 		}
-	case TypePluginSecret:
-		for _, c := range d.Connections {
-			if slices.Contains(slices.Collect(maps.Values(c.PluginFields)), key) {
-				return c.VaultID, true
-			}
-		}
 	}
 	return "", false
 }
 
 // stamp records which vault an upserted item belongs to. A plugin secret carries no vault of its
-// own; it follows its connection.
+// own; it is always personal.
 func stamp(d *domain.VaultData, t RecordType, key, vault string) {
 	switch t {
 	case TypeFolder:

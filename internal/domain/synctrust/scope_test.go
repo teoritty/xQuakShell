@@ -39,13 +39,16 @@ func scoped(t *testing.T, d *domain.VaultData, s synctrust.Scope) map[string]syn
 
 func TestTeamScopeSnapshotsOnlyItsOwnItems(t *testing.T) {
 	got := scoped(t, mixedVault(), synctrust.Scope{Vault: team})
-	for _, want := range []string{"folder tf", "connection tc", "identity tk", "password tp", "plugin-secret tc.token"} {
+	for _, want := range []string{"folder tf", "connection tc", "identity tk", "password tp"} {
 		if _, ok := got[want]; !ok {
 			t.Errorf("team snapshot lacks %s", want)
 		}
 	}
-	if len(got) != 5 {
-		t.Fatalf("team snapshot = %d entries, want exactly the five team items: %v", len(got), keys(got))
+	if len(got) != 4 {
+		t.Fatalf("team snapshot = %d entries, want exactly the four team items: %v", len(got), keys(got))
+	}
+	if _, ok := got["plugin-secret tc.token"]; ok {
+		t.Error("team snapshot carries the plugin secret of a team connection; every member would receive this account's credential")
 	}
 	for k, e := range got {
 		if strings.Contains(string(e.Data), "vaultId") {
@@ -56,13 +59,41 @@ func TestTeamScopeSnapshotsOnlyItsOwnItems(t *testing.T) {
 
 func TestPersonalScopeLeavesTeamItemsOut(t *testing.T) {
 	got := scoped(t, mixedVault(), synctrust.Scope{})
-	for _, unwanted := range []string{"folder tf", "connection tc", "identity tk", "password tp", "plugin-secret tc.token"} {
+	for _, unwanted := range []string{"folder tf", "connection tc", "identity tk", "password tp"} {
 		if _, ok := got[unwanted]; ok {
 			t.Errorf("personal snapshot holds the team item %s", unwanted)
 		}
 	}
 	if _, ok := got["folder f1"]; !ok {
 		t.Fatal("personal snapshot lost a personal folder")
+	}
+	if _, ok := got["plugin-secret tc.token"]; !ok {
+		t.Error("personal snapshot lacks this account's plugin secret for a team connection; it would not reach the account's other devices")
+	}
+}
+
+func TestATeamScopeDropsPluginSecretsAnOlderBuildShared(t *testing.T) {
+	d := mixedVault()
+	plant := synctrust.Entry{Type: synctrust.TypePluginSecret, Key: "tc.token", Data: []byte(`{"key":"tc.token","value":"b3RoZXI="}`)}
+	wipe := synctrust.Entry{Type: synctrust.TypePluginSecret, Key: "tc.token"}
+	for _, c := range []synctrust.Entry{plant, wipe} {
+		if err := synctrust.ApplyScope(d, synctrust.Scope{Vault: team}, []synctrust.Entry{c}); err != nil {
+			t.Fatalf("a team commit carrying a plugin secret was refused (%v); the rest of that commit would never apply", err)
+		}
+		if string(d.PluginSecrets["tc.token"]) != "team-tok" {
+			t.Fatalf("a team record changed this account's plugin secret to %q", d.PluginSecrets["tc.token"])
+		}
+	}
+}
+
+func TestThePersonalScopeKeepsThePluginSecretOfATeamConnection(t *testing.T) {
+	d := mixedVault()
+	own := synctrust.Entry{Type: synctrust.TypePluginSecret, Key: "tc.token", Data: []byte(`{"key":"tc.token","value":"bWluZQ=="}`)}
+	if err := synctrust.ApplyScope(d, synctrust.Scope{}, []synctrust.Entry{own}); err != nil {
+		t.Fatalf("err = %v; this account's own secret for a team connection syncs through the personal vault", err)
+	}
+	if string(d.PluginSecrets["tc.token"]) != "mine" {
+		t.Fatalf("secret = %q, want the value from this account's other device", d.PluginSecrets["tc.token"])
 	}
 }
 
@@ -83,8 +114,8 @@ func TestApplyIntoATeamScopeStampsTheVault(t *testing.T) {
 	if dst.Identities["tk"].VaultID != team || dst.Passwords["tp"].VaultID != team {
 		t.Fatal("an applied team identity or password lost its vault")
 	}
-	if string(dst.PluginSecrets["tc.token"]) != "team-tok" {
-		t.Fatal("the team plugin secret was not applied")
+	if len(dst.PluginSecrets) != 0 {
+		t.Fatalf("plugin secrets %v arrived through a team vault", dst.PluginSecrets)
 	}
 }
 
