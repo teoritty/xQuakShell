@@ -105,6 +105,11 @@ func cmdServe(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	if cfg.initFirst {
+		if err := cmdInit(initArgs(cfg), os.Stdout); err != nil {
+			return err
+		}
+	}
 	ln, err := listen(ctx, addr)
 	if err != nil {
 		return err
@@ -122,10 +127,24 @@ func parseServe(args []string) (serveConfig, string, error) {
 	team := fs.Uint64("team-quota-mib", 0, "ciphertext quota per team vault in MiB (default 1024)")
 	rps := fs.Float64("rate-per-second", 0, "sustained requests per client address (default 20)")
 	burst := fs.Int("burst", 0, "requests a client address may make at once (default 200)")
+	initFirst := fs.Bool("init", false, "initialise DIR first when it is not initialised yet, as init --keep-existing does")
+	var hosts hostList
+	fs.Var(&hosts, "host", "with --init: host name or address for the self-signed certificate (repeatable)")
 	if err := fs.Parse(args); err != nil {
 		return serveConfig{}, "", err
 	}
 	return serveConfig{dir: *dir, certPath: orDefault(*cert, *dir, certFileName), keyPath: orDefault(*key, *dir, keyPEMName),
 		log: slog.New(slog.NewTextHandler(logOutput, nil)), personalQuota: *personal << 20, teamQuota: *team << 20,
-		ratePerSecond: *rps, burst: *burst}, *addr, nil
+		ratePerSecond: *rps, burst: *burst, initFirst: *initFirst, initHosts: hosts}, *addr, nil
+}
+
+// initArgs is the init that serve --init runs. A container image has no shell to chain init and
+// serve the way the systemd unit's ExecStartPre does, so serve does both in one process: on a
+// directory already initialised it changes nothing and only prints the fingerprint again.
+func initArgs(cfg serveConfig) []string {
+	args := []string{"--dir", cfg.dir, "--keep-existing"}
+	for _, h := range cfg.initHosts {
+		args = append(args, "--host", h)
+	}
+	return args
 }

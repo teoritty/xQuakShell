@@ -129,6 +129,44 @@ func TestAdminFlagsAfterTheAccountName(t *testing.T) {
 	}
 }
 
+// A container has no shell to run init before serve, so serve --init does it. Run on every start,
+// it must create the directory once and then leave the keys alone: a new key file on a restart would
+// show every user a different fingerprint and lock every account out.
+func TestServeInitFirstInitialisesOnceAndKeepsTheKeys(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "data")
+	cfg, _, err := parseServe([]string{"--dir", dir, "--init", "--host", "sync.example.org", "--host", "10.0.0.5"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.initFirst {
+		t.Fatal("--init was not recorded")
+	}
+	var first, second bytes.Buffer
+	if err := cmdInit(initArgs(cfg), &first); err != nil {
+		t.Fatal(err)
+	}
+	k1, err := readKeyFile(dir)
+	if err != nil {
+		t.Fatalf("serve --init on an empty directory left no key file: %v", err)
+	}
+	if !strings.Contains(first.String(), "sync.example.org") {
+		t.Fatalf("output %q; the connect link names the first --host", first.String())
+	}
+	if err := cmdInit(initArgs(cfg), &second); err != nil {
+		t.Fatal(err)
+	}
+	k2, _ := readKeyFile(dir)
+	if identityFingerprint(k1) != identityFingerprint(k2) {
+		t.Fatal("a second start replaced the identity key; every client would see a different server")
+	}
+	if !strings.Contains(second.String(), identityFingerprint(k1)) {
+		t.Fatalf("output %q; a restart still prints the fingerprint for the operator", second.String())
+	}
+	if cfg, _, _ := parseServe([]string{"--dir", dir}); cfg.initFirst {
+		t.Fatal("serve without --init must not initialise anything")
+	}
+}
+
 func TestServeRateFlags(t *testing.T) {
 	cfg, _, err := parseServe([]string{"--dir", "d", "--rate-per-second", "50", "--burst", "500"})
 	if err != nil {

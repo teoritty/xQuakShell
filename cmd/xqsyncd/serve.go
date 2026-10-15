@@ -43,6 +43,9 @@ type serveConfig struct {
 	// ratePerSecond and burst bound requests per client address; zero keeps the transport's default.
 	ratePerSecond float64
 	burst         int
+	// initFirst runs init --keep-existing with initHosts before serving (serve --init).
+	initFirst bool
+	initHosts []string
 }
 
 // openService opens the store and builds the use cases with the key file's secrets. The OPAQUE
