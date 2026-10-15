@@ -97,6 +97,24 @@ func (e *SyncEngine) RejectHeld(ctx context.Context, vault, record vaultsync.ID)
 	return e.d.State.Release(ctx, vault, record)
 }
 
+// waiting counts what sits in the vault's quarantine: changes held for the master password, and
+// changes refused. A round reports these totals, not what its own pull added: the status is built
+// from the last round, and a change held two rounds ago read as "up to date" while it still waited.
+func (e *SyncEngine) waiting(ctx context.Context, vault vaultsync.ID) (held, refused int, err error) {
+	items, err := e.d.State.Quarantined(ctx, vault)
+	if err != nil {
+		return 0, 0, err
+	}
+	for _, it := range items {
+		if it.Pending {
+			held++
+		} else {
+			refused++
+		}
+	}
+	return held, refused, nil
+}
+
 func (e *SyncEngine) heldItem(ctx context.Context, vault, record vaultsync.ID) (synctrust.QuarantineItem, error) {
 	items, err := e.d.State.Quarantined(ctx, vault)
 	if err != nil {

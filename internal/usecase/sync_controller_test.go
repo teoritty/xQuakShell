@@ -138,6 +138,23 @@ func TestHeldChangeNeedsTheMasterPassword(t *testing.T) {
 	}
 }
 
+func TestHeldChangeStaysInTheStatusUntilDecided(t *testing.T) {
+	_, cb := heldOnB(t)
+	if err := cb.c.SyncNow(); err != nil {
+		t.Fatal(err)
+	}
+	if st := cb.round(); st.Report.Pull.Held != 1 {
+		t.Fatalf("held = %d after a round that pulled nothing, want 1; a change still waiting must not read as up to date", st.Report.Pull.Held)
+	}
+	held, _ := cb.c.HeldChanges(syncCtx)
+	if err := cb.c.ConfirmHeld(syncCtx, held[0].Record, "master"); err != nil {
+		t.Fatal(err)
+	}
+	if st := cb.round(); st.Report.Pull.Held != 0 {
+		t.Fatalf("held = %d after the change was confirmed, want 0", st.Report.Pull.Held)
+	}
+}
+
 func TestRejectingAHeldChangeRevertsItEverywhere(t *testing.T) {
 	a, cb := heldOnB(t)
 	held, _ := cb.c.HeldChanges(syncCtx)

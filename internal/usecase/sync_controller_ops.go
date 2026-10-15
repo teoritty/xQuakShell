@@ -158,7 +158,12 @@ func (c *SyncController) ConfirmHeld(ctx context.Context, record vaultsync.ID, m
 	if masterPassword == "" || c.d.Vault.VerifyMasterPassword(ctx, masterPassword) != nil {
 		return ErrHeldReauth
 	}
-	return c.withEngine(func(e *SyncEngine, s SyncSession) error { return e.ConfirmHeld(ctx, s.Personal, record) })
+	err := c.withEngine(func(e *SyncEngine, s SyncSession) error { return e.ConfirmHeld(ctx, s.Personal, record) })
+	if err == nil {
+		// A round reports the quarantine as it now stands, so the status stops counting this change.
+		c.Notify()
+	}
+	return err
 }
 
 // RejectHeld drops a held or refused change; the next round writes this device's value back.

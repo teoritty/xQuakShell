@@ -36,6 +36,12 @@ type SyncReport struct {
 // then push this device's changes, rebasing when another device got there first.
 func (e *SyncEngine) Sync(ctx context.Context, vault vaultsync.ID) (SyncReport, error) {
 	r, err := e.syncRound(ctx, vault)
+	held, refused, qerr := e.waiting(ctx, vault)
+	if qerr == nil {
+		r.Pull.Held, r.Pull.Quarantined = held, refused
+	} else if err == nil {
+		err = qerr
+	}
 	return r, e.explainIntegrity(ctx, err)
 }
 
