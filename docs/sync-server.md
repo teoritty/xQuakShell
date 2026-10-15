@@ -64,6 +64,65 @@ The server logs to the Windows event log under the service's name.
 
 `xqsyncd.exe service uninstall` stops and removes the service and **keeps the data directory**.
 
+### Docker
+
+Every release publishes a multi-architecture image (`linux/amd64`, `linux/arm64`):
+
+```text
+ghcr.io/teoritty/xqsyncd:1.5.0    exactly this release
+ghcr.io/teoritty/xqsyncd:1.5      the newest 1.5.x
+ghcr.io/teoritty/xqsyncd:1        the newest 1.x
+ghcr.io/teoritty/xqsyncd:latest   the newest release
+```
+
+Pre-releases are published under their own version only. The image holds the server binary and
+nothing else - no shell - and runs as an unprivileged user. The data directory is `/data`; put it
+on a volume.
+
+With Compose, take [`packaging/docker/compose.yaml`](../packaging/docker/compose.yaml), replace
+`sync.example.org` with the name your users connect to, and:
+
+```sh
+docker compose up -d
+docker compose logs xqsyncd | grep -E 'fingerprint|connect link'
+```
+
+Without Compose:
+
+```sh
+docker run -d --name xqsyncd --restart unless-stopped -p 8443:8443 -v xqsyncd-data:/data \
+  ghcr.io/teoritty/xqsyncd:1 serve --dir /data --addr :8443 --init --host sync.example.org
+```
+
+`serve --init` creates the key file and the certificate on the first start and changes nothing on
+later ones; `--host` only names the server in the printed connect link. Every command below runs in
+the container as the binary itself:
+
+```sh
+docker exec xqsyncd xqsyncd admin invite create --dir /data
+docker exec xqsyncd xqsyncd fingerprint --dir /data --host sync.example.org --port 8443
+```
+
+The volume holds both `server.key` and `xqsyncd.db`, which must not be backed up together (see
+[Backups](#backups)). Do not snapshot or copy the whole volume as your backup. Copy `server.key` out
+once, to a separate place, and back the database up with `admin backup` into a directory mounted
+for it:
+
+```sh
+docker cp xqsyncd:/data/server.key ./server.key   # once; store it apart from the database backups
+docker run --rm --volumes-from xqsyncd -v xqsyncd-backups:/backup \
+  ghcr.io/teoritty/xqsyncd:1 admin backup --to /backup --dir /data
+```
+
+A named volume at `/backup` is writable as it comes. A host directory mounted there instead must be
+writable by uid 65532, the user the image runs as.
+
+Behind a reverse proxy every client arrives from the proxy's address and shares one rate limit (see
+[Limits](#limits)); raise `--rate-per-second` and `--burst` on `serve` accordingly. The proxy must pass
+TLS through rather than terminate it: clients pin the certificate the server's identity key signed.
+
+To upgrade, pull the new tag and recreate the container; the volume carries everything over.
+
 ### Anywhere else
 
 ```sh
@@ -71,6 +130,7 @@ xqsyncd init --dir /srv/xqsyncd --host sync.example.org
 xqsyncd serve --dir /srv/xqsyncd --addr :8443
 ```
 
+`serve --init --host sync.example.org` does both in one command and is safe to run on every start.
 Keep the directory readable by the server's own user only.
 
 ## First connection: the fingerprint

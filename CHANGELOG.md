@@ -68,6 +68,14 @@ another vault. A move into a team links your own key or password for you, and a 
 that link with it as the connection's credential. A viewer sees the team's connections and can
 use them, but cannot add, change or move them.
 
+**The sync server as a container image.** Every release also publishes `xqsyncd` to
+`ghcr.io/teoritty/xqsyncd` for `linux/amd64` and `linux/arm64`, tagged with the version, its minor
+and major lines and `latest`; a pre-release gets its own version only. The image is the static server
+binary on a distroless base, running unprivileged with its data on a volume. `xqsyncd serve --init`
+initialises an empty data directory before serving and leaves an initialised one untouched, so a
+container needs one command; a [Compose file](packaging/docker/compose.yaml) and the backup routine
+for a containerised server are in the [admin guide](docs/sync-server.md#docker).
+
 **Trash and Shred now.** Deleted synced items stay in a trash for the vault's retention window
 (30 days by default) and can be restored. After that they are purged from the server, and within
 one and a half more windows the keys that covered them are destroyed on every device. Shred now does all
