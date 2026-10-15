@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -372,15 +373,16 @@ func TestTeamsAreNotReverifiedUntilTheyChange(t *testing.T) {
 	if teams, err := cd.c.Teams(syncCtx); err != nil || len(teams) != 1 {
 		t.Fatalf("teams = %+v, %v", teams, err)
 	}
-	fetched := 0
-	a.server.svcServer.tamperLog = func(es []vaultsync.DeviceEntry) []vaultsync.DeviceEntry { fetched++; return es }
+	// Atomic: the scheduler's own passes run on another goroutine and fetch the log too.
+	var fetched atomic.Int32
+	a.server.svcServer.tamperLog = func(es []vaultsync.DeviceEntry) []vaultsync.DeviceEntry { fetched.Add(1); return es }
 	for range 3 {
 		if teams, err := cd.c.Teams(syncCtx); err != nil || len(teams) != 1 || teams[0].Name != "Ops" {
 			t.Fatalf("teams = %+v, %v", teams, err)
 		}
 	}
-	if fetched != 0 {
-		t.Fatalf("listing an unchanged team fetched the device log %d times", fetched)
+	if n := fetched.Load(); n != 0 {
+		t.Fatalf("listing an unchanged team fetched the device log %d times", n)
 	}
 	if err := cd.c.SetTeamPolicy(syncCtx, team, 45, false); err != nil {
 		t.Fatal(err)
@@ -389,11 +391,11 @@ func TestTeamsAreNotReverifiedUntilTheyChange(t *testing.T) {
 	_ = cd.c.SyncNow()
 	cd.round()
 	cd.round()
-	before := fetched
+	before := fetched.Load()
 	if _, err := cd.c.Teams(syncCtx); err != nil {
 		t.Fatal(err)
 	}
-	if fetched == before {
+	if fetched.Load() == before {
 		t.Fatal("a team whose membership moved was listed from the cache; its role may have changed")
 	}
 }
