@@ -1,0 +1,40 @@
+{
+  "accepted": [
+    {
+      "rule": "go/disabled-certificate-check",
+      "path": "internal/infra/syncclient/client.go",
+      "line": "InsecureSkipVerify: true, // #nosec G402 -- replaced by VerifyConnection, see httpClient",
+      "reason": "The client pins the sync server instead of trusting a CA (ADR-023): a self-hosted server has a self-signed certificate, and VerifyConnection checks on every handshake that the presented key is the one the pinned identity key signed. The hello client accepts any key but sends nothing secret, and its reply is verified against the key of the very connection it came over."
+    },
+    {
+      "rule": "go/clear-text-logging",
+      "path": "internal/usecase/ssh_connector.go",
+      "line": "slog.Error(\"session auth failed\", \"host\", conn.Host, \"err\", err)",
+      "source": {
+        "path": "internal/domain/credential_binding.go",
+        "line": "user.Auth, user.PassAuth = AuthMethodPassword, &PasswordAuthConfig{VaultRef: b.PasswordID}"
+      },
+      "reason": "PasswordID is the vault entry id of a password, not the password. The flow reaches the log only as the id PasswordRepo.Get names in its not-found error; the password bytes never enter an error. Entity ids are logged on purpose (CLAUDE.md 5.3)."
+    },
+    {
+      "rule": "go/clear-text-logging",
+      "path": "internal/usecase/session_lifecycle_service.go",
+      "line": "slog.Error(\"session connect failed\", \"sessionID\", entry.info.SessionID, \"err\", result.Err)",
+      "source": {
+        "path": "internal/domain/credential_binding.go",
+        "line": "user.Auth, user.PassAuth = AuthMethodPassword, &PasswordAuthConfig{VaultRef: b.PasswordID}"
+      },
+      "reason": "The same flow as the session auth log one level up: the error carries the vault entry id of a password whose entry is missing, never the password itself. Entity ids are logged on purpose (CLAUDE.md 5.3)."
+    },
+    {
+      "rule": "go/weak-sensitive-data-hashing",
+      "path": "internal/domain/vaultsync/canon.go",
+      "line": "return sha256.Sum256(c.buf), nil",
+      "source": {
+        "path": "internal/usecase/sync_login.go",
+        "line": "account, res, exportKey, err := s.passwordLogin(ctx, srv, hello, c)"
+      },
+      "reason": "What is hashed is the account's public genesis encryption key from the login result, chained into the device log; CodeQL takes it for a password only because passwordLogin returned it. The password itself goes into OPAQUE with Argon2id and never reaches Canon."
+    }
+  ]
+}

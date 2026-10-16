@@ -177,8 +177,8 @@ jobs:
           npm ci
           npm run build
 
+      # Both legs need Go: the go leg builds with it, and the gate below is a Go command.
       - uses: actions/setup-go@v7
-        if: matrix.language == 'go'
         with:
           go-version-file: go.mod
 
@@ -229,23 +229,16 @@ jobs:
       #
       # The results are printed before failing because, unlike gosec and
       # staticcheck, nothing else in the job log names them.
+      #
+      # A finding reviewed as a false positive is listed, with its reason, in
+      # .github/codeql-accepted.json. Dismissing it in the Security tab is not
+      # enough: the SARIF on disk still carries it. An acceptance is bound to the
+      # text of the flagged line, and for a data flow to its source line too, so
+      # editing either line puts the finding back in front of a reviewer. See
+      # scripts/codeqlgate.
       - name: Gate on CodeQL findings
         if: always()
-        run: |
-          shopt -s nullglob
-          sarif=(codeql-results/*.sarif)
-          if [ "${#sarif[@]}" -eq 0 ]; then
-            echo "no CodeQL SARIF in codeql-results/ - analyze did not run to completion"
-            exit 1
-          fi
-          count=$(jq -s '[.[].runs[].results[]] | length' "${sarif[@]}")
-          if [ "$count" -ne 0 ]; then
-            jq -rs '.[].runs[].results[]
-              | "\(.ruleId)\t\(.locations[0].physicalLocation.artifactLocation.uri // "?"):\(.locations[0].physicalLocation.region.startLine // 0)\t\(.message.text)"' \
-              "${sarif[@]}"
-            echo "CodeQL reported $count finding(s) for ${{ matrix.language }}"
-            exit 1
-          fi
+        run: go run ./scripts/codeqlgate --sarif codeql-results --accepted .github/codeql-accepted.json
 
   frontend:
     runs-on: ubuntu-latest
