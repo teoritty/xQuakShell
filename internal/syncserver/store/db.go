@@ -18,6 +18,8 @@ import (
 // DB is an open server database.
 type DB struct {
 	db *sql.DB
+	// writes orders this process's writers before they reach SQLite; see writeQueue.
+	writes writeQueue
 }
 
 var _ usecase.Store = (*DB)(nil)
@@ -36,7 +38,8 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	// snapshot, and when another connection commits first, SQLite refuses the upgrade to a writer at
 	// once with SQLITE_BUSY - the busy timeout cannot help, since no wait makes the snapshot current.
 	// Taking the write lock at BEGIN makes a second writer wait its turn instead. The cost is that
-	// transactions run one at a time, which a server holding a few teams' vaults never notices.
+	// transactions run one at a time, which a server holding a few teams' vaults never notices. The
+	// turn itself is given out by writeQueue, in order, before BEGIN is sent.
 	q.Add("_txlock", "immediate")
 	db, err := sql.Open("sqlite", path+"?"+q.Encode())
 	if err != nil {
@@ -84,8 +87,13 @@ func inspect(ctx context.Context, db *sql.DB) (version, tables int, err error) {
 // Close releases the connection pool; the WAL is folded back on the last connection closing.
 func (s *DB) Close() error { return s.db.Close() }
 
-// WithTx runs fn in one transaction and commits only if fn returns nil.
+// WithTx runs fn in one transaction and commits only if fn returns nil. It waits for its turn in
+// the write queue first, so fn must not start another transaction: it would wait behind itself.
 func (s *DB) WithTx(ctx context.Context, fn func(usecase.Tx) error) error {
+	if err := s.writes.acquire(ctx); err != nil {
+		return fmt.Errorf("store: wait to write: %w", err)
+	}
+	defer s.writes.release()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("store: begin: %w", err)
@@ -118,7 +126,13 @@ func (s *DB) SecureDelete(ctx context.Context) (bool, error) {
 
 // Checkpoint folds the write-ahead log into the main file and truncates it, so deleted content
 // that only the log still held is gone too.
+// It takes a turn in the write queue like a transaction does: a truncating checkpoint waits for
+// every writer, and in SQLite's own wait it would starve behind them the same way.
 func (s *DB) Checkpoint(ctx context.Context) error {
+	if err := s.writes.acquire(ctx); err != nil {
+		return fmt.Errorf("store: wait to checkpoint: %w", err)
+	}
+	defer s.writes.release()
 	_, err := s.db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
 	return err
 }
