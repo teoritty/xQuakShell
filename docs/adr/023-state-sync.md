@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed. Extends [ADR-017](017-release-and-compatibility-policy.md) with new version axes and
+Accepted. Extends [ADR-017](017-release-and-compatibility-policy.md) with new version axes and
 narrows one sentence of [ADR-021](021-vault-recovery-key.md). Design:
 `docs/superpowers/specs/2026-10-13-sync-design.md` (kept local, not committed).
 
