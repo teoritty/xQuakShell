@@ -36,13 +36,21 @@
   $: manager = team.role === 'owner' || team.role === 'admin';
   $: writable = manager || team.role === 'editor';
   $: personal = $connections.filter((c) => !c.vaultId);
-  // Reloads whenever another team is chosen.
-  $: if (team) void load();
+  let shownVault = '';
+  // Reloads whenever the parent hands over the team again, which it does after every action and
+  // sync. Only choosing another team clears the message: a reload clearing it wiped every refusal -
+  // a fingerprint that does not match, a role the server turns down - before it could be read.
+  $: if (team) {
+    if (team.vault !== shownVault) {
+      shownVault = team.vault;
+      error = '';
+    }
+    void load();
+  }
 
   async function load() {
     try {
       members = await listTeamMembersRpc(team.vault);
-      error = '';
     } catch (e) {
       error = errorMessage(e);
     }
