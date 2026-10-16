@@ -42,6 +42,20 @@ func TestDataDirSDDLGrantsOnlyAdministratorsAndTheService(t *testing.T) {
 	if err != nil || ctl&windows.SE_DACL_PROTECTED == 0 {
 		t.Fatalf("control %v, %v; the DACL must be protected from inheritance", ctl, err)
 	}
+	grantees := daclGrantees(t, sd)
+	slices.Sort(grantees)
+	want := []string{"S-1-5-32-544", sid}
+	slices.Sort(want)
+	if !slices.Equal(grantees, want) {
+		t.Fatalf("grantees %v, want only Administrators and the service: %v", grantees, want)
+	}
+}
+
+// daclGrantees lists the SIDs a descriptor's allow entries grant, read from the entries themselves.
+// The SDDL text is no substitute: it prints a well-known SID by its alias, so the built-in
+// Administrator account that runs GitHub's Windows runners appears there as LA, not as its SID.
+func daclGrantees(t *testing.T, sd *windows.SECURITY_DESCRIPTOR) []string {
+	t.Helper()
 	dacl, _, err := sd.DACL()
 	if err != nil {
 		t.Fatal(err)
@@ -58,12 +72,7 @@ func TestDataDirSDDLGrantsOnlyAdministratorsAndTheService(t *testing.T) {
 		sidOf := (*windows.SID)(unsafe.Pointer(&ace.SidStart)) // #nosec G103 -- reading the SID the ACE carries inline, as GetAce documents
 		grantees = append(grantees, sidOf.String())
 	}
-	slices.Sort(grantees)
-	want := []string{"S-1-5-32-544", sid}
-	slices.Sort(want)
-	if !slices.Equal(grantees, want) {
-		t.Fatalf("grantees %v, want only Administrators and the service: %v", grantees, want)
-	}
+	return grantees
 }
 
 func TestServiceInstallDefaults(t *testing.T) {
@@ -116,8 +125,8 @@ func TestDataDirACLIsAppliedToADirectory(t *testing.T) {
 	if ctl, _, _ := sd.Control(); ctl&windows.SE_DACL_PROTECTED == 0 {
 		t.Fatal("the applied DACL is not protected")
 	}
-	if !strings.Contains(sd.String(), user.User.Sid.String()) {
-		t.Fatalf("applied DACL %s does not name the service account", sd.String())
+	if grantees := daclGrantees(t, sd); !slices.Contains(grantees, user.User.Sid.String()) {
+		t.Fatalf("applied DACL grants %v (%s), not the service account %s", grantees, sd.String(), user.User.Sid.String())
 	}
 }
 
