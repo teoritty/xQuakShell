@@ -1,6 +1,7 @@
 package usecase_test
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
@@ -216,5 +217,108 @@ func TestRemovalReencryptsTheTeamsRecords(t *testing.T) {
 		if !r.Deleted && r.Epoch != 1 {
 			t.Fatalf("record %s is still under epoch %d; a removed member's key must open nothing written or kept after", r.Record, r.Epoch)
 		}
+	}
+}
+
+// attackerKey is an encryption key a hostile server holds the private half of.
+var attackerKey = bytes.Repeat([]byte{7}, 1216)
+
+// An empty log signs nothing, so nothing vouches for the encryption key the server named with it.
+// Accepting one would let the server swap in a key of its own under a genuine identity key - one
+// whose fingerprint the admin compared and found right - and receive the vault key in the invite.
+func TestAnInviteeLogWithNoEntriesIsRefused(t *testing.T) {
+	h, a := registered(t)
+	team, _ := a.engine.CreateTeam(syncCtx, "Ops", rand.Reader)
+	bob := h.Register("bob")
+	a.server.svcServer.tamperLookup = func(ml synctrust.MemberLog) synctrust.MemberLog {
+		ml.EncryptionKey, ml.Entries = attackerKey, nil
+		return ml
+	}
+	err := a.engine.Invite(syncCtx, usecase.InviteRequest{Vault: team, Username: "bob", Fingerprint: fingerprintOf(bob), Role: vaultsync.RoleEditor, Verified: true})
+	if !errors.Is(err, synctrust.ErrIntegrity) {
+		t.Fatalf("err = %v, want ErrIntegrity: a log with no entries leaves its encryption key unsigned", err)
+	}
+}
+
+// grownLog certifies another device of u on the server, growing u's log by one entry.
+func grownLog(t *testing.T, h *servertest.Harness, u *servertest.User) vaultsync.DeviceEntry {
+	t.Helper()
+	_, dsk, _ := ed25519.GenerateKey(rand.Reader)
+	e := u.AddDeviceEntry(t, servertest.RandomID(t), dsk)
+	if err := h.Svc.AppendDeviceLog(syncCtx, h.Principal(u.Access), []vaultsync.DeviceEntry{e}); err != nil {
+		t.Fatal(err)
+	}
+	return e
+}
+
+// A log served shorter than this device saw it before is the log as it stood before some entry -
+// a revocation and succession, say, after which the old encryption key belongs to a stolen device.
+func TestAnInviteeLogRolledBackIsRefused(t *testing.T) {
+	h, a, bob, _ := teamWithBob(t)
+	grownLog(t, h, bob)
+	if _, err := a.engine.LookupInvitee(syncCtx, "bob"); err != nil {
+		t.Fatalf("the grown log was refused: %v", err)
+	}
+	a.server.svcServer.tamperLookup = func(ml synctrust.MemberLog) synctrust.MemberLog {
+		ml.Entries = ml.Entries[:1]
+		return ml
+	}
+	if _, err := a.engine.LookupInvitee(syncCtx, "bob"); !errors.Is(err, synctrust.ErrIntegrity) {
+		t.Fatalf("err = %v, want ErrIntegrity: a log must extend the one this device verified", err)
+	}
+}
+
+// The same length with another entry in place of one already seen is a fork of the log, and every
+// entry in it still verifies: only the record of what was seen before can tell.
+func TestAnInviteeLogForkedIsRefused(t *testing.T) {
+	h, a, bob, _ := teamWithBob(t)
+	grownLog(t, h, bob)
+	if _, err := a.engine.LookupInvitee(syncCtx, "bob"); err != nil {
+		t.Fatal(err)
+	}
+	_, dsk, _ := ed25519.GenerateKey(rand.Reader)
+	// Bob's own key signs the fork, as a device of his could: the same first entry, another second.
+	fork := &servertest.User{Account: bob.Account, AIK: bob.AIK}
+	fork.Log, _ = vaultsync.NewDeviceLogState(bob.Account, vaultsync.Suite1, bob.AIK.Public().(ed25519.PublicKey), bob.AEK)
+	first := fork.AddDeviceEntry(t, bob.Device, bob.DSK)
+	other := fork.AddDeviceEntry(t, servertest.RandomID(t), dsk)
+	a.server.svcServer.tamperLookup = func(ml synctrust.MemberLog) synctrust.MemberLog {
+		ml.Entries = []vaultsync.DeviceEntry{first, other}
+		return ml
+	}
+	if _, err := a.engine.LookupInvitee(syncCtx, "bob"); !errors.Is(err, synctrust.ErrIntegrity) {
+		t.Fatalf("err = %v, want ErrIntegrity: an entry other than the one seen at its position is a fork", err)
+	}
+}
+
+// A rotation wraps the new vault key to each member's key as their log ends. Served a member's log
+// from before its latest entries, it would wrap to a key that may no longer be theirs alone.
+func TestARotationRefusesAMemberLogRolledBack(t *testing.T) {
+	h, a, bob, team := teamWithBob(t)
+	grownLog(t, h, bob)
+	if err := a.engine.RotateEpoch(syncCtx, team, nil, false, rand.Reader); err != nil {
+		t.Fatalf("honest rotation: %v", err)
+	}
+	a.server.svcServer.tamperMemberLog = func(account vaultsync.ID, ml synctrust.MemberLog) synctrust.MemberLog {
+		if account == bob.Account {
+			ml.Entries = ml.Entries[:1]
+		}
+		return ml
+	}
+	if err := a.engine.RotateEpoch(syncCtx, team, nil, false, rand.Reader); !errors.Is(err, synctrust.ErrIntegrity) {
+		t.Fatalf("err = %v, want ErrIntegrity: a member's log must extend the one this device verified", err)
+	}
+}
+
+func TestARotationRefusesAMemberLogWithNoEntries(t *testing.T) {
+	_, a, bob, team := teamWithBob(t)
+	a.server.svcServer.tamperMemberLog = func(account vaultsync.ID, ml synctrust.MemberLog) synctrust.MemberLog {
+		if account == bob.Account {
+			ml.EncryptionKey, ml.Entries = attackerKey, nil
+		}
+		return ml
+	}
+	if err := a.engine.RotateEpoch(syncCtx, team, nil, false, rand.Reader); !errors.Is(err, synctrust.ErrIntegrity) {
+		t.Fatalf("err = %v, want ErrIntegrity: the new vault key would be wrapped to the server's key", err)
 	}
 }

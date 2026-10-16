@@ -5,7 +5,6 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 
 	"xquakshell/internal/domain"
@@ -123,17 +122,9 @@ func (e *SyncEngine) inviteeLog(ctx context.Context, username string) (vaultsync
 	if err != nil {
 		return vaultsync.ID{}, invited{}, err
 	}
-	st, err := vaultsync.NewDeviceLogState(account, ml.Suite, ml.IdentityKey, ml.EncryptionKey)
+	st, err := e.verifiedAccountLog(ctx, account, ml, "invitee device log")
 	if err != nil {
-		return vaultsync.ID{}, invited{}, integrity("invitee device log", err)
-	}
-	for i := range ml.Entries {
-		if err := st.Apply(&ml.Entries[i]); err != nil {
-			return vaultsync.ID{}, invited{}, integrity("invitee device log", err)
-		}
-	}
-	if st.PendingSuccession() {
-		return vaultsync.ID{}, invited{}, integrity("invitee device log", fmt.Errorf("a revocation without its succession"))
+		return vaultsync.ID{}, invited{}, err
 	}
 	return account, invited{genesis: ml.IdentityKey, state: st}, nil
 }

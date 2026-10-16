@@ -55,6 +55,66 @@ func (e *SyncEngine) verifiedDeviceLog(ctx context.Context) (*vaultsync.DeviceLo
 	return dl, fresh, nil
 }
 
+// errLogRolledBack is another account's device log served shorter than, or different from, the
+// part of it this device verified before.
+var errLogRolledBack = errors.New("the account's device log does not extend the one verified before")
+
+// verifiedAccountLog replays another account's device log - a co-member's or an invitee's - from
+// the genesis keys the server returned, and holds the server to every entry this device verified
+// of it before. what names the log in an integrity error.
+//
+// The log must have an entry. Only the first entry, signed by the identity key a fingerprint covers
+// and chained from a genesis hash over both account keys, vouches for the encryption key: with no
+// entry the server could name any encryption key beside a genuine identity key, and the next invite
+// or rotation would wrap a vault key to it.
+//
+// The stored prefix stops a rollback. Served the log as it stood before a revocation and its
+// succession, this device would wrap vault keys to the encryption key the revoked device still
+// holds, and accept what that device signs. A device that never saw the log has no prefix to hold
+// the server to; it trusts the log as first served.
+func (e *SyncEngine) verifiedAccountLog(ctx context.Context, account vaultsync.ID, ml synctrust.MemberLog, what string) (*vaultsync.DeviceLogState, error) {
+	if len(ml.Entries) == 0 {
+		return nil, integrity(what, fmt.Errorf("%w: no entries", vaultsync.ErrDeviceLog))
+	}
+	stored, err := e.d.State.DeviceLog(ctx, account)
+	if err != nil {
+		return nil, err
+	}
+	if len(ml.Entries) < len(stored) {
+		return nil, integrity(what, errLogRolledBack)
+	}
+	log, err := vaultsync.NewDeviceLogState(account, ml.Suite, ml.IdentityKey, ml.EncryptionKey)
+	if err != nil {
+		return nil, integrity(what, err)
+	}
+	for i := range ml.Entries {
+		if i < len(stored) && !sameEntry(&stored[i], &ml.Entries[i]) {
+			return nil, integrity(what, errLogRolledBack)
+		}
+		if err := log.Apply(&ml.Entries[i]); err != nil {
+			return nil, integrity(what, err)
+		}
+	}
+	if log.PendingSuccession() {
+		return nil, integrity(what, fmt.Errorf("a revocation without its succession"))
+	}
+	// This account's own log is stored only by verifiedDeviceLog, which replays it from the keys
+	// this device holds rather than from keys the server named.
+	if account == e.d.Keys.Account() {
+		return log, nil
+	}
+	if err := e.d.State.AppendDeviceLog(ctx, ml.Entries[len(stored):]); err != nil {
+		return nil, err
+	}
+	return log, nil
+}
+
+func sameEntry(a, b *vaultsync.DeviceEntry) bool {
+	am, aerr := a.SigningBytes()
+	bm, berr := b.SigningBytes()
+	return aerr == nil && berr == nil && bytes.Equal(am, bm) && bytes.Equal(a.Sig, b.Sig) && bytes.Equal(a.SuccessorSig, b.SuccessorSig)
+}
+
 // explainIntegrity looks again at the device log when a round failed verification. A device
 // revoked, or left behind by a key rotation, while a round was under way reads a log from before the
 // change and commits from after it - a vault re-encrypted to keys it never received - and failed

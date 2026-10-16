@@ -111,17 +111,9 @@ func (t *memberTrust) logFor(account vaultsync.ID) (*vaultsync.DeviceLogState, e
 	if err := t.trustKey(account, ml.IdentityKey); err != nil {
 		return nil, err
 	}
-	log, err := vaultsync.NewDeviceLogState(account, ml.Suite, ml.IdentityKey, ml.EncryptionKey)
+	log, err := t.e.verifiedAccountLog(t.ctx, account, ml, "member device log")
 	if err != nil {
-		return nil, integrity("member device log", err)
-	}
-	for i := range ml.Entries {
-		if err := log.Apply(&ml.Entries[i]); err != nil {
-			return nil, integrity("member device log", err)
-		}
-	}
-	if log.PendingSuccession() {
-		return nil, integrity("member device log", fmt.Errorf("a revocation without its succession"))
+		return nil, err
 	}
 	t.logs[account] = log
 	t.genesis[account] = ml.IdentityKey
