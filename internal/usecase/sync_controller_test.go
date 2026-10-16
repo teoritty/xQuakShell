@@ -55,6 +55,20 @@ func (cd *controlled) round() usecase.SyncStatus {
 	}
 }
 
+// settle waits until each of vaults has finished a round. round returns at the first vault a pass
+// finishes while the pass goes on to the next one, and on a slow runner a test that measured then
+// took the lock first and counted the next vault's requests as its own.
+func (cd *controlled) settle(vaults ...vaultsync.ID) {
+	cd.t.Helper()
+	left := map[vaultsync.ID]bool{}
+	for _, v := range vaults {
+		left[v] = true
+	}
+	for len(left) > 0 {
+		delete(left, cd.round().Vault)
+	}
+}
+
 func TestControllerStaysOffWithoutAnAccount(t *testing.T) {
 	h := servertest.NewHarness(t, 0)
 	cd := control(t, newDevice(t, h, "laptop"))
@@ -386,7 +400,9 @@ func TestTeamsAreNotReverifiedUntilTheyChange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cd.round()
+	// The pass that creating the team schedules syncs both vaults. Measuring before it reaches the
+	// team counted the pass's own fetch of the log as the listing's, and failed on slow runners.
+	cd.settle(a.session.Personal, team)
 	if teams, err := cd.c.Teams(syncCtx); err != nil || len(teams) != 1 {
 		t.Fatalf("teams = %+v, %v", teams, err)
 	}
