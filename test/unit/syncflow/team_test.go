@@ -36,8 +36,8 @@ func (d *device) syncVault(v vaultsync.ID) error {
 // written afterwards does not open with the key the member held.
 func TestS6TeamLifecycle(t *testing.T) {
 	s := newServer(t)
-	alice := s.registeredAs("alice", "alice horse")
-	bob := s.registeredAs("bob", "bob horse")
+	alice := s.registeredAs("alice", "alice horse staple")
+	bob := s.registeredAs("bob", "bob horse staple")
 
 	team, err := alice.engine.CreateTeam(ctx, "Ops", rand.Reader)
 	if err != nil {

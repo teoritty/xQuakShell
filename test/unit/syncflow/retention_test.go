@@ -176,7 +176,7 @@ func TestS3bShredNowAndThePasswordChange(t *testing.T) {
 	if unwrap(acct.EncryptionSeed) != nil {
 		t.Fatal("the fixture is wrong: before a password change the old copy opens with current credentials (residual R1)")
 	}
-	sess, err := a.svc.ChangePassword(ctx, []byte("correct horse"), []byte("new horse"))
+	sess, err := a.svc.ChangePassword(ctx, []byte("correct horse"), []byte("new horse staple"))
 	if err != nil {
 		t.Fatal(err)
 	}

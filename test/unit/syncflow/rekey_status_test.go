@@ -36,7 +36,7 @@ func TestKeyChangesElsewhereAreNotReportedAsTampering(t *testing.T) {
 		t.Fatalf("B reads its own account's team: %v", err)
 	}
 
-	sess, err := a.svc.ChangePassword(ctx, []byte("correct horse"), []byte("new horse"))
+	sess, err := a.svc.ChangePassword(ctx, []byte("correct horse"), []byte("new horse staple"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,12 +50,12 @@ func TestKeyChangesElsewhereAreNotReportedAsTampering(t *testing.T) {
 		t.Fatalf("listing vaults after a password change elsewhere: %v; a rotation is not tampering", err)
 	}
 
-	sb, err := b.svc.Relogin(ctx, []byte("new horse"))
+	sb, err := b.svc.Relogin(ctx, []byte("new horse staple"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	b.session, b.engine = sb, b.newEngine(sb)
-	if _, err := a.svc.RevokeDevices(ctx, []vaultsync.ID{b.session.Keys.Device()}, []byte("new horse")); err != nil {
+	if _, err := a.svc.RevokeDevices(ctx, []vaultsync.ID{b.session.Keys.Device()}, []byte("new horse staple")); err != nil {
 		t.Fatal(err)
 	}
 	for _, v := range []vaultsync.ID{b.session.Personal, team} {

@@ -114,7 +114,7 @@ func TestS5PasswordChange(t *testing.T) {
 	a := s.registered()
 	a.sync()
 	b := s.enrolled("phone", "correct horse")
-	sess, err := a.svc.ChangePassword(ctx, []byte("correct horse"), []byte("new horse"))
+	sess, err := a.svc.ChangePassword(ctx, []byte("correct horse"), []byte("new horse staple"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestS5PasswordChange(t *testing.T) {
 	if _, err := b.engine.Sync(ctx, b.session.Personal); !errors.Is(err, synctrust.ErrKeysRotated) {
 		t.Fatalf("B: %v, want ErrKeysRotated", err)
 	}
-	sb, err := b.svc.Relogin(ctx, []byte("new horse"))
+	sb, err := b.svc.Relogin(ctx, []byte("new horse staple"))
 	if err != nil {
 		t.Fatal(err)
 	}
