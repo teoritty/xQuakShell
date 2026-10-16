@@ -58,7 +58,11 @@ characters.
 
 **Teams.** A team vault shares connections with other accounts on the same server. You invite a
 person after comparing their fingerprint over another channel, and give them the admin, editor or
-viewer role. Credentials are not shared: each member binds their own key or password to
+viewer role. Nobody has to read the fingerprint aloud: each person copies their contact code
+(`xqs-member:name#fp=…`) from the Teams page and sends it in a chat or a mail, and pasting it into
+the invite field — or into a member's row, to verify an existing member — makes the application
+compare it with the key the server gives for that account. A code that does not match leaves
+nothing to invite. Credentials are not shared: each member binds their own key or password to
 a team connection, and a member who changes a shared connection's address suspends everyone
 else's binding to it until they confirm. Removing a member moves the team to new keys, so nothing
 written afterwards opens for them. Each team appears in the connection tree under its own row,

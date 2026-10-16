@@ -15,8 +15,12 @@ import {
   verifyTeamMemberRpc,
   type CredentialBinding,
   type TeamInvitee,
+  type TeamMember,
 } from '../api/team';
 import { errorMessage, refreshTeams } from './syncActions';
+import { codeFingerprint, parseInviteInput } from '../lib/settings/sync/contactCode';
+import { sameFingerprint } from '../lib/settings/sync/syncLink';
+import { translate } from '../i18n/messages';
 import { refreshAllConnections } from './connectionActions';
 import { detailsConnectionId, favorites, selectedConnectionId, selectedConnectionIds } from '../stores/appState';
 
@@ -41,13 +45,24 @@ export async function createTeam(name: string): Promise<{ vault: string; error: 
   return { vault, error };
 }
 
-export async function lookupInvitee(username: string): Promise<{ invitee?: TeamInvitee; error?: string }> {
+/**
+ * Looks up a username or a contact code. With a code, matched says the key the server answered
+ * with is the one its owner sent; a code that does not match returns no invitee, so the account the
+ * server named instead cannot be invited from this lookup.
+ */
+export async function lookupInvitee(input: string): Promise<{ invitee?: TeamInvitee; matched?: boolean; error?: string }> {
+  const parsed = parseInviteInput(input);
+  if (!parsed) return { error: translate('sync.teams.code.malformed') };
+  let invitee: TeamInvitee | null;
   try {
-    const invitee = await lookupTeamInviteeRpc(username.trim());
-    return invitee ? { invitee } : { error: 'Sync is unavailable.' };
+    invitee = await lookupTeamInviteeRpc(parsed.username);
   } catch (e) {
     return { error: errorMessage(e) };
   }
+  if (!invitee) return { error: 'Sync is unavailable.' };
+  if (!parsed.fingerprint) return { invitee };
+  if (!sameFingerprint(parsed.fingerprint, invitee.fingerprint)) return { error: translate('security.sync.teams.code.mismatch') };
+  return { invitee, matched: true };
 }
 
 /**
@@ -66,6 +81,18 @@ export async function leaveTeam(vault: string): Promise<string> {
 }
 export const verifyMember = (vault: string, account: string, fingerprint: string) =>
   attempt(() => verifyTeamMemberRpc(vault, account, fingerprint));
+
+/**
+ * Verifies a member against the contact code or fingerprint they sent. The check here only spares
+ * a round trip and names the problem; the backend compares the same fingerprint with the member's
+ * genesis key and is the one that decides.
+ */
+export async function verifyMemberByCode(vault: string, member: Pick<TeamMember, 'account' | 'fingerprint'>, code: string): Promise<string> {
+  const fingerprint = codeFingerprint(code);
+  if (!fingerprint) return translate('sync.teams.code.malformed');
+  if (!sameFingerprint(fingerprint, member.fingerprint)) return translate('security.sync.teams.code.mismatch');
+  return verifyMember(vault, member.account, fingerprint);
+}
 export const setTeamPolicy = (vault: string, days: number, requireVerified: boolean) =>
   attempt(() => setTeamPolicyRpc(vault, days, requireVerified));
 export const bindCredential = (binding: CredentialBinding) => attempt(() => bindCredentialRpc(binding));

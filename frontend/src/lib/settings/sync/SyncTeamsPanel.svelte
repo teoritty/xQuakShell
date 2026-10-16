@@ -3,12 +3,15 @@
   // the actions this account's role allows there. The account's own fingerprint is shown here
   // because this is where it is needed: an admin compares it, over another channel, before
   // inviting this account, and a person who cannot read theirs out can only tick "matches" blind.
+  // The contact code carries it in a form the admin pastes rather than reads, so the application
+  // makes the comparison.
   import SyncTeamDetail from './SyncTeamDetail.svelte';
   import { listTeamsRpc, type Team } from '../../../api/team';
   import { createTeam } from '../../../actions/teamActions';
   import { errorMessage } from '../../../actions/syncActions';
   import { syncRevision, syncStatus } from '../../../stores/syncState';
   import { teams as sharedTeams } from '../../../stores/teamState';
+  import { formatContactCode } from './contactCode';
   import { t } from '../../../i18n/messages';
 
   let teams: Team[] = [];
@@ -16,8 +19,20 @@
   let name = '';
   let busy = false;
   let error = '';
+  let copied = false;
 
   $: void load($syncRevision);
+  $: contactCode = formatContactCode($syncStatus.username ?? '',$syncStatus.accountFingerprint ?? '');
+
+  async function copyCode() {
+    try {
+      await navigator.clipboard.writeText(contactCode);
+      copied = true;
+      setTimeout(() => (copied = false), 2000);
+    } catch (e) {
+      error = errorMessage(e);
+    }
+  }
 
   async function load(..._deps: unknown[]) {
     try {
@@ -48,6 +63,12 @@
   {#if $syncStatus.accountFingerprint}
     <p class="sync-hint">{$t('security.sync.teams.ownHint')}</p>
     <p class="sync-fingerprint">{$syncStatus.accountFingerprint}</p>
+    {#if contactCode}
+      <div class="sync-actions">
+        <button type="button" class="secondary" on:click={copyCode}>{$t('sync.teams.code.copy')}</button>
+        {#if copied}<span class="sync-meta" role="status">{$t('sync.teams.code.copied')}</span>{/if}
+      </div>
+    {/if}
   {/if}
   {#if teams.length === 0}
     <p class="sync-hint">{$t('sync.teams.none')}</p>

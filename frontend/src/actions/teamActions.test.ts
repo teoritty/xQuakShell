@@ -1,7 +1,7 @@
 import { setGateway } from '../backend/context';
 import { createFakeGateway } from '../backend/fakeGateway';
 import { get } from 'svelte/store';
-import { createTeam, inviteMember, lookupInvitee, confirmBinding, moveConnectionsToVault } from './teamActions';
+import { createTeam, inviteMember, lookupInvitee, confirmBinding, moveConnectionsToVault, verifyMemberByCode } from './teamActions';
 import { detailsConnectionId, favorites, selectedConnectionId, selectedConnectionIds } from '../stores/appState';
 
 function assert(c: boolean, m: string) {
@@ -41,6 +41,65 @@ async function run() {
     const call = fake.calls.find((c) => c.method === 'InviteToTeam');
     const req = call?.args[0] as { fingerprint: string; role: string; verified: boolean };
     assert(err === '' && req.fingerprint === '11111 22222' && req.role === 'editor' && req.verified, 'the invite sends what was shown');
+  }
+
+  // A contact code whose fingerprint is the looked-up key's verifies the invitee with no reading
+  // aloud, and the invite carries that fingerprint back for the backend to hold the key to.
+  const fp = '91796 59138 05751 85871 52528 03481 07460 08300 23148 85620 11178 34775';
+  const code = `xqs-member:bob#fp=${fp.replace(/ /g, '-')}`;
+  {
+    const fake = createFakeGateway();
+    fake.program('LookupTeamInvitee', { username: 'bob', fingerprint: fp, known: false, verified: false });
+    setGateway(fake);
+    const res = await lookupInvitee(code);
+    assert(fake.calls[0].args[0] === 'bob', `looked up ${fake.calls[0].args[0]}; the code names whom to look up`);
+    assert(res.matched === true && res.invitee?.fingerprint === fp && !res.error, `res = ${JSON.stringify(res)}; a matching code verifies`);
+  }
+
+  // A code whose fingerprint is not the key the server answered with is the attack the code
+  // exists to catch: no invitee comes back, so there is nothing to invite.
+  {
+    const fake = createFakeGateway();
+    fake.program('LookupTeamInvitee', { username: 'bob', fingerprint: fp.replace('91796', '91797'), known: false, verified: false });
+    setGateway(fake);
+    const res = await lookupInvitee(code);
+    assert(!res.invitee && res.error === 'security.sync.teams.code.mismatch', `res = ${JSON.stringify(res)}; a mismatch must not be invitable`);
+  }
+
+  // A plain username is looked up for comparing by hand, never reported as matched.
+  {
+    const fake = createFakeGateway();
+    fake.program('LookupTeamInvitee', { username: 'bob', fingerprint: fp, known: false, verified: false });
+    setGateway(fake);
+    const res = await lookupInvitee('bob');
+    assert(res.invitee !== undefined && !res.matched, 'a username alone proves nothing about the key');
+  }
+
+  // A damaged code never reaches the server as a username.
+  {
+    const fake = createFakeGateway();
+    setGateway(fake);
+    const res = await lookupInvitee(code.slice(0, -1));
+    assert(res.error === 'sync.teams.code.malformed' && fake.calls.length === 0, `res = ${JSON.stringify(res)}; calls = ${fake.calls.length}`);
+  }
+
+  // Verifying a member by their code sends the code's fingerprint, which the backend compares with
+  // the member's genesis key; a code that is not theirs is refused before any RPC.
+  {
+    const member = { account: 'acct-bob', fingerprint: fp };
+    const fake = createFakeGateway();
+    fake.program('VerifyTeamMember', undefined);
+    setGateway(fake);
+    const err = await verifyMemberByCode('v1', member, `  ${code} `);
+    const call = fake.calls.find((c) => c.method === 'VerifyTeamMember');
+    assert(err === '' && JSON.stringify(call?.args) === JSON.stringify(['v1', 'acct-bob', fp]), `args = ${JSON.stringify(call?.args)}`);
+
+    const other = createFakeGateway();
+    setGateway(other);
+    const mismatch = await verifyMemberByCode('v1', { ...member, fingerprint: fp.replace('91796', '91797') }, code);
+    assert(mismatch === 'security.sync.teams.code.mismatch' && other.calls.length === 0, `err = ${mismatch}; nothing is recorded`);
+    const malformed = await verifyMemberByCode('v1', member, 'bob');
+    assert(malformed === 'sync.teams.code.malformed' && other.calls.length === 0, `err = ${malformed}; a username is no code`);
   }
 
   // A refusal comes back as the message to show.

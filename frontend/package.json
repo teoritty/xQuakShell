@@ -80,7 +80,7 @@
     "test:actions-connections": "tsx src/actions/connectionActions.test.ts",
     "test:actions-settings": "tsx src/actions/settingsActions.test.ts",
     "test:actions-sync": "tsx src/actions/syncActions.test.ts && tsx src/actions/syncConnect.test.ts && tsx src/lib/settings/sync/syncLink.test.ts && tsx src/lib/settings/sync/syncLabels.test.ts",
-    "test:actions-team": "tsx src/actions/teamActions.test.ts",
+    "test:actions-team": "tsx src/actions/teamActions.test.ts && tsx src/lib/settings/sync/contactCode.test.ts",
     "test:actions-sync-plugins": "tsx src/actions/syncPluginActions.test.ts && tsx src/lib/settings/sync/pluginOffers.test.ts && tsx src/lib/settings/sync/syncLink.test.ts && tsx src/lib/settings/sync/syncLabels.test.ts && tsx src/lib/connectionDetails/draftSync.test.ts",
     "test:actions-protocols": "tsx src/actions/protocolActions.test.ts",
     "test:actions-transfers": "tsx src/actions/transferActions.test.ts",

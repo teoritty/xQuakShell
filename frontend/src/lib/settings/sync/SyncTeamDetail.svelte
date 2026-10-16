@@ -1,7 +1,9 @@
 <script lang="ts">
   // One team: its members, inviting with a fingerprint comparison, roles, removal, leaving, and
   // moving a personal connection in. The fingerprint shown at the invite is the one sent back, so
-  // the invite fails if the account's key changed after the person compared it.
+  // the invite fails if the account's key changed after the person compared it. A contact code
+  // pasted in place of the username makes that comparison itself; a code that does not match
+  // leaves nothing to invite.
   import { createEventDispatcher } from 'svelte';
   import { listTeamMembersRpc, type Team, type TeamInvitee, type TeamMember } from '../../../api/team';
   import {
@@ -11,6 +13,7 @@
     lookupInvitee,
     removeMember,
     verifyMember,
+    verifyMemberByCode,
   } from '../../../actions/teamActions';
   import { errorMessage } from '../../../actions/syncActions';
   import { connections } from '../../../stores/appState';
@@ -25,6 +28,9 @@
   let username = '';
   let invitee: TeamInvitee | null = null;
   let compared = false;
+  // Set when a contact code, not a person, did the comparison; the checkbox is then not offered.
+  let matched = false;
+  let codes: Record<string, string> = {};
   let role = 'editor';
   let moving = '';
   // Removing a member moves the team to new keys, so it asks a second click like every other step
@@ -84,8 +90,14 @@
     const res = await lookupInvitee(username);
     busy = false;
     invitee = res.invitee ?? null;
-    compared = invitee?.verified ?? false;
+    matched = res.matched ?? false;
+    compared = matched || (invitee?.verified ?? false);
     error = res.error ?? '';
+  }
+
+  async function verifyByCode(m: TeamMember) {
+    await act(() => verifyMemberByCode(team.vault, m, codes[m.account] ?? ''));
+    if (!error) codes = { ...codes, [m.account]: '' };
   }
 
   async function invite() {
@@ -131,6 +143,14 @@
             </button>
           {/if}
         </div>
+        {#if !m.verified && !m.current}
+          <div class="sync-actions">
+            <input type="text" bind:value={codes[m.account]} placeholder={$t('sync.teams.code.placeholder')} aria-label={$t('sync.teams.code.placeholder')} disabled={busy} />
+            <button type="button" class="secondary" on:click={() => verifyByCode(m)} disabled={busy || !codes[m.account]?.trim()}>
+              {$t('sync.teams.code.verify')}
+            </button>
+          </div>
+        {/if}
       </li>
     {/each}
   </ul>
@@ -138,13 +158,17 @@
   {#if manager}
     <h4>{$t('sync.teams.invite')}</h4>
     <div class="sync-actions">
-      <input type="text" bind:value={username} placeholder={$t('sync.enable.username')} aria-label={$t('sync.enable.username')} disabled={busy} />
+      <input type="text" bind:value={username} placeholder={$t('sync.teams.invitee')} aria-label={$t('sync.teams.invitee')} disabled={busy} />
       <button type="button" class="secondary" on:click={lookup} disabled={busy || !username.trim()}>{$t('sync.teams.lookup')}</button>
     </div>
     {#if invitee}
-      <p class="sync-hint">{$t('security.sync.teams.compare')}</p>
       <p class="sync-fingerprint">{invitee.fingerprint}</p>
-      <label><input type="checkbox" bind:checked={compared} /> {$t('security.sync.teams.compared')}</label>
+      {#if matched}
+        <p class="sync-hint" role="status">{$t('security.sync.teams.code.matched')}</p>
+      {:else}
+        <p class="sync-hint">{$t('security.sync.teams.compare')}</p>
+        <label><input type="checkbox" bind:checked={compared} /> {$t('security.sync.teams.compared')}</label>
+      {/if}
       <div class="sync-actions">
         <select bind:value={role} disabled={busy}>
           <option value="admin">{$t('sync.teams.role.admin')}</option>
