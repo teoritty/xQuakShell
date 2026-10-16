@@ -58,8 +58,10 @@ jobs:
       # The exposure score of the shipped unit must stay at or below a fixed value (spec 9.5), so a
       # change that loosens the sandbox fails here rather than in a review. 2.5 was set before the
       # first runner measurement; when a run prints a lower score, lower the threshold to it.
+      # --threshold takes an integer on the 0-100 scale the printed score is a tenth of (its default
+      # is 100), so a score of 2.5 is 25; "2.5" is not parsed at all and failed every run.
       - name: Hardening score
-        run: systemd-analyze security --threshold=2.5 xqsyncd-e2e.service
+        run: systemd-analyze security --threshold=25 xqsyncd-e2e.service
 
       - name: Start
         run: |
