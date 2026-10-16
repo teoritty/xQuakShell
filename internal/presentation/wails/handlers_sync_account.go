@@ -185,6 +185,7 @@ var syncMessages = []struct {
 	msg string
 }{
 	{usecase.ErrSyncLogin, "Wrong username or sync password."},
+	{usecase.ErrSyncPasswordTooShort, "The sync password must be at least 12 characters."},
 	{synctrust.ErrServerIdentity, "The server's identity does not match the one you confirmed. Nothing was sent to it."},
 	{usecase.ErrSyncDeviceRevoked, "This device was removed from your sync account on another device. Turn sync off here, then connect again if you want this device back."},
 	{synctrust.ErrKeysRotated, "Your account keys were changed on another device - after a password change or a removed device. Sign in again with your sync password."},

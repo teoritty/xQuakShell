@@ -823,7 +823,7 @@
     "sync.enable.back": "Back",
     "sync.enable.createAccount": "Create account",
     "sync.enable.password": "Sync password",
-    "sync.enable.passwordHint": "The sync password is separate from the master password. It never leaves this device in a form the server could read.",
+    "sync.enable.passwordHint": "The sync password is separate from the master password and must be at least 12 characters. It never leaves this device in a form the server could read.",
     "sync.enable.title": "Sync this vault",
     "sync.enable.username": "Username",
     "sync.field.agentForwarding": "Agent forwarding",

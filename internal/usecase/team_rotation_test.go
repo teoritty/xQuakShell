@@ -128,7 +128,7 @@ func clientVaultOf(t *testing.T, h *servertest.Harness, a *device, team vaultsyn
 // admin is there to do it, and without it the owner would be locked out of their own team.
 func TestAnOwnersPasswordChangeKeepsTheirTeams(t *testing.T) {
 	h, a, _, team := teamWithBob(t)
-	s, err := a.svc.ChangePassword(syncCtx, []byte("correct horse"), []byte("new horse"))
+	s, err := a.svc.ChangePassword(syncCtx, []byte("correct horse"), []byte("new horse staple"))
 	if err != nil {
 		t.Fatalf("change password: %v", err)
 	}

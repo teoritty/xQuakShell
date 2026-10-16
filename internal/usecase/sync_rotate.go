@@ -35,6 +35,11 @@ type rotation struct {
 // ChangePassword re-registers the sync password and rotates the account keys, as every credential
 // change must (ADR-021 rule 6). The other devices sign in again with the new password.
 func (s *SyncAccountService) ChangePassword(ctx context.Context, old, next []byte) (SyncSession, error) {
+	if err := checkNewSyncPassword(next); err != nil {
+		clear(old)
+		clear(next)
+		return SyncSession{}, err
+	}
 	return s.rotate(ctx, rotation{password: old, newPassword: next})
 }
 
@@ -47,6 +52,10 @@ func (s *SyncAccountService) RevokeDevices(ctx context.Context, devices []vaults
 // ResetPassword sets a new sync password from a device that is still signed in, without the old
 // one (§5.7): the device's key and the account key it holds authorise it.
 func (s *SyncAccountService) ResetPassword(ctx context.Context, next []byte) (SyncSession, error) {
+	if err := checkNewSyncPassword(next); err != nil {
+		clear(next)
+		return SyncSession{}, err
+	}
 	return s.rotate(ctx, rotation{newPassword: next})
 }
 

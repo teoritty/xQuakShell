@@ -54,7 +54,7 @@ offline on two devices merge field by field; the same credential edited on both 
 you resolve. A change from another device that would weaken this one — turning off plugin
 signature checks, loosening the lockout, replacing a known host key — waits for this device's
 master password. Sync is off until you turn it on, and needs a master password of at least 12
-characters.
+characters; a new sync password needs at least 12 too.
 
 **Teams.** A team vault shares connections with other accounts on the same server. You invite a
 person after comparing their fingerprint over another channel, and give them the admin, editor or

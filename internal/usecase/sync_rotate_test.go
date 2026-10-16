@@ -58,7 +58,7 @@ func membership(t *testing.T, d *device) []vaultsync.MemberOp {
 
 func TestChangePasswordRotatesKeysAndTheVaultEpoch(t *testing.T) {
 	h, a, b := twoDevices(t)
-	s, err := a.svc.ChangePassword(syncCtx, []byte("correct horse"), []byte("new horse"))
+	s, err := a.svc.ChangePassword(syncCtx, []byte("correct horse"), []byte("new horse staple"))
 	if err != nil {
 		t.Fatalf("change password: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestChangePasswordRotatesKeysAndTheVaultEpoch(t *testing.T) {
 		t.Fatalf("the old password still logs in: %v", err)
 	}
 	c := newDevice(t, h, "tablet")
-	sc, err := c.svc.Login(syncCtx, creds("new horse"))
+	sc, err := c.svc.Login(syncCtx, creds("new horse staple"))
 	if err != nil {
 		t.Fatalf("login with the new password: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestChangePasswordRotatesKeysAndTheVaultEpoch(t *testing.T) {
 	if _, err := b.engine.Sync(syncCtx, b.session.Personal); !errors.Is(err, synctrust.ErrKeysRotated) {
 		t.Fatalf("the other device: %v, want ErrKeysRotated so it asks for the new password", err)
 	}
-	sb, err := b.svc.Relogin(syncCtx, []byte("new horse"))
+	sb, err := b.svc.Relogin(syncCtx, []byte("new horse staple"))
 	if err != nil {
 		t.Fatalf("relogin: %v", err)
 	}
@@ -135,13 +135,13 @@ func TestRevokedDeviceIsLockedOut(t *testing.T) {
 
 func TestResetPasswordFromASignedInDevice(t *testing.T) {
 	h, a, _ := twoDevices(t)
-	s, err := a.svc.ResetPassword(syncCtx, []byte("brand new"))
+	s, err := a.svc.ResetPassword(syncCtx, []byte("brand new staple"))
 	if err != nil {
 		t.Fatalf("reset: %v", err)
 	}
 	a.restart(s)
 	c := newDevice(t, h, "tablet")
-	if _, err := c.svc.Login(syncCtx, creds("brand new")); err != nil {
+	if _, err := c.svc.Login(syncCtx, creds("brand new staple")); err != nil {
 		t.Fatalf("login after reset: %v", err)
 	}
 }
@@ -149,7 +149,7 @@ func TestResetPasswordFromASignedInDevice(t *testing.T) {
 func TestChangePasswordNeedsTheOldOne(t *testing.T) {
 	_, a, _ := twoDevices(t)
 	before, _ := a.session.Server.DeviceLog(syncCtx, a.session.Keys.Account(), 0)
-	if _, err := a.svc.ChangePassword(syncCtx, []byte("wrong"), []byte("x")); !errors.Is(err, usecase.ErrSyncLogin) {
+	if _, err := a.svc.ChangePassword(syncCtx, []byte("wrong"), []byte("new horse staple")); !errors.Is(err, usecase.ErrSyncLogin) {
 		t.Fatalf("err = %v", err)
 	}
 	after, _ := a.session.Server.DeviceLog(syncCtx, a.session.Keys.Account(), 0)
@@ -172,20 +172,20 @@ func TestRevokeTargetsAreChecked(t *testing.T) {
 func TestInterruptedRekeyIsRememberedAndFinished(t *testing.T) {
 	h, a, _ := twoDevices(t)
 	a.failRekey = true
-	if _, err := a.svc.ChangePassword(syncCtx, []byte("correct horse"), []byte("new horse")); err == nil {
+	if _, err := a.svc.ChangePassword(syncCtx, []byte("correct horse"), []byte("new horse staple")); err == nil {
 		t.Fatal("a rotation whose bundle never reached the server reported success")
 	}
 	d, _ := a.vault.GetData()
 	if !d.Sync.Account.RekeyPending || d.Sync.Account.Pending != nil {
 		t.Fatalf("account = pending %v, rekeyPending %v; the unfinished rekey must be remembered", d.Sync.Account.Pending, d.Sync.Account.RekeyPending)
 	}
-	if _, err := a.svc.ResetPassword(syncCtx, []byte("new horse")); err != nil {
+	if _, err := a.svc.ResetPassword(syncCtx, []byte("new horse staple")); err != nil {
 		t.Fatalf("finishing with a reset: %v", err)
 	}
 	if d, _ := a.vault.GetData(); d.Sync.Account.RekeyPending {
 		t.Fatal("finishing did not clear the marker")
 	}
-	if _, err := newDevice(t, h, "tablet").svc.Login(syncCtx, creds("new horse")); err != nil {
+	if _, err := newDevice(t, h, "tablet").svc.Login(syncCtx, creds("new horse staple")); err != nil {
 		t.Fatalf("login after finishing: %v", err)
 	}
 }
@@ -233,5 +233,41 @@ func TestPendingKeysTheLogNamesAreAdopted(t *testing.T) {
 	}
 	if _, err := newDevice(t, h, "tablet").svc.Login(syncCtx, creds("correct horse")); err != nil {
 		t.Fatalf("login after finishing: %v", err)
+	}
+}
+
+// The sync password is what a server holding its OPAQUE key file guesses against offline, and what
+// opens the account on any new device, so a new one has a floor - counted in characters, not bytes,
+// or six Cyrillic letters would pass for twelve.
+func TestANewSyncPasswordBelowTheFloorIsRefused(t *testing.T) {
+	h := servertest.NewHarness(t, 0)
+	a := newDevice(t, h, "laptop")
+	for _, pw := range []string{"elevenchars", "шестьб"} {
+		c := creds(pw)
+		c.Invite = h.Invite()
+		if _, err := a.svc.Register(syncCtx, c); !errors.Is(err, usecase.ErrSyncPasswordTooShort) {
+			t.Fatalf("register with %q: err = %v, want ErrSyncPasswordTooShort", pw, err)
+		}
+	}
+	if accts, err := h.Svc.ListAccounts(syncCtx); err != nil || len(accts) != 0 {
+		t.Fatalf("accounts = %v, %v; a refused password must not reach the server", accts, err)
+	}
+	c := creds("двенадцать б")
+	c.Invite = h.Invite()
+	if _, err := a.svc.Register(syncCtx, c); err != nil {
+		t.Fatalf("twelve characters in two-byte letters: %v", err)
+	}
+}
+
+func TestChangingOrResettingToAShortPasswordChangesNothing(t *testing.T) {
+	h, a := registered(t)
+	if _, err := a.svc.ChangePassword(syncCtx, []byte("correct horse"), []byte("short")); !errors.Is(err, usecase.ErrSyncPasswordTooShort) {
+		t.Fatalf("change: err = %v, want ErrSyncPasswordTooShort", err)
+	}
+	if _, err := a.svc.ResetPassword(syncCtx, []byte("short")); !errors.Is(err, usecase.ErrSyncPasswordTooShort) {
+		t.Fatalf("reset: err = %v, want ErrSyncPasswordTooShort", err)
+	}
+	if _, err := newDevice(t, h, "tablet").svc.Login(syncCtx, creds("correct horse")); err != nil {
+		t.Fatalf("the old password stopped working after refused changes: %v", err)
 	}
 }

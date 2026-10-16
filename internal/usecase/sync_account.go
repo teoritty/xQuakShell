@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"unicode/utf8"
 
 	"xquakshell/internal/domain"
 	"xquakshell/internal/domain/synctrust"
@@ -19,7 +20,23 @@ var (
 	ErrSyncLogin = errors.New("sync: wrong username or sync password")
 	// ErrSyncAlreadyEnabled is an attempt to enable sync on a vault that already syncs.
 	ErrSyncAlreadyEnabled = errors.New("sync: already enabled on this vault")
+	// ErrSyncPasswordTooShort is a new sync password below MinSyncPasswordLength characters.
+	ErrSyncPasswordTooShort = errors.New("sync: the sync password is too short")
 )
+
+// MinSyncPasswordLength is the floor for a new sync password, in characters. It sits above the
+// master password's because the stakes differ: the sync password alone enrols a device into the
+// account, and whoever holds the server's database and OPAQUE key file can guess it offline at the
+// cost of one Argon2id evaluation per guess. An existing password is not re-checked - RevokeDevices
+// reuses it, and revoking a stolen device must never wait on picking a new password.
+const MinSyncPasswordLength = 12
+
+func checkNewSyncPassword(password []byte) error {
+	if utf8.RuneCount(password) < MinSyncPasswordLength {
+		return ErrSyncPasswordTooShort
+	}
+	return nil
+}
 
 // personalVaultRetentionDays is the trash window a new personal vault starts with (spec D6).
 const personalVaultRetentionDays = 30
@@ -118,6 +135,9 @@ func (s *SyncAccountService) requireDisabled() error {
 // Register creates an account with this device as its first and the personal vault's genesis.
 func (s *SyncAccountService) Register(ctx context.Context, c SyncCredentials) (SyncSession, error) {
 	defer clear(c.Password)
+	if err := checkNewSyncPassword(c.Password); err != nil {
+		return SyncSession{}, err
+	}
 	srv, hello, err := s.connect(ctx, c)
 	if err != nil {
 		return SyncSession{}, err
