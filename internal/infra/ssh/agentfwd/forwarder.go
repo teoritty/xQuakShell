@@ -53,19 +53,23 @@ func Attach(ctx context.Context, client *gossh.Client, session *gossh.Session, p
 }
 
 // acceptChannels serves at most MaxChannelsPerSession channels at once and refuses the rest.
+//
+// A refusal is audited before the server is told. In the other order the server already had its
+// answer while the audit entry was still being written, so anything reacting to the refusal - a
+// test's assertion, an operator reading the log - could find it missing.
 func acceptChannels(ctx context.Context, channels <-chan gossh.NewChannel, policy domain.AgentSignPolicy) {
 	slots := make(chan struct{}, agentforward.MaxChannelsPerSession)
 	for nc := range channels {
 		if ctx.Err() != nil {
-			rejectChannel(nc, gossh.Prohibited, "session ended")
 			policy.Refuse(context.WithoutCancel(ctx), refusedAfterStop)
+			rejectChannel(nc, gossh.Prohibited, "session ended")
 			continue
 		}
 		select {
 		case slots <- struct{}{}:
 		default:
-			rejectChannel(nc, gossh.ResourceShortage, "too many agent channels")
 			policy.Refuse(ctx, refusedChannels)
+			rejectChannel(nc, gossh.ResourceShortage, "too many agent channels")
 			continue
 		}
 		ch, reqs, err := nc.Accept()
