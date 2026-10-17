@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"xquakshell/internal/domain"
@@ -33,6 +34,16 @@ type VaultRepo struct {
 	generation uint64
 	flushTimer *time.Timer
 	flushMu    sync.Mutex
+
+	// onChange runs after every update that landed, outside the lock so it may read the vault back.
+	// Sync uses it to learn there is something to push.
+	onChange atomic.Pointer[func()]
+}
+
+// SetChangeObserver installs the function UpdateData calls after a change landed. It sees no
+// data, only that something changed; a refused mutation or a locked vault does not call it.
+func (r *VaultRepo) SetChangeObserver(fn func()) {
+	r.onChange.Store(&fn)
 }
 
 // NewVaultRepo creates a new VaultRepo that stores vault.age in the given directory.
@@ -186,6 +197,16 @@ func (r *VaultRepo) GetData() (*domain.VaultData, error) {
 
 // UpdateData applies a mutation to vault data atomically under the write lock.
 func (r *VaultRepo) UpdateData(_ context.Context, mutate func(*domain.VaultData) error) error {
+	if err := r.update(mutate); err != nil {
+		return err
+	}
+	if fn := r.onChange.Load(); fn != nil && *fn != nil {
+		(*fn)()
+	}
+	return nil
+}
+
+func (r *VaultRepo) update(mutate func(*domain.VaultData) error) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

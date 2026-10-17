@@ -6,12 +6,20 @@ export function AcknowledgeRecoveryKey() {
   return window['go']['main']['App']['AcknowledgeRecoveryKey']();
 }
 
+export function AcknowledgeSyncDevices(arg1) {
+  return window['go']['main']['App']['AcknowledgeSyncDevices'](arg1);
+}
+
 export function AddGitHubRepository(arg1) {
   return window['go']['main']['App']['AddGitHubRepository'](arg1);
 }
 
 export function ApplyDiscoveryNodeDetails(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['ApplyDiscoveryNodeDetails'](arg1, arg2, arg3, arg4);
+}
+
+export function BindCredential(arg1) {
+  return window['go']['main']['App']['BindCredential'](arg1);
 }
 
 export function CancelPassphrase(arg1) {
@@ -32,6 +40,14 @@ export function ChangeKeyPassphrase(arg1, arg2, arg3) {
 
 export function ChangeMasterPassword(arg1, arg2) {
   return window['go']['main']['App']['ChangeMasterPassword'](arg1, arg2);
+}
+
+export function ChangeSyncPassword(arg1, arg2) {
+  return window['go']['main']['App']['ChangeSyncPassword'](arg1, arg2);
+}
+
+export function ChangeTeamRole(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ChangeTeamRole'](arg1, arg2, arg3);
 }
 
 export function Chmod(arg1, arg2, arg3) {
@@ -74,6 +90,14 @@ export function CompleteRecoveryReset(arg1) {
   return window['go']['main']['App']['CompleteRecoveryReset'](arg1);
 }
 
+export function ConfirmCredentialBinding(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ConfirmCredentialBinding'](arg1, arg2, arg3);
+}
+
+export function ConfirmSyncHeld(arg1, arg2) {
+  return window['go']['main']['App']['ConfirmSyncHeld'](arg1, arg2);
+}
+
 export function CopyLocalPath(arg1, arg2) {
   return window['go']['main']['App']['CopyLocalPath'](arg1, arg2);
 }
@@ -84,6 +108,10 @@ export function CreateFilePath(arg1, arg2, arg3) {
 
 export function CreateLocalFile(arg1) {
   return window['go']['main']['App']['CreateLocalFile'](arg1);
+}
+
+export function CreateTeam(arg1) {
+  return window['go']['main']['App']['CreateTeam'](arg1);
 }
 
 export function CreateVault(arg1) {
@@ -122,6 +150,10 @@ export function DisableAuditSecretLogging() {
   return window['go']['main']['App']['DisableAuditSecretLogging']();
 }
 
+export function DisableSync() {
+  return window['go']['main']['App']['DisableSync']();
+}
+
 export function Download(arg1, arg2, arg3) {
   return window['go']['main']['App']['Download'](arg1, arg2, arg3);
 }
@@ -132,6 +164,10 @@ export function DuplicateConnection(arg1, arg2) {
 
 export function EnableAuditSecretLogging(arg1) {
   return window['go']['main']['App']['EnableAuditSecretLogging'](arg1);
+}
+
+export function EnableSync(arg1) {
+  return window['go']['main']['App']['EnableSync'](arg1);
 }
 
 export function ExecuteDownload(arg1, arg2) {
@@ -238,6 +274,10 @@ export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
+export function GetSyncStatus() {
+  return window['go']['main']['App']['GetSyncStatus']();
+}
+
 export function GetTempDir() {
   return window['go']['main']['App']['GetTempDir']();
 }
@@ -290,6 +330,14 @@ export function InstallPlugin(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
   return window['go']['main']['App']['InstallPlugin'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
+export function InstallSyncPluginOffer(arg1) {
+  return window['go']['main']['App']['InstallSyncPluginOffer'](arg1);
+}
+
+export function InviteToTeam(arg1) {
+  return window['go']['main']['App']['InviteToTeam'](arg1);
+}
+
 export function InvokeDiscoveryAction(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['InvokeDiscoveryAction'](arg1, arg2, arg3, arg4);
 }
@@ -300,6 +348,22 @@ export function IsVaultUnlocked() {
 
 export function IssueRecoveryKey(arg1) {
   return window['go']['main']['App']['IssueRecoveryKey'](arg1);
+}
+
+export function JoinSync(arg1) {
+  return window['go']['main']['App']['JoinSync'](arg1);
+}
+
+export function KeepSyncPlugin(arg1) {
+  return window['go']['main']['App']['KeepSyncPlugin'](arg1);
+}
+
+export function LeaveTeam(arg1) {
+  return window['go']['main']['App']['LeaveTeam'](arg1);
+}
+
+export function ListCredentialBindings() {
+  return window['go']['main']['App']['ListCredentialBindings']();
 }
 
 export function ListGitHubRepositories() {
@@ -330,8 +394,44 @@ export function ListPlugins() {
   return window['go']['main']['App']['ListPlugins']();
 }
 
+export function ListSyncConflicts() {
+  return window['go']['main']['App']['ListSyncConflicts']();
+}
+
+export function ListSyncDevices() {
+  return window['go']['main']['App']['ListSyncDevices']();
+}
+
+export function ListSyncHeld() {
+  return window['go']['main']['App']['ListSyncHeld']();
+}
+
+export function ListSyncPluginData() {
+  return window['go']['main']['App']['ListSyncPluginData']();
+}
+
+export function ListSyncPluginOffers() {
+  return window['go']['main']['App']['ListSyncPluginOffers']();
+}
+
+export function ListSyncTrash() {
+  return window['go']['main']['App']['ListSyncTrash']();
+}
+
+export function ListTeamMembers(arg1) {
+  return window['go']['main']['App']['ListTeamMembers'](arg1);
+}
+
+export function ListTeams() {
+  return window['go']['main']['App']['ListTeams']();
+}
+
 export function LockVault() {
   return window['go']['main']['App']['LockVault']();
+}
+
+export function LookupTeamInvitee(arg1) {
+  return window['go']['main']['App']['LookupTeamInvitee'](arg1);
 }
 
 export function MkdirLocalPath(arg1) {
@@ -340,6 +440,10 @@ export function MkdirLocalPath(arg1) {
 
 export function MkdirPath(arg1, arg2, arg3) {
   return window['go']['main']['App']['MkdirPath'](arg1, arg2, arg3);
+}
+
+export function MoveConnectionToVault(arg1, arg2, arg3) {
+  return window['go']['main']['App']['MoveConnectionToVault'](arg1, arg2, arg3);
 }
 
 export function MoveConnections(arg1, arg2) {
@@ -402,12 +506,28 @@ export function PreviewSSHConfig(arg1) {
   return window['go']['main']['App']['PreviewSSHConfig'](arg1);
 }
 
+export function PreviewSyncPluginOffer(arg1) {
+  return window['go']['main']['App']['PreviewSyncPluginOffer'](arg1);
+}
+
+export function ProbeSyncServer(arg1) {
+  return window['go']['main']['App']['ProbeSyncServer'](arg1);
+}
+
+export function RejectSyncHeld(arg1) {
+  return window['go']['main']['App']['RejectSyncHeld'](arg1);
+}
+
 export function RelayPluginViewMessage(arg1, arg2) {
   return window['go']['main']['App']['RelayPluginViewMessage'](arg1, arg2);
 }
 
 export function ReleasePluginViewPanel(arg1) {
   return window['go']['main']['App']['ReleasePluginViewPanel'](arg1);
+}
+
+export function ReloginSync(arg1) {
+  return window['go']['main']['App']['ReloginSync'](arg1);
 }
 
 export function RemoveGitHubRepository(arg1) {
@@ -428,6 +548,10 @@ export function RemovePath(arg1, arg2) {
 
 export function RemovePeerTrust(arg1, arg2) {
   return window['go']['main']['App']['RemovePeerTrust'](arg1, arg2);
+}
+
+export function RemoveTeamMember(arg1, arg2) {
+  return window['go']['main']['App']['RemoveTeamMember'](arg1, arg2);
 }
 
 export function RenameKey(arg1, arg2) {
@@ -470,6 +594,10 @@ export function ReportRestored() {
   return window['go']['main']['App']['ReportRestored']();
 }
 
+export function ResetSyncPassword(arg1) {
+  return window['go']['main']['App']['ResetSyncPassword'](arg1);
+}
+
 export function ResizeLocalTerminal(arg1, arg2, arg3) {
   return window['go']['main']['App']['ResizeLocalTerminal'](arg1, arg2, arg3);
 }
@@ -492,6 +620,22 @@ export function ResolvePassphrase(arg1, arg2) {
 
 export function ResolvePeerTrust(arg1, arg2, arg3) {
   return window['go']['main']['App']['ResolvePeerTrust'](arg1, arg2, arg3);
+}
+
+export function ResolveSyncConflict(arg1, arg2) {
+  return window['go']['main']['App']['ResolveSyncConflict'](arg1, arg2);
+}
+
+export function RestartSyncPlugin(arg1) {
+  return window['go']['main']['App']['RestartSyncPlugin'](arg1);
+}
+
+export function RestoreSyncTrash(arg1) {
+  return window['go']['main']['App']['RestoreSyncTrash'](arg1);
+}
+
+export function RevokeSyncDevice(arg1, arg2) {
+  return window['go']['main']['App']['RevokeSyncDevice'](arg1, arg2);
 }
 
 export function SaveConnection(arg1) {
@@ -562,6 +706,18 @@ export function SetPluginEnabled(arg1, arg2) {
   return window['go']['main']['App']['SetPluginEnabled'](arg1, arg2);
 }
 
+export function SetSyncPluginData(arg1, arg2) {
+  return window['go']['main']['App']['SetSyncPluginData'](arg1, arg2);
+}
+
+export function SetTeamPolicy(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SetTeamPolicy'](arg1, arg2, arg3);
+}
+
+export function ShredSyncNow(arg1) {
+  return window['go']['main']['App']['ShredSyncNow'](arg1);
+}
+
 export function StartFileWatch(arg1) {
   return window['go']['main']['App']['StartFileWatch'](arg1);
 }
@@ -572,6 +728,10 @@ export function StartPlugin(arg1) {
 
 export function SubmitPluginDialog(arg1, arg2) {
   return window['go']['main']['App']['SubmitPluginDialog'](arg1, arg2);
+}
+
+export function SyncNow() {
+  return window['go']['main']['App']['SyncNow']();
 }
 
 export function TerminalResize(arg1, arg2, arg3) {
@@ -596,4 +756,8 @@ export function ValidateTrustedPublisherKey(arg1) {
 
 export function VaultExists() {
   return window['go']['main']['App']['VaultExists']();
+}
+
+export function VerifyTeamMember(arg1, arg2, arg3) {
+  return window['go']['main']['App']['VerifyTeamMember'](arg1, arg2, arg3);
 }

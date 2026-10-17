@@ -9,6 +9,8 @@ type ConnectionFolder struct {
 	Name     string `json:"name"`
 	ParentID string `json:"parentId"`
 	Order    int    `json:"order"`
+	// VaultID is the synced team vault this item belongs to; empty is the personal vault.
+	VaultID string `json:"vaultId,omitempty"`
 }
 
 // Validate checks that the folder has a non-empty name.

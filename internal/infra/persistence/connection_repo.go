@@ -37,14 +37,27 @@ func (r *ConnectionRepo) SaveFolder(ctx context.Context, f *domain.ConnectionFol
 	}
 
 	return r.vault.UpdateData(ctx, func(data *domain.VaultData) error {
+		// An edit never changes the vault an item is in, so it cannot move one out of a team: an
+		// existing folder keeps its vault. A new one is created in the vault the caller asked for,
+		// which the presentation layer checked this account may write to, or in its parent's.
+		requested := f.VaultID
+		f.VaultID = ""
 		if f.ID == "" {
-			f.ID = uuid.New().String()
+			vault, err := vaultForNewItem(data.Folders, f.ParentID, requested)
+			if err != nil {
+				return err
+			}
+			f.ID, f.VaultID = uuid.New().String(), vault
 			f.Order = orderBeforeSiblings(data.Folders, f.ParentID)
 			data.Folders = append(data.Folders, *f)
 			return nil
 		}
 		for i := range data.Folders {
 			if data.Folders[i].ID == f.ID {
+				f.VaultID = data.Folders[i].VaultID
+				if err := requireSameVault(data.Folders, f.ParentID, f.VaultID); err != nil {
+					return err
+				}
 				data.Folders[i] = *f
 				return nil
 			}
@@ -52,6 +65,39 @@ func (r *ConnectionRepo) SaveFolder(ctx context.Context, f *domain.ConnectionFol
 		data.Folders = append(data.Folders, *f)
 		return nil
 	})
+}
+
+// folderVault reports the vault a folder is in, and whether the folder exists.
+func folderVault(folders []domain.ConnectionFolder, id string) (string, bool) {
+	for i := range folders {
+		if folders[i].ID == id {
+			return folders[i].VaultID, true
+		}
+	}
+	return "", false
+}
+
+// vaultForNewItem is the vault a new item created under folder lands in: the folder's own, which a
+// requested vault must agree with. The top level of a vault has no folder, so there the request
+// alone decides.
+func vaultForNewItem(folders []domain.ConnectionFolder, folder, requested string) (string, error) {
+	vault, ok := folderVault(folders, folder)
+	if folder == "" || !ok {
+		return requested, nil
+	}
+	if requested != "" && requested != vault {
+		return "", domain.ErrVaultMismatch
+	}
+	return vault, nil
+}
+
+// requireSameVault refuses to put an item of vault into a folder of another one. A folder that does
+// not exist is left alone, as it always was: the tree shows such an item at the top level.
+func requireSameVault(folders []domain.ConnectionFolder, folder, vault string) error {
+	if got, ok := folderVault(folders, folder); folder != "" && ok && got != vault {
+		return domain.ErrVaultMismatch
+	}
+	return nil
 }
 
 // orderBeforeSiblings returns an order that sorts a new folder ahead of the folders already under
@@ -184,13 +230,24 @@ func (r *ConnectionRepo) Save(ctx context.Context, c *domain.Connection) error {
 			}
 		}
 
+		// As for folders: an edit keeps the vault, and a new connection goes where it was asked to.
+		requested := c.VaultID
+		c.VaultID = ""
 		if c.ID == "" {
-			c.ID = uuid.New().String()
+			vault, err := vaultForNewItem(data.Folders, c.FolderID, requested)
+			if err != nil {
+				return err
+			}
+			c.ID, c.VaultID = uuid.New().String(), vault
 			data.Connections = append(data.Connections, *c)
 			return nil
 		}
 		for i := range data.Connections {
 			if data.Connections[i].ID == c.ID {
+				c.VaultID = data.Connections[i].VaultID
+				if err := requireSameVault(data.Folders, c.FolderID, c.VaultID); err != nil {
+					return err
+				}
 				data.Connections[i] = *c
 				return nil
 			}
@@ -220,6 +277,15 @@ func (r *ConnectionRepo) MoveToFolder(ctx context.Context, connectionIDs []strin
 		idSet := make(map[string]struct{}, len(connectionIDs))
 		for _, id := range connectionIDs {
 			idSet[id] = struct{}{}
+		}
+		// Every connection is checked before any moves: UpdateData keeps what a failed mutation
+		// already changed, and half a batch moved is a state nobody asked for.
+		for _, c := range data.Connections {
+			if _, ok := idSet[c.ID]; ok {
+				if err := requireSameVault(data.Folders, folderID, c.VaultID); err != nil {
+					return err
+				}
+			}
 		}
 
 		for i := range data.Connections {
@@ -259,6 +325,9 @@ func (r *ConnectionRepo) MoveFolder(ctx context.Context, folderID, targetParentI
 			if isDescendant(folderMap, targetParentID, folderID) {
 				return fmt.Errorf("folder %s is ancestor of %s: %w", folderID, targetParentID, domain.ErrCircularFolder)
 			}
+		}
+		if err := requireSameVault(data.Folders, targetParentID, data.Folders[folderIndex].VaultID); err != nil {
+			return err
 		}
 
 		data.Folders[folderIndex].ParentID = targetParentID

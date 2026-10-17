@@ -32,7 +32,9 @@
   import type { MenuAnchorRect } from './clampMenuPosition';
   import RemoteTreeContextMenu from './RemoteTreeContextMenu.svelte';
   import { openContextMenu, releaseContextMenu } from './contextMenuManager';
-  import { buildTree, flattenTree } from './remoteTree/buildTree';
+  import { flattenTree } from './remoteTree/buildTree';
+  import { buildVaultTree } from './remoteTree/vaultTree';
+  import { collapsedVaults, teams } from '../stores/teamState';
   import { planRename } from './remoteTree/renamePlan';
   import { handleDiscoveryRowKey } from './remoteTree/discoveryKeys';
   import { describeDeleteTargets } from './remoteTree/deletePrompt';
@@ -170,10 +172,8 @@
   // sessions, and an expansion that outlived its session would keep rendering
   // rows with no control left to collapse them.
   $: forgetUnavailableDiscovery(discoveryAvailableIds);
-  $: tree = buildTree($folders, $connections, $expandedFolderIds, searchQuery, {
-    snapshots: $discoverySnapshots,
-    expanded: $discoveryExpanded,
-  });
+  $: tree = buildVaultTree({ folders: $folders, connections: $connections, expanded: $expandedFolderIds, query: searchQuery,
+    discovery: { snapshots: $discoverySnapshots, expanded: $discoveryExpanded }, teams: $teams, collapsed: $collapsedVaults });
   $: flatNodes = flattenTree(tree);
   $: favoriteConns = $connections.filter((c) => $favorites.has(c.id));
   $: sessionStatusByConnId = buildSessionStatusMap($sessions);

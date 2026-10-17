@@ -75,9 +75,14 @@ vendor/
 # such 3.7 MB executable was committed and tagged into a release before this.
 /mutate
 /mutate.exe
+# `go build` of the app and of ./cmd/xqsyncd from the root, for a quick local run.
+/xquakshell.exe
+/xqsyncd.exe
 
 # --- Agent tooling scratch ---
 .playwright-mcp/
+# Written by Repowise on every index; the rules for agents live in .claude/CLAUDE.md.
+.github/copilot-instructions.md
 
 # --- Wails / frontend generated ---
 frontend/package.json.md5

@@ -3,6 +3,7 @@
 package architecture
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -15,6 +16,13 @@ const (
 	LayerInfra        Layer = "infra"
 	LayerPresentation Layer = "presentation"
 	LayerMain         Layer = "main"
+	// The sync server is a second program in this module (ADR-023). Its layers mirror the
+	// application's, and the rules keep the two from importing each other: a server that pulled
+	// in client infrastructure would carry vault code it must never run, and an application that
+	// wired the server would ship an attack surface nobody asked for.
+	LayerSyncServerCore    Layer = "syncserver-core"
+	LayerSyncServerAdapter Layer = "syncserver-adapter"
+	LayerSyncServerMain    Layer = "syncserver-main"
 )
 
 // Violation describes a forbidden import.
@@ -25,7 +33,7 @@ type Violation struct {
 
 func checkImport(module, importPath string, layer Layer, productionFile bool) *Violation {
 	if layer == LayerMain {
-		return nil
+		return checkMainImport(module, importPath)
 	}
 	if isStdLib(module, importPath) {
 		return nil
@@ -45,6 +53,13 @@ func checkImport(module, importPath string, layer Layer, productionFile bool) *V
 		return checkInfraImport(module, internalPath, importPath)
 	case LayerPresentation:
 		return checkPresentationImport(module, internalPath, importPath)
+	case LayerSyncServerCore:
+		if !productionFile {
+			return nil
+		}
+		return checkSyncServerCoreImport(module, internalPath, importPath)
+	case LayerSyncServerAdapter, LayerSyncServerMain:
+		return checkSyncServerOuterImport(module, internalPath, importPath, layer)
 	default:
 		return nil
 	}
@@ -156,6 +171,50 @@ func checkPresentationImport(module, internalPath, importPath string) *Violation
 	return &Violation{ImportPath: importPath, Rule: "presentation may import only allowed internal packages, Wails, golang.org/x/sys, and stdlib"}
 }
 
+// checkMainImport keeps the application's composition root free of everything except the one
+// thing it must never wire: the sync server.
+func checkMainImport(module, importPath string) *Violation {
+	if strings.HasPrefix(importPath, module+"/internal/syncserver") {
+		return &Violation{ImportPath: importPath, Rule: "the application composition root must not import internal/syncserver"}
+	}
+	return nil
+}
+
+func checkSyncServerCoreImport(module, internalPath, importPath string) *Violation {
+	if strings.HasPrefix(internalPath, "internal/domain") || strings.HasPrefix(internalPath, "internal/syncserver/usecase") {
+		return nil
+	}
+	if importPath == module+"/internal/pkg/safego" {
+		return nil
+	}
+	if strings.HasPrefix(importPath, module+"/") {
+		return &Violation{ImportPath: importPath, Rule: "syncserver/usecase may import only internal/domain and internal/pkg/safego"}
+	}
+	return &Violation{ImportPath: importPath, Rule: "syncserver/usecase must not import third-party packages"}
+}
+
+// syncServerSharedInfra is the client infrastructure the server is allowed to share: the crypto
+// and the password protocol both sides must implement identically. Anything else under
+// internal/infra belongs to the application.
+var syncServerSharedInfra = []string{"internal/infra/synccrypto", "internal/infra/opaque"}
+
+func checkSyncServerOuterImport(module, internalPath, importPath string, layer Layer) *Violation {
+	if !strings.HasPrefix(importPath, module+"/") {
+		return nil
+	}
+	for _, prefix := range []string{"internal/domain", "internal/pkg", "internal/syncserver"} {
+		if strings.HasPrefix(internalPath, prefix) {
+			return nil
+		}
+	}
+	for _, prefix := range syncServerSharedInfra {
+		if strings.HasPrefix(internalPath, prefix) {
+			return nil
+		}
+	}
+	return &Violation{ImportPath: importPath, Rule: fmt.Sprintf("%s may import only internal/domain, internal/pkg, internal/syncserver, synccrypto and opaque", layer)}
+}
+
 func moduleInternalPrefix(module, suffix string) string {
 	return module + "/" + suffix
 }
@@ -186,6 +245,12 @@ func LayerFromRelPath(relPath string) (Layer, bool) {
 		return LayerInfra, true
 	case strings.HasPrefix(relPath, "internal/presentation/"):
 		return LayerPresentation, true
+	case strings.HasPrefix(relPath, "internal/syncserver/usecase/"):
+		return LayerSyncServerCore, true
+	case strings.HasPrefix(relPath, "internal/syncserver/"):
+		return LayerSyncServerAdapter, true
+	case strings.HasPrefix(relPath, "cmd/xqsyncd/"):
+		return LayerSyncServerMain, true
 	default:
 		return "", false
 	}

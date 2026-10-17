@@ -3,13 +3,34 @@
   import { createEventDispatcher } from 'svelte';
   import { UserPlus } from 'lucide-svelte';
   import AuthEntryCard from '../AuthEntryCard.svelte';
-  import type { ConnectionUser, PluginAuthConfig, SSHIdentityMeta } from '../../stores/appState';
+  import { detailsConnection, type ConnectionUser, type PluginAuthConfig, type SSHIdentityMeta } from '../../stores/appState';
+  import { credentialBindings } from '../../stores/syncState';
+  import {
+    linkPersonalCredential,
+    linksPersonally,
+    refreshCredentialBindings,
+    withPersonalCredentials,
+  } from '../../actions/personalCredentialActions';
+  import { MASKED_PASSWORD } from './authSecrets';
   import type { AuthMethod } from './types';
   import './connectionDetailsShared.css';
 
   export let users: ConnectionUser[] = [];
   export let defaultUserId = '';
   export let identities: SSHIdentityMeta[] = [];
+
+  // A team user whose credential each member brings is shown, and set, as this member's own link.
+  $: shown = withPersonalCredentials($detailsConnection, users, $credentialBindings);
+  $: if ($detailsConnection?.vaultId) void refreshCredentialBindings();
+
+  function onPassword(userId: string, value: string) {
+    const conn = $detailsConnection;
+    if (!conn || !linksPersonally(conn, userId)) {
+      dispatch('passwordchange', { userId, value });
+      return;
+    }
+    if (value && value !== MASKED_PASSWORD) void linkPersonalCredential(conn, userId, { password: value });
+  }
 
   const dispatch = createEventDispatcher<{
     dirty: void;
@@ -75,7 +96,7 @@
     <span class="connection-detail-field-label">{$t('connection.field.users')}</span>
     <button class="ghost connection-detail-micro-btn" on:click={addUser}><UserPlus size={12} /> Add</button>
   </div>
-  {#each users as u (u.id)}
+  {#each shown as u (u.id)}
     <AuthEntryCard
       authMethod={u.authMethod}
       keyAuth={u.keyAuth}
@@ -84,7 +105,7 @@
       {identities}
       on:authmethodchange={(e) => updateAuthMethod(u.id, e.detail)}
       on:pluginauthchange={(e) => updatePluginAuth(u.id, e.detail)}
-      on:passwordchange={(e) => dispatch('passwordchange', { userId: u.id, value: e.detail })}
+      on:passwordchange={(e) => onPassword(u.id, e.detail)}
       on:keypick={() => dispatch('keypick', u.id)}
       on:keyremove={(e) => dispatch('keyremove', { userId: u.id, keyId: e.detail })}
       on:remove={() => removeUser(u.id)}

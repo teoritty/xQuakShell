@@ -86,8 +86,17 @@ export interface DiscoveryRow {
   expanded: boolean;
 }
 
+/** The team a 'vault' row heads, as the tree needs it. */
+export interface VaultGroup {
+  vault: string;
+  name: string;
+  /** False for a viewer, and for a vault this device holds items of but no longer lists. */
+  writable: boolean;
+  viewer: boolean;
+}
+
 export interface TreeNode {
-  type: 'folder' | 'connection' | 'discovery';
+  type: 'folder' | 'connection' | 'discovery' | 'vault';
   id: string;
   name: string;
   depth: number;
@@ -101,6 +110,8 @@ export interface TreeNode {
   discovery?: DiscoveryRow;
   /** Set only when type === 'discovery' and the row is a host service line. */
   notice?: { kind: DiscoveryNoticeKind; text: string };
+  /** Set only when type === 'vault': the team whose items the row heads. */
+  group?: VaultGroup;
 }
 
 export interface DragPayload {

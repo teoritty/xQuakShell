@@ -58,7 +58,7 @@
     if (plugin.state === 'running') {
       return { text: $t('plugins.state.running'), kind: 'installed', title: '' };
     }
-    const state = pluginStateLabel(plugin.state);
+    const state = pluginStateLabel(plugin.state, plugin.onDemand);
     return { text: state.key ? $t(state.key) : (state.text ?? ''), kind: 'warning', title: '' };
   }
 

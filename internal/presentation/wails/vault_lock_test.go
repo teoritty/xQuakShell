@@ -80,3 +80,17 @@ func TestLockingTwiceIsHarmless(t *testing.T) {
 		t.Errorf("second lock: locks=%d cleared=%d, want 2 and 2", vault.locks, cache.cleared)
 	}
 }
+
+// Both lock paths stop sync before the vault closes: its keys live in the vault, and a round left
+// running would be the last thing holding them.
+func TestBothLockPathsStopSync(t *testing.T) {
+	for _, lock := range []func(*AppAPI){(*AppAPI).LockVault, (*AppAPI).onLockoutTriggered} {
+		api, _, _ := lockableAPI(t)
+		f := &fakeSync{}
+		api.SetSyncServices(f, &fakeConflicts{})
+		lock(api)
+		if f.stopped != 1 {
+			t.Fatalf("sync stopped %d times on lock", f.stopped)
+		}
+	}
+}

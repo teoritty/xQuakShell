@@ -108,3 +108,21 @@ func TestDTOToConnection_DoesNotShareSlicesWithDTO(t *testing.T) {
 		t.Fatal("user key ids shared with dto")
 	}
 }
+
+// The editor must round-trip a user's credential source, or saving a team connection would turn
+// every member's bound credential back into an empty inline one.
+func TestConnectionDTO_KeepsCredentialSourceAndShowsTheVault(t *testing.T) {
+	c := domain.Connection{ID: "c", Name: "db", Host: "h", Port: 22, VaultID: "team",
+		Users: []domain.ConnectionUser{{ID: "u", Username: "deploy", Auth: domain.AuthMethodKey, CredentialSource: domain.CredentialSourcePersonal}}}
+	dto := ConnectionToDTO(c)
+	if dto.VaultID != "team" || dto.Users[0].CredentialSource != domain.CredentialSourcePersonal {
+		t.Fatalf("dto = %+v; the editor must see the vault and the source", dto)
+	}
+	back := DTOToConnection(dto)
+	if back.Users[0].CredentialSource != domain.CredentialSourcePersonal {
+		t.Fatal("the credential source was lost on the way back")
+	}
+	if back.VaultID != "" {
+		t.Fatal("a vault id came back from the editor; it is display-only")
+	}
+}

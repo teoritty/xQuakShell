@@ -199,6 +199,19 @@ flowchart LR
   Broker -->|session.tunnelData notify| Plugin
 ```
 
+## State sync (ADR-023)
+
+| Package | Layer | May import |
+|---|---|---|
+| `internal/domain/vaultsync` | domain (leaf) | stdlib only |
+| `internal/syncserver/usecase` | sync server core | `internal/domain`, `internal/pkg/safego`, stdlib |
+| `internal/syncserver/store`, `internal/syncserver/transport` | sync server adapters | the above, `internal/pkg`, `internal/infra/synccrypto`, `internal/infra/opaque`, third-party |
+| `cmd/xqsyncd` | sync server composition root | the above |
+
+The application (`main.go`, `main_*.go`, every client layer) never imports `internal/syncserver`.
+Canonical rules: [`test/unit/architecture/rules.go`](../test/unit/architecture/rules.go). See
+[adr/023-state-sync.md](adr/023-state-sync.md).
+
 ## Tests
 
 - Use case SSH flows: [`internal/usecase/ssh_connector_test.go`](../internal/usecase/ssh_connector_test.go), `ssh_auth_wiring_test.go` (no network; mocked ports).

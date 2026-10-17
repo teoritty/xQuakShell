@@ -293,3 +293,20 @@ func TestDiscoveryAcceptsAnIntactUserPlugin(t *testing.T) {
 		t.Fatalf("LoadPluginDir on an intact user plugin = %v, want nil", err)
 	}
 }
+
+// A synced plugin reference names the manifest by digest, so the loader reports the digest of the
+// exact plugin.json bytes it validated.
+func TestLoadPluginDirReportsTheManifestDigest(t *testing.T) {
+	dir := writeUserPluginDir(t, "com.test.digest")
+	want, err := hashFileContents(filepath.Join(dir, "plugin.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := infraplugin.LoadPluginDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.ManifestDigest != want {
+		t.Fatalf("ManifestDigest = %q, want %q", p.ManifestDigest, want)
+	}
+}

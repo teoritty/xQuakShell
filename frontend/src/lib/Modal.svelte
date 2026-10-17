@@ -1,22 +1,49 @@
+<script lang="ts" context="module">
+  // The modals open right now, innermost last. Escape closes only the innermost: a key dialog over
+  // Settings closes the key dialog and leaves Settings open.
+  const open: symbol[] = [];
+</script>
+
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onDestroy } from 'svelte';
   import { X } from 'lucide-svelte';
   export let title: string = '';
   export let show: boolean = false;
   export let contentClass: string = '';
   const dispatch = createEventDispatcher();
+  const self = Symbol('modal');
+
+  $: if (show && !open.includes(self)) open.push(self);
+  $: if (!show) forget();
+  onDestroy(forget);
+
+  function forget() {
+    const i = open.indexOf(self);
+    if (i >= 0) open.splice(i, 1);
+  }
 
   function close() {
     dispatch('close');
   }
 
+  // Listened for on the window, in the capture phase. A handler on the backdrop never ran: keys typed
+  // inside the dialog stop at the content's stopPropagation - which stays, so the app's hotkeys do
+  // not fire while typing here - and with focus on the page body the backdrop gets no key events at
+  // all. The decision waits for the event to finish, so a control that handles Escape itself - an
+  // inline edit cancelling - marks it handled and keeps the dialog open.
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') close();
+    if (e.key !== 'Escape' || !show || open[open.length - 1] !== self) return;
+    setTimeout(() => {
+      if (!e.defaultPrevented && show) close();
+    });
   }
 </script>
 
+<svelte:window on:keydown|capture={handleKeydown} />
+
 {#if show}
-  <div class="modal-backdrop" on:click={close} on:keydown={handleKeydown}>
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="modal-backdrop" on:click={close}>
     <div class="modal-content {contentClass}" on:click|stopPropagation on:keydown|stopPropagation>
       <div class="modal-header" class:has-header-center={$$slots['header-center']}>
         <span class="modal-title">{title}</span>

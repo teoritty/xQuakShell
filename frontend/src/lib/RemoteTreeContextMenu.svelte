@@ -2,8 +2,9 @@
   import { t } from '../i18n/messages';
   import { createEventDispatcher } from 'svelte';
   import { get } from 'svelte/store';
-  import { CopyPlus, FolderPlus, MonitorDot, Pencil, Star, Trash2 } from 'lucide-svelte';
-  import { selectedConnectionIds, selectedConnectionId } from '../stores/appState';
+  import { ArrowRightLeft, CopyPlus, FolderPlus, MonitorDot, Pencil, Star, Trash2 } from 'lucide-svelte';
+  import { connections, selectedConnectionIds, selectedConnectionId } from '../stores/appState';
+  import { canWrite, requestVaultMove, teams } from '../stores/teamState';
   import { duplicateConnections } from '../actions/connectionActions';
   import { closeActiveContextMenu } from './contextMenuManager';
   import type { DiscoveryMenu, DiscoveryMenuItem } from './remoteTree/discoveryActions';
@@ -33,14 +34,37 @@
 
   // Acts on the selection, as Delete does. A right-click on an unselected row selects it alone
   // before the menu opens, so the selection is always what the user right-clicked.
-  function duplicate() {
+  function selection(): string[] {
     const ids = [...get(selectedConnectionIds)];
-    const target = ids.length > 0 ? ids : [get(selectedConnectionId)].filter(Boolean);
+    return ids.length > 0 ? ids : [get(selectedConnectionId)].filter(Boolean);
+  }
+
+  function duplicate() {
+    const target = selection();
     closeActiveContextMenu();
     void duplicateConnections(target, {
       first: $t('tree.duplicateName'),
       numbered: $t('tree.duplicateNameNumbered'),
     });
+  }
+
+  // "Move to": every vault the selected connections could go to - the personal one and each team this
+  // account may write to - except the one they are all already in. Only once there is somewhere else
+  // to go: without teams the personal vault is the only vault, and the menu stays as it always was.
+  $: selected = show ? selection() : [];
+  $: here = new Set($connections.filter((c) => selected.includes(c.id)).map((c) => c.vaultId ?? ''));
+  $: moveTargets = [{ vault: '', name: $t('tree.vault.personal') },
+    ...$teams.filter(canWrite).map((x) => ({ vault: x.vault, name: x.name || $t('sync.teams.unnamed') }))]
+    .filter((d) => !(here.size === 1 && here.has(d.vault)));
+  // A move takes the connection out of where it is, so a viewer's team items offer none: the backend
+  // would refuse it, and a menu item that only ever fails is worse than none.
+  $: movable = [...here].every((v) => v === '' || canWrite($teams.find((x) => x.vault === v)));
+  $: offerMove = ($teams.length > 0 || [...here].some(Boolean)) && moveTargets.length > 0 && movable;
+
+  function moveTo(vault: string) {
+    const connectionIds = selection();
+    closeActiveContextMenu();
+    requestVaultMove({ connectionIds, vault, folder: '' });
   }
 </script>
 
@@ -91,6 +115,12 @@
         <span class="star-icon" class:filled={isFavorite}><Star size={12} /></span>
         <span>{isFavorite ? $t('tree.favorites.remove') : $t('tree.favorites.add')}</span>
       </button>
+      {#if offerMove}
+        <div class="menu-label" role="presentation"><ArrowRightLeft size={12} /><span>{$t('tree.action.moveTo')}</span></div>
+        {#each moveTargets as d (d.vault)}
+          <button class="menu-item menu-sub" on:click={() => moveTo(d.vault)} role="menuitem"><span>{d.name}</span></button>
+        {/each}
+      {/if}
     {/if}
     <button class="menu-item danger" on:click={() => dispatch('delete')} role="menuitem">
       <Trash2 size={12} />
@@ -147,6 +177,19 @@
 
   .menu-item:disabled:hover {
     background: transparent;
+  }
+
+  .menu-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 2px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .menu-sub {
+    padding-left: 32px;
   }
 
   .menu-notice {

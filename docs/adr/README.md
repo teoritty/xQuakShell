@@ -22,6 +22,7 @@ be treated as arbitrary and worked around.
 | [020](020-local-terminal.md) | The Local Terminal — an RPC with no arguments, a shell named by id and never by path, unreachable from a plugin |
 | [021](021-vault-recovery-key.md) | A Second Credential Opens the Vault — a wrapped vault key, one error for both credentials, a key shown once and never stored |
 | [022](022-agent-forwarding.md) | Agent Forwarding Signs With Vault Keys — two-sided consent, only logins, every signature confirmed with a verified destination |
+| [023](023-state-sync.md) | State Sync Through a Blind Server — ciphertext and signed heads only, password-derived bundle, asymmetric trust for synced settings |
 
 ## Numbers below 007
 

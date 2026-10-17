@@ -14,6 +14,7 @@
   import HotkeysSection from './settings/HotkeysSection.svelte';
   import NetworkSection from './settings/NetworkSection.svelte';
   import SecuritySection from './settings/SecuritySection.svelte';
+  import SyncSection from './settings/SyncSection.svelte';
   import SettingsSection from './settings/SettingsSection.svelte';
   import { findHotkeyConflict } from './settings/hotkeyConflicts';
   import {
@@ -21,6 +22,7 @@
     draftFromSettings,
     draftToSettings,
   } from './settings/settingsDraft';
+  import { rebaseDraft } from './draftRebase';
   import { getAuditSessionState } from '../api/audit';
   import { tabHasSearchMatches, tabLabelKey, type SettingsTabId } from './settingsSearch';
   import { applyUiScalePercent } from './uiScale';
@@ -36,6 +38,7 @@
     Keyboard,
     FileText,
     Search,
+    RefreshCw,
   } from 'lucide-svelte';
 
   export let show = false;
@@ -48,6 +51,9 @@
   let searchPinnedTab: SettingsTabId | null = null;
 
   let draft = defaultSettingsDraft();
+  // What the dialog opened with: Save writes only what the person changed since, onto the settings
+  // as they are then, so a setting another device synced in while the dialog was open survives it.
+  let openedDraft = draft;
   let hotkeyConflict = '';
   // Not part of the draft: secret logging is session state the backend owns, while the scale and
   // language are remembered only so cancelling can undo their live previews.
@@ -76,6 +82,7 @@
     { id: 'hotkeys', icon: Keyboard },
     { id: 'network', icon: Wifi },
     { id: 'security', icon: Shield },
+    { id: 'sync', icon: RefreshCw },
   ];
 
   $: isSearching = searchQuery.trim().length > 0;
@@ -116,6 +123,7 @@
   async function loadSettings() {
     loading = true;
     draft = draftFromSettings(await getSettings());
+    openedDraft = { ...draft };
     uiScaleAtOpen = draft.uiScalePercent;
     languageAtOpen = draft.language;
     const sessionState = await getAuditSessionState();
@@ -138,7 +146,8 @@
     hotkeyConflict = findHotkeyConflict(draft, $t);
     if (hotkeyConflict) return;
     saving = true;
-    await saveSettings(draftToSettings(draft));
+    const latest = draftFromSettings(await getSettings());
+    await saveSettings(draftToSettings(rebaseDraft(draft, openedDraft, latest)));
     window.dispatchEvent(new CustomEvent('app-settings-updated'));
     uiScaleAtOpen = draft.uiScalePercent;
     languageAtOpen = draft.language;
@@ -192,6 +201,7 @@
           <HotkeysSection {view} bind:draft bind:conflict={hotkeyConflict} />
           <NetworkSection {view} bind:draft />
           <SecuritySection {view} bind:draft />
+          <SyncSection {view} />
         {/if}
       </div>
     </div>

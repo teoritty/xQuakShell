@@ -207,7 +207,7 @@ async function run() {
     // builder would compile, compute `tree` from a stale set, and reproduce the
     // original bug without any test noticing.
     const cleanupAt = code.indexOf('forgetUnavailableDiscovery(discoveryAvailableIds)');
-    const buildAt = code.indexOf('tree = buildTree(');
+    const buildAt = code.indexOf('tree = buildVaultTree(');
     assert(cleanupAt >= 0 && buildAt >= 0, 'both reactive blocks must exist');
     assert(
       cleanupAt < buildAt,

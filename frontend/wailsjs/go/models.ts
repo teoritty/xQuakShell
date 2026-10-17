@@ -302,6 +302,7 @@ export namespace wails {
 	    passAuth?: PassAuthConfigDTO;
 	    pluginAuth?: PluginAuthConfigDTO;
 	    label?: string;
+	    credentialSource?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConnectionUserDTO(source);
@@ -316,6 +317,7 @@ export namespace wails {
 	        this.passAuth = this.convertValues(source["passAuth"], PassAuthConfigDTO);
 	        this.pluginAuth = this.convertValues(source["pluginAuth"], PluginAuthConfigDTO);
 	        this.label = source["label"];
+	        this.credentialSource = source["credentialSource"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -352,6 +354,7 @@ export namespace wails {
 	    storedSecretFields?: string[];
 	    forwardRules?: ForwardRuleDTO[];
 	    agentForwarding?: AgentForwardingDTO;
+	    vaultId?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConnectionDTO(source);
@@ -374,6 +377,7 @@ export namespace wails {
 	        this.storedSecretFields = source["storedSecretFields"];
 	        this.forwardRules = this.convertValues(source["forwardRules"], ForwardRuleDTO);
 	        this.agentForwarding = this.convertValues(source["agentForwarding"], AgentForwardingDTO);
+	        this.vaultId = source["vaultId"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -563,6 +567,28 @@ export namespace wails {
 		}
 	}
 	
+	export class CredentialBindingDTO {
+	    vault: string;
+	    connection: string;
+	    user: string;
+	    identity?: string;
+	    password?: string;
+	    suspendedBy?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CredentialBindingDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.vault = source["vault"];
+	        this.connection = source["connection"];
+	        this.user = source["user"];
+	        this.identity = source["identity"];
+	        this.password = source["password"];
+	        this.suspendedBy = source["suspendedBy"];
+	    }
+	}
 	export class DeployResultDTO {
 	    added: boolean;
 	    alreadyPresent: boolean;
@@ -890,6 +916,40 @@ export namespace wails {
 	}
 	
 	
+	export class EnableSyncRequest {
+	    serverUrl: string;
+	    identityKey: string;
+	    username: string;
+	    password: string;
+	    invite: string;
+	    register: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new EnableSyncRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.serverUrl = source["serverUrl"];
+	        this.identityKey = source["identityKey"];
+	        this.username = source["username"];
+	        this.password = source["password"];
+	        this.invite = source["invite"];
+	        this.register = source["register"];
+	    }
+	}
+	export class EnableSyncResultDTO {
+	    joinNeeded: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new EnableSyncResultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.joinNeeded = source["joinNeeded"];
+	    }
+	}
 	export class ResolvedActionDTO {
 	    target: string;
 	    action: string;
@@ -1037,6 +1097,7 @@ export namespace wails {
 	    name: string;
 	    parentId: string;
 	    order: number;
+	    vaultId?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new FolderDTO(source);
@@ -1048,6 +1109,7 @@ export namespace wails {
 	        this.name = source["name"];
 	        this.parentId = source["parentId"];
 	        this.order = source["order"];
+	        this.vaultId = source["vaultId"];
 	    }
 	}
 	
@@ -1770,6 +1832,7 @@ export namespace wails {
 	    requiresSecretAccess: boolean;
 	    signed: boolean;
 	    enabled: boolean;
+	    onDemand?: boolean;
 	    sandboxMode?: string;
 	    discoveryIcons?: Record<string, string>;
 	
@@ -1788,6 +1851,7 @@ export namespace wails {
 	        this.requiresSecretAccess = source["requiresSecretAccess"];
 	        this.signed = source["signed"];
 	        this.enabled = source["enabled"];
+	        this.onDemand = source["onDemand"];
 	        this.sandboxMode = source["sandboxMode"];
 	        this.discoveryIcons = source["discoveryIcons"];
 	    }
@@ -2179,6 +2243,334 @@ export namespace wails {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
+	    }
+	}
+	export class SyncConflictDTO {
+	    id: string;
+	    recordType: string;
+	    itemKey: string;
+	    itemName?: string;
+	    path: string[];
+	    pathNames: string[];
+	    secret: boolean;
+	    local?: string;
+	    remote?: string;
+	    atUnixMilli: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncConflictDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.recordType = source["recordType"];
+	        this.itemKey = source["itemKey"];
+	        this.itemName = source["itemName"];
+	        this.path = source["path"];
+	        this.pathNames = source["pathNames"];
+	        this.secret = source["secret"];
+	        this.local = source["local"];
+	        this.remote = source["remote"];
+	        this.atUnixMilli = source["atUnixMilli"];
+	    }
+	}
+	export class SyncDeviceDTO {
+	    id: string;
+	    name: string;
+	    platform: string;
+	    createdUnixMilli: number;
+	    revoked: boolean;
+	    current: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncDeviceDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.platform = source["platform"];
+	        this.createdUnixMilli = source["createdUnixMilli"];
+	        this.revoked = source["revoked"];
+	        this.current = source["current"];
+	    }
+	}
+	export class SyncHeldDTO {
+	    record: string;
+	    type: string;
+	    key: string;
+	    name?: string;
+	    reason: string;
+	    pending: boolean;
+	    atUnixMilli: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncHeldDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.record = source["record"];
+	        this.type = source["type"];
+	        this.key = source["key"];
+	        this.name = source["name"];
+	        this.reason = source["reason"];
+	        this.pending = source["pending"];
+	        this.atUnixMilli = source["atUnixMilli"];
+	    }
+	}
+	export class SyncPluginDataDTO {
+	    pluginId: string;
+	    name: string;
+	    enabled: boolean;
+	    waiting: number;
+	    files: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncPluginDataDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pluginId = source["pluginId"];
+	        this.name = source["name"];
+	        this.enabled = source["enabled"];
+	        this.waiting = source["waiting"];
+	        this.files = source["files"];
+	    }
+	}
+	export class SyncPluginInstallRequest {
+	    pluginId: string;
+	    secret: boolean;
+	    auth: boolean;
+	    tunnel: boolean;
+	    multiSession: boolean;
+	    network: boolean;
+	    exec: boolean;
+	    acceptDifferent: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncPluginInstallRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pluginId = source["pluginId"];
+	        this.secret = source["secret"];
+	        this.auth = source["auth"];
+	        this.tunnel = source["tunnel"];
+	        this.multiSession = source["multiSession"];
+	        this.network = source["network"];
+	        this.exec = source["exec"];
+	        this.acceptDifferent = source["acceptDifferent"];
+	    }
+	}
+	export class SyncPluginInstallResultDTO {
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncPluginInstallResultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	    }
+	}
+	export class SyncPluginOfferDTO {
+	    pluginId: string;
+	    version: string;
+	    state: string;
+	    repo?: string;
+	    tag?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncPluginOfferDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pluginId = source["pluginId"];
+	        this.version = source["version"];
+	        this.state = source["state"];
+	        this.repo = source["repo"];
+	        this.tag = source["tag"];
+	    }
+	}
+	export class SyncServerProbeDTO {
+	    identityKey: string;
+	    fingerprint: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncServerProbeDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.identityKey = source["identityKey"];
+	        this.fingerprint = source["fingerprint"];
+	    }
+	}
+	export class SyncStatusDTO {
+	    enabled: boolean;
+	    running: boolean;
+	    state: string;
+	    message?: string;
+	    held: number;
+	    quarantined: number;
+	    serverUrl?: string;
+	    username?: string;
+	    fingerprint?: string;
+	    rekeyPending?: boolean;
+	    joinPending?: boolean;
+	    newDevices?: SyncDeviceDTO[];
+	    accountFingerprint?: string;
+	    stopReason?: string;
+	    applied?: number;
+	    vaultsChanged?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncStatusDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.running = source["running"];
+	        this.state = source["state"];
+	        this.message = source["message"];
+	        this.held = source["held"];
+	        this.quarantined = source["quarantined"];
+	        this.serverUrl = source["serverUrl"];
+	        this.username = source["username"];
+	        this.fingerprint = source["fingerprint"];
+	        this.rekeyPending = source["rekeyPending"];
+	        this.joinPending = source["joinPending"];
+	        this.newDevices = this.convertValues(source["newDevices"], SyncDeviceDTO);
+	        this.accountFingerprint = source["accountFingerprint"];
+	        this.stopReason = source["stopReason"];
+	        this.applied = source["applied"];
+	        this.vaultsChanged = source["vaultsChanged"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SyncTrashItemDTO {
+	    record: string;
+	    type: string;
+	    key: string;
+	    name?: string;
+	    deletedUnixMilli: number;
+	    purgeUnixMilli: number;
+	    restorable: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncTrashItemDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.record = source["record"];
+	        this.type = source["type"];
+	        this.key = source["key"];
+	        this.name = source["name"];
+	        this.deletedUnixMilli = source["deletedUnixMilli"];
+	        this.purgeUnixMilli = source["purgeUnixMilli"];
+	        this.restorable = source["restorable"];
+	    }
+	}
+	export class TeamDTO {
+	    vault: string;
+	    name: string;
+	    role: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TeamDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.vault = source["vault"];
+	        this.name = source["name"];
+	        this.role = source["role"];
+	    }
+	}
+	export class TeamInviteRequest {
+	    vault: string;
+	    username: string;
+	    fingerprint: string;
+	    role: string;
+	    verified: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TeamInviteRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.vault = source["vault"];
+	        this.username = source["username"];
+	        this.fingerprint = source["fingerprint"];
+	        this.role = source["role"];
+	        this.verified = source["verified"];
+	    }
+	}
+	export class TeamInviteeDTO {
+	    username: string;
+	    fingerprint: string;
+	    known: boolean;
+	    verified: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TeamInviteeDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.username = source["username"];
+	        this.fingerprint = source["fingerprint"];
+	        this.known = source["known"];
+	        this.verified = source["verified"];
+	    }
+	}
+	export class TeamMemberDTO {
+	    account: string;
+	    username: string;
+	    fingerprint: string;
+	    role: string;
+	    verified: boolean;
+	    current: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TeamMemberDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.account = source["account"];
+	        this.username = source["username"];
+	        this.fingerprint = source["fingerprint"];
+	        this.role = source["role"];
+	        this.verified = source["verified"];
+	        this.current = source["current"];
 	    }
 	}
 	

@@ -6,5 +6,13 @@
   "domain/plugin": {
     "efficacy": 80.95238095238095,
     "coverage": 76.82926829268293
+  },
+  "domain/vaultsync": {
+    "efficacy": 96.01769911504425,
+    "coverage": 93.7759336099585
+  },
+  "syncserver/usecase": {
+    "efficacy": 90,
+    "coverage": 93.33333333333333
   }
 }

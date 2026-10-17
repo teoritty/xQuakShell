@@ -27,6 +27,10 @@ type InstallPreview struct {
 	UnsignedWarning              bool
 	UntrustedSignatureWarning    bool
 	Permissions                  []string
+	// ManifestDigest and ChecksumsDigest identify the exact build previewed, so an install can be
+	// held to a build recorded elsewhere before anything is written (spec 6.4).
+	ManifestDigest  string
+	ChecksumsDigest string
 }
 
 // BundleLoader loads a plugin directory or bundle for preview/install.
@@ -140,6 +144,7 @@ func (m *PluginManager) Install(sourcePath string, policy domainplugin.InstallTr
 	if installed.Manifest.RequiresChannelExecConsent() {
 		m.auditStart(installed.Manifest.ID, "install", "channelExec", false)
 	}
+	m.notifyInstalledChanged()
 	return installed, nil
 }
 
@@ -162,6 +167,8 @@ func installPreviewFrom(p domainplugin.InstalledPlugin, trust domainplugin.Insta
 		UnsignedWarning:              unsigned,
 		UntrustedSignatureWarning:    trust.UntrustedSignatureWarning,
 		Permissions:                  p.Manifest.PermissionSummary(),
+		ManifestDigest:               p.ManifestDigest,
+		ChecksumsDigest:              p.ChecksumsDigest,
 	}
 }
 

@@ -1,5 +1,7 @@
 package domain
 
+import "maps"
+
 // CloneVaultData returns a deep copy of vault data suitable for snapshots.
 // Nil input returns nil.
 func CloneVaultData(in *VaultData) *VaultData {
@@ -17,6 +19,7 @@ func CloneVaultData(in *VaultData) *VaultData {
 		PluginSecrets: clonePluginSecrets(in.PluginSecrets),
 		PeerTrust:     clonePeerTrust(in.PeerTrust),
 		Settings:      CloneAppSettings(in.Settings),
+		Sync:          cloneVaultSync(in.Sync),
 	}
 	return out
 }
@@ -146,10 +149,8 @@ func clonePasswords(in map[string]PasswordBlob) map[string]PasswordBlob {
 	}
 	out := make(map[string]PasswordBlob, len(in))
 	for k, v := range in {
-		out[k] = PasswordBlob{
-			Value: cloneBytes(v.Value),
-			Label: v.Label,
-		}
+		v.Value = cloneBytes(v.Value)
+		out[k] = v
 	}
 	return out
 }
@@ -232,6 +233,46 @@ func clonePeerTrust(in []PeerTrustEntry) []PeerTrustEntry {
 	for i := range in {
 		out[i] = in[i]
 		out[i].Material = append([]byte(nil), in[i].Material...)
+	}
+	return out
+}
+
+// cloneVaultSync deep-copies the device's sync state; it holds key seeds, so no byte may be shared.
+func cloneVaultSync(in *VaultSync) *VaultSync {
+	if in == nil {
+		return nil
+	}
+	b := func(v []byte) []byte { return append([]byte(nil), v...) }
+	out := &VaultSync{}
+	for _, c := range in.Conflicts {
+		c.Path, c.Local, c.Remote = append([]string(nil), c.Path...), b(c.Local), b(c.Remote)
+		out.Conflicts = append(out.Conflicts, c)
+	}
+	out.Contacts = append([]SyncContact(nil), in.Contacts...)
+	out.Bindings = append([]CredentialBinding(nil), in.Bindings...)
+	out.Plugins = append([]SyncPlugin(nil), in.Plugins...)
+	out.PluginDataOff = append([]string(nil), in.PluginDataOff...)
+	if in.PluginsHere != nil {
+		out.PluginsHere = maps.Clone(in.PluginsHere)
+	}
+	out.PluginsRemovedElsewhere = append([]string(nil), in.PluginsRemovedElsewhere...)
+	out.AcknowledgedDevices = append([]string(nil), in.AcknowledgedDevices...)
+	if in.PluginFilesOnDisk != nil {
+		out.PluginFilesOnDisk = maps.Clone(in.PluginFilesOnDisk)
+	}
+	for _, f := range in.PluginFiles {
+		f.Content = b(f.Content)
+		out.PluginFiles = append(out.PluginFiles, f)
+	}
+	if a := in.Account; a != nil {
+		acct := *a
+		acct.ServerIdentity, acct.Account, acct.Device, acct.DeviceSeed = b(a.ServerIdentity), b(a.Account), b(a.Device), b(a.DeviceSeed)
+		acct.IdentitySeed, acct.EncryptionSeed, acct.EncryptionKey = b(a.IdentitySeed), b(a.EncryptionSeed), b(a.EncryptionKey)
+		acct.GenesisIdentityKey, acct.GenesisEncryptionKey = b(a.GenesisIdentityKey), b(a.GenesisEncryptionKey)
+		if p := a.Pending; p != nil {
+			acct.Pending = &SyncPendingKeys{IdentitySeed: b(p.IdentitySeed), EncryptionSeed: b(p.EncryptionSeed), EncryptionKey: b(p.EncryptionKey)}
+		}
+		out.Account = &acct
 	}
 	return out
 }

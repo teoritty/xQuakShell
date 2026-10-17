@@ -3,6 +3,7 @@
   import ConnectionDetails from './ConnectionDetails.svelte';
   import ContributionHost from './ContributionHost.svelte';
   import DiscoveryNodeDetails from './DiscoveryNodeDetails.svelte';
+  import VaultMoveDialog from './remoteTree/VaultMoveDialog.svelte';
   import { clampSidebarWidth, MIN_SIDEBAR_WIDTH } from './sidebarWidth';
   import { clampPanelHeight } from './sidebarPanelHeight';
   import TerminalSearchPanel from './terminalTools/TerminalSearchPanel.svelte';
@@ -113,6 +114,8 @@
   role="separator"
   aria-orientation="vertical"
 ></div>
+
+<VaultMoveDialog />
 
 <style>
   .sidebar {

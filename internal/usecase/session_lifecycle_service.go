@@ -403,6 +403,12 @@ func sshConnectErrorMessage(err error) string {
 		return "Key passphrase was not entered"
 	case errors.Is(err, domain.ErrKeyPassphraseWrong):
 		return "Wrong key passphrase"
+	// A team connection with no credential of this member's linked never reached the server, so
+	// "Authentication failed" pointed at the server for something only this member can fix.
+	case errors.Is(err, domain.ErrBindingMissing):
+		return "No key or password of yours is linked to this team connection: set one in its editor"
+	case errors.Is(err, domain.ErrBindingSuspended):
+		return "Another member changed this connection's address: confirm it in Settings → Sync before connecting"
 	case strings.HasPrefix(msg, "authentication failed:"):
 		return "Authentication failed"
 	case strings.HasPrefix(msg, "jump chain connection failed:"):

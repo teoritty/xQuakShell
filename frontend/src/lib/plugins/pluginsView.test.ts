@@ -93,6 +93,18 @@ function plugin(over: Partial<PluginInfo> = {}): PluginInfo {
 // --- run state ---
 
 assert(pluginRunState(plugin()) === 'active', 'enabled, running and sandboxed is active');
+assert(
+  pluginRunState(plugin({ onDemand: true, state: 'discovered' })) === 'active',
+  'a plugin that starts with each session is idle between sessions, not in need of attention',
+);
+assert(
+  pluginRunState(plugin({ onDemand: true, state: 'crashed' })) === 'attention',
+  'but a session start that crashed still needs attention',
+);
+assert(
+  pluginStateLabel('stopped', true).key === 'plugins.state.onDemand' && pluginStateLabel('crashed', true).text === 'Crashed',
+  'an idle on-demand plugin says when it runs, and a crash still says crashed',
+);
 assert(pluginRunState(plugin({ enabled: false })) === 'disabled', 'disabled outranks everything');
 assert(
   pluginRunState(plugin({ enabled: false, state: 'crashed', sandboxMode: 'unavailable' })) ===

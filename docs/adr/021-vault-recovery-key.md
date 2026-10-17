@@ -3,6 +3,8 @@
 ## Status
 
 Accepted. Adds an on-disk axis governed by [ADR-017](017-release-and-compatibility-policy.md).
+[ADR-023](023-state-sync.md) narrows the rejection of "any server" below: an optional sync server
+exists, and it still holds no credential that opens a vault.
 
 ## Context
 

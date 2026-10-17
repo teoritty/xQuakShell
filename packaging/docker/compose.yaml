@@ -1,0 +1,25 @@
+# xqsyncd with Docker Compose. See docs/sync-server.md, "Docker".
+#
+#   docker compose up -d
+#   docker compose logs xqsyncd | grep -E 'fingerprint|connect link'
+#   docker compose exec xqsyncd xqsyncd admin invite create --dir /data
+services:
+  xqsyncd:
+    image: ghcr.io/teoritty/xqsyncd:1
+    # Replace sync.example.org with the name your users connect to: it goes into the connect link.
+    command: ["serve", "--dir", "/data", "--addr", ":8443", "--init", "--host", "sync.example.org"]
+    ports:
+      - "8443:8443"
+    volumes:
+      - xqsyncd-data:/data
+    restart: unless-stopped
+    read_only: true
+    # SQLite may spill temporary files; with a read-only root they need somewhere to go.
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  xqsyncd-data:

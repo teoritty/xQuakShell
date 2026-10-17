@@ -1,5 +1,6 @@
 import type { Connection, Folder } from '../../stores/appState';
 import type { DragPayload, DropZone, TreeNode } from './types';
+import { refusesVaultDrop } from './vaultDnd';
 
 /**
  * Discovery rows sit in the same flat list as folders and connections but take
@@ -183,7 +184,7 @@ export function shouldShowDropIndicator(
   flatNodes: TreeNode[]
 ): boolean {
   if (zone === null) return false;
-  if (isNoOpDragOver(payload, node)) return false;
+  if (isNoOpDragOver(payload, node) || refusesVaultDrop(payload, node, connections, folders)) return false;
   if (zone === 'folder' && node.type === 'folder') {
     return !isNoOpDropOnFolder(payload, node.id, connections, folders);
   }

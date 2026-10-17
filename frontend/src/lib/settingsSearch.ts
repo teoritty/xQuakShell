@@ -5,7 +5,8 @@ export type SettingsTabId =
   | 'files'
   | 'hotkeys'
   | 'network'
-  | 'security';
+  | 'security'
+  | 'sync';
 
 export interface SettingsSectionIndex {
   tabId: SettingsTabId;
@@ -51,6 +52,14 @@ export const SETTINGS_SECTION_INDEX: SettingsSectionIndex[] = [
   // 'Plugins' is in this section's terms because this is where someone searching for plugin
   // settings now lands: the Plugins screen no longer has a Security page for them to find it on.
   { tabId: 'security', sectionId: 'plugins' },
+  { tabId: 'sync', sectionId: 'account' },
+  { tabId: 'sync', sectionId: 'devices' },
+  { tabId: 'sync', sectionId: 'changes' },
+  { tabId: 'sync', sectionId: 'trash' },
+  { tabId: 'sync', sectionId: 'teams' },
+  { tabId: 'sync', sectionId: 'credentials' },
+  { tabId: 'sync', sectionId: 'plugins' },
+  { tabId: 'sync', sectionId: 'advanced' },
 ];
 
 /** The message key holding a tab's caption. */

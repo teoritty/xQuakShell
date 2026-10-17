@@ -20,17 +20,77 @@ fixes, including security fixes, ship in a new release rather than as patches to
 |---|---|
 | `pluginApi` | 1.0.0 (unchanged) |
 | Capabilities | all 1.0.0, unchanged |
-| Manifest schema | unchanged |
+| Manifest schema | + optional `sync.paths` (additive) |
 | `bundleFormat` | 1.0.0 (unchanged) |
-| Vault schema | 4 (unchanged) |
+| Vault schema | 5 (was 4) |
 | Vault envelope | 1 (unchanged) |
 | Audit schema | 1 (unchanged) |
+| `syncProtocol` | 1.0.0 (new) |
+| Sync crypto suite | 1 (new) |
+| Sync record schemas | 1 for every record type (new) |
+| Sync state schema (`data/sync/state.db`) | 1 (new) |
+| Server store schema (`xqsyncd.db`) | 1 (new) |
 
 ### BREAKING
 
-Nothing.
+**Vault schema 4 → 5.** The first unlock after the upgrade copies the vault aside as
+`vault.age.v4.bak` and rewrites it as schema 5, which records the team vault each synced item
+belongs to. xQuakShell 1.4 and older refuse a schema 5 vault rather than open it and drop that
+field; to go back, restore the backup. Nothing about keys or passwords changes in the upgrade, and
+no passphrase is asked for.
 
 ### Added
+
+**Sync between your devices, through a server you run.** Settings → Sync connects a vault to
+`xqsyncd`, the self-hosted sync server that ships with this release for Windows and Linux
+([admin guide](docs/sync-server.md)). Everything is encrypted and signed on the device; the server
+cannot read a host name, a password or a folder name, cannot alter a record, and cannot roll a vault
+back or add a device without every device noticing. Signing in is one screen: paste the connect link
+the server prints (`https://host:8443/#fp=…`) and the application checks the server's fingerprint
+itself, or enter the address and compare the fingerprint it shows with the one its operator gave
+you. Fingerprints, the device list, the sync password and Shred now sit under Advanced. A second device signs in with the sync password;
+every other device announces it and can remove it, which replaces the account keys. Edits made
+offline on two devices merge field by field; the same credential edited on both becomes a conflict
+you resolve. A change from another device that would weaken this one — turning off plugin
+signature checks, loosening the lockout, replacing a known host key — waits for this device's
+master password. Sync is off until you turn it on, and needs a master password of at least 12
+characters; a new sync password needs at least 12 too.
+
+**Teams.** A team vault shares connections with other accounts on the same server. You invite a
+person after comparing their fingerprint over another channel, and give them the admin, editor or
+viewer role. Nobody has to read the fingerprint aloud: each person copies their contact code
+(`xqs-member:name#fp=…`) from the Teams page and sends it in a chat or a mail, and pasting it into
+the invite field — or into a member's row, to verify an existing member — makes the application
+compare it with the key the server gives for that account. A code that does not match leaves
+nothing to invite. Credentials are not shared: each member binds their own key or password to
+a team connection, and a member who changes a shared connection's address suspends everyone
+else's binding to it until they confirm. Removing a member moves the team to new keys, so nothing
+written afterwards opens for them. Each team appears in the connection tree under its own row,
+below your personal connections; create a connection or folder there to keep it in the team, or
+move one in and out from the tree's menu, the editor's "Stored in" field, or by dragging it onto
+another vault. A move into a team links your own key or password for you, and a move back takes
+that link with it as the connection's credential. A viewer sees the team's connections and can
+use them, but cannot add, change or move them.
+
+**The sync server as a container image.** Every release also publishes `xqsyncd` to
+`ghcr.io/teoritty/xqsyncd` for `linux/amd64` and `linux/arm64`, tagged with the version, its minor
+and major lines and `latest`; a pre-release gets its own version only. The image is the static server
+binary on a distroless base, running unprivileged with its data on a volume. `xqsyncd serve --init`
+initialises an empty data directory before serving and leaves an initialised one untouched, so a
+container needs one command; a [Compose file](packaging/docker/compose.yaml) and the backup routine
+for a containerised server are in the [admin guide](docs/sync-server.md#docker).
+
+**Trash and Shred now.** Deleted synced items stay in a trash for the vault's retention window
+(30 days by default) and can be restored. After that they are purged from the server, and within
+one and a half more windows the keys that covered them are destroyed on every device. Shred now does all
+of it at once.
+
+**Plugins from your other devices.** A plugin installed on one device is offered on the others —
+never installed by itself. Installing the offer runs the usual download, checksum, signature and
+consent steps and then checks that the build is exactly the one your other device installed; a
+release replaced behind the same tag is refused unless you accept it as a new version. A plugin may
+declare files of its own (`sync.paths` in `plugin.json`) that follow you between devices; they are
+written only while the plugin is stopped, and the Sync page shows what waits for a restart.
 
 **Search across terminals.** Ctrl+Shift+F turns the sidebar into a search view, the way an editor's
 search replaces its file tree: a query box with match case, whole word and regular expression

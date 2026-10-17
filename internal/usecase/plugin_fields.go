@@ -119,6 +119,30 @@ func (s *PluginFieldsService) SavePluginFields(ctx context.Context, conn *domain
 	return nil
 }
 
+// SaveSecretFields stores only the secret fields of incoming, against conn as it is on record. It
+// is how a member who may not change a team connection still sets their own password for it: a
+// secret lives in the personal vault under a reference derived from the connection and the field,
+// so the record every member shares comes out of this exactly as it went in.
+func (s *PluginFieldsService) SaveSecretFields(ctx context.Context, conn *domain.Connection, incoming map[string]string) error {
+	if conn == nil || conn.GetProtocol() == domain.ProtocolSSH || len(incoming) == 0 {
+		return nil
+	}
+	protoDef, _, err := s.registry.ProtocolDefForConnection(conn.GetProtocol())
+	if err != nil {
+		return err
+	}
+	secrets := make(map[string]string, len(incoming))
+	for id, value := range incoming {
+		if def := protoDef.FlatFields[id]; def != nil && def.Secret {
+			secrets[id] = value
+		}
+	}
+	if len(secrets) == 0 {
+		return nil
+	}
+	return s.SavePluginFields(ctx, conn, secrets)
+}
+
 // ResolvePluginFields decrypts secret refs and returns plaintext values for session.connect.
 func (s *PluginFieldsService) ResolvePluginFields(_ context.Context, conn *domain.Connection, protoDef *domainplugin.ProtocolDef) (map[string]string, error) {
 	if conn == nil || protoDef == nil || len(conn.PluginFields) == 0 {

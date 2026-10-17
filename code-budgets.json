@@ -49,8 +49,8 @@
         "scriptCodeLines": 85
       },
       "frontend/src/lib/ConnectionDetails.svelte": {
-        "codeLines": 294,
-        "scriptCodeLines": 220
+        "codeLines": 290,
+        "scriptCodeLines": 210
       },
       "frontend/src/lib/FileTree.svelte": {
         "codeLines": 519,
@@ -155,9 +155,9 @@
         "nesting": 2
       },
       "frontend/src/lib/remoteTree/dndHandlers.ts::executeDropBetween": {
-        "codeLines": 62,
+        "codeLines": 45,
         "params": 6,
-        "nesting": 3
+        "nesting": 2
       },
       "internal/domain/plugin/channel_port.go::NewChannelHandle": {
         "codeLines": 11,
@@ -335,7 +335,7 @@
         "nesting": 1
       },
       "internal/usecase/github_plugin_install.go::GitHubPluginService.commitInstall": {
-        "codeLines": 30,
+        "codeLines": 28,
         "params": 11,
         "nesting": 2
       },

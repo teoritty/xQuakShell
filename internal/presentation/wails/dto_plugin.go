@@ -13,6 +13,8 @@ type PluginDTO struct {
 	RequiresSecretAccess bool   `json:"requiresSecretAccess"`
 	Signed               bool   `json:"signed"`
 	Enabled              bool   `json:"enabled"`
+	// OnDemand is a plugin that runs only inside sessions, so "not running" is its idle state.
+	OnDemand bool `json:"onDemand,omitempty"`
 	// SandboxMode is "enforced", "enforced-partial", "unavailable", "disabled", or "" when the
 	// plugin is not running.
 	SandboxMode string `json:"sandboxMode,omitempty"`
@@ -39,6 +41,7 @@ func pluginInfoToDTO(info usecase.PluginInfo) PluginDTO {
 		RequiresSecretAccess: info.RequiresSecretAccess,
 		Signed:               info.Signed,
 		Enabled:              info.Enabled,
+		OnDemand:             info.OnDemand,
 		SandboxMode:          info.SandboxMode,
 		DiscoveryIcons:       info.DiscoveryIcons,
 	}

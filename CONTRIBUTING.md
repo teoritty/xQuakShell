@@ -109,7 +109,10 @@ The `Security` workflow ([.github/workflows/security.yml](.github/workflows/secu
   here and fails there.
 
 CodeQL (Go and JavaScript/TypeScript) has no local equivalent and runs on the PR; its findings gate
-the same way the others do.
+the same way the others do. A finding reviewed as a false positive goes into
+[.github/codeql-accepted.json](.github/codeql-accepted.json) with its reason, in the same PR as the
+review; dismissing it in the Security tab alone leaves the gate red. An acceptance holds only while
+the flagged line - and, for a data flow, its source line - stay as they were.
 
 Both `make` targets type-check the whole module, which needs `frontend/dist` for the `go:embed` in `main.go`; run `cd frontend && npm run build` first on a clean tree. Tool versions are pinned identically in the Makefile and the workflow — bump them together, or local and CI results will drift.
 

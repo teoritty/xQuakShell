@@ -67,6 +67,12 @@ type AppAPI struct {
 	updateSvc                   *usecase.UpdateService
 	locales                     domain.LocaleCatalog
 	localeBroadcast             LocaleBroadcaster
+	sync                        SyncCommands
+	syncConflicts               SyncConflictCommands
+	teams                       TeamCommands
+	bindings                    BindingCommands
+	pluginOffers                PluginOfferCommands
+	pluginData                  PluginDataCommands
 }
 
 // NewAppAPI creates a new AppAPI with the given dependencies.
@@ -348,6 +354,9 @@ func (a *AppAPI) onLockoutTriggered() {
 // the live SSH connections while the vault data they were built from still exists; locking first
 // would leave both alive with nothing to reconcile them against.
 func (a *AppAPI) lockNow() {
+	// Sync stops before anything else: its keys live in the vault about to close, and a round
+	// still running would be the last thing holding them.
+	a.stopSync()
 	a.sessions.CloseAll()
 	// A local shell is a process this application started; the window closing must take it and
 	// everything it spawned with it.
@@ -430,6 +439,8 @@ func (a *AppAPI) afterVaultOpened() {
 	// The setting permitting the network call lives in the vault, so this is the first moment the
 	// application is allowed to know whether the user wants it.
 	a.startUpdateCheck()
+	// The sync account lives in the vault for the same reason.
+	a.startSync()
 }
 
 // LockVault re-locks the vault and clears sensitive data from memory.

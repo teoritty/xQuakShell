@@ -89,7 +89,8 @@ export function isBundled(plugin: PluginInfo): boolean {
  * name instead of being swallowed by a default. That also means it stays English: this layer
  * cannot translate a word it has never seen.
  */
-export function pluginStateLabel(state: string): { key?: string; text?: string } {
+export function pluginStateLabel(state: string, onDemand = false): { key?: string; text?: string } {
+  if (onDemand && state !== 'running' && state !== 'crashed') return { key: 'plugins.state.onDemand' };
   if (!state || state === 'discovered') return { key: 'plugins.state.notRunning' };
   return { text: state.charAt(0).toUpperCase() + state.slice(1) };
 }
@@ -118,6 +119,9 @@ export type PluginRunState = 'attention' | 'active' | 'disabled';
  */
 export function pluginRunState(plugin: PluginInfo): PluginRunState {
   if (!plugin.enabled) return 'disabled';
+  // A plugin that starts with each session is idle between them, not broken; it needs attention
+  // only once a start actually went wrong.
+  if (plugin.onDemand && plugin.state !== 'running') return plugin.state === 'crashed' ? 'attention' : 'active';
   if (plugin.state !== 'running') return 'attention';
   if (plugin.sandboxMode === 'unavailable' || plugin.sandboxMode === 'enforced-partial') {
     return 'attention';

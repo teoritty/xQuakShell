@@ -55,6 +55,11 @@ type target struct {
 var targets = []target{
 	{Label: "domain/discovery", Packages: []string{"./internal/domain/discovery/"}, MinEnv: "MUTATE_DISCOVERY_MIN"},
 	{Label: "domain/plugin", Packages: []string{"./internal/domain/plugin/"}, MinEnv: "MUTATE_DOMAIN_PLUGIN_MIN"},
+	// The sync protocol rules both the application and the server verify with (ADR-023). A
+	// surviving mutant here is a check a hostile server could slip past.
+	{Label: "domain/vaultsync", Packages: []string{"./internal/domain/vaultsync/"}, MinEnv: "MUTATE_VAULTSYNC_MIN"},
+	// The server's use cases (ADR-023). A survivor is a request the server would wrongly accept.
+	{Label: "syncserver/usecase", Packages: []string{"./internal/syncserver/usecase/"}, MinEnv: "MUTATE_SYNCSERVER_MIN"},
 }
 
 // domain/plugin carries the manifest rules and the sandbox mode arithmetic, and
@@ -85,6 +90,20 @@ var targets = []target{
 // the key manager, so it was mutation-tested by hand instead - the empty-passphrase guard, the
 // wrong-passphrase branch and both generation size checks were each broken in turn and confirmed
 // to turn a test red. Re-add this target when gremlins can complete the package.
+//
+// ./internal/infra/synccrypto/ and ./internal/infra/opaque/ are absent for the same gremlins panic,
+// confirmed by trying synccrypto. Both were mutation-tested by hand instead: the epoch dropped from
+// the body and key-wrap AAD, the member dropped from the HPKE info, the KSF parameters dropped from
+// the OPAQUE options and the AKE context replaced by an empty one were each made in turn and
+// confirmed to turn a test red. Re-add them when gremlins can complete the packages.
+//
+// ./internal/domain/syncwire/ is absent for the same panic, confirmed by trying it. The hash length
+// check and the trailing-data check were each broken by hand and turned three tests red.
+//
+// ./internal/domain/synctrust/ is absent for the same panic, confirmed by trying it twice. Its
+// rules were mutation-tested by hand instead: the weakening classification of each guarded
+// setting, the quarantine release, the writable check and the conflict mapper were each broken in
+// turn and confirmed to turn a test red. Re-add it when gremlins can complete the package.
 //
 // ./internal/domain/ is absent for the older reason, which remains true:
 // gremlins v0.5.0 panics part-way through it ("error, this is temporary",

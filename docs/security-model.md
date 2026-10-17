@@ -376,3 +376,67 @@ arbitrary code, and a plugin able to ask the host for a shell would walk around 
   this is the user's own computer, where a shell history already exists. Recording it would put the
   user's local keystrokes into a file that exists to answer for remote actions.
 - **It holds nothing from the vault**, so locking the vault hides it rather than killing it.
+
+## State sync (ADR-023)
+
+Sync carries a vault between the user's devices, and into team vaults shared with other accounts,
+through a self-hosted server, `xqsyncd` ([admin guide](sync-server.md)). The design treats the
+server as an adversary: it stores what it is given and decides nothing about it.
+
+### What each party can do
+
+| Adversary | Cannot | Can, by design or residual |
+|---|---|---|
+| Network attacker | Read, modify or replay traffic; downgrade the protocol or the crypto suite. TLS is pinned to the server's identity key, confirmed by fingerprint on first connection, and the `hello` offer is bound into the login | Block traffic |
+| The server, its operator or a thief of its database | Read any field of any record (end-to-end encryption, padded sizes); forge or alter a record (every record is signed by a device the account's signed device log certifies); roll back or hide a record undetected (hash-chained heads and a Merkle root over each vault); add a device or a team member silently; guess a password offline from the database alone (OPAQUE; the server key file is kept outside the database and, on Windows, sealed with DPAPI) | Withhold data; show two devices different histories, which each detects on seeing the other branch (fork consistency, not prevention); see the metadata listed in the admin guide |
+| A stolen, powered-off device | Anything but by guessing the local master password, which must be at least 12 characters once sync is on | — |
+| A device running malware while unlocked | Weaken another device: a change that lowers a security setting, replaces a known host key or peer trust anchor, or clears `NonExportable` waits on each receiving device for that device's master password, or is refused outright; push a plugin binary (plugins sync by reference and install only through the normal, consented pipeline); survive revocation | Read what that device reads |
+| A removed team member or revoked device | Read anything written after the removal: the vault moves to a new epoch whose keys it never receives | Keep what it read before |
+| A team member with write access | Change membership without the admin role; pass an edit off as someone else's; touch anyone's personal vault; plant host keys for others (team vaults refuse that record type); silently redirect another member's credentials — changing a shared connection's address suspends every other member's credential binding to it until that member confirms | Edit what its role allows |
+| A plugin | Reach the sync engine: no capability maps to it | — |
+| A password guesser | Lock an account out: online attempts back off per account and address without locking | Guess online, slowly |
+
+### What sync applies, and where it stops
+
+- **Held changes.** A change from another device that would weaken this device's security settings
+  (plugin trust, lockout, agent forwarding) or replace a known host key or a peer-trust anchor is
+  quarantined until the user confirms it with this device's master password. A trash restore that
+  would do the same is refused. A credential field edited on two devices becomes a conflict the user
+  resolves; it is never settled silently.
+- **Plugins by reference.** A plugin installed on one device is *offered* on the others. Installing
+  the offer runs the normal pipeline — mandatory checksum, signature against the trusted publisher
+  keys, the consent screen — and compares the staged build's `plugin.json` and `SHA256SUMS` digests
+  with the recorded ones *before anything is written*; a release replaced behind the same tag is
+  refused unless the user accepts it as a new version. A plugin uninstalled elsewhere is disabled
+  here and uninstall is offered, never performed.
+- **Plugin data.** Only files the plugin's manifest declares in `sync.paths` sync, never `tmp/`,
+  never a link or a non-regular file, at most 16 MiB a file and 64 MiB / 4096 files a plugin. Paths
+  from another device are checked when the record arrives (relative, no `..`, no drive letter, no
+  alternate data stream, no executable mode, matching digest) and again by the jailed zone that
+  writes them, which refuses to pass through a symlink or junction. Files are written only while no
+  process of the plugin is running. Plugin data from another device remains untrusted input to the
+  plugin.
+
+### Deleting, and what "deleted" means
+
+Deleted items stay in the trash for the vault's retention window (30 days by default). After that
+they are purged from the server, and once the encryption epochs that covered them retire — at most
+1.5 windows after the purge, at once after **Shred now** — no key that opens them exists on any
+device or the server. What remains:
+
+- **R1.** A server backup taken before a purge still holds the data, readable with the sync password
+  valid at the time. `xqsyncd admin backup` deletes backups older than the trash window by default;
+  changing the sync password after Shred now makes even a retained backup unopenable.
+- **R2.** On a device, earlier writes of the local vault file may survive on an SSD, and
+  `vault.age.vN.bak` upgrade backups are never deleted automatically. Use full-disk encryption.
+- **R3.** What a removed member or a compromised device already read is theirs.
+- **R4.** Whoever knows the sync password and can reach the server owns the account. Every new
+  device is announced on all the others ("New device … Not you?"), and removing one replaces the
+  account keys.
+
+### Not covered
+
+Malware on an unlocked device reading process memory; coercion; traffic analysis by timing; a
+server that keeps two devices on different histories forever and never lets them meet (detected
+the moment they do); a quantum adversary forging signatures in real time (record keys are already
+encapsulated with hybrid ML-KEM, so recorded traffic does not become readable later).

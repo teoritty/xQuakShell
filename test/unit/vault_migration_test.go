@@ -302,3 +302,61 @@ func TestMigrationRefusesAWrongMasterPassword(t *testing.T) {
 		t.Error("a failed migration left the repo unlocked")
 	}
 }
+
+// A schema 4 vault upgrades to 5 only to carry the vault id of team items: nothing about its keys
+// changes, so the wizard asks for no passphrase and reports no key as converted, but the backup is
+// still taken first - an older build would drop the new fields when it rewrote the file.
+func TestV4VaultUpgradesWithABackupAndNoKeyWork(t *testing.T) {
+	dir := t.TempDir()
+	original := writeVaultAtVersion(t, dir, 4)
+	repo := persistence.NewVaultRepo(dir)
+	if err := repo.Unlock(context.Background(), versionTestPassphrase); !errors.Is(err, domain.ErrVaultMigrationRequired) {
+		t.Fatalf("unlock a v4 vault: %v, want ErrVaultMigrationRequired", err)
+	}
+	repo.Lock()
+	plan, err := repo.PlanMigration(context.Background(), versionTestPassphrase, migrationDeps())
+	if err != nil || !plan.Required || len(plan.Keys) != 0 {
+		t.Fatalf("plan = %+v, %v; want required with no key to ask about", plan, err)
+	}
+	report, err := repo.CompleteMigration(context.Background(), versionTestPassphrase, nil, migrationDeps())
+	if err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	backup, err := os.ReadFile(filepath.Join(dir, "vault.age.v4.bak"))
+	if err != nil || string(backup) != string(original) {
+		t.Fatalf("backup: %v; it must hold the v4 bytes exactly", err)
+	}
+	if len(report.Converted) != 0 || len(report.Skipped) != 0 {
+		t.Fatalf("report = %+v; a v4 vault has no key to convert", report)
+	}
+	data, _ := repo.GetData()
+	if data.Version != 5 {
+		t.Fatalf("version = %d, want 5", data.Version)
+	}
+}
+
+func TestTeamVaultIDsSurviveTheVaultFile(t *testing.T) {
+	dir := t.TempDir()
+	repo := persistence.NewVaultRepo(dir)
+	if err := repo.Create(context.Background(), versionTestPassphrase); err != nil {
+		t.Fatal(err)
+	}
+	err := repo.UpdateData(context.Background(), func(d *domain.VaultData) error {
+		d.Folders = append(d.Folders, domain.ConnectionFolder{ID: "f", Name: "f", VaultID: "team"})
+		d.Connections = append(d.Connections, domain.Connection{ID: "c", Name: "c", Host: "h", Port: 22, VaultID: "team"})
+		d.Identities["k"] = domain.SSHIdentity{ID: "k", VaultID: "team"}
+		d.Passwords = map[string]domain.PasswordBlob{"p": {Label: "p", VaultID: "team"}}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.Lock()
+	if err := repo.Unlock(context.Background(), versionTestPassphrase); err != nil {
+		t.Fatal(err)
+	}
+	d, _ := repo.GetData()
+	if d.Folders[0].VaultID != "team" || d.Connections[0].VaultID != "team" || d.Identities["k"].VaultID != "team" || d.Passwords["p"].VaultID != "team" {
+		t.Fatal("a team item came back without its vault id; it would turn personal on the next write")
+	}
+}

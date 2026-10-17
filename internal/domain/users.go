@@ -49,12 +49,26 @@ type ConnectionUser struct {
 	PassAuth   *PasswordAuthConfig `json:"passAuth,omitempty"`
 	PluginAuth *PluginAuthConfig   `json:"pluginAuth,omitempty"`
 	Label      string              `json:"label,omitempty"`
+	// CredentialSource is empty for a credential named inline, or CredentialSourcePersonal for one
+	// each member of a team vault binds from their own personal vault.
+	CredentialSource string `json:"credentialSource,omitempty"`
 }
 
 // Validate checks that the user has a non-empty username and a valid auth configuration.
 func (u *ConnectionUser) Validate() error {
 	if u.Username == "" {
 		return fmt.Errorf("username must not be empty: %w", ErrInvalidConnectionConfig)
+	}
+	switch u.CredentialSource {
+	case "":
+	case CredentialSourcePersonal:
+		// The reference comes from each member's binding, so none is required here.
+		if u.Auth != AuthMethodKey && u.Auth != AuthMethodPassword {
+			return fmt.Errorf("only a key or a password can be bound: %w", ErrInvalidConnectionConfig)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown credential source %q: %w", u.CredentialSource, ErrInvalidConnectionConfig)
 	}
 	switch u.Auth {
 	case AuthMethodKey:

@@ -25,7 +25,7 @@
   } from './connectionDetails/connectionFormMode';
   import type { ConnectionProtocol } from '../actions/protocolActions';
   import { buildConnectionSavePayload } from './connectionDetails/savePayload';
-  import { nextDraftSync } from './connectionDetails/draftSync';
+  import { followRecord, nextDraftSync, recordKey } from './connectionDetails/draftSync';
   import { adoptPersistedHopIds } from './connectionDetails/hopIds';
   import { adoptPersistedRuleIds } from './connectionDetails/forwardRuleIds';
   import {
@@ -33,9 +33,8 @@
     identitiesForTarget,
     removeIdentityFromHop,
     removeIdentityFromUser,
-    setHopPassword,
-    setUserPassword,
   } from './connectionDetails/authDraftMutations';
+  import { saveDraftNow, withPassword } from './connectionDetails/draftHandoff';
   import {
     cancelPendingAutosave, commitFieldEditOnEnter,
     createAutosaveTimerState,
@@ -44,6 +43,9 @@
     scheduleSavedIndicatorReset,
   } from './connectionDetails/autosave';
   import { importPasswordIfChanged } from './connectionDetails/authSecrets';
+  import { linkPersonalCredential, linksPersonally } from '../actions/personalCredentialActions';
+  import ConnectionVaultField from './connectionDetails/ConnectionVaultField.svelte';
+  import { isViewOnly, teams } from '../stores/teamState';
   import type { ConnectionDetailsDraft, SaveStatus } from './connectionDetails/types';
   import type { Connection, ConnectionUser, ForwardRule, JumpHop } from '../stores/appState';
 
@@ -53,7 +55,7 @@
   let saveStatus: SaveStatus = 'idle';
   let addingTag = false;
   let newTagValue = '';
-  let boundCatalogKey = '', boundRecordName = '';
+  let boundCatalogKey = '', boundRecord: Connection | null = null;
   let formMode: ConnectionFormMode = 'none';
   let formProtocolDef: ConnectionProtocol | null = null;
   const autosaveState = createAutosaveTimerState();
@@ -62,18 +64,20 @@
   $: protocolCatalogKey = connectionProtocolCatalogKey(protocols);
   $: connId = $detailsConnection?.id || '';
   $: formSectionKey = `${connId}:${formMode}:${protocolCatalogKey}`;
+  // A viewer's shared fields are locked; what stays open are its own credentials for the connection.
+  $: viewOnly = isViewOnly($teams, $detailsConnection);
 
   onMount(() => {
     void refreshConnectionProtocols();
   });
 
-  // Why a rename made anywhere else has to reach an open panel, why the name is the only field that
-  // can arrive this way, and why the record is compared against itself rather than against the
-  // draft, is in draftSync.ts.
-  $: switch (nextDraftSync({ connId, draftId: draft.editingId, recordName: $detailsConnection?.name ?? '', boundRecordName, dirty, catalogKey: protocolCatalogKey, boundCatalogKey })) {
-    case 'rebuild': boundCatalogKey = protocolCatalogKey; boundRecordName = $detailsConnection?.name ?? ''; syncDraftFromConnection(); break;
+  // Why a change made anywhere else - a rename in the tree, an edit on another device - has to reach
+  // an open panel, why the record is compared against itself rather than against the draft, and
+  // how an unsaved edit survives the record moving under it, is in draftSync.ts.
+  $: switch (nextDraftSync({ connId, draftId: draft.editingId, recordKey: recordKey($detailsConnection), boundRecordKey: recordKey(boundRecord), catalogKey: protocolCatalogKey, boundCatalogKey })) {
+    case 'rebuild': if (dirty && draft.editingId) void saveDraftNow(draft, boundRecord, saveConnection); boundCatalogKey = protocolCatalogKey; boundRecord = $detailsConnection; syncDraftFromConnection(); break;
     case 'catalog': boundCatalogKey = protocolCatalogKey; resyncProtocolCatalog(); break;
-    case 'follow-name': boundRecordName = $detailsConnection?.name ?? ''; if (draft.name.trim() !== boundRecordName) draft.name = boundRecordName; break;
+    case 'follow-record': draft = followRecord(draft, boundRecord, $detailsConnection, protocols); boundRecord = $detailsConnection; updateFormMode(); break;
   }
 
   function updateFormMode() {
@@ -137,6 +141,7 @@
       }
 
       dirty = false;
+      if (viewOnly) syncDraftFromConnection(); // the backend kept the record; show it as it is
       reconcileSavedConnection(saved, generation);
       saveStatus = 'saved';
       scheduleSavedIndicatorReset(
@@ -200,31 +205,13 @@
 
   function onKeyChosen(keyId: string) {
     showKeyPicker = false;
+    // A team user's key is this member's own link, never a change to the record the team shares.
+    if ($detailsConnection && linksPersonally($detailsConnection, keyPickTarget)) return void linkPersonalCredential($detailsConnection, keyPickTarget, { identity: keyId });
     const next = addIdentityToTarget({ users: draft.users, hops: draft.jumpHops }, keyPickTarget, keyId);
     draft.users = next.users;
     draft.jumpHops = next.hops;
     markDirty();
   }
-
-  async function onUserPasswordChange(userId: string, value: string) {
-    const editingId = draft.editingId;
-    const pwId = await importPasswordIfChanged(value, `user-${userId}`);
-    if (!pwId || draft.editingId !== editingId) return;
-    if (!draft.users.some((u) => u.id === userId)) return;
-    draft.users = setUserPassword(draft.users, userId, pwId);
-    markDirty();
-  }
-
-
-  async function onHopPasswordChange(hopId: string, value: string) {
-    const editingId = draft.editingId;
-    const pwId = await importPasswordIfChanged(value, `hop-${hopId}`);
-    if (!pwId || draft.editingId !== editingId) return;
-    if (!draft.jumpHops.some((h) => h.id === hopId)) return;
-    draft.jumpHops = setHopPassword(draft.jumpHops, hopId, pwId);
-    markDirty();
-  }
-
 
   function onKeyRemove(detail: { userId?: string; hopId?: string; keyId: string }) {
     if (detail.userId) {
@@ -238,14 +225,15 @@
     }
   }
 
-  function onPasswordChange(detail: { userId?: string; hopId?: string; value: string }) {
-    if (detail.userId) {
-      void onUserPasswordChange(detail.userId, detail.value);
-      return;
-    }
-    if (detail.hopId) {
-      void onHopPasswordChange(detail.hopId, detail.value);
-    }
+  async function onPasswordChange({ userId, hopId, value }: { userId?: string; hopId?: string; value: string }) {
+    const [before, record] = [draft, boundRecord];
+    const pwId = await importPasswordIfChanged(value, userId ? `user-${userId}` : `hop-${hopId}`);
+    const moved = draft.editingId !== before.editingId;
+    const next = pwId ? withPassword(moved ? before : draft, { userId, hopId }, pwId) : null;
+    if (!next) return;
+    if (moved) return void saveDraftNow(next, record, saveConnection); // the editor went on; the password stays where it was typed
+    draft = next;
+    markDirty();
   }
 
   function setDraftUsers(users: ConnectionUser[]) {
@@ -268,25 +256,29 @@
   <!-- Enter ends the edit of whichever field has focus, plugin fields included. One handler for the
        whole form rather than one per component: see commitFieldEditOnEnter in autosave.ts. -->
   <div class="details-body" role="group" on:keydown={(e) => commitFieldEditOnEnter(e, autosaveState, runAutosave)}>
-    <ConnectionBaseFields
-      bind:name={draft.name}
-      bind:protocol={draft.protocol}
-      bind:host={draft.host}
-      bind:port={draft.port}
-      {protocols}
-      on:dirty={markDirty}
-      on:protocolchange={onProtocolChange}
-    />
+    <ConnectionVaultField />
 
-    <ConnectionTags
-      tags={draft.tags}
-      {addingTag}
-      {newTagValue}
-      on:dirty={markDirty}
-      on:tagschange={(e) => { draft.tags = e.detail; }}
-      on:addingtagchange={(e) => { addingTag = e.detail; }}
-      on:newtagvaluechange={(e) => { newTagValue = e.detail; }}
-    />
+    <fieldset class="shared-fields" disabled={viewOnly}>
+      <ConnectionBaseFields
+        bind:name={draft.name}
+        bind:protocol={draft.protocol}
+        bind:host={draft.host}
+        bind:port={draft.port}
+        {protocols}
+        on:dirty={markDirty}
+        on:protocolchange={onProtocolChange}
+      />
+
+      <ConnectionTags
+        tags={draft.tags}
+        {addingTag}
+        {newTagValue}
+        on:dirty={markDirty}
+        on:tagschange={(e) => { draft.tags = e.detail; }}
+        on:addingtagchange={(e) => { addingTag = e.detail; }}
+        on:newtagvaluechange={(e) => { newTagValue = e.detail; }}
+      />
+    </fieldset>
 
     {#key formSectionKey}
       <ConnectionProtocolForm
@@ -309,7 +301,7 @@
         on:agentforwardingchange={(e) => { draft.agentForwarding = e.detail; }}
         on:keypick={(e) => onKeyPick(e.detail)}
         on:keyremove={(e) => onKeyRemove(e.detail)}
-        on:passwordchange={(e) => onPasswordChange(e.detail)}
+        on:passwordchange={(e) => void onPasswordChange(e.detail)}
         on:fieldchange={handleFieldChange}
       />
     {/key}
@@ -339,5 +331,10 @@
     flex-direction: column;
     gap: 8px;
     overflow-y: auto;
+  }
+
+  /* Only groups the shared fields so a viewer's can be disabled at once; it draws nothing. */
+  .shared-fields {
+    display: contents;
   }
 </style>

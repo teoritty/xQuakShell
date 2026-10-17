@@ -1,6 +1,7 @@
 package domain_test
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -87,5 +88,29 @@ func TestCloneVaultDataCopiesPeerTrust(t *testing.T) {
 	out.PeerTrust[0].Material[0] = 0xFF
 	if in.PeerTrust[0].Material[0] != 1 {
 		t.Fatal("the clone shares its material array with the original")
+	}
+}
+
+// Every VaultData field must survive the clone: a field the hand-written list forgets vanishes on
+// every vault read without a message anywhere, as the sync account once did.
+func TestCloneVaultDataKeepsEveryField(t *testing.T) {
+	in := domain.NewVaultData()
+	in.PeerTrust = []domain.PeerTrustEntry{{Scope: "a", Subject: "b", Material: []byte{1}}}
+	in.Sync = &domain.VaultSync{Account: &domain.SyncAccount{Username: "u", DeviceSeed: []byte{1}},
+		Conflicts: []domain.SyncConflict{{ID: "c", Path: []string{"p"}, Local: []byte(`1`)}}}
+	out := domain.CloneVaultData(in)
+	rv := reflect.ValueOf(out).Elem()
+	for i := 0; i < rv.NumField(); i++ {
+		if reflect.ValueOf(in).Elem().Field(i).IsZero() {
+			continue
+		}
+		if rv.Field(i).IsZero() {
+			t.Errorf("CloneVaultData drops VaultData.%s", rv.Type().Field(i).Name)
+		}
+	}
+	out.Sync.Account.DeviceSeed[0] = 9
+	out.Sync.Conflicts[0].Path[0] = "x"
+	if in.Sync.Account.DeviceSeed[0] != 1 || in.Sync.Conflicts[0].Path[0] != "p" {
+		t.Fatal("the clone shares sync state with the original")
 	}
 }

@@ -58,3 +58,17 @@ func TestCloneVaultData_NilInput(t *testing.T) {
 		t.Fatal("nil input should return nil")
 	}
 }
+
+// Every field of an item survives a clone. A clone that rebuilt a struct field by field dropped the
+// password's vault id once, which would have turned a team password personal on the next write.
+func TestCloneVaultData_KeepsVaultIDs(t *testing.T) {
+	original := NewVaultData()
+	original.Folders = []ConnectionFolder{{ID: "f", VaultID: "t"}}
+	original.Connections = []Connection{{ID: "c", VaultID: "t"}}
+	original.Identities["k"] = SSHIdentity{ID: "k", VaultID: "t"}
+	original.Passwords["p"] = PasswordBlob{Label: "p", VaultID: "t"}
+	clone := CloneVaultData(original)
+	if clone.Folders[0].VaultID != "t" || clone.Connections[0].VaultID != "t" || clone.Identities["k"].VaultID != "t" || clone.Passwords["p"].VaultID != "t" {
+		t.Fatalf("clone lost a vault id: %+v %+v %+v %+v", clone.Folders, clone.Connections, clone.Identities, clone.Passwords)
+	}
+}

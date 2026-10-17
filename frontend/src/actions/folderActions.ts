@@ -58,10 +58,11 @@ export async function saveFolder(f: Partial<Folder>): Promise<Folder | null> {
  * (creationTargetFolderId in lib/remoteTree/selection.ts), which also removes
  * the race where the nesting depth depended on how fast the user clicked.
  */
-export async function createNewFolderInFolder(parentId: string): Promise<Folder | null> {
+export async function createNewFolderInFolder(parentId: string, vaultId = ''): Promise<Folder | null> {
   return saveFolder({
     name: 'New folder',
     parentId,
+    ...(vaultId ? { vaultId } : {}),
   });
 }
 
@@ -73,13 +74,14 @@ export async function createNewFolderInFolder(parentId: string): Promise<Folder 
  * The expansion happens before the create rather than after, so the row is already in the tree the
  * moment the refresh lands and nothing flickers between the two.
  *
- * An empty parentId is the tree root, which has nothing to expand.
+ * An empty parentId is the top level of vaultId - a team's, or the personal vault's when that is
+ * empty too - which has nothing to expand.
  */
-export async function createFolderAndReveal(parentId: string): Promise<Folder | null> {
+export async function createFolderAndReveal(parentId: string, vaultId = ''): Promise<Folder | null> {
   if (parentId) {
     expandedFolderIds.update((set) => new Set(set).add(parentId));
   }
-  return createNewFolderInFolder(parentId);
+  return createNewFolderInFolder(parentId, vaultId);
 }
 
 export async function deleteFolder(id: string): Promise<void> {

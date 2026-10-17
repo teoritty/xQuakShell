@@ -42,6 +42,9 @@ type Manifest struct {
 	ActivationEvents []string        `json:"activationEvents,omitempty"`
 	Isolation        IsolationMode   `json:"isolation,omitempty"`
 	Signature        string          `json:"signature,omitempty"`
+	// Sync names the data files that follow the user to their other devices. Optional; omitempty
+	// keeps every manifest signed before it existed byte-identical (see BundleFormat).
+	Sync *SyncSpec `json:"sync,omitempty"`
 }
 
 // EngineConfig locates the plugin binary.
@@ -211,6 +214,9 @@ type InstalledPlugin struct {
 	// Empty when the bundle has no SHA256SUMS. Used to bind manifest signature verification
 	// to bundle contents.
 	ChecksumsDigest string
+	// ManifestDigest is the hex-encoded SHA-256 of the plugin.json bytes that were validated. A
+	// synced plugin reference names the manifest by it (spec §6.4).
+	ManifestDigest string
 }
 
 // InstallSource indicates where the plugin was loaded from.
@@ -274,6 +280,9 @@ func (m *Manifest) Validate() error {
 		return fmt.Errorf("%w: invalid isolation %q", ErrInvalidManifest, m.Isolation)
 	}
 	if err := m.ValidateCapabilitiesAndFields(); err != nil {
+		return err
+	}
+	if err := m.Sync.Validate(m.EffectiveIsolation()); err != nil {
 		return err
 	}
 	// Structural version contract (ADR-012): the requires{} block must be well-formed and only

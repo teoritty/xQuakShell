@@ -672,6 +672,12 @@
           "json": "signature",
           "omitempty": true,
           "type": "string"
+        },
+        {
+          "name": "Sync",
+          "json": "sync",
+          "omitempty": true,
+          "type": "*plugin.SyncSpec"
         }
       ]
     },
@@ -838,6 +844,17 @@
           "json": "priority",
           "omitempty": true,
           "type": "int"
+        }
+      ]
+    },
+    {
+      "name": "SyncSpec",
+      "fields": [
+        {
+          "name": "Paths",
+          "json": "paths",
+          "omitempty": true,
+          "type": "[]string"
         }
       ]
     },
@@ -1132,6 +1149,10 @@
     },
     {
       "path": "signature",
+      "required": false
+    },
+    {
+      "path": "sync",
       "required": false
     },
     {

@@ -6,7 +6,8 @@
 // nothing beyond the toolchain the gate is already measuring.
 //
 // Usage: go run ./scripts/coverage
-// Floors can be overridden with DOMAIN_MIN, INFRA_MIN and USECASE_MIN.
+// Floors can be overridden with DOMAIN_MIN, INFRA_MIN, USECASE_MIN, VAULTSYNC_MIN, SYNCCRYPTO_MIN, OPAQUE_MIN, SYNCWIRE_MIN,
+// SYNCSERVER_MIN, SYNCTRUST_MIN, SYNCSTATE_MIN and SYNCCLIENT_MIN.
 package main
 
 import (
@@ -54,6 +55,67 @@ var gates = []gate{
 		CoverPkg: []string{"xquakshell/internal/usecase"},
 		MinEnv:   "USECASE_MIN",
 		MinPct:   50,
+	},
+	{
+		Label:    "domain/vaultsync",
+		Packages: []string{"./internal/domain/vaultsync/"},
+		CoverPkg: []string{"xquakshell/internal/domain/vaultsync"},
+		MinEnv:   "VAULTSYNC_MIN",
+		MinPct:   90,
+	},
+	{
+		Label:    "infra/synccrypto",
+		Packages: []string{"./internal/infra/synccrypto/"},
+		CoverPkg: []string{"xquakshell/internal/infra/synccrypto"},
+		MinEnv:   "SYNCCRYPTO_MIN",
+		// What stays uncovered is error returns from canonical encoding and from stdlib ciphers
+		// given well-formed keys - branches no input can reach.
+		MinPct: 85,
+	},
+	{
+		Label:    "infra/opaque",
+		Packages: []string{"./internal/infra/opaque/"},
+		CoverPkg: []string{"xquakshell/internal/infra/opaque"},
+		MinEnv:   "OPAQUE_MIN",
+		// The uncovered lines map library errors that well-formed messages cannot trigger.
+		MinPct: 80,
+	},
+	{
+		Label:    "domain/syncwire",
+		Packages: []string{"./internal/domain/syncwire/"},
+		CoverPkg: []string{"xquakshell/internal/domain/syncwire"},
+		MinEnv:   "SYNCWIRE_MIN",
+		MinPct:   90,
+	},
+	{
+		Label:    "syncserver",
+		Packages: []string{"./internal/syncserver/...", "./cmd/xqsyncd/"},
+		CoverPkg: []string{"xquakshell/internal/syncserver/usecase", "xquakshell/internal/syncserver/store", "xquakshell/internal/syncserver/transport"},
+		MinEnv:   "SYNCSERVER_MIN",
+		MinPct:   80,
+	},
+	{
+		Label:    "domain/synctrust",
+		Packages: []string{"./internal/domain/synctrust/"},
+		CoverPkg: []string{"xquakshell/internal/domain/synctrust"},
+		MinEnv:   "SYNCTRUST_MIN",
+		MinPct:   90,
+	},
+	{
+		Label:    "infra/syncstate",
+		Packages: []string{"./internal/infra/syncstate/"},
+		CoverPkg: []string{"xquakshell/internal/infra/syncstate"},
+		MinEnv:   "SYNCSTATE_MIN",
+		MinPct:   80,
+	},
+	{
+		Label: "infra/syncclient",
+		// The account and vault routes are exercised over real HTTPS by the end-to-end and
+		// adversarial suites; the package's own tests cover the pinning and the error mapping.
+		Packages: []string{"./internal/infra/syncclient/", "./test/unit/syncflow/", "./test/unit/syncadversary/"},
+		CoverPkg: []string{"xquakshell/internal/infra/syncclient"},
+		MinEnv:   "SYNCCLIENT_MIN",
+		MinPct:   75,
 	},
 }
 

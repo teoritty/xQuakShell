@@ -21,7 +21,7 @@
   import { refreshesRemotePane, remoteRefreshDirs } from './transferPresentation';
   import type { SortState } from './fileTree/types';
   import { formatSize, applySort, sortTree } from './fileTree/sorting';
-  import { selectNode as nextSelection, clearSelection, findNode as findNodeIn } from './fileTree/selection';
+  import { selectNode as nextSelection, clearSelection, findNode as findNodeIn, visibleRows } from './fileTree/selection';
   import { remoteParent, remoteBasename, remoteJoin, normalizeRemotePathInput, localJoin } from './fileTree/paths';
   import { readDragPayload, isMultiDrag } from './fileTree/dragPayload';
   import { uniqueName } from './fileTree/uniqueName';
@@ -145,7 +145,7 @@
 
   function selectNode(path: string, e?: MouseEvent) {
     ({ selectedPaths, lastSelectedPath } = nextSelection(
-      tree.get(currentPath) || [],
+      visibleRows(tree, currentPath, expanded, (n) => showHidden || !n.name.startsWith('.')),
       { selectedPaths, lastSelectedPath },
       path,
       e

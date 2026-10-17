@@ -48,6 +48,9 @@ func (m *PluginManager) EnsureRunningForSession(ctx context.Context, pluginID, s
 	if err != nil {
 		return err
 	}
+	if m.startGuard != nil {
+		defer m.startGuard(ctx, pluginID)()
+	}
 	m.emitStateChange(pluginID, "starting", sessionID)
 	if err := m.host.Start(ctx, plugin, scope, m.sandboxPolicy()); err != nil {
 		return err

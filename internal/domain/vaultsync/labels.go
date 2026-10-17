@@ -1,0 +1,87 @@
+package vaultsync
+
+// Domain-separation labels. Each signature, hash, AEAD additional-data and HPKE info input starts
+// with exactly one of these, so bytes produced for one purpose are useless for any other. They are
+// part of the wire contract: changing one is a protocol major.
+const (
+	LabelBundle = "xqs-sync/v1/bundle"
+	LabelVKWrap = "xqs-sync/v1/vk-wrap"
+	// LabelVKWrapDigest hashes a wrap's ciphertext for the membership op to sign in its place.
+	LabelVKWrapDigest = "xqs-sync/v1/vk-wrap-digest"
+	LabelDEKWrap      = "xqs-sync/v1/dek-wrap"
+	LabelBody         = "xqs-sync/v1/body"
+	LabelRecordSig    = "xqs-sync/v1/record-sig"
+	LabelEnvelope     = "xqs-sync/v1/envelope"
+	LabelHeadSig      = "xqs-sync/v1/head-sig"
+	LabelHeadHash     = "xqs-sync/v1/head-hash"
+	LabelMemberSig    = "xqs-sync/v1/member-sig"
+	LabelMemberHash   = "xqs-sync/v1/member-hash"
+	LabelDeviceSig    = "xqs-sync/v1/device-sig"
+	LabelDeviceHash   = "xqs-sync/v1/device-hash"
+	LabelServerTLS    = "xqs-sync/v1/server-tls"
+	LabelMerkleLeaf   = "xqs-sync/v1/merkle-leaf"
+	LabelMerkleNode   = "xqs-sync/v1/merkle-node"
+)
+
+// BodyAAD is the additional data a record body is sealed with. Binding vault, record, version,
+// epoch and suite means a body the server moves anywhere else - another record, an older version,
+// a relabelled epoch - fails to open instead of being accepted as that record's content.
+func BodyAAD(vault, record ID, version uint64, epoch uint32, suite SuiteID) ([]byte, error) {
+	return NewCanon(LabelBody).ID(vault).ID(record).U64(version).U32(epoch).U16(uint16(suite)).Encoded()
+}
+
+// DEKWrapAAD binds a wrapped data key to the record version it opens, for the same reason.
+func DEKWrapAAD(vault, record ID, version uint64, epoch uint32) ([]byte, error) {
+	return NewCanon(LabelDEKWrap).ID(vault).ID(record).U64(version).U32(epoch).Encoded()
+}
+
+// VKWrapInfo is the HPKE info for a vault key wrapped to one member, so a wrap cannot be replayed
+// to another member, another vault or another epoch.
+func VKWrapInfo(vault ID, epoch uint32, member ID) ([]byte, error) {
+	return NewCanon(LabelVKWrap).ID(vault).U32(epoch).ID(member).Encoded()
+}
+
+// BundleAAD binds an account key bundle to its account and suite, so the server cannot hand one
+// account's bundle to a login for another and have it open.
+func BundleAAD(account ID, suite SuiteID) ([]byte, error) {
+	return NewCanon(LabelBundle).ID(account).U16(uint16(suite)).Encoded()
+}
+
+// LabelEncryptionDigest names the digest of the encryption key a vault-key wrap is sealed to.
+const LabelEncryptionDigest = "xqs-sync/v1/encryption-digest"
+
+// LabelIdentityDigest names the digest of an account identity key that a membership op records.
+const LabelIdentityDigest = "xqs-sync/v1/identity-digest"
+
+// IdentityDigest is what an add-member op records of the member's genesis identity key. A device
+// replaying the membership log accepts that member's device log only when its genesis key has this
+// digest, so the server cannot hand a co-member's devices keys of its own choosing.
+func IdentityDigest(identityKey []byte) ([32]byte, error) {
+	return NewCanon(LabelIdentityDigest).Bytes(identityKey).Sum()
+}
+
+// LabelDeviceAuth separates a device's login proof from every other signature it makes.
+const LabelDeviceAuth = "xqs-sync/v1/device-auth"
+
+// DeviceAuthMessage is what a device signs to prove it holds its key: bound to the account, the
+// device and the server's single-use nonce, so a proof is good for one login of one device only.
+func DeviceAuthMessage(account, device ID, nonce []byte) ([]byte, error) {
+	return NewCanon(LabelDeviceAuth).ID(account).ID(device).Bytes(nonce).Encoded()
+}
+
+// ServerTLSMessage is what a server's identity key signs about its TLS public key (SPKI). Clients
+// pin the identity key, so a certificate renewal does not break the pin, while a substituted TLS key
+// without the identity's signature is refused.
+func ServerTLSMessage(spki []byte) ([]byte, error) {
+	return NewCanon(LabelServerTLS).Bytes(spki).Encoded()
+}
+
+// LabelRekey separates the account key's consent to a new password record and bundle.
+const LabelRekey = "xqs-sync/v1/rekey"
+
+// RekeyMessage is what the account's current identity key signs to replace the password record and
+// the bundle. Requiring it means a session alone - a stolen token, a revoked device's leftovers -
+// cannot swap in a bundle of its choosing; only a holder of the current account key can.
+func RekeyMessage(account ID, record, bundle []byte) ([]byte, error) {
+	return NewCanon(LabelRekey).ID(account).Bytes(record).Bytes(bundle).Encoded()
+}

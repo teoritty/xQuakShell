@@ -54,6 +54,42 @@ func TestLayerImportRulesMeta(t *testing.T) {
 
 		// main
 		{name: "main allows anything internal", layer: architecture.LayerMain, importPath: "xquakshell/internal/infra/vault", productionFile: true, wantViolation: false},
+		{name: "main forbids syncserver", layer: architecture.LayerMain, importPath: "xquakshell/internal/syncserver/usecase", productionFile: true, wantViolation: true},
+		{name: "main allows vaultsync", layer: architecture.LayerMain, importPath: "xquakshell/internal/domain/vaultsync", productionFile: true, wantViolation: false},
+
+		// client layers never reach the server
+		{name: "usecase forbids syncserver", layer: architecture.LayerUsecase, importPath: "xquakshell/internal/syncserver/usecase", productionFile: true, wantViolation: true},
+		{name: "infra forbids syncserver", layer: architecture.LayerInfra, importPath: "xquakshell/internal/syncserver/store", productionFile: true, wantViolation: true},
+		{name: "presentation forbids syncserver", layer: architecture.LayerPresentation, importPath: "xquakshell/internal/syncserver/transport", productionFile: true, wantViolation: true},
+		{name: "domain forbids syncserver", layer: architecture.LayerDomain, importPath: "xquakshell/internal/syncserver/usecase", productionFile: true, wantViolation: true},
+
+		// sync server core
+		{name: "syncserver core allows domain", layer: architecture.LayerSyncServerCore, importPath: "xquakshell/internal/domain/vaultsync", productionFile: true, wantViolation: false},
+		{name: "syncserver core allows safego", layer: architecture.LayerSyncServerCore, importPath: "xquakshell/internal/pkg/safego", productionFile: true, wantViolation: false},
+		{name: "syncserver core forbids infra", layer: architecture.LayerSyncServerCore, importPath: "xquakshell/internal/infra/synccrypto", productionFile: true, wantViolation: true},
+		{name: "syncserver core forbids store", layer: architecture.LayerSyncServerCore, importPath: "xquakshell/internal/syncserver/store", productionFile: true, wantViolation: true},
+		{name: "syncserver core forbids client usecase", layer: architecture.LayerSyncServerCore, importPath: "xquakshell/internal/usecase", productionFile: true, wantViolation: true},
+		{name: "syncserver core forbids third-party", layer: architecture.LayerSyncServerCore, importPath: "github.com/google/uuid", productionFile: true, wantViolation: true},
+		{name: "syncserver core forbids golang.org/x", layer: architecture.LayerSyncServerCore, importPath: "golang.org/x/time/rate", productionFile: true, wantViolation: true},
+		{name: "syncserver core test allows third-party", layer: architecture.LayerSyncServerCore, importPath: "github.com/google/uuid", productionFile: false, wantViolation: false},
+
+		// sync server adapters
+		{name: "syncserver adapter allows core", layer: architecture.LayerSyncServerAdapter, importPath: "xquakshell/internal/syncserver/usecase", productionFile: true, wantViolation: false},
+		{name: "syncserver adapter allows synccrypto", layer: architecture.LayerSyncServerAdapter, importPath: "xquakshell/internal/infra/synccrypto", productionFile: true, wantViolation: false},
+		{name: "syncserver adapter allows opaque", layer: architecture.LayerSyncServerAdapter, importPath: "xquakshell/internal/infra/opaque", productionFile: true, wantViolation: false},
+		{name: "syncserver adapter allows pkg", layer: architecture.LayerSyncServerAdapter, importPath: "xquakshell/internal/pkg/safego", productionFile: true, wantViolation: false},
+		{name: "syncserver adapter allows third-party", layer: architecture.LayerSyncServerAdapter, importPath: "modernc.org/sqlite", productionFile: true, wantViolation: false},
+		{name: "syncserver adapter forbids client infra", layer: architecture.LayerSyncServerAdapter, importPath: "xquakshell/internal/infra/persistence", productionFile: true, wantViolation: true},
+		{name: "syncserver adapter forbids client usecase", layer: architecture.LayerSyncServerAdapter, importPath: "xquakshell/internal/usecase", productionFile: true, wantViolation: true},
+		{name: "syncserver adapter forbids presentation", layer: architecture.LayerSyncServerAdapter, importPath: "xquakshell/internal/presentation/wails", productionFile: true, wantViolation: true},
+
+		// sync server composition root
+		{name: "syncserver main allows syncserver", layer: architecture.LayerSyncServerMain, importPath: "xquakshell/internal/syncserver/transport", productionFile: true, wantViolation: false},
+		{name: "syncserver main allows opaque", layer: architecture.LayerSyncServerMain, importPath: "xquakshell/internal/infra/opaque", productionFile: true, wantViolation: false},
+		{name: "syncserver main allows x/sys", layer: architecture.LayerSyncServerMain, importPath: "golang.org/x/sys/windows/svc", productionFile: true, wantViolation: false},
+		{name: "syncserver main forbids client usecase", layer: architecture.LayerSyncServerMain, importPath: "xquakshell/internal/usecase", productionFile: true, wantViolation: true},
+		{name: "syncserver main forbids client infra", layer: architecture.LayerSyncServerMain, importPath: "xquakshell/internal/infra/vault", productionFile: true, wantViolation: true},
+		{name: "syncserver main forbids presentation", layer: architecture.LayerSyncServerMain, importPath: "xquakshell/internal/presentation/wails", productionFile: true, wantViolation: true},
 	}
 
 	for _, tc := range cases {
@@ -117,6 +153,22 @@ func TestViolationFixtures(t *testing.T) {
 			if v == nil {
 				t.Fatalf("%s: expected violation for import %q in layer %s", entry.Name(), imp, layer)
 			}
+		}
+	}
+}
+
+func TestLayerFromRelPathMapsSyncServer(t *testing.T) {
+	cases := map[string]architecture.Layer{
+		"internal/syncserver/usecase/vault_feed.go": architecture.LayerSyncServerCore,
+		"internal/syncserver/store/sqlite.go":       architecture.LayerSyncServerAdapter,
+		"internal/syncserver/transport/http.go":     architecture.LayerSyncServerAdapter,
+		"cmd/xqsyncd/main.go":                       architecture.LayerSyncServerMain,
+		"internal/domain/vaultsync/head.go":         architecture.LayerDomain,
+	}
+	for path, want := range cases {
+		got, ok := architecture.LayerFromRelPath(path)
+		if !ok || got != want {
+			t.Errorf("LayerFromRelPath(%q) = %q, %v; want %q - an unmapped file escapes every layer rule", path, got, ok, want)
 		}
 	}
 }

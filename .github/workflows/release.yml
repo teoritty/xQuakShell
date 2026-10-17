@@ -183,8 +183,34 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
+  # The sync server (spec 9.5). Pure Go, so one runner cross-compiles every target; the packaging is
+  # a Go program shared with nightly.yml so the two cannot ship the server differently.
+  xqsyncd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Derive version
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [ "${{ github.ref_type }}" != "tag" ]; then TAG="dryrun-$(echo "${{ github.sha }}" | cut -c1-7)"; fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Build the server archives
+        run: go run ./scripts/xqsyncdpack -label "$TAG" -out dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: xqsyncd-archives
+          path: dist/*
+          if-no-files-found: error
+
   publish:
-    needs: [windows, linux]
+    needs: [windows, linux, xqsyncd]
     # The only guard between a manual build check and a public release. Without it a
     # workflow_dispatch run would publish a release named after a branch.
     if: github.ref_type == 'tag'
@@ -289,3 +315,73 @@ jobs:
             dist/*.zip
             dist/*.tar.gz
             dist/SHA256SUMS
+
+  # The sync server's container image, ghcr.io/<owner>/xqsyncd (docs/sync-server.md, "Docker"). It is
+  # built from the binaries the xqsyncd job already cross-compiled - one source of truth for what the
+  # server is, and no emulated second build - and only after publish has checked the changelog and
+  # created the release, so no image ever exists for a tag without one.
+  #
+  # GITHUB_TOKEN is all it needs. The package itself has to be made public once by hand after the
+  # first push (Packages -> xqsyncd -> Package settings), or every pull is refused as unauthorized.
+  #
+  # A manual run builds the image for both platforms and pushes nothing, so the Dockerfile is proven
+  # before a tag makes it public. publish is skipped on such a run, hence the explicit condition.
+  docker:
+    needs: [xqsyncd, publish]
+    if: ${{ !cancelled() && needs.xqsyncd.result == 'success' && (needs.publish.result == 'success' || github.ref_type != 'tag') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: xqsyncd-archives
+          path: artifacts
+
+      # The Dockerfile copies <os>_<arch>/xqsyncd for each platform it builds.
+      # The archive label as the xqsyncd job derived it: the tag, or dryrun-<sha> on a manual run.
+      - name: Unpack the Linux binaries into the build context
+        run: |
+          set -eu
+          TAG="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then TAG="dryrun-$(echo "${GITHUB_SHA}" | cut -c1-7)"; fi
+          for arch in amd64 arm64; do
+            name="xqsyncd-${TAG}-linux-${arch}"
+            mkdir -p unpacked "docker-ctx/linux_${arch}"
+            tar -xzf "artifacts/${name}.tar.gz" -C unpacked
+            mv "unpacked/${name}/xqsyncd" "docker-ctx/linux_${arch}/xqsyncd"
+          done
+          ls -lR docker-ctx
+
+      # v1.5.0 -> 1.5.0, 1.5, 1 and latest. A pre-release tag (v1.6.0-rc.1) gets only its own
+      # version: neither latest nor a floating 1.6 may ever point at an untested build.
+      - name: Image tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/xqsyncd
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        if: github.ref_type == 'tag'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: docker-ctx
+          file: packaging/docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.ref_type == 'tag' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
