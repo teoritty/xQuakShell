@@ -61,6 +61,33 @@ function extendRange<T extends FileNode>(nodes: T[], current: Selection, path: s
   return next;
 }
 
+/**
+ * The rows a pane shows, in screen order: the listing of `root`, with the
+ * listing of every expanded directory spliced in under its row, recursively.
+ *
+ * Shift-extend must range over this, not over `tree.get(root)`: an expanded
+ * directory's rows are on screen but are not in the root listing, so ranging
+ * over the listing alone made shift-click a no-op anywhere inside an expanded
+ * folder. `keepTop` is the pane's filter on the root listing (the remote pane
+ * hides dotfiles there itself), so the range covers exactly the rows drawn.
+ */
+export function visibleRows<T extends FileNode>(
+  tree: Map<string, T[]>,
+  root: string,
+  expanded: Set<string>,
+  keepTop: (n: T) => boolean = () => true,
+): T[] {
+  const rows: T[] = [];
+  const walk = (nodes: T[]) => {
+    for (const n of nodes) {
+      rows.push(n);
+      if (n.isDir && expanded.has(n.path)) walk(tree.get(n.path) || []);
+    }
+  };
+  walk((tree.get(root) || []).filter(keepTop));
+  return rows;
+}
+
 /** The empty selection. */
 export function clearSelection(): Selection {
   return { selectedPaths: new Set(), lastSelectedPath: null };

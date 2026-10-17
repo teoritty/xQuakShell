@@ -1,5 +1,5 @@
 // frontend/src/lib/fileTree/selection.test.ts
-import { selectNode, clearSelection, findNode, type Selection } from './selection';
+import { selectNode, clearSelection, findNode, visibleRows, type Selection } from './selection';
 import type { FileNode } from './types';
 
 function assert(cond: boolean, msg: string) {
@@ -48,6 +48,33 @@ assert(paths(s).join() === '/d/a,/d/c', 'an anchor outside the listing degrades 
 // dereferenced nodes[-1].path. This is that crash, pinned.
 s = selectNode(rows, sel(['/d/b'], '/d/b'), '/nested/deep/x', { shiftKey: true });
 assert(paths(s).join() === '/d/b', 'shift-clicking a row outside the listing changes nothing');
+
+// --- visibleRows: the screen order shift ranges over ---
+// /r holds dir x (expanded), file y, dir z (collapsed); x holds dir x/p
+// (expanded) and file x/q; x/p holds file x/p/k. On screen that reads
+// x, x/p, x/p/k, x/q, y, z — z's loaded listing must not appear.
+function n(path: string, isDir = false): FileNode {
+  return { name: path.split('/').pop()!, path, isDir, size: 0 };
+}
+const nested = new Map<string, FileNode[]>([
+  ['/r', [n('/r/x', true), n('/r/y'), n('/r/z', true), n('/r/.h')]],
+  ['/r/x', [n('/r/x/p', true), n('/r/x/q')]],
+  ['/r/x/p', [n('/r/x/p/k')]],
+  ['/r/z', [n('/r/z/hidden-by-collapse')]],
+]);
+const open = new Set(['/r/x', '/r/x/p']);
+const shown = visibleRows(nested, '/r', open, (r) => !r.name.startsWith('.'));
+assert(
+  shown.map((r) => r.path).join() === '/r/x,/r/x/p,/r/x/p/k,/r/x/q,/r/y,/r/z',
+  'visibleRows splices expanded children under their row, skips collapsed ones and filtered top rows',
+);
+assert(visibleRows(nested, '/r', open).length === 7, 'visibleRows keeps every top row without a filter');
+
+// The reported bug: inside an expanded folder shift-click did nothing.
+s = selectNode(shown, sel(['/r/x/p'], '/r/x/p'), '/r/x/q', { shiftKey: true });
+assert(paths(s).join() === '/r/x/p,/r/x/p/k,/r/x/q', 'shift extends between rows of an expanded folder');
+s = selectNode(shown, sel(['/r/x/p/k'], '/r/x/p/k'), '/r/y', { shiftKey: true });
+assert(paths(s).join() === '/r/x/p/k,/r/x/q,/r/y', 'shift extends from a nested row out to a root row');
 
 // --- clearSelection ---
 const cleared = clearSelection();

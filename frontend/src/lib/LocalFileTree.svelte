@@ -15,7 +15,7 @@
   import { refreshesLocalPane } from './transferPresentation';
   import type { SortState } from './fileTree/types';
   import { formatSize, applySort, sortTree } from './fileTree/sorting';
-  import { selectNode as nextSelection, clearSelection, findNode as findNodeIn } from './fileTree/selection';
+  import { selectNode as nextSelection, clearSelection, findNode as findNodeIn, visibleRows } from './fileTree/selection';
   import { isAtFilesystemRoot, parentDirectory, localBasename, localJoin, normalizeLocalPathInput } from './fileTree/paths';
   import { readDragPayload, isMultiDrag } from './fileTree/dragPayload';
   import { uniqueName } from './fileTree/uniqueName';
@@ -182,7 +182,7 @@
 
   function selectNode(path: string, e?: MouseEvent) {
     ({ selectedPaths, lastSelectedPath } = nextSelection(
-      tree.get(currentPath) || [],
+      visibleRows(tree, currentPath, expanded),
       { selectedPaths, lastSelectedPath },
       path,
       e
