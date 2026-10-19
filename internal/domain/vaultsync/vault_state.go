@@ -66,9 +66,15 @@ func (s *VaultState) ApplyCommit(c Commit, m *MembershipState, resolve DeviceRes
 	if h.MembershipSeq != m.Seq() || h.MembershipHead != m.Hash() {
 		return nil, ErrMembershipMismatch
 	}
-	key, err := authorizeAuthor(h, m, resolve)
+	account, key, err := authorizeAuthor(h, m, resolve)
 	if err != nil {
 		return nil, err
+	}
+	// A purge destroys every version of a record, the trash copy included, so it is the vault
+	// managers' decision (spec §10.1) and never an editor's: an editor may delete, and the deletion
+	// stays restorable for the retention window.
+	if len(c.Purged) > 0 && !m.Role(account).CanManage() {
+		return nil, fmt.Errorf("purge by account %s: %w", account, ErrNotAuthorized)
 	}
 	if h.CurrentEpoch != m.Epoch() {
 		return nil, fmt.Errorf("head epoch %d, vault epoch %d: %w", h.CurrentEpoch, m.Epoch(), ErrEpochMismatch)
@@ -96,21 +102,21 @@ func (s *VaultState) ApplyCommit(c Commit, m *MembershipState, resolve DeviceRes
 // authorizeAuthor resolves the head's device and checks it may write here: certified, not revoked
 // by a rotation at or before this membership position, belonging to a member who can write, and
 // the signer of the head.
-func authorizeAuthor(h *Head, m *MembershipState, resolve DeviceResolver) ([]byte, error) {
+func authorizeAuthor(h *Head, m *MembershipState, resolve DeviceResolver) (ID, []byte, error) {
 	account, key, err := resolve(h.Author)
 	if err != nil {
-		return nil, fmt.Errorf("author device %s: %w", h.Author, err)
+		return ID{}, nil, fmt.Errorf("author device %s: %w", h.Author, err)
 	}
 	if m.IsDeviceRevoked(h.Author) {
-		return nil, ErrRevokedDevice
+		return ID{}, nil, ErrRevokedDevice
 	}
 	if !m.Role(account).CanWrite() {
-		return nil, fmt.Errorf("account %s: %w", account, ErrNotAuthorized)
+		return ID{}, nil, fmt.Errorf("account %s: %w", account, ErrNotAuthorized)
 	}
 	if err := h.Verify(key); err != nil {
-		return nil, err
+		return ID{}, nil, err
 	}
-	return key, nil
+	return account, key, nil
 }
 
 // applyRecords checks each record belongs to this commit and follows its record's current version,

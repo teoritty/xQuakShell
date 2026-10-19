@@ -91,8 +91,7 @@ func (p *pullRun) flushOutbox(ctx context.Context) error {
 		return err
 	}
 	_, err = p.e.d.Server.Commit(ctx, *c)
-	var conflict *synctrust.ConflictError
-	if errors.As(err, &conflict) {
+	if neverStored(err) {
 		return p.e.d.State.ClearOutbox(ctx, p.vault, c.Head.Commit)
 	}
 	if err != nil {
@@ -156,13 +155,21 @@ func (p *pullRun) send(ctx context.Context, c vaultsync.Commit) error {
 		return err
 	}
 	if _, err := p.e.d.Server.Commit(ctx, c); err != nil {
-		var conflict *synctrust.ConflictError
-		if errors.As(err, &conflict) {
+		if neverStored(err) {
 			return errors.Join(err, p.e.d.State.ClearOutbox(ctx, p.vault, c.Head.Commit))
 		}
 		return err
 	}
 	return p.adopt(ctx, c)
+}
+
+// neverStored reports a commit refusal that is final for this commit and leaves nothing on the
+// server: a conflict, which a rebase answers with a fresh commit, or a purge the server holds back
+// until the trash window passes on its clock. Resending such a commit from the outbox could only be
+// refused again, every round.
+func neverStored(err error) bool {
+	var conflict *synctrust.ConflictError
+	return errors.As(err, &conflict) || errors.Is(err, synctrust.ErrPurgeNotDue)
 }
 
 // adopt applies this device's own accepted commit through the same verification as anyone else's.

@@ -123,6 +123,8 @@ func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 		writeCode(w, http.StatusInsufficientStorage, syncwire.CodeQuotaExceeded)
 	case errors.Is(err, usecase.ErrHistoryPruned):
 		writeCode(w, http.StatusGone, syncwire.CodeHistoryPruned)
+	case errors.Is(err, usecase.ErrPurgeNotDue):
+		writeCode(w, http.StatusTooEarly, syncwire.CodePurgeNotDue)
 	case errors.Is(err, usecase.ErrTooLarge):
 		writeCode(w, http.StatusRequestEntityTooLarge, syncwire.CodeTooLarge)
 	default:

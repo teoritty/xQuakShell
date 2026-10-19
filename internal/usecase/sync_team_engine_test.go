@@ -278,6 +278,32 @@ func TestAnEditorLeavesTeamUpkeepToTheAdmins(t *testing.T) {
 	}
 }
 
+// Purging is a manager's decision, and every verifier refuses an editor's. An editor's device whose
+// clock says a tombstone's window passed must leave it for an admin rather than fail its round on a
+// purge the server is bound to refuse.
+func TestAnEditorLeavesPurgesToTheAdmins(t *testing.T) {
+	w := newSyncWorld(t)
+	bob := w.h.Register("bob")
+	cv := w.teamOf(bob)
+	cv.Accept(w.b, cv.Commit(w.b, w.teamMeta(cv), w.teamItem(cv, synctrust.TypeFolder, "tf", domain.ConnectionFolder{ID: "tf", Name: "Team"})))
+	id, _ := synctrust.RecordID(w.namingKey, synctrust.TypeFolder, "tf")
+	ver, _ := cv.State.Version(id)
+	tomb := vaultsync.Envelope{Vault: cv.ID, Record: id, Version: ver + 1, Epoch: cv.M.Epoch(), Suite: vaultsync.Suite1,
+		Deleted: true, Author: w.b.Device, SigAlg: vaultsync.SigEd25519}
+	msg, _ := tomb.SigningBytes()
+	tomb.Sig = ed25519.Sign(w.b.DSK, msg)
+	cv.Accept(w.b, cv.Commit(w.b, tomb))
+	late := 31 * 24 * 60 * 60_000
+	engine := usecase.NewSyncEngine(usecase.SyncEngineDeps{Server: w.server, State: w.state, Vault: w.vault,
+		Keys: testKeys{u: w.a, vk: w.vk}, Cipher: synccrypto.Cipher{}, Crypto: synccrypto.Account{}, NowUnixMilli: func() int64 { return int64(late) }})
+	if _, err := engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatalf("an editor's sync with a tombstone past its window: %v; it must leave the purge to an admin", err)
+	}
+	if versions, err := w.h.Svc.Versions(syncCtx, w.h.Principal(bob.Access), cv.ID, id); err != nil || len(versions) == 0 {
+		t.Fatalf("the team's tombstone is gone (%d versions, %v); an editor may not purge", len(versions), err)
+	}
+}
+
 // sealAs seals a team record as one of the vault's other members.
 func (w *syncWorld) sealAs(cv *servertest.ClientVault, author *servertest.User, ty synctrust.RecordType, key string, v any) vaultsync.Envelope {
 	w.t.Helper()

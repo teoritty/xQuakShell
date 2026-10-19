@@ -158,6 +158,9 @@ type Tx interface {
 	CurrentRecords(vault vaultsync.ID) ([]vaultsync.Envelope, error)
 	LatestHead(vault vaultsync.ID) (vaultsync.Head, bool, error)
 	RecordVersions(vault, record vaultsync.ID) ([]vaultsync.Envelope, error)
+	// VersionLanded reports when this server received the commit that carried a record's latest
+	// version, and the membership position that commit's head was made under.
+	VersionLanded(vault, record vaultsync.ID) (received, membershipSeq uint64, ok bool, err error)
 
 	// Pruning. Each delete returns the newest seq whose commit lost a version, or 0.
 	AllVaults() ([]vaultsync.ID, error)

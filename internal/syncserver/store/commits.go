@@ -66,6 +66,22 @@ func (t *txn) RecordVersions(vault, record vaultsync.ID) ([]vaultsync.Envelope, 
 	return t.envelopes("SELECT envelope FROM record_versions WHERE vault = ? AND record = ? ORDER BY version", vault[:], record[:])
 }
 
+func (t *txn) VersionLanded(vault, record vaultsync.ID) (uint64, uint64, bool, error) {
+	var received uint64
+	var raw []byte
+	err := t.tx.QueryRowContext(t.ctx, `SELECT c.received, c.head FROM record_versions rv
+		JOIN commits c ON c.vault = rv.vault AND c.seq = rv.seq
+		WHERE rv.vault = ? AND rv.record = ? ORDER BY rv.version DESC LIMIT 1`, vault[:], record[:]).Scan(&received, &raw)
+	if ok, err := found(err); !ok {
+		return 0, 0, false, err
+	}
+	h, err := decodeHead(raw)
+	if err != nil {
+		return 0, 0, false, err
+	}
+	return received, h.MembershipSeq, true, nil
+}
+
 func decodeEnvelope(raw []byte) (vaultsync.Envelope, error) {
 	var d syncwire.Envelope
 	if err := json.Unmarshal(raw, &d); err != nil {

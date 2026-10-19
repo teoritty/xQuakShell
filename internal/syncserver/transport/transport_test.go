@@ -376,6 +376,8 @@ func TestPrunedHistoryIsGoneWithItsCode(t *testing.T) {
 	cv := r.h.PersonalVault(u)
 	cv.Accept(u, cv.Commit(u, cv.Record(u, 1)))
 	cv.Accept(u, cv.Commit(u, cv.Tombstone(u, 1)))
+	r.h.Clock.Advance(30 * 24 * 60 * 60_000)
+	u.Access = r.h.DeviceLogin(u, u.Device, u.DSK)
 	cv.Accept(u, cv.Purge(u, 1))
 	status, body := r.do("GET", "/v1/vaults/"+u.Vault.String()+"/changes?since=0", u.Access, nil)
 	if status != http.StatusGone || !strings.Contains(string(body), syncwire.CodeHistoryPruned) {

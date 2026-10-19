@@ -17,6 +17,9 @@ var (
 	ErrTooLarge      = errors.New("request too large")
 	ErrRateLimited   = errors.New("rate limited")
 	ErrConflict      = errors.New("conflict")
+	// ErrPurgeNotDue is a purge of a tombstone whose trash window has not passed on this server's
+	// clock. The commit is refused whole; the client keeps the tombstone and tries again later.
+	ErrPurgeNotDue = errors.New("purge before the retention window passed")
 )
 
 // ConflictError carries the seq a stale commit must rebase onto.

@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"xquakshell/internal/domain/vaultsync"
 )
@@ -45,6 +46,9 @@ func (s *Service) Commit(ctx context.Context, p Principal, vault vaultsync.ID, e
 		}
 		m, err := verifyCommit(tx, vault, c)
 		if err != nil {
+			return err
+		}
+		if err := checkPurgesDue(tx, vault, m, c.Purged, s.now()); err != nil {
 			return err
 		}
 		members = m.Members()
@@ -97,6 +101,33 @@ func verifyCommit(tx Tx, vault vaultsync.ID, c vaultsync.Commit) (*vaultsync.Mem
 		return nil, refusal(err)
 	}
 	return m, nil
+}
+
+// checkPurgesDue holds every purge to the vault's trash window, counted on this server's clock from
+// when it received the tombstone (spec §10.1). Clients decide when to purge from signed client times
+// they cannot check against anything, and a purge deletes every version of the record in the same
+// transaction - so this server, which does the deleting, is where the window has to hold. A
+// tombstone committed before the latest Shred now rotation is due at once: shredding is the vault
+// managers' explicit choice to empty the trash, and the membership log orders the two without a
+// clock. verifyCommit has already checked each purged id names a current tombstone.
+func checkPurgesDue(tx Tx, vault vaultsync.ID, m *vaultsync.MembershipState, purged []vaultsync.ID, now uint64) error {
+	window := uint64(m.RetentionDays()) * dayMillis
+	for _, id := range purged {
+		received, membershipSeq, ok, err := tx.VersionLanded(vault, id)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return malformed(fmt.Errorf("purge of %s, which this server does not hold", id))
+		}
+		if membershipSeq < m.ShredSeq() {
+			continue
+		}
+		if now < received || now-received < window {
+			return fmt.Errorf("%w: record %s", ErrPurgeNotDue, id)
+		}
+	}
+	return nil
 }
 
 func currentState(tx Tx, vault vaultsync.ID) (*vaultsync.VaultState, error) {

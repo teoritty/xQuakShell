@@ -72,6 +72,8 @@ func remote(err error) error {
 		return synctrust.ErrRemoteUnauthorized
 	case errors.Is(err, srvusecase.ErrHistoryPruned):
 		return synctrust.ErrHistoryPruned
+	case errors.Is(err, srvusecase.ErrPurgeNotDue):
+		return synctrust.ErrPurgeNotDue
 	case errors.Is(err, srvusecase.ErrNotFound):
 		return synctrust.ErrRemoteNotFound
 	}
