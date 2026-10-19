@@ -2,6 +2,7 @@ package usecase_test
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
 	"sync/atomic"
@@ -472,5 +473,49 @@ func TestAHeldTeamChangeIsListedAndConfirmed(t *testing.T) {
 	d, _ := cb.vault.GetData()
 	if len(d.Connections) != 1 || d.Connections[0].VaultID != team.String() || d.Connections[0].AgentForwarding == nil {
 		t.Fatalf("connections after confirming = %+v; want the team's, forwarding on", d.Connections)
+	}
+}
+
+// An invitation syncs nothing, so no round would tell the views to re-read: the pass that first
+// lists it says the vaults changed, which is what makes the Teams page show it while open.
+func TestANewInvitationIsReportedAsAChange(t *testing.T) {
+	h, a := registered(t)
+	cb := control(t, a)
+	if err := cb.c.Start(syncCtx); err != nil {
+		t.Fatal(err)
+	}
+	cb.settle(a.session.Personal)
+	d, _ := a.vault.GetData()
+	acct := d.Sync.Account
+	alice := &servertest.User{Name: "alice", Account: vaultsync.ID(acct.Account), AIK: ed25519.NewKeyFromSeed(acct.IdentitySeed),
+		AEK: acct.EncryptionKey}
+	bob := h.Register("bob")
+	h.NewTeamVault(bob, servertest.Member{User: alice, Role: vaultsync.RoleEditor})
+	if !cb.passReportsAChange() {
+		t.Fatal("no status of the pass that listed the invitation told the views to re-read")
+	}
+	if cb.passReportsAChange() {
+		t.Fatal("the same invitation was reported as a change again")
+	}
+}
+
+// passReportsAChange runs a pass and reports whether any of its statuses, the running ones
+// included, said the vaults changed - the frontend re-reads on any of them.
+func (cd *controlled) passReportsAChange() bool {
+	cd.t.Helper()
+	if err := cd.c.SyncNow(); err != nil {
+		cd.t.Fatal(err)
+	}
+	changed := false
+	for {
+		select {
+		case st := <-cd.status:
+			changed = changed || st.VaultsChanged
+			if st.State != usecase.SyncRunning {
+				return changed
+			}
+		case <-time.After(10 * time.Second):
+			cd.t.Fatal("no sync round finished")
+		}
 	}
 }

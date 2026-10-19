@@ -26,17 +26,24 @@ func (e *SyncEngine) scopeOf(vault vaultsync.ID) synctrust.Scope {
 // of its items is dropped (spec §5.9). The server can withhold a vault - it can withhold everything -
 // but nothing here lets it change what a vault holds, or add one.
 func (e *SyncEngine) Vaults(ctx context.Context) ([]vaultsync.ID, error) {
+	out, _, err := e.VaultsAndInvitations(ctx)
+	return out, err
+}
+
+// VaultsAndInvitations is Vaults together with the listed teams still waiting for an answer, as
+// the server lists them, so a caller can tell when an invitation arrives without asking again.
+func (e *SyncEngine) VaultsAndInvitations(ctx context.Context) ([]vaultsync.ID, []synctrust.RemoteVault, error) {
 	personal := synctrust.PersonalVaultID(e.d.Keys.Account())
 	listed, err := e.d.Server.Vaults(ctx)
 	if err != nil {
-		return []vaultsync.ID{personal}, err
+		return []vaultsync.ID{personal}, nil, err
 	}
-	joined, _, err := e.joinedTeams(ctx, listed)
+	joined, pending, err := e.joinedTeams(ctx, listed)
 	if err != nil {
-		return []vaultsync.ID{personal}, err
+		return []vaultsync.ID{personal}, nil, err
 	}
 	out := append([]vaultsync.ID{personal}, joined...)
-	return out, e.dropLeftVaults(ctx, out)
+	return out, pending, e.dropLeftVaults(ctx, out)
 }
 
 func (e *SyncEngine) dropLeftVaults(ctx context.Context, keep []vaultsync.ID) error {
