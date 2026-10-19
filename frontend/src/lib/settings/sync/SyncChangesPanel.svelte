@@ -51,9 +51,9 @@
           <div class="sync-meta">{h.reason}</div>
           <div class="sync-actions">
             {#if h.pending}
-              <button type="button" class="primary" on:click={() => act(() => confirmSyncHeld(h.record, masterPassword))} disabled={busy || !masterPassword}>{$t('sync.held.accept')}</button>
+              <button type="button" class="primary" on:click={() => act(() => confirmSyncHeld(h, masterPassword))} disabled={busy || !masterPassword}>{$t('sync.held.accept')}</button>
             {/if}
-            <button type="button" class="secondary" on:click={() => act(() => rejectSyncHeld(h.record))} disabled={busy}>{$t('sync.held.reject')}</button>
+            <button type="button" class="secondary" on:click={() => act(() => rejectSyncHeld(h))} disabled={busy}>{$t('sync.held.reject')}</button>
           </div>
         </li>
       {/each}

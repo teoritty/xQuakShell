@@ -122,28 +122,31 @@ func (a *AppAPI) ListSyncHeld() ([]SyncHeldDTO, error) {
 	return out, nil
 }
 
-// ConfirmSyncHeld accepts a held change with the master password.
-func (a *AppAPI) ConfirmSyncHeld(record, masterPassword string) error {
+// ConfirmSyncHeld accepts a held change of vault with the master password.
+func (a *AppAPI) ConfirmSyncHeld(vault, record, masterPassword string) error {
 	if a.sync == nil {
 		return errSyncUnavailable
 	}
+	v, okV := parseSyncID(vault)
 	id, ok := parseSyncID(record)
-	if !ok {
+	if !ok || !okV {
 		return errInvalidSyncRequest
 	}
-	return userSyncError(a.sync.ConfirmHeld(a.reqCtx(), id, masterPassword))
+	return userSyncError(a.sync.ConfirmHeld(a.reqCtx(), v, id, masterPassword))
 }
 
-// RejectSyncHeld drops a held or refused change; this device's value is written back everywhere.
-func (a *AppAPI) RejectSyncHeld(record string) error {
+// RejectSyncHeld drops a held or refused change of vault; this device's value is written back
+// everywhere.
+func (a *AppAPI) RejectSyncHeld(vault, record string) error {
 	if a.sync == nil {
 		return errSyncUnavailable
 	}
+	v, okV := parseSyncID(vault)
 	id, ok := parseSyncID(record)
-	if !ok {
+	if !ok || !okV {
 		return errInvalidSyncRequest
 	}
-	return userSyncError(a.sync.RejectHeld(a.reqCtx(), id))
+	return userSyncError(a.sync.RejectHeld(a.reqCtx(), v, id))
 }
 
 // ListSyncConflicts lists unresolved credential conflicts, without the values of secret fields.

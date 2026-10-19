@@ -44,8 +44,8 @@ type SyncCommands interface {
 	SyncNow() error
 	Devices(ctx context.Context) ([]usecase.DeviceInfo, error)
 	HeldChanges(ctx context.Context) ([]usecase.HeldChange, error)
-	ConfirmHeld(ctx context.Context, record vaultsync.ID, masterPassword string) error
-	RejectHeld(ctx context.Context, record vaultsync.ID) error
+	ConfirmHeld(ctx context.Context, vault, record vaultsync.ID, masterPassword string) error
+	RejectHeld(ctx context.Context, vault, record vaultsync.ID) error
 	Trash(ctx context.Context) ([]usecase.TrashItem, error)
 	RestoreTrash(ctx context.Context, record vaultsync.ID) error
 	ShredNow(ctx context.Context, masterPassword string) error

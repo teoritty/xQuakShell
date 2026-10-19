@@ -2298,6 +2298,7 @@ export namespace wails {
 	    }
 	}
 	export class SyncHeldDTO {
+	    vault: string;
 	    record: string;
 	    type: string;
 	    key: string;
@@ -2312,6 +2313,7 @@ export namespace wails {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.vault = source["vault"];
 	        this.record = source["record"];
 	        this.type = source["type"];
 	        this.key = source["key"];

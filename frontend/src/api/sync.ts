@@ -71,12 +71,12 @@ export function listSyncHeldRpc(): Promise<SyncHeld[]> {
   return callBackend<SyncHeld[]>('Held changes', [], (app) => app.ListSyncHeld(), inline);
 }
 
-export function confirmSyncHeldRpc(record: string, masterPassword: string): Promise<void> {
-  return callBackend('Accept change', undefined, (app) => app.ConfirmSyncHeld(record, masterPassword), inline);
+export function confirmSyncHeldRpc(vault: string, record: string, masterPassword: string): Promise<void> {
+  return callBackend('Accept change', undefined, (app) => app.ConfirmSyncHeld(vault, record, masterPassword), inline);
 }
 
-export function rejectSyncHeldRpc(record: string): Promise<void> {
-  return callBackend('Reject change', undefined, (app) => app.RejectSyncHeld(record), inline);
+export function rejectSyncHeldRpc(vault: string, record: string): Promise<void> {
+  return callBackend('Reject change', undefined, (app) => app.RejectSyncHeld(vault, record), inline);
 }
 
 export function listSyncConflictsRpc(): Promise<SyncConflict[]> {

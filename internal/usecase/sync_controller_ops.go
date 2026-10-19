@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"xquakshell/internal/domain"
 	"xquakshell/internal/domain/vaultsync"
@@ -141,24 +142,40 @@ func (c *SyncController) Devices(ctx context.Context) ([]DeviceInfo, error) {
 	return out, err
 }
 
-// HeldChanges lists what a pull held or refused.
+// HeldChanges lists what a pull held or refused, in the personal vault and every team joined.
+//
+// Only the personal vault used to be listed. A team change the trust rules hold - a shared
+// connection that turns agent forwarding on - was counted in the team's status as waiting for the
+// person, and could be neither seen nor confirmed: it waited for good.
 func (c *SyncController) HeldChanges(ctx context.Context) ([]HeldChange, error) {
 	var out []HeldChange
 	err := c.withEngine(func(e *SyncEngine, s SyncSession) error {
-		var err error
-		out, err = e.HeldChanges(ctx, s.Personal)
-		return err
+		vaults, err := c.teamVaults(ctx, e)
+		if err != nil {
+			return err
+		}
+		if !slices.Contains(vaults, s.Personal) {
+			vaults = append([]vaultsync.ID{s.Personal}, vaults...)
+		}
+		for _, v := range vaults {
+			held, err := e.HeldChanges(ctx, v)
+			if err != nil {
+				return err
+			}
+			out = append(out, held...)
+		}
+		return nil
 	})
 	return out, err
 }
 
 // ConfirmHeld applies a held change once the master password proves the person at this machine
 // agrees - not another device, and not whoever holds the sync password.
-func (c *SyncController) ConfirmHeld(ctx context.Context, record vaultsync.ID, masterPassword string) error {
+func (c *SyncController) ConfirmHeld(ctx context.Context, vault, record vaultsync.ID, masterPassword string) error {
 	if masterPassword == "" || c.d.Vault.VerifyMasterPassword(ctx, masterPassword) != nil {
 		return ErrHeldReauth
 	}
-	err := c.withEngine(func(e *SyncEngine, s SyncSession) error { return e.ConfirmHeld(ctx, s.Personal, record) })
+	err := c.withEngine(func(e *SyncEngine, _ SyncSession) error { return e.ConfirmHeld(ctx, vault, record) })
 	if err == nil {
 		// A round reports the quarantine as it now stands, so the status stops counting this change.
 		c.Notify()
@@ -167,8 +184,8 @@ func (c *SyncController) ConfirmHeld(ctx context.Context, record vaultsync.ID, m
 }
 
 // RejectHeld drops a held or refused change; the next round writes this device's value back.
-func (c *SyncController) RejectHeld(ctx context.Context, record vaultsync.ID) error {
-	err := c.withEngine(func(e *SyncEngine, s SyncSession) error { return e.RejectHeld(ctx, s.Personal, record) })
+func (c *SyncController) RejectHeld(ctx context.Context, vault, record vaultsync.ID) error {
+	err := c.withEngine(func(e *SyncEngine, _ SyncSession) error { return e.RejectHeld(ctx, vault, record) })
 	if err == nil {
 		c.Notify()
 	}

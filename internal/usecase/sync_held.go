@@ -19,6 +19,8 @@ var (
 // HeldChange is a record waiting in quarantine, as the user sees it. Type and Key are empty when
 // the record does not open on this device.
 type HeldChange struct {
+	// Vault is the vault the change arrived in: the personal vault or a team's.
+	Vault  vaultsync.ID
 	Record vaultsync.ID
 	Type   synctrust.RecordType
 	Key    string
@@ -36,19 +38,20 @@ type DeviceInfo struct {
 	Current bool
 }
 
-// HeldChanges lists the records a pull held for the master password or refused.
+// HeldChanges lists the records a pull held for the master password or refused. The quarantine is
+// read first, from the state store: a vault with nothing waiting costs no request to the server.
 func (e *SyncEngine) HeldChanges(ctx context.Context, vault vaultsync.ID) ([]HeldChange, error) {
-	p, err := e.startPull(ctx, vault)
-	if err != nil {
+	items, err := e.d.State.Quarantined(ctx, vault)
+	if err != nil || len(items) == 0 {
 		return nil, err
 	}
-	items, err := e.d.State.Quarantined(ctx, vault)
+	p, err := e.startPull(ctx, vault)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]HeldChange, 0, len(items))
 	for _, it := range items {
-		h := HeldChange{Record: it.Envelope.Record, Reason: it.Reason, Pending: it.Pending, AtUnixMilli: it.AtUnixMilli}
+		h := HeldChange{Vault: vault, Record: it.Envelope.Record, Reason: it.Reason, Pending: it.Pending, AtUnixMilli: it.AtUnixMilli}
 		if body, err := p.open(&it.Envelope); err == nil {
 			h.Type = body.Type
 			h.Key, _ = synctrust.NaturalKey(body.Type, body.Data)

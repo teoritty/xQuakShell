@@ -70,6 +70,7 @@ type SyncDeviceDTO struct {
 
 // SyncHeldDTO is a change waiting for the master password, or one that was refused.
 type SyncHeldDTO struct {
+	Vault       string `json:"vault"`
 	Record      string `json:"record"`
 	Type        string `json:"type"`
 	Key         string `json:"key"`
@@ -170,7 +171,7 @@ func deviceDTO(d usecase.DeviceInfo) SyncDeviceDTO {
 }
 
 func heldDTO(h usecase.HeldChange) SyncHeldDTO {
-	return SyncHeldDTO{Record: hex.EncodeToString(h.Record[:]), Type: string(h.Type), Key: h.Key, Name: h.Name, Reason: h.Reason,
+	return SyncHeldDTO{Vault: hex.EncodeToString(h.Vault[:]), Record: hex.EncodeToString(h.Record[:]), Type: string(h.Type), Key: h.Key, Name: h.Name, Reason: h.Reason,
 		Pending: h.Pending, AtUnixMilli: h.AtUnixMilli}
 }
 

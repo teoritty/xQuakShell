@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"xquakshell/internal/domain"
+	"xquakshell/internal/domain/agentforward"
 	"xquakshell/internal/domain/synctrust"
 	"xquakshell/internal/domain/vaultsync"
 	"xquakshell/internal/syncserver/servertest"
@@ -134,14 +135,14 @@ func TestHeldChangeNeedsTheMasterPassword(t *testing.T) {
 		t.Fatalf("held = %+v, %v", held, err)
 	}
 	for _, pw := range []string{"", "wrong"} {
-		if err := cb.c.ConfirmHeld(syncCtx, held[0].Record, pw); !errors.Is(err, usecase.ErrHeldReauth) {
+		if err := cb.c.ConfirmHeld(syncCtx, held[0].Vault, held[0].Record, pw); !errors.Is(err, usecase.ErrHeldReauth) {
 			t.Fatalf("master password %q: %v", pw, err)
 		}
 	}
 	if d, _ := cb.vault.GetData(); !d.Settings.Plugins.RequireSignedPlugins {
 		t.Fatal("the change applied without the master password")
 	}
-	if err := cb.c.ConfirmHeld(syncCtx, held[0].Record, "master"); err != nil {
+	if err := cb.c.ConfirmHeld(syncCtx, held[0].Vault, held[0].Record, "master"); err != nil {
 		t.Fatal(err)
 	}
 	if d, _ := cb.vault.GetData(); d.Settings.Plugins.RequireSignedPlugins {
@@ -161,7 +162,7 @@ func TestHeldChangeStaysInTheStatusUntilDecided(t *testing.T) {
 		t.Fatalf("held = %d after a round that pulled nothing, want 1; a change still waiting must not read as up to date", st.Report.Pull.Held)
 	}
 	held, _ := cb.c.HeldChanges(syncCtx)
-	if err := cb.c.ConfirmHeld(syncCtx, held[0].Record, "master"); err != nil {
+	if err := cb.c.ConfirmHeld(syncCtx, held[0].Vault, held[0].Record, "master"); err != nil {
 		t.Fatal(err)
 	}
 	if st := cb.round(); st.Report.Pull.Held != 0 {
@@ -172,7 +173,7 @@ func TestHeldChangeStaysInTheStatusUntilDecided(t *testing.T) {
 func TestRejectingAHeldChangeRevertsItEverywhere(t *testing.T) {
 	a, cb := heldOnB(t)
 	held, _ := cb.c.HeldChanges(syncCtx)
-	if err := cb.c.RejectHeld(syncCtx, held[0].Record); err != nil {
+	if err := cb.c.RejectHeld(syncCtx, held[0].Vault, held[0].Record); err != nil {
 		t.Fatal(err)
 	}
 	if err := cb.c.SyncNow(); err != nil {
@@ -430,5 +431,46 @@ func TestTeamsAreNotReverifiedUntilTheyChange(t *testing.T) {
 	}
 	if fetched.Load() == before {
 		t.Fatal("a team whose membership moved was listed from the cache; its role may have changed")
+	}
+}
+
+// A team change the trust rules hold is listed with the team it arrived in and confirmed there,
+// exactly as a personal one is. Only the personal vault used to be listed, and a held team change
+// waited for good while the team's status counted it.
+func TestAHeldTeamChangeIsListedAndConfirmed(t *testing.T) {
+	_, a, b := twoDevices(t)
+	team, err := a.engine.CreateTeam(syncCtx, "Ops", rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = a.vault.UpdateData(syncCtx, func(v *domain.VaultData) error {
+		v.Connections = append(v.Connections, domain.Connection{ID: "c1", Name: "db", Host: "db.example", Port: 22,
+			VaultID: team.String(), AgentForwarding: &agentforward.Config{Enabled: true}})
+		return nil
+	})
+	if _, err := a.engine.Sync(syncCtx, team); err != nil {
+		t.Fatal(err)
+	}
+	a.sync()
+	cb := control(t, b)
+	if err := cb.c.Start(syncCtx); err != nil {
+		t.Fatal(err)
+	}
+	// The first pass pulls the join; the next one syncs the team it names.
+	cb.settle(b.session.Personal)
+	if err := cb.c.SyncNow(); err != nil {
+		t.Fatal(err)
+	}
+	cb.settle(b.session.Personal, team)
+	held, err := cb.c.HeldChanges(syncCtx)
+	if err != nil || len(held) != 1 || held[0].Vault != team || !held[0].Pending || held[0].Type != synctrust.TypeConnection {
+		t.Fatalf("held = %+v, %v; want the team's connection, waiting", held, err)
+	}
+	if err := cb.c.ConfirmHeld(syncCtx, held[0].Vault, held[0].Record, "master"); err != nil {
+		t.Fatalf("confirm the team change: %v", err)
+	}
+	d, _ := cb.vault.GetData()
+	if len(d.Connections) != 1 || d.Connections[0].VaultID != team.String() || d.Connections[0].AgentForwarding == nil {
+		t.Fatalf("connections after confirming = %+v; want the team's, forwarding on", d.Connections)
 	}
 }

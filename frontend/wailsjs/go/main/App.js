@@ -98,8 +98,8 @@ export function ConfirmCredentialBinding(arg1, arg2, arg3) {
   return window['go']['main']['App']['ConfirmCredentialBinding'](arg1, arg2, arg3);
 }
 
-export function ConfirmSyncHeld(arg1, arg2) {
-  return window['go']['main']['App']['ConfirmSyncHeld'](arg1, arg2);
+export function ConfirmSyncHeld(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ConfirmSyncHeld'](arg1, arg2, arg3);
 }
 
 export function CopyLocalPath(arg1, arg2) {
@@ -526,8 +526,8 @@ export function ProbeSyncServer(arg1) {
   return window['go']['main']['App']['ProbeSyncServer'](arg1);
 }
 
-export function RejectSyncHeld(arg1) {
-  return window['go']['main']['App']['RejectSyncHeld'](arg1);
+export function RejectSyncHeld(arg1, arg2) {
+  return window['go']['main']['App']['RejectSyncHeld'](arg1, arg2);
 }
 
 export function RelayPluginViewMessage(arg1, arg2) {

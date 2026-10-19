@@ -51,7 +51,7 @@ export function CompleteRecoveryReset(arg1:string):Promise<wails.RecoveryKeyDTO>
 
 export function ConfirmCredentialBinding(arg1:string,arg2:string,arg3:string):Promise<void>;
 
-export function ConfirmSyncHeld(arg1:string,arg2:string):Promise<void>;
+export function ConfirmSyncHeld(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function CopyLocalPath(arg1:string,arg2:string):Promise<void>;
 
@@ -265,7 +265,7 @@ export function PreviewSyncPluginOffer(arg1:string):Promise<wails.GitHubPluginPr
 
 export function ProbeSyncServer(arg1:string):Promise<wails.SyncServerProbeDTO>;
 
-export function RejectSyncHeld(arg1:string):Promise<void>;
+export function RejectSyncHeld(arg1:string,arg2:string):Promise<void>;
 
 export function RelayPluginViewMessage(arg1:string,arg2:json.RawMessage):Promise<void>;
 
