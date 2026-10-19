@@ -39,14 +39,16 @@ func pagedSnapshot(f *fakeServer, pages map[string]func() syncwire.Snapshot) {
 	})
 }
 
-func fixed(s syncwire.Snapshot) func() syncwire.Snapshot { return func() syncwire.Snapshot { return s } }
+func fixed(s syncwire.Snapshot) func() syncwire.Snapshot {
+	return func() syncwire.Snapshot { return s }
+}
 
 // A snapshot arrives a page at a time; the client asks for each next page after the last record of
 // the one before and assembles one state.
 func TestSnapshotAssemblesItsPages(t *testing.T) {
 	f := newFake(t)
 	pagedSnapshot(f, map[string]func() syncwire.Snapshot{
-		"": fixed(syncwire.Snapshot{Head: snapHead(4), Records: []syncwire.Envelope{snapEnvelope(1), snapEnvelope(2)}, More: true}),
+		"":                              fixed(syncwire.Snapshot{Head: snapHead(4), Records: []syncwire.Envelope{snapEnvelope(1), snapEnvelope(2)}, More: true}),
 		syncwire.HexID(vaultsync.ID{2}): fixed(syncwire.Snapshot{Head: snapHead(4), Records: []syncwire.Envelope{snapEnvelope(3)}}),
 	})
 	snap, err := helloed(t, f).Snapshot(ctx, vaultsync.ID{1})
@@ -84,7 +86,7 @@ func TestSnapshotRefusesBrokenPaging(t *testing.T) {
 			"": fixed(syncwire.Snapshot{Head: snapHead(4), Records: []syncwire.Envelope{snapEnvelope(2), snapEnvelope(1)}}),
 		},
 		"repeated across pages": {
-			"": fixed(syncwire.Snapshot{Head: snapHead(4), Records: []syncwire.Envelope{snapEnvelope(1), snapEnvelope(2)}, More: true}),
+			"":                              fixed(syncwire.Snapshot{Head: snapHead(4), Records: []syncwire.Envelope{snapEnvelope(1), snapEnvelope(2)}, More: true}),
 			syncwire.HexID(vaultsync.ID{2}): fixed(syncwire.Snapshot{Head: snapHead(4), Records: []syncwire.Envelope{snapEnvelope(2)}}),
 		},
 		"empty page claiming more": {
