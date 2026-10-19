@@ -207,6 +207,10 @@ burst. Users behind one NAT share one address; raise both with
 `serve --rate-per-second N --burst N` if they report "Too many attempts". Sign-in attempts have
 their own backoff per username and address, independent of this limit.
 
+Across all clients the server serves 64 requests at once and asks the rest to retry a second
+later, so a crowd arriving together cannot exhaust its memory; raise it with
+`serve --max-requests N` on a large host. Open notification sockets do not count against it.
+
 ## Backups
 
 The data directory holds two things that must be backed up **differently**:

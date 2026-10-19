@@ -66,6 +66,26 @@ func (s *server) limit(next http.Handler) http.Handler {
 	})
 }
 
+// bound serves at most MaxConcurrent requests at once and answers the rest as rate limited, which a
+// client already waits out and retries. An event socket is left out: it stays open for as long as
+// its device listens, is capped per account by the use case, and would otherwise hold a slot each.
+func (s *server) bound(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/events" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		select {
+		case s.slots <- struct{}{}:
+			defer func() { <-s.slots }()
+			next.ServeHTTP(w, r)
+		default:
+			w.Header().Set("Retry-After", "1")
+			writeCode(w, http.StatusTooManyRequests, syncwire.CodeRateLimited)
+		}
+	})
+}
+
 // decode reads a strict JSON body; it writes the error response itself and reports whether the
 // handler may continue.
 func (s *server) decode(w http.ResponseWriter, r *http.Request, limit int64, v any) bool {

@@ -28,9 +28,17 @@ type rig struct {
 
 func newRig(t *testing.T) *rig {
 	t.Helper()
+	return newRigWith(t, func(*transport.Config) {})
+}
+
+// newRigWith is newRig with its transport configuration adjusted by tune.
+func newRigWith(t *testing.T, tune func(*transport.Config)) *rig {
+	t.Helper()
 	h := servertest.NewHarness(t, 0)
-	handler, err := transport.New(transport.Config{IdentitySeed: identitySeed, TLSPublicKey: []byte("spki"),
-		MaxBody: 64 << 10, RatePerSecond: 10_000, Burst: 10_000, EventPing: 20 * time.Millisecond}, h.Svc)
+	cfg := transport.Config{IdentitySeed: identitySeed, TLSPublicKey: []byte("spki"),
+		MaxBody: 64 << 10, RatePerSecond: 10_000, Burst: 10_000, EventPing: 20 * time.Millisecond}
+	tune(&cfg)
+	handler, err := transport.New(cfg, h.Svc)
 	if err != nil {
 		t.Fatal(err)
 	}
