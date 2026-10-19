@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"testing"
 
 	"xquakshell/internal/domain/vaultsync"
@@ -220,6 +221,43 @@ func TestLoginBackoffWithoutLockout(t *testing.T) {
 	h.Clock.Advance(1_000)
 	if _, _, _, err := h.Svc.LoginStart(ctx, "alice", "bad", []byte("k")); err != nil {
 		t.Fatalf("backoff did not expire after one second: %v", err)
+	}
+}
+
+// KE2 alone tells a client whether its guess was right, so a guesser never has to send KE3. Every
+// started login must count, or the backoff and the hourly budget never see a single guess.
+func TestLoginStartsWithoutFinishAreCharged(t *testing.T) {
+	h := servertest.NewHarness(t, 0)
+	h.Register("alice")
+	for i := 0; i < 3; i++ {
+		if _, _, _, err := h.Svc.LoginStart(ctx, "alice", "guesser", []byte("k")); err != nil {
+			t.Fatalf("start %d: %v", i, err)
+		}
+	}
+	if _, _, _, err := h.Svc.LoginStart(ctx, "alice", "guesser", []byte("k")); !isErr(err, usecase.ErrRateLimited) {
+		t.Fatalf("fourth KE1 with no KE3 from one address: %v, want ErrRateLimited", err)
+	}
+	for i := 0; i < 30; i++ {
+		_, _, _, _ = h.Svc.LoginStart(ctx, "alice", fmt.Sprintf("spray-%d", i), []byte("k"))
+	}
+	if _, _, _, err := h.Svc.LoginStart(ctx, "alice", "fresh", []byte("k")); !isErr(err, usecase.ErrRateLimited) {
+		t.Fatalf("KE1 sprayed from 30 addresses left the username's hourly budget untouched: %v", err)
+	}
+}
+
+// A login that verifies gives its charge back, so the owner signing in again and again from one
+// address is never slowed by their own successes.
+func TestVerifiedLoginsRefundTheirCharge(t *testing.T) {
+	h := servertest.NewHarness(t, 0)
+	u := h.Register("alice")
+	for i := 0; i < 40; i++ {
+		id, _, _, err := h.Svc.LoginStart(ctx, "alice", "home", []byte("k"))
+		if err != nil {
+			t.Fatalf("login %d of the owner from one address: %v", i, err)
+		}
+		if _, err := h.Svc.LoginFinish(ctx, id, "home", servertest.CorrectKE3([]byte("k"), u.Record)); err != nil {
+			t.Fatalf("login %d: %v", i, err)
+		}
 	}
 }
 

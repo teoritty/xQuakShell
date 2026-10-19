@@ -64,10 +64,16 @@ func (s *Service) fakeAccountID(username string) vaultsync.ID {
 
 // LoginStart answers KE1. Unknown and frozen usernames get a fake record, so the reply has the same
 // shape and the client fails the same way as on a wrong password.
+//
+// The attempt is charged to the limiter here, not when KE3 fails. KE2 is a guess oracle on its own:
+// a client recovers the envelope from it and learns whether the password was right before it sends
+// anything back, so a guesser that never sends KE3 would otherwise never be counted at all. Only a
+// login that finishes refunds its charge.
 func (s *Service) LoginStart(ctx context.Context, username, ip string, ke1 []byte) (string, vaultsync.ID, []byte, error) {
 	if wait := s.limits.check(username, ip, s.now()); wait > 0 {
 		return "", vaultsync.ID{}, nil, &RateLimitedError{RetryAfterMillis: wait}
 	}
+	s.limits.fail(username, ip, s.now())
 	var acct Account
 	var found bool
 	err := s.cfg.Store.WithTx(ctx, func(tx Tx) error {
@@ -108,14 +114,14 @@ type LoginResult struct {
 }
 
 // LoginFinish verifies KE3. Every failure - unknown login id, expired, unknown user, wrong password,
-// tampering - is the same ErrUnauthorized and charges the limiter.
+// tampering - is the same ErrUnauthorized and keeps the charge LoginStart made; only a verified
+// login refunds it.
 func (s *Service) LoginFinish(ctx context.Context, loginID, ip string, ke3 []byte) (LoginResult, error) {
 	pending, ok := s.logins.take(loginID, s.now())
 	if !ok || pending.ip != ip {
 		return LoginResult{}, ErrUnauthorized
 	}
 	if !pending.known || s.cfg.AKE.LoginFinish(ke3, pending.mac) != nil {
-		s.limits.fail(pending.username, ip, s.now())
 		return LoginResult{}, ErrUnauthorized
 	}
 	s.limits.succeed(pending.username, ip)
