@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"xquakshell/internal/domain/syncwire"
 	"xquakshell/internal/domain/vaultsync"
@@ -26,7 +27,11 @@ type Config struct {
 	// RatePerSecond and Burst bound requests per client address.
 	RatePerSecond float64
 	Burst         int
-	Logger        *slog.Logger
+	// EventPing is how often an open event socket is pinged and its token checked again; zero means
+	// 30 seconds. It bounds how long a socket outlives its token's expiry, the device's revocation or
+	// the account's freeze.
+	EventPing time.Duration
+	Logger    *slog.Logger
 }
 
 type server struct {
@@ -75,6 +80,9 @@ func withDefaults(cfg Config) Config {
 	}
 	if cfg.Burst == 0 {
 		cfg.Burst = 200
+	}
+	if cfg.EventPing == 0 {
+		cfg.EventPing = 30 * time.Second
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
