@@ -125,6 +125,7 @@ func parseServe(args []string) (serveConfig, string, error) {
 	key := fs.String("tls-key", "", "TLS key (default DIR/tls.key)")
 	personal := fs.Uint64("personal-quota-mib", 0, "ciphertext quota per personal vault in MiB (default 256)")
 	team := fs.Uint64("team-quota-mib", 0, "ciphertext quota per team vault in MiB (default 1024)")
+	records := fs.Int("max-records", 0, "records a vault may hold, deleted ones in the trash included (default 100000)")
 	rps := fs.Float64("rate-per-second", 0, "sustained requests per client address (default 20)")
 	burst := fs.Int("burst", 0, "requests a client address may make at once (default 200)")
 	initFirst := fs.Bool("init", false, "initialise DIR first when it is not initialised yet, as init --keep-existing does")
@@ -135,7 +136,7 @@ func parseServe(args []string) (serveConfig, string, error) {
 	}
 	return serveConfig{dir: *dir, certPath: orDefault(*cert, *dir, certFileName), keyPath: orDefault(*key, *dir, keyPEMName),
 		log: slog.New(slog.NewTextHandler(logOutput, nil)), personalQuota: *personal << 20, teamQuota: *team << 20,
-		ratePerSecond: *rps, burst: *burst, initFirst: *initFirst, initHosts: hosts}, *addr, nil
+		maxRecords: *records, ratePerSecond: *rps, burst: *burst, initFirst: *initFirst, initHosts: hosts}, *addr, nil
 }
 
 // initArgs is the init that serve --init runs. A container image has no shell to chain init and

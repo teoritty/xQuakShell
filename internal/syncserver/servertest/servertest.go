@@ -96,6 +96,13 @@ type Harness struct {
 // NewHarness opens a store in a temp dir; teamQuota 0 keeps the default.
 func NewHarness(t *testing.T, teamQuota uint64) *Harness {
 	t.Helper()
+	return NewHarnessWith(t, usecase.Config{TeamQuota: teamQuota})
+}
+
+// NewHarnessWith is NewHarness with the service's limits taken from limits; its store, clock and
+// password exchange are always the harness's own.
+func NewHarnessWith(t *testing.T, limits usecase.Config) *Harness {
+	t.Helper()
 	path := filepath.Join(t.TempDir(), "xqsyncd.db")
 	db, err := store.Open(Ctx, path)
 	if err != nil {
@@ -103,8 +110,9 @@ func NewHarness(t *testing.T, teamQuota uint64) *Harness {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	clock := &FakeClock{now: 1_000_000}
-	svc := usecase.New(usecase.Config{Store: db, Clock: clock, AKE: FakeAKE{}, Random: rand.Reader,
-		FakeAccountSecret: []byte("fake-secret"), TeamQuota: teamQuota})
+	cfg := limits
+	cfg.Store, cfg.Clock, cfg.AKE, cfg.Random, cfg.FakeAccountSecret = db, clock, FakeAKE{}, rand.Reader, []byte("fake-secret")
+	svc := usecase.New(cfg)
 	return &Harness{T: t, Svc: svc, DB: db, Clock: clock, DBPath: path}
 }
 

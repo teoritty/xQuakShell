@@ -40,10 +40,10 @@ func account(id byte, name string) usecase.Account {
 		IdentityKey: bytes.Repeat([]byte{1}, 32), EncryptionKey: bytes.Repeat([]byte{2}, 1216), Created: 5}
 }
 
-func TestOpenCreatesSchemaVersion1(t *testing.T) {
+func TestOpenCreatesSchemaVersion2(t *testing.T) {
 	db, path := openTemp(t)
-	if v, err := db.SchemaVersion(ctx); err != nil || v != 1 {
-		t.Fatalf("schema version = %d, %v; want 1", v, err)
+	if v, err := db.SchemaVersion(ctx); err != nil || v != 2 {
+		t.Fatalf("schema version = %d, %v; want 2", v, err)
 	}
 	_ = db.Close()
 	again, err := store.Open(ctx, path)
@@ -59,7 +59,7 @@ func TestRefusesNewerSchemaWithoutTouchingIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := raw.ExecContext(ctx, "CREATE TABLE future (x INTEGER); PRAGMA user_version = 2"); err != nil {
+	if _, err := raw.ExecContext(ctx, "CREATE TABLE future (x INTEGER); PRAGMA user_version = 3"); err != nil {
 		t.Fatal(err)
 	}
 	_ = raw.Close()

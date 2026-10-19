@@ -37,8 +37,13 @@ func (t *txn) InsertCommit(vault vaultsync.ID, seq uint64, c vaultsync.Commit, r
 			return err
 		}
 		e := &c.Records[i]
-		if err := t.exec("INSERT INTO record_versions (vault, record, version, seq, epoch, size, envelope) VALUES (?, ?, ?, ?, ?, ?, ?)",
-			vault[:], e.Record[:], e.Version, seq, e.Epoch, len(e.WrappedDEK)+len(e.Body), raw); err != nil {
+		digest, err := e.Digest()
+		if err != nil {
+			return err
+		}
+		if err := t.exec(`INSERT INTO record_versions (vault, record, version, seq, epoch, size, envelope, digest, deleted)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, vault[:], e.Record[:], e.Version, seq, e.Epoch, len(e.WrappedDEK)+len(e.Body), raw,
+			digest[:], e.Deleted); err != nil {
 			return err
 		}
 	}
@@ -133,6 +138,55 @@ func (t *txn) CurrentRecords(vault vaultsync.ID) ([]vaultsync.Envelope, error) {
 	return t.envelopes(`SELECT rv.envelope FROM record_versions rv
 		WHERE rv.vault = ? AND rv.version = (SELECT max(version) FROM record_versions WHERE vault = rv.vault AND record = rv.record)
 		ORDER BY rv.record`, vault[:])
+}
+
+// currentVersion selects, for a row aliased rv, only the latest version of its record.
+const currentVersion = `rv.version = (SELECT max(version) FROM record_versions WHERE vault = rv.vault AND record = rv.record)`
+
+// CurrentLeaves reads the Merkle leaf of every record's latest version from the stored columns,
+// without decoding or hashing a single envelope.
+func (t *txn) CurrentLeaves(vault vaultsync.ID) ([]vaultsync.Leaf, error) {
+	rows, err := t.tx.QueryContext(t.ctx, "SELECT rv.record, rv.version, rv.digest, rv.deleted FROM record_versions rv WHERE rv.vault = ? AND "+
+		currentVersion, vault[:])
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []vaultsync.Leaf
+	for rows.Next() {
+		var record, digest []byte
+		var l vaultsync.Leaf
+		if err := rows.Scan(&record, &l.Version, &digest, &l.Deleted); err != nil {
+			return nil, err
+		}
+		if len(record) != len(l.Record) || len(digest) != len(l.Digest) {
+			return nil, fmt.Errorf("store: stored leaf of %x is malformed", record)
+		}
+		copy(l.Record[:], record)
+		copy(l.Digest[:], digest)
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
+// EpochsInUse lists the epochs that seal a live current version. A tombstone carries no ciphertext
+// and holds no epoch.
+func (t *txn) EpochsInUse(vault vaultsync.ID) ([]uint32, error) {
+	rows, err := t.tx.QueryContext(t.ctx, "SELECT DISTINCT rv.epoch FROM record_versions rv WHERE rv.vault = ? AND rv.deleted = 0 AND "+
+		currentVersion, vault[:])
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []uint32
+	for rows.Next() {
+		var e uint32
+		if err := rows.Scan(&e); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
 }
 
 func (t *txn) envelopes(query string, args ...any) ([]vaultsync.Envelope, error) {

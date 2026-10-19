@@ -156,6 +156,10 @@ type Tx interface {
 	InsertCommit(vault vaultsync.ID, seq uint64, c vaultsync.Commit, received uint64) error
 	Commits(vault vaultsync.ID, since uint64, limit int) ([]StoredCommit, error)
 	CurrentRecords(vault vaultsync.ID) ([]vaultsync.Envelope, error)
+	// CurrentLeaves is the Merkle leaf of every record's latest version, read without the envelopes.
+	CurrentLeaves(vault vaultsync.ID) ([]vaultsync.Leaf, error)
+	// EpochsInUse lists the epochs that still seal a live current version.
+	EpochsInUse(vault vaultsync.ID) ([]uint32, error)
 	LatestHead(vault vaultsync.ID) (vaultsync.Head, bool, error)
 	RecordVersions(vault, record vaultsync.ID) ([]vaultsync.Envelope, error)
 	// VersionLanded reports when this server received the commit that carried a record's latest

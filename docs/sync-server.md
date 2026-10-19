@@ -195,9 +195,11 @@ cannot read an account's data, reset its password, or add anyone to its vaults; 
 
 ## Limits
 
-Each client address may make 20 requests a second (bursts of 40); the application waits when told
+Each client address may make 20 requests a second (bursts of 200); the application waits when told
 to. Each personal vault may hold 256 MiB of ciphertext and each team vault 1 GiB; change these with
-`serve --personal-quota-mib N --team-quota-mib N`.
+`serve --personal-quota-mib N --team-quota-mib N`. Every vault may also hold at most 100 000
+records, items in the trash included - verifying a commit costs time in proportion to the number of
+records, and the byte quotas alone do not bound that; change it with `serve --max-records N`.
 
 Requests are limited per client address: 20 a second sustained, 200 at once. A client's sync pass
 fetches the device log and membership of every vault it syncs, so a member of many teams needs the

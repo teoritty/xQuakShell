@@ -174,12 +174,34 @@ func (s *VaultState) applyPurges(purged []ID, records []Envelope) error {
 //
 // A nil head is a vault with no commits yet.
 func RestoreVaultState(vault ID, head *Head, records []Envelope) (*VaultState, error) {
+	if head != nil && head.Vault != vault {
+		return nil, fmt.Errorf("head of vault %s restored as %s: %w", head.Vault, vault, ErrChainBroken)
+	}
+	leaves := make([]Leaf, 0, len(records))
+	for i := range records {
+		if records[i].Vault != vault {
+			return nil, ErrRootMismatch
+		}
+		leaf, err := LeafOf(&records[i])
+		if err != nil {
+			return nil, err
+		}
+		leaves = append(leaves, leaf)
+	}
+	return RestoreVaultStateFromLeaves(vault, head, leaves)
+}
+
+// RestoreVaultStateFromLeaves is RestoreVaultState for a holder that kept each current version's
+// leaf rather than its envelope: the server, which would otherwise read and hash every ciphertext a
+// vault holds to verify each commit. The leaves must reproduce the head's Merkle root exactly, which
+// is what binds them to the envelopes they were derived from.
+func RestoreVaultStateFromLeaves(vault ID, head *Head, leaves []Leaf) (*VaultState, error) {
 	s, err := NewVaultState(vault)
 	if err != nil {
 		return nil, err
 	}
 	if head == nil {
-		if len(records) != 0 {
+		if len(leaves) != 0 {
 			return nil, ErrRootMismatch
 		}
 		return s, nil
@@ -187,12 +209,8 @@ func RestoreVaultState(vault ID, head *Head, records []Envelope) (*VaultState, e
 	if head.Vault != vault {
 		return nil, fmt.Errorf("head of vault %s restored as %s: %w", head.Vault, vault, ErrChainBroken)
 	}
-	for i := range records {
-		leaf, err := LeafOf(&records[i])
-		if err != nil {
-			return nil, err
-		}
-		if _, dup := s.leaves[leaf.Record]; dup || records[i].Vault != vault {
+	for _, leaf := range leaves {
+		if _, dup := s.leaves[leaf.Record]; dup {
 			return nil, ErrRootMismatch
 		}
 		s.leaves[leaf.Record] = leaf
@@ -208,3 +226,7 @@ func RestoreVaultState(vault ID, head *Head, records []Envelope) (*VaultState, e
 	s.cursor = ChainCursor{Seq: head.Seq, Hash: hash, MembershipSeq: head.MembershipSeq}
 	return s, nil
 }
+
+// Len counts the records the state holds, tombstones included: what a per-vault record limit
+// is kept against.
+func (s *VaultState) Len() int { return len(s.leaves) }

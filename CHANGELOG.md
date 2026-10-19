@@ -29,7 +29,7 @@ fixes, including security fixes, ship in a new release rather than as patches to
 | Sync crypto suite | 1 (new) |
 | Sync record schemas | 1 for every record type (new) |
 | Sync state schema (`data/sync/state.db`) | 1 (new) |
-| Server store schema (`xqsyncd.db`) | 1 (new) |
+| Server store schema (`xqsyncd.db`) | 2 (new; a database from a pre-release build at 1 is copied aside as `xqsyncd.db.v1.bak` and migrated on first start) |
 
 ### BREAKING
 

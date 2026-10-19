@@ -44,9 +44,12 @@ func (s *Service) Commit(ctx context.Context, p Principal, vault vaultsync.ID, e
 		if err != nil {
 			return err
 		}
-		m, err := verifyCommit(tx, vault, c)
+		m, next, err := verifyCommit(tx, vault, c)
 		if err != nil {
 			return err
+		}
+		if next.Len() > s.cfg.MaxRecords {
+			return fmt.Errorf("%w: %d records, the limit is %d", ErrQuotaExceeded, next.Len(), s.cfg.MaxRecords)
 		}
 		if err := checkPurgesDue(tx, vault, m, c.Purged, s.now()); err != nil {
 			return err
@@ -88,19 +91,20 @@ func (s *Service) checkQuota(v Vault, records []vaultsync.Envelope) (uint64, err
 // verifyCommit runs the shared commit rules against the stored state and the current membership.
 // Clients run the same rules; the server runs them so a hostile client cannot plant a commit every
 // other member would then have to refuse.
-func verifyCommit(tx Tx, vault vaultsync.ID, c vaultsync.Commit) (*vaultsync.MembershipState, error) {
+func verifyCommit(tx Tx, vault vaultsync.ID, c vaultsync.Commit) (*vaultsync.MembershipState, *vaultsync.VaultState, error) {
 	m, err := replayMembership(tx, vault)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	state, err := currentState(tx, vault)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if _, err := state.ApplyCommit(c, m, deviceResolver(tx)); err != nil {
-		return nil, refusal(err)
+	next, err := state.ApplyCommit(c, m, deviceResolver(tx))
+	if err != nil {
+		return nil, nil, refusal(err)
 	}
-	return m, nil
+	return m, next, nil
 }
 
 // checkPurgesDue holds every purge to the vault's trash window, counted on this server's clock from
@@ -130,19 +134,22 @@ func checkPurgesDue(tx Tx, vault vaultsync.ID, m *vaultsync.MembershipState, pur
 	return nil
 }
 
+// currentState rebuilds the vault's verified state from the stored leaves. Rebuilding it from the
+// envelopes read and hashed every ciphertext the vault held, on every commit - a vault filled to its
+// quota made each small commit cost a gigabyte of reading inside the one write transaction.
 func currentState(tx Tx, vault vaultsync.ID) (*vaultsync.VaultState, error) {
 	head, ok, err := tx.LatestHead(vault)
 	if err != nil {
 		return nil, err
 	}
-	records, err := tx.CurrentRecords(vault)
+	leaves, err := tx.CurrentLeaves(vault)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
-		return vaultsync.RestoreVaultState(vault, nil, records)
+		return vaultsync.RestoreVaultStateFromLeaves(vault, nil, leaves)
 	}
-	return vaultsync.RestoreVaultState(vault, &head, records)
+	return vaultsync.RestoreVaultStateFromLeaves(vault, &head, leaves)
 }
 
 // Changes returns up to limit whole commits after since, and whether more follow.

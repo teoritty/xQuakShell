@@ -149,6 +149,20 @@ func TestQuota(t *testing.T) {
 	}
 }
 
+// The record limit counts what the vault holds after the commit, tombstones included: a deletion
+// frees nothing until it is purged, and a new version of a record already there takes no new slot.
+func TestRecordLimit(t *testing.T) {
+	h := servertest.NewHarnessWith(t, usecase.Config{MaxRecords: 2})
+	alice := h.Register("alice")
+	cv := h.NewTeamVault(alice)
+	cv.Accept(alice, cv.Commit(alice, cv.Record(alice, 1), cv.Record(alice, 2)))
+	cv.Accept(alice, cv.Commit(alice, cv.Record(alice, 1)))
+	cv.Accept(alice, cv.Commit(alice, cv.Tombstone(alice, 2)))
+	if _, err := cv.Push(alice, cv.Commit(alice, cv.Record(alice, 3))); !isErr(err, usecase.ErrQuotaExceeded) {
+		t.Fatalf("a third record with the limit at two: %v, want ErrQuotaExceeded", err)
+	}
+}
+
 func TestPersonalVaultCommit(t *testing.T) {
 	h := servertest.NewHarness(t, 0)
 	alice := h.Register("alice")

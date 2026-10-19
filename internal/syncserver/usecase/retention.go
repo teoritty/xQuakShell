@@ -99,15 +99,13 @@ func (s *Service) pruneVault(tx Tx, vault vaultsync.ID, m *vaultsync.MembershipS
 // retiredEpochs lists the epochs no live current version uses whose time has come. A tombstone
 // carries no ciphertext, so it holds no epoch in use.
 func retiredEpochs(tx Tx, vault vaultsync.ID, m *vaultsync.MembershipState, now uint64) ([]uint32, error) {
-	current, err := tx.CurrentRecords(vault)
+	epochs, err := tx.EpochsInUse(vault)
 	if err != nil {
 		return nil, err
 	}
 	inUse := map[uint32]bool{}
-	for _, e := range current {
-		if !e.Deleted {
-			inUse[e.Epoch] = true
-		}
+	for _, e := range epochs {
+		inUse[e] = true
 	}
 	used := func(e uint32) bool { return inUse[e] }
 	return vaultsync.RetiredEpochs(m.Rotations(), used, m.RetentionDays(), now), nil

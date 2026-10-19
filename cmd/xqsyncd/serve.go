@@ -40,6 +40,8 @@ type serveConfig struct {
 	// personalQuota and teamQuota bound a vault's ciphertext; zero keeps the use case's default.
 	personalQuota uint64
 	teamQuota     uint64
+	// maxRecords bounds the records a vault holds; zero keeps the use case's default.
+	maxRecords int
 	// ratePerSecond and burst bound requests per client address; zero keeps the transport's default.
 	ratePerSecond float64
 	burst         int
@@ -68,7 +70,7 @@ func openService(ctx context.Context, cfg serveConfig, k *keyFile) (*usecase.Ser
 		return nil, nil, fmt.Errorf("xqsyncd: OPAQUE key material: %w", err)
 	}
 	svc := usecase.New(usecase.Config{Store: db, Clock: systemClock{}, AKE: ake, Random: defaultRand, FakeAccountSecret: k.FakeAccountSecret,
-		PersonalQuota: cfg.personalQuota, TeamQuota: cfg.teamQuota})
+		PersonalQuota: cfg.personalQuota, TeamQuota: cfg.teamQuota, MaxRecords: cfg.maxRecords})
 	return svc, db, nil
 }
 
