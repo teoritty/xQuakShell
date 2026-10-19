@@ -67,6 +67,10 @@ func (e *SyncEngine) CreateTeam(ctx context.Context, name string, random io.Read
 	if err := e.d.Server.CreateVault(ctx, op); err != nil {
 		return vaultsync.ID{}, err
 	}
+	// Its creator joins a team by creating it; recorded before anything syncs it in.
+	if err := e.recordTeams(ctx, vault); err != nil {
+		return vaultsync.ID{}, err
+	}
 	return vault, e.ensureVaultMeta(ctx, vault, random, name)
 }
 

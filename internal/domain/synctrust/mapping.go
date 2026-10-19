@@ -50,6 +50,7 @@ var mappers = map[RecordType]mapper{
 	TypePeerTrust:         peerTrustMapper,
 	TypeConflict:          conflictMapper,
 	TypeContact:           contactMapper,
+	TypeTeam:              teamMapper,
 	TypeCredentialBinding: bindingMapper,
 	TypePluginInstall:     pluginInstallMapper,
 	TypePluginData:        pluginDataMapper,

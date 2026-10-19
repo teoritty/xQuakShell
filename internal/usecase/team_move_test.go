@@ -121,7 +121,7 @@ func TestMovingAConnectionOutOfATeamTakesTheBindingBack(t *testing.T) {
 func TestMovingBetweenTeamsKeepsTheBindingWithTheConnection(t *testing.T) {
 	w, cv, _ := boundTeamConnection(t)
 	dave := w.h.Register("dave")
-	ov := w.h.NewTeamVault(dave, servertest.Member{User: w.a, Role: vaultsync.RoleEditor})
+	ov := w.joinedTeam(dave, servertest.Member{User: w.a, Role: vaultsync.RoleEditor})
 	ov.Users[w.a.Account] = w.b
 	ov.Accept(w.b, ov.Commit(w.b, w.teamMeta(ov)))
 	if _, err := w.engine.Sync(syncCtx, ov.ID); err != nil {
@@ -202,7 +202,7 @@ func TestMovingNeedsAConnectionAndAVaultItMayWrite(t *testing.T) {
 func TestAViewerCannotMoveConnectionsInOrOut(t *testing.T) {
 	w := newSyncWorld(t)
 	bob := w.h.Register("bob")
-	cv := w.h.NewTeamVault(bob, servertest.Member{User: w.a, Role: vaultsync.RoleViewer})
+	cv := w.joinedTeam(bob, servertest.Member{User: w.a, Role: vaultsync.RoleViewer})
 	cv.Users[w.a.Account] = w.b
 	cv.Users[bob.Account] = bob
 	meta := w.teamMeta(cv)

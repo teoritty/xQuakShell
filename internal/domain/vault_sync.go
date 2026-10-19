@@ -19,6 +19,10 @@ type VaultSync struct {
 	Contacts []SyncContact `json:"contacts,omitempty"`
 	// Bindings tie team connection users to this user's own credentials (spec §6.7).
 	Bindings []CredentialBinding `json:"bindings,omitempty"`
+	// Teams are the team vaults this user chose to join, synced to every device of theirs. The server
+	// decides which vaults list this account, and anyone on it can add a member; only a vault the
+	// person accepted here is synced into the vault they work in.
+	Teams []SyncTeam `json:"teams,omitempty"`
 	// Plugins are the plugins installed on the user's devices, by reference (spec §6.4).
 	Plugins []SyncPlugin `json:"plugins,omitempty"`
 	// PluginFiles mirror the data files plugins declared for sync (spec §6.5). The vault is the
@@ -98,6 +102,11 @@ type SyncConflict struct {
 	AtUnixMilli int64           `json:"at"`
 	// VaultID is the team vault of the item in conflict; empty is the personal vault.
 	VaultID string `json:"vaultId,omitempty"`
+}
+
+// SyncTeam is a team vault the user joined; Vault is its id in hex.
+type SyncTeam struct {
+	Vault string `json:"vault"`
 }
 
 // SyncContact is one account whose genesis identity key this user trusts. Verified is set when the

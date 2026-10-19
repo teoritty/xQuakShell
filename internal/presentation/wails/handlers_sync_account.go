@@ -210,6 +210,8 @@ var syncMessages = []struct {
 	{usecase.ErrInviteKeyChanged, "That account's key is not the one you compared. Look it up again and compare the new fingerprint."},
 	{usecase.ErrContactMismatch, "That account's key changed since you verified it. Compare its new fingerprint before sharing anything with it."},
 	{usecase.ErrNotATeam, "The personal vault has no members."},
+	{usecase.ErrTeamNotJoined, "You have not joined that team. Accept its invitation on the Teams page first."},
+	{usecase.ErrNoInvitation, "That invitation is no longer open."},
 	{usecase.ErrBindingTarget, "Choose a key or password from your own vault."},
 	{domain.ErrConnectionNotFound, "That connection no longer exists."},
 	{domain.ErrFolderNotFound, "That folder no longer exists."},

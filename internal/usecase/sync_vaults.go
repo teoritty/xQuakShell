@@ -19,23 +19,23 @@ func (e *SyncEngine) scopeOf(vault vaultsync.ID) synctrust.Scope {
 	return synctrust.Scope{Vault: vault.String()}
 }
 
-// Vaults lists the vaults to sync, the personal vault first. A team vault this device holds items
-// of that the server no longer lists is checked once more: when its membership answers not found,
-// the account was removed or the vault deleted, and the local copy of its items is dropped (spec
-// §5.9). The server can withhold a vault - it can withhold everything - but nothing here lets it
-// change what a vault holds.
+// Vaults lists the vaults to sync: the personal vault first, then the team vaults this account
+// joined. A listed team not joined is an invitation, left for the person to answer (Invitations). A
+// team vault this device holds items of that the server no longer lists is checked once more: when
+// its membership answers not found, the account was removed or the vault deleted, and the local copy
+// of its items is dropped (spec §5.9). The server can withhold a vault - it can withhold everything -
+// but nothing here lets it change what a vault holds, or add one.
 func (e *SyncEngine) Vaults(ctx context.Context) ([]vaultsync.ID, error) {
 	personal := synctrust.PersonalVaultID(e.d.Keys.Account())
 	listed, err := e.d.Server.Vaults(ctx)
 	if err != nil {
 		return []vaultsync.ID{personal}, err
 	}
-	out := []vaultsync.ID{personal}
-	for _, v := range listed {
-		if v.Vault != personal && !slices.Contains(out, v.Vault) {
-			out = append(out, v.Vault)
-		}
+	joined, _, err := e.joinedTeams(ctx, listed)
+	if err != nil {
+		return []vaultsync.ID{personal}, err
 	}
+	out := append([]vaultsync.ID{personal}, joined...)
 	return out, e.dropLeftVaults(ctx, out)
 }
 
@@ -88,10 +88,15 @@ func localTeamVaults(d *domain.VaultData) []vaultsync.ID {
 	return out
 }
 
-// forgetTeam removes a team's items from the local vault and its state from state.db.
+// forgetTeam removes a team's items from the local vault and its state from state.db, and the
+// record that this account joined it, so the account's other devices drop it too and a later
+// invitation to it is asked about again.
 func (e *SyncEngine) forgetTeam(ctx context.Context, vault vaultsync.ID) error {
 	v := vault.String()
 	err := e.d.Vault.UpdateData(ctx, func(d *domain.VaultData) error {
+		if d.Sync != nil {
+			d.Sync.Teams = slices.DeleteFunc(d.Sync.Teams, func(t domain.SyncTeam) bool { return t.Vault == v })
+		}
 		d.Folders = slices.DeleteFunc(d.Folders, func(f domain.ConnectionFolder) bool { return f.VaultID == v })
 		d.Connections = slices.DeleteFunc(d.Connections, func(c domain.Connection) bool { return c.VaultID == v })
 		for id, i := range d.Identities {

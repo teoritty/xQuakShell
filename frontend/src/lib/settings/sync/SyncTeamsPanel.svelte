@@ -6,6 +6,7 @@
   // The contact code carries it in a form the admin pastes rather than reads, so the application
   // makes the comparison.
   import SyncTeamDetail from './SyncTeamDetail.svelte';
+  import SyncTeamInvitations from './SyncTeamInvitations.svelte';
   import { listTeamsRpc, type Team } from '../../../api/team';
   import { createTeam } from '../../../actions/teamActions';
   import { errorMessage } from '../../../actions/syncActions';
@@ -90,6 +91,8 @@
   </div>
   <p class="sync-error" role="alert">{error}</p>
 </div>
+
+<SyncTeamInvitations on:changed={load} />
 
 {#if selected}
   <SyncTeamDetail team={selected} on:changed={load} />

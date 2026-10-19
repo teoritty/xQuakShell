@@ -21,6 +21,9 @@ type fakeTeams struct {
 	moved   usecase.MoveConnectionRequest
 	// writable is what CanWriteTeam answers.
 	writable bool
+	// answered is the vault the last accept or decline named, and accepted which of the two it was.
+	answered vaultsync.ID
+	accepted bool
 }
 
 func (f *fakeTeams) Teams(context.Context) ([]usecase.TeamInfo, error) {
@@ -58,6 +61,18 @@ func (f *fakeTeams) MoveConnection(_ context.Context, r usecase.MoveConnectionRe
 }
 func (f *fakeTeams) CanWriteTeam(context.Context, vaultsync.ID) (bool, error) {
 	return f.writable, f.err
+}
+func (f *fakeTeams) Invitations(context.Context) ([]usecase.Invitation, error) {
+	return []usecase.Invitation{{Vault: vaultsync.ID{3}, Name: "Ops", Role: vaultsync.RoleEditor, Inviter: vaultsync.ID{4},
+		InviterFingerprint: "33333 44444", InviterUsername: "bob", InviterKnown: true}}, f.err
+}
+func (f *fakeTeams) AcceptTeam(_ context.Context, v vaultsync.ID) error {
+	f.answered, f.accepted = v, true
+	return f.err
+}
+func (f *fakeTeams) DeclineTeam(_ context.Context, v vaultsync.ID) error {
+	f.answered, f.accepted = v, false
+	return f.err
 }
 
 type fakeBindings struct {
@@ -210,5 +225,32 @@ func TestTeamHandlersWithoutSync(t *testing.T) {
 	}
 	if err := a.InviteToTeam(TeamInviteRequest{}); !errors.Is(err, errSyncUnavailable) {
 		t.Fatalf("invite: %v", err)
+	}
+}
+
+func TestTeamInvitationsMapAndValidate(t *testing.T) {
+	a, f, _ := teamAPI()
+	invs, err := a.ListTeamInvitations()
+	if err != nil || len(invs) != 1 {
+		t.Fatalf("invitations = %+v, %v", invs, err)
+	}
+	want := TeamInvitationDTO{Vault: vaultsync.ID{3}.String(), Name: "Ops", Role: "editor",
+		Inviter: vaultsync.ID{4}.String(), InviterFingerprint: "33333 44444", InviterUsername: "bob", InviterKnown: true}
+	if invs[0] != want {
+		t.Fatalf("invitation = %+v, want %+v", invs[0], want)
+	}
+	if err := a.AcceptTeamInvitation("not-hex"); !errors.Is(err, errInvalidSyncRequest) {
+		t.Fatalf("accepting a malformed id: %v, want errInvalidSyncRequest", err)
+	}
+	if err := a.AcceptTeamInvitation(want.Vault); err != nil || f.answered != (vaultsync.ID{3}) || !f.accepted {
+		t.Fatalf("accept = %v; answered %v accepted %v", err, f.answered, f.accepted)
+	}
+	if err := a.DeclineTeamInvitation(want.Vault); err != nil || f.accepted {
+		t.Fatalf("decline = %v; accepted %v", err, f.accepted)
+	}
+	f.err = usecase.ErrNoInvitation
+	err = a.AcceptTeamInvitation(want.Vault)
+	if err == nil || strings.Contains(err.Error(), "sync:") {
+		t.Fatalf("a closed invitation's error = %v; want the user-facing message", err)
 	}
 }

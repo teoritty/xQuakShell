@@ -3,6 +3,8 @@
 import {wails} from '../models';
 import {json} from '../models';
 
+export function AcceptTeamInvitation(arg1:string):Promise<void>;
+
 export function AcknowledgeRecoveryKey():Promise<void>;
 
 export function AcknowledgeSyncDevices(arg1:Array<string>):Promise<void>;
@@ -60,6 +62,8 @@ export function CreateLocalFile(arg1:string):Promise<void>;
 export function CreateTeam(arg1:string):Promise<string>;
 
 export function CreateVault(arg1:string):Promise<wails.RecoveryKeyDTO>;
+
+export function DeclineTeamInvitation(arg1:string):Promise<void>;
 
 export function DeleteAuditEntry(arg1:number):Promise<void>;
 
@@ -210,6 +214,8 @@ export function ListSyncPluginData():Promise<Array<wails.SyncPluginDataDTO>>;
 export function ListSyncPluginOffers():Promise<Array<wails.SyncPluginOfferDTO>>;
 
 export function ListSyncTrash():Promise<Array<wails.SyncTrashItemDTO>>;
+
+export function ListTeamInvitations():Promise<Array<wails.TeamInvitationDTO>>;
 
 export function ListTeamMembers(arg1:string):Promise<Array<wails.TeamMemberDTO>>;
 

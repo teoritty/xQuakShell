@@ -62,7 +62,10 @@ viewer role. Nobody has to read the fingerprint aloud: each person copies their 
 (`xqs-member:name#fp=…`) from the Teams page and sends it in a chat or a mail, and pasting it into
 the invite field — or into a member's row, to verify an existing member — makes the application
 compare it with the key the server gives for that account. A code that does not match leaves
-nothing to invite. Credentials are not shared: each member binds their own key or password to
+nothing to invite. Being invited is not joining: the invited person sees the invitation on their
+Teams page with the inviter's fingerprint, and nothing from the team reaches their connections
+until they accept it; declining leaves the team. A team accepted on one device is joined on all of
+them. Credentials are not shared: each member binds their own key or password to
 a team connection, and a member who changes a shared connection's address suspends everyone
 else's binding to it until they confirm. Removing a member moves the team to new keys, so nothing
 written afterwards opens for them. Each team appears in the connection tree under its own row,

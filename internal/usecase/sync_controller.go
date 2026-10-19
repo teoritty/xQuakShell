@@ -61,6 +61,7 @@ type SyncController struct {
 	knownVaults []vaultsync.ID
 	joining     []vaultsync.ID
 	teams       map[vaultsync.ID]cachedTeam
+	invites     []Invitation
 	pendingJoin *SyncSession
 
 	op sync.Mutex
@@ -152,7 +153,7 @@ func (c *SyncController) Stop() {
 	sched := c.sched
 	c.engine, c.sched, c.session = nil, nil, SyncSession{}
 	// A new session starts from its own reports: a stop reason of the old keys must not outlive them.
-	c.perVault, c.membership, c.knownVaults, c.joining, c.teams, c.last = nil, nil, nil, nil, nil, SyncStatus{}
+	c.perVault, c.membership, c.knownVaults, c.joining, c.teams, c.invites, c.last = nil, nil, nil, nil, nil, nil, SyncStatus{}
 	c.mu.Unlock()
 	if sched != nil {
 		sched.Stop()

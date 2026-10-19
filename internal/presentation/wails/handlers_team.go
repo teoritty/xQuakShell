@@ -24,6 +24,9 @@ type TeamCommands interface {
 	SetTeamPolicy(ctx context.Context, vault vaultsync.ID, retentionDays uint16, requireVerified bool) error
 	MoveConnection(ctx context.Context, req usecase.MoveConnectionRequest) (string, error)
 	CanWriteTeam(ctx context.Context, vault vaultsync.ID) (bool, error)
+	Invitations(ctx context.Context) ([]usecase.Invitation, error)
+	AcceptTeam(ctx context.Context, vault vaultsync.ID) error
+	DeclineTeam(ctx context.Context, vault vaultsync.ID) error
 }
 
 // BindingCommands manages this member's credential bindings to team connections.

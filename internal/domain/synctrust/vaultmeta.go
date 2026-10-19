@@ -70,7 +70,8 @@ type KeyRing interface {
 	// CurrentKeys are the public keys of the seeds this device holds. They must be the keys the
 	// replayed device log ends with; otherwise another device rotated them.
 	CurrentKeys() (identity, encryption []byte)
-	// VaultKey unwraps the key of one vault epoch from that vault's membership log.
+	// VaultKey unwraps the key of one vault epoch from that vault's membership log. Each call returns
+	// a fresh copy the caller owns and clears once done with it.
 	VaultKey(vault vaultsync.ID, epoch uint32, ops []vaultsync.MemberOp) ([]byte, error)
 	// Sign signs with this device's signing key.
 	Sign(msg []byte) ([]byte, error)

@@ -48,10 +48,21 @@ func (w *syncWorld) teamMeta(cv *servertest.ClientVault) vaultsync.Envelope {
 	return w.sealIn(cv, synctrust.VaultMetaID(cv.ID), body)
 }
 
+// joinedTeam creates a team vault owned by owner with the given members, the engine's account among
+// them, and has the engine accept the invitation, as the person would before the team syncs in.
+func (w *syncWorld) joinedTeam(owner *servertest.User, members ...servertest.Member) *servertest.ClientVault {
+	w.t.Helper()
+	cv := w.h.NewTeamVault(owner, members...)
+	if err := w.engine.AcceptTeam(syncCtx, cv.ID); err != nil {
+		w.t.Fatalf("accept the invitation to %s: %v", cv.ID, err)
+	}
+	return cv
+}
+
 // teamOf creates a team vault owned by owner with the engine's account as an editor, and records
 // device B as a writer in it.
 func (w *syncWorld) teamOf(owner *servertest.User) *servertest.ClientVault {
-	cv := w.h.NewTeamVault(owner, servertest.Member{User: w.a, Role: vaultsync.RoleEditor})
+	cv := w.joinedTeam(owner, servertest.Member{User: w.a, Role: vaultsync.RoleEditor})
 	cv.Users[w.a.Account] = w.b
 	return cv
 }
@@ -144,7 +155,7 @@ func impostor(w *syncWorld, victim vaultsync.ID, as *servertest.User) {
 func TestASubstitutedMembersKeyIsRefused(t *testing.T) {
 	w := newSyncWorld(t)
 	bob, carol, mallory := w.h.Register("bob"), w.h.Register("carol"), w.h.Register("mallory")
-	cv := w.h.NewTeamVault(bob, servertest.Member{User: w.a, Role: vaultsync.RoleEditor}, servertest.Member{User: carol, Role: vaultsync.RoleEditor})
+	cv := w.joinedTeam(bob, servertest.Member{User: w.a, Role: vaultsync.RoleEditor}, servertest.Member{User: carol, Role: vaultsync.RoleEditor})
 	cv.Users[w.a.Account] = w.b
 	cv.Accept(w.b, cv.Commit(w.b, w.teamMeta(cv)))
 	// A commit by carol makes the engine resolve her device through her own log.
@@ -211,7 +222,7 @@ func TestAForgedCreatorLogIsHeldToTheContact(t *testing.T) {
 func TestAMembersLogEndingInAnUnfinishedRevocationIsRefused(t *testing.T) {
 	w := newSyncWorld(t)
 	bob, carol := w.h.Register("bob"), w.h.Register("carol")
-	cv := w.h.NewTeamVault(bob, servertest.Member{User: w.a, Role: vaultsync.RoleEditor}, servertest.Member{User: carol, Role: vaultsync.RoleEditor})
+	cv := w.joinedTeam(bob, servertest.Member{User: w.a, Role: vaultsync.RoleEditor}, servertest.Member{User: carol, Role: vaultsync.RoleEditor})
 	cv.Users[w.a.Account] = w.b
 	cv.Accept(w.b, cv.Commit(w.b, w.teamMeta(cv)))
 	cv.Accept(carol, cv.Commit(carol, cv.Record(carol, 9)))
@@ -259,7 +270,7 @@ func TestLeavingATeamDropsItAndLeavesTheRotationOwed(t *testing.T) {
 func TestAnEditorLeavesTeamUpkeepToTheAdmins(t *testing.T) {
 	w := newSyncWorld(t)
 	bob, carol := w.h.Register("bob"), w.h.Register("carol")
-	cv := w.h.NewTeamVault(bob, servertest.Member{User: w.a, Role: vaultsync.RoleEditor}, servertest.Member{User: carol, Role: vaultsync.RoleEditor})
+	cv := w.joinedTeam(bob, servertest.Member{User: w.a, Role: vaultsync.RoleEditor}, servertest.Member{User: carol, Role: vaultsync.RoleEditor})
 	cv.Users[w.a.Account] = w.b
 	cv.Accept(w.b, cv.Commit(w.b, w.teamMeta(cv)))
 	succeed(t, w.h, carol, secondDevice(t, w.h, carol))
@@ -318,7 +329,7 @@ func boundTeamConnection(t *testing.T) (*syncWorld, *servertest.ClientVault, *se
 	t.Helper()
 	w := newSyncWorld(t)
 	bob, carol := w.h.Register("bob"), w.h.Register("carol")
-	cv := w.h.NewTeamVault(bob, servertest.Member{User: w.a, Role: vaultsync.RoleEditor}, servertest.Member{User: carol, Role: vaultsync.RoleEditor})
+	cv := w.joinedTeam(bob, servertest.Member{User: w.a, Role: vaultsync.RoleEditor}, servertest.Member{User: carol, Role: vaultsync.RoleEditor})
 	cv.Users[w.a.Account] = w.b
 	conn := domain.Connection{ID: "tc", Name: "db", Host: "db.example", Port: 22,
 		Users: []domain.ConnectionUser{{ID: "u1", Username: "deploy", Auth: domain.AuthMethodKey, CredentialSource: domain.CredentialSourcePersonal}}}
@@ -385,7 +396,7 @@ func TestAnotherMemberRenamingAConnectionLeavesMyBinding(t *testing.T) {
 func TestAViewersLocalEditsArePutBack(t *testing.T) {
 	w := newSyncWorld(t)
 	bob := w.h.Register("bob")
-	cv := w.h.NewTeamVault(bob, servertest.Member{User: w.a, Role: vaultsync.RoleViewer})
+	cv := w.joinedTeam(bob, servertest.Member{User: w.a, Role: vaultsync.RoleViewer})
 	cv.Users[w.a.Account] = w.b
 	cv.Users[bob.Account] = bob
 	meta := w.teamMeta(cv)
@@ -432,7 +443,7 @@ func TestAViewersLocalEditsArePutBack(t *testing.T) {
 func TestAWithheldMembershipOpIsDetected(t *testing.T) {
 	w := newSyncWorld(t)
 	bob, carol := w.h.Register("bob"), w.h.Register("carol")
-	cv := w.h.NewTeamVault(bob, servertest.Member{User: w.a, Role: vaultsync.RoleEditor}, servertest.Member{User: carol, Role: vaultsync.RoleEditor})
+	cv := w.joinedTeam(bob, servertest.Member{User: w.a, Role: vaultsync.RoleEditor}, servertest.Member{User: carol, Role: vaultsync.RoleEditor})
 	cv.Users[w.a.Account] = w.b
 	if err := cv.AppendOps(bob, vaultsync.MemberOp{Kind: vaultsync.MemberRemove, Subject: carol.Account},
 		vaultsync.MemberOp{Kind: vaultsync.MemberRotateEpoch, Epoch: 1, Wraps: servertest.WrapFor(bob.Account, w.a.Account)}); err != nil {

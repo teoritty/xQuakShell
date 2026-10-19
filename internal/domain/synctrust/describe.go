@@ -15,7 +15,7 @@ import (
 // act on one in the trash, and would only be confused to find a resolved conflict there.
 func Internal(t RecordType) bool {
 	switch t {
-	case TypeVaultMeta, TypeConflict, TypeContact, TypeCredentialBinding:
+	case TypeVaultMeta, TypeConflict, TypeContact, TypeCredentialBinding, TypeTeam:
 		return true
 	}
 	return false

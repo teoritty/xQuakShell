@@ -32,6 +32,10 @@ func TestKeyChangesElsewhereAreNotReportedAsTampering(t *testing.T) {
 	if err := a.syncVault(team); err != nil {
 		t.Fatal(err)
 	}
+	// B learns its account joined the team from the personal vault, which every round syncs first:
+	// A's round pushes the join, B's pulls it.
+	a.sync()
+	b.sync()
 	if err := b.syncVault(team); err != nil {
 		t.Fatalf("B reads its own account's team: %v", err)
 	}

@@ -314,6 +314,24 @@ var contactMapper = sliceMapper(
 	},
 )
 
+// teamMapper syncs which team vaults this user joined, so a team accepted on one device is joined on
+// every other one rather than offered again.
+var teamMapper = sliceMapper(
+	func(d *domain.VaultData) *[]domain.SyncTeam {
+		if d.Sync == nil {
+			d.Sync = &domain.VaultSync{}
+		}
+		return &d.Sync.Teams
+	},
+	func(t domain.SyncTeam) string { return t.Vault },
+	func(t *domain.SyncTeam) error {
+		if _, err := vaultsync.ParseID(t.Vault); err != nil {
+			return fmt.Errorf("a joined team names no vault")
+		}
+		return nil
+	},
+)
+
 // bindingMapper syncs this member's credential bindings. A binding names exactly one credential.
 var bindingMapper = sliceMapper(
 	func(d *domain.VaultData) *[]domain.CredentialBinding {

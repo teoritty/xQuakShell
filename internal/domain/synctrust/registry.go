@@ -34,6 +34,8 @@ const (
 	TypePeerTrust    RecordType = "peer-trust"
 	TypeConflict     RecordType = "conflict"
 	TypeContact      RecordType = "contact"
+	// TypeTeam is a team vault the user joined. Only joined teams sync into the local vault.
+	TypeTeam RecordType = "team"
 	// TypeCredentialBinding ties a team connection user to this member's own credential.
 	TypeCredentialBinding RecordType = "credential-binding" // #nosec G101 -- a record type name, not a credential
 	// TypePluginInstall is a plugin installed on one of the user's devices, by reference.
@@ -59,6 +61,7 @@ func SettingsType(section string) RecordType { return RecordType(settingsPrefix 
 var schemaV1 = []RecordType{
 	TypeVaultMeta, TypeFolder, TypeConnection, TypeIdentity, TypePassword, TypePluginSecret,
 	TypeKnownHost, TypePeerTrust, TypeConflict, TypeContact, TypeCredentialBinding, TypePluginInstall, TypePluginData,
+	TypeTeam,
 }
 
 // KnownSchemas is the registry vaultsync.RecordAccess consults.

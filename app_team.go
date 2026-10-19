@@ -62,3 +62,12 @@ func (a *App) ConfirmCredentialBinding(vault, connection, user string) error {
 func (a *App) MoveConnectionToVault(connection, vault, folder string) (string, error) {
 	return a.api.MoveConnectionToVault(connection, vault, folder)
 }
+
+// ListTeamInvitations lists the teams waiting for this person to accept or decline.
+func (a *App) ListTeamInvitations() ([]wails.TeamInvitationDTO, error) { return a.api.ListTeamInvitations() }
+
+// AcceptTeamInvitation joins a team this account was invited to.
+func (a *App) AcceptTeamInvitation(vault string) error { return a.api.AcceptTeamInvitation(vault) }
+
+// DeclineTeamInvitation answers an invitation by leaving the team.
+func (a *App) DeclineTeamInvitation(vault string) error { return a.api.DeclineTeamInvitation(vault) }

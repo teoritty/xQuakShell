@@ -270,7 +270,7 @@ func (k testKeys) CurrentKeys() ([]byte, []byte) {
 	return k.u.AIK.Public().(ed25519.PublicKey), k.u.AEK
 }
 func (k testKeys) VaultKey(vaultsync.ID, uint32, []vaultsync.MemberOp) ([]byte, error) {
-	return k.vk, nil
+	return bytes.Clone(k.vk), nil
 }
 func (k testKeys) Sign(msg []byte) ([]byte, error) { return ed25519.Sign(k.u.DSK, msg), nil }
 
