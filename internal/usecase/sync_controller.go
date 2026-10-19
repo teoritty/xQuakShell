@@ -66,7 +66,7 @@ type SyncController struct {
 	// the views last re-read: an invitation syncs nothing, so no round would tell them otherwise.
 	invited      []synctrust.RemoteVault
 	invitedMoved bool
-	pendingJoin *SyncSession
+	pendingJoin  *SyncSession
 
 	op sync.Mutex
 }
