@@ -302,6 +302,64 @@ func head(seq uint64) vaultsync.Head {
 	return vaultsync.Head{Vault: vaultsync.ID{50}, Seq: seq, Commit: vaultsync.ID{byte(seq)}, Author: vaultsync.ID{7}, SigAlg: vaultsync.SigEd25519, Sig: make([]byte, 64)}
 }
 
+// Every bulk read is cut to a byte budget as well as a count, so no reply carries a vault's whole
+// ciphertext; and every page holds at least one item, so a single large commit or record still moves
+// a reader forward. Each envelope here is 368 bytes of ciphertext.
+func TestBulkReadsStayWithinTheirBudgets(t *testing.T) {
+	db, _ := openTemp(t)
+	tx(t, db, func(tx usecase.Tx) error {
+		if err := tx.InsertVault(usecase.Vault{ID: vaultsync.ID{50}, Owner: vaultsync.ID{1}}); err != nil {
+			return err
+		}
+		for seq, records := range [][]vaultsync.Envelope{{envelope(1, 1), envelope(2, 1)}, {envelope(3, 1)}, {envelope(1, 2)}} {
+			if err := tx.InsertCommit(vaultsync.ID{50}, uint64(seq+1), vaultsync.Commit{Head: head(uint64(seq + 1)), Records: records}, 1); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	tx(t, db, func(tx usecase.Tx) error {
+		pageSizes := func(since uint64, limit, budget int) (int, bool) {
+			page, more, err := tx.Commits(vaultsync.ID{50}, since, limit, budget)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return len(page), more
+		}
+		if n, more := pageSizes(0, 10, 800); n != 1 || !more {
+			t.Errorf("changes within 800 bytes = %d commits, more %v; want the first commit only, more to follow", n, more)
+		}
+		if n, more := pageSizes(0, 10, 100); n != 1 || !more {
+			t.Errorf("changes within 100 bytes = %d commits, more %v; one commit over budget must still come", n, more)
+		}
+		if n, more := pageSizes(2, 10, 100); n != 1 || more {
+			t.Errorf("the last commit = %d, more %v", n, more)
+		}
+		if n, more := pageSizes(0, 2, 1<<30); n != 2 || !more {
+			t.Errorf("two commits by count = %d, more %v", n, more)
+		}
+		recs, more, err := tx.CurrentRecordsPage(vaultsync.ID{50}, []byte{}, 2, 1<<30)
+		if err != nil || len(recs) != 2 || !more || recs[0].Record != (vaultsync.ID{1}) || recs[0].Version != 2 {
+			t.Fatalf("first snapshot page = %+v, more %v, %v; want records 1 (at version 2) and 2", recs, more, err)
+		}
+		last := recs[1].Record
+		recs, more, _ = tx.CurrentRecordsPage(vaultsync.ID{50}, last[:], 2, 1<<30)
+		if len(recs) != 1 || more || recs[0].Record != (vaultsync.ID{3}) {
+			t.Fatalf("snapshot page after record 2 = %+v, more %v; want record 3 and the end", recs, more)
+		}
+		if recs, more, _ = tx.CurrentRecordsPage(vaultsync.ID{50}, []byte{}, 100, 400); len(recs) != 1 || !more {
+			t.Fatalf("snapshot page within 400 bytes = %d records, more %v; want one", len(recs), more)
+		}
+		if vs, _ := tx.RecordVersions(vaultsync.ID{50}, vaultsync.ID{1}, 400); len(vs) != 1 || vs[0].Version != 2 {
+			t.Fatalf("versions within 400 bytes = %+v; want only the newest", vs)
+		}
+		if vs, _ := tx.RecordVersions(vaultsync.ID{50}, vaultsync.ID{1}, 1<<30); len(vs) != 2 || vs[0].Version != 1 {
+			t.Fatalf("all versions = %+v; want both, oldest first", vs)
+		}
+		return nil
+	})
+}
+
 func TestVaultsMembersAndCommits(t *testing.T) {
 	db, _ := openTemp(t)
 	op := vaultsync.MemberOp{Vault: vaultsync.ID{50}, Seq: 1, Kind: vaultsync.MemberCreate, Author: vaultsync.ID{1}, AuthorDevice: vaultsync.ID{7}, Suite: vaultsync.Suite1, SigAlg: vaultsync.SigEd25519, Sig: make([]byte, 64)}
@@ -338,7 +396,7 @@ func TestVaultsMembersAndCommits(t *testing.T) {
 		if shares, _ := tx.SharesVault(vaultsync.ID{1}, vaultsync.ID{3}); shares {
 			t.Fatal("a stranger shares a vault")
 		}
-		cur, err := tx.CurrentRecords(vaultsync.ID{50})
+		cur, _, err := tx.CurrentRecordsPage(vaultsync.ID{50}, []byte{}, 100, 1<<30)
 		if err != nil || len(cur) != 2 {
 			t.Fatalf("current records = %d, %v", len(cur), err)
 		}
@@ -347,7 +405,7 @@ func TestVaultsMembersAndCommits(t *testing.T) {
 				t.Fatalf("current version of record 1 = %d, want 2", e.Version)
 			}
 		}
-		page, err := tx.Commits(vaultsync.ID{50}, 1, 10)
+		page, _, err := tx.Commits(vaultsync.ID{50}, 1, 10, 1<<30)
 		if err != nil || len(page) != 1 || page[0].Seq != 2 || len(page[0].Commit.Records) != 1 {
 			t.Fatalf("commits after 1 = %+v, %v", page, err)
 		}
@@ -403,7 +461,7 @@ func TestPurgedVersionsLeaveTheFile(t *testing.T) {
 		if v.Bytes != 72+296 {
 			t.Fatalf("bytes = %d, want only the remaining record's ciphertext", v.Bytes)
 		}
-		left, _ := tx.RecordVersions(vaultsync.ID{50}, vaultsync.ID{2})
+		left, _ := tx.RecordVersions(vaultsync.ID{50}, vaultsync.ID{2}, 1<<30)
 		if len(left) != 1 {
 			t.Fatal("a purge deleted another record")
 		}
@@ -443,7 +501,7 @@ func TestDeleteSupersededKeepsTheLatestVersion(t *testing.T) {
 		if seq, _ := tx.DeleteSuperseded(vaultsync.ID{50}, 1000); seq != 1 {
 			t.Fatalf("seq = %d, want 1: the superseded version lived in commit 1", seq)
 		}
-		left, _ := tx.RecordVersions(vaultsync.ID{50}, vaultsync.ID{1})
+		left, _ := tx.RecordVersions(vaultsync.ID{50}, vaultsync.ID{1}, 1<<30)
 		if len(left) != 1 || left[0].Version != 2 {
 			t.Fatalf("left = %+v; the latest version is never history", left)
 		}

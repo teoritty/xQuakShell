@@ -88,25 +88,6 @@ func toEnvelopes(records []syncwire.Envelope) ([]vaultsync.Envelope, error) {
 	return out, nil
 }
 
-// Snapshot returns the vault's current records and head.
-func (c *Client) Snapshot(ctx context.Context, vault vaultsync.ID) (synctrust.RemoteSnapshot, error) {
-	var reply syncwire.Snapshot
-	if err := c.get(ctx, vaultPath(vault, "snapshot"), nil, &reply, bulkReplyLimit); err != nil {
-		return synctrust.RemoteSnapshot{}, err
-	}
-	var out synctrust.RemoteSnapshot
-	if reply.Head != nil {
-		head, err := reply.Head.ToDomain()
-		if err != nil {
-			return synctrust.RemoteSnapshot{}, protocolErr("head", err)
-		}
-		out.Head = &head
-	}
-	envs, err := toEnvelopes(reply.Records)
-	out.Records = envs
-	return out, err
-}
-
 // Versions returns the retained versions of one record, for the trash.
 func (c *Client) Versions(ctx context.Context, vault, record vaultsync.ID) ([]vaultsync.Envelope, error) {
 	var reply syncwire.Versions

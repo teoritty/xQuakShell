@@ -148,14 +148,23 @@ func (s *server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	head, records, err := s.svc.Snapshot(r.Context(), p, vault)
+	var after *vaultsync.ID
+	if raw := r.URL.Query().Get("after"); raw != "" {
+		id, err := syncwire.ParseID(raw)
+		if err != nil {
+			writeCode(w, http.StatusBadRequest, syncwire.CodeMalformed)
+			return
+		}
+		after = &id
+	}
+	page, err := s.svc.Snapshot(r.Context(), p, vault, after)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	out := syncwire.Snapshot{Records: envelopesFrom(records)}
-	if head != nil {
-		h := syncwire.HeadFrom(head)
+	out := syncwire.Snapshot{Records: envelopesFrom(page.Records), More: page.More}
+	if page.Head != nil {
+		h := syncwire.HeadFrom(page.Head)
 		out.Head = &h
 	}
 	writeJSON(w, http.StatusOK, out)

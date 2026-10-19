@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"xquakshell/internal/domain/vaultsync"
@@ -11,6 +10,13 @@ import (
 const (
 	maxRecordsPerCommit = 1000
 	maxChangesPage      = 200
+	// The page budgets count ciphertext. Base64 and the envelope fields add about a third on the
+	// wire, which keeps every page well inside the 64 MiB a client accepts in one reply; a single
+	// commit or record is never split and is bounded by the commit body limit instead.
+	changesPageBytes    = 16 << 20
+	snapshotPageRecords = 1000
+	snapshotPageBytes   = 8 << 20
+	versionsBytes       = 16 << 20
 )
 
 // Commit verifies and stores one commit on top of expectSeq. A repeated commit id returns the seq the
@@ -152,10 +158,13 @@ func currentState(tx Tx, vault vaultsync.ID) (*vaultsync.VaultState, error) {
 	return vaultsync.RestoreVaultStateFromLeaves(vault, &head, leaves)
 }
 
-// Changes returns up to limit whole commits after since, and whether more follow.
+// Changes returns up to limit whole commits after since, and whether more follow. A page also stops
+// once its ciphertext would pass changesPageBytes, so a page of large commits stays within what a
+// client accepts in one reply; at least one commit is always returned, so a pull always advances.
 func (s *Service) Changes(ctx context.Context, p Principal, vault vaultsync.ID, since uint64, limit int) ([]StoredCommit, bool, error) {
 	limit = max(1, min(limit, maxChangesPage))
 	var out []StoredCommit
+	var more bool
 	err := s.cfg.Store.WithTx(ctx, func(tx Tx) error {
 		v, _, err := requireMember(tx, vault, p.Account)
 		if err != nil {
@@ -164,23 +173,37 @@ func (s *Service) Changes(ctx context.Context, p Principal, vault vaultsync.ID, 
 		if since < v.PrunedSeq {
 			return ErrHistoryPruned
 		}
-		out, err = tx.Commits(vault, since, limit+1)
+		out, more, err = tx.Commits(vault, since, limit, changesPageBytes)
 		return err
 	})
 	if err != nil {
 		return nil, false, err
 	}
-	more := len(out) > limit
-	if more {
-		out = out[:limit]
-	}
 	return out, more, nil
 }
 
-// Snapshot returns the latest head and the latest version of every record, for a new device.
-func (s *Service) Snapshot(ctx context.Context, p Principal, vault vaultsync.ID) (*vaultsync.Head, []vaultsync.Envelope, error) {
-	var head *vaultsync.Head
-	var records []vaultsync.Envelope
+// SnapshotPage is one page of a vault's current state: the latest head, and the latest version of
+// the records after the page's starting point, in record order.
+type SnapshotPage struct {
+	Head    *vaultsync.Head
+	Records []vaultsync.Envelope
+	More    bool
+}
+
+// Snapshot returns one page of the latest head and the latest version of every record, for a new
+// device; after is the last record id of the previous page, nil for the first. Each page carries the
+// head it was read under, so the client can tell when the vault moved between pages and start again:
+// the pages of one head are one consistent state.
+//
+// A vault's whole state used to go out in one reply. A vault near its quota was then read into
+// memory whole, inside the transaction every request queues behind, and still could not reach a
+// client, which refuses a reply over 64 MiB.
+func (s *Service) Snapshot(ctx context.Context, p Principal, vault vaultsync.ID, after *vaultsync.ID) (SnapshotPage, error) {
+	var page SnapshotPage
+	start := []byte{}
+	if after != nil {
+		start = after[:]
+	}
 	err := s.cfg.Store.WithTx(ctx, func(tx Tx) error {
 		if _, _, err := requireMember(tx, vault, p.Account); err != nil {
 			return err
@@ -190,13 +213,13 @@ func (s *Service) Snapshot(ctx context.Context, p Principal, vault vaultsync.ID)
 			return err
 		}
 		if ok {
-			head = &h
+			page.Head = &h
 		}
-		records, err = tx.CurrentRecords(vault)
+		page.Records, page.More, err = tx.CurrentRecordsPage(vault, start, snapshotPageRecords, snapshotPageBytes)
 		return err
 	})
-	if errors.Is(err, ErrNotFound) {
-		return nil, nil, err
+	if err != nil {
+		return SnapshotPage{}, err
 	}
-	return head, records, err
+	return page, nil
 }

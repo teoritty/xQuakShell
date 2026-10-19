@@ -15,8 +15,9 @@ var ErrHistoryPruned = errors.New("usecase: history before this seq was pruned")
 
 const dayMillis uint64 = 24 * 60 * 60 * 1000
 
-// Versions returns every retained version of one record, oldest first, for the trash. Non-members
-// get ErrNotFound, as on every vault endpoint.
+// Versions returns the retained versions of one record, oldest first, for the trash: the newest of
+// them up to versionsBytes of ciphertext, which is all the trash reads - it restores the latest
+// version it can open. Non-members get ErrNotFound, as on every vault endpoint.
 func (s *Service) Versions(ctx context.Context, p Principal, vault, record vaultsync.ID) ([]vaultsync.Envelope, error) {
 	if err := requireAccess(p); err != nil {
 		return nil, err
@@ -27,7 +28,7 @@ func (s *Service) Versions(ctx context.Context, p Principal, vault, record vault
 			return err
 		}
 		var err error
-		out, err = tx.RecordVersions(vault, record)
+		out, err = tx.RecordVersions(vault, record, versionsBytes)
 		return err
 	})
 	return out, err

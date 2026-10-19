@@ -154,14 +154,20 @@ type Tx interface {
 
 	CommitSeqByID(vault, commitID vaultsync.ID) (uint64, bool, error)
 	InsertCommit(vault vaultsync.ID, seq uint64, c vaultsync.Commit, received uint64) error
-	Commits(vault vaultsync.ID, since uint64, limit int) ([]StoredCommit, error)
-	CurrentRecords(vault vaultsync.ID) ([]vaultsync.Envelope, error)
+	// Commits returns up to limit commits after since, stopping once their ciphertext would pass
+	// maxBytes but never before the first; more reports commits after them.
+	Commits(vault vaultsync.ID, since uint64, limit, maxBytes int) (commits []StoredCommit, more bool, err error)
+	// CurrentRecordsPage returns the latest versions of the records after after, in record order,
+	// bounded like Commits by a count and a byte budget.
+	CurrentRecordsPage(vault vaultsync.ID, after []byte, limit, maxBytes int) (records []vaultsync.Envelope, more bool, err error)
 	// CurrentLeaves is the Merkle leaf of every record's latest version, read without the envelopes.
 	CurrentLeaves(vault vaultsync.ID) ([]vaultsync.Leaf, error)
 	// EpochsInUse lists the epochs that still seal a live current version.
 	EpochsInUse(vault vaultsync.ID) ([]uint32, error)
 	LatestHead(vault vaultsync.ID) (vaultsync.Head, bool, error)
-	RecordVersions(vault, record vaultsync.ID) ([]vaultsync.Envelope, error)
+	// RecordVersions returns a record's newest retained versions, oldest first, up to maxBytes of
+	// ciphertext and always at least the newest.
+	RecordVersions(vault, record vaultsync.ID, maxBytes int) ([]vaultsync.Envelope, error)
 	// VersionLanded reports when this server received the commit that carried a record's latest
 	// version, and the membership position that commit's head was made under.
 	VersionLanded(vault, record vaultsync.ID) (received, membershipSeq uint64, ok bool, err error)

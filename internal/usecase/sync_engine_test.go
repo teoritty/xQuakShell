@@ -132,7 +132,7 @@ func (s *svcServer) Snapshot(ctx context.Context, vault vaultsync.ID) (synctrust
 	if err != nil {
 		return synctrust.RemoteSnapshot{}, err
 	}
-	head, records, err := s.h.Svc.Snapshot(ctx, p, vault)
+	head, records, err := s.h.FullSnapshot(p, vault)
 	out := synctrust.RemoteSnapshot{Head: head, Records: records}
 	if err == nil && s.tamperSnap != nil {
 		out = s.tamperSnap(out)

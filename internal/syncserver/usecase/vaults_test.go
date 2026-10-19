@@ -29,7 +29,7 @@ func TestTeamVaultLifecycle(t *testing.T) {
 	if err != nil || more || len(changes) != 2 || len(changes[0].Commit.Records) != 2 {
 		t.Fatalf("changes = %d commits, more %v, %v", len(changes), more, err)
 	}
-	head, records, err := h.Svc.Snapshot(ctx, h.Principal(carol.Access), cv.ID)
+	head, records, err := h.FullSnapshot(h.Principal(carol.Access), cv.ID)
 	if err != nil || head == nil || head.Seq != 2 || len(records) != 2 {
 		t.Fatalf("snapshot: head %+v, %d records, %v", head, len(records), err)
 	}
@@ -86,7 +86,7 @@ func TestOutsidersAndRemovedMembersSeeNothing(t *testing.T) {
 	if _, _, err := h.Svc.Changes(ctx, pd, cv.ID, 0, 10); !isErr(err, usecase.ErrNotFound) {
 		t.Errorf("outsider changes: %v", err)
 	}
-	if _, _, err := h.Svc.Snapshot(ctx, pd, cv.ID); !isErr(err, usecase.ErrNotFound) {
+	if _, err := h.Svc.Snapshot(ctx, pd, cv.ID, nil); !isErr(err, usecase.ErrNotFound) {
 		t.Errorf("outsider snapshot: %v", err)
 	}
 	if _, err := h.Svc.Membership(ctx, pd, cv.ID, 0); !isErr(err, usecase.ErrNotFound) {

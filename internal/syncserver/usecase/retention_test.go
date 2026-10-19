@@ -105,7 +105,7 @@ func TestPurgeDeletesEveryVersionOfTheRecord(t *testing.T) {
 	if err != nil || len(changes) != 1 || changes[0].Seq != seq || len(changes[0].Commit.Purged) != 1 {
 		t.Fatalf("pull from 2: %+v, %v; want the purge commit carrying its purged id", changes, err)
 	}
-	_, records, _ := h.Svc.Snapshot(ctx, h.Principal(alice.Access), cv.ID)
+	_, records, _ := h.FullSnapshot(h.Principal(alice.Access), cv.ID)
 	if len(records) != 1 {
 		t.Fatalf("snapshot holds %d records, want 1", len(records))
 	}
