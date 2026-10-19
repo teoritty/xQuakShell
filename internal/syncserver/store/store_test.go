@@ -195,6 +195,43 @@ func TestInvitesAreSingleUseAndExpire(t *testing.T) {
 	})
 }
 
+// A device row belongs to the account that first certified its id. Another account inserting the
+// same id or revoking it changes nothing - the upsert this replaced let either flip the revoked flag.
+func TestDeviceRowsStayWithTheirAccount(t *testing.T) {
+	db, _ := openTemp(t)
+	key := make([]byte, 32)
+	tx(t, db, func(tx usecase.Tx) error {
+		for i, name := range []string{"alice", "mallory"} {
+			if err := tx.InsertAccount(account(byte(i+1), name)); err != nil {
+				return err
+			}
+		}
+		if ok, err := tx.InsertDevice(usecase.Device{ID: vaultsync.ID{7}, Account: vaultsync.ID{1}, SigningKey: key}); err != nil || !ok {
+			t.Fatalf("first insert = %v, %v", ok, err)
+		}
+		if ok, err := tx.InsertDevice(usecase.Device{ID: vaultsync.ID{7}, Account: vaultsync.ID{2}, SigningKey: key}); err != nil || ok {
+			t.Fatalf("a second account inserting a taken id = %v, %v; want false", ok, err)
+		}
+		if ok, err := tx.RevokeDevice(vaultsync.ID{2}, vaultsync.ID{7}); err != nil || ok {
+			t.Fatalf("another account revoking the device = %v, %v; want false", ok, err)
+		}
+		d, _, _ := tx.DeviceByID(vaultsync.ID{7})
+		if d.Account != (vaultsync.ID{1}) || d.Revoked {
+			t.Fatalf("device after another account's attempts = %+v; want alice's, not revoked", d)
+		}
+		if ok, err := tx.RevokeDevice(vaultsync.ID{1}, vaultsync.ID{7}); err != nil || !ok {
+			t.Fatalf("the owner revoking = %v, %v", ok, err)
+		}
+		if ok, _ := tx.InsertDevice(usecase.Device{ID: vaultsync.ID{7}, Account: vaultsync.ID{2}, SigningKey: key}); ok {
+			t.Fatal("certifying a revoked id again was accepted")
+		}
+		if d, _, _ := tx.DeviceByID(vaultsync.ID{7}); !d.Revoked {
+			t.Fatal("a revoked device was restored by inserting its id again")
+		}
+		return nil
+	})
+}
+
 func TestDeviceLogsDevicesTokens(t *testing.T) {
 	db, _ := openTemp(t)
 	e1 := vaultsync.DeviceEntry{Account: vaultsync.ID{1}, Seq: 1, Op: vaultsync.OpAddDevice, SigAlg: vaultsync.SigEd25519, Sig: make([]byte, 64),
@@ -208,8 +245,8 @@ func TestDeviceLogsDevicesTokens(t *testing.T) {
 		if err := tx.AppendDeviceEntries(vaultsync.ID{1}, []vaultsync.DeviceEntry{e1, e2}); err != nil {
 			return err
 		}
-		if err := tx.UpsertDevice(usecase.Device{ID: vaultsync.ID{7}, Account: vaultsync.ID{1}, SigningKey: make([]byte, 32)}); err != nil {
-			return err
+		if ok, err := tx.InsertDevice(usecase.Device{ID: vaultsync.ID{7}, Account: vaultsync.ID{1}, SigningKey: make([]byte, 32)}); err != nil || !ok {
+			t.Fatalf("insert device = %v, %v", ok, err)
 		}
 		return tx.InsertToken(usecase.Token{Hash: []byte("t"), Account: vaultsync.ID{1}, Device: vaultsync.ID{7}, Kind: usecase.TokenAccess, Expires: 10})
 	})
@@ -221,8 +258,8 @@ func TestDeviceLogsDevicesTokens(t *testing.T) {
 		if tok, ok, _ := tx.TokenByHash([]byte("t")); !ok || tok.Kind != usecase.TokenAccess || tok.Device != (vaultsync.ID{7}) {
 			t.Fatalf("token = %+v, %v", tok, ok)
 		}
-		if err := tx.UpsertDevice(usecase.Device{ID: vaultsync.ID{7}, Account: vaultsync.ID{1}, SigningKey: make([]byte, 32), Revoked: true}); err != nil {
-			return err
+		if ok, err := tx.RevokeDevice(vaultsync.ID{1}, vaultsync.ID{7}); err != nil || !ok {
+			t.Fatalf("revoke device = %v, %v", ok, err)
 		}
 		if d, _, _ := tx.DeviceByID(vaultsync.ID{7}); !d.Revoked {
 			t.Fatal("device revocation did not persist")

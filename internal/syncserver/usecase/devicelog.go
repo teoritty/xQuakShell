@@ -67,7 +67,7 @@ func (s *Service) AppendDeviceLog(ctx context.Context, p Principal, entries []va
 			return err
 		}
 		seq = log.Seq()
-		return syncDevices(tx, acct.ID, entries, log)
+		return syncDevices(tx, acct.ID, entries)
 	})
 	// The account's other devices are told at once: an unexpected new device is how a user learns
 	// their sync password is known to someone else (spec section 2.5).
@@ -80,25 +80,42 @@ func (s *Service) AppendDeviceLog(ctx context.Context, p Principal, entries []va
 // syncDevices mirrors certifications and revocations into the devices table and drops a revoked
 // device's tokens in the same transaction, so there is no moment where it is revoked in the log but
 // still authenticated.
-func syncDevices(tx Tx, account vaultsync.ID, entries []vaultsync.DeviceEntry, log *vaultsync.DeviceLogState) error {
+//
+// A device log is checked against its own account alone, so it cannot tell that a certified id is
+// already another account's; the table can, and every write here is held to the account the log
+// belongs to. The whole append fails if one entry would touch a device that is not this account's.
+func syncDevices(tx Tx, account vaultsync.ID, entries []vaultsync.DeviceEntry) error {
 	for _, e := range entries {
 		switch e.Op {
 		case vaultsync.OpAddDevice:
-			if err := tx.UpsertDevice(Device{ID: e.Cert.Device, Account: account, SigningKey: e.Cert.SigningKey}); err != nil {
+			if err := insertDevice(tx, Device{ID: e.Cert.Device, Account: account, SigningKey: e.Cert.SigningKey}); err != nil {
 				return err
 			}
 		case vaultsync.OpRevokeDevice:
-			key, err := log.DeviceKey(e.Revoked)
+			revoked, err := tx.RevokeDevice(account, e.Revoked)
 			if err != nil {
 				return err
 			}
-			if err := tx.UpsertDevice(Device{ID: e.Revoked, Account: account, SigningKey: key, Revoked: true}); err != nil {
-				return err
+			if !revoked {
+				return malformed(fmt.Errorf("revocation of %s, which is not this account's device", e.Revoked))
 			}
 			if err := tx.DeleteTokensForDevice(e.Revoked); err != nil {
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+// insertDevice records a device certification, refusing an id another device already holds. Ids are
+// random 128-bit values each device draws for itself, so a taken one is never an accident.
+func insertDevice(tx Tx, d Device) error {
+	inserted, err := tx.InsertDevice(d)
+	if err != nil {
+		return err
+	}
+	if !inserted {
+		return fmt.Errorf("%w: device id %s is already certified", ErrForbidden, d.ID)
 	}
 	return nil
 }

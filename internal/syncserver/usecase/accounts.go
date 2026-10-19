@@ -145,7 +145,7 @@ func storeRegistration(tx Tx, a Account, d Device, r Registration, members map[v
 	if err := tx.AppendDeviceEntries(a.ID, []vaultsync.DeviceEntry{r.Device}); err != nil {
 		return err
 	}
-	if err := tx.UpsertDevice(d); err != nil {
+	if err := insertDevice(tx, d); err != nil {
 		return err
 	}
 	if err := tx.InsertVault(Vault{ID: r.Vault.Vault, Owner: a.ID, MembershipSeq: 1, Personal: true}); err != nil {

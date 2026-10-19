@@ -124,7 +124,13 @@ type Tx interface {
 
 	DeviceEntries(account vaultsync.ID) ([]vaultsync.DeviceEntry, error)
 	AppendDeviceEntries(account vaultsync.ID, entries []vaultsync.DeviceEntry) error
-	UpsertDevice(d Device) error
+	// InsertDevice records a newly certified device and reports false, changing nothing, when the
+	// id is already taken - by this account or any other. Device ids are global: a commit head and a
+	// membership op name only the device, and the server resolves the account from it.
+	InsertDevice(d Device) (bool, error)
+	// RevokeDevice marks one of account's devices revoked and reports false when account holds no
+	// device with that id.
+	RevokeDevice(account, device vaultsync.ID) (bool, error)
 	DeviceByID(id vaultsync.ID) (Device, bool, error)
 
 	InsertToken(t Token) error
