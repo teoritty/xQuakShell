@@ -410,7 +410,8 @@ server as an adversary: it stores what it is given and decides nothing about it.
   refused unless the user accepts it as a new version. A plugin uninstalled elsewhere is disabled
   here and uninstall is offered, never performed.
 - **Plugin data.** Only files the plugin's manifest declares in `sync.paths` sync, never `tmp/`,
-  never a link or a non-regular file, at most 16 MiB a file and 64 MiB / 4096 files a plugin. Paths
+  never a link or a non-regular file, at most 8 MiB a file sent (16 MiB accepted from an older build)
+  and 64 MiB / 4096 files a plugin. Paths
   from another device are checked when the record arrives (relative, no `..`, no drive letter, no
   alternate data stream, no executable mode, matching digest) and again by the jailed zone that
   writes them, which refuses to pass through a symlink or junction. Files are written only while no

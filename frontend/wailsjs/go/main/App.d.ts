@@ -3,6 +3,8 @@
 import {wails} from '../models';
 import {json} from '../models';
 
+export function AcceptTeamInvitation(arg1:string):Promise<void>;
+
 export function AcknowledgeRecoveryKey():Promise<void>;
 
 export function AcknowledgeSyncDevices(arg1:Array<string>):Promise<void>;
@@ -49,7 +51,7 @@ export function CompleteRecoveryReset(arg1:string):Promise<wails.RecoveryKeyDTO>
 
 export function ConfirmCredentialBinding(arg1:string,arg2:string,arg3:string):Promise<void>;
 
-export function ConfirmSyncHeld(arg1:string,arg2:string):Promise<void>;
+export function ConfirmSyncHeld(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function CopyLocalPath(arg1:string,arg2:string):Promise<void>;
 
@@ -60,6 +62,8 @@ export function CreateLocalFile(arg1:string):Promise<void>;
 export function CreateTeam(arg1:string):Promise<string>;
 
 export function CreateVault(arg1:string):Promise<wails.RecoveryKeyDTO>;
+
+export function DeclineTeamInvitation(arg1:string):Promise<void>;
 
 export function DeleteAuditEntry(arg1:number):Promise<void>;
 
@@ -211,6 +215,8 @@ export function ListSyncPluginOffers():Promise<Array<wails.SyncPluginOfferDTO>>;
 
 export function ListSyncTrash():Promise<Array<wails.SyncTrashItemDTO>>;
 
+export function ListTeamInvitations():Promise<Array<wails.TeamInvitationDTO>>;
+
 export function ListTeamMembers(arg1:string):Promise<Array<wails.TeamMemberDTO>>;
 
 export function ListTeams():Promise<Array<wails.TeamDTO>>;
@@ -259,7 +265,7 @@ export function PreviewSyncPluginOffer(arg1:string):Promise<wails.GitHubPluginPr
 
 export function ProbeSyncServer(arg1:string):Promise<wails.SyncServerProbeDTO>;
 
-export function RejectSyncHeld(arg1:string):Promise<void>;
+export function RejectSyncHeld(arg1:string,arg2:string):Promise<void>;
 
 export function RelayPluginViewMessage(arg1:string,arg2:json.RawMessage):Promise<void>;
 

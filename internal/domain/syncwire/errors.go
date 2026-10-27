@@ -35,11 +35,15 @@ const (
 	CodeInternal           = "internal"
 	// CodeHistoryPruned answers a pull from before history the server deleted: take the snapshot.
 	CodeHistoryPruned = "history_pruned"
+	// CodePurgeNotDue refuses a commit purging a tombstone whose trash window has not passed on the
+	// server's clock; the client keeps the tombstone and purges it on a later round.
+	CodePurgeNotDue = "purge_not_due"
 )
 
 var errorCodes = []string{
 	CodeMalformed, CodeUnauthorized, CodeForbidden, CodeNotFound, CodeConflict, CodeTooLarge,
 	CodeRateLimited, CodeUnsupportedVersion, CodeFrozen, CodeQuotaExceeded, CodeInternal, CodeHistoryPruned,
+	CodePurgeNotDue,
 }
 
 // ErrorCodes lists every code an error response may carry.

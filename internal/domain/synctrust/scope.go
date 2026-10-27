@@ -101,7 +101,7 @@ func project(d *domain.VaultData, s Scope) *domain.VaultData {
 	if d.Sync != nil {
 		out.Sync = &domain.VaultSync{}
 		if s.Vault == "" {
-			out.Sync.Contacts, out.Sync.Bindings = d.Sync.Contacts, d.Sync.Bindings
+			out.Sync.Contacts, out.Sync.Bindings, out.Sync.Teams = d.Sync.Contacts, d.Sync.Bindings, d.Sync.Teams
 			out.Sync.Plugins, out.Sync.PluginFiles = d.Sync.Plugins, d.Sync.PluginFiles
 		}
 		for _, c := range d.Sync.Conflicts {

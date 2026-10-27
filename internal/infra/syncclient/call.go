@@ -104,6 +104,7 @@ var codeErrors = map[string]error{
 	syncwire.CodeQuotaExceeded:      synctrust.ErrRemoteQuota,
 	syncwire.CodeInternal:           synctrust.ErrRemoteInternal,
 	syncwire.CodeHistoryPruned:      synctrust.ErrHistoryPruned,
+	syncwire.CodePurgeNotDue:        synctrust.ErrPurgeNotDue,
 }
 
 // remoteError maps an error reply onto a domain error. Only the closed set of codes is accepted; a

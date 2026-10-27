@@ -66,9 +66,15 @@ func (s *VaultState) ApplyCommit(c Commit, m *MembershipState, resolve DeviceRes
 	if h.MembershipSeq != m.Seq() || h.MembershipHead != m.Hash() {
 		return nil, ErrMembershipMismatch
 	}
-	key, err := authorizeAuthor(h, m, resolve)
+	account, key, err := authorizeAuthor(h, m, resolve)
 	if err != nil {
 		return nil, err
+	}
+	// A purge destroys every version of a record, the trash copy included, so it is the vault
+	// managers' decision (spec §10.1) and never an editor's: an editor may delete, and the deletion
+	// stays restorable for the retention window.
+	if len(c.Purged) > 0 && !m.Role(account).CanManage() {
+		return nil, fmt.Errorf("purge by account %s: %w", account, ErrNotAuthorized)
 	}
 	if h.CurrentEpoch != m.Epoch() {
 		return nil, fmt.Errorf("head epoch %d, vault epoch %d: %w", h.CurrentEpoch, m.Epoch(), ErrEpochMismatch)
@@ -96,21 +102,21 @@ func (s *VaultState) ApplyCommit(c Commit, m *MembershipState, resolve DeviceRes
 // authorizeAuthor resolves the head's device and checks it may write here: certified, not revoked
 // by a rotation at or before this membership position, belonging to a member who can write, and
 // the signer of the head.
-func authorizeAuthor(h *Head, m *MembershipState, resolve DeviceResolver) ([]byte, error) {
+func authorizeAuthor(h *Head, m *MembershipState, resolve DeviceResolver) (ID, []byte, error) {
 	account, key, err := resolve(h.Author)
 	if err != nil {
-		return nil, fmt.Errorf("author device %s: %w", h.Author, err)
+		return ID{}, nil, fmt.Errorf("author device %s: %w", h.Author, err)
 	}
 	if m.IsDeviceRevoked(h.Author) {
-		return nil, ErrRevokedDevice
+		return ID{}, nil, ErrRevokedDevice
 	}
 	if !m.Role(account).CanWrite() {
-		return nil, fmt.Errorf("account %s: %w", account, ErrNotAuthorized)
+		return ID{}, nil, fmt.Errorf("account %s: %w", account, ErrNotAuthorized)
 	}
 	if err := h.Verify(key); err != nil {
-		return nil, err
+		return ID{}, nil, err
 	}
-	return key, nil
+	return account, key, nil
 }
 
 // applyRecords checks each record belongs to this commit and follows its record's current version,
@@ -168,12 +174,34 @@ func (s *VaultState) applyPurges(purged []ID, records []Envelope) error {
 //
 // A nil head is a vault with no commits yet.
 func RestoreVaultState(vault ID, head *Head, records []Envelope) (*VaultState, error) {
+	if head != nil && head.Vault != vault {
+		return nil, fmt.Errorf("head of vault %s restored as %s: %w", head.Vault, vault, ErrChainBroken)
+	}
+	leaves := make([]Leaf, 0, len(records))
+	for i := range records {
+		if records[i].Vault != vault {
+			return nil, ErrRootMismatch
+		}
+		leaf, err := LeafOf(&records[i])
+		if err != nil {
+			return nil, err
+		}
+		leaves = append(leaves, leaf)
+	}
+	return RestoreVaultStateFromLeaves(vault, head, leaves)
+}
+
+// RestoreVaultStateFromLeaves is RestoreVaultState for a holder that kept each current version's
+// leaf rather than its envelope: the server, which would otherwise read and hash every ciphertext a
+// vault holds to verify each commit. The leaves must reproduce the head's Merkle root exactly, which
+// is what binds them to the envelopes they were derived from.
+func RestoreVaultStateFromLeaves(vault ID, head *Head, leaves []Leaf) (*VaultState, error) {
 	s, err := NewVaultState(vault)
 	if err != nil {
 		return nil, err
 	}
 	if head == nil {
-		if len(records) != 0 {
+		if len(leaves) != 0 {
 			return nil, ErrRootMismatch
 		}
 		return s, nil
@@ -181,12 +209,8 @@ func RestoreVaultState(vault ID, head *Head, records []Envelope) (*VaultState, e
 	if head.Vault != vault {
 		return nil, fmt.Errorf("head of vault %s restored as %s: %w", head.Vault, vault, ErrChainBroken)
 	}
-	for i := range records {
-		leaf, err := LeafOf(&records[i])
-		if err != nil {
-			return nil, err
-		}
-		if _, dup := s.leaves[leaf.Record]; dup || records[i].Vault != vault {
+	for _, leaf := range leaves {
+		if _, dup := s.leaves[leaf.Record]; dup {
 			return nil, ErrRootMismatch
 		}
 		s.leaves[leaf.Record] = leaf
@@ -202,3 +226,7 @@ func RestoreVaultState(vault ID, head *Head, records []Envelope) (*VaultState, e
 	s.cursor = ChainCursor{Seq: head.Seq, Hash: hash, MembershipSeq: head.MembershipSeq}
 	return s, nil
 }
+
+// Len counts the records the state holds, tombstones included: what a per-vault record limit
+// is kept against.
+func (s *VaultState) Len() int { return len(s.leaves) }

@@ -22,6 +22,9 @@ var (
 	// ErrHistoryPruned is a pull from before history the server deleted; the device re-bootstraps
 	// from the snapshot.
 	ErrHistoryPruned = errors.New("sync server: history this device has not seen was pruned")
+	// ErrPurgeNotDue is a purge the server refused because the tombstone's trash window has not
+	// passed on its clock. Nothing was stored; the tombstone stays and is purged on a later round.
+	ErrPurgeNotDue = errors.New("sync server: the deleted item's trash window has not passed yet")
 	// ErrRemoteProtocol is a reply that breaks the contract: an unknown error code, a body that does
 	// not decode, a status that means nothing here. It is treated as hostile, never retried blindly.
 	ErrRemoteProtocol = errors.New("sync server: reply breaks the protocol")

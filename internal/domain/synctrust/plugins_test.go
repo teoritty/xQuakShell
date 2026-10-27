@@ -118,7 +118,7 @@ func TestPluginFileValidationRefusesAHostileDevice(t *testing.T) {
 		"ads":        pluginFile("com.example.echo", "state.json:evil", []byte("x")),
 		"tmp":        pluginFile("com.example.echo", "tmp/x", []byte("x")),
 		"bad plugin": pluginFile("../other", "state.json", []byte("x")),
-		"oversize":   pluginFile("com.example.echo", "big.bin", make([]byte, plugin.MaxSyncFileBytes+1)),
+		"oversize":   pluginFile("com.example.echo", "big.bin", make([]byte, plugin.MaxSyncReceivedFileBytes+1)),
 		"executable mode": func() domain.SyncPluginFile {
 			f := pluginFile("com.example.echo", "run.sh", []byte("x"))
 			f.Mode = 0o755
@@ -136,9 +136,11 @@ func TestPluginFileValidationRefusesAHostileDevice(t *testing.T) {
 			t.Errorf("%s: err = %v, want ErrRecordData", name, err)
 		}
 	}
-	at := pluginFile("com.example.echo", "exactly.bin", make([]byte, plugin.MaxSyncFileBytes))
+	// The limit on what arrives is the older, larger one, so a file an older build sent between the
+	// two limits is applied, not quarantined.
+	at := pluginFile("com.example.echo", "exactly.bin", make([]byte, plugin.MaxSyncReceivedFileBytes))
 	if err := synctrust.Validate(entryOf(t, synctrust.TypePluginData, at.Plugin+"\n"+at.Path, at)); err != nil {
-		t.Fatalf("a file of exactly the limit: %v", err)
+		t.Fatalf("a file of exactly the received limit: %v", err)
 	}
 }
 

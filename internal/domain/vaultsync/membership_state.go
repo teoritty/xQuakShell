@@ -27,7 +27,9 @@ type MembershipState struct {
 	deleted         bool
 	pendingRotation bool
 	rotations       []Rotation
-	params          SuiteParams
+	// shredSeq is the log position of the latest rotation that carried shred, zero before any.
+	shredSeq uint64
+	params   SuiteParams
 }
 
 // NewMembershipState starts a log at its genesis position.
@@ -143,6 +145,11 @@ func (s *MembershipState) RequireVerified() bool { return s.requireVerified }
 
 // Rotations lists when each epoch began, epoch 0 at creation.
 func (s *MembershipState) Rotations() []Rotation { return slices.Clone(s.rotations) }
+
+// ShredSeq is the log position of the latest Shred now rotation, zero when there was none. A
+// tombstone whose commit was made under an earlier membership position predates that shred, and
+// its trash window no longer protects it.
+func (s *MembershipState) ShredSeq() uint64 { return s.shredSeq }
 
 // Deleted reports a deleted vault; nothing more is accepted.
 func (s *MembershipState) Deleted() bool { return s.deleted }

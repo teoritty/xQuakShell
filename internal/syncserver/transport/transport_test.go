@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"xquakshell/internal/domain/syncwire"
 	"xquakshell/internal/domain/vaultsync"
@@ -27,9 +28,17 @@ type rig struct {
 
 func newRig(t *testing.T) *rig {
 	t.Helper()
+	return newRigWith(t, func(*transport.Config) {})
+}
+
+// newRigWith is newRig with its transport configuration adjusted by tune.
+func newRigWith(t *testing.T, tune func(*transport.Config)) *rig {
+	t.Helper()
 	h := servertest.NewHarness(t, 0)
-	handler, err := transport.New(transport.Config{IdentitySeed: identitySeed, TLSPublicKey: []byte("spki"),
-		MaxBody: 64 << 10, RatePerSecond: 10_000, Burst: 10_000}, h.Svc)
+	cfg := transport.Config{IdentitySeed: identitySeed, TLSPublicKey: []byte("spki"),
+		MaxBody: 64 << 10, RatePerSecond: 10_000, Burst: 10_000, EventPing: 20 * time.Millisecond}
+	tune(&cfg)
+	handler, err := transport.New(cfg, h.Svc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,6 +385,8 @@ func TestPrunedHistoryIsGoneWithItsCode(t *testing.T) {
 	cv := r.h.PersonalVault(u)
 	cv.Accept(u, cv.Commit(u, cv.Record(u, 1)))
 	cv.Accept(u, cv.Commit(u, cv.Tombstone(u, 1)))
+	r.h.Clock.Advance(30 * 24 * 60 * 60_000)
+	u.Access = r.h.DeviceLogin(u, u.Device, u.DSK)
 	cv.Accept(u, cv.Purge(u, 1))
 	status, body := r.do("GET", "/v1/vaults/"+u.Vault.String()+"/changes?since=0", u.Access, nil)
 	if status != http.StatusGone || !strings.Contains(string(body), syncwire.CodeHistoryPruned) {

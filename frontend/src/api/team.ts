@@ -1,9 +1,9 @@
 // Team vault RPC wrappers (ADR-023), one per backend method. Errors are rethrown for the forms to
 // show next to the field the person has to change.
 import { callBackend } from '../backend/callBackend';
-import type { CredentialBinding, Team, TeamInvitee, TeamInviteRequest, TeamMember } from '../backend/teamGateway';
+import type { CredentialBinding, Team, TeamInvitation, TeamInvitee, TeamInviteRequest, TeamMember } from '../backend/teamGateway';
 
-export type { CredentialBinding, Team, TeamInvitee, TeamInviteRequest, TeamMember };
+export type { CredentialBinding, Team, TeamInvitation, TeamInvitee, TeamInviteRequest, TeamMember };
 
 const inline = { rethrow: true, silence: () => true };
 
@@ -62,4 +62,16 @@ export function confirmCredentialBindingRpc(vault: string, connection: string, u
 /** Moves a connection to vault ('' is the personal one) and resolves to the id it has there. */
 export function moveConnectionToVaultRpc(connection: string, vault: string, folder: string): Promise<string> {
   return callBackend('Move connection', '', (app) => app.MoveConnectionToVault(connection, vault, folder), inline);
+}
+
+export function listTeamInvitationsRpc(): Promise<TeamInvitation[]> {
+  return callBackend<TeamInvitation[]>('Team invitations', [], (app) => app.ListTeamInvitations(), inline);
+}
+
+export function acceptTeamInvitationRpc(vault: string): Promise<void> {
+  return callBackend('Accept invitation', undefined, (app) => app.AcceptTeamInvitation(vault), inline);
+}
+
+export function declineTeamInvitationRpc(vault: string): Promise<void> {
+  return callBackend('Decline invitation', undefined, (app) => app.DeclineTeamInvitation(vault), inline);
 }

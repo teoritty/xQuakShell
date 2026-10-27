@@ -2,7 +2,7 @@ package usecase
 
 import (
 	"context"
-	"errors"
+	"fmt"
 
 	"xquakshell/internal/domain/vaultsync"
 )
@@ -10,6 +10,13 @@ import (
 const (
 	maxRecordsPerCommit = 1000
 	maxChangesPage      = 200
+	// The page budgets count ciphertext. Base64 and the envelope fields add about a third on the
+	// wire, which keeps every page well inside the 64 MiB a client accepts in one reply; a single
+	// commit or record is never split and is bounded by the commit body limit instead.
+	changesPageBytes    = 16 << 20
+	snapshotPageRecords = 1000
+	snapshotPageBytes   = 8 << 20
+	versionsBytes       = 16 << 20
 )
 
 // Commit verifies and stores one commit on top of expectSeq. A repeated commit id returns the seq the
@@ -43,8 +50,14 @@ func (s *Service) Commit(ctx context.Context, p Principal, vault vaultsync.ID, e
 		if err != nil {
 			return err
 		}
-		m, err := verifyCommit(tx, vault, c)
+		m, next, err := verifyCommit(tx, vault, c)
 		if err != nil {
+			return err
+		}
+		if next.Len() > s.cfg.MaxRecords {
+			return fmt.Errorf("%w: %d records, the limit is %d", ErrQuotaExceeded, next.Len(), s.cfg.MaxRecords)
+		}
+		if err := checkPurgesDue(tx, vault, m, c.Purged, s.now()); err != nil {
 			return err
 		}
 		members = m.Members()
@@ -84,40 +97,74 @@ func (s *Service) checkQuota(v Vault, records []vaultsync.Envelope) (uint64, err
 // verifyCommit runs the shared commit rules against the stored state and the current membership.
 // Clients run the same rules; the server runs them so a hostile client cannot plant a commit every
 // other member would then have to refuse.
-func verifyCommit(tx Tx, vault vaultsync.ID, c vaultsync.Commit) (*vaultsync.MembershipState, error) {
+func verifyCommit(tx Tx, vault vaultsync.ID, c vaultsync.Commit) (*vaultsync.MembershipState, *vaultsync.VaultState, error) {
 	m, err := replayMembership(tx, vault)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	state, err := currentState(tx, vault)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if _, err := state.ApplyCommit(c, m, deviceResolver(tx)); err != nil {
-		return nil, refusal(err)
+	next, err := state.ApplyCommit(c, m, deviceResolver(tx))
+	if err != nil {
+		return nil, nil, refusal(err)
 	}
-	return m, nil
+	return m, next, nil
 }
 
+// checkPurgesDue holds every purge to the vault's trash window, counted on this server's clock from
+// when it received the tombstone (spec §10.1). Clients decide when to purge from signed client times
+// they cannot check against anything, and a purge deletes every version of the record in the same
+// transaction - so this server, which does the deleting, is where the window has to hold. A
+// tombstone committed before the latest Shred now rotation is due at once: shredding is the vault
+// managers' explicit choice to empty the trash, and the membership log orders the two without a
+// clock. verifyCommit has already checked each purged id names a current tombstone.
+func checkPurgesDue(tx Tx, vault vaultsync.ID, m *vaultsync.MembershipState, purged []vaultsync.ID, now uint64) error {
+	window := uint64(m.RetentionDays()) * dayMillis
+	for _, id := range purged {
+		received, membershipSeq, ok, err := tx.VersionLanded(vault, id)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return malformed(fmt.Errorf("purge of %s, which this server does not hold", id))
+		}
+		if membershipSeq < m.ShredSeq() {
+			continue
+		}
+		if now < received || now-received < window {
+			return fmt.Errorf("%w: record %s", ErrPurgeNotDue, id)
+		}
+	}
+	return nil
+}
+
+// currentState rebuilds the vault's verified state from the stored leaves. Rebuilding it from the
+// envelopes read and hashed every ciphertext the vault held, on every commit - a vault filled to its
+// quota made each small commit cost a gigabyte of reading inside the one write transaction.
 func currentState(tx Tx, vault vaultsync.ID) (*vaultsync.VaultState, error) {
 	head, ok, err := tx.LatestHead(vault)
 	if err != nil {
 		return nil, err
 	}
-	records, err := tx.CurrentRecords(vault)
+	leaves, err := tx.CurrentLeaves(vault)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
-		return vaultsync.RestoreVaultState(vault, nil, records)
+		return vaultsync.RestoreVaultStateFromLeaves(vault, nil, leaves)
 	}
-	return vaultsync.RestoreVaultState(vault, &head, records)
+	return vaultsync.RestoreVaultStateFromLeaves(vault, &head, leaves)
 }
 
-// Changes returns up to limit whole commits after since, and whether more follow.
+// Changes returns up to limit whole commits after since, and whether more follow. A page also stops
+// once its ciphertext would pass changesPageBytes, so a page of large commits stays within what a
+// client accepts in one reply; at least one commit is always returned, so a pull always advances.
 func (s *Service) Changes(ctx context.Context, p Principal, vault vaultsync.ID, since uint64, limit int) ([]StoredCommit, bool, error) {
 	limit = max(1, min(limit, maxChangesPage))
 	var out []StoredCommit
+	var more bool
 	err := s.cfg.Store.WithTx(ctx, func(tx Tx) error {
 		v, _, err := requireMember(tx, vault, p.Account)
 		if err != nil {
@@ -126,23 +173,37 @@ func (s *Service) Changes(ctx context.Context, p Principal, vault vaultsync.ID, 
 		if since < v.PrunedSeq {
 			return ErrHistoryPruned
 		}
-		out, err = tx.Commits(vault, since, limit+1)
+		out, more, err = tx.Commits(vault, since, limit, changesPageBytes)
 		return err
 	})
 	if err != nil {
 		return nil, false, err
 	}
-	more := len(out) > limit
-	if more {
-		out = out[:limit]
-	}
 	return out, more, nil
 }
 
-// Snapshot returns the latest head and the latest version of every record, for a new device.
-func (s *Service) Snapshot(ctx context.Context, p Principal, vault vaultsync.ID) (*vaultsync.Head, []vaultsync.Envelope, error) {
-	var head *vaultsync.Head
-	var records []vaultsync.Envelope
+// SnapshotPage is one page of a vault's current state: the latest head, and the latest version of
+// the records after the page's starting point, in record order.
+type SnapshotPage struct {
+	Head    *vaultsync.Head
+	Records []vaultsync.Envelope
+	More    bool
+}
+
+// Snapshot returns one page of the latest head and the latest version of every record, for a new
+// device; after is the last record id of the previous page, nil for the first. Each page carries the
+// head it was read under, so the client can tell when the vault moved between pages and start again:
+// the pages of one head are one consistent state.
+//
+// A vault's whole state used to go out in one reply. A vault near its quota was then read into
+// memory whole, inside the transaction every request queues behind, and still could not reach a
+// client, which refuses a reply over 64 MiB.
+func (s *Service) Snapshot(ctx context.Context, p Principal, vault vaultsync.ID, after *vaultsync.ID) (SnapshotPage, error) {
+	var page SnapshotPage
+	start := []byte{}
+	if after != nil {
+		start = after[:]
+	}
 	err := s.cfg.Store.WithTx(ctx, func(tx Tx) error {
 		if _, _, err := requireMember(tx, vault, p.Account); err != nil {
 			return err
@@ -152,13 +213,13 @@ func (s *Service) Snapshot(ctx context.Context, p Principal, vault vaultsync.ID)
 			return err
 		}
 		if ok {
-			head = &h
+			page.Head = &h
 		}
-		records, err = tx.CurrentRecords(vault)
+		page.Records, page.More, err = tx.CurrentRecordsPage(vault, start, snapshotPageRecords, snapshotPageBytes)
 		return err
 	})
-	if errors.Is(err, ErrNotFound) {
-		return nil, nil, err
+	if err != nil {
+		return SnapshotPage{}, err
 	}
-	return head, records, err
+	return page, nil
 }

@@ -15,8 +15,9 @@ var ErrHistoryPruned = errors.New("usecase: history before this seq was pruned")
 
 const dayMillis uint64 = 24 * 60 * 60 * 1000
 
-// Versions returns every retained version of one record, oldest first, for the trash. Non-members
-// get ErrNotFound, as on every vault endpoint.
+// Versions returns the retained versions of one record, oldest first, for the trash: the newest of
+// them up to versionsBytes of ciphertext, which is all the trash reads - it restores the latest
+// version it can open. Non-members get ErrNotFound, as on every vault endpoint.
 func (s *Service) Versions(ctx context.Context, p Principal, vault, record vaultsync.ID) ([]vaultsync.Envelope, error) {
 	if err := requireAccess(p); err != nil {
 		return nil, err
@@ -27,7 +28,7 @@ func (s *Service) Versions(ctx context.Context, p Principal, vault, record vault
 			return err
 		}
 		var err error
-		out, err = tx.RecordVersions(vault, record)
+		out, err = tx.RecordVersions(vault, record, versionsBytes)
 		return err
 	})
 	return out, err
@@ -99,15 +100,13 @@ func (s *Service) pruneVault(tx Tx, vault vaultsync.ID, m *vaultsync.MembershipS
 // retiredEpochs lists the epochs no live current version uses whose time has come. A tombstone
 // carries no ciphertext, so it holds no epoch in use.
 func retiredEpochs(tx Tx, vault vaultsync.ID, m *vaultsync.MembershipState, now uint64) ([]uint32, error) {
-	current, err := tx.CurrentRecords(vault)
+	epochs, err := tx.EpochsInUse(vault)
 	if err != nil {
 		return nil, err
 	}
 	inUse := map[uint32]bool{}
-	for _, e := range current {
-		if !e.Deleted {
-			inUse[e.Epoch] = true
-		}
+	for _, e := range epochs {
+		inUse[e] = true
 	}
 	used := func(e uint32) bool { return inUse[e] }
 	return vaultsync.RetiredEpochs(m.Rotations(), used, m.RetentionDays(), now), nil

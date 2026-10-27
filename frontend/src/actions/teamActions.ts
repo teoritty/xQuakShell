@@ -2,10 +2,12 @@
 // an empty string is success - so a component never has to know how an error is shaped.
 import { get } from 'svelte/store';
 import {
+  acceptTeamInvitationRpc,
   bindCredentialRpc,
   changeTeamRoleRpc,
   confirmCredentialBindingRpc,
   createTeamRpc,
+  declineTeamInvitationRpc,
   inviteToTeamRpc,
   leaveTeamRpc,
   moveConnectionToVaultRpc,
@@ -79,6 +81,19 @@ export async function leaveTeam(vault: string): Promise<string> {
   await Promise.all([refreshTeams(), refreshAllConnections()]);
   return error;
 }
+/**
+ * Joins a team this account was invited to. The team syncs in on the next round, so the tree is
+ * re-read once it has; the team list is re-read at once.
+ */
+export async function acceptInvitation(vault: string): Promise<string> {
+  const error = await attempt(() => acceptTeamInvitationRpc(vault));
+  await refreshTeams();
+  return error;
+}
+
+/** Declines an invitation: the account leaves the team, and nothing of it was ever applied here. */
+export const declineInvitation = (vault: string) => attempt(() => declineTeamInvitationRpc(vault));
+
 export const verifyMember = (vault: string, account: string, fingerprint: string) =>
   attempt(() => verifyTeamMemberRpc(vault, account, fingerprint));
 

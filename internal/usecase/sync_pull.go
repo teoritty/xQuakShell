@@ -85,6 +85,9 @@ func (p *pullRun) pullAll(ctx context.Context) error {
 }
 
 func (e *SyncEngine) startPull(ctx context.Context, vault vaultsync.ID) (*pullRun, error) {
+	if err := e.requireJoined(ctx, vault); err != nil {
+		return nil, err
+	}
 	dl, fresh, err := e.verifiedDeviceLog(ctx)
 	if err != nil {
 		return nil, err

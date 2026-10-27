@@ -41,6 +41,9 @@ type svcServer struct {
 	dropReply bool
 	// failCommit loses the next commit before the server stores it.
 	failCommit bool
+	// refuseCommit, while set, answers every commit it returns an error for with that error and
+	// stores nothing - a server refusing for good, such as over a full quota.
+	refuseCommit func(vaultsync.Commit) error
 	// historyPruned answers every pull with history_pruned, as after the server pruned.
 	historyPruned bool
 	// dropAppendReply stores the next membership append but loses its reply.
@@ -72,6 +75,8 @@ func remote(err error) error {
 		return synctrust.ErrRemoteUnauthorized
 	case errors.Is(err, srvusecase.ErrHistoryPruned):
 		return synctrust.ErrHistoryPruned
+	case errors.Is(err, srvusecase.ErrPurgeNotDue):
+		return synctrust.ErrPurgeNotDue
 	case errors.Is(err, srvusecase.ErrNotFound):
 		return synctrust.ErrRemoteNotFound
 	}
@@ -130,7 +135,7 @@ func (s *svcServer) Snapshot(ctx context.Context, vault vaultsync.ID) (synctrust
 	if err != nil {
 		return synctrust.RemoteSnapshot{}, err
 	}
-	head, records, err := s.h.Svc.Snapshot(ctx, p, vault)
+	head, records, err := s.h.FullSnapshot(p, vault)
 	out := synctrust.RemoteSnapshot{Head: head, Records: records}
 	if err == nil && s.tamperSnap != nil {
 		out = s.tamperSnap(out)
@@ -158,6 +163,11 @@ func (s *svcServer) Commit(ctx context.Context, c vaultsync.Commit) (uint64, err
 	if s.failCommit {
 		s.failCommit = false
 		return 0, errors.New("connection reset before the request arrived")
+	}
+	if s.refuseCommit != nil {
+		if err := s.refuseCommit(c); err != nil {
+			return 0, err
+		}
 	}
 	p, err := s.principal()
 	if err != nil {
@@ -268,7 +278,7 @@ func (k testKeys) CurrentKeys() ([]byte, []byte) {
 	return k.u.AIK.Public().(ed25519.PublicKey), k.u.AEK
 }
 func (k testKeys) VaultKey(vaultsync.ID, uint32, []vaultsync.MemberOp) ([]byte, error) {
-	return k.vk, nil
+	return bytes.Clone(k.vk), nil
 }
 func (k testKeys) Sign(msg []byte) ([]byte, error) { return ed25519.Sign(k.u.DSK, msg), nil }
 

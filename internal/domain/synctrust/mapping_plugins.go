@@ -74,7 +74,7 @@ func validateSyncPluginFile(f *domain.SyncPluginFile) error {
 	if err := plugin.ValidSyncFile(f.Path); err != nil {
 		return err
 	}
-	if len(f.Content) > plugin.MaxSyncFileBytes {
+	if len(f.Content) > plugin.MaxSyncReceivedFileBytes {
 		return errors.New("a plugin file over the size limit")
 	}
 	// Owner read and write, optionally read for others; never executable, never writable by others,

@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -13,7 +14,6 @@ import (
 )
 
 const (
-	eventPingInterval = 30 * time.Second
 	eventWriteTimeout = 10 * time.Second
 	eventReadLimit    = 512
 )
@@ -29,6 +29,7 @@ func (s *server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	token, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	events, cancel, err := s.svc.Subscribe(p.Account)
 	if err != nil {
 		s.fail(w, r, err)
@@ -51,16 +52,20 @@ func (s *server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	})
-	s.writeEvents(ctx, conn, events)
+	s.writeEvents(ctx, conn, events, token)
 	cancel()
 	stop()
 	_ = conn.Close() // #nosec G104 -- the peer is gone or misbehaving; nothing to report to it
 }
 
-// writeEvents forwards events until the client leaves, the hub drops the subscription, or the
-// request context ends with the server shutting down.
-func (s *server) writeEvents(ctx context.Context, conn *websocket.Conn, events <-chan usecase.Event) {
-	ping := time.NewTicker(eventPingInterval)
+// writeEvents forwards events until the client leaves, the hub drops the subscription, the request
+// context ends with the server shutting down, or the token stops authenticating.
+//
+// The token is checked again on every ping, not only at the upgrade. A socket that outlived its
+// credentials kept telling a revoked device, or one of a frozen account, which vaults moved and
+// when; the device then reconnects with a fresh token, or cannot.
+func (s *server) writeEvents(ctx context.Context, conn *websocket.Conn, events <-chan usecase.Event, token string) {
+	ping := time.NewTicker(s.cfg.EventPing)
 	defer ping.Stop()
 	for {
 		select {
@@ -74,11 +79,22 @@ func (s *server) writeEvents(ctx context.Context, conn *websocket.Conn, events <
 				return
 			}
 		case <-ping.C:
+			if _, err := s.svc.Authenticate(ctx, token, usecase.TokenAccess); err != nil {
+				closeEvents(conn)
+				return
+			}
 			if conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(eventWriteTimeout)) != nil {
 				return
 			}
 		}
 	}
+}
+
+// closeEvents tells the client the socket ends on purpose, so it reconnects - and authenticates
+// afresh - rather than wait out its idle limit on a dead connection.
+func closeEvents(conn *websocket.Conn) {
+	msg := websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "credentials no longer valid")
+	_ = conn.WriteControl(websocket.CloseMessage, msg, time.Now().Add(eventWriteTimeout)) // #nosec G104 -- the socket closes either way
 }
 
 func writeFrame(conn *websocket.Conn, v any) bool {

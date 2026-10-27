@@ -61,7 +61,12 @@ type SyncController struct {
 	knownVaults []vaultsync.ID
 	joining     []vaultsync.ID
 	teams       map[vaultsync.ID]cachedTeam
-	pendingJoin *SyncSession
+	invites     []Invitation
+	// invited is the pending teams the last pass listed, and invitedMoved says they changed since
+	// the views last re-read: an invitation syncs nothing, so no round would tell them otherwise.
+	invited      []synctrust.RemoteVault
+	invitedMoved bool
+	pendingJoin  *SyncSession
 
 	op sync.Mutex
 }
@@ -92,7 +97,20 @@ func (c *SyncController) vaults(s SyncSession) func(context.Context) ([]vaultsyn
 		if e == nil {
 			return []vaultsync.ID{s.Personal}, ErrSyncOff
 		}
-		return e.Vaults(ctx)
+		vaults, invited, err := e.VaultsAndInvitations(ctx)
+		if err == nil {
+			c.noteInvited(invited)
+		}
+		return vaults, err
+	}
+}
+
+// noteInvited remembers the pending teams of a pass and flags a change for the next report.
+func (c *SyncController) noteInvited(invited []synctrust.RemoteVault) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !slices.Equal(c.invited, invited) {
+		c.invited, c.invitedMoved = slices.Clone(invited), true
 	}
 }
 
@@ -152,7 +170,8 @@ func (c *SyncController) Stop() {
 	sched := c.sched
 	c.engine, c.sched, c.session = nil, nil, SyncSession{}
 	// A new session starts from its own reports: a stop reason of the old keys must not outlive them.
-	c.perVault, c.membership, c.knownVaults, c.joining, c.teams, c.last = nil, nil, nil, nil, nil, SyncStatus{}
+	c.perVault, c.membership, c.knownVaults, c.joining, c.teams, c.invites, c.last = nil, nil, nil, nil, nil, nil, SyncStatus{}
+	c.invited, c.invitedMoved = nil, false
 	c.mu.Unlock()
 	if sched != nil {
 		sched.Stop()
@@ -211,6 +230,9 @@ func (c *SyncController) record(st SyncStatus) {
 // pass, or from a caller that does not list vaults, keeps what is known. The caller holds c.mu.
 func (c *SyncController) followVaults(st SyncStatus) bool {
 	changed := false
+	if st.Vaults != nil && c.invitedMoved {
+		c.invitedMoved, changed = false, true
+	}
 	if st.Vaults != nil {
 		for id := range c.perVault {
 			if !slices.Contains(st.Vaults, id) {

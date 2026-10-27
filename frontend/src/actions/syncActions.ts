@@ -19,6 +19,7 @@ import {
   shredSyncNowRpc,
   syncNowRpc,
   type EnableSyncRequest,
+  type SyncHeld,
   type SyncServerProbe,
 } from '../api/sync';
 import { listTeamsRpc } from '../api/team';
@@ -190,9 +191,9 @@ export async function disableSync(): Promise<string> {
   return error;
 }
 export const syncNow = () => attempt(() => syncNowRpc());
-export const confirmSyncHeld = (record: string, masterPassword: string) =>
-  mutate(() => confirmSyncHeldRpc(record, masterPassword));
-export const rejectSyncHeld = (record: string) => mutate(() => rejectSyncHeldRpc(record));
+export const confirmSyncHeld = (held: Pick<SyncHeld, 'vault' | 'record'>, masterPassword: string) =>
+  mutate(() => confirmSyncHeldRpc(held.vault, held.record, masterPassword));
+export const rejectSyncHeld = (held: Pick<SyncHeld, 'vault' | 'record'>) => mutate(() => rejectSyncHeldRpc(held.vault, held.record));
 export const resolveSyncConflict = (id: string, useOther: boolean) => mutate(() => resolveSyncConflictRpc(id, useOther));
 export const restoreSyncTrash = (record: string) => mutate(() => restoreSyncTrashRpc(record));
 

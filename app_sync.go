@@ -55,13 +55,13 @@ func (a *App) ListSyncDevices() ([]wails.SyncDeviceDTO, error) { return a.api.Li
 // ListSyncHeld lists changes held for the master password or refused.
 func (a *App) ListSyncHeld() ([]wails.SyncHeldDTO, error) { return a.api.ListSyncHeld() }
 
-// ConfirmSyncHeld accepts a held change with the master password.
-func (a *App) ConfirmSyncHeld(record, masterPassword string) error {
-	return a.api.ConfirmSyncHeld(record, masterPassword)
+// ConfirmSyncHeld accepts a held change of a vault with the master password.
+func (a *App) ConfirmSyncHeld(vault, record, masterPassword string) error {
+	return a.api.ConfirmSyncHeld(vault, record, masterPassword)
 }
 
-// RejectSyncHeld drops a held or refused change.
-func (a *App) RejectSyncHeld(record string) error { return a.api.RejectSyncHeld(record) }
+// RejectSyncHeld drops a held or refused change of a vault.
+func (a *App) RejectSyncHeld(vault, record string) error { return a.api.RejectSyncHeld(vault, record) }
 
 // ListSyncConflicts lists unresolved credential conflicts.
 func (a *App) ListSyncConflicts() ([]wails.SyncConflictDTO, error) { return a.api.ListSyncConflicts() }

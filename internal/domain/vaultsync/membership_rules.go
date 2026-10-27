@@ -194,6 +194,9 @@ func (s *MembershipState) applyRotate(op *MemberOp) error {
 	}
 	s.epoch = op.Epoch
 	s.rotations = append(s.rotations, Rotation{Epoch: op.Epoch, StartedUnixMilli: op.TimeUnixMilli, Shred: op.Shred})
+	if op.Shred {
+		s.shredSeq = op.Seq
+	}
 	s.pendingRotation = false
 	return nil
 }

@@ -248,6 +248,7 @@ func TestErrorCodesMapToDomainErrors(t *testing.T) {
 		syncwire.CodeQuotaExceeded:      synctrust.ErrRemoteQuota,
 		syncwire.CodeInternal:           synctrust.ErrRemoteInternal,
 		syncwire.CodeHistoryPruned:      synctrust.ErrHistoryPruned,
+		syncwire.CodePurgeNotDue:        synctrust.ErrPurgeNotDue,
 		"something_new":                 synctrust.ErrRemoteProtocol,
 	} {
 		f := newFake(t)

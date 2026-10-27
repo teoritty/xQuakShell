@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"xquakshell/internal/domain/syncwire"
 	"xquakshell/internal/domain/vaultsync"
@@ -37,8 +38,13 @@ func (t *txn) InsertCommit(vault vaultsync.ID, seq uint64, c vaultsync.Commit, r
 			return err
 		}
 		e := &c.Records[i]
-		if err := t.exec("INSERT INTO record_versions (vault, record, version, seq, epoch, size, envelope) VALUES (?, ?, ?, ?, ?, ?, ?)",
-			vault[:], e.Record[:], e.Version, seq, e.Epoch, len(e.WrappedDEK)+len(e.Body), raw); err != nil {
+		digest, err := e.Digest()
+		if err != nil {
+			return err
+		}
+		if err := t.exec(`INSERT INTO record_versions (vault, record, version, seq, epoch, size, envelope, digest, deleted)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, vault[:], e.Record[:], e.Version, seq, e.Epoch, len(e.WrappedDEK)+len(e.Body), raw,
+			digest[:], e.Deleted); err != nil {
 			return err
 		}
 	}
@@ -61,9 +67,53 @@ func decodePurged(raw []byte) ([]vaultsync.ID, error) {
 	return syncwire.ParseIDs(ids)
 }
 
-// RecordVersions returns every retained version of one record, oldest first.
-func (t *txn) RecordVersions(vault, record vaultsync.ID) ([]vaultsync.Envelope, error) {
-	return t.envelopes("SELECT envelope FROM record_versions WHERE vault = ? AND record = ? ORDER BY version", vault[:], record[:])
+// RecordVersions returns the newest retained versions of one record, oldest first, up to maxBytes
+// of ciphertext - and always the newest one, whatever its size.
+func (t *txn) RecordVersions(vault, record vaultsync.ID, maxBytes int) ([]vaultsync.Envelope, error) {
+	rows, err := t.tx.QueryContext(t.ctx, "SELECT envelope, size FROM record_versions WHERE vault = ? AND record = ? ORDER BY version DESC",
+		vault[:], record[:])
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []vaultsync.Envelope
+	total := 0
+	for rows.Next() {
+		var raw []byte
+		var size int
+		if err := rows.Scan(&raw, &size); err != nil {
+			return nil, err
+		}
+		if len(out) > 0 && total+size > maxBytes {
+			break
+		}
+		e, err := decodeEnvelope(raw)
+		if err != nil {
+			return nil, err
+		}
+		out, total = append(out, e), total+size
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slices.Reverse(out)
+	return out, nil
+}
+
+func (t *txn) VersionLanded(vault, record vaultsync.ID) (uint64, uint64, bool, error) {
+	var received uint64
+	var raw []byte
+	err := t.tx.QueryRowContext(t.ctx, `SELECT c.received, c.head FROM record_versions rv
+		JOIN commits c ON c.vault = rv.vault AND c.seq = rv.seq
+		WHERE rv.vault = ? AND rv.record = ? ORDER BY rv.version DESC LIMIT 1`, vault[:], record[:]).Scan(&received, &raw)
+	if ok, err := found(err); !ok {
+		return 0, 0, false, err
+	}
+	h, err := decodeHead(raw)
+	if err != nil {
+		return 0, 0, false, err
+	}
+	return received, h.MembershipSeq, true, nil
 }
 
 func decodeEnvelope(raw []byte) (vaultsync.Envelope, error) {
@@ -74,49 +124,137 @@ func decodeEnvelope(raw []byte) (vaultsync.Envelope, error) {
 	return d.ToDomain()
 }
 
-func (t *txn) Commits(vault vaultsync.ID, since uint64, limit int) ([]usecase.StoredCommit, error) {
-	rows, err := t.tx.QueryContext(t.ctx, "SELECT seq, head, purged FROM commits WHERE vault = ? AND seq > ? ORDER BY seq LIMIT ?", vault[:], since, limit)
+// Commits returns up to limit whole commits after since, stopping early once their ciphertext would
+// pass maxBytes - but never before the first, so one large commit still moves a pull forward. more
+// reports commits after the ones returned.
+func (t *txn) Commits(vault vaultsync.ID, since uint64, limit, maxBytes int) ([]usecase.StoredCommit, bool, error) {
+	out, more, err := t.commitHeads(vault, since, limit, maxBytes)
 	if err != nil {
-		return nil, err
-	}
-	var out []usecase.StoredCommit
-	for rows.Next() {
-		var sc usecase.StoredCommit
-		var raw, purged []byte
-		if err := rows.Scan(&sc.Seq, &raw, &purged); err != nil {
-			_ = rows.Close()
-			return nil, err
-		}
-		if sc.Commit.Head, err = decodeHead(raw); err != nil {
-			_ = rows.Close()
-			return nil, err
-		}
-		if sc.Commit.Purged, err = decodePurged(purged); err != nil {
-			_ = rows.Close()
-			return nil, err
-		}
-		out = append(out, sc)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	for i := range out {
 		if out[i].Commit.Records, err = t.recordsAt(vault, out[i].Seq); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
-	return out, nil
+	return out, more, nil
+}
+
+// commitHeads reads the heads and purge lists of the commits Commits will return, with the size of
+// each commit's ciphertext summed in the query, so the byte budget is applied before any envelope
+// is read.
+func (t *txn) commitHeads(vault vaultsync.ID, since uint64, limit, maxBytes int) ([]usecase.StoredCommit, bool, error) {
+	rows, err := t.tx.QueryContext(t.ctx, `SELECT c.seq, c.head, c.purged,
+		(SELECT coalesce(sum(rv.size), 0) FROM record_versions rv WHERE rv.vault = c.vault AND rv.seq = c.seq)
+		FROM commits c WHERE c.vault = ? AND c.seq > ? ORDER BY c.seq LIMIT ?`, vault[:], since, limit+1)
+	if err != nil {
+		return nil, false, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []usecase.StoredCommit
+	total := 0
+	for rows.Next() {
+		var sc usecase.StoredCommit
+		var raw, purged []byte
+		var size int
+		if err := rows.Scan(&sc.Seq, &raw, &purged, &size); err != nil {
+			return nil, false, err
+		}
+		if len(out) == limit || (len(out) > 0 && total+size > maxBytes) {
+			return out, true, rows.Err()
+		}
+		if sc.Commit.Head, err = decodeHead(raw); err != nil {
+			return nil, false, err
+		}
+		if sc.Commit.Purged, err = decodePurged(purged); err != nil {
+			return nil, false, err
+		}
+		out, total = append(out, sc), total+size
+	}
+	return out, false, rows.Err()
 }
 
 func (t *txn) recordsAt(vault vaultsync.ID, seq uint64) ([]vaultsync.Envelope, error) {
 	return t.envelopes("SELECT envelope FROM record_versions WHERE vault = ? AND seq = ? ORDER BY record", vault[:], seq)
 }
 
-// CurrentRecords returns the latest version of every record - the state a new device starts from.
-func (t *txn) CurrentRecords(vault vaultsync.ID) ([]vaultsync.Envelope, error) {
-	return t.envelopes(`SELECT rv.envelope FROM record_versions rv
-		WHERE rv.vault = ? AND rv.version = (SELECT max(version) FROM record_versions WHERE vault = rv.vault AND record = rv.record)
-		ORDER BY rv.record`, vault[:])
+// CurrentRecordsPage returns the latest version of the records after after, in record order - the
+// state a new device starts from, a page at a time. A page stops at limit records or once its
+// ciphertext would pass maxBytes, never before its first record; more reports records after it.
+func (t *txn) CurrentRecordsPage(vault vaultsync.ID, after []byte, limit, maxBytes int) ([]vaultsync.Envelope, bool, error) {
+	rows, err := t.tx.QueryContext(t.ctx, "SELECT rv.envelope, rv.size FROM record_versions rv WHERE rv.vault = ? AND rv.record > ? AND "+
+		currentVersion+" ORDER BY rv.record LIMIT ?", vault[:], after, limit+1)
+	if err != nil {
+		return nil, false, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []vaultsync.Envelope
+	total := 0
+	for rows.Next() {
+		var raw []byte
+		var size int
+		if err := rows.Scan(&raw, &size); err != nil {
+			return nil, false, err
+		}
+		if len(out) == limit || (len(out) > 0 && total+size > maxBytes) {
+			return out, true, rows.Err()
+		}
+		e, err := decodeEnvelope(raw)
+		if err != nil {
+			return nil, false, err
+		}
+		out, total = append(out, e), total+size
+	}
+	return out, false, rows.Err()
+}
+
+// currentVersion selects, for a row aliased rv, only the latest version of its record.
+const currentVersion = `rv.version = (SELECT max(version) FROM record_versions WHERE vault = rv.vault AND record = rv.record)`
+
+// CurrentLeaves reads the Merkle leaf of every record's latest version from the stored columns,
+// without decoding or hashing a single envelope.
+func (t *txn) CurrentLeaves(vault vaultsync.ID) ([]vaultsync.Leaf, error) {
+	rows, err := t.tx.QueryContext(t.ctx, "SELECT rv.record, rv.version, rv.digest, rv.deleted FROM record_versions rv WHERE rv.vault = ? AND "+
+		currentVersion, vault[:])
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []vaultsync.Leaf
+	for rows.Next() {
+		var record, digest []byte
+		var l vaultsync.Leaf
+		if err := rows.Scan(&record, &l.Version, &digest, &l.Deleted); err != nil {
+			return nil, err
+		}
+		if len(record) != len(l.Record) || len(digest) != len(l.Digest) {
+			return nil, fmt.Errorf("store: stored leaf of %x is malformed", record)
+		}
+		copy(l.Record[:], record)
+		copy(l.Digest[:], digest)
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
+// EpochsInUse lists the epochs that seal a live current version. A tombstone carries no ciphertext
+// and holds no epoch.
+func (t *txn) EpochsInUse(vault vaultsync.ID) ([]uint32, error) {
+	rows, err := t.tx.QueryContext(t.ctx, "SELECT DISTINCT rv.epoch FROM record_versions rv WHERE rv.vault = ? AND rv.deleted = 0 AND "+
+		currentVersion, vault[:])
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []uint32
+	for rows.Next() {
+		var e uint32
+		if err := rows.Scan(&e); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
 }
 
 func (t *txn) envelopes(query string, args ...any) ([]vaultsync.Envelope, error) {

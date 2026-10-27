@@ -23,6 +23,7 @@ type fakeSync struct {
 	acknowledged     []vaultsync.ID
 	newDevices       []usecase.NewDeviceNotice
 	confirmed        vaultsync.ID
+	confirmedIn      vaultsync.ID
 	masterPassword   string
 	restored         vaultsync.ID
 	shredPassword    string
@@ -78,11 +79,11 @@ func (f *fakeSync) Devices(context.Context) ([]usecase.DeviceInfo, error) {
 func (f *fakeSync) HeldChanges(context.Context) ([]usecase.HeldChange, error) {
 	return []usecase.HeldChange{{Record: vaultsync.ID{2}, Type: "settings.plugins", Pending: true}}, f.err
 }
-func (f *fakeSync) ConfirmHeld(_ context.Context, id vaultsync.ID, pw string) error {
-	f.confirmed, f.masterPassword = id, pw
+func (f *fakeSync) ConfirmHeld(_ context.Context, vault, id vaultsync.ID, pw string) error {
+	f.confirmedIn, f.confirmed, f.masterPassword = vault, id, pw
 	return f.err
 }
-func (f *fakeSync) RejectHeld(context.Context, vaultsync.ID) error { return f.err }
+func (f *fakeSync) RejectHeld(context.Context, vaultsync.ID, vaultsync.ID) error { return f.err }
 func (f *fakeSync) Trash(context.Context) ([]usecase.TrashItem, error) {
 	return []usecase.TrashItem{{Record: vaultsync.ID{3}, Type: "folder", Key: "f1", DeletedUnixMilli: 5, PurgeUnixMilli: 9, Restorable: true}}, f.err
 }
@@ -131,7 +132,7 @@ func TestSyncHandlersWithoutSync(t *testing.T) {
 		"enable":  func() error { _, err := a.EnableSync(EnableSyncRequest{}); return err }(),
 		"devices": func() error { _, err := a.ListSyncDevices(); return err }(),
 		"held":    func() error { _, err := a.ListSyncHeld(); return err }(),
-		"confirm": a.ConfirmSyncHeld("00", "pw"),
+		"confirm": a.ConfirmSyncHeld("00", "00", "pw"),
 		"now":     a.SyncNow(),
 	} {
 		if !errors.Is(err, errSyncUnavailable) {
@@ -187,15 +188,20 @@ func TestJoinSyncTakesOnlyTheTwoChoices(t *testing.T) {
 func TestRecordAndDeviceIDsAreValidated(t *testing.T) {
 	a, f, _ := syncAPI()
 	for _, bad := range []string{"", "xyz", "00", strings.Repeat("0", 32)} {
-		if err := a.ConfirmSyncHeld(bad, "pw"); !errors.Is(err, errInvalidSyncRequest) {
+		if err := a.ConfirmSyncHeld(hex.EncodeToString((&vaultsync.ID{9})[:]), bad, "pw"); !errors.Is(err, errInvalidSyncRequest) {
 			t.Errorf("confirm %q: %v", bad, err)
+		}
+		if err := a.ConfirmSyncHeld(bad, hex.EncodeToString((&vaultsync.ID{2})[:]), "pw"); !errors.Is(err, errInvalidSyncRequest) {
+			t.Errorf("confirm in vault %q: %v", bad, err)
 		}
 		if err := a.RevokeSyncDevice(bad, "pw"); !errors.Is(err, errInvalidSyncRequest) {
 			t.Errorf("revoke %q: %v", bad, err)
 		}
 	}
 	id := hex.EncodeToString((&vaultsync.ID{2})[:])
-	if err := a.ConfirmSyncHeld(id, "master"); err != nil || f.confirmed != (vaultsync.ID{2}) || f.masterPassword != "master" {
+	vault := hex.EncodeToString((&vaultsync.ID{9})[:])
+	if err := a.ConfirmSyncHeld(vault, id, "master"); err != nil || f.confirmed != (vaultsync.ID{2}) || f.confirmedIn != (vaultsync.ID{9}) ||
+		f.masterPassword != "master" {
 		t.Fatalf("confirm: %v", err)
 	}
 	if err := a.RevokeSyncDevice(id, ""); !errors.Is(err, errInvalidSyncRequest) {
@@ -222,7 +228,7 @@ func TestSyncErrorsReachTheUserAsFixedSentences(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 	f.err = usecase.ErrHeldReauth
-	if err := a.ConfirmSyncHeld(hex.EncodeToString((&vaultsync.ID{2})[:]), "wrong"); err == nil || !strings.Contains(err.Error(), "master password") {
+	if err := a.ConfirmSyncHeld(hex.EncodeToString((&vaultsync.ID{9})[:]), hex.EncodeToString((&vaultsync.ID{2})[:]), "wrong"); err == nil || !strings.Contains(err.Error(), "master password") {
 		t.Fatalf("err = %v", err)
 	}
 }

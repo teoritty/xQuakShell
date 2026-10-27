@@ -81,7 +81,7 @@ func setClocks(at int64, ds ...*device) {
 }
 
 func TestTombstoneIsPurgedOnceTheWindowHasPassed(t *testing.T) {
-	_, a := registered(t)
+	h, a := registered(t)
 	addFolders(a, "f1", "f2")
 	a.sync()
 	removeFolder(a, "f1")
@@ -89,6 +89,9 @@ func TestTombstoneIsPurgedOnceTheWindowHasPassed(t *testing.T) {
 	if _, tombs := storedRecords(t, a); tombs != 1 {
 		t.Fatalf("%d tombstones after the delete, want 1", tombs)
 	}
+	// The server counts the window on its own clock and is already past it, so what decides here is
+	// this device's clock.
+	h.Clock.Advance(uint64(31 * retentionDay))
 	setClocks(7+30*retentionDay-1, a)
 	a.sync()
 	if _, tombs := storedRecords(t, a); tombs != 1 {
@@ -118,8 +121,28 @@ func TestNoPurgeWhenTheClockIsBehind(t *testing.T) {
 	}
 }
 
+// A device whose clock runs ahead of the server's thinks the window passed; the server, which does the
+// deleting, refuses the purge. The round still succeeds, the trash keeps the record, and nothing is
+// left in the outbox to be refused again on every later round.
+func TestPurgeTheServerHoldsBackLeavesTheTombstone(t *testing.T) {
+	_, a := registered(t)
+	addFolders(a, "f1")
+	a.sync()
+	removeFolder(a, "f1")
+	a.sync()
+	setClocks(7+31*retentionDay, a)
+	a.sync()
+	if _, tombs := storedRecords(t, a); tombs != 1 {
+		t.Fatal("the tombstone is gone although the server had not seen its window pass")
+	}
+	if c, err := a.state.Outbox(syncCtx, a.session.Personal); err != nil || c != nil {
+		t.Fatalf("outbox after a refused purge = %v, %v; it must be empty", c, err)
+	}
+	a.sync()
+}
+
 func TestPullAppliesAPurge(t *testing.T) {
-	_, a, b := pair(t)
+	h, a, b := pair(t)
 	addFolders(a, "f1", "f2")
 	a.sync()
 	b.sync()
@@ -127,6 +150,7 @@ func TestPullAppliesAPurge(t *testing.T) {
 	a.sync()
 	b.sync()
 	setClocks(7+31*retentionDay, a, b)
+	h.Clock.Advance(uint64(31 * retentionDay))
 	a.sync()
 	b.sync()
 	if live, tombs := storedRecords(t, b); tombs != 0 || live == 0 {

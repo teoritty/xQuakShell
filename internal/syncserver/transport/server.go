@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"xquakshell/internal/domain/syncwire"
 	"xquakshell/internal/domain/vaultsync"
@@ -26,7 +27,15 @@ type Config struct {
 	// RatePerSecond and Burst bound requests per client address.
 	RatePerSecond float64
 	Burst         int
-	Logger        *slog.Logger
+	// MaxConcurrent bounds the requests served at once, event sockets aside; zero means 64. One
+	// request may hold a 20 MiB commit body and a reply of similar size, and without a bound the
+	// memory they need grew with whatever number of clients happened to arrive at the same time.
+	MaxConcurrent int
+	// EventPing is how often an open event socket is pinged and its token checked again; zero means
+	// 30 seconds. It bounds how long a socket outlives its token's expiry, the device's revocation or
+	// the account's freeze.
+	EventPing time.Duration
+	Logger    *slog.Logger
 }
 
 type server struct {
@@ -34,7 +43,9 @@ type server struct {
 	svc    *usecase.Service
 	hello  syncwire.HelloReply
 	limits *addressLimiter
-	log    *slog.Logger
+	// slots holds one token per request being served; see MaxConcurrent.
+	slots chan struct{}
+	log   *slog.Logger
 }
 
 // New returns the server's HTTP handler.
@@ -49,7 +60,8 @@ func New(cfg Config, svc *usecase.Service) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &server{cfg: cfg, svc: svc, limits: newAddressLimiter(cfg.RatePerSecond, cfg.Burst), log: cfg.Logger}
+	s := &server{cfg: cfg, svc: svc, limits: newAddressLimiter(cfg.RatePerSecond, cfg.Burst), slots: make(chan struct{}, cfg.MaxConcurrent),
+		log: cfg.Logger}
 	s.hello = syncwire.HelloReply{
 		ServerMin: wireVersion(vaultsync.CurrentProtocol), ServerMax: wireVersion(vaultsync.CurrentProtocol),
 		Suites:            []uint16{uint16(vaultsync.CurrentSuite)},
@@ -75,6 +87,12 @@ func withDefaults(cfg Config) Config {
 	}
 	if cfg.Burst == 0 {
 		cfg.Burst = 200
+	}
+	if cfg.MaxConcurrent == 0 {
+		cfg.MaxConcurrent = 64
+	}
+	if cfg.EventPing == 0 {
+		cfg.EventPing = 30 * time.Second
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
@@ -109,7 +127,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /v1/vaults/{id}/snapshot", s.handleSnapshot)
 	mux.HandleFunc("GET /v1/vaults/{id}/records/{rid}/versions", s.handleVersions)
 	mux.HandleFunc("GET /v1/events", s.handleEvents)
-	return s.limit(mux)
+	return s.limit(s.bound(mux))
 }
 
 func (s *server) handleHello(w http.ResponseWriter, r *http.Request) {

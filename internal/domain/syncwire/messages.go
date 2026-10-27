@@ -246,10 +246,14 @@ type Changes struct {
 	More    bool          `json:"more"`
 }
 
-// Snapshot is the latest version of every record and the head that commits to them.
+// Snapshot is one page of the latest version of every record, with the head that commits to all of
+// them. Pages run in record order: the next one is asked for after the last record of this one, and
+// More says there is one. Every page carries the head it was read under, so a client sees when the
+// vault moved between two pages.
 type Snapshot struct {
 	Head    *Head      `json:"head,omitempty"`
 	Records []Envelope `json:"records"`
+	More    bool       `json:"more"`
 }
 
 // Event is a notification frame: a vault advanced, or an account's device log grew.

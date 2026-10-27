@@ -91,8 +91,7 @@ func (p *pullRun) flushOutbox(ctx context.Context) error {
 		return err
 	}
 	_, err = p.e.d.Server.Commit(ctx, *c)
-	var conflict *synctrust.ConflictError
-	if errors.As(err, &conflict) {
+	if neverStored(err) {
 		return p.e.d.State.ClearOutbox(ctx, p.vault, c.Head.Commit)
 	}
 	if err != nil {
@@ -116,11 +115,7 @@ func (p *pullRun) push(ctx context.Context) (int, error) {
 	if err != nil || len(changes) == 0 {
 		return 0, err
 	}
-	c, err := p.buildCommit(changes, nil)
-	if err != nil {
-		return 0, err
-	}
-	return len(c.Records), p.send(ctx, c)
+	return p.commitAll(ctx, changes, nil)
 }
 
 // revertToBase returns a viewer's copy of the team to what the team verifiably holds. Kept local
@@ -156,13 +151,32 @@ func (p *pullRun) send(ctx context.Context, c vaultsync.Commit) error {
 		return err
 	}
 	if _, err := p.e.d.Server.Commit(ctx, c); err != nil {
-		var conflict *synctrust.ConflictError
-		if errors.As(err, &conflict) {
+		if neverStored(err) {
 			return errors.Join(err, p.e.d.State.ClearOutbox(ctx, p.vault, c.Head.Commit))
 		}
 		return err
 	}
 	return p.adopt(ctx, c)
+}
+
+// neverStored reports a commit refusal that is final for this commit and leaves nothing on the
+// server: a conflict, which a rebase answers with a fresh commit, a purge the server holds back until
+// the trash window passes on its clock, and every other refusal of the commit itself - too large, over
+// the quota, a role that no longer writes, a vault no longer this account's, a commit the server's
+// rules reject. The server decides all of them before its transaction stores anything.
+//
+// Resending such a commit from the outbox could only be refused again, and the outbox is sent before
+// the round pulls: a commit kept there stopped the vault receiving anything as well. A full quota was
+// the worst of it, because the deletions that would have freed the space queued behind the refused
+// commit. Clearing it loses nothing, since the edits are still in the vault and the next round builds
+// them afresh. What may yet pass unchanged stays: an expired session, a frozen account, a rate limit,
+// and a server or connection that failed.
+func neverStored(err error) bool {
+	var conflict *synctrust.ConflictError
+	return errors.As(err, &conflict) || errors.Is(err, synctrust.ErrPurgeNotDue) ||
+		errors.Is(err, synctrust.ErrRemoteTooLarge) || errors.Is(err, synctrust.ErrRemoteQuota) ||
+		errors.Is(err, synctrust.ErrRemoteForbidden) || errors.Is(err, synctrust.ErrRemoteNotFound) ||
+		errors.Is(err, synctrust.ErrRemoteMalformed)
 }
 
 // adopt applies this device's own accepted commit through the same verification as anyone else's.
@@ -247,25 +261,6 @@ func (p *pullRun) heldIDs(ctx context.Context) (map[vaultsync.ID]bool, error) {
 		out[it.Envelope.Record] = true
 	}
 	return out, nil
-}
-
-// buildCommit seals and signs the changes and a head over them at the current membership position;
-// purged tombstones leave the tree with the same commit.
-func (p *pullRun) buildCommit(changes []change, purged []vaultsync.ID) (vaultsync.Commit, error) {
-	m, err := p.members.at(uint64(len(p.ops)))
-	if err != nil {
-		return vaultsync.Commit{}, err
-	}
-	records := make([]vaultsync.Envelope, 0, len(changes))
-	for _, ch := range changes {
-		env, err := p.sealChange(ch, m.Epoch())
-		if err != nil {
-			return vaultsync.Commit{}, err
-		}
-		records = append(records, env)
-	}
-	head, err := p.signHead(records, purged, m)
-	return vaultsync.Commit{Head: head, Records: records, Purged: purged}, err
 }
 
 func (p *pullRun) sealChange(ch change, epoch uint32) (vaultsync.Envelope, error) {

@@ -30,6 +30,18 @@ export interface TeamInviteRequest {
   verified: boolean;
 }
 
+/** A team this account was added to and has not joined, with who added it. */
+export interface TeamInvitation {
+  vault: string;
+  name: string;
+  role: 'owner' | 'admin' | 'editor' | 'viewer';
+  inviter: string;
+  inviterFingerprint: string;
+  inviterUsername: string;
+  inviterKnown: boolean;
+  inviterVerified: boolean;
+}
+
 export interface CredentialBinding {
   vault: string;
   connection: string;
@@ -54,4 +66,7 @@ export interface TeamGateway {
   BindCredential(binding: CredentialBinding): Promise<void>;
   ConfirmCredentialBinding(vault: string, connection: string, user: string): Promise<void>;
   MoveConnectionToVault(connection: string, vault: string, folder: string): Promise<string>;
+  ListTeamInvitations(): Promise<TeamInvitation[]>;
+  AcceptTeamInvitation(vault: string): Promise<void>;
+  DeclineTeamInvitation(vault: string): Promise<void>;
 }

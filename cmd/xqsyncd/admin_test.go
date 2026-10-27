@@ -106,15 +106,15 @@ func copyFile(t *testing.T, from, to string) {
 }
 
 func TestServeQuotaFlags(t *testing.T) {
-	cfg, addr, err := parseServe([]string{"--dir", "d", "--personal-quota-mib", "64", "--team-quota-mib", "2048"})
+	cfg, addr, err := parseServe([]string{"--dir", "d", "--personal-quota-mib", "64", "--team-quota-mib", "2048", "--max-records", "500", "--max-requests", "8"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.personalQuota != 64<<20 || cfg.teamQuota != 2048<<20 || addr != ":8443" {
+	if cfg.personalQuota != 64<<20 || cfg.teamQuota != 2048<<20 || cfg.maxRecords != 500 || cfg.maxRequests != 8 || addr != ":8443" {
 		t.Fatalf("cfg = %+v, addr %q", cfg, addr)
 	}
 	cfg, _, _ = parseServe([]string{"--dir", "d"})
-	if cfg.personalQuota != 0 || cfg.teamQuota != 0 {
+	if cfg.personalQuota != 0 || cfg.teamQuota != 0 || cfg.maxRecords != 0 || cfg.maxRequests != 0 {
 		t.Fatal("without the flags the use case's defaults (256 MiB, 1 GiB) apply")
 	}
 }

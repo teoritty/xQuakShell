@@ -58,7 +58,7 @@ func TestPurgeRemovesATombstone(t *testing.T) {
 	if err := c.apply(c.commit(editor, c.record(editor, 2, 1))); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.apply(c.purge(editor, vaultsync.ID{1})); err != nil {
+	if err := c.apply(c.purge(admin, vaultsync.ID{1})); err != nil {
 		t.Fatalf("purge of a tombstone was refused: %v", err)
 	}
 	if _, ok := c.state.Version(vaultsync.ID{1}); ok {
@@ -78,18 +78,18 @@ func TestPurgeRefusals(t *testing.T) {
 			if err := c.apply(c.commit(editor, c.record(editor, 2, 1))); err != nil {
 				c.t.Fatal(err)
 			}
-			return c.purge(editor, vaultsync.ID{2})
+			return c.purge(admin, vaultsync.ID{2})
 		}},
-		{"unknown record", func(c *commitFixture) vaultsync.Commit { return c.purge(editor, vaultsync.ID{9}) }},
+		{"unknown record", func(c *commitFixture) vaultsync.Commit { return c.purge(admin, vaultsync.ID{9}) }},
 		{"duplicate", func(c *commitFixture) vaultsync.Commit {
-			p := c.purge(editor, vaultsync.ID{1})
+			p := c.purge(admin, vaultsync.ID{1})
 			p.Purged = append(p.Purged, vaultsync.ID{1})
 			return p
 		}},
 		{"also written", func(c *commitFixture) vaultsync.Commit {
 			// A tombstone written and purged in one commit: the leaf the purge finds is a tombstone,
 			// so only the written check refuses it.
-			p := c.commit(editor, c.tombstone(editor, 1, 3))
+			p := c.commit(admin, c.tombstone(admin, 1, 3))
 			p.Purged = []vaultsync.ID{{1}}
 			return p
 		}},
@@ -107,6 +107,24 @@ func TestPurgeRefusals(t *testing.T) {
 				t.Fatal("a refused purge changed the state")
 			}
 		})
+	}
+}
+
+// A purge destroys the trash copy along with the record. An editor may delete - that stays
+// restorable - but only an owner or admin may purge, and every verifier holds the line, so an editor
+// cannot empty the trash by writing the purge itself.
+func TestEditorCannotPurge(t *testing.T) {
+	c := newCommitFixture(t)
+	c.deleted(1)
+	before := len(c.state.Leaves())
+	if err := c.apply(c.purge(editor, vaultsync.ID{1})); !errors.Is(err, vaultsync.ErrNotAuthorized) {
+		t.Fatalf("an editor's purge: %v, want ErrNotAuthorized", err)
+	}
+	if len(c.state.Leaves()) != before {
+		t.Fatal("a refused purge changed the state")
+	}
+	if err := c.apply(c.purge(owner, vaultsync.ID{1})); err != nil {
+		t.Fatalf("the owner's purge of the same tombstone: %v", err)
 	}
 }
 

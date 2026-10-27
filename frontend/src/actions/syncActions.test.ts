@@ -69,9 +69,9 @@ async function run() {
     fake.program('ConfirmSyncHeld', undefined);
     fake.program('GetSyncStatus', enabled);
     setGateway(fake);
-    assert((await confirmSyncHeld('rec', 'master')) === '', 'confirmation succeeds');
+    assert((await confirmSyncHeld({ vault: 'team', record: 'rec' }, 'master')) === '', 'confirmation succeeds');
     const c = fake.calls.find((x) => x.method === 'ConfirmSyncHeld');
-    assert(c !== undefined && c.args[0] === 'rec' && c.args[1] === 'master', 'record and password reach the backend');
+    assert(c !== undefined && c.args[0] === 'team' && c.args[1] === 'rec' && c.args[2] === 'master', 'vault, record and password reach the backend');
   }
 
   // A round's status keeps the account fields the event does not carry.

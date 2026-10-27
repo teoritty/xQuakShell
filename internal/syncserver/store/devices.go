@@ -49,9 +49,16 @@ func (t *txn) AppendDeviceEntries(account vaultsync.ID, entries []vaultsync.Devi
 	return nil
 }
 
-func (t *txn) UpsertDevice(d usecase.Device) error {
-	return t.exec(`INSERT INTO devices (id, account, signing_key, revoked) VALUES (?, ?, ?, ?)
-		ON CONFLICT (id) DO UPDATE SET revoked = excluded.revoked`, d.ID[:], d.Account[:], d.SigningKey, d.Revoked)
+// InsertDevice never touches an existing row. The upsert it replaced updated the revoked flag of
+// whatever row held the id, so any account could certify another account's device id in its own log
+// and then revoke it there - or certify a revoked one and so restore it.
+func (t *txn) InsertDevice(d usecase.Device) (bool, error) {
+	return t.changed(`INSERT INTO devices (id, account, signing_key, revoked) VALUES (?, ?, ?, ?)
+		ON CONFLICT (id) DO NOTHING`, d.ID[:], d.Account[:], d.SigningKey, d.Revoked)
+}
+
+func (t *txn) RevokeDevice(account, device vaultsync.ID) (bool, error) {
+	return t.changed("UPDATE devices SET revoked = 1 WHERE id = ? AND account = ?", device[:], account[:])
 }
 
 func (t *txn) DeviceByID(id vaultsync.ID) (usecase.Device, bool, error) {

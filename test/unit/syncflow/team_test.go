@@ -65,6 +65,19 @@ func TestS6TeamLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Being added is an invitation: bob sees who sent it, by the fingerprint he can compare, and the
+	// team syncs in only once he accepts.
+	if vaults, err := bob.engine.Vaults(ctx); err != nil || len(vaults) != 1 {
+		t.Fatalf("bob's vaults before accepting = %v, %v; only his personal vault", vaults, err)
+	}
+	invs, err := bob.engine.Invitations(ctx, nil)
+	_, aliceIdentity, _ := alice.session.Keys.AccountKeys()
+	if err != nil || len(invs) != 1 || invs[0].Vault != team || invs[0].InviterFingerprint != vaultsync.AccountFingerprint(aliceIdentity) {
+		t.Fatalf("bob's invitations = %+v, %v; want alice's team with her fingerprint", invs, err)
+	}
+	if err := bob.engine.AcceptTeam(ctx, team); err != nil {
+		t.Fatalf("bob accepts: %v", err)
+	}
 	vaults, err := bob.engine.Vaults(ctx)
 	if err != nil || len(vaults) != 2 {
 		t.Fatalf("bob's vaults = %v, %v; the team is listed", vaults, err)

@@ -29,7 +29,7 @@ func TestTeamVaultLifecycle(t *testing.T) {
 	if err != nil || more || len(changes) != 2 || len(changes[0].Commit.Records) != 2 {
 		t.Fatalf("changes = %d commits, more %v, %v", len(changes), more, err)
 	}
-	head, records, err := h.Svc.Snapshot(ctx, h.Principal(carol.Access), cv.ID)
+	head, records, err := h.FullSnapshot(h.Principal(carol.Access), cv.ID)
 	if err != nil || head == nil || head.Seq != 2 || len(records) != 2 {
 		t.Fatalf("snapshot: head %+v, %d records, %v", head, len(records), err)
 	}
@@ -86,7 +86,7 @@ func TestOutsidersAndRemovedMembersSeeNothing(t *testing.T) {
 	if _, _, err := h.Svc.Changes(ctx, pd, cv.ID, 0, 10); !isErr(err, usecase.ErrNotFound) {
 		t.Errorf("outsider changes: %v", err)
 	}
-	if _, _, err := h.Svc.Snapshot(ctx, pd, cv.ID); !isErr(err, usecase.ErrNotFound) {
+	if _, err := h.Svc.Snapshot(ctx, pd, cv.ID, nil); !isErr(err, usecase.ErrNotFound) {
 		t.Errorf("outsider snapshot: %v", err)
 	}
 	if _, err := h.Svc.Membership(ctx, pd, cv.ID, 0); !isErr(err, usecase.ErrNotFound) {
@@ -146,6 +146,20 @@ func TestQuota(t *testing.T) {
 	cv.Accept(alice, cv.Commit(alice, cv.Record(alice, 1)))
 	if _, err := cv.Push(alice, cv.Commit(alice, cv.Record(alice, 2), cv.Record(alice, 3))); !isErr(err, usecase.ErrQuotaExceeded) {
 		t.Fatalf("over quota: %v, want ErrQuotaExceeded", err)
+	}
+}
+
+// The record limit counts what the vault holds after the commit, tombstones included: a deletion
+// frees nothing until it is purged, and a new version of a record already there takes no new slot.
+func TestRecordLimit(t *testing.T) {
+	h := servertest.NewHarnessWith(t, usecase.Config{MaxRecords: 2})
+	alice := h.Register("alice")
+	cv := h.NewTeamVault(alice)
+	cv.Accept(alice, cv.Commit(alice, cv.Record(alice, 1), cv.Record(alice, 2)))
+	cv.Accept(alice, cv.Commit(alice, cv.Record(alice, 1)))
+	cv.Accept(alice, cv.Commit(alice, cv.Tombstone(alice, 2)))
+	if _, err := cv.Push(alice, cv.Commit(alice, cv.Record(alice, 3))); !isErr(err, usecase.ErrQuotaExceeded) {
+		t.Fatalf("a third record with the limit at two: %v, want ErrQuotaExceeded", err)
 	}
 }
 

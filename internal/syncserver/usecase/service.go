@@ -21,6 +21,10 @@ type Config struct {
 	// default (256 MiB and 1 GiB).
 	PersonalQuota uint64
 	TeamQuota     uint64
+	// MaxRecords bounds the records a vault may hold, tombstones included; zero means 100 000. The
+	// byte quotas alone do not bound the work a commit costs: verifying one recomputes the Merkle root
+	// over every record, and at the smallest record size a gigabyte is millions of them.
+	MaxRecords int
 }
 
 // Service is the sync server's application layer.
@@ -39,6 +43,9 @@ func New(cfg Config) *Service {
 	}
 	if cfg.TeamQuota == 0 {
 		cfg.TeamQuota = 1 << 30
+	}
+	if cfg.MaxRecords == 0 {
+		cfg.MaxRecords = 100_000
 	}
 	return &Service{cfg: cfg, logins: newPendingLogins(), limits: newLimiter(), challenges: newChallenges(), events: newHub()}
 }

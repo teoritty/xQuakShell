@@ -2298,6 +2298,7 @@ export namespace wails {
 	    }
 	}
 	export class SyncHeldDTO {
+	    vault: string;
 	    record: string;
 	    type: string;
 	    key: string;
@@ -2312,6 +2313,7 @@ export namespace wails {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.vault = source["vault"];
 	        this.record = source["record"];
 	        this.type = source["type"];
 	        this.key = source["key"];
@@ -2511,6 +2513,32 @@ export namespace wails {
 	        this.vault = source["vault"];
 	        this.name = source["name"];
 	        this.role = source["role"];
+	    }
+	}
+	export class TeamInvitationDTO {
+	    vault: string;
+	    name: string;
+	    role: string;
+	    inviter: string;
+	    inviterFingerprint: string;
+	    inviterUsername: string;
+	    inviterKnown: boolean;
+	    inviterVerified: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TeamInvitationDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.vault = source["vault"];
+	        this.name = source["name"];
+	        this.role = source["role"];
+	        this.inviter = source["inviter"];
+	        this.inviterFingerprint = source["inviterFingerprint"];
+	        this.inviterUsername = source["inviterUsername"];
+	        this.inviterKnown = source["inviterKnown"];
+	        this.inviterVerified = source["inviterVerified"];
 	    }
 	}
 	export class TeamInviteRequest {

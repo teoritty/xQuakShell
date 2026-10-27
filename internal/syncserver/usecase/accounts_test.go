@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"testing"
 
 	"xquakshell/internal/domain/vaultsync"
@@ -223,6 +224,43 @@ func TestLoginBackoffWithoutLockout(t *testing.T) {
 	}
 }
 
+// KE2 alone tells a client whether its guess was right, so a guesser never has to send KE3. Every
+// started login must count, or the backoff and the hourly budget never see a single guess.
+func TestLoginStartsWithoutFinishAreCharged(t *testing.T) {
+	h := servertest.NewHarness(t, 0)
+	h.Register("alice")
+	for i := 0; i < 3; i++ {
+		if _, _, _, err := h.Svc.LoginStart(ctx, "alice", "guesser", []byte("k")); err != nil {
+			t.Fatalf("start %d: %v", i, err)
+		}
+	}
+	if _, _, _, err := h.Svc.LoginStart(ctx, "alice", "guesser", []byte("k")); !isErr(err, usecase.ErrRateLimited) {
+		t.Fatalf("fourth KE1 with no KE3 from one address: %v, want ErrRateLimited", err)
+	}
+	for i := 0; i < 30; i++ {
+		_, _, _, _ = h.Svc.LoginStart(ctx, "alice", fmt.Sprintf("spray-%d", i), []byte("k"))
+	}
+	if _, _, _, err := h.Svc.LoginStart(ctx, "alice", "fresh", []byte("k")); !isErr(err, usecase.ErrRateLimited) {
+		t.Fatalf("KE1 sprayed from 30 addresses left the username's hourly budget untouched: %v", err)
+	}
+}
+
+// A login that verifies gives its charge back, so the owner signing in again and again from one
+// address is never slowed by their own successes.
+func TestVerifiedLoginsRefundTheirCharge(t *testing.T) {
+	h := servertest.NewHarness(t, 0)
+	u := h.Register("alice")
+	for i := 0; i < 40; i++ {
+		id, _, _, err := h.Svc.LoginStart(ctx, "alice", "home", []byte("k"))
+		if err != nil {
+			t.Fatalf("login %d of the owner from one address: %v", i, err)
+		}
+		if _, err := h.Svc.LoginFinish(ctx, id, "home", servertest.CorrectKE3([]byte("k"), u.Record)); err != nil {
+			t.Fatalf("login %d: %v", i, err)
+		}
+	}
+}
+
 func TestDeviceProofRules(t *testing.T) {
 	h := servertest.NewHarness(t, 0)
 	u := h.Register("alice")
@@ -289,6 +327,91 @@ func TestDeviceLogAppendRevokeAndSuccession(t *testing.T) {
 	}
 	if !bytes.Equal(look.GenesisEncryptionKey, u.AEK) || len(look.Entries) != int(succ.Seq) {
 		t.Fatalf("lookup serves %d entries and genesis key %x...; an inviter replays the whole log to trust the current key", len(look.Entries), look.GenesisEncryptionKey[:4])
+	}
+}
+
+// successionEntry signs a key succession at u's next log position and applies it locally, so u's
+// local log stays able to sign what follows.
+func successionEntry(t *testing.T, u *servertest.User) vaultsync.DeviceEntry {
+	t.Helper()
+	_, newAIK, _ := ed25519.GenerateKey(rand.Reader)
+	e := vaultsync.DeviceEntry{Account: u.Account, Seq: u.Log.Seq() + 1, Prev: u.Log.Hash(), Op: vaultsync.OpSuccession,
+		NewSuite: vaultsync.Suite1, NewIdentityKey: newAIK.Public().(ed25519.PublicKey), NewEncryptionKey: bytes.Repeat([]byte{4}, 1216),
+		SigAlg: vaultsync.SigEd25519}
+	msg, _ := e.SigningBytes()
+	e.Sig, e.SuccessorSig = ed25519.Sign(u.AIK, msg), ed25519.Sign(newAIK, msg)
+	if err := u.Log.Apply(&e); err != nil {
+		t.Fatal(err)
+	}
+	u.AIK = newAIK
+	return e
+}
+
+// A device log is verified against its own account only, so certifying another account's device id
+// there is well-formed. The server must still refuse it: revoking that certification in the same log
+// used to revoke the other account's device, and its tokens with it - a lock-out any user could aim
+// at any device id the lookup endpoint lists.
+func TestAnotherAccountCannotRevokeADevice(t *testing.T) {
+	h := servertest.NewHarness(t, 0)
+	alice := h.Register("alice")
+	mallory := h.Register("mallory")
+	pm := h.Principal(mallory.Access)
+	_, fake, _ := ed25519.GenerateKey(rand.Reader)
+	add := mallory.AddDeviceEntry(t, alice.Device, fake)
+	revoke := mallory.DeviceEntry(t, vaultsync.DeviceEntry{Op: vaultsync.OpRevokeDevice, Revoked: alice.Device})
+	succ := successionEntry(t, mallory)
+	if err := h.Svc.AppendDeviceLog(ctx, pm, []vaultsync.DeviceEntry{add, revoke, succ}); !isErr(err, usecase.ErrForbidden) {
+		t.Fatalf("certifying another account's device id: %v, want ErrForbidden", err)
+	}
+	if _, err := h.Svc.Authenticate(ctx, alice.Access, usecase.TokenAccess); err != nil {
+		t.Fatalf("alice's device lost its session to another account's log: %v", err)
+	}
+	if _, err := h.Svc.DeviceChallenge(ctx, alice.Account, alice.Device); err != nil {
+		t.Fatalf("alice's device can no longer sign in: %v", err)
+	}
+	entries, _ := h.Svc.DeviceLog(ctx, pm, mallory.Account, 0)
+	if len(entries) != 1 {
+		t.Fatalf("mallory's log holds %d entries after the refused batch; nothing of it may be stored", len(entries))
+	}
+}
+
+// The same certification aimed at a revoked device used to clear its revoked flag, handing whoever
+// holds that device's key a working session again.
+func TestAnotherAccountCannotRestoreARevokedDevice(t *testing.T) {
+	h := servertest.NewHarness(t, 0)
+	alice := h.Register("alice")
+	mallory := h.Register("mallory")
+	pa := h.Principal(alice.Access)
+	stolen := servertest.RandomID(t)
+	_, stolenKey, _ := ed25519.GenerateKey(rand.Reader)
+	if err := h.Svc.AppendDeviceLog(ctx, pa, []vaultsync.DeviceEntry{alice.AddDeviceEntry(t, stolen, stolenKey)}); err != nil {
+		t.Fatal(err)
+	}
+	revoke := alice.DeviceEntry(t, vaultsync.DeviceEntry{Op: vaultsync.OpRevokeDevice, Revoked: stolen})
+	if err := h.Svc.AppendDeviceLog(ctx, pa, []vaultsync.DeviceEntry{revoke, successionEntry(t, alice)}); err != nil {
+		t.Fatal(err)
+	}
+	add := mallory.AddDeviceEntry(t, stolen, stolenKey)
+	if err := h.Svc.AppendDeviceLog(ctx, h.Principal(mallory.Access), []vaultsync.DeviceEntry{add}); !isErr(err, usecase.ErrForbidden) {
+		t.Fatalf("certifying a revoked device of another account: %v, want ErrForbidden", err)
+	}
+	if _, err := h.Svc.DeviceChallenge(ctx, alice.Account, stolen); !isErr(err, usecase.ErrUnauthorized) {
+		t.Fatalf("the revoked device can sign in again: %v", err)
+	}
+}
+
+// Registration certifies a first device the same way, and is held to the same rule.
+func TestRegistrationWithATakenDeviceID(t *testing.T) {
+	h := servertest.NewHarness(t, 0)
+	alice := h.Register("alice")
+	u := servertest.NewUser(t, "mallory")
+	u.Device = alice.Device
+	inv := h.Invite()
+	if err := h.Svc.RegisterFinish(ctx, h.Registration(u, inv)); !isErr(err, usecase.ErrForbidden) {
+		t.Fatalf("registering with another account's device id: %v, want ErrForbidden", err)
+	}
+	if _, err := h.Svc.DeviceChallenge(ctx, alice.Account, alice.Device); err != nil {
+		t.Fatalf("alice's device was disturbed by the refused registration: %v", err)
 	}
 }
 

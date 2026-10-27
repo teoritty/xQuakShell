@@ -46,8 +46,51 @@ func TestVersionsIsNotFoundForNonMembers(t *testing.T) {
 	}
 }
 
+// The server deletes every version of a purged record in the purge's own transaction, so it is
+// where the trash window has to hold. A client's clock, or the signed time of the device that deleted,
+// cannot move it: the window counts from when this server received the tombstone.
+func TestPurgeWaitsForTheWindowOnTheServerClock(t *testing.T) {
+	h, alice, cv := deletedRecord(t)
+	advance(h, alice, 30*dayMillis-1)
+	if _, err := cv.Push(alice, cv.Purge(alice, 1)); !isErr(err, usecase.ErrPurgeNotDue) {
+		t.Fatalf("purge one millisecond before the window passed: %v, want ErrPurgeNotDue", err)
+	}
+	if got := versions(t, h, alice, cv, 1); len(got) != 2 {
+		t.Fatalf("%d versions after a refused purge; the trash must still hold the record", len(got))
+	}
+	advance(h, alice, 1)
+	cv.Accept(alice, cv.Purge(alice, 1))
+}
+
+// Shred now is the managers' explicit choice to empty the trash: a tombstone committed before the
+// shred rotation may go at once, ordered by the membership log rather than by any clock.
+func TestPurgeAfterShredIsDueAtOnce(t *testing.T) {
+	h, alice, cv := deletedRecord(t)
+	if _, err := cv.Push(alice, cv.Purge(alice, 1)); !isErr(err, usecase.ErrPurgeNotDue) {
+		t.Fatalf("purge right after the delete: %v, want ErrPurgeNotDue", err)
+	}
+	rotate(t, h, alice, cv, true)
+	cv.Accept(alice, cv.Commit(alice, cv.Record(alice, 2)))
+	cv.Accept(alice, cv.Purge(alice, 1))
+}
+
+// An editor may delete but not purge; the server refuses the purge as every client would.
+func TestEditorPurgeIsForbidden(t *testing.T) {
+	h := servertest.NewHarness(t, 0)
+	alice := h.Register("alice")
+	bob := h.Register("bob")
+	cv := h.NewTeamVault(alice, servertest.Member{User: bob, Role: vaultsync.RoleEditor})
+	cv.Accept(bob, cv.Commit(bob, cv.Record(bob, 1)))
+	cv.Accept(bob, cv.Commit(bob, cv.Tombstone(bob, 1)))
+	advance(h, bob, 30*dayMillis)
+	if _, err := cv.Push(bob, cv.Purge(bob, 1)); !isErr(err, usecase.ErrForbidden) {
+		t.Fatalf("an editor's purge: %v, want ErrForbidden", err)
+	}
+}
+
 func TestPurgeDeletesEveryVersionOfTheRecord(t *testing.T) {
 	h, alice, cv := deletedRecord(t)
+	advance(h, alice, 30*dayMillis)
 	seq := cv.Accept(alice, cv.Purge(alice, 1))
 	if got := versions(t, h, alice, cv, 1); len(got) != 0 {
 		t.Fatalf("%d versions of a purged record remain; the server must delete them with the purge", len(got))
@@ -62,7 +105,7 @@ func TestPurgeDeletesEveryVersionOfTheRecord(t *testing.T) {
 	if err != nil || len(changes) != 1 || changes[0].Seq != seq || len(changes[0].Commit.Purged) != 1 {
 		t.Fatalf("pull from 2: %+v, %v; want the purge commit carrying its purged id", changes, err)
 	}
-	_, records, _ := h.Svc.Snapshot(ctx, h.Principal(alice.Access), cv.ID)
+	_, records, _ := h.FullSnapshot(h.Principal(alice.Access), cv.ID)
 	if len(records) != 1 {
 		t.Fatalf("snapshot holds %d records, want 1", len(records))
 	}
@@ -173,6 +216,9 @@ func TestShredRotationPrunesOnceTheRewrapLands(t *testing.T) {
 
 func TestRetiredEpochWrapsAreStrippedAfterTheWindow(t *testing.T) {
 	h, alice, cv := deletedRecord(t)
+	// The tombstone ages out of the trash first, so the purge below is due; the window that retires
+	// epoch 0 then counts from the rotation.
+	advance(h, alice, 30*dayMillis)
 	rotate(t, h, alice, cv, false)
 	cv.Accept(alice, cv.Commit(alice, cv.Record(alice, 2)))
 	cv.Accept(alice, cv.Purge(alice, 1))
@@ -194,6 +240,7 @@ func TestRetiredEpochWrapsAreStrippedAfterTheWindow(t *testing.T) {
 
 func TestPruningReturnsQuota(t *testing.T) {
 	h, alice, cv := deletedRecord(t)
+	advance(h, alice, 30*dayMillis)
 	before := vaultBytes(t, h, alice, cv)
 	cv.Accept(alice, cv.Purge(alice, 1))
 	if after := vaultBytes(t, h, alice, cv); after >= before {

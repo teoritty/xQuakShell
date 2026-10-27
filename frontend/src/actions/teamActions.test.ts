@@ -1,14 +1,32 @@
 import { setGateway } from '../backend/context';
 import { createFakeGateway } from '../backend/fakeGateway';
 import { get } from 'svelte/store';
-import { createTeam, inviteMember, lookupInvitee, confirmBinding, moveConnectionsToVault, verifyMemberByCode } from './teamActions';
+import { acceptInvitation, createTeam, declineInvitation, inviteMember, lookupInvitee, confirmBinding, moveConnectionsToVault, verifyMemberByCode } from './teamActions';
 import { detailsConnectionId, favorites, selectedConnectionId, selectedConnectionIds } from '../stores/appState';
+import { syncStatus } from '../stores/syncState';
 
 function assert(c: boolean, m: string) {
   if (!c) throw new Error(m);
 }
 
 async function run() {
+  // Accepting and declining name the invitation's vault, and accepting re-reads the team list so the
+  // joined team appears without waiting for the next round.
+  {
+    const fake = createFakeGateway();
+    fake.program('AcceptTeamInvitation', undefined);
+    fake.program('DeclineTeamInvitation', undefined);
+    fake.program('ListTeams', []);
+    setGateway(fake);
+    syncStatus.update((st) => ({ ...st, enabled: true }));
+    assert((await acceptInvitation('ab12')) === '', 'accepting succeeds');
+    const accepted = fake.calls.find((c) => c.method === 'AcceptTeamInvitation');
+    assert(accepted?.args[0] === 'ab12', 'the accepted vault is the one named');
+    assert(fake.calls.some((c) => c.method === 'ListTeams'), 'the team list is re-read after accepting');
+    assert((await declineInvitation('cd34')) === '', 'declining succeeds');
+    assert(fake.calls.find((c) => c.method === 'DeclineTeamInvitation')?.args[0] === 'cd34', 'the declined vault is the one named');
+  }
+
   // A blank team name never reaches the backend.
   {
     const fake = createFakeGateway();

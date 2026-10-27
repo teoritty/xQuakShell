@@ -51,6 +51,8 @@ export interface SyncDevice {
 }
 
 export interface SyncHeld {
+  /** The vault the change arrived in: the personal vault's id or a team's. */
+  vault: string;
   record: string;
   type: string;
   key: string;
@@ -140,8 +142,8 @@ export interface SyncGateway {
   SyncNow(): Promise<void>;
   ListSyncDevices(): Promise<SyncDevice[]>;
   ListSyncHeld(): Promise<SyncHeld[]>;
-  ConfirmSyncHeld(record: string, masterPassword: string): Promise<void>;
-  RejectSyncHeld(record: string): Promise<void>;
+  ConfirmSyncHeld(vault: string, record: string, masterPassword: string): Promise<void>;
+  RejectSyncHeld(vault: string, record: string): Promise<void>;
   ListSyncConflicts(): Promise<SyncConflict[]>;
   ResolveSyncConflict(id: string, useOther: boolean): Promise<void>;
   ListSyncTrash(): Promise<SyncTrashItem[]>;

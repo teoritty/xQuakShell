@@ -249,6 +249,7 @@ func cloneVaultSync(in *VaultSync) *VaultSync {
 		out.Conflicts = append(out.Conflicts, c)
 	}
 	out.Contacts = append([]SyncContact(nil), in.Contacts...)
+	out.Teams = append([]SyncTeam(nil), in.Teams...)
 	out.Bindings = append([]CredentialBinding(nil), in.Bindings...)
 	out.Plugins = append([]SyncPlugin(nil), in.Plugins...)
 	out.PluginDataOff = append([]string(nil), in.PluginDataOff...)
