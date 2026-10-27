@@ -113,7 +113,7 @@ func (e *SyncEngine) reencrypt(ctx context.Context, vault vaultsync.ID) error {
 		if len(changes) == 0 {
 			return nil
 		}
-		err = p.commitChanges(ctx, changes)
+		_, err = p.commitAll(ctx, changes, nil)
 		var conflict *synctrust.ConflictError
 		if !errors.As(err, &conflict) {
 			return err
@@ -135,15 +135,6 @@ func (p *pullRun) staleRecords(current uint32) []change {
 		}
 	}
 	return out
-}
-
-// commitChanges builds, records, sends and adopts one commit of the given changes.
-func (p *pullRun) commitChanges(ctx context.Context, changes []change) error {
-	c, err := p.buildCommit(changes, nil)
-	if err != nil {
-		return err
-	}
-	return p.send(ctx, c)
 }
 
 // RewrapTeams rewraps the current key of every team vault this account manages to

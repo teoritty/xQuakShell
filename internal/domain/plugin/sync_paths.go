@@ -9,12 +9,21 @@ import (
 
 // Limits on what one plugin may sync. A file or a plugin over them is left out and reported rather
 // than truncated: a partial file is worse than none to the plugin that reads it.
+//
+// MaxSyncFileBytes is what one record can carry inside one commit. A file is base64-encoded twice on
+// its way - in the record's body and again on the wire - so 8 MiB arrives as about 15 MiB, inside the
+// server's 20 MiB commit limit. The 16 MiB this used to allow came to about 30 MiB, which no server on
+// default settings accepts, so no file over roughly 11 MiB ever synced.
+//
+// MaxSyncReceivedFileBytes is what a file arriving from another device may be. It stays at the old
+// limit so a file an older build managed to send is still applied rather than quarantined.
 const (
-	MaxSyncFileBytes   = 16 << 20
-	MaxSyncPluginBytes = 64 << 20
-	MaxSyncPluginFiles = 4096
-	MaxSyncPatterns    = 32
-	maxSyncPathLen     = 256
+	MaxSyncFileBytes         = 8 << 20
+	MaxSyncReceivedFileBytes = 16 << 20
+	MaxSyncPluginBytes       = 64 << 20
+	MaxSyncPluginFiles       = 4096
+	MaxSyncPatterns          = 32
+	maxSyncPathLen           = 256
 )
 
 // ErrUnsafeSyncPath is a synced file path that could reach outside the plugin's data directory, or

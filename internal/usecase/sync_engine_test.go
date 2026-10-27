@@ -41,6 +41,9 @@ type svcServer struct {
 	dropReply bool
 	// failCommit loses the next commit before the server stores it.
 	failCommit bool
+	// refuseCommit, while set, answers every commit it returns an error for with that error and
+	// stores nothing - a server refusing for good, such as over a full quota.
+	refuseCommit func(vaultsync.Commit) error
 	// historyPruned answers every pull with history_pruned, as after the server pruned.
 	historyPruned bool
 	// dropAppendReply stores the next membership append but loses its reply.
@@ -160,6 +163,11 @@ func (s *svcServer) Commit(ctx context.Context, c vaultsync.Commit) (uint64, err
 	if s.failCommit {
 		s.failCommit = false
 		return 0, errors.New("connection reset before the request arrived")
+	}
+	if s.refuseCommit != nil {
+		if err := s.refuseCommit(c); err != nil {
+			return 0, err
+		}
 	}
 	p, err := s.principal()
 	if err != nil {

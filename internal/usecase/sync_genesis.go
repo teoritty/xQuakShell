@@ -38,15 +38,6 @@ func (e *SyncEngine) ensureVaultMeta(ctx context.Context, vault vaultsync.ID, ra
 	if err != nil {
 		return err
 	}
-	c, err := p.buildCommit([]change{{id: synctrust.VaultMetaID(vault), entry: synctrust.Entry{Type: synctrust.TypeVaultMeta, Data: body.Data}}}, nil)
-	if err != nil {
-		return err
-	}
-	if err := e.d.State.PutOutbox(ctx, c); err != nil {
-		return err
-	}
-	if _, err := e.d.Server.Commit(ctx, c); err != nil {
-		return err
-	}
-	return p.adopt(ctx, c)
+	_, err = p.commitAll(ctx, []change{{id: synctrust.VaultMetaID(vault), entry: synctrust.Entry{Type: synctrust.TypeVaultMeta, Data: body.Data}}}, nil)
+	return err
 }

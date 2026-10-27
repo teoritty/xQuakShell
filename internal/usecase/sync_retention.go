@@ -98,9 +98,6 @@ func (p *pullRun) purgeDue(ctx context.Context, m *vaultsync.MembershipState, la
 
 // purge commits the removal of tombstones from the vault's tree.
 func (p *pullRun) purge(ctx context.Context, ids []vaultsync.ID) error {
-	c, err := p.buildCommit(nil, ids)
-	if err != nil {
-		return err
-	}
-	return p.send(ctx, c)
+	_, err := p.commitAll(ctx, nil, ids)
+	return err
 }

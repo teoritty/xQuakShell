@@ -9,8 +9,9 @@ import (
 const (
 	// MinPaddedSize hides every small record - a folder, a password, a setting - behind one size.
 	MinPaddedSize = 256
-	// MaxPlaintextSize bounds a record: a 16 MiB plugin file base64-encoded inside its JSON body
-	// fits with room to spare.
+	// MaxPlaintextSize bounds a record: the largest plugin file any build accepts, 16 MiB,
+	// base64-encoded inside its JSON body fits with room to spare. What one commit can carry is
+	// tighter, and is the limit plugin data is held to on the sending side.
 	MaxPlaintextSize = 32 << 20
 
 	lengthPrefix = 4
