@@ -123,6 +123,10 @@ func TestS6TeamLifecycle(t *testing.T) {
 	if err := alice.syncVault(team); err != nil {
 		t.Fatal(err)
 	}
+	// Being added is not joining: the team reaches bob's account only once bob accepts it.
+	if err := retry(func() error { return bob.engine.AcceptTeam(ctx, team) }); err != nil {
+		t.Fatalf("bob accepts the invitation: %v", err)
+	}
 	if err := bob.syncVault(team); err != nil {
 		t.Fatalf("bob syncs the team: %v", err)
 	}
