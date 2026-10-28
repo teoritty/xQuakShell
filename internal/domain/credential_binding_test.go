@@ -74,6 +74,44 @@ func TestResolveCredentialsRefusals(t *testing.T) {
 	}
 }
 
+// Another member writes a team connection's inline user, so a reference there may name any id it
+// likes; looked up in this member's vault, an id of a personal credential would send it to whatever
+// host the other member set. Only the connection's own vault may supply an inline credential.
+func TestResolveCredentialsKeepsAnInlineCredentialInsideTheTeam(t *testing.T) {
+	conn, _ := teamConn()
+	d := NewVaultData()
+	d.Identities["mine"] = SSHIdentity{ID: "mine"}
+	d.Identities["other-team"] = SSHIdentity{ID: "other-team", VaultID: "u"}
+	d.Identities["team-key"] = SSHIdentity{ID: "team-key", VaultID: "t"}
+	d.Passwords["my-pw"] = PasswordBlob{Label: "mine"}
+	d.Passwords["team-pw"] = PasswordBlob{Label: "team", VaultID: "t"}
+	pwUser := func(ref string) ConnectionUser {
+		return ConnectionUser{ID: "u1", Username: "x", Auth: AuthMethodPassword, PassAuth: &PasswordAuthConfig{VaultRef: ref}}
+	}
+	keyUser := func(ids ...string) ConnectionUser {
+		return ConnectionUser{ID: "u1", Username: "x", Auth: AuthMethodKey, KeyAuth: &KeyAuthConfig{IdentityIDs: ids}}
+	}
+	for name, u := range map[string]ConnectionUser{
+		"personal password":            pwUser("my-pw"),
+		"personal key":                 keyUser("mine"),
+		"another team's key":           keyUser("other-team"),
+		"a personal key after a team's": keyUser("team-key", "mine"),
+	} {
+		if _, err := ResolveCredentials(d, conn, u); !errors.Is(err, ErrCredentialOutsideVault) {
+			t.Errorf("team connection naming %s: %v, want ErrCredentialOutsideVault", name, err)
+		}
+	}
+	for name, u := range map[string]ConnectionUser{"team password": pwUser("team-pw"), "team key": keyUser("team-key")} {
+		if _, err := ResolveCredentials(d, conn, u); err != nil {
+			t.Errorf("team connection naming its own %s: %v; it must keep working", name, err)
+		}
+	}
+	personal := &Connection{ID: "p1", Users: []ConnectionUser{pwUser("team-pw")}, DefaultUserID: "u1"}
+	if _, err := ResolveCredentials(d, personal, pwUser("my-pw")); err != nil {
+		t.Errorf("personal connection naming a personal password: %v; only this account writes it", err)
+	}
+}
+
 func TestAPersonalCredentialSourceNeedsNoInlineReference(t *testing.T) {
 	_, user := teamConn()
 	if err := user.Validate(); err != nil {

@@ -15,7 +15,36 @@ var (
 	// ErrBindingSuspended is a binding another member's change of the connection's address suspended
 	// until this member confirms the new address.
 	ErrBindingSuspended = errors.New("the connection's address was changed by another member; confirm it before connecting")
+	// ErrCredentialOutsideVault is a team connection naming a key or password kept in another vault.
+	ErrCredentialOutsideVault = errors.New("this team connection names a key or password from outside the team; choose one of the team's or bind your own")
 )
+
+// CheckCredentialScope refuses a team connection's inline reference to a key or password that lives
+// in another vault, personal or another team's. Every member can write a team connection, so without
+// this an editor could name another member's personal password by id and point the host at a server
+// of their own: that member's device would look the id up in its own vault and send the password
+// there. A personal credential reaches a team host only through the member's own binding.
+//
+// A personal connection (vault empty) is not restricted: only this account writes it. An id the vault
+// does not hold passes here and fails later as not found, which is the error that describes it.
+func CheckCredentialScope(d *VaultData, vault string, keys *KeyAuthConfig, pw *PasswordAuthConfig) error {
+	if vault == "" {
+		return nil
+	}
+	if keys != nil {
+		for _, id := range keys.IdentityIDs {
+			if ident, ok := d.Identities[id]; ok && ident.VaultID != vault {
+				return fmt.Errorf("key %s: %w", id, ErrCredentialOutsideVault)
+			}
+		}
+	}
+	if pw != nil && pw.VaultRef != "" {
+		if blob, ok := d.Passwords[pw.VaultRef]; ok && blob.VaultID != vault {
+			return fmt.Errorf("password %s: %w", pw.VaultRef, ErrCredentialOutsideVault)
+		}
+	}
+	return nil
+}
 
 // CredentialBinding ties one user of a team connection to an identity or password in this member's
 // personal vault. It lives in the personal vault and syncs to this member's devices only.
@@ -43,9 +72,10 @@ func (b CredentialBinding) Key() string { return b.VaultID + "/" + b.ConnectionI
 // left a member who bound a key to a password user - the only kind of credential the bindings panel
 // offered - with ErrBindingMissing for a binding that was plainly there. Any inline reference the
 // shared record still carries is replaced, so a value written there by another member is never used.
+// An inline credential is used as written, but only from the connection's own vault.
 func ResolveCredentials(d *VaultData, conn *Connection, user ConnectionUser) (ConnectionUser, error) {
 	if user.CredentialSource != CredentialSourcePersonal {
-		return user, nil
+		return user, CheckCredentialScope(d, conn.VaultID, user.KeyAuth, user.PassAuth)
 	}
 	key := CredentialBinding{VaultID: conn.VaultID, ConnectionID: conn.ID, UserID: user.ID}.Key()
 	var b *CredentialBinding

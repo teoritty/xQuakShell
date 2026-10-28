@@ -93,6 +93,7 @@ func composeApp() *App {
 
 	// Every private key a plugin is allowed to read is recorded, by id and fingerprint only.
 	pluginRuntime.vaultInbound.SetKeyAudit(usecase.NewKeyAuditRecorder(auditLogRepo))
+	pluginRuntime.vaultInbound.SetVault(vaultRepo)
 
 	sshAuth, pluginSessionAudit := wireSSHAuth(pluginRuntime)
 

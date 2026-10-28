@@ -197,6 +197,42 @@ func TestMovingNeedsAConnectionAndAVaultItMayWrite(t *testing.T) {
 	}
 }
 
+// A jump host has no binding, so its personal credential would travel into the team record as an id
+// every member reads - the id another member then names to collect the password. The move is
+// refused before anything changes; a hop on the team's own key moves as before.
+func TestMovingRefusesAJumpHostOnAPersonalCredential(t *testing.T) {
+	_, a := registered(t)
+	team, err := a.engine.CreateTeam(syncCtx, "Ops", rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hopOn := func(ref string) domain.JumpChainConfig {
+		return domain.JumpChainConfig{Hops: []domain.JumpHop{{ID: "h1", Host: "bastion.example", Port: 22, Username: "jump",
+			Auth: domain.AuthMethodPassword, PassAuth: &domain.PasswordAuthConfig{VaultRef: ref}}}}
+	}
+	_ = a.vault.UpdateData(syncCtx, func(d *domain.VaultData) error {
+		if d.Passwords == nil {
+			d.Passwords = map[string]domain.PasswordBlob{}
+		}
+		d.Passwords["hop-pw"] = domain.PasswordBlob{Value: []byte("personal"), Label: "bastion"}
+		d.Passwords["team-pw"] = domain.PasswordBlob{Value: []byte("team"), Label: "bastion", VaultID: team.String()}
+		d.Connections = append(d.Connections,
+			domain.Connection{ID: "c1", Name: "app", Host: "app.internal", Port: 22, JumpChain: hopOn("hop-pw")},
+			domain.Connection{ID: "c2", Name: "web", Host: "web.internal", Port: 22, JumpChain: hopOn("team-pw")})
+		return nil
+	})
+	if _, err := a.engine.MoveConnection(syncCtx, usecase.MoveConnectionRequest{Connection: "c1", To: team.String()}); !errors.Is(err, domain.ErrCredentialOutsideVault) {
+		t.Fatalf("move with a personal hop password: %v, want ErrCredentialOutsideVault", err)
+	}
+	data, _ := a.vault.GetData()
+	if c := connByID(t, data, "c1"); c.VaultID != "" {
+		t.Fatalf("connection = %+v; a refused move leaves it in the personal vault", c)
+	}
+	if _, err := a.engine.MoveConnection(syncCtx, usecase.MoveConnectionRequest{Connection: "c2", To: team.String()}); err != nil {
+		t.Fatalf("move with the team's own hop password: %v; it must still move", err)
+	}
+}
+
 // A viewer may move nothing in or out: the server would refuse the team's half, and the move would
 // have happened on this device alone.
 func TestAViewerCannotMoveConnectionsInOrOut(t *testing.T) {

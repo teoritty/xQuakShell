@@ -121,7 +121,7 @@ func (c *SSHConnector) Connect(ctx context.Context, conn *domain.Connection) Con
 	var jumpCleanup func()
 	if !conn.JumpChain.IsEmpty() {
 		hopResolver := func(hop domain.JumpHop) ([]domain.Signer, string, []domain.AuthMethod, func(), error) {
-			return c.resolveHopAuthWithCtx(ctx, conn.ID, hop)
+			return c.resolveHopAuthWithCtx(ctx, conn, hop)
 		}
 		transport, chainCleanup, chainErr := c.jumpTransport.BuildChain(
 			ctx,
@@ -175,7 +175,10 @@ func hostKeyInfoFromError(conn *domain.Connection, err error) (*domain.HostKeyIn
 	return &hkInfo, true
 }
 
-func (c *SSHConnector) resolveHopAuthWithCtx(ctx context.Context, connectionID string, hop domain.JumpHop) ([]domain.Signer, string, []domain.AuthMethod, func(), error) {
+func (c *SSHConnector) resolveHopAuthWithCtx(ctx context.Context, conn *domain.Connection, hop domain.JumpHop) ([]domain.Signer, string, []domain.AuthMethod, func(), error) {
+	if err := c.checkHopScope(conn, hop); err != nil {
+		return nil, "", nil, nil, err
+	}
 	switch hop.Auth {
 	case domain.AuthMethodKey:
 		if hop.KeyAuth == nil || len(hop.KeyAuth.IdentityIDs) == 0 {
@@ -193,7 +196,7 @@ func (c *SSHConnector) resolveHopAuthWithCtx(ctx context.Context, connectionID s
 		}
 		return nil, string(pw), nil, nil, nil
 	case domain.AuthMethodPlugin:
-		extra, id, err := c.resolvePluginAuth(ctx, connectionID, hop.PluginAuth)
+		extra, id, err := c.resolvePluginAuth(ctx, conn.ID, hop.PluginAuth)
 		if err != nil {
 			return nil, "", nil, nil, err
 		}

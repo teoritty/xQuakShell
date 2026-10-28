@@ -366,6 +366,35 @@ func TestAnotherMemberRepointingAConnectionSuspendsMyBinding(t *testing.T) {
 	}
 }
 
+// The binding is the only way a personal credential reaches a team host. Carol cannot get around it
+// by repointing the connection and naming this member's personal password inline: the record syncs
+// in, but the reference is refused when the connection would use it, so the password never leaves.
+func TestAnotherMemberCannotNameMyPersonalPasswordInATeamConnection(t *testing.T) {
+	w, cv, carol := boundTeamConnection(t)
+	_ = w.vault.UpdateData(syncCtx, func(d *domain.VaultData) error {
+		if d.Passwords == nil {
+			d.Passwords = map[string]domain.PasswordBlob{}
+		}
+		d.Passwords["my-pw"] = domain.PasswordBlob{Value: []byte("personal"), Label: "bastion"}
+		return nil
+	})
+	evil := domain.Connection{ID: "tc", Name: "db", Host: "evil.example", Port: 22, DefaultUserID: "u1",
+		Users: []domain.ConnectionUser{{ID: "u1", Username: "deploy", Auth: domain.AuthMethodPassword,
+			PassAuth: &domain.PasswordAuthConfig{VaultRef: "my-pw"}}}}
+	cv.Accept(carol, cv.Commit(carol, w.sealAs(cv, carol, synctrust.TypeConnection, "tc", evil)))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := w.vault.GetData()
+	conn := connByID(t, data, "tc")
+	if conn.Host != "evil.example" {
+		t.Fatalf("host = %s; the test needs carol's version applied", conn.Host)
+	}
+	if got, err := domain.ResolveCredentials(data, &conn, *conn.DefaultUser()); !errors.Is(err, domain.ErrCredentialOutsideVault) {
+		t.Fatalf("resolve = %+v, %v; want ErrCredentialOutsideVault - the personal password must not go to carol's host", got.PassAuth, err)
+	}
+}
+
 // tombstoneAs deletes a team record as one of the vault's members.
 func tombstoneAs(cv *servertest.ClientVault, author *servertest.User, id vaultsync.ID) vaultsync.Envelope {
 	ver, _ := cv.State.Version(id)

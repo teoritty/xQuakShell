@@ -222,6 +222,7 @@ var syncMessages = []struct {
 	{vaultsync.ErrNotAuthorized, "Your role in this team does not allow that."},
 	{domain.ErrBindingMissing, "No credential of yours is bound to that connection."},
 	{domain.ErrBindingSuspended, "Another member changed that connection's address. Confirm the new address first."},
+	{domain.ErrCredentialOutsideVault, "A jump host of that connection uses a key or password from outside the team. Choose one of the team's first."},
 	{vaultsync.ErrUnverifiedMember, "This team admits only verified members. Compare the fingerprint and mark it verified."},
 	{synctrust.ErrRemoteForbidden, "Your role in this team does not allow that."},
 	{synctrust.ErrRemoteNotFound, "That account or team was not found."},

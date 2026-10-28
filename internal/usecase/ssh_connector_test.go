@@ -412,7 +412,7 @@ func TestResolveHopAuthWithCtx_RejectsUnknownAuthMethod(t *testing.T) {
 		IdentRepo:    sshTestIdentRepo{},
 		PasswordRepo: sshTestPasswordRepo{},
 	})
-	_, _, _, _, err := c.resolveHopAuthWithCtx(context.Background(), "conn1", domain.JumpHop{
+	_, _, _, _, err := c.resolveHopAuthWithCtx(context.Background(), &domain.Connection{ID: "conn1"}, domain.JumpHop{
 		Host:     "bastion",
 		Port:     22,
 		Username: "jump",
@@ -429,7 +429,7 @@ func TestResolveHopAuthWithCtx_RejectsKeyAuthWithoutIdentities(t *testing.T) {
 		IdentRepo:    sshTestIdentRepo{},
 		PasswordRepo: sshTestPasswordRepo{},
 	})
-	_, _, _, _, err := c.resolveHopAuthWithCtx(context.Background(), "conn1", domain.JumpHop{
+	_, _, _, _, err := c.resolveHopAuthWithCtx(context.Background(), &domain.Connection{ID: "conn1"}, domain.JumpHop{
 		Host:     "bastion",
 		Port:     22,
 		Username: "jump",
@@ -437,6 +437,40 @@ func TestResolveHopAuthWithCtx_RejectsKeyAuthWithoutIdentities(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected key auth without identities error")
+	}
+}
+
+// sshDataVaultRepo serves fixed vault data, for checks that look items up by vault.
+type sshDataVaultRepo struct {
+	sshTestVaultRepo
+	data *domain.VaultData
+}
+
+func (r sshDataVaultRepo) GetData() (*domain.VaultData, error) { return r.data, nil }
+
+// A hop has no binding, so a password id another team member wrote into a team connection's hop
+// must never be looked up in this member's own vault: that is how an editor would collect a personal
+// password, by pointing the hop at a host of their own.
+func TestResolveHopAuthWithCtx_RefusesAPersonalPasswordOnATeamHop(t *testing.T) {
+	data := domain.NewVaultData()
+	data.Passwords["mine"] = domain.PasswordBlob{Value: []byte("personal")}
+	data.Passwords["shared"] = domain.PasswordBlob{Value: []byte("team"), VaultID: "team1"}
+	c := NewSSHConnector(SSHConnectorConfig{
+		VaultRepo: sshDataVaultRepo{data: data}, IdentRepo: sshTestIdentRepo{}, PasswordRepo: sshTestPasswordRepo{password: "looked-up"},
+	})
+	hop := func(ref string) domain.JumpHop {
+		return domain.JumpHop{Host: "bastion", Port: 22, Username: "jump", Auth: domain.AuthMethodPassword,
+			PassAuth: &domain.PasswordAuthConfig{VaultRef: ref}}
+	}
+	team := &domain.Connection{ID: "tc", VaultID: "team1"}
+	if _, pw, _, _, err := c.resolveHopAuthWithCtx(context.Background(), team, hop("mine")); !errors.Is(err, domain.ErrCredentialOutsideVault) || pw != "" {
+		t.Fatalf("team hop naming a personal password: pw=%q err=%v; want ErrCredentialOutsideVault and nothing looked up", pw, err)
+	}
+	if _, pw, _, _, err := c.resolveHopAuthWithCtx(context.Background(), team, hop("shared")); err != nil || pw != "looked-up" {
+		t.Fatalf("team hop naming the team's own password: pw=%q err=%v; it must keep working", pw, err)
+	}
+	if _, pw, _, _, err := c.resolveHopAuthWithCtx(context.Background(), &domain.Connection{ID: "pc"}, hop("mine")); err != nil || pw != "looked-up" {
+		t.Fatalf("personal hop naming a personal password: pw=%q err=%v; only this account writes it", pw, err)
 	}
 }
 
@@ -578,7 +612,7 @@ func TestResolveHopAuthWithCtx_PluginAuthReleaseAfterHandshake(t *testing.T) {
 		Host: "bastion", Port: 22, Username: "jump", Auth: domain.AuthMethodPlugin,
 		PluginAuth: pluginAuthConnection().DefaultUser().PluginAuth,
 	}
-	_, _, _, release, err := c.resolveHopAuthWithCtx(context.Background(), "c1", hop)
+	_, _, _, release, err := c.resolveHopAuthWithCtx(context.Background(), &domain.Connection{ID: "c1"}, hop)
 	if err != nil {
 		t.Fatal(err)
 	}
