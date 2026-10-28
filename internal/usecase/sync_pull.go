@@ -33,6 +33,11 @@ type pullRun struct {
 	// preferRemote applies the account's versions over local ones without merging: the user chose
 	// to replace this device's data with the account's.
 	preferRemote bool
+	// heldDeletions are the records whose deletion waits for the master password. The item stays in
+	// the vault over a verified tombstone, which would otherwise read as an unpushed local edit: the
+	// next version would be merged into it, and a merge is classified as a whole, so a version the
+	// trust rules refuse outright could come out of it merely held - and then be confirmed.
+	heldDeletions map[vaultsync.ID]bool
 }
 
 // Pull brings the local vault up to the server's head of one vault. Commits are verified and
@@ -112,6 +117,9 @@ func (e *SyncEngine) startPull(ctx context.Context, vault vaultsync.ID) (*pullRu
 	for id, at := range stored.LandedAt {
 		p.landed[id] = at
 	}
+	if p.heldDeletions, err = e.heldDeletions(ctx, vault); err != nil {
+		return nil, err
+	}
 	p.report.NewDevices = newDevices(fresh, e.d.Keys.Device())
 	p.report.MembershipSeq = len(ops)
 	if meta, ok := p.base[synctrust.VaultMetaID(vault)]; ok {
@@ -175,11 +183,13 @@ func (p *pullRun) settleQuarantine(ctx context.Context, out interpretation) erro
 		if err := p.e.d.State.Release(ctx, p.vault, id); err != nil {
 			return err
 		}
+		delete(p.heldDeletions, id)
 	}
 	for _, q := range out.quarantine {
 		if err := p.e.d.State.Quarantine(ctx, q); err != nil {
 			return err
 		}
+		p.heldDeletions[q.Envelope.Record] = q.Pending && q.Envelope.Deleted
 		if q.Pending {
 			p.report.Held++
 		} else {

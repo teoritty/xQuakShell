@@ -49,10 +49,20 @@ func (e *SyncEngine) HeldChanges(ctx context.Context, vault vaultsync.ID) ([]Hel
 	if err != nil {
 		return nil, err
 	}
+	local, err := p.localSnapshot()
+	if err != nil {
+		return nil, err
+	}
 	out := make([]HeldChange, 0, len(items))
 	for _, it := range items {
 		h := HeldChange{Vault: vault, Record: it.Envelope.Record, Reason: it.Reason, Pending: it.Pending, AtUnixMilli: it.AtUnixMilli}
-		if body, err := p.open(&it.Envelope); err == nil {
+		if it.Envelope.Deleted {
+			// A tombstone carries nothing to show; the item it would delete is still here, because
+			// a held deletion leaves it in place.
+			if e, ok := local[it.Envelope.Record]; ok {
+				h.Type, h.Key, h.Name = e.Type, e.Key, synctrust.Describe(e.Type, e.Data)
+			}
+		} else if body, err := p.open(&it.Envelope); err == nil {
 			h.Type = body.Type
 			h.Key, _ = synctrust.NaturalKey(body.Type, body.Data)
 			h.Name = synctrust.Describe(body.Type, body.Data)
@@ -80,7 +90,10 @@ func (e *SyncEngine) ConfirmHeld(ctx context.Context, vault, record vaultsync.ID
 	if base, ok := p.base[record]; !ok || base.Version != item.Envelope.Version {
 		return errors.Join(ErrHeldStale, e.d.State.Release(ctx, vault, record))
 	}
-	entry, reason := p.decode(&item.Envelope)
+	entry, reason := p.heldChange(&item.Envelope)
+	if errors.Is(reason, errSkip) {
+		return e.d.State.Release(ctx, vault, record)
+	}
 	if reason != nil {
 		return reason
 	}
@@ -88,6 +101,24 @@ func (e *SyncEngine) ConfirmHeld(ctx context.Context, vault, record vaultsync.ID
 		return err
 	}
 	return e.d.State.Release(ctx, vault, record)
+}
+
+// heldChange is the change confirming a held record makes. A tombstone carries no name, and the
+// version this device verified before it is no longer the base, so a held deletion is named by the
+// item the vault still holds under that record; with the item already gone there is nothing to do.
+func (p *pullRun) heldChange(env *vaultsync.Envelope) (synctrust.Entry, error) {
+	if !env.Deleted {
+		return p.decode(env)
+	}
+	local, err := p.localSnapshot()
+	if err != nil {
+		return synctrust.Entry{}, err
+	}
+	e, ok := local[env.Record]
+	if !ok {
+		return synctrust.Entry{}, errSkip
+	}
+	return synctrust.Entry{Type: e.Type, Key: e.Key}, nil
 }
 
 // RejectHeld drops a held or refused change. The vault keeps its own value, which no longer
@@ -116,6 +147,21 @@ func (e *SyncEngine) waiting(ctx context.Context, vault vaultsync.ID) (held, ref
 		}
 	}
 	return held, refused, nil
+}
+
+// heldDeletions lists the records whose deletion is held for the master password.
+func (e *SyncEngine) heldDeletions(ctx context.Context, vault vaultsync.ID) (map[vaultsync.ID]bool, error) {
+	items, err := e.d.State.Quarantined(ctx, vault)
+	if err != nil {
+		return nil, err
+	}
+	out := map[vaultsync.ID]bool{}
+	for _, it := range items {
+		if it.Pending && it.Envelope.Deleted {
+			out[it.Envelope.Record] = true
+		}
+	}
+	return out, nil
 }
 
 func (e *SyncEngine) heldItem(ctx context.Context, vault, record vaultsync.ID) (synctrust.QuarantineItem, error) {

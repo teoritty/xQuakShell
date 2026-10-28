@@ -56,17 +56,23 @@ func (p *pullRun) interpret(c vaultsync.Commit) (interpretation, error) {
 			out.quarantine = append(out.quarantine, p.hold(r, reason.Error(), false))
 			continue
 		}
-		p.route(&out, r, entry, local[r.Record].Data)
+		p.route(&out, r, entry, local)
 	}
 	return out, nil
 }
 
-func (p *pullRun) route(out *interpretation, r *vaultsync.Envelope, entry synctrust.Entry, local []byte) {
+// route classifies one decoded record against what this device holds: held is the device's own
+// items, of which the record's own version is one.
+func (p *pullRun) route(out *interpretation, r *vaultsync.Envelope, entry synctrust.Entry, held map[vaultsync.ID]synctrust.Entry) {
+	local := held[r.Record].Data
 	entry, ok := p.mergeLocal(out, r.Record, entry, local)
 	if !ok {
 		return
 	}
 	verdict, err := synctrust.Classify(entry.Type, local, entry.Data)
+	if err == nil && verdict.Action == synctrust.ActionApply && local == nil {
+		verdict, err = synctrust.ClassifyAddition(entry.Type, held, entry.Data)
+	}
 	switch {
 	case err != nil:
 		out.quarantine = append(out.quarantine, p.hold(r, "the record's data does not decode", false))

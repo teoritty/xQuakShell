@@ -3,11 +3,6 @@ package persistence
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	// #nosec G505 -- the known_hosts hashed-host format is defined as HMAC-SHA1; see
-	// hashedKnownHostMatches for why nothing here depends on SHA-1 being collision resistant.
-	"crypto/sha1"
-	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -46,7 +41,7 @@ func (r *KnownHostsRepo) Check(host string, remoteKey ssh.PublicKey) error {
 
 	for _, line := range data.KnownHosts {
 		lineHost, lineKey, err := parseKnownHostLine(line)
-		if err != nil || !knownHostMatches(lineHost, host) {
+		if err != nil || !domain.KnownHostMatches(lineHost, host) {
 			continue
 		}
 		hostIsKnown = true
@@ -97,7 +92,7 @@ func (r *KnownHostsRepo) List() ([]domain.KnownHostEntry, error) {
 func (r *KnownHostsRepo) Remove(ctx context.Context, host string) error {
 	return r.vault.UpdateData(ctx, func(data *domain.VaultData) error {
 		data.KnownHosts = filterKnownHosts(data.KnownHosts, func(lineHost string, _ ssh.PublicKey) bool {
-			return knownHostMatches(lineHost, host)
+			return domain.KnownHostMatches(lineHost, host)
 		})
 		return nil
 	})
@@ -114,7 +109,7 @@ func (r *KnownHostsRepo) Replace(ctx context.Context, host string, newKey ssh.Pu
 	line := formatKnownHostLine(host, newKey)
 	return r.vault.UpdateData(ctx, func(data *domain.VaultData) error {
 		kept := filterKnownHosts(data.KnownHosts, func(lineHost string, lineKey ssh.PublicKey) bool {
-			return knownHostMatches(lineHost, host) && lineKey.Type() == newKey.Type()
+			return domain.KnownHostMatches(lineHost, host) && lineKey.Type() == newKey.Type()
 		})
 		data.KnownHosts = append(kept, line)
 		return nil
@@ -160,44 +155,4 @@ func formatKnownHostLine(host string, key ssh.PublicKey) string {
 // normalizeHost strips surrounding brackets and ensures consistent formatting.
 func normalizeHost(host string) string {
 	return strings.TrimSpace(host)
-}
-
-// knownHostMatches reports whether a known_hosts host field designates host.
-//
-// It handles the hashed form OpenSSH writes when HashKnownHosts is on, which a plain string
-// comparison can never match: `|1|<base64 salt>|<base64 HMAC-SHA1(salt, host)>`. Before this, a
-// known_hosts file imported from OpenSSH with hashing enabled contributed nothing - every entry
-// silently failed to match, the host came back as unknown, and the user was walked through
-// trust-on-first-use again for a host they had already verified. Re-establishing trust from
-// scratch is exactly the moment an attacker wants.
-func knownHostMatches(lineHost, host string) bool {
-	if strings.HasPrefix(lineHost, "|1|") {
-		return hashedKnownHostMatches(lineHost, normalizeHost(host))
-	}
-	return normalizeHost(lineHost) == normalizeHost(host)
-}
-
-func hashedKnownHostMatches(entry, host string) bool {
-	parts := strings.Split(entry, "|")
-	// A hashed entry splits as ["", "1", salt, hash]: the leading empty field is the text before
-	// the first separator.
-	if len(parts) != 4 || parts[1] != "1" {
-		return false
-	}
-	salt, err := base64.StdEncoding.DecodeString(parts[2])
-	if err != nil {
-		return false
-	}
-	want, err := base64.StdEncoding.DecodeString(parts[3])
-	if err != nil {
-		return false
-	}
-	// SHA-1 is not a choice here: HMAC-SHA1 is what the known_hosts hashed-host format specifies,
-	// and this reads files OpenSSH wrote. Nothing is being authenticated by this digest - a match
-	// only selects which lines to compare the host key against, and the key comparison is what
-	// decides trust.
-	// #nosec G401 -- required by the OpenSSH known_hosts wire format, not a security decision here
-	mac := hmac.New(sha1.New, salt)
-	mac.Write([]byte(host))
-	return hmac.Equal(mac.Sum(nil), want)
 }
