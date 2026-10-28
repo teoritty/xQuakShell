@@ -45,8 +45,11 @@ type world struct {
 	inner    http.Handler
 	url      string
 	identity ed25519.PublicKey
-	mu       sync.Mutex
-	rewrites []rewrite
+	// seed and spki are what the server proves itself with: a second server given both is one no
+	// client can tell from this one.
+	seed, spki []byte
+	mu         sync.Mutex
+	rewrites   []rewrite
 }
 
 func newWorld(t *testing.T) *world {
@@ -62,7 +65,8 @@ func newWorld(t *testing.T) *world {
 	leaf, _ := x509.ParseCertificate(der)
 	seed := bytes.Repeat([]byte{0x33}, ed25519.SeedSize)
 	w.identity = ed25519.NewKeyFromSeed(seed).Public().(ed25519.PublicKey)
-	w.inner, err = transport.New(transport.Config{IdentitySeed: seed, TLSPublicKey: leaf.RawSubjectPublicKeyInfo,
+	w.seed, w.spki = seed, leaf.RawSubjectPublicKeyInfo
+	w.inner, err = transport.New(transport.Config{IdentitySeed: seed, TLSPublicKey: w.spki,
 		RatePerSecond: 100_000, Burst: 100_000}, w.h.Svc)
 	if err != nil {
 		t.Fatal(err)

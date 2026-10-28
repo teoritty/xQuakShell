@@ -43,6 +43,9 @@ type SyncServer interface {
 	CreateVault(ctx context.Context, genesis vaultsync.MemberOp) error
 	Changes(ctx context.Context, vault vaultsync.ID, since uint64, limit int) ([]RemoteCommit, bool, error)
 	Snapshot(ctx context.Context, vault vaultsync.ID) (RemoteSnapshot, error)
+	// Heads returns heads after since and at most until, in seq order, possibly fewer than asked for:
+	// the caller asks again after the last one.
+	Heads(ctx context.Context, vault vaultsync.ID, since, until uint64) ([]vaultsync.Head, error)
 	// Versions lists the retained versions of one record, oldest first, for the trash.
 	Versions(ctx context.Context, vault, record vaultsync.ID) ([]vaultsync.Envelope, error)
 	// Commit pushes c on top of c.Head.Seq-1 and returns the seq it was stored at; a vault that moved

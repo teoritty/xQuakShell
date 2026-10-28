@@ -256,6 +256,13 @@ type Snapshot struct {
 	More    bool       `json:"more"`
 }
 
+// Heads is a page of the signed heads after a seq, in seq order, without their records: a device
+// whose history the server pruned checks with them that the snapshot it starts again from extends
+// the chain it verified.
+type Heads struct {
+	Heads []Head `json:"heads"`
+}
+
 // Event is a notification frame: a vault advanced, or an account's device log grew.
 type Event struct {
 	Vault         string `json:"vault,omitempty"`

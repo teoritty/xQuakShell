@@ -86,6 +86,9 @@ func (p *pullRun) resync(ctx context.Context) error {
 	if snap.Head.Seq == cur.Seq {
 		return nil
 	}
+	if err := p.checkDescends(ctx, cur, snap.Head.Seq, hash); err != nil {
+		return err
+	}
 	state, err := p.verifySnapshot(snap)
 	if err != nil {
 		return err
@@ -95,6 +98,32 @@ func (p *pullRun) resync(ctx context.Context) error {
 		return err
 	}
 	p.report.Commits++
+	return nil
+}
+
+// checkDescends requires the heads between the cursor and the snapshot's head to link the two.
+// ErrHistoryPruned is the server's word alone, and a snapshot that is merely newer may be another
+// branch: a server showing two devices different histories could move this one onto the other's
+// state, and every commit it pushed on its own branch would land here as a purged deletion - its
+// own data gone without a fork ever being reported (ADR-023: a fork is detected when the branches
+// meet). The heads outlive pruning, and each names the hash of the one before it, so only a
+// snapshot that really extends the verified chain gets through.
+func (p *pullRun) checkDescends(ctx context.Context, cur vaultsync.ChainCursor, seq uint64, tip [32]byte) error {
+	for cur.Seq < seq {
+		heads, err := p.e.d.Server.Heads(ctx, p.vault, cur.Seq, seq)
+		if err != nil {
+			return err
+		}
+		if len(heads) == 0 {
+			return integrity("snapshot", fmt.Errorf("no head after seq %d: %w", cur.Seq, vaultsync.ErrFork))
+		}
+		if cur, err = cur.AdvanceAll(heads); err != nil {
+			return integrity("snapshot", fmt.Errorf("%w: %w", vaultsync.ErrFork, err))
+		}
+	}
+	if cur.Seq != seq || cur.Hash != tip {
+		return integrity("snapshot", fmt.Errorf("seq %d: %w", seq, vaultsync.ErrFork))
+	}
 	return nil
 }
 

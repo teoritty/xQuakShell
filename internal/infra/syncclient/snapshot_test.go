@@ -103,3 +103,33 @@ func TestSnapshotRefusesBrokenPaging(t *testing.T) {
 		})
 	}
 }
+
+// The heads a resync checks the snapshot against are asked for after the cursor and up to the
+// snapshot's seq, and come back as they were sent; a head that does not decode is the server's fault.
+func TestHeadsAsksForTheRangeAndDecodesIt(t *testing.T) {
+	f := newFake(t)
+	var query string
+	f.mux.HandleFunc("GET /v1/vaults/{id}/heads", func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.RawQuery
+		writeJSON(w, http.StatusOK, syncwire.Heads{Heads: []syncwire.Head{*snapHead(3), *snapHead(4)}})
+	})
+	heads, err := helloed(t, f).Heads(ctx, vaultsync.ID{1}, 2, 4)
+	if err != nil || len(heads) != 2 || heads[0].Seq != 3 || heads[1].Seq != 4 {
+		t.Fatalf("heads = %+v, %v; want seq 3 and 4", heads, err)
+	}
+	if query != "since=2&until=4" {
+		t.Fatalf("query = %q; the range must reach the server", query)
+	}
+}
+
+func TestHeadsRefusesAHeadThatDoesNotDecode(t *testing.T) {
+	f := newFake(t)
+	f.mux.HandleFunc("GET /v1/vaults/{id}/heads", func(w http.ResponseWriter, _ *http.Request) {
+		bad := *snapHead(3)
+		bad.Vault = "not hex"
+		writeJSON(w, http.StatusOK, syncwire.Heads{Heads: []syncwire.Head{bad}})
+	})
+	if _, err := helloed(t, f).Heads(ctx, vaultsync.ID{1}, 2, 4); !errors.Is(err, synctrust.ErrRemoteProtocol) {
+		t.Fatalf("err = %v, want ErrRemoteProtocol", err)
+	}
+}

@@ -165,6 +165,9 @@ type Tx interface {
 	// EpochsInUse lists the epochs that still seal a live current version.
 	EpochsInUse(vault vaultsync.ID) ([]uint32, error)
 	LatestHead(vault vaultsync.ID) (vaultsync.Head, bool, error)
+	// Heads returns up to limit heads after since and at most until, in seq order. Pruning never
+	// deletes a commit's head, only the record versions it carried.
+	Heads(vault vaultsync.ID, since, until uint64, limit int) ([]vaultsync.Head, error)
 	// RecordVersions returns a record's newest retained versions, oldest first, up to maxBytes of
 	// ciphertext and always at least the newest.
 	RecordVersions(vault, record vaultsync.ID, maxBytes int) ([]vaultsync.Envelope, error)

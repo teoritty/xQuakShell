@@ -111,6 +111,37 @@ func TestPurgeDeletesEveryVersionOfTheRecord(t *testing.T) {
 	}
 }
 
+// The heads survive the pruning that turns a pull from before it into ErrHistoryPruned: they are what
+// lets the client check that the snapshot it moves onto extends the chain it verified.
+func TestHeadsOutlivePrunedHistory(t *testing.T) {
+	h, alice, cv := deletedRecord(t)
+	advance(h, alice, 30*dayMillis)
+	cv.Accept(alice, cv.Purge(alice, 1))
+	if _, _, err := h.Svc.Changes(ctx, h.Principal(alice.Access), cv.ID, 0, 10); !isErr(err, usecase.ErrHistoryPruned) {
+		t.Fatalf("pull from 0: %v, want ErrHistoryPruned", err)
+	}
+	tip := cv.State.Cursor()
+	heads, err := h.Svc.Heads(ctx, h.Principal(alice.Access), cv.ID, 0, tip.Seq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	genesis, _ := vaultsync.GenesisCursor(cv.ID)
+	if got, err := genesis.AdvanceAll(heads); err != nil || got != tip {
+		t.Fatalf("the heads walk from genesis to %+v, %v; want the vault's head %+v", got, err, tip)
+	}
+	if later, err := h.Svc.Heads(ctx, h.Principal(alice.Access), cv.ID, 1, 2); err != nil || len(later) != 1 || later[0].Seq != 2 {
+		t.Fatalf("heads after 1 up to 2 = %+v, %v; want only seq 2", later, err)
+	}
+}
+
+func TestHeadsIsNotFoundForNonMembers(t *testing.T) {
+	h, _, cv := deletedRecord(t)
+	mallory := h.Register("mallory")
+	if _, err := h.Svc.Heads(ctx, h.Principal(mallory.Access), cv.ID, 0, 10); !isErr(err, usecase.ErrNotFound) {
+		t.Fatalf("err = %v, want ErrNotFound: a vault id must not be an existence oracle", err)
+	}
+}
+
 func TestCommitRefusesPurgeOfALiveRecord(t *testing.T) {
 	h, alice, cv := deletedRecord(t)
 	_ = h

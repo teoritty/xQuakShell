@@ -91,6 +91,18 @@ func (c ChainCursor) Advance(next *Head) (ChainCursor, error) {
 	return ChainCursor{Seq: next.Seq, Hash: h, MembershipSeq: next.MembershipSeq}, nil
 }
 
+// AdvanceAll walks heads in order from the cursor, each extending the one before it, and returns
+// the cursor after the last.
+func (c ChainCursor) AdvanceAll(heads []Head) (ChainCursor, error) {
+	for i := range heads {
+		var err error
+		if c, err = c.Advance(&heads[i]); err != nil {
+			return ChainCursor{}, err
+		}
+	}
+	return c, nil
+}
+
 // CheckObserved compares a head the server claims against the client's verified cursor. An older
 // seq is a rollback; the same seq with another hash means the server has shown someone a different
 // history - a fork.

@@ -32,6 +32,8 @@ type svcServer struct {
 	tamperOps func([]vaultsync.MemberOp) []vaultsync.MemberOp
 	// tamperSnap rewrites the snapshot a new device starts from.
 	tamperSnap func(synctrust.RemoteSnapshot) synctrust.RemoteSnapshot
+	// tamperHeads rewrites the heads a resync checks the snapshot against.
+	tamperHeads func([]vaultsync.Head) []vaultsync.Head
 	// alwaysMore makes every page claim more commits follow - a server stalling a client in a loop.
 	alwaysMore bool
 	calls      int
@@ -139,6 +141,18 @@ func (s *svcServer) Snapshot(ctx context.Context, vault vaultsync.ID) (synctrust
 	out := synctrust.RemoteSnapshot{Head: head, Records: records}
 	if err == nil && s.tamperSnap != nil {
 		out = s.tamperSnap(out)
+	}
+	return out, remote(err)
+}
+
+func (s *svcServer) Heads(ctx context.Context, vault vaultsync.ID, since, until uint64) ([]vaultsync.Head, error) {
+	p, err := s.principal()
+	if err != nil {
+		return nil, err
+	}
+	out, err := s.h.Svc.Heads(ctx, p, vault, since, until)
+	if err == nil && s.tamperHeads != nil {
+		out = s.tamperHeads(out)
 	}
 	return out, remote(err)
 }

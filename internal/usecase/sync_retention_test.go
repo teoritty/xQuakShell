@@ -278,6 +278,59 @@ func TestResyncAtTheVerifiedHeadChangesNothing(t *testing.T) {
 	}
 }
 
+// A resync lands a snapshot only when the heads between the verified cursor and the snapshot link
+// the two. The honest case still lands; every way of breaking the link is a fork and changes nothing.
+func TestResyncRequiresTheSnapshotToExtendTheVerifiedChain(t *testing.T) {
+	setup := func(t *testing.T) *syncWorld {
+		w := newSyncWorld(t)
+		w.push(w.meta(), w.item(synctrust.TypeFolder, "f1", domain.ConnectionFolder{ID: "f1", Name: "Prod"}))
+		w.pull()
+		w.push(w.item(synctrust.TypeFolder, "f2", domain.ConnectionFolder{ID: "f2", Name: "Dev"}))
+		w.push(w.item(synctrust.TypeFolder, "f3", domain.ConnectionFolder{ID: "f3", Name: "Test"}))
+		w.server.historyPruned = true
+		return w
+	}
+	t.Run("linked", func(t *testing.T) {
+		w := setup(t)
+		if r, err := w.engine.Pull(syncCtx, w.cv.ID); err != nil || r.Commits != 1 {
+			t.Fatalf("resync over a linked chain: %+v, %v; it must land the snapshot", r, err)
+		}
+		if d, _ := w.vault.GetData(); len(d.Folders) != 3 {
+			t.Fatalf("folders = %+v; the snapshot's state must land", d.Folders)
+		}
+	})
+	breaks := map[string]func([]vaultsync.Head) []vaultsync.Head{
+		"a head that does not name the one before": func(h []vaultsync.Head) []vaultsync.Head { h[0].PrevHash[0] ^= 1; return h },
+		"a head withheld":                          func(h []vaultsync.Head) []vaultsync.Head { return h[1:] },
+		"no heads at all":                          func([]vaultsync.Head) []vaultsync.Head { return nil },
+		"the chain stops short":                    func(h []vaultsync.Head) []vaultsync.Head { return h[:1] },
+		"a chain to another tip": func(h []vaultsync.Head) []vaultsync.Head {
+			h[len(h)-1].ClientTimeUnixMilli++
+			return h
+		},
+	}
+	for name, tamper := range breaks {
+		t.Run(name, func(t *testing.T) {
+			w := setup(t)
+			before, _ := w.vault.GetData()
+			sv, _ := w.state.LoadVault(syncCtx, w.cv.ID)
+			calls := 0
+			w.server.tamperHeads = func(h []vaultsync.Head) []vaultsync.Head {
+				// A chain that stops short is asked for again from where it stopped; the second answer
+				// is honest so the test sees what the walk does with a chain that ends early.
+				if calls++; calls > 1 {
+					return nil
+				}
+				return tamper(h)
+			}
+			if _, err := w.engine.Pull(syncCtx, w.cv.ID); !errors.Is(err, vaultsync.ErrFork) || !errors.Is(err, synctrust.ErrIntegrity) {
+				t.Fatalf("err = %v; a snapshot the heads do not tie to the verified chain is a fork", err)
+			}
+			assertUntouched(t, w, before, sv.Head.Seq)
+		})
+	}
+}
+
 func TestAFreshDeletionIsNotPurgedInTheRoundThatMadeIt(t *testing.T) {
 	_, a := registered(t)
 	addFolders(a, "f1")
