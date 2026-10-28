@@ -366,6 +366,67 @@ func TestAnotherMemberRepointingAConnectionSuspendsMyBinding(t *testing.T) {
 	}
 }
 
+// tombstoneAs deletes a team record as one of the vault's members.
+func tombstoneAs(cv *servertest.ClientVault, author *servertest.User, id vaultsync.ID) vaultsync.Envelope {
+	ver, _ := cv.State.Version(id)
+	tomb := vaultsync.Envelope{Vault: cv.ID, Record: id, Version: ver + 1, Epoch: cv.M.Epoch(), Suite: vaultsync.Suite1,
+		Deleted: true, Author: author.Device, SigAlg: vaultsync.SigEd25519}
+	msg, _ := tomb.SigningBytes()
+	tomb.Sig = ed25519.Sign(author.DSK, msg)
+	return tomb
+}
+
+func assertSuspendedBy(t *testing.T, w *syncWorld, by *servertest.User) {
+	t.Helper()
+	data, _ := w.vault.GetData()
+	if data.Sync.Bindings[0].SuspendedBy != by.Account.String() {
+		t.Fatalf("binding = %+v; it must be suspended, naming %s", data.Sync.Bindings[0], by.Account)
+	}
+	for i := range data.Connections {
+		if c := data.Connections[i]; c.ID == "tc" {
+			if _, err := domain.ResolveCredentials(data, &c, c.Users[0]); !errors.Is(err, domain.ErrBindingSuspended) {
+				t.Fatalf("resolve for %s: %v, want ErrBindingSuspended", c.Host, err)
+			}
+		}
+	}
+}
+
+// A connection deleted and created again under the same id is a change of address the second
+// version alone cannot show: the binding outlived the deletion and would follow to any host.
+func TestAnotherMemberRecreatingAConnectionSuspendsMyBinding(t *testing.T) {
+	w, cv, carol := boundTeamConnection(t)
+	id, _ := synctrust.RecordID(w.namingKey, synctrust.TypeConnection, "tc")
+	cv.Accept(carol, cv.Commit(carol, tombstoneAs(cv, carol, id)))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	assertSuspendedBy(t, w, carol)
+	cv.Accept(carol, cv.Commit(carol, w.sealAs(cv, carol, synctrust.TypeConnection, "tc", repointed())))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	assertSuspendedBy(t, w, carol)
+}
+
+// My own deletion leaves my binding alone, but another member creating the connection again over my
+// tombstone chose its new address, and the binding waits for me.
+func TestAnotherMemberRecreatingAConnectionIDeletedSuspendsMyBinding(t *testing.T) {
+	w, cv, carol := boundTeamConnection(t)
+	id, _ := synctrust.RecordID(w.namingKey, synctrust.TypeConnection, "tc")
+	cv.Accept(w.b, cv.Commit(w.b, tombstoneAs(cv, w.b, id)))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := w.vault.GetData(); data.Sync.Bindings[0].SuspendedBy != "" {
+		t.Fatal("my own account's deletion suspended my binding")
+	}
+	cv.Accept(carol, cv.Commit(carol, w.sealAs(cv, carol, synctrust.TypeConnection, "tc", repointed())))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	assertSuspendedBy(t, w, carol)
+}
+
 func TestMyOwnRepointingDoesNotSuspendMyBinding(t *testing.T) {
 	w, cv, _ := boundTeamConnection(t)
 	cv.Accept(w.b, cv.Commit(w.b, w.teamItem(cv, synctrust.TypeConnection, "tc", repointed())))
