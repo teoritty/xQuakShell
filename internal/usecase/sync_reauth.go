@@ -133,6 +133,10 @@ func (a *AuthenticatedServer) Snapshot(ctx context.Context, vault vaultsync.ID) 
 	return withAuth(ctx, a, func() (synctrust.RemoteSnapshot, error) { return a.srv.Snapshot(ctx, vault) })
 }
 
+func (a *AuthenticatedServer) Heads(ctx context.Context, vault vaultsync.ID, since, until uint64) ([]vaultsync.Head, error) {
+	return withAuth(ctx, a, func() ([]vaultsync.Head, error) { return a.srv.Heads(ctx, vault, since, until) })
+}
+
 func (a *AuthenticatedServer) Versions(ctx context.Context, vault, record vaultsync.ID) ([]vaultsync.Envelope, error) {
 	return withAuth(ctx, a, func() ([]vaultsync.Envelope, error) { return a.srv.Versions(ctx, vault, record) })
 }

@@ -46,9 +46,7 @@ func Classify(t RecordType, local, incoming json.RawMessage) (Verdict, error) {
 		return Verdict{Action: ActionRefuse, Reason: "a settings section cannot be deleted: " + section}, nil
 	}
 	if incoming == nil {
-		// Deleting a grant, a key or a host never widens anything: a deleted known host means the
-		// next connection asks again, not that it trusts blindly.
-		return applyVerdict, nil
+		return classifyDeletion(t, local), nil
 	}
 	switch t {
 	case SettingsType("plugins"):
@@ -65,6 +63,27 @@ func Classify(t RecordType, local, incoming json.RawMessage) (Verdict, error) {
 		return classifyReplacement(local, incoming, peerAnchor, "replaces the peer identity a plugin trusts")
 	}
 	return applyVerdict, nil
+}
+
+// anchorDeletions names the records whose deletion waits for the master password, with the reason
+// shown. Deleting a host key, a peer identity or a key narrows nothing by itself, but it is the
+// first half of replacing one: once the stored version is gone, the next version of the same item
+// arrives as a new one, and a new item applies on arrival. Holding the replacement and applying the
+// deletion let any device of the account - or a team editor - swap a host key, swap the identity a
+// plugin trusts, or clear a key's non-exportable latch in two commits instead of one.
+var anchorDeletions = map[RecordType]string{
+	TypeKnownHost: "removes the stored key of a known host",
+	TypePeerTrust: "removes the peer identity a plugin trusts",
+	TypeIdentity:  "removes a key together with its restrictions",
+}
+
+// classifyDeletion applies every other deletion: a deleted grant never widens anything. A deletion
+// of something this device does not hold has nothing to keep in force.
+func classifyDeletion(t RecordType, local json.RawMessage) Verdict {
+	if reason, ok := anchorDeletions[t]; ok && local != nil {
+		return pending(reason)
+	}
+	return applyVerdict
 }
 
 func decodeOrZero[T any](raw json.RawMessage, zero T) (T, error) {

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"xquakshell/internal/domain/vaultsync"
@@ -414,6 +415,20 @@ func TestVaultsMembersAndCommits(t *testing.T) {
 		}
 		if h, ok, _ := tx.LatestHead(vaultsync.ID{50}); !ok || h.Seq != 2 {
 			t.Fatalf("latest head = %+v, %v", h, ok)
+		}
+		for _, c := range []struct {
+			since, until uint64
+			limit        int
+			want         []uint64
+		}{{0, 2, 10, []uint64{1, 2}}, {0, 1, 10, []uint64{1}}, {1, 2, 10, []uint64{2}}, {0, 2, 1, []uint64{1}}, {2, 9, 10, nil}} {
+			heads, err := tx.Heads(vaultsync.ID{50}, c.since, c.until, c.limit)
+			var got []uint64
+			for _, h := range heads {
+				got = append(got, h.Seq)
+			}
+			if err != nil || !slices.Equal(got, c.want) {
+				t.Fatalf("heads after %d to %d, %d at most = %v, %v; want %v, in seq order", c.since, c.until, c.limit, got, err, c.want)
+			}
 		}
 		v, _, _ := tx.VaultByID(vaultsync.ID{50})
 		if v.Seq != 2 || v.Bytes != 900 || !v.Personal {

@@ -56,17 +56,23 @@ func (p *pullRun) interpret(c vaultsync.Commit) (interpretation, error) {
 			out.quarantine = append(out.quarantine, p.hold(r, reason.Error(), false))
 			continue
 		}
-		p.route(&out, r, entry, local[r.Record].Data)
+		p.route(&out, r, entry, local)
 	}
 	return out, nil
 }
 
-func (p *pullRun) route(out *interpretation, r *vaultsync.Envelope, entry synctrust.Entry, local []byte) {
+// route classifies one decoded record against what this device holds: held is the device's own
+// items, of which the record's own version is one.
+func (p *pullRun) route(out *interpretation, r *vaultsync.Envelope, entry synctrust.Entry, held map[vaultsync.ID]synctrust.Entry) {
+	local := held[r.Record].Data
 	entry, ok := p.mergeLocal(out, r.Record, entry, local)
 	if !ok {
 		return
 	}
 	verdict, err := synctrust.Classify(entry.Type, local, entry.Data)
+	if err == nil && verdict.Action == synctrust.ActionApply && local == nil {
+		verdict, err = synctrust.ClassifyAddition(entry.Type, held, entry.Data)
+	}
 	switch {
 	case err != nil:
 		out.quarantine = append(out.quarantine, p.hold(r, "the record's data does not decode", false))
@@ -200,10 +206,7 @@ func (p *pullRun) nameOf(id vaultsync.ID) (syncKeyName, bool) {
 // credential bound to it must not follow to the new host unconfirmed (spec §5.9). A change from
 // this member's own account - another of their devices - is their own decision.
 func (p *pullRun) noteRepointing(out *interpretation, r *vaultsync.Envelope, entry synctrust.Entry, local []byte) {
-	if p.scope.Vault == "" || entry.Type != synctrust.TypeConnection || local == nil || entry.Data == nil {
-		return
-	}
-	if !synctrust.AddressChanged(local, entry.Data) {
+	if p.scope.Vault == "" || entry.Type != synctrust.TypeConnection || !p.repoints(r.Record, entry, local) {
 		return
 	}
 	account, _, err := p.resolve(r.Author)
@@ -211,4 +214,21 @@ func (p *pullRun) noteRepointing(out *interpretation, r *vaultsync.Envelope, ent
 		return
 	}
 	out.suspend = append(out.suspend, suspension{connection: entry.Key, account: account.String()})
+}
+
+// repoints reports whether a version of a team connection may point this member's bindings at an
+// address they never confirmed. A binding outlives the connection it names, so a deletion and a
+// re-creation under the same id is a change of address whose old address this device no longer
+// holds to compare: the deletion suspends the bindings, and so does a version arriving over a
+// tombstone this device verified, for a deletion its own account made.
+func (p *pullRun) repoints(id vaultsync.ID, entry synctrust.Entry, local []byte) bool {
+	switch {
+	case entry.Data == nil:
+		return true
+	case local == nil:
+		prev, ok := p.base[id]
+		return ok && prev.Deleted
+	default:
+		return synctrust.AddressChanged(local, entry.Data)
+	}
 }

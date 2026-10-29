@@ -287,3 +287,25 @@ func (t *txn) LatestHead(vault vaultsync.ID) (vaultsync.Head, bool, error) {
 	h, err := decodeHead(raw)
 	return h, err == nil, err
 }
+
+func (t *txn) Heads(vault vaultsync.ID, since, until uint64, limit int) ([]vaultsync.Head, error) {
+	rows, err := t.tx.QueryContext(t.ctx, "SELECT head FROM commits WHERE vault = ? AND seq > ? AND seq <= ? ORDER BY seq LIMIT ?",
+		vault[:], since, until, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []vaultsync.Head
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		h, err := decodeHead(raw)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
+}

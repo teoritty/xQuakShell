@@ -140,6 +140,9 @@ func relocate(d *domain.VaultData, req MoveConnectionRequest, id string) error {
 		}
 	}
 	src := d.Connections[i]
+	if err := checkHopsMovable(d, src, req.To); err != nil {
+		return err
+	}
 	dup, err := domain.DuplicateConnection(src, id, src.Name, func() (string, error) { return newRandomID(), nil })
 	if err != nil {
 		return err
@@ -157,6 +160,19 @@ func relocate(d *domain.VaultData, req MoveConnectionRequest, id string) error {
 	moved.VaultID, moved.FolderID, moved.Order = req.To, req.Folder, nextOrder(d.Connections, req.To, req.Folder)
 	carryCredentials(d, &src, &moved)
 	d.Connections = append(slices.Delete(d.Connections, i, i+1), moved)
+	return nil
+}
+
+// checkHopsMovable refuses a move whose jump hops name a key or password from outside the
+// destination. A user's credential becomes a binding on the way into a team, but a hop has no
+// binding: its reference would travel in the shared record as it is, showing every member the id
+// of this account's personal credential, and the destination would refuse to use it anyway.
+func checkHopsMovable(d *domain.VaultData, src domain.Connection, to string) error {
+	for _, hop := range src.JumpChain.Hops {
+		if err := domain.CheckCredentialScope(d, to, hop.KeyAuth, hop.PassAuth); err != nil {
+			return fmt.Errorf("move connection: jump host %s: %w", hop.Host, err)
+		}
+	}
 	return nil
 }
 

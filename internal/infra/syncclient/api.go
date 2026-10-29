@@ -88,6 +88,25 @@ func toEnvelopes(records []syncwire.Envelope) ([]vaultsync.Envelope, error) {
 	return out, nil
 }
 
+// Heads returns a page of the heads after seq after and at most until.
+func (c *Client) Heads(ctx context.Context, vault vaultsync.ID, after, until uint64) ([]vaultsync.Head, error) {
+	q := since(after)
+	q.Set("until", strconv.FormatUint(until, 10))
+	var reply syncwire.Heads
+	if err := c.get(ctx, vaultPath(vault, "heads"), q, &reply, bulkReplyLimit); err != nil {
+		return nil, err
+	}
+	out := make([]vaultsync.Head, 0, len(reply.Heads))
+	for _, h := range reply.Heads {
+		head, err := h.ToDomain()
+		if err != nil {
+			return nil, protocolErr("head", err)
+		}
+		out = append(out, head)
+	}
+	return out, nil
+}
+
 // Versions returns the retained versions of one record, for the trash.
 func (c *Client) Versions(ctx context.Context, vault, record vaultsync.ID) ([]vaultsync.Envelope, error) {
 	var reply syncwire.Versions

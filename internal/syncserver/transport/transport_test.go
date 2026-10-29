@@ -291,6 +291,7 @@ func TestIDORMatrix(t *testing.T) {
 	endpoints := []endpoint{
 		{"changes", "GET", v + "/changes", nil, reads},
 		{"snapshot", "GET", v + "/snapshot", nil, reads},
+		{"heads", "GET", v + "/heads?since=0&until=10", nil, reads},
 		{"versions", "GET", v + "/records/" + vaultsync.ID{7}.String() + "/versions", nil, reads},
 		{"membership", "GET", v + "/membership", nil, reads},
 		{"membership append", "POST", v + "/membership", func(c string) any { return ir.membershipBody(c) },

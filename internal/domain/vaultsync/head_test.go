@@ -131,3 +131,32 @@ func TestHeadHashCoversSignature(t *testing.T) {
 		t.Fatal("head hash ignores the signature; the next head would not commit to who signed this one")
 	}
 }
+
+func TestAdvanceAllWalksALinkedChainAndNothingElse(t *testing.T) {
+	_, key, _ := ed25519.GenerateKey(nil)
+	start, _ := vaultsync.GenesisCursor(vaultsync.ID{1})
+	cur, chain := start, []vaultsync.Head{}
+	for range 3 {
+		h := nextHead(t, key, cur, 0)
+		chain = append(chain, *h)
+		var err error
+		if cur, err = cur.Advance(h); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, err := start.AdvanceAll(chain); err != nil || got != cur {
+		t.Fatalf("walk = %+v, %v; want the cursor after the last head %+v", got, err, cur)
+	}
+	if got, err := start.AdvanceAll(nil); err != nil || got != start {
+		t.Fatalf("an empty walk = %+v, %v; want the cursor unchanged", got, err)
+	}
+	gap := []vaultsync.Head{chain[0], chain[2]}
+	if _, err := start.AdvanceAll(gap); !errors.Is(err, vaultsync.ErrChainBroken) {
+		t.Fatalf("a chain with a head missing: %v, want ErrChainBroken", err)
+	}
+	forged := append([]vaultsync.Head(nil), chain...)
+	forged[1].PrevHash[0] ^= 1
+	if _, err := start.AdvanceAll(forged); !errors.Is(err, vaultsync.ErrChainBroken) {
+		t.Fatalf("a head naming another predecessor: %v, want ErrChainBroken", err)
+	}
+}

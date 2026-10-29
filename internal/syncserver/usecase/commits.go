@@ -10,6 +10,8 @@ import (
 const (
 	maxRecordsPerCommit = 1000
 	maxChangesPage      = 200
+	// A head is a few hundred bytes of JSON, so a page of them stays far below what a client accepts.
+	maxHeadsPage = 1000
 	// The page budgets count ciphertext. Base64 and the envelope fields add about a third on the
 	// wire, which keeps every page well inside the 64 MiB a client accepts in one reply; a single
 	// commit or record is never split and is bounded by the commit body limit instead.
@@ -180,6 +182,26 @@ func (s *Service) Changes(ctx context.Context, p Principal, vault vaultsync.ID, 
 		return nil, false, err
 	}
 	return out, more, nil
+}
+
+// Heads returns up to maxHeadsPage heads after since and at most until, in seq order. They outlive
+// the record versions pruning deletes, which is what lets a device moved onto the snapshot by
+// ErrHistoryPruned check that the snapshot extends the chain it verified: without them, the only
+// thing tying the two together would be this server's word (spec §7.5).
+func (s *Service) Heads(ctx context.Context, p Principal, vault vaultsync.ID, since, until uint64) ([]vaultsync.Head, error) {
+	var out []vaultsync.Head
+	err := s.cfg.Store.WithTx(ctx, func(tx Tx) error {
+		if _, _, err := requireMember(tx, vault, p.Account); err != nil {
+			return err
+		}
+		var err error
+		out, err = tx.Heads(vault, since, until, maxHeadsPage)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // SnapshotPage is one page of a vault's current state: the latest head, and the latest version of

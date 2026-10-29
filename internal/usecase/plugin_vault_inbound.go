@@ -29,6 +29,7 @@ type PluginVaultInbound struct {
 	settings        PluginSettingsReader
 	auditLogger     domainplugin.VaultAccessAuditLogger
 	keyAudit        KeyManagerAudit
+	vault           domain.VaultRepository
 }
 
 // NewPluginVaultInbound creates a vault inbound adapter.
@@ -59,6 +60,14 @@ func (p *PluginVaultInbound) SetKeyAudit(a KeyManagerAudit) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.keyAudit = a
+}
+
+// SetVault binds the vault a team connection's credential references are checked against. A setter
+// for the same reason as SetKeyAudit. Without it a team connection's secrets are refused.
+func (p *PluginVaultInbound) SetVault(v domain.VaultRepository) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.vault = v
 }
 
 // SetAuthorizer binds the session manager after composition.
@@ -260,7 +269,31 @@ func filterConnectionFields(conn *domain.Connection, allowed []string) map[strin
 	return out
 }
 
+// checkCredentialScope applies domain.CheckCredentialScope to the default user a plugin's secret
+// request reads. Another team member can write that user's references, and a plugin this member
+// trusts would otherwise be handed this member's personal password for a team connection.
+func (p *PluginVaultInbound) checkCredentialScope(conn *domain.Connection) error {
+	user := conn.DefaultUser()
+	if conn.VaultID == "" || user == nil {
+		return nil
+	}
+	p.mu.RLock()
+	vault := p.vault
+	p.mu.RUnlock()
+	if vault == nil {
+		return domainplugin.ErrCapabilityDenied
+	}
+	data, err := vault.GetData()
+	if err != nil {
+		return err
+	}
+	return domain.CheckCredentialScope(data, conn.VaultID, user.KeyAuth, user.PassAuth)
+}
+
 func (p *PluginVaultInbound) resolveSecret(ctx context.Context, conn *domain.Connection, field string) ([]byte, error) {
+	if err := p.checkCredentialScope(conn); err != nil {
+		return nil, domainplugin.ErrCapabilityDenied
+	}
 	user := conn.DefaultUser()
 	switch field {
 	case "password":

@@ -143,6 +143,23 @@ func (s *server) handleChanges(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+func (s *server) handleHeads(w http.ResponseWriter, r *http.Request) {
+	p, vault, ok := s.vaultRequest(w, r)
+	if !ok {
+		return
+	}
+	heads, err := s.svc.Heads(r.Context(), p, vault, queryUint(r, "since"), queryUint(r, "until"))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	out := syncwire.Heads{Heads: make([]syncwire.Head, 0, len(heads))}
+	for i := range heads {
+		out.Heads = append(out.Heads, syncwire.HeadFrom(&heads[i]))
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 func (s *server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	p, vault, ok := s.vaultRequest(w, r)
 	if !ok {

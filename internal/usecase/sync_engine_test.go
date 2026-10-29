@@ -32,6 +32,8 @@ type svcServer struct {
 	tamperOps func([]vaultsync.MemberOp) []vaultsync.MemberOp
 	// tamperSnap rewrites the snapshot a new device starts from.
 	tamperSnap func(synctrust.RemoteSnapshot) synctrust.RemoteSnapshot
+	// tamperHeads rewrites the heads a resync checks the snapshot against.
+	tamperHeads func([]vaultsync.Head) []vaultsync.Head
 	// alwaysMore makes every page claim more commits follow - a server stalling a client in a loop.
 	alwaysMore bool
 	calls      int
@@ -139,6 +141,18 @@ func (s *svcServer) Snapshot(ctx context.Context, vault vaultsync.ID) (synctrust
 	out := synctrust.RemoteSnapshot{Head: head, Records: records}
 	if err == nil && s.tamperSnap != nil {
 		out = s.tamperSnap(out)
+	}
+	return out, remote(err)
+}
+
+func (s *svcServer) Heads(ctx context.Context, vault vaultsync.ID, since, until uint64) ([]vaultsync.Head, error) {
+	p, err := s.principal()
+	if err != nil {
+		return nil, err
+	}
+	out, err := s.h.Svc.Heads(ctx, p, vault, since, until)
+	if err == nil && s.tamperHeads != nil {
+		out = s.tamperHeads(out)
 	}
 	return out, remote(err)
 }
@@ -843,6 +857,61 @@ func TestSnapshotHeadRulesHoldEvenForAGenuineSignature(t *testing.T) {
 			t.Fatalf("err = %v; a device the vault revoked must not author its starting point", err)
 		}
 	})
+}
+
+// A known host deleted on another device stays in force here until the user confirms the deletion;
+// the held change names the host, and confirming it removes the line.
+func TestADeletedKnownHostIsHeldUntilConfirmed(t *testing.T) {
+	w := newSyncWorld(t)
+	const key = "web.example ssh-ed25519"
+	line := key + " AAAAC3NzaC1lZDI1NTE5AAAAIOyFO3Fb2rIAMBOVWFtj7m+zwrSZeTvXXzFxvfYa1+7P"
+	w.push(w.meta(), w.item(synctrust.TypeKnownHost, key, map[string]string{"line": line}))
+	w.pull()
+	id, _ := synctrust.RecordID(w.namingKey, synctrust.TypeKnownHost, key)
+	w.push(w.tombstone(id))
+	if r := w.pull(); r.Held != 1 || r.Applied != 0 {
+		t.Fatalf("report = %+v; a deleted host key is the first half of replacing it and waits", r)
+	}
+	if d, _ := w.vault.GetData(); len(d.KnownHosts) != 1 {
+		t.Fatalf("known hosts = %q; the stored key must stay in force while the deletion waits", d.KnownHosts)
+	}
+	held, err := w.engine.HeldChanges(syncCtx, w.cv.ID)
+	if err != nil || len(held) != 1 || held[0].Type != synctrust.TypeKnownHost || held[0].Key != key || !held[0].Pending {
+		t.Fatalf("held = %+v, %v; a held deletion must name the item it removes", held, err)
+	}
+	if err := w.engine.ConfirmHeld(syncCtx, w.cv.ID, id); err != nil {
+		t.Fatalf("confirm a held deletion: %v", err)
+	}
+	if d, _ := w.vault.GetData(); len(d.KnownHosts) != 0 {
+		t.Fatalf("known hosts = %q; a confirmed deletion removes the line", d.KnownHosts)
+	}
+	if items := quarantined(t, w); len(items) != 0 {
+		t.Fatalf("quarantine = %+v; a confirmed change no longer waits", items)
+	}
+}
+
+// Deleting a key and adding it back is how a device would clear the non-exportable latch if the
+// deletion applied: the second version would arrive as a new key. Held, the deletion keeps the key
+// here, and the version without the latch is refused outright, not held for a confirmation.
+func TestDeletingAndReaddingAKeyCannotClearItsLatch(t *testing.T) {
+	w := newSyncWorld(t)
+	w.push(w.meta(), w.item(synctrust.TypeIdentity, "k1", map[string]any{"identity": domain.SSHIdentity{ID: "k1", NonExportable: true}}))
+	w.pull()
+	id, _ := synctrust.RecordID(w.namingKey, synctrust.TypeIdentity, "k1")
+	w.push(w.tombstone(id))
+	if r := w.pull(); r.Held != 1 {
+		t.Fatalf("report = %+v; deleting a key waits for the master password", r)
+	}
+	w.push(w.item(synctrust.TypeIdentity, "k1", map[string]any{"identity": domain.SSHIdentity{ID: "k1", AllowPlugins: true}}))
+	if r := w.pull(); r.Quarantined != 1 || r.Applied != 0 {
+		t.Fatalf("report = %+v; the latch-clearing version must be refused, and nothing merged from it", r)
+	}
+	if d, _ := w.vault.GetData(); !d.Identities["k1"].NonExportable || d.Identities["k1"].AllowPlugins {
+		t.Fatalf("k1 = %+v; sync cleared the latch or granted plugins the key", d.Identities["k1"])
+	}
+	if err := w.engine.ConfirmHeld(syncCtx, w.cv.ID, id); !errors.Is(err, usecase.ErrHeldNotFound) {
+		t.Fatalf("confirm: %v; a refused version is not confirmable", err)
+	}
 }
 
 // A refused change is not a held one: no password turns it into an applied change.

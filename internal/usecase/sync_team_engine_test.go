@@ -366,6 +366,96 @@ func TestAnotherMemberRepointingAConnectionSuspendsMyBinding(t *testing.T) {
 	}
 }
 
+// The binding is the only way a personal credential reaches a team host. Carol cannot get around it
+// by repointing the connection and naming this member's personal password inline: the record syncs
+// in, but the reference is refused when the connection would use it, so the password never leaves.
+func TestAnotherMemberCannotNameMyPersonalPasswordInATeamConnection(t *testing.T) {
+	w, cv, carol := boundTeamConnection(t)
+	_ = w.vault.UpdateData(syncCtx, func(d *domain.VaultData) error {
+		if d.Passwords == nil {
+			d.Passwords = map[string]domain.PasswordBlob{}
+		}
+		d.Passwords["my-pw"] = domain.PasswordBlob{Value: []byte("personal"), Label: "bastion"}
+		return nil
+	})
+	evil := domain.Connection{ID: "tc", Name: "db", Host: "evil.example", Port: 22, DefaultUserID: "u1",
+		Users: []domain.ConnectionUser{{ID: "u1", Username: "deploy", Auth: domain.AuthMethodPassword,
+			PassAuth: &domain.PasswordAuthConfig{VaultRef: "my-pw"}}}}
+	cv.Accept(carol, cv.Commit(carol, w.sealAs(cv, carol, synctrust.TypeConnection, "tc", evil)))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := w.vault.GetData()
+	conn := connByID(t, data, "tc")
+	if conn.Host != "evil.example" {
+		t.Fatalf("host = %s; the test needs carol's version applied", conn.Host)
+	}
+	if got, err := domain.ResolveCredentials(data, &conn, *conn.DefaultUser()); !errors.Is(err, domain.ErrCredentialOutsideVault) {
+		t.Fatalf("resolve = %+v, %v; want ErrCredentialOutsideVault - the personal password must not go to carol's host", got.PassAuth, err)
+	}
+}
+
+// tombstoneAs deletes a team record as one of the vault's members.
+func tombstoneAs(cv *servertest.ClientVault, author *servertest.User, id vaultsync.ID) vaultsync.Envelope {
+	ver, _ := cv.State.Version(id)
+	tomb := vaultsync.Envelope{Vault: cv.ID, Record: id, Version: ver + 1, Epoch: cv.M.Epoch(), Suite: vaultsync.Suite1,
+		Deleted: true, Author: author.Device, SigAlg: vaultsync.SigEd25519}
+	msg, _ := tomb.SigningBytes()
+	tomb.Sig = ed25519.Sign(author.DSK, msg)
+	return tomb
+}
+
+func assertSuspendedBy(t *testing.T, w *syncWorld, by *servertest.User) {
+	t.Helper()
+	data, _ := w.vault.GetData()
+	if data.Sync.Bindings[0].SuspendedBy != by.Account.String() {
+		t.Fatalf("binding = %+v; it must be suspended, naming %s", data.Sync.Bindings[0], by.Account)
+	}
+	for i := range data.Connections {
+		if c := data.Connections[i]; c.ID == "tc" {
+			if _, err := domain.ResolveCredentials(data, &c, c.Users[0]); !errors.Is(err, domain.ErrBindingSuspended) {
+				t.Fatalf("resolve for %s: %v, want ErrBindingSuspended", c.Host, err)
+			}
+		}
+	}
+}
+
+// A connection deleted and created again under the same id is a change of address the second
+// version alone cannot show: the binding outlived the deletion and would follow to any host.
+func TestAnotherMemberRecreatingAConnectionSuspendsMyBinding(t *testing.T) {
+	w, cv, carol := boundTeamConnection(t)
+	id, _ := synctrust.RecordID(w.namingKey, synctrust.TypeConnection, "tc")
+	cv.Accept(carol, cv.Commit(carol, tombstoneAs(cv, carol, id)))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	assertSuspendedBy(t, w, carol)
+	cv.Accept(carol, cv.Commit(carol, w.sealAs(cv, carol, synctrust.TypeConnection, "tc", repointed())))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	assertSuspendedBy(t, w, carol)
+}
+
+// My own deletion leaves my binding alone, but another member creating the connection again over my
+// tombstone chose its new address, and the binding waits for me.
+func TestAnotherMemberRecreatingAConnectionIDeletedSuspendsMyBinding(t *testing.T) {
+	w, cv, carol := boundTeamConnection(t)
+	id, _ := synctrust.RecordID(w.namingKey, synctrust.TypeConnection, "tc")
+	cv.Accept(w.b, cv.Commit(w.b, tombstoneAs(cv, w.b, id)))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := w.vault.GetData(); data.Sync.Bindings[0].SuspendedBy != "" {
+		t.Fatal("my own account's deletion suspended my binding")
+	}
+	cv.Accept(carol, cv.Commit(carol, w.sealAs(cv, carol, synctrust.TypeConnection, "tc", repointed())))
+	if _, err := w.engine.Sync(syncCtx, cv.ID); err != nil {
+		t.Fatal(err)
+	}
+	assertSuspendedBy(t, w, carol)
+}
+
 func TestMyOwnRepointingDoesNotSuspendMyBinding(t *testing.T) {
 	w, cv, _ := boundTeamConnection(t)
 	cv.Accept(w.b, cv.Commit(w.b, w.teamItem(cv, synctrust.TypeConnection, "tc", repointed())))
