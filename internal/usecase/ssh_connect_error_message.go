@@ -29,6 +29,12 @@ func sshConnectErrorMessage(err error) string {
 		return "No key or password of yours is linked to this team connection: set one in its editor"
 	case errors.Is(err, domain.ErrBindingSuspended):
 		return "Another member changed this connection's address: confirm it in Settings → Sync before connecting"
+	// Both are refused on this device before anything is sent, so the server is never at fault. The
+	// second is what a team record naming another member's personal password looks like here.
+	case errors.Is(err, domain.ErrCredentialOutsideVault):
+		return "This team connection names a key or password from outside the team: set your own in its editor"
+	case errors.Is(err, domain.ErrPasswordNotFound), errors.Is(err, domain.ErrIdentityNotFound):
+		return "The key or password this connection names is not in your vault: set one in its editor"
 	case strings.HasPrefix(msg, "authentication failed:"):
 		return "Authentication failed"
 	case strings.HasPrefix(msg, "jump chain connection failed:"):
