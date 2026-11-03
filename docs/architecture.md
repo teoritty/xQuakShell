@@ -101,7 +101,7 @@ A vault comes into existence in exactly one place: `VaultRepository.Create`. `Un
 - **Durability.** `Create` writes synchronously instead of going through the 400 ms debounced flush used by `UpdateData`, so `Exists()` is true the moment it returns and a crash cannot discard a password the user believes is set. It also reports write failures to the caller, which the debounced path only logs.
 - **Concurrency.** The existence check and the write share one `r.mu` write lock, so concurrent `Create` calls serialize and all but one get `ErrVaultAlreadyExists`. The guarantee is process-local; `Exists()` on its own is advisory.
 - **After opening.** `AppAPI.afterVaultOpened` applies persisted settings to the lockout, ping and log-level managers. Both `UnlockVault` and `CreateVault` call it, so a freshly created vault is not left without an idle-lock timer until the next restart.
-- **No recovery.** There is no reset, no escrow and no re-key path. The create screen says so explicitly.
+- **Recovery key, and nothing else.** A random vault key sits between the credentials and the data; the master password and a 160-bit recovery key each hold a separately scrypt-wrapped copy of it, and either one opens the vault. The recovery key is shown once and cannot be produced again; using it, or changing the password, issues a new one and revokes the old. Beyond those two there is no reset, no escrow and no server-side way in — lose both and the vault is gone, which the create screen says explicitly. The design and the alternatives it rejected are in [ADR-021](adr/021-vault-recovery-key.md).
 
 ## SSH types in domain
 
