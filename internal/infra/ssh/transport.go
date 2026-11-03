@@ -66,13 +66,13 @@ func BuildTransportChain(
 		}
 		if err != nil {
 			cleanup()
-			return nil, nil, fmt.Errorf("hop %d (%s:%d) connect: %w", i, hop.Host, hop.Port, err)
+			return nil, nil, fmt.Errorf("hop %d (%s) connect: %w", i, domain.HostPort(hop.Host, hop.Port), err)
 		}
 		clients = append(clients, client)
 
-		nextAddr := fmt.Sprintf("%s:%d", targetHost, targetPort)
+		nextAddr := domain.HostPort(targetHost, targetPort)
 		if i < len(hops)-1 {
-			nextAddr = fmt.Sprintf("%s:%d", hops[i+1].Host, hops[i+1].Port)
+			nextAddr = domain.HostPort(hops[i+1].Host, hops[i+1].Port)
 		}
 
 		// OpenDirectTCP rather than client.Client().Dial: the chain is built

@@ -132,3 +132,29 @@ func TestBuildTransportChainForwardsToTheTarget(t *testing.T) {
 		t.Errorf("hop dialed %q, want \"target.example:2222\"; the last hop forwards to the target", addr)
 	}
 }
+
+// An IPv6 target must reach the bastion bracketed. A bare host + ":" + port
+// gives "2a0f::2:22", which no dialer can split back into host and port.
+func TestBuildTransportChainBracketsAnIPv6Target(t *testing.T) {
+	client := &stubHopClient{conn: &trackedConn{}}
+
+	_, cleanup, err := BuildTransportChain(
+		context.Background(),
+		[]domain.JumpHop{{Host: "2a0f:cdc6:500:3399::1", Port: 22, Username: "jump"}},
+		"2a0f:cdc6:0500:3399:0000:0000:0000:0002", 22, 5,
+		stubHopFactory{client: client},
+		gossh.InsecureIgnoreHostKey(),
+		noHopAuth,
+	)
+	if err != nil {
+		t.Fatalf("BuildTransportChain: %v", err)
+	}
+	defer cleanup()
+
+	client.mu.Lock()
+	addr := client.dialAddr
+	client.mu.Unlock()
+	if addr != "[2a0f:cdc6:500:3399::2]:22" {
+		t.Errorf("hop dialed %q, want \"[2a0f:cdc6:500:3399::2]:22\"; an IPv6 target needs brackets", addr)
+	}
+}

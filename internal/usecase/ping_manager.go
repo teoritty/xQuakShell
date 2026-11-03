@@ -3,8 +3,6 @@ package usecase
 import (
 	"context"
 	"log/slog"
-	"net"
-	"strconv"
 	"sync"
 	"time"
 
@@ -277,7 +275,7 @@ func (pm *PingManager) pingAll(ctx context.Context) {
 }
 
 func (pm *PingManager) tcpPing(ctx context.Context, connID, host string, port int) PingResult {
-	addr := net.JoinHostPort(host, strconv.Itoa(port))
+	addr := domain.HostPort(host, port)
 	start := time.Now()
 	err := pm.pinger.Ping(ctx, "tcp", addr)
 	latency := time.Since(start).Milliseconds()

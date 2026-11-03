@@ -164,7 +164,7 @@ func hostKeyInfoFromError(conn *domain.Connection, err error) (*domain.HostKeyIn
 	}
 	mismatch := errors.Is(err, domain.ErrHostKeyMismatch)
 	hkInfo := domain.HostKeyInfo{
-		Host:     fmt.Sprintf("%s:%d", conn.Host, conn.Port),
+		Host:     domain.HostPort(conn.Host, conn.Port),
 		Mismatch: mismatch,
 	}
 	var hkErr *domain.HostKeyVerificationError

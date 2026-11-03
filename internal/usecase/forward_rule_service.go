@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strconv"
 	"sync"
 
 	"xquakshell/internal/domain"
@@ -48,7 +47,7 @@ func (r *ForwardRuleRunner) Start(ctx context.Context, rule domain.ForwardRule) 
 
 func (r *ForwardRuleRunner) startLocal(ctx context.Context, rule domain.ForwardRule) error {
 	bindAddr := domain.EffectiveBindAddress(rule.BindAddress)
-	ln, err := net.Listen("tcp", net.JoinHostPort(bindAddr, strconv.Itoa(rule.BindPort)))
+	ln, err := net.Listen("tcp", domain.HostPort(bindAddr, rule.BindPort))
 	if err != nil {
 		return fmt.Errorf("listen local forward %s: %w", rule.ID, err)
 	}
@@ -78,7 +77,7 @@ func (r *ForwardRuleRunner) spliceLocalToRemote(ctx context.Context, local net.C
 		return
 	}
 	defer r.limiter.Release()
-	remote, err := r.client.OpenDirectTCP(ctx, net.JoinHostPort(targetHost, strconv.Itoa(targetPort)))
+	remote, err := r.client.OpenDirectTCP(ctx, domain.HostPort(targetHost, targetPort))
 	if err != nil {
 		return
 	}
@@ -88,7 +87,7 @@ func (r *ForwardRuleRunner) spliceLocalToRemote(ctx context.Context, local net.C
 
 func (r *ForwardRuleRunner) startRemote(ctx context.Context, rule domain.ForwardRule) error {
 	bindAddr := domain.EffectiveBindAddress(rule.BindAddress)
-	ln, err := r.client.ListenTCP(ctx, net.JoinHostPort(bindAddr, strconv.Itoa(rule.BindPort)))
+	ln, err := r.client.ListenTCP(ctx, domain.HostPort(bindAddr, rule.BindPort))
 	if err != nil {
 		return fmt.Errorf("listen remote forward %s: %w", rule.ID, err)
 	}
@@ -113,7 +112,7 @@ func (r *ForwardRuleRunner) spliceRemoteToLocal(ctx context.Context, remote net.
 		return
 	}
 	defer r.limiter.Release()
-	local, err := net.Dial("tcp", net.JoinHostPort(targetHost, strconv.Itoa(targetPort)))
+	local, err := net.Dial("tcp", domain.HostPort(targetHost, targetPort))
 	if err != nil {
 		return
 	}
