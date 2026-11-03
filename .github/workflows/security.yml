@@ -32,11 +32,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The Go version comes from go.mod's toolchain directive, which pins the patch level the
+      # The Go version comes from go.mod's go directive, which names the exact patch level the
       # standard library's security fixes arrive in. A version spec such as '1.26' resolves to
-      # whatever the runner has cached, and setup-go exports GOTOOLCHAIN=local, so the directive
-      # alone is ignored - that is how a build on go1.26.8 slipped past a toolchain line naming
-      # go1.26.9. Every workflow reads go.mod the same way.
+      # whatever the runner has cached, and setup-go exports GOTOOLCHAIN=local, so go.mod alone
+      # is ignored - that is how a build on go1.26.8 slipped past a go.mod naming go1.26.9.
+      # Every workflow reads go.mod the same way.
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod

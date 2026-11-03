@@ -49,11 +49,14 @@ back or add a device without every device noticing. Signing in is one screen: pa
 the server prints (`https://host:8443/#fp=…`) and the application checks the server's fingerprint
 itself, or enter the address and compare the fingerprint it shows with the one its operator gave
 you. Fingerprints, the device list, the sync password and Shred now sit under Advanced. A second device signs in with the sync password;
-every other device announces it and can remove it, which replaces the account keys. Edits made
-offline on two devices merge field by field; the same credential edited on both becomes a conflict
-you resolve. A change from another device that would weaken this one — turning off plugin
-signature checks, loosening the lockout, replacing a known host key — waits for this device's
-master password. Sync is off until you turn it on, and needs a master password of at least 12
+every other device announces it and can remove it, which replaces the account keys. Removing a
+device you do not recognise can replace the sync password in the same step, so whoever typed it to
+add that device cannot sign it in again; left empty, the device is still removed at once and the
+password can be changed afterwards. Edits made offline on two devices merge field by field; the
+same credential edited on both becomes a conflict you resolve, and the sync indicator turns red and
+says so until you do. A change from another device that would weaken this one — turning off plugin
+signature checks, loosening the lockout, replacing or deleting a known host key, a peer identity or
+a key — waits for this device's master password, in a team vault as in the personal one. Sync is off until you turn it on, and needs a master password of at least 12
 characters; a new sync password needs at least 12 too.
 
 **Teams.** A team vault shares connections with other accounts on the same server. You invite a
@@ -163,11 +166,25 @@ leaves forwarding off.
 
 ### Fixed
 
-**Built with Go 1.26.9, which fixes ten vulnerabilities in the standard library** - in `net/http`,
-`net/textproto` and `crypto/tls` (GO-2026-6603, 6605, 6607 to 6613, 6617) - that the update check,
-the plugin catalogue and the embed tunnels reach. The toolchain is now pinned in `go.mod`, so a
+**Built with Go 1.26.10, which fixes eleven vulnerabilities in the standard library** - in
+`net/http`, `net/textproto` and `crypto/tls` (GO-2026-6603, 6605, 6607 to 6613, 6617) - that the
+update check, the plugin catalogue and the embed tunnels reach, and in `crypto/x509`, which still
+trusted a set of compromised intermediate certificates (GO-2026-6809) and is reached by every TLS
+connection the application makes, sync included. `go.mod` now requires Go 1.26.10 itself, so a
 build picks up a patched standard library because the repository says so, not because the build
-machine happened to have one.
+machine happened to have one, and an older compiler fetches it or refuses to build.
+
+**Connecting to a server by its IPv6 address works.** The address and the port were joined without
+brackets, so `2a0f::2` with port 22 became the unparseable `2a0f::2:22`: a direct connection, a jump
+host, the ping check and the host key prompt all failed or showed a wrong address for an IPv6
+server. Every address is now written in its standard bracketed form, `[2a0f::2]:22`, however it was
+typed in the editor, so the same server also no longer asks to be trusted again for each way its
+address was spelled. Host key verification is as strict as before.
+
+**A connection whose key or password is missing says so.** A connection naming a key or password
+that is not in the vault - deleted, or never imported - failed in the tab with "Authentication
+failed", which points at the server for something that was never sent to it. The tab now says the
+key or password is not in your vault and to set one in the connection's editor.
 
 **Starting xQuakShell a second time no longer risks losing what you changed in the first.** Two
 copies started from the same folder each opened the vault and saved their own version of it, so
