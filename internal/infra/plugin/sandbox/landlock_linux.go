@@ -134,8 +134,8 @@ type ruleset struct {
 // ever punch holes; there is no deny rule and no way to narrow it again afterwards.
 func newRuleset(abi int) (*ruleset, error) {
 	attr := unix.LandlockRulesetAttr{
-		Access_fs:  handledAccessFS(abi),
-		Access_net: handledAccessNet(abi),
+		Handled_access_fs:  handledAccessFS(abi),
+		Handled_access_net: handledAccessNet(abi),
 	}
 	// The attribute struct grows with the ABI, and this one is whatever the vendored x/sys knows.
 	// Handing an older kernel a longer struct is allowed precisely because the fields it does not
