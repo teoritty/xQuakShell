@@ -87,7 +87,16 @@ func (a *AppAPI) addSyncAccount(dto SyncStatusDTO) (SyncStatusDTO, error) {
 	if err != nil {
 		return dto, err
 	}
-	return withSyncAccount(dto, info, fresh), nil
+	dto = withSyncAccount(dto, info, fresh)
+	// A conflict waits for the person exactly as a held change does, and nothing outside the Sync
+	// page said so: the indicator kept reading "Up to date" over a host two devices disagreed on.
+	// A failed read leaves the count at zero rather than failing the whole status.
+	if a.syncConflicts != nil {
+		if list, err := a.syncConflicts.Described(); err == nil {
+			dto.Conflicts = len(list)
+		}
+	}
+	return dto, nil
 }
 
 // startSync resumes sync after the vault opened. A failure is logged, never fatal: the vault must

@@ -12,6 +12,8 @@ export interface SyncStatus {
   stopReason?: 'signIn' | 'revoked' | 'integrity';
   held: number;
   quarantined: number;
+  /** Credential conflicts waiting for the person to pick a side. */
+  conflicts?: number;
   /** Devices that joined after this one, announced until acknowledged. */
   newDevices?: SyncDevice[];
   serverUrl?: string;

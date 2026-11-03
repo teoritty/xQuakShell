@@ -58,3 +58,27 @@ export function syncStateLabel(status: { state: string; held: number }, t: Trans
   if (status.state === 'idle' && status.held > 0) return t('sync.state.waiting', { count: status.held });
   return t('sync.state.' + status.state);
 }
+
+/** What the top-bar indicator has to say about one status, and whether it asks for the person. */
+export interface SyncChipView {
+  attention: boolean;
+  title: string;
+}
+
+/**
+ * The indicator's colour and tooltip. Every reason it turns red is also named in the tooltip: a red
+ * triangle that read "Up to date" on hover left the person to guess between a new device, a
+ * conflict and a plugin's data, all of which only the Sync page showed.
+ */
+export function syncChipView(
+  status: { state: string; held: number; message?: string; conflicts?: number; newDevices?: unknown[] },
+  pluginNotices: number,
+  t: Translate,
+): SyncChipView {
+  const reasons: string[] = [];
+  if ((status.conflicts ?? 0) > 0) reasons.push(t('sync.chip.conflicts', { count: status.conflicts ?? 0 }));
+  if (status.newDevices?.length) reasons.push(t('sync.chip.newDevice'));
+  if (pluginNotices > 0) reasons.push(t('sync.chip.pluginData'));
+  const attention = status.state === 'stopped' || status.held > 0 || reasons.length > 0;
+  return { attention, title: [status.message || syncStateLabel(status, t), ...reasons].join(' · ') };
+}

@@ -81,6 +81,12 @@ async function run() {
     const st = get(syncStatus);
     assert(st.state === 'failed' && st.message === 'down' && st.held === 1, 'the round is applied');
     assert(st.username === 'alice' && st.enabled, 'the account is kept across round events');
+    // The conflict count rides on the round event; dropping it kept the indicator calm over a
+    // conflict the backend was reporting.
+    applySyncRound({ enabled: true, running: true, state: 'idle', held: 0, quarantined: 0, conflicts: 2 });
+    assert(get(syncStatus).conflicts === 2, 'a round that carries the account side brings the conflict count');
+    applySyncRound({ enabled: false, running: true, state: 'failed', held: 0, quarantined: 0 });
+    assert(get(syncStatus).conflicts === 2, 'a round without the account side keeps the last count');
   }
 
   // Events reach the store through the runtime subscription.

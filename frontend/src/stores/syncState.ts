@@ -31,6 +31,8 @@ export function applySyncRound(round: SyncStatus): void {
     held: round.held,
     quarantined: round.quarantined,
     newDevices: round.enabled ? round.newDevices : cur.newDevices,
+    // Only a round that carried the account side read the conflicts; another keeps the last count.
+    conflicts: round.enabled ? round.conflicts : cur.conflicts,
   }));
 }
 

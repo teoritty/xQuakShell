@@ -51,7 +51,9 @@ async function attempt(fn: () => Promise<unknown>): Promise<string> {
 /** attempt for an action that writes into the vault: the views re-read it afterwards. */
 async function mutate(fn: () => Promise<unknown>): Promise<string> {
   const msg = await attempt(fn);
-  await refreshAfterSync();
+  // The status too: a resolved conflict or a restored item changes what the indicator counts, and
+  // waiting for the next round left it red over a conflict the person had just settled.
+  await Promise.all([refreshAfterSync(), refreshSyncStatus()]);
   return msg;
 }
 

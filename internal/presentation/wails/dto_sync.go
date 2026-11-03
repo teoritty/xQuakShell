@@ -12,12 +12,14 @@ import (
 
 // SyncStatusDTO is the sync indicator and the header of the settings page.
 type SyncStatusDTO struct {
-	Enabled      bool   `json:"enabled"`
-	Running      bool   `json:"running"`
-	State        string `json:"state"`
-	Message      string `json:"message,omitempty"`
-	Held         int    `json:"held"`
-	Quarantined  int    `json:"quarantined"`
+	Enabled     bool   `json:"enabled"`
+	Running     bool   `json:"running"`
+	State       string `json:"state"`
+	Message     string `json:"message,omitempty"`
+	Held        int    `json:"held"`
+	Quarantined int    `json:"quarantined"`
+	// Conflicts counts the credential conflicts waiting for the person to pick a side.
+	Conflicts    int    `json:"conflicts,omitempty"`
 	ServerURL    string `json:"serverUrl,omitempty"`
 	Username     string `json:"username,omitempty"`
 	Fingerprint  string `json:"fingerprint,omitempty"`
