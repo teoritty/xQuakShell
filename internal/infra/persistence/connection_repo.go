@@ -239,6 +239,7 @@ func (r *ConnectionRepo) Save(ctx context.Context, c *domain.Connection) error {
 				return err
 			}
 			c.ID, c.VaultID = uuid.New().String(), vault
+			domain.AdoptPersonalCredentials(data, c, nil)
 			data.Connections = append(data.Connections, *c)
 			return nil
 		}
@@ -248,6 +249,9 @@ func (r *ConnectionRepo) Save(ctx context.Context, c *domain.Connection) error {
 				if err := requireSameVault(data.Folders, c.FolderID, c.VaultID); err != nil {
 					return err
 				}
+				// Here, inside the write, because only here are the connection's id and real vault
+				// known, and the binding and the shared record must land together or not at all.
+				domain.AdoptPersonalCredentials(data, c, &data.Connections[i])
 				data.Connections[i] = *c
 				return nil
 			}
