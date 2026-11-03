@@ -139,6 +139,7 @@ export interface SyncGateway {
   ChangeSyncPassword(oldPassword: string, newPassword: string): Promise<void>;
   ResetSyncPassword(newPassword: string): Promise<void>;
   RevokeSyncDevice(deviceId: string, password: string): Promise<void>;
+  RevokeSyncDeviceReplacingPassword(deviceId: string, password: string, newPassword: string): Promise<void>;
   AcknowledgeSyncDevices(deviceIds: string[]): Promise<void>;
   DisableSync(): Promise<void>;
   SyncNow(): Promise<void>;

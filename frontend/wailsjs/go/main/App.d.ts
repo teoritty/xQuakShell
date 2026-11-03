@@ -327,6 +327,8 @@ export function RestoreSyncTrash(arg1:string):Promise<void>;
 
 export function RevokeSyncDevice(arg1:string,arg2:string):Promise<void>;
 
+export function RevokeSyncDeviceReplacingPassword(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function SaveConnection(arg1:wails.ConnectionDTO):Promise<wails.ConnectionDTO>;
 
 export function SaveFolder(arg1:wails.FolderDTO):Promise<wails.FolderDTO>;

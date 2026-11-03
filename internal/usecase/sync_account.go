@@ -22,6 +22,8 @@ var (
 	ErrSyncAlreadyEnabled = errors.New("sync: already enabled on this vault")
 	// ErrSyncPasswordTooShort is a new sync password below MinSyncPasswordLength characters.
 	ErrSyncPasswordTooShort = errors.New("sync: the sync password is too short")
+	// ErrSyncPasswordUnchanged is a replacement sync password equal to the one it replaces.
+	ErrSyncPasswordUnchanged = errors.New("sync: the new sync password is the current one")
 )
 
 // MinSyncPasswordLength is the floor for a new sync password, in characters. It sits above the

@@ -38,6 +38,7 @@ type SyncCommands interface {
 	ChangePassword(ctx context.Context, old, next []byte) error
 	ResetPassword(ctx context.Context, next []byte) error
 	RevokeDevices(ctx context.Context, devices []vaultsync.ID, password []byte) error
+	RevokeDevicesReplacingPassword(ctx context.Context, devices []vaultsync.ID, old, next []byte) error
 	NewDevices(ctx context.Context) ([]usecase.NewDeviceNotice, error)
 	AcknowledgeNewDevices(ctx context.Context, devices []vaultsync.ID) error
 	Disable(ctx context.Context) error

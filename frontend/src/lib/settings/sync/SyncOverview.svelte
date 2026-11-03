@@ -8,10 +8,11 @@
   import { syncStatus } from '../../../stores/syncState';
   import {
     acknowledgeSyncDevices,
+    changeSyncPassword,
     disableSync,
     joinSync,
     reloginSync,
-    revokeSyncDevice,
+    revokeUnknownSyncDevice,
     syncNow,
   } from '../../../actions/syncActions';
   import { t } from '../../../i18n/messages';
@@ -20,8 +21,13 @@
   let busy = false;
   let error = '';
   let password = '';
+  let newPassword = '';
   let removing = '';
   let confirmDisable = false;
+  // Set after a device nobody recognised was removed without a new password: whoever added it still
+  // knows the current one and can add another device with it, so the change is asked for right here
+  // rather than left to a hint the person may not act on.
+  let changeAfterRemoval = false;
 
   $: stop = $syncStatus.state === 'stopped' ? $syncStatus.stopReason ?? 'integrity' : '';
   $: host = hostOf($syncStatus.serverUrl ?? '');
@@ -38,8 +44,19 @@
     busy = true;
     error = await fn();
     busy = false;
-    password = '';
+    password = newPassword = '';
     if (!error) removing = '';
+  }
+
+  async function removeUnknown(id: string) {
+    const keepsPassword = newPassword === '';
+    await run(() => revokeUnknownSyncDevice(id, password, newPassword));
+    if (!error && keepsPassword) changeAfterRemoval = true;
+  }
+
+  async function changeAfter() {
+    await run(() => changeSyncPassword(password, newPassword));
+    if (!error) changeAfterRemoval = false;
   }
 
   async function disable() {
@@ -105,8 +122,9 @@
       {#if removing === d.id}
         <p class="sync-hint">{$t('security.sync.newDevice.removeHint')}</p>
         <PasswordField bind:value={password} ariaLabel={$t('sync.enable.password')} placeholder={$t('sync.enable.password')} disabled={busy} compact />
+        <PasswordField bind:value={newPassword} ariaLabel={$t('security.sync.newDevice.newPassword')} placeholder={$t('security.sync.newDevice.newPassword')} disabled={busy} compact />
         <div class="sync-actions">
-          <button type="button" class="danger" on:click={() => run(() => revokeSyncDevice(d.id, password))} disabled={busy || !password}>{$t('sync.devices.removeConfirm')}</button>
+          <button type="button" class="danger" on:click={() => removeUnknown(d.id)} disabled={busy || !password}>{$t('sync.devices.removeConfirm')}</button>
           <button type="button" class="secondary" on:click={() => (removing = '')} disabled={busy}>{$t('sync.enable.back')}</button>
         </div>
       {:else}
@@ -117,5 +135,17 @@
       {/if}
     </div>
   {/each}
+
+  {#if changeAfterRemoval}
+    <div class="sync-attention" role="alert">
+      <p>{$t('security.sync.newDevice.changeNow')}</p>
+      <PasswordField bind:value={password} ariaLabel={$t('sync.password.old')} placeholder={$t('sync.password.old')} disabled={busy} compact />
+      <PasswordField bind:value={newPassword} ariaLabel={$t('sync.password.new')} placeholder={$t('sync.password.new')} disabled={busy} compact />
+      <div class="sync-actions">
+        <button type="button" class="primary" on:click={changeAfter} disabled={busy || !password || !newPassword}>{$t('sync.password.change')}</button>
+        <button type="button" class="secondary" on:click={() => (changeAfterRemoval = false)} disabled={busy}>{$t('security.sync.newDevice.later')}</button>
+      </div>
+    </div>
+  {/if}
   <p class="sync-error" role="alert">{error}</p>
 </div>

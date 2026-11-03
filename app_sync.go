@@ -38,6 +38,11 @@ func (a *App) RevokeSyncDevice(deviceID, password string) error {
 	return a.api.RevokeSyncDevice(deviceID, password)
 }
 
+// RevokeSyncDeviceReplacingPassword removes a device and sets a new sync password in one step.
+func (a *App) RevokeSyncDeviceReplacingPassword(deviceID, password, newPassword string) error {
+	return a.api.RevokeSyncDeviceReplacingPassword(deviceID, password, newPassword)
+}
+
 // AcknowledgeSyncDevices clears the notices of devices the user recognised.
 func (a *App) AcknowledgeSyncDevices(deviceIDs []string) error {
 	return a.api.AcknowledgeSyncDevices(deviceIDs)

@@ -1,7 +1,7 @@
 import { get } from 'svelte/store';
 import { setGateway, setRuntime } from '../backend/context';
 import { createFakeGateway } from '../backend/fakeGateway';
-import { enableSync, joinSync, probeSyncServer, refreshSyncStatus, confirmSyncHeld, syncNow, restoreSyncTrash, shredSyncNow } from './syncActions';
+import { enableSync, joinSync, probeSyncServer, refreshSyncStatus, confirmSyncHeld, syncNow, restoreSyncTrash, shredSyncNow, revokeUnknownSyncDevice } from './syncActions';
 import { applySyncRound, offSyncStatus, syncStatus } from '../stores/syncState';
 import { subscribeSyncEvents } from '../events/syncEvents';
 
@@ -117,6 +117,23 @@ async function run() {
     assert(!fake.calls.some((c) => c.method === 'ShredSyncNow'), 'an empty master password never reaches the backend');
     const msg = await shredSyncNow('wrong');
     assert(msg.includes('master password'), 'the backend refusal is returned for the form');
+  }
+
+  // A device nobody recognised: with a new password it is one call that also replaces the password;
+  // without one it is the plain removal, so a stolen device never waits on picking a password.
+  {
+    const fake = createFakeGateway();
+    fake.program('RevokeSyncDevice', undefined);
+    fake.program('RevokeSyncDeviceReplacingPassword', undefined);
+    setGateway(fake);
+    assert((await revokeUnknownSyncDevice('0a', 'old-pw', 'brand new staple')) === '', 'a removal with a new password succeeds');
+    const both = fake.calls.find((c) => c.method === 'RevokeSyncDeviceReplacingPassword');
+    assert(both !== undefined && both.args[0] === '0a' && both.args[1] === 'old-pw' && both.args[2] === 'brand new staple',
+      'the new password travels with the removal, in one rotation');
+    assert(!fake.calls.some((c) => c.method === 'RevokeSyncDevice'), 'not as a second, separate removal');
+    assert((await revokeUnknownSyncDevice('0b', 'old-pw', '')) === '', 'a removal without a new password succeeds');
+    const plain = fake.calls.find((c) => c.method === 'RevokeSyncDevice');
+    assert(plain !== undefined && plain.args[0] === '0b', 'an empty new password removes the device at once, as before');
   }
 
   // Without a gateway nothing throws.

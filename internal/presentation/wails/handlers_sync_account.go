@@ -55,6 +55,19 @@ func (a *AppAPI) RevokeSyncDevice(deviceID, password string) error {
 	return userSyncError(a.sync.RevokeDevices(a.reqCtx(), []vaultsync.ID{id}, []byte(password)))
 }
 
+// RevokeSyncDeviceReplacingPassword removes a device the person does not recognise and sets a new
+// sync password in the same step, so whoever added the device cannot add one again.
+func (a *AppAPI) RevokeSyncDeviceReplacingPassword(deviceID, password, newPassword string) error {
+	if a.sync == nil {
+		return errSyncUnavailable
+	}
+	id, ok := parseSyncID(deviceID)
+	if !ok || password == "" || newPassword == "" {
+		return errInvalidSyncRequest
+	}
+	return userSyncError(a.sync.RevokeDevicesReplacingPassword(a.reqCtx(), []vaultsync.ID{id}, []byte(password), []byte(newPassword)))
+}
+
 // AcknowledgeSyncDevices clears the notices of devices the person recognised as their own.
 func (a *AppAPI) AcknowledgeSyncDevices(deviceIDs []string) error {
 	if a.sync == nil {
@@ -189,6 +202,7 @@ var syncMessages = []struct {
 }{
 	{usecase.ErrSyncLogin, "Wrong username or sync password."},
 	{usecase.ErrSyncPasswordTooShort, "The sync password must be at least 12 characters."},
+	{usecase.ErrSyncPasswordUnchanged, "Choose a new sync password, not the current one."},
 	{synctrust.ErrServerIdentity, "The server's identity does not match the one you confirmed. Nothing was sent to it."},
 	{usecase.ErrSyncDeviceRevoked, "This device was removed from your sync account on another device. Turn sync off here, then connect again if you want this device back."},
 	{synctrust.ErrKeysRotated, "Your account keys were changed on another device - after a password change or a removed device. Sign in again with your sync password."},

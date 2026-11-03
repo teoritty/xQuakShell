@@ -20,6 +20,7 @@ type fakeSync struct {
 	joinNeeded       bool
 	join             usecase.JoinChoice
 	revoked          []vaultsync.ID
+	replacedWith     string
 	acknowledged     []vaultsync.ID
 	newDevices       []usecase.NewDeviceNotice
 	confirmed        vaultsync.ID
@@ -62,6 +63,10 @@ func (f *fakeSync) ChangePassword(context.Context, []byte, []byte) error { retur
 func (f *fakeSync) ResetPassword(context.Context, []byte) error          { return f.err }
 func (f *fakeSync) RevokeDevices(_ context.Context, ids []vaultsync.ID, _ []byte) error {
 	f.revoked = ids
+	return f.err
+}
+func (f *fakeSync) RevokeDevicesReplacingPassword(_ context.Context, ids []vaultsync.ID, _, next []byte) error {
+	f.revoked, f.replacedWith = ids, string(next)
 	return f.err
 }
 func (f *fakeSync) NewDevices(context.Context) ([]usecase.NewDeviceNotice, error) {
@@ -209,6 +214,15 @@ func TestRecordAndDeviceIDsAreValidated(t *testing.T) {
 	}
 	if err := a.RevokeSyncDevice(id, "pw"); err != nil || len(f.revoked) != 1 {
 		t.Fatalf("revoke: %v", err)
+	}
+	for _, args := range [][3]string{{"xyz", "pw", "new-password!"}, {id, "", "new-password!"}, {id, "pw", ""}} {
+		if err := a.RevokeSyncDeviceReplacingPassword(args[0], args[1], args[2]); !errors.Is(err, errInvalidSyncRequest) {
+			t.Errorf("revoke replacing the password with %q: %v, want errInvalidSyncRequest", args, err)
+		}
+	}
+	f.revoked = nil
+	if err := a.RevokeSyncDeviceReplacingPassword(id, "pw", "new-password!"); err != nil || len(f.revoked) != 1 || f.replacedWith != "new-password!" {
+		t.Fatalf("revoke replacing the password: %v, revoked %v, new %q", err, f.revoked, f.replacedWith)
 	}
 }
 
