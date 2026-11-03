@@ -186,7 +186,7 @@ func (s *AuditService) RecordCommand(ctx context.Context, sessionID, line string
 			p := conn.EffectivePort(nil)
 			if h != "" {
 				if p > 0 {
-					host = fmt.Sprintf("%s:%d", h, p)
+					host = domain.HostPort(h, p)
 				} else {
 					host = h
 				}

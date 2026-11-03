@@ -49,6 +49,24 @@ func (s *SyncAccountService) RevokeDevices(ctx context.Context, devices []vaults
 	return s.rotate(ctx, rotation{password: password, newPassword: bytes.Clone(password), revoke: devices})
 }
 
+// RevokeDevicesReplacingPassword removes devices and sets a new sync password in one succession.
+// It is for a device the person does not recognise: whoever added it typed the current password,
+// and a revocation that keeps that password lets them sign a device in again the same minute. One
+// rotation instead of two means the other devices sign in once, with the new password. A new
+// password equal to the current one is refused, because it would close nothing.
+func (s *SyncAccountService) RevokeDevicesReplacingPassword(ctx context.Context, devices []vaultsync.ID, old, next []byte) (SyncSession, error) {
+	err := checkNewSyncPassword(next)
+	if err == nil && bytes.Equal(old, next) {
+		err = ErrSyncPasswordUnchanged
+	}
+	if err != nil {
+		clear(old)
+		clear(next)
+		return SyncSession{}, err
+	}
+	return s.rotate(ctx, rotation{password: old, newPassword: next, revoke: devices})
+}
+
 // ResetPassword sets a new sync password from a device that is still signed in, without the old
 // one (§5.7): the device's key and the account key it holds authorise it.
 func (s *SyncAccountService) ResetPassword(ctx context.Context, next []byte) (SyncSession, error) {

@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
@@ -144,7 +143,7 @@ func (c *DynamicForwardCoordinator) startDynamicRule(ctx context.Context, sf *se
 		}
 	}
 	bindAddr := domain.EffectiveBindAddress(rule.BindAddress)
-	ln, err := net.Listen("tcp", net.JoinHostPort(bindAddr, strconv.Itoa(rule.BindPort)))
+	ln, err := net.Listen("tcp", domain.HostPort(bindAddr, rule.BindPort))
 	if err != nil {
 		return fmt.Errorf("listen dynamic forward %s: %w", rule.ID, err)
 	}

@@ -12,6 +12,8 @@ export interface SyncStatus {
   stopReason?: 'signIn' | 'revoked' | 'integrity';
   held: number;
   quarantined: number;
+  /** Credential conflicts waiting for the person to pick a side. */
+  conflicts?: number;
   /** Devices that joined after this one, announced until acknowledged. */
   newDevices?: SyncDevice[];
   serverUrl?: string;
@@ -137,6 +139,7 @@ export interface SyncGateway {
   ChangeSyncPassword(oldPassword: string, newPassword: string): Promise<void>;
   ResetSyncPassword(newPassword: string): Promise<void>;
   RevokeSyncDevice(deviceId: string, password: string): Promise<void>;
+  RevokeSyncDeviceReplacingPassword(deviceId: string, password: string, newPassword: string): Promise<void>;
   AcknowledgeSyncDevices(deviceIds: string[]): Promise<void>;
   DisableSync(): Promise<void>;
   SyncNow(): Promise<void>;

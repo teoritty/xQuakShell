@@ -1,4 +1,4 @@
-import { conflictFieldLabel, itemLabel, kindLabel, syncStateLabel } from './syncLabels';
+import { conflictFieldLabel, itemLabel, kindLabel, syncChipView, syncStateLabel } from './syncLabels';
 
 function assert(c: boolean, m: string) {
   if (!c) throw new Error(m);
@@ -17,6 +17,10 @@ const pack: Record<string, string> = {
   'sync.state.idle': 'Up to date',
   'sync.state.waiting': 'Up to date, with {count} change(s) waiting for you',
   'sync.state.running': 'Syncing',
+  'sync.state.stopped': 'Sync stopped',
+  'sync.chip.conflicts': '{count} conflict(s) to resolve',
+  'sync.chip.newDevice': 'A new device joined',
+  'sync.chip.pluginData': 'Plugin data changed',
 };
 // The same contract as $t: a template with {vars}, and the key itself when the packs have nothing.
 const t = (key: string, vars?: Record<string, string | number>) =>
@@ -49,3 +53,16 @@ assert(
   'a change waiting for the master password is said, not hidden behind "Up to date"',
 );
 assert(syncStateLabel({ state: 'running', held: 2 }, t) === 'Syncing', 'a running pass says it is running');
+
+const settled = { state: 'idle', held: 0 };
+assert(!syncChipView(settled, 0, t).attention && syncChipView(settled, 0, t).title === 'Up to date',
+  'nothing waiting: a calm indicator that says so');
+const conflicted = syncChipView({ ...settled, conflicts: 1 }, 0, t);
+assert(conflicted.attention, 'a conflict alone turns the indicator red; it used to stay calm until a new device came along');
+assert(conflicted.title === 'Up to date · 1 conflict(s) to resolve', `conflict title = ${conflicted.title}`);
+const all = syncChipView({ ...settled, conflicts: 2, newDevices: [{}] }, 1, t);
+assert(all.title === 'Up to date · 2 conflict(s) to resolve · A new device joined · Plugin data changed',
+  `every reason for the red is named on hover: ${all.title}`);
+assert(syncChipView({ ...settled, held: 1 }, 0, t).attention, 'a held change still asks for the person');
+assert(syncChipView({ state: 'stopped', held: 0, message: 'Removed' }, 0, t).title === 'Removed',
+  'the engine message wins over the state label');

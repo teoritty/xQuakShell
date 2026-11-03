@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"xquakshell/internal/domain"
@@ -387,33 +386,5 @@ func (s *SessionLifecycleService) applyState(entry *sessionEntry, state domain.S
 func (s *SessionLifecycleService) notifyStateChange(info domain.ConnectionSession) {
 	if s.onStateChange != nil {
 		s.onStateChange(info)
-	}
-}
-
-func sshConnectErrorMessage(err error) string {
-	if err == nil {
-		return "Connection failed"
-	}
-	msg := err.Error()
-	switch {
-	// The two key passphrase outcomes are named before the generic prefixes that would also match
-	// them. "Authentication failed" after the user pressed Cancel, or after a typo, sends them
-	// looking at the server's authorized_keys for a problem that is on their side of the dialog.
-	case errors.Is(err, domain.ErrPassphrasePromptCancelled):
-		return "Key passphrase was not entered"
-	case errors.Is(err, domain.ErrKeyPassphraseWrong):
-		return "Wrong key passphrase"
-	// A team connection with no credential of this member's linked never reached the server, so
-	// "Authentication failed" pointed at the server for something only this member can fix.
-	case errors.Is(err, domain.ErrBindingMissing):
-		return "No key or password of yours is linked to this team connection: set one in its editor"
-	case errors.Is(err, domain.ErrBindingSuspended):
-		return "Another member changed this connection's address: confirm it in Settings → Sync before connecting"
-	case strings.HasPrefix(msg, "authentication failed:"):
-		return "Authentication failed"
-	case strings.HasPrefix(msg, "jump chain connection failed:"):
-		return "Jump chain connection failed"
-	default:
-		return "Connection failed"
 	}
 }

@@ -650,6 +650,10 @@ export function RevokeSyncDevice(arg1, arg2) {
   return window['go']['main']['App']['RevokeSyncDevice'](arg1, arg2);
 }
 
+export function RevokeSyncDeviceReplacingPassword(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RevokeSyncDeviceReplacingPassword'](arg1, arg2, arg3);
+}
+
 export function SaveConnection(arg1) {
   return window['go']['main']['App']['SaveConnection'](arg1);
 }

@@ -91,6 +91,13 @@ func (c *SyncController) RevokeDevices(ctx context.Context, devices []vaultsync.
 	return c.replaceSession(ctx, func() (SyncSession, error) { return c.d.Accounts.RevokeDevices(ctx, devices, password) })
 }
 
+// RevokeDevicesReplacingPassword removes devices, sets a new password, and resumes on the new keys.
+func (c *SyncController) RevokeDevicesReplacingPassword(ctx context.Context, devices []vaultsync.ID, old, next []byte) error {
+	return c.replaceSession(ctx, func() (SyncSession, error) {
+		return c.d.Accounts.RevokeDevicesReplacingPassword(ctx, devices, old, next)
+	})
+}
+
 // replaceSession stops the running engine before an operation that replaces the keys - a round
 // on the old keys mid-rotation would race the rotation - and resumes on whatever is stored after,
 // including after a failure that still changed the keys.

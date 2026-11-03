@@ -133,6 +133,49 @@ func TestRevokedDeviceIsLockedOut(t *testing.T) {
 	}
 }
 
+// Whoever added a device the person does not recognise typed the sync password. A revocation that
+// keeps it let them sign a device in again at once; replacing it in the same step closes that.
+func TestRevokingWithANewPasswordShutsTheOldOneOut(t *testing.T) {
+	h, a, b := twoDevices(t)
+	s, err := a.svc.RevokeDevicesReplacingPassword(syncCtx, []vaultsync.ID{b.session.Keys.Device()},
+		[]byte("correct horse"), []byte("brand new staple"))
+	if err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	a.restart(s)
+	a.sync()
+	if _, err := b.engine.Sync(syncCtx, b.session.Personal); err == nil {
+		t.Fatal("the revoked device still syncs")
+	}
+	if _, err := newDevice(t, h, "intruder").svc.Login(syncCtx, creds("correct horse")); !errors.Is(err, usecase.ErrSyncLogin) {
+		t.Fatalf("a new device with the old password: %v, want ErrSyncLogin", err)
+	}
+	c := newDevice(t, h, "tablet")
+	sc, err := c.svc.Login(syncCtx, creds("brand new staple"))
+	if err != nil {
+		t.Fatalf("a new device with the new password: %v", err)
+	}
+	c.start(sc)
+	c.sync()
+	if c.folder("f1") != "Prod" {
+		t.Fatal("the vault is unreadable after the revocation")
+	}
+}
+
+func TestRevokingWithANewPasswordRefusesOneThatClosesNothing(t *testing.T) {
+	_, a, b := twoDevices(t)
+	dev := []vaultsync.ID{b.session.Keys.Device()}
+	if _, err := a.svc.RevokeDevicesReplacingPassword(syncCtx, dev, []byte("correct horse"), []byte("correct horse")); !errors.Is(err, usecase.ErrSyncPasswordUnchanged) {
+		t.Fatalf("the current password as the new one: %v, want ErrSyncPasswordUnchanged", err)
+	}
+	if _, err := a.svc.RevokeDevicesReplacingPassword(syncCtx, dev, []byte("correct horse"), []byte("short")); !errors.Is(err, usecase.ErrSyncPasswordTooShort) {
+		t.Fatalf("a short new password: %v, want ErrSyncPasswordTooShort", err)
+	}
+	if _, err := b.engine.Sync(syncCtx, b.session.Personal); err != nil {
+		t.Fatalf("a refused request revoked the device anyway: %v", err)
+	}
+}
+
 func TestResetPasswordFromASignedInDevice(t *testing.T) {
 	h, a, _ := twoDevices(t)
 	s, err := a.svc.ResetPassword(syncCtx, []byte("brand new staple"))

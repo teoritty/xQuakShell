@@ -8,7 +8,7 @@
   import { vaultUnlocked } from '../stores/appState';
   import { refreshSyncStatus, refreshTeams } from '../actions/syncActions';
   import { t } from '../i18n/messages';
-  import { syncStateLabel } from './settings/sync/syncLabels';
+  import { syncChipView } from './settings/sync/syncLabels';
 
   const dispatch = createEventDispatcher();
 
@@ -21,12 +21,9 @@
 
   // A plugin data conflict also asks for the person: the losing version is in the trash only for the
   // retention window, so it is worth a look before it is gone.
-  $: attention =
-    $syncStatus.state === 'stopped' ||
-    $syncStatus.held > 0 ||
-    !!$syncStatus.newDevices?.length ||
-    $pluginDataNotices.length > 0;
-  $: title = $syncStatus.message || syncStateLabel($syncStatus, $t);
+  $: view = syncChipView($syncStatus, $pluginDataNotices.length, $t);
+  $: attention = view.attention;
+  $: title = view.title;
 </script>
 
 {#if $syncStatus.enabled}

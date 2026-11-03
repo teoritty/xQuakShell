@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
@@ -110,7 +109,7 @@ func (s *TunnelDynamicService) evictPreBindLocal(localConnID string) {
 
 // Dial opens an SSH direct-tcpip channel and stores it under tunnelID.
 func (s *TunnelDynamicService) Dial(ctx context.Context, tunnelID, targetHost string, targetPort int) error {
-	conn, err := s.dialer.OpenDirectTCP(ctx, net.JoinHostPort(targetHost, strconv.Itoa(targetPort)))
+	conn, err := s.dialer.OpenDirectTCP(ctx, domain.HostPort(targetHost, targetPort))
 	if err != nil {
 		return err
 	}

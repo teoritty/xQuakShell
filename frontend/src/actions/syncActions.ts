@@ -15,6 +15,7 @@ import {
   resetSyncPasswordRpc,
   resolveSyncConflictRpc,
   restoreSyncTrashRpc,
+  revokeSyncDeviceReplacingPasswordRpc,
   revokeSyncDeviceRpc,
   shredSyncNowRpc,
   syncNowRpc,
@@ -51,7 +52,9 @@ async function attempt(fn: () => Promise<unknown>): Promise<string> {
 /** attempt for an action that writes into the vault: the views re-read it afterwards. */
 async function mutate(fn: () => Promise<unknown>): Promise<string> {
   const msg = await attempt(fn);
-  await refreshAfterSync();
+  // The status too: a resolved conflict or a restored item changes what the indicator counts, and
+  // waiting for the next round left it red over a conflict the person had just settled.
+  await Promise.all([refreshAfterSync(), refreshSyncStatus()]);
   return msg;
 }
 
@@ -184,6 +187,16 @@ export const reloginSync = (password: string) => attempt(() => reloginSyncRpc(pa
 export const changeSyncPassword = (oldPw: string, newPw: string) => attempt(() => changeSyncPasswordRpc(oldPw, newPw));
 export const resetSyncPassword = (newPw: string) => attempt(() => resetSyncPasswordRpc(newPw));
 export const revokeSyncDevice = (id: string, password: string) => attempt(() => revokeSyncDeviceRpc(id, password));
+
+/**
+ * Removes a device the person does not recognise. With a new password it is one key rotation that
+ * also shuts out whoever added the device; without one the device still goes at once - a stolen
+ * device is never kept waiting on picking a password - and the caller asks for the change after.
+ */
+export function revokeUnknownSyncDevice(id: string, password: string, newPassword: string): Promise<string> {
+  if (newPassword === '') return revokeSyncDevice(id, password);
+  return attempt(() => revokeSyncDeviceReplacingPasswordRpc(id, password, newPassword));
+}
 export const acknowledgeSyncDevices = (ids: string[]) => attempt(() => acknowledgeSyncDevicesRpc(ids));
 export async function disableSync(): Promise<string> {
   const error = await attempt(() => disableSyncRpc());

@@ -51,6 +51,15 @@ export function revokeSyncDeviceRpc(deviceId: string, password: string): Promise
   return callBackend('Remove device', undefined, (app) => app.RevokeSyncDevice(deviceId, password), inline);
 }
 
+export function revokeSyncDeviceReplacingPasswordRpc(deviceId: string, password: string, newPassword: string): Promise<void> {
+  return callBackend(
+    'Remove device',
+    undefined,
+    (app) => app.RevokeSyncDeviceReplacingPassword(deviceId, password, newPassword),
+    inline,
+  );
+}
+
 export function acknowledgeSyncDevicesRpc(deviceIds: string[]): Promise<void> {
   return callBackend('Acknowledge devices', undefined, (app) => app.AcknowledgeSyncDevices(deviceIds), inline);
 }

@@ -117,7 +117,7 @@ func (d *Dialer) Create(ctx context.Context, cfg domain.SSHClientConfig) (domain
 		timeout = defaultTimeoutSeconds * time.Second
 	}
 
-	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+	addr := domain.HostPort(cfg.Host, cfg.Port)
 
 	var authMethods []gossh.AuthMethod
 	if len(cfg.Signers) > 0 {

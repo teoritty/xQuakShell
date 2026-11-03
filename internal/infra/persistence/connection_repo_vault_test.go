@@ -59,6 +59,27 @@ func TestANewItemFollowsItsFolderIntoTheVault(t *testing.T) {
 	}
 }
 
+// The vault that decides is the stored record's, not the payload's: an edit that leaves vaultId out
+// of a team connection must still keep the member's own password out of the record the team gets.
+func TestATeamEditKeepsTheMembersPasswordOutOfTheSharedRecord(t *testing.T) {
+	v, r := teamFixture()
+	v.data.Passwords = map[string]domain.PasswordBlob{"mine": {}}
+	edit := &domain.Connection{ID: "ct", Name: "t", Host: "h", Port: 22, Users: []domain.ConnectionUser{
+		{ID: "u", Username: "deploy", Auth: domain.AuthMethodPassword, PassAuth: &domain.PasswordAuthConfig{VaultRef: "mine"}},
+	}}
+	if err := r.Save(context.Background(), edit); err != nil {
+		t.Fatal(err)
+	}
+	stored := v.data.Connections[1].Users[0]
+	if stored.PassAuth != nil || stored.CredentialSource != domain.CredentialSourcePersonal {
+		t.Fatalf("shared user = %+v, want personal-source with no reference", stored)
+	}
+	if v.data.Sync == nil || len(v.data.Sync.Bindings) != 1 || v.data.Sync.Bindings[0].PasswordID != "mine" ||
+		v.data.Sync.Bindings[0].ConnectionID != "ct" || v.data.Sync.Bindings[0].VaultID != "team" {
+		t.Fatalf("bindings = %+v, want this member's password bound to ct in the team vault, written with the record", v.data.Sync)
+	}
+}
+
 func TestAnItemCannotBePutIntoAFolderOfAnotherVault(t *testing.T) {
 	v, r := teamFixture()
 	ctx := context.Background()

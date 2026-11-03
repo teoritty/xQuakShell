@@ -2422,6 +2422,7 @@ export namespace wails {
 	    message?: string;
 	    held: number;
 	    quarantined: number;
+	    conflicts?: number;
 	    serverUrl?: string;
 	    username?: string;
 	    fingerprint?: string;
@@ -2445,6 +2446,7 @@ export namespace wails {
 	        this.message = source["message"];
 	        this.held = source["held"];
 	        this.quarantined = source["quarantined"];
+	        this.conflicts = source["conflicts"];
 	        this.serverUrl = source["serverUrl"];
 	        this.username = source["username"];
 	        this.fingerprint = source["fingerprint"];
