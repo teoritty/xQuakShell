@@ -170,9 +170,9 @@ leaves forwarding off.
 `net/http`, `net/textproto` and `crypto/tls` (GO-2026-6603, 6605, 6607 to 6613, 6617) - that the
 update check, the plugin catalogue and the embed tunnels reach, and in `crypto/x509`, which still
 trusted a set of compromised intermediate certificates (GO-2026-6809) and is reached by every TLS
-connection the application makes, sync included. The toolchain is now pinned in `go.mod`, so a
+connection the application makes, sync included. `go.mod` now requires Go 1.26.10 itself, so a
 build picks up a patched standard library because the repository says so, not because the build
-machine happened to have one.
+machine happened to have one, and an older compiler fetches it or refuses to build.
 
 **Connecting to a server by its IPv6 address works.** The address and the port were joined without
 brackets, so `2a0f::2` with port 22 became the unparseable `2a0f::2:22`: a direct connection, a jump
