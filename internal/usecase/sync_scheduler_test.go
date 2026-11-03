@@ -3,6 +3,9 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -379,6 +382,38 @@ func TestRateLimitBackoffStaysShort(t *testing.T) {
 	w.timers.fire(ceiling)
 	w.expectSync()
 	w.timers.waitArmed(t, ceiling)
+}
+
+// A server that cannot be reached is asked again at least every 30 s: asking a server that is down
+// costs it nothing, and a five-minute wait showed "Sync failed" long after it was back. The error is
+// wrapped the way syncclient and net/http wrap it.
+func TestAnUnreachableServerIsRetriedSoon(t *testing.T) {
+	refused := fmt.Errorf("syncclient: GET /v1/x: %w", &url.Error{Op: "Get", URL: "https://sync.example",
+		Err: &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}})
+	w := newSchedWorldFailing(t, 0, refused, vaultsync.ID{7})
+	w.expectSync()
+	for _, d := range []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second} {
+		w.timers.waitArmed(t, d)
+		w.timers.fire(d)
+		w.expectSync()
+	}
+	const ceiling = 30 * time.Second // maxUnreachableBackoff
+	w.timers.waitArmed(t, ceiling)
+	w.timers.fire(ceiling)
+	w.expectSync()
+	w.timers.waitArmed(t, ceiling)
+}
+
+// A server that answers with a fault of its own still backs off past the unreachable ceiling.
+func TestAServerFaultBacksOffPastTheUnreachableCeiling(t *testing.T) {
+	w := newSchedWorldFailing(t, 0, errors.New("syncclient: GET /v1/x: status 500"), vaultsync.ID{7})
+	w.expectSync()
+	for _, d := range []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second, 32 * time.Second} {
+		w.timers.waitArmed(t, d)
+		w.timers.fire(d)
+		w.expectSync()
+	}
+	w.timers.waitArmed(t, 64*time.Second)
 }
 
 // A rate-limited vault ends the pass: the other vaults would only spend more of the same limit.

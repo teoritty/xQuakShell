@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"net"
 	"sync"
 	"time"
 
@@ -68,6 +69,20 @@ const maxSyncBackoff = 5 * time.Minute
 // minutes left a team member behind a shared NAT looking at a stale vault long after the limit was
 // gone, until they pressed Sync now. The wait still grows, so clients sharing an address spread out.
 const maxRateLimitBackoff = 30 * time.Second
+
+// maxUnreachableBackoff caps the wait while the server cannot be reached at all: refused, no route,
+// no such host, timed out. Asking a server that is down costs it nothing, and growing to five minutes
+// meant a device noticed a restarted server up to five minutes late, still showing "Sync failed"
+// while the devices that happened to edit something were already in step. A server that answers
+// with a fault of its own still gets the full maxSyncBackoff.
+const maxUnreachableBackoff = 30 * time.Second
+
+// unreachable reports a failure below HTTP: no connection was made, or it broke, so the server never
+// had a request to refuse.
+func unreachable(err error) bool {
+	var op *net.OpError
+	return errors.As(err, &op)
+}
 
 // SyncScheduler decides when to sync: on start, after local edits settle, when the server reports
 // a change, and on a slow periodic fallback. It runs only between Start and Stop, which the caller
@@ -175,6 +190,9 @@ func (s *SyncScheduler) loop(ctx context.Context, events <-chan synctrust.Remote
 func (s *SyncScheduler) runAll(ctx context.Context, stopped map[vaultsync.ID]bool, backoff time.Duration) (<-chan time.Time, time.Duration) {
 	vaults, err := s.d.Vaults(ctx)
 	failed := err != nil
+	// serverFault is a failure the server itself answered with; only then does the wait grow past
+	// maxUnreachableBackoff.
+	serverFault := failed && !unreachable(err)
 	// A failed listing still returns the personal vault to sync, but it is not the account's list:
 	// naming it would tell the controller every team was left. Nil keeps what the controller knows.
 	listed := vaults
@@ -208,11 +226,15 @@ func (s *SyncScheduler) runAll(ctx context.Context, stopped map[vaultsync.ID]boo
 			return s.d.After(next), next
 		default:
 			failed = true
+			serverFault = serverFault || !unreachable(err)
 			report(SyncStatus{Vault: v, State: SyncFailed, Err: err, Report: r})
 		}
 	}
 	if failed {
 		next := nextSyncBackoff(backoff)
+		if !serverFault {
+			next = min(next, maxUnreachableBackoff)
+		}
 		return s.d.After(next), next
 	}
 	return nil, 0
@@ -244,6 +266,11 @@ func (s *SyncScheduler) listen(ctx context.Context, out chan<- synctrust.RemoteE
 			forwardEvents(ctx, ch, out)
 		}
 		backoff = nextSyncBackoff(backoff)
+		// The notification channel is how a device hears that the server is back, so it must not
+		// wait out a long backoff the server's downtime alone built up.
+		if err != nil && unreachable(err) {
+			backoff = min(backoff, maxUnreachableBackoff)
+		}
 		select {
 		case <-ctx.Done():
 			return
